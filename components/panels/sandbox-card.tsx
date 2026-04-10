@@ -1,6 +1,6 @@
 "use client"
 
-import { GitBranch, RefreshCw, Trash2, Loader2, Plus } from "lucide-react"
+import { GitBranch, RefreshCw, Trash2, Loader2, Plus, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { SandboxData } from "@/lib/liveblocks.types"
 
@@ -9,6 +9,7 @@ interface SandboxCardProps {
   onRefresh: (id: string) => void
   onRemove: (id: string) => void
   onAddArtboard: (sandboxId: string) => void
+  onOpenChat: (id: string) => void
 }
 
 const statusColors: Record<SandboxData["status"], string> = {
@@ -24,6 +25,7 @@ export function SandboxCard({
   onRefresh,
   onRemove,
   onAddArtboard,
+  onOpenChat,
 }: SandboxCardProps) {
   const isLoading =
     sandbox.status === "creating" || sandbox.status === "starting"
@@ -51,6 +53,16 @@ export function SandboxCard({
       </div>
 
       <div className="mt-2 flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => onOpenChat(sandbox.id)}
+          disabled={sandbox.status !== "running"}
+          title="AI Assistant"
+        >
+          <Sparkles className="h-3 w-3" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

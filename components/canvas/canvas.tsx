@@ -19,6 +19,7 @@ import { Cursors } from "./cursors"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { Toolbar } from "@/components/panels/toolbar"
 import { SandboxPanel } from "@/components/panels/sandbox-panel"
+import { AgentChat } from "@/components/agent/agent-chat"
 import type { SandboxData } from "@/lib/liveblocks.types"
 import {
   createSandbox as createSandboxAction,
@@ -38,6 +39,7 @@ export function Canvas() {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
+  const [chatSandboxId, setChatSandboxId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const updateMyPresence = useUpdateMyPresence()
 
@@ -83,7 +85,7 @@ export function Canvas() {
     for (const [key, sandbox] of Object.entries(root.sandboxes)) {
       result.push({
         id: key,
-        sandboxId: sandbox.sandboxId,
+        sandboxName: sandbox.sandboxName,
         gitUrl: sandbox.gitUrl,
         branch: sandbox.branch,
         previewDomain: sandbox.previewDomain,
@@ -235,7 +237,7 @@ export function Canvas() {
       const id = nanoid()
       const data: SandboxData = {
         id,
-        sandboxId: "",
+        sandboxName: "",
         gitUrl,
         branch,
         previewDomain: "",
@@ -247,7 +249,7 @@ export function Canvas() {
 
       const result = await createSandboxAction(gitUrl, branch, 3000, env)
       updateSandboxInStorage(id, {
-        sandboxId: result.sandboxId,
+        sandboxName: result.sandboxName,
         previewDomain: result.previewDomain,
         status: result.status === "running" ? "running" : "error",
         error: result.error,
@@ -264,18 +266,18 @@ export function Canvas() {
   const handleRefreshSandbox = useCallback(
     async (id: string) => {
       const sandbox = sandboxes.find((s) => s.id === id)
-      if (!sandbox?.sandboxId) return
+      if (!sandbox?.sandboxName) return
 
       updateSandboxInStorage(id, { status: "starting" })
 
       const result = await restartSandbox(
-        sandbox.sandboxId,
+        sandbox.sandboxName,
         sandbox.gitUrl,
         sandbox.branch,
         sandbox.port,
       )
       updateSandboxInStorage(id, {
-        sandboxId: result.sandboxId,
+        sandboxName: result.sandboxName,
         previewDomain: result.previewDomain || sandbox.previewDomain,
         status: result.status === "running" ? "running" : "error",
         error: result.error,
@@ -291,9 +293,9 @@ export function Canvas() {
     reconnectedRef.current = true
 
     for (const sandbox of sandboxes) {
-      if (!sandbox.sandboxId || sandbox.status === "creating") continue
+      if (!sandbox.sandboxName || sandbox.status === "creating") continue
 
-      reconnectSandbox(sandbox.sandboxId, sandbox.port).then((result) => {
+      reconnectSandbox(sandbox.sandboxName, sandbox.port).then((result) => {
         if (result.status === "running") {
           updateSandboxInStorage(sandbox.id, {
             previewDomain: result.previewDomain,
@@ -430,7 +432,20 @@ export function Canvas() {
         onRefresh={handleRefreshSandbox}
         onRemove={removeSandboxFromStorage}
         onAddArtboard={handleAddArtboardForSandbox}
+        onOpenChat={setChatSandboxId}
       />
+
+      {chatSandboxId && (() => {
+        const sandbox = sandboxes.find((s) => s.id === chatSandboxId)
+        if (!sandbox?.sandboxName) return null
+        return (
+          <AgentChat
+            sandboxName={sandbox.sandboxName}
+            branch={sandbox.branch}
+            onClose={() => setChatSandboxId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

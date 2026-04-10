@@ -34,21 +34,21 @@ function decrypt(data: string): string {
 const PREFIX = "sandbox-env:"
 
 export async function storeEnvVars(
-  sandboxId: string,
+  sandboxName: string,
   env: Record<string, string>,
 ): Promise<void> {
   const encrypted = encrypt(JSON.stringify(env))
-  await redis.set(`${PREFIX}${sandboxId}`, encrypted)
+  await redis.set(`${PREFIX}${sandboxName}`, encrypted)
 }
 
 export async function getEnvVars(
-  sandboxId: string,
+  sandboxName: string,
 ): Promise<Record<string, string> | null> {
-  const data = await redis.get<string>(`${PREFIX}${sandboxId}`)
+  const data = await redis.get<string>(`${PREFIX}${sandboxName}`)
   if (!data) return null
   return JSON.parse(decrypt(data))
 }
 
-export async function deleteEnvVars(sandboxId: string): Promise<void> {
-  await redis.del(`${PREFIX}${sandboxId}`)
+export async function deleteEnvVars(sandboxName: string): Promise<void> {
+  await redis.del(`${PREFIX}${sandboxName}`)
 }
