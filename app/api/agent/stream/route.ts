@@ -1,10 +1,17 @@
+import { after } from "next/server"
 import { auth } from "@clerk/nextjs/server"
+import { Redis } from "@upstash/redis"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
 import { executeCustomTool } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+})
 
 interface RequestBody {
   sandboxName: string
@@ -14,6 +21,106 @@ interface RequestBody {
 
 function encodeSSE(event: AgentStreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`
+}
+
+/**
+ * Safety net: resolve stuck tool calls if the handler died mid-execution.
+ */
+async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
+  const lockKey = `session-recover:${sessionId}`
+  const locked = await redis.set(lockKey, "1", { nx: true, ex: 120 })
+  if (locked !== "OK") return
+
+  const client = getClient()
+  try {
+    const session = await client.beta.sessions.retrieve(sessionId)
+    if (session.status !== "idle") return
+
+    const recent = await client.beta.sessions.events.list(sessionId, {
+      limit: 50,
+      order: "desc",
+    })
+    const idle = recent.data.find((e) => e.type === "session.status_idle")
+    if (
+      idle?.type !== "session.status_idle" ||
+      idle.stop_reason?.type !== "requires_action"
+    ) return
+
+    for (const eid of idle.stop_reason.event_ids) {
+      const tu = recent.data.find(
+        (e) => e.type === "agent.custom_tool_use" && e.id === eid,
+      )
+      let output = "Tool execution was interrupted."
+      if (tu?.type === "agent.custom_tool_use") {
+        try {
+          output = await executeCustomTool(
+            sandboxName,
+            tu.name as CustomToolName,
+            tu.input as Record<string, unknown>,
+          )
+        } catch (e) {
+          output = `Error: ${e instanceof Error ? e.message : String(e)}`
+        }
+      }
+      await client.beta.sessions.events.send(sessionId, {
+        events: [{
+          type: "user.custom_tool_result",
+          custom_tool_use_id: eid,
+          content: [{ type: "text", text: output }],
+        }],
+      })
+    }
+  } finally {
+    await redis.del(lockKey)
+  }
+}
+
+/**
+ * Ensure a session is in idle+end_turn state before sending a new message.
+ */
+async function ensureSessionReady(
+  client: ReturnType<typeof getClient>,
+  sessionId: string,
+  sandboxName: string,
+) {
+  const session = await client.beta.sessions.retrieve(sessionId)
+
+  if (session.status === "terminated") {
+    throw new Error("Session terminated")
+  }
+
+  if (session.status === "idle") {
+    // Could be idle with end_turn (ready) or requires_action (stuck)
+    await resolveStuckToolCalls(sessionId, sandboxName)
+    // After resolving, the session may be running again — wait for idle
+    const updated = await client.beta.sessions.retrieve(sessionId)
+    if (updated.status === "running") {
+      await waitForIdle(client, sessionId)
+    }
+    return
+  }
+
+  if (session.status === "running") {
+    await waitForIdle(client, sessionId)
+    // After idle, check if it needs tool call resolution
+    await resolveStuckToolCalls(sessionId, sandboxName)
+    const updated = await client.beta.sessions.retrieve(sessionId)
+    if (updated.status === "running") {
+      await waitForIdle(client, sessionId)
+    }
+  }
+}
+
+async function waitForIdle(
+  client: ReturnType<typeof getClient>,
+  sessionId: string,
+) {
+  // Poll session status instead of opening a competing stream
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 1000))
+    const s = await client.beta.sessions.retrieve(sessionId)
+    if (s.status === "idle" || s.status === "terminated") return
+  }
 }
 
 export async function POST(req: Request) {
@@ -39,13 +146,11 @@ export async function POST(req: Request) {
       }
 
       try {
-        // Get or create agent and environment
         const [agentId, environmentId] = await Promise.all([
           getOrCreateAgent(),
           getOrCreateEnvironment(),
         ])
 
-        // Create or reuse session
         let sessionId = existingSessionId
         if (!sessionId) {
           const session = await client.beta.sessions.create({
@@ -53,30 +158,60 @@ export async function POST(req: Request) {
             environment_id: environmentId,
           })
           sessionId = session.id
+        } else {
+          // Make sure the session is ready for a new message
+          await ensureSessionReady(client, sessionId, sandboxName)
         }
-        send({ type: "session_id", sessionId })
 
-        // Open the event stream
-        const eventStream = await client.beta.sessions.events.stream(sessionId)
+        send({ type: "session_id", sessionId })
 
         // Send the user message
         await client.beta.sessions.events.send(sessionId, {
-          events: [
-            {
-              type: "user.message",
-              content: [{ type: "text", text: message }],
-            },
-          ],
+          events: [{
+            type: "user.message",
+            content: [{ type: "text", text: message }],
+          }],
         })
 
-        // Track custom tool use events by ID for result routing
+        // Safety net for client disconnect
+        after(() => resolveStuckToolCalls(sessionId!, sandboxName))
+
+        // Stream events. For new sessions this is clean.
+        // For existing sessions, we'll see replayed history — skip until
+        // we see the user.message we just sent, then process everything after.
+        const eventStream = await client.beta.sessions.events.stream(sessionId)
+
         const toolEvents = new Map<
           string,
           { name: string; input: Record<string, unknown> }
         >()
 
-        // Process events
+        let seenOurMessage = !existingSessionId // new sessions: no history to skip
+
         for await (const event of eventStream) {
+          // For existing sessions, skip replayed history until we see
+          // the user.message we just sent
+          if (!seenOurMessage) {
+            if (
+              event.type === "user.message" &&
+              Array.isArray(event.content) &&
+              event.content.some(
+                (b: { type: string; text?: string }) =>
+                  "text" in b && b.text === message,
+              )
+            ) {
+              // This could be an older identical message — track by checking
+              // if the NEXT event after this is for our current turn.
+              // Simplest: just mark the last matching user.message as ours.
+              seenOurMessage = true
+            }
+            continue
+          }
+
+          // Skip the user.message event itself and status_running
+          if (event.type === "user.message") continue
+          if (event.type === "session.status_running") continue
+
           switch (event.type) {
             case "agent.message": {
               for (const block of event.content) {
@@ -98,7 +233,6 @@ export async function POST(req: Request) {
             case "session.status_idle": {
               const stopReason = event.stop_reason
               if (stopReason?.type === "requires_action") {
-                // Execute pending custom tool calls
                 for (const eventId of stopReason.event_ids) {
                   const toolEvent = toolEvents.get(eventId)
                   if (!toolEvent) continue
@@ -114,21 +248,14 @@ export async function POST(req: Request) {
                     output = `Error: ${e instanceof Error ? e.message : String(e)}`
                   }
 
-                  send({
-                    type: "tool_result",
-                    name: toolEvent.name,
-                    output,
-                  })
+                  send({ type: "tool_result", name: toolEvent.name, output })
 
-                  // Send result back to the agent
-                  await client.beta.sessions.events.send(sessionId!, {
-                    events: [
-                      {
-                        type: "user.custom_tool_result",
-                        custom_tool_use_id: eventId,
-                        content: [{ type: "text", text: output }],
-                      },
-                    ],
+                  await client.beta.sessions.events.send(sessionId, {
+                    events: [{
+                      type: "user.custom_tool_result",
+                      custom_tool_use_id: eventId,
+                      content: [{ type: "text", text: output }],
+                    }],
                   })
                 }
               } else if (stopReason?.type === "end_turn") {
@@ -158,7 +285,6 @@ export async function POST(req: Request) {
           }
         }
 
-        // Stream ended without explicit done
         send({ type: "done" })
         controller.close()
       } catch (e) {
@@ -167,7 +293,7 @@ export async function POST(req: Request) {
           message: e instanceof Error ? e.message : String(e),
         })
         send({ type: "done" })
-        controller.close()
+        try { controller.close() } catch { /* already closed */ }
       }
     },
   })

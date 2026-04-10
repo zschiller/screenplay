@@ -42,6 +42,7 @@ export function RoomProviderWrapper({
           color: getRandomColor(),
         }}
         initialStorage={{
+          workspaces: new LiveMap(),
           sandboxes: new LiveMap(),
           artboards: new LiveMap(),
         }}

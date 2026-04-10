@@ -7,7 +7,6 @@ import { useControls } from "react-zoom-pan-pinch"
 
 interface ToolbarProps {
   zoom: number
-  onAddArtboard: () => void
 }
 
 function ZoomControls({ zoom }: { zoom: number }) {
@@ -48,14 +47,9 @@ function ZoomControls({ zoom }: { zoom: number }) {
   )
 }
 
-export function Toolbar({ zoom, onAddArtboard }: ToolbarProps) {
+export function Toolbar({ zoom }: ToolbarProps) {
   return (
     <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-border bg-background/80 px-3 py-1.5 shadow-lg backdrop-blur-sm">
-      <Button variant="ghost" size="sm" onClick={onAddArtboard}>
-        <Plus className="mr-1 h-3.5 w-3.5" />
-        Artboard
-      </Button>
-      <div className="h-4 w-px bg-border" />
       <ZoomControls zoom={zoom} />
     </div>
   )
