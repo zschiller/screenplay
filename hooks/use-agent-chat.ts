@@ -1,18 +1,65 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { AgentMessage, AgentStreamEvent } from "@/lib/agent/types"
 
 interface UseAgentChatOptions {
   sandboxName: string
+  sessionId?: string
+  onSessionId?: (sessionId: string) => void
 }
 
-export function useAgentChat({ sandboxName }: UseAgentChatOptions) {
+async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
+  const res = await fetch(
+    `/api/agent/history?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+  if (!res.ok) return []
+  return res.json()
+}
+
+export function useAgentChat({
+  sandboxName,
+  sessionId: initialSessionId,
+  onSessionId,
+}: UseAgentChatOptions) {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
+  const sessionIdRef = useRef<string | null>(initialSessionId ?? null)
   const abortRef = useRef<AbortController | null>(null)
+  const historyLoadedRef = useRef(false)
+  const isStreamingRef = useRef(false)
+
+  // Load history on mount
+  useEffect(() => {
+    if (historyLoadedRef.current || !initialSessionId) return
+    historyLoadedRef.current = true
+    sessionIdRef.current = initialSessionId
+
+    setIsLoadingHistory(true)
+    fetchHistory(initialSessionId)
+      .then((history) => {
+        if (history.length > 0) setMessages(history)
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingHistory(false))
+  }, [initialSessionId])
+
+  // Poll for updates from other clients every 3s when not streaming
+  useEffect(() => {
+    const sid = initialSessionId
+    if (!sid) return
+
+    const interval = setInterval(() => {
+      if (isStreamingRef.current) return
+      fetchHistory(sid).then((history) => {
+        if (history.length > 0) setMessages(history)
+      }).catch(() => {})
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [initialSessionId])
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -21,6 +68,7 @@ export function useAgentChat({ sandboxName }: UseAgentChatOptions) {
       setError(null)
       setMessages((prev) => [...prev, { role: "user", content: text }])
       setIsStreaming(true)
+      isStreamingRef.current = true
 
       const abort = new AbortController()
       abortRef.current = abort
@@ -72,6 +120,7 @@ export function useAgentChat({ sandboxName }: UseAgentChatOptions) {
             switch (event.type) {
               case "session_id":
                 sessionIdRef.current = event.sessionId
+                onSessionId?.(event.sessionId)
                 break
 
               case "text":
@@ -92,7 +141,6 @@ export function useAgentChat({ sandboxName }: UseAgentChatOptions) {
                 break
 
               case "tool_use":
-                // Reset assistant text accumulator for next text block
                 assistantText = ""
                 setMessages((prev) => [
                   ...prev,
@@ -136,28 +184,33 @@ export function useAgentChat({ sandboxName }: UseAgentChatOptions) {
         }
       } finally {
         setIsStreaming(false)
+        isStreamingRef.current = false
         abortRef.current = null
       }
     },
-    [sandboxName, isStreaming],
+    [sandboxName, isStreaming, onSessionId],
   )
 
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort()
     setIsStreaming(false)
+    isStreamingRef.current = false
   }, [])
 
   const resetConversation = useCallback(() => {
     abortRef.current?.abort()
     setMessages([])
     setIsStreaming(false)
+    isStreamingRef.current = false
     setError(null)
     sessionIdRef.current = null
-  }, [])
+    onSessionId?.("")
+  }, [onSessionId])
 
   return {
     messages,
     isStreaming,
+    isLoadingHistory,
     error,
     sendMessage,
     stopGeneration,

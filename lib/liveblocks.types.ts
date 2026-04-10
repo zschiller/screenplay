@@ -17,8 +17,22 @@ export type SandboxStatus =
   | "error"
   | "stopped"
 
-export type SandboxData = {
+export type WorkspaceData = {
   id: string
+  repoFullName: string
+  repoOwner: string
+  repoName: string
+  defaultBranch: string
+  cloneUrl: string
+  setupScript: string
+  devScript: string
+  envVars: string
+  createdAt: number
+}
+
+export type AgentData = {
+  id: string
+  workspaceId: string
   sandboxName: string
   gitUrl: string
   branch: string
@@ -27,6 +41,7 @@ export type SandboxData = {
   status: SandboxStatus
   error?: string
   createdAt: number
+  sessionId?: string
 }
 
 export type ArtboardData = {
@@ -42,7 +57,8 @@ export type ArtboardData = {
 }
 
 export type Storage = {
-  sandboxes: LiveMap<string, LiveObject<SandboxData>>
+  workspaces: LiveMap<string, LiveObject<WorkspaceData>>
+  sandboxes: LiveMap<string, LiveObject<AgentData>>
   artboards: LiveMap<string, LiveObject<ArtboardData>>
 }
 

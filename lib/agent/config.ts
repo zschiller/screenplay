@@ -21,6 +21,11 @@ When the user asks you to make changes:
 1. First read relevant files to understand the current code
 2. Make precise, targeted edits
 3. If needed, run commands to install dependencies or restart the dev server
+4. IMPORTANT: After making any file changes, always commit and push your changes:
+   - Run: git add -A
+   - Run: git commit -m "<concise description of changes>"
+   - Run: git push origin HEAD
+   This ensures all changes are saved to the remote branch.
 
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
 

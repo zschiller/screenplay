@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  X,
   Send,
   Square,
   Loader2,
@@ -15,17 +14,24 @@ import { AgentMessageItem } from "./agent-message"
 interface AgentChatProps {
   sandboxName: string
   branch: string
-  onClose: () => void
+  sessionId?: string
+  onSessionId?: (sessionId: string) => void
 }
 
-export function AgentChat({ sandboxName, branch, onClose }: AgentChatProps) {
+export function AgentChat({
+  sandboxName,
+  branch,
+  sessionId,
+  onSessionId,
+}: AgentChatProps) {
   const {
     messages,
     isStreaming,
+    isLoadingHistory,
     sendMessage,
     stopGeneration,
     resetConversation,
-  } = useAgentChat({ sandboxName })
+  } = useAgentChat({ sandboxName, sessionId, onSessionId })
 
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -67,7 +73,7 @@ export function AgentChat({ sandboxName, branch, onClose }: AgentChatProps) {
   )
 
   return (
-    <div className="fixed left-0 top-0 z-50 flex h-full w-96 flex-col border-r border-border bg-background/95 backdrop-blur-sm">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
@@ -86,20 +92,16 @@ export function AgentChat({ sandboxName, branch, onClose }: AgentChatProps) {
           >
             <RotateCcw className="h-3 w-3" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3">
-        {messages.length === 0 ? (
+        {isLoadingHistory ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-center text-xs text-muted-foreground">
               Ask the AI to make changes to your app.
