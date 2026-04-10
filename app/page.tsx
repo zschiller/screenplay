@@ -1,19 +1,39 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { nanoid } from "nanoid"
+import { useAuth, SignInButton, UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 
 export default function Page() {
+  const router = useRouter()
+  const { isSignedIn, isLoaded } = useAuth()
+
+  const handleCreateRoom = () => {
+    const roomId = nanoid(10)
+    router.push(`/${roomId}`)
+  }
+
+  if (!isLoaded) return null
+
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6">
+      <h1 className="text-2xl font-medium">Screenplay</h1>
+      <p className="max-w-md text-center text-sm text-muted-foreground">
+        Design UI on an infinite canvas. Each artboard runs a live sandbox.
+        Collaborate in real time.
+      </p>
+
+      {isSignedIn ? (
+        <div className="flex items-center gap-4">
+          <Button onClick={handleCreateRoom}>Create Room</Button>
+          <UserButton />
         </div>
-        <div className="font-mono text-xs text-muted-foreground">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
+      ) : (
+        <SignInButton mode="modal">
+          <Button>Sign in to get started</Button>
+        </SignInButton>
+      )}
     </div>
   )
 }
