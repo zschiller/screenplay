@@ -2,13 +2,16 @@
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { Sandbox } from "@vercel/sandbox"
+import { nanoid } from "nanoid"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 
 // 5 hours in ms (max for Pro plan)
 const SANDBOX_TIMEOUT = 5 * 60 * 60 * 1000
+// 7 days in ms
+const SNAPSHOT_EXPIRATION = 7 * 24 * 60 * 60 * 1000
 
 export interface SandboxResult {
-  sandboxId: string
+  sandboxName: string
   previewDomain: string
   status: "running" | "error"
   error?: string
@@ -24,7 +27,6 @@ async function getGitHubToken(): Promise<string | null> {
   return token ?? null
 }
 
-
 export async function createSandbox(
   gitUrl: string,
   branch: string,
@@ -33,9 +35,10 @@ export async function createSandbox(
 ): Promise<SandboxResult> {
   try {
     const ghToken = await getGitHubToken()
-    const safeEnv = env
+    const name = `sp-${nanoid(10)}`
 
     const sandbox = await Sandbox.create({
+      name,
       source: ghToken
         ? {
             type: "git",
@@ -53,12 +56,13 @@ export async function createSandbox(
           },
       ports: [port],
       timeout: SANDBOX_TIMEOUT,
-      ...(safeEnv && Object.keys(safeEnv).length > 0 ? { env: safeEnv } : {}),
+      snapshotExpiration: SNAPSHOT_EXPIRATION,
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
     })
 
     // Persist env vars encrypted in Redis for restarts
     if (env && Object.keys(env).length > 0) {
-      await storeEnvVars(sandbox.sandboxId, env)
+      await storeEnvVars(sandbox.name, env)
     }
 
     await sandbox.runCommand("npm", ["install"])
@@ -70,13 +74,13 @@ export async function createSandbox(
     })
 
     return {
-      sandboxId: sandbox.sandboxId,
+      sandboxName: sandbox.name,
       previewDomain: sandbox.domain(port),
       status: "running",
     }
   } catch (e) {
     return {
-      sandboxId: "",
+      sandboxName: "",
       previewDomain: "",
       status: "error",
       error: e instanceof Error ? e.message : String(e),
@@ -85,27 +89,27 @@ export async function createSandbox(
 }
 
 export async function reconnectSandbox(
-  sandboxId: string,
+  sandboxName: string,
   port: number = 3000,
 ): Promise<SandboxResult> {
   try {
-    const sandbox = await Sandbox.get({ sandboxId })
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     if (sandbox.status === "running") {
       return {
-        sandboxId: sandbox.sandboxId,
+        sandboxName: sandbox.name,
         previewDomain: sandbox.domain(port),
         status: "running",
       }
     }
     return {
-      sandboxId,
+      sandboxName,
       previewDomain: "",
       status: "error",
       error: `Sandbox is ${sandbox.status}`,
     }
   } catch (e) {
     return {
-      sandboxId,
+      sandboxName,
       previewDomain: "",
       status: "error",
       error: e instanceof Error ? e.message : String(e),
@@ -114,87 +118,38 @@ export async function reconnectSandbox(
 }
 
 /**
- * Try to restart an existing sandbox. If it's stopped/failed,
- * create a fresh one from the same git source.
+ * Restart a persistent sandbox. Auto-resume handles stopped sandboxes —
+ * no need to recreate from scratch.
  */
 export async function restartSandbox(
-  sandboxId: string,
+  sandboxName: string,
   gitUrl: string,
   branch: string,
   port: number = 3000,
 ): Promise<SandboxResult> {
   try {
-    const ghToken = await getGitHubToken()
-    const safeEnv = await getEnvVars(sandboxId)
+    const safeEnv = await getEnvVars(sandboxName)
 
-    // Check if old sandbox is still alive
-    let sandbox: Awaited<ReturnType<typeof Sandbox.get>> | null = null
-    try {
-      sandbox = await Sandbox.get({ sandboxId })
-    } catch {
-      // sandbox gone, will recreate
-    }
+    // Sandbox.get auto-resumes stopped persistent sandboxes
+    const sandbox = await Sandbox.get({ name: sandboxName })
 
-    if (sandbox && sandbox.status === "running") {
-      // Still running — just pull latest and restart dev server
-      await sandbox.runCommand("git", ["pull", "origin", branch])
-      await sandbox.runCommand("npm", ["install"])
-      await sandbox.runCommand({
-        cmd: "npm",
-        args: ["run", "dev"],
-        detached: true,
-        ...(safeEnv ? { env: safeEnv } : {}),
-      })
-      return {
-        sandboxId: sandbox.sandboxId,
-        previewDomain: sandbox.domain(port),
-        status: "running",
-      }
-    }
-
-    // Sandbox is stopped/failed/gone — create a fresh one
-    const newSandbox = await Sandbox.create({
-      source: ghToken
-        ? {
-            type: "git",
-            url: gitUrl,
-            revision: branch,
-            depth: 1,
-            username: "x-access-token",
-            password: ghToken,
-          }
-        : {
-            type: "git",
-            url: gitUrl,
-            revision: branch,
-            depth: 1,
-          },
-      ports: [port],
-      timeout: SANDBOX_TIMEOUT,
-      ...(safeEnv && Object.keys(safeEnv).length > 0 ? { env: safeEnv } : {}),
-    })
-
-    // Migrate env vars to new sandbox ID
-    if (safeEnv) {
-      await deleteEnvVars(sandboxId)
-      await storeEnvVars(newSandbox.sandboxId, safeEnv)
-    }
-
-    await newSandbox.runCommand("npm", ["install"])
-    await newSandbox.runCommand({
+    await sandbox.runCommand("git", ["pull", "origin", branch])
+    await sandbox.runCommand("npm", ["install"])
+    await sandbox.runCommand({
       cmd: "npm",
       args: ["run", "dev"],
       detached: true,
+      ...(safeEnv ? { env: safeEnv } : {}),
     })
 
     return {
-      sandboxId: newSandbox.sandboxId,
-      previewDomain: newSandbox.domain(port),
+      sandboxName: sandbox.name,
+      previewDomain: sandbox.domain(port),
       status: "running",
     }
   } catch (e) {
     return {
-      sandboxId,
+      sandboxName,
       previewDomain: "",
       status: "error",
       error: e instanceof Error ? e.message : String(e),
@@ -202,6 +157,6 @@ export async function restartSandbox(
   }
 }
 
-export async function removeSandboxEnv(sandboxId: string): Promise<void> {
-  await deleteEnvVars(sandboxId)
+export async function removeSandboxEnv(sandboxName: string): Promise<void> {
+  await deleteEnvVars(sandboxName)
 }
