@@ -11,18 +11,17 @@ import { LiveObject } from "@liveblocks/client"
 import {
   useMutation,
   useStorage,
-  useSelf,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
 import { Artboard } from "./artboard"
 import { Cursors } from "./cursors"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { Toolbar } from "@/components/panels/toolbar"
-import { SandboxPanel } from "@/components/panels/sandbox-panel"
-import { AgentChat } from "@/components/agent/agent-chat"
-import type { SandboxData } from "@/lib/liveblocks.types"
+import { AgentSidebar } from "@/components/panels/agent-sidebar"
+import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { GitHubRepo } from "@/lib/github-actions"
 import {
-  createSandbox as createSandboxAction,
+  createAgentSandbox,
   restartSandbox,
   reconnectSandbox,
 } from "@/lib/sandbox-actions"
@@ -39,7 +38,6 @@ export function Canvas() {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
-  const [chatSandboxId, setChatSandboxId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const updateMyPresence = useUpdateMyPresence()
 
@@ -80,32 +78,53 @@ export function Canvas() {
     return result
   })
 
-  const sandboxes = useStorage((root) => {
-    const result: SandboxData[] = []
-    for (const [key, sandbox] of Object.entries(root.sandboxes)) {
+  const workspaces = useStorage((root) => {
+    const result: WorkspaceData[] = []
+    for (const [key, ws] of Object.entries(root.workspaces)) {
       result.push({
         id: key,
-        sandboxName: sandbox.sandboxName,
-        gitUrl: sandbox.gitUrl,
-        branch: sandbox.branch,
-        previewDomain: sandbox.previewDomain,
-        port: sandbox.port,
-        status: sandbox.status,
-        error: sandbox.error,
-        createdAt: sandbox.createdAt,
+        repoFullName: ws.repoFullName,
+        repoOwner: ws.repoOwner,
+        repoName: ws.repoName,
+        defaultBranch: ws.defaultBranch,
+        cloneUrl: ws.cloneUrl,
+        setupScript: ws.setupScript ?? "",
+        devScript: ws.devScript ?? "",
+        envVars: ws.envVars ?? "",
+        createdAt: ws.createdAt,
       })
     }
     return result
   })
 
-  const sandboxDomains = useStorage((root) => {
+  const agents = useStorage((root) => {
+    const result: AgentData[] = []
+    for (const [key, agent] of Object.entries(root.sandboxes)) {
+      result.push({
+        id: key,
+        workspaceId: agent.workspaceId ?? "",
+        sandboxName: agent.sandboxName,
+        gitUrl: agent.gitUrl,
+        branch: agent.branch,
+        previewDomain: agent.previewDomain,
+        port: agent.port,
+        status: agent.status,
+        error: agent.error,
+        createdAt: agent.createdAt,
+        sessionId: agent.sessionId,
+      })
+    }
+    return result
+  })
+
+  const agentDomains = useStorage((root) => {
     const domains: Record<string, { previewDomain: string; branch: string }> =
       {}
-    for (const [key, sandbox] of Object.entries(root.sandboxes)) {
-      if (sandbox.previewDomain) {
+    for (const [key, agent] of Object.entries(root.sandboxes)) {
+      if (agent.previewDomain) {
         domains[key] = {
-          previewDomain: sandbox.previewDomain,
-          branch: sandbox.branch,
+          previewDomain: agent.previewDomain,
+          branch: agent.branch,
         }
       }
     }
@@ -127,12 +146,61 @@ export function Canvas() {
     return { cx, cy }
   }, [])
 
+  // --- Workspace mutations ---
+
+  const addWorkspaceToStorage = useMutation(
+    ({ storage }, id: string, data: WorkspaceData) => {
+      storage.get("workspaces").set(id, new LiveObject(data))
+    },
+    [],
+  )
+
+  const updateWorkspaceInStorage = useMutation(
+    ({ storage }, id: string, data: Partial<WorkspaceData>) => {
+      const ws = storage.get("workspaces").get(id)
+      if (ws) {
+        for (const [key, value] of Object.entries(data)) {
+          ws.set(key as keyof WorkspaceData, value as never)
+        }
+      }
+    },
+    [],
+  )
+
+  const removeWorkspaceFromStorage = useMutation(
+    ({ storage }, id: string) => {
+      storage.get("workspaces").delete(id)
+      // Remove all agents and their artboards for this workspace
+      const agentsMap = storage.get("sandboxes")
+      const artboardsMap = storage.get("artboards")
+      const agentIds: string[] = []
+      agentsMap.forEach((agent, key) => {
+        if (agent.get("workspaceId") === id) {
+          agentIds.push(key)
+        }
+      })
+      for (const agentId of agentIds) {
+        agentsMap.delete(agentId)
+        const toDelete: string[] = []
+        artboardsMap.forEach((artboard, key) => {
+          if (artboard.get("sandboxId") === agentId) {
+            toDelete.push(key)
+          }
+        })
+        toDelete.forEach((key) => artboardsMap.delete(key))
+      }
+    },
+    [],
+  )
+
+  // --- Artboard mutations ---
+
   const addArtboard = useMutation(
-    ({ storage }, sandboxId: string, label: string) => {
+    ({ storage }, agentId: string, label: string) => {
       const { cx, cy } = getViewportCenter()
       const artboardsMap = storage.get("artboards")
       const existing = Array.from(artboardsMap.values()).filter(
-        (a) => a.get("sandboxId") === sandboxId,
+        (a) => a.get("sandboxId") === agentId,
       )
       const offset = existing.length * 40
       const id = nanoid()
@@ -140,7 +208,7 @@ export function Canvas() {
         id,
         new LiveObject({
           id,
-          sandboxId,
+          sandboxId: agentId,
           x: cx - DEFAULT_ARTBOARD_WIDTH / 2 + offset,
           y: cy - DEFAULT_ARTBOARD_HEIGHT / 2 + offset,
           width: DEFAULT_ARTBOARD_WIDTH,
@@ -178,29 +246,30 @@ export function Canvas() {
     [],
   )
 
-  const updateSandboxInStorage = useMutation(
-    ({ storage }, id: string, data: Partial<SandboxData>) => {
-      const sandbox = storage.get("sandboxes").get(id)
-      if (sandbox) {
+  // --- Agent mutations ---
+
+  const updateAgentInStorage = useMutation(
+    ({ storage }, id: string, data: Partial<AgentData>) => {
+      const agent = storage.get("sandboxes").get(id)
+      if (agent) {
         for (const [key, value] of Object.entries(data)) {
-          sandbox.set(key as keyof SandboxData, value as never)
+          agent.set(key as keyof AgentData, value as never)
         }
       }
     },
     [],
   )
 
-  const addSandboxToStorage = useMutation(
-    ({ storage }, id: string, data: SandboxData) => {
+  const addAgentToStorage = useMutation(
+    ({ storage }, id: string, data: AgentData) => {
       storage.get("sandboxes").set(id, new LiveObject(data))
     },
     [],
   )
 
-  const removeSandboxFromStorage = useMutation(
+  const removeAgentFromStorage = useMutation(
     ({ storage }, id: string) => {
       storage.get("sandboxes").delete(id)
-      // Remove all artboards for this sandbox
       const artboardsMap = storage.get("artboards")
       const toDelete: string[] = []
       artboardsMap.forEach((artboard, key) => {
@@ -213,110 +282,198 @@ export function Canvas() {
     [],
   )
 
-  const handleAddArtboard = useCallback(() => {
-    addArtboard("", `Screen ${artboards.length + 1}`)
-  }, [addArtboard, artboards.length])
+  // --- Handlers ---
 
-  const handleAddArtboardForSandbox = useCallback(
-    (sandboxLocalId: string) => {
-      const sandbox = sandboxes.find((s) => s.id === sandboxLocalId)
-      if (!sandbox || sandbox.status !== "running") return
+  const handleAddArtboardForAgent = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent || agent.status !== "running") return
       const existing = artboards.filter(
-        (a) => a.sandboxId === sandboxLocalId,
+        (a) => a.sandboxId === agentId,
       )
       addArtboard(
-        sandboxLocalId,
-        `${sandbox.branch} — Screen ${existing.length + 1}`,
+        agentId,
+        `${agent.branch} — Screen ${existing.length + 1}`,
       )
     },
-    [sandboxes, artboards, addArtboard],
+    [agents, artboards, addArtboard],
   )
 
-  const handleCreateSandbox = useCallback(
-    async (gitUrl: string, branch: string, env?: Record<string, string>) => {
+  const handleCreateWorkspace = useCallback(
+    (repo: GitHubRepo) => {
       const id = nanoid()
-      const data: SandboxData = {
+      const data: WorkspaceData = {
         id,
-        sandboxName: "",
-        gitUrl,
+        repoFullName: repo.fullName,
+        repoOwner: repo.owner,
+        repoName: repo.name,
+        defaultBranch: repo.defaultBranch,
+        cloneUrl: repo.cloneUrl,
+        setupScript: "",
+        devScript: "",
+        envVars: "",
+        createdAt: Date.now(),
+      }
+      addWorkspaceToStorage(id, data)
+    },
+    [addWorkspaceToStorage],
+  )
+
+  const handleCreateAgent = useCallback(
+    async (workspaceId: string) => {
+      const workspace = workspaces.find((w) => w.id === workspaceId)
+      if (!workspace) return
+
+      // Generate names client-side so they survive page reloads
+      const id = nanoid()
+      const sandboxName = `sp-${nanoid(10)}`
+      const branch = `screenplay/agent-${nanoid(8)}`
+
+      const data: AgentData = {
+        id,
+        workspaceId,
+        sandboxName,
+        gitUrl: workspace.cloneUrl,
         branch,
         previewDomain: "",
         port: 3000,
         status: "creating",
         createdAt: Date.now(),
       }
-      addSandboxToStorage(id, data)
+      addAgentToStorage(id, data)
 
-      const result = await createSandboxAction(gitUrl, branch, 3000, env)
-      updateSandboxInStorage(id, {
-        sandboxName: result.sandboxName,
+      const result = await createAgentSandbox(sandboxName, branch, workspace)
+      updateAgentInStorage(id, {
         previewDomain: result.previewDomain,
         status: result.status === "running" ? "running" : "error",
         error: result.error,
       })
 
-      // Auto-create an artboard when sandbox starts running
       if (result.status === "running") {
         addArtboard(id, `${branch} — Screen 1`)
       }
     },
-    [addSandboxToStorage, updateSandboxInStorage, addArtboard],
+    [workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
   )
 
-  const handleRefreshSandbox = useCallback(
-    async (id: string) => {
-      const sandbox = sandboxes.find((s) => s.id === id)
-      if (!sandbox?.sandboxName) return
+  const handleForkAgent = useCallback(
+    async (agentId: string) => {
+      const sourceAgent = agents.find((a) => a.id === agentId)
+      if (!sourceAgent?.branch) return
 
-      updateSandboxInStorage(id, { status: "starting" })
+      const workspace = workspaces.find((w) => w.id === sourceAgent.workspaceId)
+      if (!workspace) return
+
+      const id = nanoid()
+      const sandboxName = `sp-${nanoid(10)}`
+      const branch = `screenplay/agent-${nanoid(8)}`
+
+      const data: AgentData = {
+        id,
+        workspaceId: sourceAgent.workspaceId,
+        sandboxName,
+        gitUrl: sourceAgent.gitUrl,
+        branch,
+        previewDomain: "",
+        port: 3000,
+        status: "creating",
+        createdAt: Date.now(),
+      }
+      addAgentToStorage(id, data)
+
+      const result = await createAgentSandbox(
+        sandboxName,
+        branch,
+        workspace,
+        sourceAgent.branch,
+      )
+      updateAgentInStorage(id, {
+        previewDomain: result.previewDomain,
+        status: result.status === "running" ? "running" : "error",
+        error: result.error,
+      })
+
+      if (result.status === "running") {
+        addArtboard(id, `${branch} — Screen 1`)
+      }
+    },
+    [agents, workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
+  )
+
+  const handleRefreshAgent = useCallback(
+    async (id: string) => {
+      const agent = agents.find((a) => a.id === id)
+      if (!agent?.sandboxName) return
+
+      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+
+      updateAgentInStorage(id, { status: "starting" })
 
       const result = await restartSandbox(
-        sandbox.sandboxName,
-        sandbox.gitUrl,
-        sandbox.branch,
-        sandbox.port,
+        agent.sandboxName,
+        agent.gitUrl,
+        agent.branch,
+        agent.port,
+        workspace?.setupScript,
+        workspace?.devScript,
       )
-      updateSandboxInStorage(id, {
+      updateAgentInStorage(id, {
         sandboxName: result.sandboxName,
-        previewDomain: result.previewDomain || sandbox.previewDomain,
+        previewDomain: result.previewDomain || agent.previewDomain,
         status: result.status === "running" ? "running" : "error",
         error: result.error,
       })
     },
-    [sandboxes, updateSandboxInStorage],
+    [agents, workspaces, updateAgentInStorage],
   )
 
-  // Reconnect sandboxes on mount — check if they're still alive
+  // Reconnect agents on mount — check if they're still alive,
+  // including agents that were mid-creation when the page was reloaded
   const reconnectedRef = useRef(false)
   useEffect(() => {
-    if (reconnectedRef.current || sandboxes.length === 0) return
+    if (reconnectedRef.current || agents.length === 0) return
     reconnectedRef.current = true
 
-    for (const sandbox of sandboxes) {
-      if (!sandbox.sandboxName || sandbox.status === "creating") continue
+    for (const agent of agents) {
+      if (!agent.sandboxName) continue
 
-      reconnectSandbox(sandbox.sandboxName, sandbox.port).then((result) => {
+      reconnectSandbox(agent.sandboxName, agent.port).then((result) => {
         if (result.status === "running") {
-          updateSandboxInStorage(sandbox.id, {
+          updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
             status: "running",
           })
+          // If this was a creating agent that finished while we were away,
+          // make sure it has at least one artboard
+          if (agent.status === "creating") {
+            const hasArtboards = artboards.some(
+              (a) => a.sandboxId === agent.id,
+            )
+            if (!hasArtboards) {
+              addArtboard(agent.id, `${agent.branch} — Screen 1`)
+            }
+          }
+        } else if (agent.status === "creating") {
+          // Still creating or failed — sandbox not ready yet
+          updateAgentInStorage(agent.id, {
+            status: "error",
+            error: "Creation interrupted — remove and try again",
+          })
         } else {
-          updateSandboxInStorage(sandbox.id, {
+          updateAgentInStorage(agent.id, {
             status: "stopped",
             error: "Sandbox stopped — click refresh to restart",
           })
         }
       })
     }
-  }, [sandboxes, updateSandboxInStorage])
+  }, [agents, artboards, updateAgentInStorage, addArtboard])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       const ref = transformRef.current
       if (!ref) return
       const { positionX, positionY, scale } = ref.state
-      // Convert screen coords to canvas-space
       const canvasX = (e.clientX - positionX) / scale
       const canvasY = (e.clientY - positionY) / scale
       updateMyPresence({ cursor: { x: canvasX, y: canvasY } })
@@ -400,14 +557,14 @@ export function Canvas() {
             </svg>
 
             {artboards.map((artboard) => {
-              const sandboxInfo = sandboxDomains[artboard.sandboxId]
+              const agentInfo = agentDomains[artboard.sandboxId]
               return (
                 <Artboard
                   key={artboard.id}
                   artboard={{
                     ...artboard,
-                    iframeUrl: sandboxInfo?.previewDomain,
-                    branch: sandboxInfo?.branch,
+                    iframeUrl: agentInfo?.previewDomain,
+                    branch: agentInfo?.branch,
                   }}
                   zoom={zoom}
                   focused={focusedArtboardId === artboard.id}
@@ -421,31 +578,24 @@ export function Canvas() {
           </div>
         </TransformComponent>
 
-        <Toolbar zoom={zoom} onAddArtboard={handleAddArtboard} />
+        <Toolbar zoom={zoom} />
       </TransformWrapper>
 
       <Cursors viewport={{ ...viewportPos, zoom }} />
 
-      <SandboxPanel
-        sandboxes={sandboxes}
-        onCreateSandbox={handleCreateSandbox}
-        onRefresh={handleRefreshSandbox}
-        onRemove={removeSandboxFromStorage}
-        onAddArtboard={handleAddArtboardForSandbox}
-        onOpenChat={setChatSandboxId}
+      <AgentSidebar
+        workspaces={workspaces}
+        agents={agents}
+        onCreateWorkspace={handleCreateWorkspace}
+        onUpdateWorkspace={updateWorkspaceInStorage}
+        onRemoveWorkspace={removeWorkspaceFromStorage}
+        onCreateAgent={handleCreateAgent}
+        onForkAgent={handleForkAgent}
+        onRefreshAgent={handleRefreshAgent}
+        onRemoveAgent={removeAgentFromStorage}
+        onAddArtboard={handleAddArtboardForAgent}
+        onUpdateAgent={updateAgentInStorage}
       />
-
-      {chatSandboxId && (() => {
-        const sandbox = sandboxes.find((s) => s.id === chatSandboxId)
-        if (!sandbox?.sandboxName) return null
-        return (
-          <AgentChat
-            sandboxName={sandbox.sandboxName}
-            branch={sandbox.branch}
-            onClose={() => setChatSandboxId(null)}
-          />
-        )
-      })()}
     </div>
   )
 }

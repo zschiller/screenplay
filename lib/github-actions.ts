@@ -67,6 +67,66 @@ export interface GitHubBranch {
   name: string
 }
 
+export async function createBranch(
+  owner: string,
+  repo: string,
+  newBranchName: string,
+  fromBranch: string,
+): Promise<{ success: boolean; error?: string }> {
+  const { userId } = await auth()
+  if (!userId) return { success: false, error: "Not authenticated" }
+
+  const client = await clerkClient()
+  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
+  const token = tokens.data?.[0]?.token
+  if (!token) return { success: false, error: "No GitHub token" }
+
+  // Get the SHA of the source branch
+  const refRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    },
+  )
+
+  if (!refRes.ok) {
+    return { success: false, error: `Failed to get ref for ${fromBranch}` }
+  }
+
+  const refData = await refRes.json()
+  const sha = refData.object.sha
+
+  // Create the new branch
+  const createRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ref: `refs/heads/${newBranchName}`,
+        sha,
+      }),
+    },
+  )
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}))
+    return {
+      success: false,
+      error: err.message || `Failed to create branch ${newBranchName}`,
+    }
+  }
+
+  return { success: true }
+}
+
 export async function listRepoBranches(
   owner: string,
   repo: string,
