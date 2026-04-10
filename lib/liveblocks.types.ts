@@ -19,7 +19,7 @@ export type SandboxStatus =
 
 export type SandboxData = {
   id: string
-  sandboxId: string
+  sandboxName: string
   gitUrl: string
   branch: string
   previewDomain: string

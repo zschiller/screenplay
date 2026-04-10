@@ -26,6 +26,7 @@ interface SandboxPanelProps {
   onRefresh: (id: string) => void
   onRemove: (id: string) => void
   onAddArtboard: (sandboxId: string) => void
+  onOpenChat: (id: string) => void
 }
 
 export function SandboxPanel({
@@ -34,6 +35,7 @@ export function SandboxPanel({
   onRefresh,
   onRemove,
   onAddArtboard,
+  onOpenChat,
 }: SandboxPanelProps) {
   const [open, setOpen] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
@@ -74,6 +76,7 @@ export function SandboxPanel({
               onRefresh={onRefresh}
               onRemove={onRemove}
               onAddArtboard={onAddArtboard}
+              onOpenChat={onOpenChat}
             />
           ))}
         </div>

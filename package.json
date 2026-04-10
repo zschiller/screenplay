@@ -12,12 +12,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.87.0",
     "@clerk/nextjs": "^7.0.12",
     "@liveblocks/client": "^3.18.0",
     "@liveblocks/node": "^3.18.0",
     "@liveblocks/react": "^3.18.0",
     "@upstash/redis": "^1.37.0",
-    "@vercel/sandbox": "^1.9.3",
+    "@vercel/sandbox": "^2.0.0-beta.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
