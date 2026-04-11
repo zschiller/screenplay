@@ -103,6 +103,7 @@ export function Artboard({
       <ArtboardLabel
         label={artboard.label}
         branch={artboard.branch}
+        sandboxId={artboard.sandboxId}
         onClose={() => onRemove(artboard.id)}
       />
       <button

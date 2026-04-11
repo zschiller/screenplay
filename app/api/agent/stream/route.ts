@@ -15,6 +15,7 @@ const redis = new Redis({
 
 interface RequestBody {
   sandboxName: string
+  branch: string
   message: string
   sessionId?: string
 }
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
   }
 
   const body: RequestBody = await req.json()
-  const { sandboxName, message, sessionId: existingSessionId } = body
+  const { sandboxName, branch, message, sessionId: existingSessionId } = body
 
   if (!sandboxName || !message) {
     return new Response("Missing sandboxName or message", { status: 400 })
@@ -165,7 +166,9 @@ export async function POST(req: Request) {
 
         send({ type: "session_id", sessionId })
 
-        // For new sessions, generate a descriptive branch name before streaming
+        // For new sessions, generate a descriptive branch name before streaming.
+        // Track the effective branch so the agent context uses the renamed one.
+        let effectiveBranch = branch
         if (!existingSessionId) {
           try {
             const nameRes = await client.messages.create({
@@ -178,6 +181,7 @@ export async function POST(req: Request) {
               ? nameRes.content[0].text.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
               : ""
             if (rawName.length >= 3 && rawName.length <= 50) {
+              effectiveBranch = rawName
               send({ type: "branch_rename", branch: rawName })
             }
           } catch (e) {
@@ -185,11 +189,16 @@ export async function POST(req: Request) {
           }
         }
 
+        // On first message, prepend branch context so the agent knows which branch it's on
+        const userText = !existingSessionId && effectiveBranch
+          ? `[System context: You are working on git branch "${effectiveBranch}". Always push to this branch.]\n\n${message}`
+          : message
+
         // Send the user message and capture the event ID for matching
         const sendResult = await client.beta.sessions.events.send(sessionId, {
           events: [{
             type: "user.message",
-            content: [{ type: "text", text: message }],
+            content: [{ type: "text", text: userText }],
           }],
         })
         const ourMessageId = sendResult.data?.[0]?.id

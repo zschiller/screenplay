@@ -363,10 +363,13 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 
 /**
  * Step 3: Configure git auth and identity so the agent can push commits.
+ * Also ensures we're on the correct branch (not detached HEAD) since
+ * Sandbox.create with revision may leave HEAD detached.
  */
 export async function configureAgentGit(
   sandboxName: string,
   workspace: WorkspaceData,
+  branch: string,
 ): Promise<{ success: boolean; error?: string }> {
   const ghToken = await getGitHubToken()
   if (!ghToken) {
@@ -374,6 +377,11 @@ export async function configureAgentGit(
   }
 
   const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+
+  // Ensure we're on the actual branch, not a detached HEAD.
+  // Sandbox.create with `revision` may check out the commit directly.
+  await sandbox.runCommand("git", ["checkout", "-B", branch])
+  await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
 
   const setUrl = await sandbox.runCommand("git", [
     "remote",

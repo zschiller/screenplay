@@ -5,6 +5,7 @@ import type { AgentMessage, AgentStreamEvent } from "@/lib/agent/types"
 
 interface UseAgentChatOptions {
   sandboxName: string
+  branch: string
   sessionId?: string
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
@@ -20,6 +21,7 @@ async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
 
 export function useAgentChat({
   sandboxName,
+  branch,
   sessionId: initialSessionId,
   onSessionId,
   onBranchRename,
@@ -81,6 +83,7 @@ export function useAgentChat({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sandboxName,
+            branch,
             message: text,
             sessionId: sessionIdRef.current,
           }),
@@ -194,7 +197,7 @@ export function useAgentChat({
         abortRef.current = null
       }
     },
-    [sandboxName, isStreaming, onSessionId, onBranchRename],
+    [sandboxName, branch, isStreaming, onSessionId, onBranchRename],
   )
 
   const stopGeneration = useCallback(() => {
