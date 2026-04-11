@@ -39,6 +39,7 @@ export type AgentData = {
   previewDomain: string
   port: number
   status: SandboxStatus
+  statusMessage?: string
   error?: string
   createdAt: number
   sessionId?: string

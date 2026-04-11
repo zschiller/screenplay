@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, useTransition } from "react"
 import {
   Plus,
   PanelLeftClose,
-  PanelLeft,
   Search,
   Lock,
   Loader2,
@@ -15,13 +14,14 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AgentCard } from "./agent-card"
-import { AgentChat } from "@/components/agent/agent-chat"
 import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
+  selectedAgentId: string | null
+  onSelectAgent: (id: string | null) => void
   onCreateWorkspace: (repo: GitHubRepo) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
   onRemoveWorkspace: (id: string) => void
@@ -31,11 +31,14 @@ interface AgentSidebarProps {
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
+  onClose: () => void
 }
 
 export function AgentSidebar({
   workspaces,
   agents,
+  selectedAgentId,
+  onSelectAgent,
   onCreateWorkspace,
   onUpdateWorkspace,
   onRemoveWorkspace,
@@ -45,14 +48,11 @@ export function AgentSidebar({
   onRemoveAgent,
   onAddArtboard,
   onUpdateAgent,
+  onClose,
 }: AgentSidebarProps) {
-  const [open, setOpen] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set())
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
-
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
 
   const toggleWorkspace = useCallback((id: string) => {
     setCollapsedWorkspaces((prev) => {
@@ -63,21 +63,8 @@ export function AgentSidebar({
     })
   }, [])
 
-  if (!open) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed left-4 top-4 z-50 h-8 w-8 bg-background/80 shadow-sm backdrop-blur-sm"
-        onClick={() => setOpen(true)}
-      >
-        <PanelLeft className="h-4 w-4" />
-      </Button>
-    )
-  }
-
   return (
-    <div className="fixed left-0 top-0 z-50 flex h-full w-96 flex-col border-r border-border bg-background/95 backdrop-blur-sm">
+    <div className="flex h-full flex-col bg-background/95 backdrop-blur-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-medium">Workspaces</span>
@@ -95,15 +82,15 @@ export function AgentSidebar({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => setOpen(false)}
+            onClick={onClose}
           >
             <PanelLeftClose className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* Workspace list */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Workspace list — click empty space to deselect */}
+      <div className="flex-1 overflow-y-auto" onClick={() => onSelectAgent(null)}>
         <div className="p-3 space-y-1">
           {workspaces
             .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
@@ -117,7 +104,7 @@ export function AgentSidebar({
               return (
                 <div key={workspace.id}>
                   {/* Workspace header */}
-                  <div className="flex w-full items-center gap-1">
+                  <div className="flex w-full items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       className="flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-muted/50 min-w-0"
@@ -180,13 +167,10 @@ export function AgentSidebar({
                           key={agent.id}
                           agent={agent}
                           selected={selectedAgentId === agent.id}
-                          onSelect={setSelectedAgentId}
+                          onSelect={onSelectAgent}
                           onFork={onForkAgent}
                           onRefresh={onRefreshAgent}
-                          onRemove={(id) => {
-                            if (selectedAgentId === id) setSelectedAgentId(null)
-                            onRemoveAgent(id)
-                          }}
+                          onRemove={onRemoveAgent}
                           onAddArtboard={onAddArtboard}
                         />
                       ))}
@@ -218,21 +202,6 @@ export function AgentSidebar({
           )}
         </div>
       </div>
-
-      {/* Inline chat for selected agent */}
-      {selectedAgent?.sandboxName && (
-        <div className="flex-1 min-h-0 border-t border-border">
-          <AgentChat
-            key={selectedAgent.id}
-            sandboxName={selectedAgent.sandboxName}
-            branch={selectedAgent.branch}
-            sessionId={selectedAgent.sessionId}
-            onSessionId={(sid) =>
-              onUpdateAgent(selectedAgent.id, { sessionId: sid || undefined })
-            }
-          />
-        </div>
-      )}
     </div>
   )
 }

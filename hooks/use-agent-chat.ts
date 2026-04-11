@@ -7,6 +7,7 @@ interface UseAgentChatOptions {
   sandboxName: string
   sessionId?: string
   onSessionId?: (sessionId: string) => void
+  onBranchRename?: (branch: string) => void
 }
 
 async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
@@ -21,6 +22,7 @@ export function useAgentChat({
   sandboxName,
   sessionId: initialSessionId,
   onSessionId,
+  onBranchRename,
 }: UseAgentChatOptions) {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -124,7 +126,7 @@ export function useAgentChat({
                 break
 
               case "text":
-                assistantText += event.text
+                assistantText = event.text
                 setMessages((prev) => {
                   const last = prev[prev.length - 1]
                   if (last?.role === "assistant") {
@@ -163,6 +165,10 @@ export function useAgentChat({
                 ])
                 break
 
+              case "branch_rename":
+                onBranchRename?.(event.branch)
+                break
+
               case "error":
                 setError(event.message)
                 setMessages((prev) => [
@@ -188,7 +194,7 @@ export function useAgentChat({
         abortRef.current = null
       }
     },
-    [sandboxName, isStreaming, onSessionId],
+    [sandboxName, isStreaming, onSessionId, onBranchRename],
   )
 
   const stopGeneration = useCallback(() => {

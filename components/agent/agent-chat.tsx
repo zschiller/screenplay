@@ -16,6 +16,7 @@ interface AgentChatProps {
   branch: string
   sessionId?: string
   onSessionId?: (sessionId: string) => void
+  onBranchRename?: (branch: string) => void
 }
 
 export function AgentChat({
@@ -23,6 +24,7 @@ export function AgentChat({
   branch,
   sessionId,
   onSessionId,
+  onBranchRename,
 }: AgentChatProps) {
   const {
     messages,
@@ -31,7 +33,7 @@ export function AgentChat({
     sendMessage,
     stopGeneration,
     resetConversation,
-  } = useAgentChat({ sandboxName, sessionId, onSessionId })
+  } = useAgentChat({ sandboxName, sessionId, onSessionId, onBranchRename })
 
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)

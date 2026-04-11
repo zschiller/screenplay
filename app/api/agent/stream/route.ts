@@ -165,13 +165,34 @@ export async function POST(req: Request) {
 
         send({ type: "session_id", sessionId })
 
-        // Send the user message
-        await client.beta.sessions.events.send(sessionId, {
+        // For new sessions, generate a descriptive branch name before streaming
+        if (!existingSessionId) {
+          try {
+            const nameRes = await client.messages.create({
+              model: "claude-sonnet-4-6",
+              max_tokens: 30,
+              system: "Generate a short, lowercase, hyphenated git branch name (2-4 words) that describes the user's request. Output ONLY the branch name with no explanation, backticks, or quotes. Examples: fix-login-button, add-dark-mode, update-nav-links",
+              messages: [{ role: "user", content: message }],
+            })
+            const rawName = nameRes.content[0]?.type === "text"
+              ? nameRes.content[0].text.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+              : ""
+            if (rawName.length >= 3 && rawName.length <= 50) {
+              send({ type: "branch_rename", branch: rawName })
+            }
+          } catch (e) {
+            console.error("Branch rename generation failed:", e)
+          }
+        }
+
+        // Send the user message and capture the event ID for matching
+        const sendResult = await client.beta.sessions.events.send(sessionId, {
           events: [{
             type: "user.message",
             content: [{ type: "text", text: message }],
           }],
         })
+        const ourMessageId = sendResult.data?.[0]?.id
 
         // Safety net for client disconnect
         after(() => resolveStuckToolCalls(sessionId!, sandboxName))
@@ -190,19 +211,13 @@ export async function POST(req: Request) {
 
         for await (const event of eventStream) {
           // For existing sessions, skip replayed history until we see
-          // the user.message we just sent
+          // the user.message we just sent (matched by event ID)
           if (!seenOurMessage) {
             if (
               event.type === "user.message" &&
-              Array.isArray(event.content) &&
-              event.content.some(
-                (b: { type: string; text?: string }) =>
-                  "text" in b && b.text === message,
-              )
+              ourMessageId &&
+              event.id === ourMessageId
             ) {
-              // This could be an older identical message — track by checking
-              // if the NEXT event after this is for our current turn.
-              // Simplest: just mark the last matching user.message as ours.
               seenOurMessage = true
             }
             continue
@@ -214,10 +229,14 @@ export async function POST(req: Request) {
 
           switch (event.type) {
             case "agent.message": {
+              let text = ""
               for (const block of event.content) {
                 if ("text" in block) {
-                  send({ type: "text", text: block.text })
+                  text += block.text
                 }
+              }
+              if (text) {
+                send({ type: "text", text })
               }
               break
             }

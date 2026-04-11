@@ -44,4 +44,5 @@ export type AgentStreamEvent =
   | { type: "tool_result"; name: string; output: string }
   | { type: "status"; status: string }
   | { type: "error"; message: string }
+  | { type: "branch_rename"; branch: string }
   | { type: "done" }

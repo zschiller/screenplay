@@ -3,7 +3,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server"
 import { Sandbox } from "@vercel/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
-import { createBranch } from "./github-actions"
+import { createBranch, renameBranch } from "./github-actions"
 import type { WorkspaceData } from "./liveblocks.types"
 
 // 5 hours in ms (max for Pro plan)
@@ -48,15 +48,16 @@ function parseEnvVars(text: string): Record<string, string> {
   return env
 }
 
-export async function createSandbox(
+/**
+ * Clone a repo into a new sandbox. Returns the sandbox name on success.
+ */
+export async function cloneSandbox(
   sandboxName: string,
   gitUrl: string,
   branch: string,
   port: number = 3000,
   env?: Record<string, string>,
-  setupScript?: string,
-  devScript?: string,
-): Promise<SandboxResult> {
+): Promise<{ success: true; sandboxName: string } | { success: false; error: string }> {
   try {
     const ghToken = await getGitHubToken()
 
@@ -81,17 +82,44 @@ export async function createSandbox(
       ...(env && Object.keys(env).length > 0 ? { env } : {}),
     })
 
-    // Persist env vars encrypted in Redis for restarts
     if (env && Object.keys(env).length > 0) {
       await storeEnvVars(sandbox.name, env)
     }
 
-    // Run setup script (defaults to npm install)
+    return { success: true, sandboxName: sandbox.name }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Run the setup script (e.g. npm install) in an existing sandbox.
+ */
+export async function installDependencies(
+  sandboxName: string,
+  setupScript?: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     await sandbox.runCommand(setupCmd, setupArgs)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
 
-    // Run dev script (defaults to npm run dev)
+/**
+ * Start the dev server in an existing sandbox. Returns the preview domain.
+ */
+export async function startDevServer(
+  sandboxName: string,
+  port: number = 3000,
+  devScript?: string,
+): Promise<SandboxResult> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const dev = devScript?.trim() || "npm run dev"
     const [devCmd, ...devArgs] = dev.split(/\s+/)
     await sandbox.runCommand({
@@ -99,7 +127,6 @@ export async function createSandbox(
       args: devArgs,
       detached: true,
     })
-
     return {
       sandboxName: sandbox.name,
       previewDomain: sandbox.domain(port),
@@ -112,6 +139,31 @@ export async function createSandbox(
       status: "error",
       error: e instanceof Error ? e.message : String(e),
     }
+  }
+}
+
+/**
+ * Check if a sandbox preview URL is responding with real content.
+ * The sandbox proxy may return 200 with an empty/placeholder page before
+ * the dev server is actually listening, so we verify the body has content.
+ */
+export async function probeSandboxUrl(
+  url: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+      headers: { Accept: "text/html" },
+    })
+    if (!res.ok) return false
+    const body = await res.text()
+    // A real dev server response will contain HTML markup.
+    // Proxy placeholders / blank pages won't have a <body> or <div> tag.
+    return body.includes("<body") || body.includes("<div")
+  } catch {
+    return false
   }
 }
 
@@ -192,55 +244,133 @@ export async function restartSandbox(
   }
 }
 
+/**
+ * Fork a sandbox by snapshotting it and creating a new sandbox from that snapshot.
+ * Preserves the full filesystem (uncommitted changes, node_modules, etc.).
+ */
+export async function forkSandbox(
+  sourceSandboxName: string,
+  newSandboxName: string,
+  newBranch: string,
+  port: number = 3000,
+  devScript?: string,
+  env?: Record<string, string>,
+): Promise<SandboxResult> {
+  try {
+    const source = await Sandbox.get({ name: sourceSandboxName, resume: false })
+    const snap = await source.snapshot()
+
+    // Resume the source sandbox and restart its dev server (snapshot stopped it)
+    const sourceEnv = await getEnvVars(sourceSandboxName)
+    const resumedSource = await Sandbox.get({ name: sourceSandboxName })
+    const dev = devScript?.trim() || "npm run dev"
+    const [devCmd, ...devArgs] = dev.split(/\s+/)
+    await resumedSource.runCommand({
+      cmd: devCmd,
+      args: devArgs,
+      detached: true,
+      ...(sourceEnv ? { env: sourceEnv } : {}),
+    })
+
+    // Create new sandbox from snapshot
+    const sandbox = await Sandbox.create({
+      name: newSandboxName,
+      source: { type: "snapshot", snapshotId: snap.snapshotId },
+      ports: [port],
+      timeout: SANDBOX_TIMEOUT,
+      snapshotExpiration: SNAPSHOT_EXPIRATION,
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
+    })
+
+    // Switch to the new branch
+    await sandbox.runCommand("git", ["checkout", "-b", newBranch])
+
+    if (env && Object.keys(env).length > 0) {
+      await storeEnvVars(sandbox.name, env)
+    }
+
+    return {
+      sandboxName: sandbox.name,
+      previewDomain: sandbox.domain(port),
+      status: "running",
+    }
+  } catch (e) {
+    return {
+      sandboxName: newSandboxName,
+      previewDomain: "",
+      status: "error",
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
 export async function removeSandboxEnv(sandboxName: string): Promise<void> {
   await deleteEnvVars(sandboxName)
 }
 
-export async function createAgentSandbox(
-  sandboxName: string,
-  branchName: string,
+/**
+ * Step 1: Create a Git branch on GitHub for the agent.
+ */
+export async function createAgentBranch(
   workspace: WorkspaceData,
+  branchName: string,
   fromBranch?: string,
-): Promise<SandboxResult> {
-  // Create branch on GitHub — fork from an existing agent's branch or the default
-  const branchResult = await createBranch(
+): Promise<{ success: boolean; error?: string }> {
+  return createBranch(
     workspace.repoOwner,
     workspace.repoName,
     branchName,
     fromBranch || workspace.defaultBranch,
   )
+}
 
-  if (!branchResult.success) {
-    return {
-      sandboxName,
-      previewDomain: "",
-      status: "error",
-      error: branchResult.error || "Failed to create branch",
-    }
+/**
+ * Rename a branch in the sandbox and on GitHub (if it exists remotely).
+ */
+export async function renameAgentBranch(
+  workspace: WorkspaceData,
+  sandboxName: string,
+  oldBranch: string,
+  newBranch: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Rename locally in the sandbox first — this always works
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    await sandbox.runCommand("git", ["branch", "-m", newBranch])
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
   }
 
-  // Parse env vars from workspace config
-  const env = parseEnvVars(workspace.envVars)
-
-  // Create sandbox on the new branch with workspace config
-  const result = await createSandbox(
-    sandboxName,
-    workspace.cloneUrl,
-    branchName,
-    3000,
-    Object.keys(env).length > 0 ? env : undefined,
-    workspace.setupScript,
-    workspace.devScript,
+  // Attempt GitHub rename — may not exist remotely yet (e.g. forked sandboxes)
+  const result = await renameBranch(
+    workspace.repoOwner,
+    workspace.repoName,
+    oldBranch,
+    newBranch,
   )
-
-  if (result.status !== "running") {
-    return result
+  if (!result.success) {
+    // Branch doesn't exist on GitHub yet — that's fine, it'll be pushed with the new name
+    console.log(`GitHub branch rename skipped (${result.error}), will push as ${newBranch}`)
   }
 
-  // Configure git auth and identity so the agent can push
+  return { success: true }
+}
+
+function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefined {
+  const env = parseEnvVars(envVarsText)
+  return Object.keys(env).length > 0 ? env : undefined
+}
+
+/**
+ * Step 3: Configure git auth and identity so the agent can push commits.
+ */
+export async function configureAgentGit(
+  sandboxName: string,
+  workspace: WorkspaceData,
+): Promise<void> {
   try {
     const ghToken = await getGitHubToken()
-    const sandbox = await Sandbox.get({ name: result.sandboxName, resume: false })
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
 
     if (ghToken) {
       await sandbox.runCommand("git", [
@@ -252,9 +382,9 @@ export async function createAgentSandbox(
     }
     await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
     await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
+    // Set push default so bare `git push` works without upstream tracking
+    await sandbox.runCommand("git", ["config", "push.default", "current"])
   } catch {
     // Non-fatal — agent may not be able to push but sandbox still works
   }
-
-  return result
 }
