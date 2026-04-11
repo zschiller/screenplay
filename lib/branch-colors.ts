@@ -60,9 +60,9 @@ function djb2(str: string): number {
 }
 
 /**
- * Return the color entry for a branch name.
+ * Return the color entry for a given key (e.g. sandbox ID or branch name).
  * Pure function – same input always yields the same output (SSR-safe).
  */
-export function getBranchColor(branch: string): BranchColor {
-  return BRANCH_COLORS[djb2(branch) % BRANCH_COLORS.length]
+export function getBranchColor(key: string): BranchColor {
+  return BRANCH_COLORS[djb2(key) % BRANCH_COLORS.length]
 }

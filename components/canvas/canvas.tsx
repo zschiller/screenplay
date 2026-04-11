@@ -437,7 +437,7 @@ export function Canvas() {
 
       // Step 5: Configure git
       updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace)
+      const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace, branch)
       if (!gitResult.success) {
         updateAgentInStorage(id, {
           status: "error",
@@ -532,7 +532,7 @@ export function Canvas() {
 
       // Step 4: Configure git
       updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      const gitResult = await configureAgentGit(forkResult.sandboxName, workspace)
+      const gitResult = await configureAgentGit(forkResult.sandboxName, workspace, branch)
       if (!gitResult.success) {
         updateAgentInStorage(id, {
           status: "error",
@@ -679,7 +679,7 @@ export function Canvas() {
   useEffect(() => {
     const panel = chatPanelRef.current
     if (!panel) return
-    if (chatOpen) panel.expand()
+    if (chatOpen) panel.resize(480)
     else panel.collapse()
   }, [chatOpen])
 
@@ -723,7 +723,7 @@ export function Canvas() {
         <ResizablePanel
           id="chat"
           panelRef={chatPanelRef}
-          defaultSize={chatOpen ? 380 : 0}
+          defaultSize={chatOpen ? 480 : 0}
           minSize={280}
           collapsible
           collapsedSize={0}
@@ -732,6 +732,7 @@ export function Canvas() {
           {selectedAgent?.sandboxName && (
             <AgentChat
               key={selectedAgent.id}
+              sandboxId={selectedAgent.id}
               sandboxName={selectedAgent.sandboxName}
               branch={selectedAgent.branch}
               sessionId={selectedAgent.sessionId}

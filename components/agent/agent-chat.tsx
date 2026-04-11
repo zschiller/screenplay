@@ -5,7 +5,6 @@ import {
   Send,
   Square,
   Loader2,
-  RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BranchBadge } from "@/components/branch-badge"
@@ -13,6 +12,7 @@ import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 
 interface AgentChatProps {
+  sandboxId: string
   sandboxName: string
   branch: string
   sessionId?: string
@@ -21,6 +21,7 @@ interface AgentChatProps {
 }
 
 export function AgentChat({
+  sandboxId,
   sandboxName,
   branch,
   sessionId,
@@ -33,8 +34,7 @@ export function AgentChat({
     isLoadingHistory,
     sendMessage,
     stopGeneration,
-    resetConversation,
-  } = useAgentChat({ sandboxName, sessionId, onSessionId, onBranchRename })
+  } = useAgentChat({ sandboxName, branch, sessionId, onSessionId, onBranchRename })
 
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -81,18 +81,7 @@ export function AgentChat({
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
           <span className="text-xs font-medium">AI Assistant</span>
-          <BranchBadge branch={branch} className="ml-1 text-[10px] py-0 px-1.5" />
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={resetConversation}
-            title="New conversation"
-          >
-            <RotateCcw className="h-3 w-3" />
-          </Button>
+          <BranchBadge branch={branch} colorKey={sandboxId} className="ml-1 text-[10px] py-0 px-1.5" />
         </div>
       </div>
 

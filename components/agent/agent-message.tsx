@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Markdown from "react-markdown"
 import {
   ChevronDown,
   FileText,
@@ -77,8 +78,8 @@ export function AgentMessageItem({ message }: { message: AgentMessage }) {
     case "assistant":
       return (
         <div className="flex justify-start">
-          <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-muted px-3 py-2 text-xs">
-            {message.content}
+          <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-xs prose prose-xs prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-[10px] prose-pre:bg-background prose-pre:border prose-pre:border-border max-w-none">
+            <Markdown>{message.content}</Markdown>
           </div>
         </div>
       )
