@@ -1,7 +1,8 @@
 "use client"
 
-import { GitBranch, GitFork, RefreshCw, Trash2, Loader2, Plus } from "lucide-react"
+import { GitFork, RefreshCw, Trash2, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData } from "@/lib/liveblocks.types"
 
 interface AgentCardProps {
@@ -48,10 +49,11 @@ export function AgentCard({
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${statusColors[agent.status]}`}
           />
-          <div className="flex items-center gap-1 truncate font-mono text-xs">
-            <GitBranch className="h-3 w-3 shrink-0 text-muted-foreground" />
-            <span className="truncate">{agent.branch || "creating..."}</span>
-          </div>
+          {agent.branch ? (
+            <BranchBadge branch={agent.branch} icon className="text-[11px] py-0 px-1.5" />
+          ) : (
+            <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
+          )}
         </div>
 
         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
