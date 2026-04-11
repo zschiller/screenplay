@@ -367,24 +367,27 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 export async function configureAgentGit(
   sandboxName: string,
   workspace: WorkspaceData,
-): Promise<void> {
-  try {
-    const ghToken = await getGitHubToken()
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
-
-    if (ghToken) {
-      await sandbox.runCommand("git", [
-        "remote",
-        "set-url",
-        "origin",
-        `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
-      ])
-    }
-    await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
-    await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
-    // Set push default so bare `git push` works without upstream tracking
-    await sandbox.runCommand("git", ["config", "push.default", "current"])
-  } catch {
-    // Non-fatal — agent may not be able to push but sandbox still works
+): Promise<{ success: boolean; error?: string }> {
+  const ghToken = await getGitHubToken()
+  if (!ghToken) {
+    return { success: false, error: "No GitHub token available — the user may need to re-authenticate with GitHub." }
   }
+
+  const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+
+  const setUrl = await sandbox.runCommand("git", [
+    "remote",
+    "set-url",
+    "origin",
+    `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+  ])
+  if (setUrl.exitCode !== 0) {
+    return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }
+  }
+
+  await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
+  await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
+  await sandbox.runCommand("git", ["config", "push.default", "current"])
+
+  return { success: true }
 }
