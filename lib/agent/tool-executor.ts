@@ -65,22 +65,63 @@ async function editFile(
   return `Edited ${input.path}: replaced ${input.old_string.length} chars with ${input.new_string.length} chars`
 }
 
+/**
+ * Parse a command string respecting quoted substrings.
+ * e.g. `git commit -m "fix button color"` → ["git", "commit", "-m", "fix button color"]
+ */
+function parseCommandString(command: string): string[] {
+  const tokens: string[] = []
+  let current = ""
+  let inQuote: string | null = null
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]
+    if (inQuote) {
+      if (ch === inQuote) {
+        inQuote = null
+      } else {
+        current += ch
+      }
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch
+    } else if (/\s/.test(ch)) {
+      if (current) {
+        tokens.push(current)
+        current = ""
+      }
+    } else {
+      current += ch
+    }
+  }
+  if (current) tokens.push(current)
+  return tokens
+}
+
+/** Characters that indicate the command needs a shell to interpret it */
+const SHELL_OPERATORS = /[&&|;><$`(){}]/
+
 async function runCommand(
   sandbox: Sandbox,
   input: RunCommandInput,
 ): Promise<string> {
-  // The model may send the full command as a single string (e.g. "git push origin HEAD")
-  // or split it into command + args. Handle both.
   let cmd: string
   let args: string[]
+
   if (input.args && input.args.length > 0) {
+    // Explicit args array — use as-is
     cmd = input.command
     args = input.args
+  } else if (SHELL_OPERATORS.test(input.command)) {
+    // Command contains shell operators (&&, |, etc.) — run through sh -c
+    cmd = "sh"
+    args = ["-c", input.command]
   } else {
-    const parts = input.command.split(/\s+/)
-    cmd = parts[0]
-    args = parts.slice(1)
+    // Simple command string — parse respecting quotes
+    const tokens = parseCommandString(input.command)
+    cmd = tokens[0]
+    args = tokens.slice(1)
   }
+
   const result = await sandbox.runCommand(cmd, args)
   const parts: string[] = []
   const stdout = await result.stdout()

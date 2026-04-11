@@ -22,10 +22,14 @@ When the user asks you to make changes:
 2. Make precise, targeted edits
 3. If needed, run commands to install dependencies or restart the dev server
 4. IMPORTANT: After making any file changes, always commit and push your changes:
-   - Run: git add -A
-   - Run: git commit -m "<concise description of changes>"
-   - Run: git push origin HEAD
+   - Use run_command with command "git" and args ["add", "-A"]
+   - Use run_command with command "git" and args ["commit", "-m", "<concise description of changes>"]
+   - Use run_command with command "git" and args ["push"]
    This ensures all changes are saved to the remote branch.
+
+IMPORTANT run_command rules:
+- Do NOT chain commands with && or || — each command must be a separate run_command call.
+- For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
 

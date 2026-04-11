@@ -5,13 +5,15 @@ import { cn } from "@/lib/utils"
 
 interface BranchBadgeProps {
   branch: string
+  /** String used to pick the badge color (defaults to branch name) */
+  colorKey?: string
   /** Show the git-branch icon before the name */
   icon?: boolean
   className?: string
 }
 
-export function BranchBadge({ branch, icon = false, className }: BranchBadgeProps) {
-  const color = getBranchColor(branch)
+export function BranchBadge({ branch, colorKey, icon = false, className }: BranchBadgeProps) {
+  const color = getBranchColor(colorKey ?? branch)
 
   return (
     <Badge
