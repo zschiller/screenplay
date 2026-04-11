@@ -127,6 +127,44 @@ export async function createBranch(
   return { success: true }
 }
 
+export async function renameBranch(
+  owner: string,
+  repo: string,
+  oldBranch: string,
+  newBranch: string,
+): Promise<{ success: boolean; error?: string }> {
+  const { userId } = await auth()
+  if (!userId) return { success: false, error: "Not authenticated" }
+
+  const client = await clerkClient()
+  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
+  const token = tokens.data?.[0]?.token
+  if (!token) return { success: false, error: "No GitHub token" }
+
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/branches/${oldBranch}/rename`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ new_name: newBranch }),
+    },
+  )
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return {
+      success: false,
+      error: err.message || `Failed to rename branch ${oldBranch} to ${newBranch}`,
+    }
+  }
+
+  return { success: true }
+}
+
 export async function listRepoBranches(
   owner: string,
   repo: string,

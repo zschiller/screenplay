@@ -41,7 +41,7 @@ export function AgentCard({
           ? "border-primary bg-primary/5"
           : "border-border bg-card hover:bg-muted/50"
       }`}
-      onClick={() => onSelect(agent.id)}
+      onClick={(e) => { e.stopPropagation(); onSelect(agent.id) }}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -100,6 +100,13 @@ export function AgentCard({
           </Button>
         </div>
       </div>
+
+      {isLoading && agent.statusMessage && (
+        <p className="mt-1 text-[10px] text-muted-foreground pl-4 flex items-center gap-1">
+          <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+          {agent.statusMessage}
+        </p>
+      )}
 
       {agent.error && (
         <p className="mt-1 text-[10px] text-red-500 pl-4">{agent.error}</p>

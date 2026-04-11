@@ -69,7 +69,19 @@ async function runCommand(
   sandbox: Sandbox,
   input: RunCommandInput,
 ): Promise<string> {
-  const result = await sandbox.runCommand(input.command, input.args)
+  // The model may send the full command as a single string (e.g. "git push origin HEAD")
+  // or split it into command + args. Handle both.
+  let cmd: string
+  let args: string[]
+  if (input.args && input.args.length > 0) {
+    cmd = input.command
+    args = input.args
+  } else {
+    const parts = input.command.split(/\s+/)
+    cmd = parts[0]
+    args = parts.slice(1)
+  }
+  const result = await sandbox.runCommand(cmd, args)
   const parts: string[] = []
   const stdout = await result.stdout()
   const stderr = await result.stderr()
