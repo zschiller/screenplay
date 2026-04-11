@@ -14,12 +14,13 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AgentCard } from "./agent-card"
-import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
+  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label">>
   selectedAgentId: string | null
   onSelectAgent: (id: string | null) => void
   onCreateWorkspace: (repo: GitHubRepo) => void
@@ -37,6 +38,7 @@ interface AgentSidebarProps {
 export function AgentSidebar({
   workspaces,
   agents,
+  artboards,
   selectedAgentId,
   onSelectAgent,
   onCreateWorkspace,
@@ -167,6 +169,7 @@ export function AgentSidebar({
                           key={agent.id}
                           agent={agent}
                           selected={selectedAgentId === agent.id}
+                          artboards={artboards.filter((a) => a.sandboxId === agent.id)}
                           onSelect={onSelectAgent}
                           onFork={onForkAgent}
                           onRefresh={onRefreshAgent}
