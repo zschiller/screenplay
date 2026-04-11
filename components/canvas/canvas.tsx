@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { PanelLeft } from "lucide-react"
 import {
   TransformWrapper,
   TransformComponent,
   type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch"
 import { nanoid } from "nanoid"
+import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import { LiveObject } from "@liveblocks/client"
 import {
   useMutation,
@@ -16,12 +18,26 @@ import {
 import { Artboard } from "./artboard"
 import { Cursors } from "./cursors"
 import type { JsonObject } from "@/lib/postmessage-protocol"
+import { Button } from "@/components/ui/button"
 import { Toolbar } from "@/components/panels/toolbar"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
+import { AgentChat } from "@/components/agent/agent-chat"
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
 import type { GitHubRepo } from "@/lib/github-actions"
 import {
-  createAgentSandbox,
+  createAgentBranch,
+  renameAgentBranch,
+  cloneSandbox,
+  installDependencies,
+  startDevServer,
+  configureAgentGit,
+  forkSandbox,
   restartSandbox,
   reconnectSandbox,
 } from "@/lib/sandbox-actions"
@@ -34,11 +50,35 @@ import {
   CANVAS_SIZE,
 } from "@/lib/constants"
 
+function parseWorkspaceEnv(text: string): Record<string, string> | undefined {
+  const env: Record<string, string> = {}
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const eqIdx = trimmed.indexOf("=")
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    let value = trimmed.slice(eqIdx + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (key) env[key] = value
+  }
+  return Object.keys(env).length > 0 ? env : undefined
+}
+
 export function Canvas() {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
+  const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
+  const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
 
   // Escape key unfocuses
@@ -109,6 +149,7 @@ export function Canvas() {
         previewDomain: agent.previewDomain,
         port: agent.port,
         status: agent.status,
+        statusMessage: agent.statusMessage,
         error: agent.error,
         createdAt: agent.createdAt,
         sessionId: agent.sessionId,
@@ -324,10 +365,13 @@ export function Canvas() {
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
-      // Generate names client-side so they survive page reloads
       const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
-      const branch = `screenplay/agent-${nanoid(8)}`
+      const branch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
 
       const data: AgentData = {
         id,
@@ -338,20 +382,69 @@ export function Canvas() {
         previewDomain: "",
         port: 3000,
         status: "creating",
+        statusMessage: "Creating branch…",
         createdAt: Date.now(),
       }
       addAgentToStorage(id, data)
 
-      const result = await createAgentSandbox(sandboxName, branch, workspace)
-      updateAgentInStorage(id, {
-        previewDomain: result.previewDomain,
-        status: result.status === "running" ? "running" : "error",
-        error: result.error,
-      })
-
-      if (result.status === "running") {
-        addArtboard(id, `${branch} — Screen 1`)
+      // Step 1: Create branch
+      const branchResult = await createAgentBranch(workspace, branch)
+      if (!branchResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: branchResult.error || "Failed to create branch",
+        })
+        return
       }
+
+      // Step 2: Clone repo into sandbox
+      updateAgentInStorage(id, { statusMessage: "Cloning repository…" })
+      const env = parseWorkspaceEnv(workspace.envVars)
+      const cloneResult = await cloneSandbox(sandboxName, workspace.cloneUrl, branch, 3000, env)
+      if (!cloneResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: cloneResult.error,
+        })
+        return
+      }
+
+      // Step 3: Install dependencies
+      updateAgentInStorage(id, { statusMessage: "Installing dependencies…" })
+      const installResult = await installDependencies(cloneResult.sandboxName, workspace.setupScript)
+      if (!installResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: installResult.error,
+        })
+        return
+      }
+
+      // Step 4: Start dev server
+      updateAgentInStorage(id, { statusMessage: "Starting dev server…" })
+      const serverResult = await startDevServer(cloneResult.sandboxName, 3000, workspace.devScript)
+      if (serverResult.status !== "running") {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: serverResult.error,
+        })
+        return
+      }
+
+      // Step 5: Configure git
+      updateAgentInStorage(id, { statusMessage: "Configuring git…" })
+      await configureAgentGit(cloneResult.sandboxName, workspace)
+
+      updateAgentInStorage(id, {
+        previewDomain: serverResult.previewDomain,
+        status: "running",
+        statusMessage: undefined,
+      })
+      addArtboard(id, `${branch} — Screen 1`)
     },
     [workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
   )
@@ -359,14 +452,18 @@ export function Canvas() {
   const handleForkAgent = useCallback(
     async (agentId: string) => {
       const sourceAgent = agents.find((a) => a.id === agentId)
-      if (!sourceAgent?.branch) return
+      if (!sourceAgent?.branch || !sourceAgent.sandboxName) return
 
       const workspace = workspaces.find((w) => w.id === sourceAgent.workspaceId)
       if (!workspace) return
 
       const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
-      const branch = `screenplay/agent-${nanoid(8)}`
+      const branch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
 
       const data: AgentData = {
         id,
@@ -377,25 +474,64 @@ export function Canvas() {
         previewDomain: "",
         port: 3000,
         status: "creating",
+        statusMessage: "Snapshotting sandbox…",
         createdAt: Date.now(),
       }
       addAgentToStorage(id, data)
 
-      const result = await createAgentSandbox(
+      // Step 1: Create branch on GitHub
+      const branchResult = await createAgentBranch(workspace, branch, sourceAgent.branch)
+      if (!branchResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: branchResult.error || "Failed to create branch",
+        })
+        return
+      }
+
+      // Step 2: Fork sandbox via snapshot (preserves uncommitted changes + deps)
+      updateAgentInStorage(id, { statusMessage: "Forking sandbox…" })
+      const env = parseWorkspaceEnv(workspace.envVars)
+      const forkResult = await forkSandbox(
+        sourceAgent.sandboxName,
         sandboxName,
         branch,
-        workspace,
-        sourceAgent.branch,
+        3000,
+        workspace.devScript,
+        env,
       )
-      updateAgentInStorage(id, {
-        previewDomain: result.previewDomain,
-        status: result.status === "running" ? "running" : "error",
-        error: result.error,
-      })
-
-      if (result.status === "running") {
-        addArtboard(id, `${branch} — Screen 1`)
+      if (forkResult.status !== "running") {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: forkResult.error,
+        })
+        return
       }
+
+      // Step 3: Start dev server
+      updateAgentInStorage(id, { statusMessage: "Starting dev server…" })
+      const serverResult = await startDevServer(forkResult.sandboxName, 3000, workspace.devScript)
+      if (serverResult.status !== "running") {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: serverResult.error,
+        })
+        return
+      }
+
+      // Step 4: Configure git
+      updateAgentInStorage(id, { statusMessage: "Configuring git…" })
+      await configureAgentGit(forkResult.sandboxName, workspace)
+
+      updateAgentInStorage(id, {
+        previewDomain: serverResult.previewDomain,
+        status: "running",
+        statusMessage: undefined,
+      })
+      addArtboard(id, `${branch} — Screen 1`)
     },
     [agents, workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
   )
@@ -407,7 +543,7 @@ export function Canvas() {
 
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
 
-      updateAgentInStorage(id, { status: "starting" })
+      updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
 
       const result = await restartSandbox(
         agent.sandboxName,
@@ -421,8 +557,30 @@ export function Canvas() {
         sandboxName: result.sandboxName,
         previewDomain: result.previewDomain || agent.previewDomain,
         status: result.status === "running" ? "running" : "error",
-        error: result.error,
+        statusMessage: "",
+        error: result.error || "",
       })
+    },
+    [agents, workspaces, updateAgentInStorage],
+  )
+
+  const handleBranchRename = useCallback(
+    async (agentId: string, newBranch: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent?.sandboxName || !agent.branch || agent.branch === newBranch) return
+
+      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      if (!workspace) return
+
+      const result = await renameAgentBranch(
+        workspace,
+        agent.sandboxName,
+        agent.branch,
+        newBranch,
+      )
+      if (result.success) {
+        updateAgentInStorage(agentId, { branch: newBranch })
+      }
     },
     [agents, workspaces, updateAgentInStorage],
   )
@@ -474,8 +632,13 @@ export function Canvas() {
       const ref = transformRef.current
       if (!ref) return
       const { positionX, positionY, scale } = ref.state
-      const canvasX = (e.clientX - positionX) / scale
-      const canvasY = (e.clientY - positionY) / scale
+      // Use coordinates relative to the canvas wrapper (currentTarget),
+      // not the viewport, so cursor positions work regardless of sidebar width
+      const rect = e.currentTarget.getBoundingClientRect()
+      const relX = e.clientX - rect.left
+      const relY = e.clientY - rect.top
+      const canvasX = (relX - positionX) / scale
+      const canvasY = (relY - positionY) / scale
       updateMyPresence({ cursor: { x: canvasX, y: canvasY } })
     },
     [updateMyPresence],
@@ -485,117 +648,217 @@ export function Canvas() {
     updateMyPresence({ cursor: null })
   }, [updateMyPresence])
 
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
+  const chatOpen = sidebarOpen && !!selectedAgent?.sandboxName
+
+  // Sync sidebar panel with sidebarOpen state
+  useEffect(() => {
+    const panel = sidebarPanelRef.current
+    if (!panel) return
+    if (sidebarOpen) panel.expand()
+    else panel.collapse()
+  }, [sidebarOpen])
+
+  // Sync chat panel with chatOpen state
+  useEffect(() => {
+    const panel = chatPanelRef.current
+    if (!panel) return
+    if (chatOpen) panel.expand()
+    else panel.collapse()
+  }, [chatOpen])
+
   return (
-    <div
-      className="fixed inset-0 bg-muted/30"
-      onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
-    >
-      <TransformWrapper
-        ref={transformRef}
-        initialScale={1}
-        initialPositionX={
-          -CANVAS_SIZE / 2 +
-          (typeof window !== "undefined" ? window.innerWidth / 2 : 500)
-        }
-        initialPositionY={
-          -CANVAS_SIZE / 2 +
-          (typeof window !== "undefined" ? window.innerHeight / 2 : 400)
-        }
-        minScale={ZOOM_MIN}
-        maxScale={ZOOM_MAX}
-        limitToBounds={false}
-        centerOnInit={false}
-        doubleClick={{ disabled: true }}
-        wheel={{ step: ZOOM_STEP, disabled: focusedArtboardId !== null }}
-        panning={{ velocityDisabled: true, disabled: focusedArtboardId !== null }}
-        onTransform={(_ref, state) => {
-          setZoom(state.scale)
-          setViewportPos({ x: state.positionX, y: state.positionY })
-          updateMyPresence({
-            viewport: {
-              x: state.positionX,
-              y: state.positionY,
-              zoom: state.scale,
-            },
-          })
-        }}
-      >
-        <TransformComponent
-          wrapperStyle={{
-            width: "100%",
-            height: "100%",
-          }}
-          contentStyle={{
-            width: CANVAS_SIZE,
-            height: CANVAS_SIZE,
-          }}
+    <div className="fixed inset-0 bg-muted/30">
+      <ResizablePanelGroup orientation="horizontal">
+        {/* Sidebar — always mounted, collapsed via imperative API */}
+        <ResizablePanel
+          id="sidebar"
+          panelRef={sidebarPanelRef}
+          defaultSize={280}
+          minSize={220}
+          maxSize={400}
+          collapsible
+          collapsedSize={0}
+          groupResizeBehavior="preserve-pixel-size"
         >
+          <AgentSidebar
+            workspaces={workspaces}
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={setSelectedAgentId}
+            onCreateWorkspace={handleCreateWorkspace}
+            onUpdateWorkspace={updateWorkspaceInStorage}
+            onRemoveWorkspace={removeWorkspaceFromStorage}
+            onCreateAgent={handleCreateAgent}
+            onForkAgent={handleForkAgent}
+            onRefreshAgent={handleRefreshAgent}
+            onRemoveAgent={(id) => {
+              if (selectedAgentId === id) setSelectedAgentId(null)
+              removeAgentFromStorage(id)
+            }}
+            onAddArtboard={handleAddArtboardForAgent}
+            onUpdateAgent={updateAgentInStorage}
+            onClose={() => setSidebarOpen(false)}
+          />
+        </ResizablePanel>
+        <ResizableHandle />
+
+        {/* Chat — always mounted, collapsed via imperative API */}
+        <ResizablePanel
+          id="chat"
+          panelRef={chatPanelRef}
+          defaultSize={chatOpen ? 380 : 0}
+          minSize={280}
+          collapsible
+          collapsedSize={0}
+          groupResizeBehavior="preserve-pixel-size"
+        >
+          {selectedAgent?.sandboxName && (
+            <AgentChat
+              key={selectedAgent.id}
+              sandboxName={selectedAgent.sandboxName}
+              branch={selectedAgent.branch}
+              sessionId={selectedAgent.sessionId}
+              onSessionId={(sid) =>
+                updateAgentInStorage(selectedAgent.id, {
+                  sessionId: sid || undefined,
+                })
+              }
+              onBranchRename={(branch) =>
+                handleBranchRename(selectedAgent.id, branch)
+              }
+            />
+          )}
+        </ResizablePanel>
+        <ResizableHandle disabled={!chatOpen} className={chatOpen ? "" : "!w-0"} />
+
+        {/* Canvas */}
+        <ResizablePanel id="canvas">
           <div
-            className="relative"
-            style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+            className="relative h-full w-full"
+            style={{ clipPath: "inset(0)" }}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
           >
-            <svg className="pointer-events-none absolute inset-0 h-full w-full">
-              <defs>
-                <pattern
-                  id="dot-grid"
-                  x="0"
-                  y="0"
-                  width="40"
-                  height="40"
-                  patternUnits="userSpaceOnUse"
+            {!sidebarOpen && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-4 z-50 h-8 w-8 bg-background/80 shadow-sm backdrop-blur-sm"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            )}
+
+            <TransformWrapper
+              ref={transformRef}
+              initialScale={1}
+              initialPositionX={
+                -CANVAS_SIZE / 2 +
+                (typeof window !== "undefined" ? window.innerWidth / 2 : 500)
+              }
+              initialPositionY={
+                -CANVAS_SIZE / 2 +
+                (typeof window !== "undefined" ? window.innerHeight / 2 : 400)
+              }
+              minScale={ZOOM_MIN}
+              maxScale={ZOOM_MAX}
+              limitToBounds={false}
+              centerOnInit={false}
+              doubleClick={{ disabled: true }}
+              wheel={{
+                step: ZOOM_STEP,
+                disabled: focusedArtboardId !== null,
+              }}
+              panning={{
+                velocityDisabled: true,
+                disabled: focusedArtboardId !== null,
+              }}
+              onInit={(ref) => {
+                const { scale, positionX, positionY } = ref.state
+                setZoom(scale)
+                setViewportPos({ x: positionX, y: positionY })
+                updateMyPresence({
+                  viewport: { x: positionX, y: positionY, zoom: scale },
+                })
+              }}
+              onTransform={(_ref, state) => {
+                setZoom(state.scale)
+                setViewportPos({ x: state.positionX, y: state.positionY })
+                updateMyPresence({
+                  viewport: {
+                    x: state.positionX,
+                    y: state.positionY,
+                    zoom: state.scale,
+                  },
+                })
+              }}
+            >
+              <TransformComponent
+                wrapperStyle={{
+                  width: "100%",
+                  height: "100%",
+                }}
+                contentStyle={{
+                  width: CANVAS_SIZE,
+                  height: CANVAS_SIZE,
+                }}
+              >
+                <div
+                  className="relative"
+                  style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
-                  <circle
-                    cx="1"
-                    cy="1"
-                    r="1"
-                    className="fill-foreground/10"
-                  />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#dot-grid)" />
-            </svg>
+                  <svg className="pointer-events-none absolute inset-0 h-full w-full">
+                    <defs>
+                      <pattern
+                        id="dot-grid"
+                        x="0"
+                        y="0"
+                        width="40"
+                        height="40"
+                        patternUnits="userSpaceOnUse"
+                      >
+                        <circle
+                          cx="1"
+                          cy="1"
+                          r="1"
+                          className="fill-foreground/10"
+                        />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#dot-grid)" />
+                  </svg>
 
-            {artboards.map((artboard) => {
-              const agentInfo = agentDomains[artboard.sandboxId]
-              return (
-                <Artboard
-                  key={artboard.id}
-                  artboard={{
-                    ...artboard,
-                    iframeUrl: agentInfo?.previewDomain,
-                    branch: agentInfo?.branch,
-                  }}
-                  zoom={zoom}
-                  focused={focusedArtboardId === artboard.id}
-                  onFocus={setFocusedArtboardId}
-                  onMove={moveArtboard}
-                  onRemove={removeArtboard}
-                  onStateChanged={updateArtboardState}
-                />
-              )
-            })}
+                  {artboards.map((artboard) => {
+                    const agentInfo = agentDomains[artboard.sandboxId]
+                    return (
+                      <Artboard
+                        key={artboard.id}
+                        artboard={{
+                          ...artboard,
+                          iframeUrl: agentInfo?.previewDomain,
+                          branch: agentInfo?.branch,
+                        }}
+                        zoom={zoom}
+                        focused={focusedArtboardId === artboard.id}
+                        onFocus={setFocusedArtboardId}
+                        onMove={moveArtboard}
+                        onRemove={removeArtboard}
+                        onStateChanged={updateArtboardState}
+                      />
+                    )
+                  })}
+                </div>
+              </TransformComponent>
+
+              <Toolbar zoom={zoom} />
+            </TransformWrapper>
+
+            <Cursors viewport={{ ...viewportPos, zoom }} />
           </div>
-        </TransformComponent>
-
-        <Toolbar zoom={zoom} />
-      </TransformWrapper>
-
-      <Cursors viewport={{ ...viewportPos, zoom }} />
-
-      <AgentSidebar
-        workspaces={workspaces}
-        agents={agents}
-        onCreateWorkspace={handleCreateWorkspace}
-        onUpdateWorkspace={updateWorkspaceInStorage}
-        onRemoveWorkspace={removeWorkspaceFromStorage}
-        onCreateAgent={handleCreateAgent}
-        onForkAgent={handleForkAgent}
-        onRefreshAgent={handleRefreshAgent}
-        onRemoveAgent={removeAgentFromStorage}
-        onAddArtboard={handleAddArtboardForAgent}
-        onUpdateAgent={updateAgentInStorage}
-      />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   )
 }

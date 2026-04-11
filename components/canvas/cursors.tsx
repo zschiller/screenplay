@@ -23,7 +23,7 @@ export function Cursors({ viewport }: CursorsProps) {
         return (
           <div
             key={connectionId}
-            className="pointer-events-none fixed z-[9999]"
+            className="pointer-events-none absolute z-[9999]"
             style={{
               left: screenX,
               top: screenY,

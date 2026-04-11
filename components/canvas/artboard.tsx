@@ -1,11 +1,15 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { MousePointer, Move } from "lucide-react"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { usePostMessage } from "@/hooks/use-postmessage"
+import { probeSandboxUrl } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import type { JsonObject } from "@/lib/postmessage-protocol"
+
+const PROBE_INTERVAL_MS = 2000
+const MAX_PROBES = 60 // ~2 minutes
 
 export interface ArtboardData {
   id: string
@@ -62,6 +66,30 @@ export function Artboard({
     ? artboard.iframeUrl + (artboard.route ?? "")
     : undefined
 
+  const [serverReady, setServerReady] = useState(false)
+
+  useEffect(() => {
+    if (!src || serverReady) return
+
+    let cancelled = false
+    let probes = 0
+
+    async function poll() {
+      while (!cancelled && probes < MAX_PROBES) {
+        const up = await probeSandboxUrl(src!)
+        if (up && !cancelled) {
+          setServerReady(true)
+          return
+        }
+        probes++
+        await new Promise((r) => setTimeout(r, PROBE_INTERVAL_MS))
+      }
+    }
+
+    poll()
+    return () => { cancelled = true }
+  }, [src, serverReady])
+
   return (
     <div
       className="absolute"
@@ -91,7 +119,7 @@ export function Artboard({
       <div
         className={`relative h-full w-full overflow-hidden rounded-lg border shadow-sm ${focused ? "border-primary" : "border-border"}`}
       >
-        {src ? (
+        {src && serverReady ? (
           <iframe
             ref={iframeRef}
             src={src}
@@ -99,8 +127,19 @@ export function Artboard({
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-white text-sm text-muted-foreground dark:bg-zinc-900">
-            {artboard.label}
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
+            {src ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                <span className="text-xs text-muted-foreground">
+                  Waiting for dev server...
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {artboard.label}
+              </span>
+            )}
           </div>
         )}
 
