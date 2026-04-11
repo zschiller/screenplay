@@ -236,8 +236,12 @@ export function Canvas() {
 
   // --- Artboard mutations ---
 
+  /** Add an artboard — used by the manual "add screen" button. */
   const addArtboard = useMutation(
     ({ storage }, agentId: string, label: string) => {
+      const agent = storage.get("sandboxes").get(agentId)
+      if (!agent || agent.get("status") !== "running") return
+
       const { cx, cy } = getViewportCenter()
       const artboardsMap = storage.get("artboards")
       const existing = Array.from(artboardsMap.values()).filter(
@@ -262,6 +266,40 @@ export function Canvas() {
     [getViewportCenter],
   )
 
+  /**
+   * Auto-create the first artboard for an agent.
+   * Guarded: skips if the agent is gone, not running, or already has artboards.
+   */
+  const ensureFirstArtboard = useMutation(
+    ({ storage }, agentId: string) => {
+      const agent = storage.get("sandboxes").get(agentId)
+      if (!agent || agent.get("status") !== "running") return
+
+      const artboardsMap = storage.get("artboards")
+      const hasArtboard = Array.from(artboardsMap.values()).some(
+        (a) => a.get("sandboxId") === agentId,
+      )
+      if (hasArtboard) return
+
+      const { cx, cy } = getViewportCenter()
+      const id = nanoid()
+      artboardsMap.set(
+        id,
+        new LiveObject({
+          id,
+          sandboxId: agentId,
+          x: cx - DEFAULT_ARTBOARD_WIDTH / 2,
+          y: cy - DEFAULT_ARTBOARD_HEIGHT / 2,
+          width: DEFAULT_ARTBOARD_WIDTH,
+          height: DEFAULT_ARTBOARD_HEIGHT,
+          label: "Screen 1",
+          iframeState: {},
+        }),
+      )
+    },
+    [getViewportCenter],
+  )
+
   const moveArtboard = useMutation(
     ({ storage }, id: string, x: number, y: number) => {
       const artboard = storage.get("artboards").get(id)
@@ -269,6 +307,14 @@ export function Canvas() {
         artboard.set("x", x)
         artboard.set("y", y)
       }
+    },
+    [],
+  )
+
+  const renameArtboard = useMutation(
+    ({ storage }, id: string, label: string) => {
+      const artboard = storage.get("artboards").get(id)
+      if (artboard) artboard.set("label", label)
     },
     [],
   )
@@ -334,7 +380,7 @@ export function Canvas() {
       )
       addArtboard(
         agentId,
-        `${agent.branch} — Screen ${existing.length + 1}`,
+        `Screen ${existing.length + 1}`,
       )
     },
     [agents, artboards, addArtboard],
@@ -452,9 +498,9 @@ export function Canvas() {
         status: "running",
         statusMessage: undefined,
       })
-      addArtboard(id, `${branch} — Screen 1`)
+      ensureFirstArtboard(id)
     },
-    [workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
+    [workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard],
   )
 
   const handleForkAgent = useCallback(
@@ -547,9 +593,9 @@ export function Canvas() {
         status: "running",
         statusMessage: undefined,
       })
-      addArtboard(id, `${branch} — Screen 1`)
+      ensureFirstArtboard(id)
     },
-    [agents, workspaces, addAgentToStorage, updateAgentInStorage, addArtboard],
+    [agents, workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard],
   )
 
   const handleRefreshAgent = useCallback(
@@ -617,15 +663,9 @@ export function Canvas() {
             previewDomain: result.previewDomain,
             status: "running",
           })
-          // If this was a creating agent that finished while we were away,
-          // make sure it has at least one artboard
+          // If this agent finished creating while we were away, add its first artboard
           if (agent.status === "creating") {
-            const hasArtboards = artboards.some(
-              (a) => a.sandboxId === agent.id,
-            )
-            if (!hasArtboards) {
-              addArtboard(agent.id, `${agent.branch} — Screen 1`)
-            }
+            ensureFirstArtboard(agent.id)
           }
         } else if (agent.status === "creating") {
           // Still creating or failed — sandbox not ready yet
@@ -641,7 +681,7 @@ export function Canvas() {
         }
       })
     }
-  }, [agents, artboards, updateAgentInStorage, addArtboard])
+  }, [agents, updateAgentInStorage, ensureFirstArtboard])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -700,6 +740,7 @@ export function Canvas() {
           <AgentSidebar
             workspaces={workspaces}
             agents={agents}
+            artboards={artboards}
             selectedAgentId={selectedAgentId}
             onSelectAgent={setSelectedAgentId}
             onCreateWorkspace={handleCreateWorkspace}
@@ -861,6 +902,7 @@ export function Canvas() {
                         focused={focusedArtboardId === artboard.id}
                         onFocus={setFocusedArtboardId}
                         onMove={moveArtboard}
+                        onRename={renameArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
                       />
