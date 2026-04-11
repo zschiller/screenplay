@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { auth } from "@clerk/nextjs/server"
+import { auth, clerkClient } from "@clerk/nextjs/server"
 import { Redis } from "@upstash/redis"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
 import { executeCustomTool } from "@/lib/agent/tool-executor"
@@ -26,7 +26,7 @@ function encodeSSE(event: AgentStreamEvent): string {
 /**
  * Safety net: resolve stuck tool calls if the handler died mid-execution.
  */
-async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
+async function resolveStuckToolCalls(sessionId: string, sandboxName: string, githubToken?: string | null) {
   const lockKey = `session-recover:${sessionId}`
   const locked = await redis.set(lockKey, "1", { nx: true, ex: 120 })
   if (locked !== "OK") return
@@ -57,6 +57,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
             sandboxName,
             tu.name as CustomToolName,
             tu.input as Record<string, unknown>,
+            githubToken,
           )
         } catch (e) {
           output = `Error: ${e instanceof Error ? e.message : String(e)}`
@@ -82,6 +83,7 @@ async function ensureSessionReady(
   client: ReturnType<typeof getClient>,
   sessionId: string,
   sandboxName: string,
+  githubToken?: string | null,
 ) {
   const session = await client.beta.sessions.retrieve(sessionId)
 
@@ -91,7 +93,7 @@ async function ensureSessionReady(
 
   if (session.status === "idle") {
     // Could be idle with end_turn (ready) or requires_action (stuck)
-    await resolveStuckToolCalls(sessionId, sandboxName)
+    await resolveStuckToolCalls(sessionId, sandboxName, githubToken)
     // After resolving, the session may be running again — wait for idle
     const updated = await client.beta.sessions.retrieve(sessionId)
     if (updated.status === "running") {
@@ -103,7 +105,7 @@ async function ensureSessionReady(
   if (session.status === "running") {
     await waitForIdle(client, sessionId)
     // After idle, check if it needs tool call resolution
-    await resolveStuckToolCalls(sessionId, sandboxName)
+    await resolveStuckToolCalls(sessionId, sandboxName, githubToken)
     const updated = await client.beta.sessions.retrieve(sessionId)
     if (updated.status === "running") {
       await waitForIdle(client, sessionId)
@@ -138,6 +140,16 @@ export async function POST(req: Request) {
 
   const client = getClient()
 
+  // Fetch a fresh GitHub token for this request so push_to_github can authenticate
+  let githubToken: string | null = null
+  try {
+    const clerk = await clerkClient()
+    const tokens = await clerk.users.getUserOauthAccessToken(userId, "github")
+    githubToken = tokens.data?.[0]?.token ?? null
+  } catch {
+    // Non-fatal — push_to_github will report the missing token to the agent
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
@@ -160,7 +172,7 @@ export async function POST(req: Request) {
           sessionId = session.id
         } else {
           // Make sure the session is ready for a new message
-          await ensureSessionReady(client, sessionId, sandboxName)
+          await ensureSessionReady(client, sessionId, sandboxName, githubToken)
         }
 
         send({ type: "session_id", sessionId })
@@ -195,7 +207,7 @@ export async function POST(req: Request) {
         const ourMessageId = sendResult.data?.[0]?.id
 
         // Safety net for client disconnect
-        after(() => resolveStuckToolCalls(sessionId!, sandboxName))
+        after(() => resolveStuckToolCalls(sessionId!, sandboxName, githubToken))
 
         // Stream events. For new sessions this is clean.
         // For existing sessions, we'll see replayed history — skip until
@@ -262,6 +274,7 @@ export async function POST(req: Request) {
                       sandboxName,
                       toolEvent.name as CustomToolName,
                       toolEvent.input,
+                      githubToken,
                     )
                   } catch (e) {
                     output = `Error: ${e instanceof Error ? e.message : String(e)}`

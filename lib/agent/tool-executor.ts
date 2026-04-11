@@ -6,12 +6,14 @@ import type {
   EditFileInput,
   RunCommandInput,
   ListFilesInput,
+  PushToGithubInput,
 } from "./types"
 
 export async function executeCustomTool(
   sandboxName: string,
   toolName: CustomToolName,
   toolInput: Record<string, unknown>,
+  githubToken?: string | null,
 ): Promise<string> {
   const sandbox = await Sandbox.get({ name: sandboxName })
 
@@ -26,6 +28,8 @@ export async function executeCustomTool(
       return runCommand(sandbox, toolInput as unknown as RunCommandInput)
     case "list_files":
       return listFiles(sandbox, toolInput as unknown as ListFilesInput)
+    case "push_to_github":
+      return pushToGithub(sandbox, toolInput as unknown as PushToGithubInput, githubToken)
     default:
       return `Unknown tool: ${toolName}`
   }
@@ -105,4 +109,48 @@ async function listFiles(
   const result = await sandbox.runCommand("find", args)
   const stdout = await result.stdout()
   return stdout || "(no files found)"
+}
+
+async function pushToGithub(
+  sandbox: Sandbox,
+  input: PushToGithubInput,
+  githubToken?: string | null,
+): Promise<string> {
+  if (!githubToken) {
+    return "Error: No GitHub token available. The user may need to re-authenticate with GitHub."
+  }
+
+  // Get the current remote URL to extract owner/repo
+  const urlResult = await sandbox.runCommand("git", ["remote", "get-url", "origin"])
+  const remoteUrl = (await urlResult.stdout()).trim()
+  if (urlResult.exitCode !== 0 || !remoteUrl) {
+    return "Error: Could not determine git remote URL. Is this a git repository?"
+  }
+
+  // Extract owner/repo from the remote URL (handles both HTTPS and token-embedded URLs)
+  const match = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/.]+?)(?:\.git)?$/)
+  if (!match) {
+    return `Error: Could not parse GitHub owner/repo from remote URL: ${remoteUrl}`
+  }
+  const [, owner, repo] = match
+
+  // Set remote URL with fresh token for authentication
+  const authedUrl = `https://x-access-token:${githubToken}@github.com/${owner}/${repo}.git`
+  await sandbox.runCommand("git", ["remote", "set-url", "origin", authedUrl])
+
+  // Push to the current branch
+  const pushResult = await sandbox.runCommand("git", ["push", "origin", "HEAD"])
+  const pushStdout = await pushResult.stdout()
+  const pushStderr = await pushResult.stderr()
+
+  // Remove token from remote URL after push (don't leave credentials in config)
+  const cleanUrl = `https://github.com/${owner}/${repo}.git`
+  await sandbox.runCommand("git", ["remote", "set-url", "origin", cleanUrl])
+
+  if (pushResult.exitCode !== 0) {
+    return `Push failed (exit code ${pushResult.exitCode}):\n${pushStderr || pushStdout}`
+  }
+
+  const output = pushStderr || pushStdout || ""
+  return `Successfully pushed to GitHub.\n${output}`.trim()
 }

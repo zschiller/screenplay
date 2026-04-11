@@ -24,7 +24,7 @@ When the user asks you to make changes:
 4. IMPORTANT: After making any file changes, always commit and push your changes:
    - Run: git add -A
    - Run: git commit -m "<concise description of changes>"
-   - Run: git push origin HEAD
+   - Use the push_to_github tool to push your commit (do NOT run git push via the command line)
    This ensures all changes are saved to the remote branch.
 
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
@@ -135,6 +135,22 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
           type: "string",
           description:
             "Optional glob-like filter pattern, e.g. '*.tsx' to list only TypeScript files",
+        },
+      },
+    },
+  },
+  {
+    type: "custom",
+    name: "push_to_github",
+    description:
+      "Push committed changes to GitHub. This handles authentication automatically. Always use this tool instead of running 'git push' via the command line.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        message: {
+          type: "string",
+          description:
+            "Optional description of what is being pushed, for logging purposes",
         },
       },
     },

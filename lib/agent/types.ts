@@ -4,6 +4,7 @@ export type CustomToolName =
   | "edit_file"
   | "run_command"
   | "list_files"
+  | "push_to_github"
 
 export type ReadFileInput = { path: string }
 export type WriteFileInput = { path: string; content: string }
@@ -14,6 +15,7 @@ export type EditFileInput = {
 }
 export type RunCommandInput = { command: string; args?: string[] }
 export type ListFilesInput = { path?: string; pattern?: string }
+export type PushToGithubInput = { message?: string }
 
 export type CustomToolInput =
   | ReadFileInput
@@ -21,6 +23,7 @@ export type CustomToolInput =
   | EditFileInput
   | RunCommandInput
   | ListFilesInput
+  | PushToGithubInput
 
 export type AgentMessage =
   | { role: "user"; content: string }
