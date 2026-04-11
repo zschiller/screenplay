@@ -437,7 +437,15 @@ export function Canvas() {
 
       // Step 5: Configure git
       updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      await configureAgentGit(cloneResult.sandboxName, workspace)
+      const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace)
+      if (!gitResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: gitResult.error,
+        })
+        return
+      }
 
       updateAgentInStorage(id, {
         previewDomain: serverResult.previewDomain,
@@ -524,7 +532,15 @@ export function Canvas() {
 
       // Step 4: Configure git
       updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      await configureAgentGit(forkResult.sandboxName, workspace)
+      const gitResult = await configureAgentGit(forkResult.sandboxName, workspace)
+      if (!gitResult.success) {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: undefined,
+          error: gitResult.error,
+        })
+        return
+      }
 
       updateAgentInStorage(id, {
         previewDomain: serverResult.previewDomain,
