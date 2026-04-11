@@ -8,6 +8,7 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BranchBadge } from "@/components/branch-badge"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 
@@ -80,9 +81,7 @@ export function AgentChat({
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
           <span className="text-xs font-medium">AI Assistant</span>
-          <span className="ml-2 truncate font-mono text-[10px] text-muted-foreground">
-            {branch}
-          </span>
+          <BranchBadge branch={branch} className="ml-1 text-[10px] py-0 px-1.5" />
         </div>
         <div className="flex items-center gap-1">
           <Button

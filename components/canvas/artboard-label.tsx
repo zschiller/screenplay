@@ -1,6 +1,7 @@
 "use client"
 
 import { X } from "lucide-react"
+import { BranchBadge } from "@/components/branch-badge"
 
 interface ArtboardLabelProps {
   label: string
@@ -13,9 +14,7 @@ export function ArtboardLabel({ label, branch, onClose }: ArtboardLabelProps) {
     <div className="absolute bottom-full left-0 mb-1 flex items-center gap-2 whitespace-nowrap">
       <span className="text-xs font-medium text-foreground/70">{label}</span>
       {branch && (
-        <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-          {branch}
-        </span>
+        <BranchBadge branch={branch} className="text-[10px] py-0 px-1.5" />
       )}
       <button
         onClick={onClose}
