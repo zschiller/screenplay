@@ -1,13 +1,14 @@
 "use client"
 
-import { GitFork, RefreshCw, Trash2, Loader2, Plus } from "lucide-react"
+import { GitFork, RefreshCw, Trash2, Loader2, Plus, Monitor } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData } from "@/lib/liveblocks.types"
+import type { AgentData, ArtboardData } from "@/lib/liveblocks.types"
 
 interface AgentCardProps {
   agent: AgentData
   selected: boolean
+  artboards: Array<Pick<ArtboardData, "id" | "label">>
   onSelect: (id: string) => void
   onFork: (id: string) => void
   onRefresh: (id: string) => void
@@ -26,6 +27,7 @@ const statusColors: Record<AgentData["status"], string> = {
 export function AgentCard({
   agent,
   selected,
+  artboards,
   onSelect,
   onFork,
   onRefresh,
@@ -50,7 +52,7 @@ export function AgentCard({
             className={`h-2 w-2 shrink-0 rounded-full ${statusColors[agent.status]}`}
           />
           {agent.branch ? (
-            <BranchBadge branch={agent.branch} colorKey={agent.id} icon className="text-[11px] py-0 px-1.5" />
+            <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
           ) : (
             <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
           )}
@@ -112,6 +114,20 @@ export function AgentCard({
 
       {agent.error && (
         <p className="mt-1 text-[10px] text-red-500 pl-4">{agent.error}</p>
+      )}
+
+      {artboards.length > 0 && (
+        <div className="mt-1.5 pl-4 space-y-0.5">
+          {artboards.map((ab) => (
+            <div key={ab.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <Monitor className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{ab.label}</span>
+            </div>
+          ))}
+          <span className="text-[10px] text-muted-foreground/60">
+            {artboards.length} screen{artboards.length !== 1 ? "s" : ""}
+          </span>
+        </div>
       )}
     </div>
   )

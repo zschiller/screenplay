@@ -31,6 +31,7 @@ interface ArtboardProps {
   focused: boolean
   onFocus: (id: string | null) => void
   onMove: (id: string, x: number, y: number) => void
+  onRename: (id: string, label: string) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
 }
@@ -41,6 +42,7 @@ export function Artboard({
   focused,
   onFocus,
   onMove,
+  onRename,
   onRemove,
   onStateChanged,
 }: ArtboardProps) {
@@ -104,7 +106,7 @@ export function Artboard({
         label={artboard.label}
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
-        onClose={() => onRemove(artboard.id)}
+        onRename={(label) => onRename(artboard.id, label)}
       />
       <button
         onClick={() => onFocus(focused ? null : artboard.id)}
