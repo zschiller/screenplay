@@ -328,6 +328,24 @@ export async function removeSandboxEnv(sandboxName: string): Promise<void> {
 }
 
 /**
+ * Extend a running sandbox's timeout so it stays alive while a user has the
+ * page open. Each call adds SANDBOX_TIMEOUT to the current session, up to
+ * the plan maximum (5 hours Pro). No-ops if the sandbox is already stopped.
+ */
+export async function keepAliveSandbox(
+  sandboxName: string,
+): Promise<{ success: boolean }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    if (sandbox.status !== "running") return { success: false }
+    await sandbox.extendTimeout(SANDBOX_TIMEOUT)
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+/**
  * Step 1: Create a Git branch on GitHub for the agent.
  */
 export async function createAgentBranch(

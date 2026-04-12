@@ -40,6 +40,7 @@ import {
   forkSandbox,
   restartSandbox,
   reconnectSandbox,
+  keepAliveSandbox,
 } from "@/lib/sandbox-actions"
 import {
   ZOOM_MIN,
@@ -683,6 +684,35 @@ export function Canvas() {
       })
     }
   }, [agents, workspaces, updateAgentInStorage, ensureFirstArtboard])
+
+  // Heartbeat: extend sandbox timeouts while the tab is visible so they
+  // stay alive as long as the user is actively using the page.
+  // Fires every 20 minutes (well within the 30-minute timeout) and pauses
+  // when the tab is hidden so sandboxes can expire when the user leaves.
+  useEffect(() => {
+    const HEARTBEAT_MS = 20 * 60 * 1000
+
+    const pingAll = () => {
+      if (document.hidden) return
+      for (const agent of agents) {
+        if (agent.sandboxName && agent.status === "running") {
+          keepAliveSandbox(agent.sandboxName).catch(() => {})
+        }
+      }
+    }
+
+    const interval = setInterval(pingAll, HEARTBEAT_MS)
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) pingAll()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [agents])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
