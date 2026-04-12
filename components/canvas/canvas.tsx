@@ -40,6 +40,7 @@ import {
   forkSandbox,
   restartSandbox,
   reconnectSandbox,
+  keepAliveSandbox,
 } from "@/lib/sandbox-actions"
 import {
   ZOOM_MIN,
@@ -657,7 +658,8 @@ export function Canvas() {
     for (const agent of agents) {
       if (!agent.sandboxName) continue
 
-      reconnectSandbox(agent.sandboxName, agent.port).then((result) => {
+      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
         if (result.status === "running") {
           updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
@@ -676,12 +678,41 @@ export function Canvas() {
         } else {
           updateAgentInStorage(agent.id, {
             status: "stopped",
-            error: "Sandbox stopped — click refresh to restart",
+            error: result.error || "Sandbox could not be resumed — click refresh to retry",
           })
         }
       })
     }
-  }, [agents, updateAgentInStorage, ensureFirstArtboard])
+  }, [agents, workspaces, updateAgentInStorage, ensureFirstArtboard])
+
+  // Heartbeat: extend sandbox timeouts while the tab is visible so they
+  // stay alive as long as the user is actively using the page.
+  // Fires every 20 minutes (well within the 30-minute timeout) and pauses
+  // when the tab is hidden so sandboxes can expire when the user leaves.
+  useEffect(() => {
+    const HEARTBEAT_MS = 20 * 60 * 1000
+
+    const pingAll = () => {
+      if (document.hidden) return
+      for (const agent of agents) {
+        if (agent.sandboxName && agent.status === "running") {
+          keepAliveSandbox(agent.sandboxName).catch(() => {})
+        }
+      }
+    }
+
+    const interval = setInterval(pingAll, HEARTBEAT_MS)
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) pingAll()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [agents])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
