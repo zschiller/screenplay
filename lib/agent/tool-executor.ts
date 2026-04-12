@@ -1,4 +1,8 @@
 import { Sandbox } from "@vercel/sandbox"
+
+/** Max characters to keep from command stdout/stderr to avoid bloating session history */
+const MAX_OUTPUT_LENGTH = 20_000
+
 import type {
   CustomToolName,
   ReadFileInput,
@@ -124,10 +128,20 @@ async function runCommand(
 
   const result = await sandbox.runCommand(cmd, args)
   const parts: string[] = []
-  const stdout = await result.stdout()
-  const stderr = await result.stderr()
-  if (stdout) parts.push(`stdout:\n${stdout}`)
-  if (stderr) parts.push(`stderr:\n${stderr}`)
+  let stdout = await result.stdout()
+  let stderr = await result.stderr()
+  if (stdout) {
+    if (stdout.length > MAX_OUTPUT_LENGTH) {
+      stdout = stdout.slice(0, MAX_OUTPUT_LENGTH) + `\n...(truncated ${stdout.length - MAX_OUTPUT_LENGTH} chars)`
+    }
+    parts.push(`stdout:\n${stdout}`)
+  }
+  if (stderr) {
+    if (stderr.length > MAX_OUTPUT_LENGTH) {
+      stderr = stderr.slice(0, MAX_OUTPUT_LENGTH) + `\n...(truncated ${stderr.length - MAX_OUTPUT_LENGTH} chars)`
+    }
+    parts.push(`stderr:\n${stderr}`)
+  }
   parts.push(`exit code: ${result.exitCode}`)
   return parts.join("\n\n")
 }

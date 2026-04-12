@@ -10,6 +10,8 @@ import type { WorkspaceData } from "./liveblocks.types"
 const SANDBOX_TIMEOUT = 5 * 60 * 60 * 1000
 // 7 days in ms
 const SNAPSHOT_EXPIRATION = 7 * 24 * 60 * 60 * 1000
+// 1 vCPU = 2048 MB memory — sufficient for a Node.js dev server
+const SANDBOX_VCPUS = 1
 
 export interface SandboxResult {
   sandboxName: string
@@ -79,6 +81,7 @@ export async function cloneSandbox(
       ports: [port],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
+      resources: { vcpus: SANDBOX_VCPUS },
       ...(env && Object.keys(env).length > 0 ? { env } : {}),
     })
 
@@ -279,6 +282,7 @@ export async function forkSandbox(
       ports: [port],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
+      resources: { vcpus: SANDBOX_VCPUS },
       ...(env && Object.keys(env).length > 0 ? { env } : {}),
     })
 
