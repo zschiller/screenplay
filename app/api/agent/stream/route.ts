@@ -1,8 +1,9 @@
 import { after } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { Redis } from "@upstash/redis"
+import { Sandbox } from "@vercel/sandbox"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
-import { executeCustomTool } from "@/lib/agent/tool-executor"
+import { executeCustomTool, getSandbox } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 
 export const runtime = "nodejs"
@@ -33,6 +34,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
   if (locked !== "OK") return
 
   const client = getClient()
+  let sandbox: Sandbox | null = null
   try {
     const session = await client.beta.sessions.retrieve(sessionId)
     if (session.status !== "idle") return
@@ -47,6 +49,9 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
       idle.stop_reason?.type !== "requires_action"
     ) return
 
+    // Open one sandbox connection for all stuck tool calls
+    sandbox = await getSandbox(sandboxName)
+
     for (const eid of idle.stop_reason.event_ids) {
       const tu = recent.data.find(
         (e) => e.type === "agent.custom_tool_use" && e.id === eid,
@@ -55,7 +60,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
       if (tu?.type === "agent.custom_tool_use") {
         try {
           output = await executeCustomTool(
-            sandboxName,
+            sandbox,
             tu.name as CustomToolName,
             tu.input as Record<string, unknown>,
           )
@@ -72,6 +77,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
       })
     }
   } finally {
+    sandbox?.close()
     await redis.del(lockKey)
   }
 }
@@ -146,6 +152,9 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(encodeSSE(event)))
       }
 
+      // Single sandbox connection reused for all tool calls in this stream
+      let sandbox: Sandbox | null = null
+
       try {
         const [agentId, environmentId] = await Promise.all([
           getOrCreateAgent(),
@@ -205,6 +214,9 @@ export async function POST(req: Request) {
 
         // Safety net for client disconnect
         after(() => resolveStuckToolCalls(sessionId!, sandboxName))
+
+        // Open one sandbox connection for the entire stream
+        sandbox = await getSandbox(sandboxName)
 
         // Stream events. For new sessions this is clean.
         // For existing sessions, we'll see replayed history — skip until
@@ -268,7 +280,7 @@ export async function POST(req: Request) {
                   let output: string
                   try {
                     output = await executeCustomTool(
-                      sandboxName,
+                      sandbox,
                       toolEvent.name as CustomToolName,
                       toolEvent.input,
                     )
@@ -322,6 +334,8 @@ export async function POST(req: Request) {
         })
         send({ type: "done" })
         try { controller.close() } catch { /* already closed */ }
+      } finally {
+        sandbox?.close()
       }
     },
   })

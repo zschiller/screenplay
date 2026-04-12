@@ -58,10 +58,11 @@ export async function cloneSandbox(
   port: number = 3000,
   env?: Record<string, string>,
 ): Promise<{ success: true; sandboxName: string } | { success: false; error: string }> {
+  let sandbox: Sandbox | null = null
   try {
     const ghToken = await getGitHubToken()
 
-    const sandbox = await Sandbox.create({
+    sandbox = await Sandbox.create({
       name: sandboxName,
       source: ghToken
         ? {
@@ -89,6 +90,8 @@ export async function cloneSandbox(
     return { success: true, sandboxName: sandbox.name }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
+  } finally {
+    sandbox?.close()
   }
 }
 
@@ -99,14 +102,17 @@ export async function installDependencies(
   sandboxName: string,
   setupScript?: string,
 ): Promise<{ success: boolean; error?: string }> {
+  let sandbox: Sandbox | null = null
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     await sandbox.runCommand(setupCmd, setupArgs)
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
+  } finally {
+    sandbox?.close()
   }
 }
 
@@ -118,8 +124,9 @@ export async function startDevServer(
   port: number = 3000,
   devScript?: string,
 ): Promise<SandboxResult> {
+  let sandbox: Sandbox | null = null
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const dev = devScript?.trim() || "npm run dev"
     const [devCmd, ...devArgs] = dev.split(/\s+/)
     await sandbox.runCommand({
@@ -139,6 +146,8 @@ export async function startDevServer(
       status: "error",
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    sandbox?.close()
   }
 }
 
@@ -171,8 +180,9 @@ export async function reconnectSandbox(
   sandboxName: string,
   port: number = 3000,
 ): Promise<SandboxResult> {
+  let sandbox: Sandbox | null = null
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     if (sandbox.status === "running") {
       return {
         sandboxName: sandbox.name,
@@ -193,6 +203,8 @@ export async function reconnectSandbox(
       status: "error",
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    sandbox?.close()
   }
 }
 
@@ -208,11 +220,12 @@ export async function restartSandbox(
   setupScript?: string,
   devScript?: string,
 ): Promise<SandboxResult> {
+  let sandbox: Sandbox | null = null
   try {
     const safeEnv = await getEnvVars(sandboxName)
 
     // Sandbox.get auto-resumes stopped persistent sandboxes
-    const sandbox = await Sandbox.get({ name: sandboxName })
+    sandbox = await Sandbox.get({ name: sandboxName })
 
     await sandbox.runCommand("git", ["pull", "origin", branch])
 
@@ -241,6 +254,8 @@ export async function restartSandbox(
       status: "error",
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    sandbox?.close()
   }
 }
 
@@ -256,13 +271,18 @@ export async function forkSandbox(
   devScript?: string,
   env?: Record<string, string>,
 ): Promise<SandboxResult> {
+  let source: Sandbox | null = null
+  let resumedSource: Sandbox | null = null
+  let sandbox: Sandbox | null = null
   try {
-    const source = await Sandbox.get({ name: sourceSandboxName, resume: false })
+    source = await Sandbox.get({ name: sourceSandboxName, resume: false })
     const snap = await source.snapshot()
+    source.close()
+    source = null
 
     // Resume the source sandbox and restart its dev server (snapshot stopped it)
     const sourceEnv = await getEnvVars(sourceSandboxName)
-    const resumedSource = await Sandbox.get({ name: sourceSandboxName })
+    resumedSource = await Sandbox.get({ name: sourceSandboxName })
     const dev = devScript?.trim() || "npm run dev"
     const [devCmd, ...devArgs] = dev.split(/\s+/)
     await resumedSource.runCommand({
@@ -273,7 +293,7 @@ export async function forkSandbox(
     })
 
     // Create new sandbox from snapshot
-    const sandbox = await Sandbox.create({
+    sandbox = await Sandbox.create({
       name: newSandboxName,
       source: { type: "snapshot", snapshotId: snap.snapshotId },
       ports: [port],
@@ -301,6 +321,10 @@ export async function forkSandbox(
       status: "error",
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    source?.close()
+    resumedSource?.close()
+    sandbox?.close()
   }
 }
 
@@ -334,11 +358,14 @@ export async function renameAgentBranch(
   newBranch: string,
 ): Promise<{ success: boolean; error?: string }> {
   // Rename locally in the sandbox first — this always works
+  let sandbox: Sandbox | null = null
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     await sandbox.runCommand("git", ["branch", "-m", newBranch])
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
+  } finally {
+    sandbox?.close()
   }
 
   // Attempt GitHub rename — may not exist remotely yet (e.g. forked sandboxes)
@@ -376,26 +403,31 @@ export async function configureAgentGit(
     return { success: false, error: "No GitHub token available — the user may need to re-authenticate with GitHub." }
   }
 
-  const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+  let sandbox: Sandbox | null = null
+  try {
+    sandbox = await Sandbox.get({ name: sandboxName, resume: false })
 
-  // Ensure we're on the actual branch, not a detached HEAD.
-  // Sandbox.create with `revision` may check out the commit directly.
-  await sandbox.runCommand("git", ["checkout", "-B", branch])
-  await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
+    // Ensure we're on the actual branch, not a detached HEAD.
+    // Sandbox.create with `revision` may check out the commit directly.
+    await sandbox.runCommand("git", ["checkout", "-B", branch])
+    await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
 
-  const setUrl = await sandbox.runCommand("git", [
-    "remote",
-    "set-url",
-    "origin",
-    `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
-  ])
-  if (setUrl.exitCode !== 0) {
-    return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }
+    const setUrl = await sandbox.runCommand("git", [
+      "remote",
+      "set-url",
+      "origin",
+      `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+    ])
+    if (setUrl.exitCode !== 0) {
+      return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }
+    }
+
+    await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
+    await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
+    await sandbox.runCommand("git", ["config", "push.default", "current"])
+
+    return { success: true }
+  } finally {
+    sandbox?.close()
   }
-
-  await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
-  await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
-  await sandbox.runCommand("git", ["config", "push.default", "current"])
-
-  return { success: true }
 }
