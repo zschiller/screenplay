@@ -657,7 +657,8 @@ export function Canvas() {
     for (const agent of agents) {
       if (!agent.sandboxName) continue
 
-      reconnectSandbox(agent.sandboxName, agent.port).then((result) => {
+      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
         if (result.status === "running") {
           updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
@@ -676,12 +677,12 @@ export function Canvas() {
         } else {
           updateAgentInStorage(agent.id, {
             status: "stopped",
-            error: "Sandbox stopped — click refresh to restart",
+            error: result.error || "Sandbox could not be resumed — click refresh to retry",
           })
         }
       })
     }
-  }, [agents, updateAgentInStorage, ensureFirstArtboard])
+  }, [agents, workspaces, updateAgentInStorage, ensureFirstArtboard])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {

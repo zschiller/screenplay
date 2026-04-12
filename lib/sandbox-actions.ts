@@ -6,10 +6,11 @@ import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
 import type { WorkspaceData } from "./liveblocks.types"
 
-// 5 hours in ms (max for Pro plan)
-const SANDBOX_TIMEOUT = 5 * 60 * 60 * 1000
-// 7 days in ms
-const SNAPSHOT_EXPIRATION = 7 * 24 * 60 * 60 * 1000
+// 30 minutes — keep sandboxes alive only while actively used.
+// Sandbox.get with resume:true will reboot the VM when a user returns.
+const SANDBOX_TIMEOUT = 30 * 60 * 1000
+// 24 hours — snapshots preserve the full filesystem (node_modules etc.)
+const SNAPSHOT_EXPIRATION = 24 * 60 * 60 * 1000
 // 1 vCPU = 2048 MB memory — sufficient for a Node.js dev server
 const SANDBOX_VCPUS = 1
 
@@ -173,21 +174,35 @@ export async function probeSandboxUrl(
 export async function reconnectSandbox(
   sandboxName: string,
   port: number = 3000,
+  devScript?: string,
 ): Promise<SandboxResult> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
-    if (sandbox.status === "running") {
+    // First check current status without resuming
+    const check = await Sandbox.get({ name: sandboxName, resume: false })
+    if (check.status === "running") {
       return {
-        sandboxName: sandbox.name,
-        previewDomain: sandbox.domain(port),
+        sandboxName: check.name,
+        previewDomain: check.domain(port),
         status: "running",
       }
     }
+
+    // Sandbox timed out — resume it and restart the dev server
+    const sandbox = await Sandbox.get({ name: sandboxName })
+    const safeEnv = await getEnvVars(sandboxName)
+    const dev = devScript?.trim() || "npm run dev"
+    const [devCmd, ...devArgs] = dev.split(/\s+/)
+    await sandbox.runCommand({
+      cmd: devCmd,
+      args: devArgs,
+      detached: true,
+      ...(safeEnv ? { env: safeEnv } : {}),
+    })
+
     return {
-      sandboxName,
-      previewDomain: "",
-      status: "error",
-      error: `Sandbox is ${sandbox.status}`,
+      sandboxName: sandbox.name,
+      previewDomain: sandbox.domain(port),
+      status: "running",
     }
   } catch (e) {
     return {
