@@ -191,14 +191,14 @@ export async function POST(req: Request) {
 
         // On first message, prepend branch context so the agent knows which branch it's on
         const userText = !existingSessionId && effectiveBranch
-          ? `[System context: You are working on git branch "${effectiveBranch}". Always push to this branch.]\n\n${message}`
+          ? `[branch: ${effectiveBranch}] ${message}`
           : message
 
         // Send the user message and capture the event ID for matching
         const sendResult = await client.beta.sessions.events.send(sessionId, {
           events: [{
-            type: "user.message",
-            content: [{ type: "text", text: userText }],
+            type: "user.message" as const,
+            content: [{ type: "text" as const, text: userText }],
           }],
         })
         const ourMessageId = sendResult.data?.[0]?.id

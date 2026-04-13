@@ -94,6 +94,7 @@ export function Artboard({
 
   return (
     <div
+      id={`artboard-${artboard.id}`}
       className="absolute"
       style={{
         left: artboard.x,
