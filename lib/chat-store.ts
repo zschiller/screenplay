@@ -1,0 +1,318 @@
+import type { AgentMessage, AgentStreamEvent, CustomToolName } from "@/lib/agent/types"
+
+export type ChatState = {
+  messages: AgentMessage[]
+  isStreaming: boolean
+  isLoadingHistory: boolean
+  error: string | null
+}
+
+export interface SendMessageOptions {
+  roomId: string
+  chatId: string
+  sandboxName: string
+  branch: string
+  message: string
+  isFirstChat?: boolean
+  sessionId?: string
+  onSessionId?: (sessionId: string) => void
+  onBranchRename?: (branch: string) => void
+  onChatRename?: (label: string) => void
+}
+
+/** Envelope broadcast via Liveblocks to all clients in the room. */
+export type ChatBroadcastEvent =
+  | { type: "chat-stream"; chatId: string; event: AgentStreamEvent }
+  | { type: "chat-stream-start"; chatId: string }
+  | { type: "chat-stream-end"; chatId: string }
+
+const DEFAULT_STATE: ChatState = {
+  messages: [],
+  isStreaming: false,
+  isLoadingHistory: false,
+  error: null,
+}
+
+async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
+  const res = await fetch(
+    `/api/agent/history?sessionId=${encodeURIComponent(sessionId)}`,
+  )
+  if (!res.ok) return []
+  return res.json()
+}
+
+class ChatStore {
+  private states = new Map<string, ChatState>()
+  private sessionIds = new Map<string, string>()
+  private historyLoaded = new Set<string>()
+  private listeners = new Map<string, Set<() => void>>()
+  private unreadChats = new Set<string>()
+
+  /** Registered per-chat callbacks for session_id and branch_rename events. */
+  private callbacks = new Map<string, { onSessionId?: (sid: string) => void; onBranchRename?: (branch: string) => void; onChatRename?: (label: string) => void }>()
+
+  private getOrCreate(chatId: string): ChatState {
+    let state = this.states.get(chatId)
+    if (!state) {
+      state = { ...DEFAULT_STATE }
+      this.states.set(chatId, state)
+    }
+    return state
+  }
+
+  private update(chatId: string, partial: Partial<ChatState>) {
+    const current = this.getOrCreate(chatId)
+    this.states.set(chatId, { ...current, ...partial })
+    this.notify(chatId)
+  }
+
+  private notify(chatId: string) {
+    this.listeners.get(chatId)?.forEach((l) => l())
+  }
+
+  // --- Subscriptions (for useSyncExternalStore) ---
+
+  subscribe(chatId: string, listener: () => void): () => void {
+    if (!this.listeners.has(chatId)) this.listeners.set(chatId, new Set())
+    this.listeners.get(chatId)!.add(listener)
+    return () => {
+      this.listeners.get(chatId)?.delete(listener)
+      if (this.listeners.get(chatId)?.size === 0) {
+        this.listeners.delete(chatId)
+      }
+    }
+  }
+
+  getSnapshot(chatId: string): ChatState {
+    return this.getOrCreate(chatId)
+  }
+
+  // --- History loading (initial load only) ---
+
+  loadHistory(chatId: string, sessionId: string) {
+    if (this.historyLoaded.has(chatId)) return
+    this.historyLoaded.add(chatId)
+    this.sessionIds.set(chatId, sessionId)
+
+    this.update(chatId, { isLoadingHistory: true })
+    fetchHistory(sessionId)
+      .then((history) => {
+        if (history.length > 0) {
+          this.update(chatId, { messages: history, isLoadingHistory: false })
+        } else {
+          this.update(chatId, { isLoadingHistory: false })
+        }
+      })
+      .catch(() => {
+        this.update(chatId, { isLoadingHistory: false })
+      })
+  }
+
+  // --- Callbacks ---
+
+  setCallbacks(chatId: string, cbs: { onSessionId?: (sid: string) => void; onBranchRename?: (branch: string) => void; onChatRename?: (label: string) => void }) {
+    this.callbacks.set(chatId, cbs)
+  }
+
+  clearCallbacks(chatId: string) {
+    this.callbacks.delete(chatId)
+  }
+
+  // --- Send message (fire-and-forget POST, server broadcasts via Liveblocks) ---
+
+  async sendMessage(opts: SendMessageOptions) {
+    const { chatId } = opts
+    const state = this.getOrCreate(chatId)
+    if (!opts.message.trim() || state.isStreaming) return
+
+    // Optimistically add the user message
+    this.update(chatId, {
+      error: null,
+      messages: [...state.messages, { role: "user", content: opts.message }],
+    })
+
+    // Register callbacks for this chat so broadcast events can invoke them
+    this.callbacks.set(chatId, { onSessionId: opts.onSessionId, onBranchRename: opts.onBranchRename, onChatRename: opts.onChatRename })
+
+    try {
+      const res = await fetch("/api/agent/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: opts.roomId,
+          chatId: opts.chatId,
+          sandboxName: opts.sandboxName,
+          branch: opts.branch,
+          message: opts.message,
+          sessionId: this.sessionIds.get(chatId) ?? opts.sessionId,
+          isFirstChat: opts.isFirstChat,
+        }),
+      })
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || `HTTP ${res.status}`)
+      }
+
+      // The server returns the sessionId — store it locally
+      const data = await res.json()
+      if (data.sessionId) {
+        this.sessionIds.set(chatId, data.sessionId)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const current = this.getOrCreate(chatId)
+      this.update(chatId, {
+        error: msg,
+        messages: [
+          ...current.messages,
+          { role: "error", content: msg },
+        ],
+      })
+    }
+  }
+
+  // --- External streaming state control (for hydration from storage) ---
+
+  setStreaming(chatId: string, isStreaming: boolean) {
+    this.update(chatId, { isStreaming })
+  }
+
+  // --- Handle broadcast events from Liveblocks (server or other clients) ---
+
+  handleBroadcastEvent(event: ChatBroadcastEvent) {
+    const chatId = event.chatId
+
+    switch (event.type) {
+      case "chat-stream-start":
+        this.update(chatId, { isStreaming: true })
+        break
+
+      case "chat-stream-end":
+        this.unreadChats.add(chatId)
+        this.update(chatId, { isStreaming: false })
+        break
+
+      case "chat-stream":
+        this.applyEvent(chatId, event.event)
+        break
+    }
+  }
+
+  /** Apply a single agent stream event to local state. */
+  private applyEvent(chatId: string, event: AgentStreamEvent) {
+    const cbs = this.callbacks.get(chatId)
+
+    switch (event.type) {
+      case "session_id":
+        this.sessionIds.set(chatId, event.sessionId)
+        cbs?.onSessionId?.(event.sessionId)
+        break
+
+      case "user_message": {
+        const prev = this.getOrCreate(chatId).messages
+        // Avoid duplicating if the sending client already added it optimistically
+        const last = prev[prev.length - 1]
+        if (last?.role === "user" && last.content === event.text) break
+        this.update(chatId, {
+          messages: [...prev, { role: "user" as const, content: event.text }],
+        })
+        break
+      }
+
+      case "text": {
+        const prev = this.getOrCreate(chatId).messages
+        const last = prev[prev.length - 1]
+        if (last?.role === "assistant") {
+          this.update(chatId, {
+            messages: [
+              ...prev.slice(0, -1),
+              { role: "assistant" as const, content: event.text },
+            ],
+          })
+        } else {
+          this.update(chatId, {
+            messages: [
+              ...prev,
+              { role: "assistant" as const, content: event.text },
+            ],
+          })
+        }
+        break
+      }
+
+      case "tool_use":
+        this.update(chatId, {
+          messages: [
+            ...this.getOrCreate(chatId).messages,
+            {
+              role: "tool_use" as const,
+              name: event.name as CustomToolName,
+              input: event.input,
+            },
+          ],
+        })
+        break
+
+      case "tool_result":
+        this.update(chatId, {
+          messages: [
+            ...this.getOrCreate(chatId).messages,
+            {
+              role: "tool_result" as const,
+              name: event.name as CustomToolName,
+              output: event.output,
+            },
+          ],
+        })
+        break
+
+      case "branch_rename":
+        cbs?.onBranchRename?.(event.branch)
+        break
+
+      case "chat_rename":
+        cbs?.onChatRename?.(event.label)
+        break
+
+      case "error":
+        this.update(chatId, {
+          error: event.message,
+          messages: [
+            ...this.getOrCreate(chatId).messages,
+            { role: "error" as const, content: event.message },
+          ],
+        })
+        break
+
+      case "done":
+        break
+    }
+  }
+
+  // --- Unread tracking ---
+
+  markRead(chatId: string) {
+    if (this.unreadChats.delete(chatId)) {
+      this.notify(chatId)
+    }
+  }
+
+  hasUnread(chatId: string): boolean {
+    return this.unreadChats.has(chatId)
+  }
+
+  // --- Cleanup ---
+
+  cleanup(chatId: string) {
+    this.states.delete(chatId)
+    this.sessionIds.delete(chatId)
+    this.historyLoaded.delete(chatId)
+    this.unreadChats.delete(chatId)
+    this.callbacks.delete(chatId)
+    this.notify(chatId)
+    this.listeners.delete(chatId)
+  }
+}
+
+export const chatStore = new ChatStore()

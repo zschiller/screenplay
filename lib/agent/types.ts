@@ -39,10 +39,12 @@ export type AgentMessage =
 
 export type AgentStreamEvent =
   | { type: "session_id"; sessionId: string }
+  | { type: "user_message"; text: string }
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; name: string; output: string }
   | { type: "status"; status: string }
   | { type: "error"; message: string }
   | { type: "branch_rename"; branch: string }
+  | { type: "chat_rename"; label: string }
   | { type: "done" }

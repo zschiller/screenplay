@@ -3,38 +3,43 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   Send,
-  Square,
   Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { BranchBadge } from "@/components/branch-badge"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 
 interface AgentChatProps {
+  chatId: string
+  roomId: string
   sandboxId: string
   sandboxName: string
   branch: string
   sessionId?: string
+  isFirstChat?: boolean
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
+  onChatRename?: (label: string) => void
 }
 
 export function AgentChat({
+  chatId,
+  roomId,
   sandboxId,
   sandboxName,
   branch,
   sessionId,
+  isFirstChat,
   onSessionId,
   onBranchRename,
+  onChatRename,
 }: AgentChatProps) {
   const {
     messages,
     isStreaming,
     isLoadingHistory,
     sendMessage,
-    stopGeneration,
-  } = useAgentChat({ sandboxName, branch, sessionId, onSessionId, onBranchRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, onSessionId, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -49,7 +54,6 @@ export function AgentChat({
     if (!input.trim() || isStreaming) return
     sendMessage(input.trim())
     setInput("")
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
@@ -65,7 +69,6 @@ export function AgentChat({
     [handleSubmit],
   )
 
-  // Auto-resize textarea
   const handleTextareaChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInput(e.target.value)
@@ -77,14 +80,6 @@ export function AgentChat({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <span className="text-xs font-medium">AI Assistant</span>
-          <BranchBadge branch={branch} colorKey={sandboxId} className="ml-1 text-[10px] py-0 px-1.5" />
-        </div>
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3">
         {isLoadingHistory ? (
@@ -127,28 +122,20 @@ export function AgentChat({
             rows={1}
             className="flex-1 resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
-          {isStreaming ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={stopGeneration}
-              title="Stop"
-            >
-              <Square className="h-3 w-3" />
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={handleSubmit}
-              disabled={!input.trim()}
-              title="Send"
-            >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={handleSubmit}
+            disabled={!input.trim() || isStreaming}
+            title="Send"
+          >
+            {isStreaming ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
               <Send className="h-3 w-3" />
-            </Button>
-          )}
+            )}
+          </Button>
         </div>
       </div>
     </div>
