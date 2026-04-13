@@ -1,10 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { Liveblocks } from "@liveblocks/node"
 import { NextResponse } from "next/server"
-
-const liveblocks = new Liveblocks({
-  secret: process.env.LIVEBLOCKS_SECRET_KEY!,
-})
+import { liveblocks } from "@/lib/liveblocks-server"
 
 export async function POST(req: Request) {
   const { userId } = await auth()

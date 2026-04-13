@@ -10,6 +10,7 @@ import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import { LiveObject } from "@liveblocks/client"
 import {
+  useEventListener,
   useMutation,
   useStorage,
   useUpdateMyPresence,
@@ -18,14 +19,15 @@ import { Artboard } from "./artboard"
 import { Cursors } from "./cursors"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
-import { AgentChat } from "@/components/agent/agent-chat"
+import { ChatPanel } from "@/components/agent/chat-panel"
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, ChatSessionData, WorkspaceData } from "@/lib/liveblocks.types"
+import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { GitHubRepo } from "@/lib/github-actions"
 import {
   createAgentBranch,
@@ -68,11 +70,12 @@ function parseWorkspaceEnv(text: string): Record<string, string> | undefined {
   return Object.keys(env).length > 0 ? env : undefined
 }
 
-export function Canvas() {
+export function Canvas({ roomId }: { roomId: string }) {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
@@ -148,7 +151,22 @@ export function Canvas() {
         statusMessage: agent.statusMessage,
         error: agent.error,
         createdAt: agent.createdAt,
-        sessionId: agent.sessionId,
+      })
+    }
+    return result
+  })
+
+  const chatSessions = useStorage((root) => {
+    const result: ChatSessionData[] = []
+    if (!root.chatSessions) return result
+    for (const [key, cs] of Object.entries(root.chatSessions)) {
+      result.push({
+        id: key,
+        agentId: cs.agentId,
+        sessionId: cs.sessionId,
+        label: cs.label,
+        createdAt: cs.createdAt,
+        isStreaming: cs.isStreaming,
       })
     }
     return result
@@ -216,6 +234,7 @@ export function Canvas() {
           agentIds.push(key)
         }
       })
+      const chatSessionsMap = storage.get("chatSessions")
       for (const agentId of agentIds) {
         agentsMap.delete(agentId)
         const toDelete: string[] = []
@@ -225,6 +244,14 @@ export function Canvas() {
           }
         })
         toDelete.forEach((key) => artboardsMap.delete(key))
+        // Cascade-delete chat sessions
+        if (chatSessionsMap) {
+          const chatToDelete: string[] = []
+          chatSessionsMap.forEach((cs, key) => {
+            if (cs.get("agentId") === agentId) chatToDelete.push(key)
+          })
+          chatToDelete.forEach((key) => chatSessionsMap.delete(key))
+        }
       }
     },
     [],
@@ -361,6 +388,47 @@ export function Canvas() {
         }
       })
       toDelete.forEach((key) => artboardsMap.delete(key))
+      // Cascade-delete chat sessions
+      const chatSessionsMap = storage.get("chatSessions")
+      if (chatSessionsMap) {
+        const chatToDelete: string[] = []
+        chatSessionsMap.forEach((cs, key) => {
+          if (cs.get("agentId") === id) chatToDelete.push(key)
+        })
+        chatToDelete.forEach((key) => chatSessionsMap.delete(key))
+      }
+    },
+    [],
+  )
+
+  // --- Chat session mutations ---
+
+  const addChatSession = useMutation(
+    ({ storage }, id: string, data: ChatSessionData) => {
+      const map = storage.get("chatSessions")
+      if (map) map.set(id, new LiveObject(data))
+    },
+    [],
+  )
+
+  const updateChatSession = useMutation(
+    ({ storage }, id: string, data: Partial<ChatSessionData>) => {
+      const map = storage.get("chatSessions")
+      if (!map) return
+      const cs = map.get(id)
+      if (cs) {
+        for (const [key, value] of Object.entries(data)) {
+          cs.set(key as keyof ChatSessionData, value as never)
+        }
+      }
+    },
+    [],
+  )
+
+  const removeChatSession = useMutation(
+    ({ storage }, id: string) => {
+      const map = storage.get("chatSessions")
+      if (map) map.delete(id)
     },
     [],
   )
@@ -380,6 +448,81 @@ export function Canvas() {
       )
     },
     [agents, artboards, addArtboard],
+  )
+
+  const handleSelectAgent = useCallback(
+    (agentId: string | null) => {
+      // If re-selecting the same agent and chat was dragged closed, re-expand
+      if (agentId && agentId === selectedAgentId) {
+        const panel = chatPanelRef.current
+        if (panel?.isCollapsed()) panel.expand()
+        return
+      }
+      setSelectedAgentId(agentId)
+      if (agentId) {
+        const agentChats = chatSessions
+          .filter((c) => c.agentId === agentId)
+          .sort((a, b) => a.createdAt - b.createdAt)
+        setSelectedChatId(agentChats[0]?.id ?? null)
+      } else {
+        setSelectedChatId(null)
+      }
+    },
+    [chatSessions, selectedAgentId],
+  )
+
+  const handleCreateChat = useCallback(
+    (agentId: string) => {
+      const existing = chatSessions.filter((c) => c.agentId === agentId)
+      const id = nanoid()
+      const data: ChatSessionData = {
+        id,
+        agentId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      }
+      addChatSession(id, data)
+      setSelectedAgentId(agentId)
+      setSelectedChatId(id)
+    },
+    [chatSessions, addChatSession],
+  )
+
+  const handleRemoveChat = useCallback(
+    (chatId: string) => {
+      if (selectedChatId === chatId) {
+        const chat = chatSessions.find((c) => c.id === chatId)
+        if (chat) {
+          const siblings = chatSessions
+            .filter((c) => c.agentId === chat.agentId && c.id !== chatId)
+            .sort((a, b) => a.createdAt - b.createdAt)
+          setSelectedChatId(siblings[0]?.id ?? null)
+        } else {
+          setSelectedChatId(null)
+        }
+      }
+      chatStore.cleanup(chatId)
+      removeChatSession(chatId)
+    },
+    [selectedChatId, chatSessions, removeChatSession],
+  )
+
+  const handleRenameChat = useCallback(
+    (chatId: string, label: string) => {
+      updateChatSession(chatId, { label })
+    },
+    [updateChatSession],
+  )
+
+  const handleSelectChat = useCallback(
+    (chatId: string | null) => {
+      setSelectedChatId(chatId)
+      if (chatId) {
+        const chat = chatSessions.find((c) => c.id === chatId)
+        if (chat) setSelectedAgentId(chat.agentId)
+      }
+    },
+    [chatSessions],
   )
 
   const handleSelectArtboard = useCallback(
@@ -515,8 +658,12 @@ export function Canvas() {
         statusMessage: undefined,
       })
       ensureFirstArtboard(id)
+
+      // Auto-create first chat session
+      const chatId = nanoid()
+      addChatSession(chatId, { id: chatId, agentId: id, label: "Untitled", createdAt: Date.now() })
     },
-    [workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard],
+    [workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard, addChatSession],
   )
 
   const handleForkAgent = useCallback(
@@ -610,8 +757,12 @@ export function Canvas() {
         statusMessage: undefined,
       })
       ensureFirstArtboard(id)
+
+      // Auto-create first chat session
+      const chatId = nanoid()
+      addChatSession(chatId, { id: chatId, agentId: id, label: "Untitled", createdAt: Date.now() })
     },
-    [agents, workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard],
+    [agents, workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard, addChatSession],
   )
 
   const handleRefreshAgent = useCallback(
@@ -662,6 +813,40 @@ export function Canvas() {
     },
     [agents, workspaces, updateAgentInStorage],
   )
+
+  // Load history for all chat sessions that have a sessionId so other
+  // clients can see past messages for chats they haven't opened yet.
+  useEffect(() => {
+    for (const cs of chatSessions) {
+      if (cs.sessionId) {
+        chatStore.loadHistory(cs.id, cs.sessionId)
+      }
+    }
+  }, [chatSessions])
+
+  // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
+  useEffect(() => {
+    for (const cs of chatSessions) {
+      if (cs.isStreaming) {
+        chatStore.setStreaming(cs.id, true)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only on mount
+
+  // Receive server-broadcast chat events via Liveblocks and feed into chat store.
+  useEventListener(({ event }) => {
+    const e = event as ChatBroadcastEvent
+    if (e.type === "chat-stream" || e.type === "chat-stream-start" || e.type === "chat-stream-end") {
+      chatStore.handleBroadcastEvent(e)
+      // Persist streaming state to Liveblocks storage for late-joining clients
+      if (e.type === "chat-stream-start") {
+        updateChatSession(e.chatId, { isStreaming: true })
+      } else if (e.type === "chat-stream-end") {
+        updateChatSession(e.chatId, { isStreaming: false })
+      }
+    }
+  })
 
   // Reconnect agents on mount — check if they're still alive,
   // including agents that were mid-creation when the page was reloaded
@@ -743,26 +928,33 @@ export function Canvas() {
   }, [updateMyPresence])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const chatOpen = !!selectedAgent?.sandboxName
+  const chatVisible = !!selectedAgent?.sandboxName
+  const [chatCollapsed, setChatCollapsed] = useState(true)
 
-  // Sync chat panel with chatOpen state
+  // Expand/collapse chat panel when agent selection changes
   useEffect(() => {
     const panel = chatPanelRef.current
     if (!panel) return
-    if (chatOpen) panel.resize(480)
-    else panel.collapse()
-  }, [chatOpen])
+    if (chatVisible) {
+      if (panel.isCollapsed()) {
+        panel.expand()
+        // If no prior size, set a comfortable default
+        const { inPixels } = panel.getSize()
+        if (inPixels < 480) panel.resize(480)
+      }
+    } else {
+      if (!panel.isCollapsed()) panel.collapse()
+    }
+  }, [chatVisible, selectedAgentId])
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30">
       {/* Sidebar */}
       <ResizablePanel
         id="sidebar"
-        defaultSize={240}
-        minSize={180}
-        maxSize={480}
-        collapsible
-        collapsedSize={0}
+        defaultSize="240px"
+        minSize="180px"
+        maxSize="480px"
         groupResizeBehavior="preserve-pixel-size"
       >
         <AgentSidebar
@@ -770,7 +962,7 @@ export function Canvas() {
           agents={agents}
           artboards={artboards}
           selectedAgentId={selectedAgentId}
-          onSelectAgent={setSelectedAgentId}
+          onSelectAgent={handleSelectAgent}
           onCreateWorkspace={handleCreateWorkspace}
           onUpdateWorkspace={updateWorkspaceInStorage}
           onRemoveWorkspace={removeWorkspaceFromStorage}
@@ -778,45 +970,57 @@ export function Canvas() {
           onForkAgent={handleForkAgent}
           onRefreshAgent={handleRefreshAgent}
           onRemoveAgent={(id) => {
-            if (selectedAgentId === id) setSelectedAgentId(null)
+            if (selectedAgentId === id) {
+              setSelectedAgentId(null)
+              setSelectedChatId(null)
+            }
+            chatSessions
+              .filter((c) => c.agentId === id)
+              .forEach((c) => chatStore.cleanup(c.id))
             removeAgentFromStorage(id)
           }}
           onAddArtboard={handleAddArtboardForAgent}
           onUpdateAgent={updateAgentInStorage}
           onSelectArtboard={handleSelectArtboard}
+          onRenameArtboard={renameArtboard}
+          onRemoveArtboard={removeArtboard}
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />
 
-      {/* Chat — always mounted, collapsed via imperative API */}
+      {/* Chat — always mounted, toggled via collapse/expand */}
       <ResizablePanel
         id="chat"
-        panelRef={chatPanelRef}
-        defaultSize={chatOpen ? 480 : 0}
-        minSize={280}
+        defaultSize="0px"
+        minSize="280px"
         collapsible
-        collapsedSize={0}
+        collapsedSize="0px"
         groupResizeBehavior="preserve-pixel-size"
+        panelRef={chatPanelRef}
+        onResize={(size) => {
+          setChatCollapsed(size.inPixels === 0)
+          // Prevent the panel from opening when no agent is selected (e.g. via sidebar resize)
+          if (size.inPixels > 0 && !chatVisible) {
+            chatPanelRef.current?.collapse()
+          }
+        }}
       >
         {selectedAgent?.sandboxName && (
-          <AgentChat
-            key={selectedAgent.id}
-            sandboxId={selectedAgent.id}
-            sandboxName={selectedAgent.sandboxName}
-            branch={selectedAgent.branch}
-            sessionId={selectedAgent.sessionId}
-            onSessionId={(sid) =>
-              updateAgentInStorage(selectedAgent.id, {
-                sessionId: sid || undefined,
-              })
-            }
-            onBranchRename={(branch) =>
-              handleBranchRename(selectedAgent.id, branch)
-            }
+          <ChatPanel
+            agent={selectedAgent}
+            chatSessions={chatSessions.filter((c) => c.agentId === selectedAgentId)}
+            selectedChatId={selectedChatId}
+            roomId={roomId}
+            onSelectChat={setSelectedChatId}
+            onCreateChat={() => handleCreateChat(selectedAgent.id)}
+            onRenameChat={handleRenameChat}
+            onRemoveChat={handleRemoveChat}
+            onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
+            onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
           />
         )}
       </ResizablePanel>
-      <ResizableHandle disabled={!chatOpen} className={chatOpen ? "focus-visible:ring-0" : "!w-0 focus-visible:ring-0"} />
+      <ResizableHandle className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"} disabled={chatCollapsed} />
 
       {/* Canvas */}
       <ResizablePanel id="canvas">
@@ -844,7 +1048,11 @@ export function Canvas() {
               centerOnInit={false}
               doubleClick={{ disabled: true }}
               wheel={{
+                wheelDisabled: true,
                 step: ZOOM_STEP,
+                disabled: focusedArtboardId !== null,
+              }}
+              trackPadPanning={{
                 disabled: focusedArtboardId !== null,
               }}
               panning={{
