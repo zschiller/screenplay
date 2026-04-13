@@ -2,18 +2,62 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react"
 import {
+  FolderPlus,
   Plus,
-  PanelLeftClose,
-  Search,
-  Lock,
+  Folder,
+  FolderLock,
   Loader2,
-  ChevronDown,
-  ChevronRight,
   Settings,
   X,
+  ChevronRight,
+  GitBranch,
+  GitFork,
+  RefreshCw,
+  Trash2,
+  Frame,
+  MoreHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { AgentCard } from "./agent-card"
+import {
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+} from "@/components/ui/sidebar"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 
@@ -32,7 +76,7 @@ interface AgentSidebarProps {
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
-  onClose: () => void
+  onSelectArtboard: (artboardId: string) => void
 }
 
 export function AgentSidebar({
@@ -50,162 +94,190 @@ export function AgentSidebar({
   onRemoveAgent,
   onAddArtboard,
   onUpdateAgent,
-  onClose,
+  onSelectArtboard,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
-  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set())
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
 
-  const toggleWorkspace = useCallback((id: string) => {
-    setCollapsedWorkspaces((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
   return (
-    <div className="flex h-full flex-col bg-background/95 backdrop-blur-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-medium">Workspaces</span>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => setShowPicker(true)}
-            title="Add workspace"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={onClose}
-          >
-            <PanelLeftClose className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
+    <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto" onClick={() => onSelectAgent(null)}>
+        <SidebarGroup>
+          <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+          <Popover open={showPicker} onOpenChange={setShowPicker}>
+            <PopoverTrigger asChild>
+              <SidebarGroupAction title="Add workspace">
+                <FolderPlus />
+              </SidebarGroupAction>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0" side="right" align="start">
+              <RepoPicker
+                onSelect={(repo) => {
+                  onCreateWorkspace(repo)
+                  setShowPicker(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {workspaces
+                .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
+                .map((workspace) => {
+                  const workspaceAgents = agents
+                    .filter((a) => a.workspaceId === workspace.id)
+                    .sort((a, b) => a.createdAt - b.createdAt)
+                  const showSettings = settingsWorkspaceId === workspace.id
 
-      {/* Workspace list — click empty space to deselect */}
-      <div className="flex-1 overflow-y-auto" onClick={() => onSelectAgent(null)}>
-        <div className="p-3 space-y-1">
-          {workspaces
-            .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
-            .map((workspace) => {
-              const collapsed = collapsedWorkspaces.has(workspace.id)
-              const workspaceAgents = agents
-                .filter((a) => a.workspaceId === workspace.id)
-                .sort((a, b) => a.createdAt - b.createdAt)
-              const showSettings = settingsWorkspaceId === workspace.id
-
-              return (
-                <div key={workspace.id}>
-                  {/* Workspace header */}
-                  <div className="flex w-full items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-muted/50 min-w-0"
-                      onClick={() => toggleWorkspace(workspace.id)}
+                  return (
+                    <Collapsible
+                      key={workspace.id}
+                      asChild
+                      defaultOpen
+                      className="group/collapsible"
                     >
-                      {collapsed ? (
-                        <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="truncate font-mono text-[11px] text-muted-foreground">
-                        {workspace.repoFullName}
-                      </span>
-                      <span className="ml-auto text-[10px] text-muted-foreground shrink-0">
-                        {workspaceAgents.length}
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={() =>
-                          setSettingsWorkspaceId(showSettings ? null : workspace.id)
-                        }
-                        title="Workspace settings"
-                      >
-                        <Settings className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={() => onCreateAgent(workspace.id)}
-                        title="New agent"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
+                      <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
+                        <div className="group/workspace-row relative">
+                          <SidebarMenuButton className="!pr-14" onClick={(e) => e.stopPropagation()}>
+                            <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <span className="relative shrink-0">
+                                <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
+                                <ChevronRight className="hidden group-hover/workspace-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                              </span>
+                            </CollapsibleTrigger>
+                            <span className="truncate">{workspace.repoFullName}</span>
+                          </SidebarMenuButton>
 
-                  {/* Workspace settings */}
-                  {showSettings && (
-                    <WorkspaceSettings
-                      workspace={workspace}
-                      onUpdate={onUpdateWorkspace}
-                      onRemove={() => {
-                        setSettingsWorkspaceId(null)
-                        onRemoveWorkspace(workspace.id)
-                      }}
-                      onClose={() => setSettingsWorkspaceId(null)}
-                    />
-                  )}
+                          <SidebarMenuAction
+                            className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
+                            onClick={(e) => { e.stopPropagation(); setSettingsWorkspaceId(showSettings ? null : workspace.id) }}
+                            title="Settings"
+                          >
+                            <Settings />
+                          </SidebarMenuAction>
+                          <SidebarMenuAction
+                            className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
+                            onClick={(e) => { e.stopPropagation(); onCreateAgent(workspace.id) }}
+                            title="New agent"
+                          >
+                            <Plus />
+                          </SidebarMenuAction>
+                        </div>
 
-                  {/* Agent list */}
-                  {!collapsed && (
-                    <div className="ml-2 mt-1 space-y-1">
-                      {workspaceAgents.map((agent) => (
-                        <AgentCard
-                          key={agent.id}
-                          agent={agent}
-                          selected={selectedAgentId === agent.id}
-                          artboards={artboards.filter((a) => a.sandboxId === agent.id)}
-                          onSelect={onSelectAgent}
-                          onFork={onForkAgent}
-                          onRefresh={onRefreshAgent}
-                          onRemove={onRemoveAgent}
-                          onAddArtboard={onAddArtboard}
-                        />
-                      ))}
-                      {workspaceAgents.length === 0 && (
-                        <p className="py-2 pl-4 text-[10px] text-muted-foreground">
-                          No agents yet
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                        <CollapsibleContent>
+                          {showSettings && (
+                            <WorkspaceSettings
+                              workspace={workspace}
+                              onUpdate={onUpdateWorkspace}
+                              onRemove={() => {
+                                setSettingsWorkspaceId(null)
+                                onRemoveWorkspace(workspace.id)
+                              }}
+                              onClose={() => setSettingsWorkspaceId(null)}
+                            />
+                          )}
 
-          {workspaces.length === 0 && !showPicker && (
-            <p className="py-8 text-center text-xs text-muted-foreground">
-              No workspaces yet
-            </p>
-          )}
+                          <SidebarMenuSub>
+                          <SidebarMenu>
+                            {workspaceAgents.map((agent) => {
+                              const isLoading = agent.status === "creating" || agent.status === "starting"
+                              const agentArtboards = artboards.filter((a) => a.sandboxId === agent.id)
 
-          {showPicker && (
-            <RepoPicker
-              onSelect={(repo) => {
-                onCreateWorkspace(repo)
-                setShowPicker(false)
-              }}
-              onCancel={() => setShowPicker(false)}
-            />
-          )}
-        </div>
+                              return (
+                                <Collapsible
+                                  key={agent.id}
+                                  asChild
+                                  defaultOpen
+                                  className="group/collapsible-agent"
+                                >
+                                  <SidebarMenuItem>
+                                    <div className="group/agent-row relative">
+                                      <SidebarMenuButton
+                                        className="!pr-14"
+                                        size="sm"
+                                        isActive={selectedAgentId === agent.id}
+                                        onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
+                                      >
+                                        <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                          <span className="relative shrink-0">
+                                            <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
+                                            <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                          </span>
+                                        </CollapsibleTrigger>
+                                        {agent.branch ? (
+                                          <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+                                        ) : (
+                                          <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
+                                        )}
+                                      </SidebarMenuButton>
+
+                                      <SidebarMenuAction
+                                        className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
+                                        onClick={(e) => { e.stopPropagation(); onRefreshAgent(agent.id) }}
+                                        title="Restart"
+                                      >
+                                        <RefreshCw />
+                                      </SidebarMenuAction>
+                                      <SidebarMenuAction
+                                        className="md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
+                                        onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
+                                        title="Add frame"
+                                      >
+                                        <Plus />
+                                      </SidebarMenuAction>
+                                    </div>
+
+                                    {isLoading && agent.statusMessage && (
+                                      <p className="px-2 pb-1 text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+                                        {agent.statusMessage}
+                                      </p>
+                                    )}
+
+                                    {agent.error && (
+                                      <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
+                                    )}
+
+                                    <CollapsibleContent>
+                                      <SidebarMenuSub>
+                                        {agentArtboards.map((ab) => (
+                                          <SidebarMenuSubItem key={ab.id}>
+                                            <SidebarMenuSubButton className="w-full" onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id) }}>
+                                              <Frame className="text-sidebar-foreground/70" />
+                                              <span>{ab.label}</span>
+                                            </SidebarMenuSubButton>
+                                          </SidebarMenuSubItem>
+                                        ))}
+                                      </SidebarMenuSub>
+                                    </CollapsibleContent>
+                                  </SidebarMenuItem>
+                                </Collapsible>
+                              )
+                            })}
+
+                            {workspaceAgents.length === 0 && (
+                              <p className="py-2 px-2 text-xs text-sidebar-foreground/50">
+                                No agents yet
+                              </p>
+                            )}
+                          </SidebarMenu>
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  )
+                })}
+            </SidebarMenu>
+
+            {workspaces.length === 0 && !showPicker && (
+              <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                No workspaces yet
+              </div>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }
 
@@ -235,23 +307,18 @@ function WorkspaceSettings({
     envVars !== workspace.envVars
 
   return (
-    <div className="ml-2 mt-1 rounded-lg border border-border bg-card p-3 space-y-3">
+    <div className="mx-2 mb-2 rounded-lg border border-sidebar-border bg-sidebar p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+        <span className="text-[10px] font-medium text-sidebar-foreground/70 uppercase tracking-wide">
           Settings
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-5 w-5"
-          onClick={onClose}
-        >
+        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onClose}>
           <X className="h-3 w-3" />
         </Button>
       </div>
 
       <div>
-        <label className="mb-1 block text-[10px] text-muted-foreground">
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
           Setup script
         </label>
         <input
@@ -259,12 +326,12 @@ function WorkspaceSettings({
           value={setupScript}
           onChange={(e) => setSetupScript(e.target.value)}
           placeholder="npm install"
-          className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
         />
       </div>
 
       <div>
-        <label className="mb-1 block text-[10px] text-muted-foreground">
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
           Dev script
         </label>
         <input
@@ -272,36 +339,31 @@ function WorkspaceSettings({
           value={devScript}
           onChange={(e) => setDevScript(e.target.value)}
           placeholder="npm run dev"
-          className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
         />
       </div>
 
       <div>
-        <label className="mb-1 block text-[10px] text-muted-foreground">
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
           Environment variables
         </label>
         <textarea
           value={envVars}
           onChange={(e) => setEnvVars(e.target.value)}
           placeholder={"KEY=value\nANOTHER_KEY=value"}
-          className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-[10px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
           rows={3}
         />
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          className="flex-1 text-xs"
-          onClick={handleSave}
-          disabled={!hasChanges}
-        >
+        <Button size="sm" className="flex-1 text-xs" onClick={handleSave} disabled={!hasChanges}>
           Save
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="text-xs text-muted-foreground hover:text-destructive"
+          className="text-xs text-sidebar-foreground/70 hover:text-destructive"
           onClick={onRemove}
         >
           Remove
@@ -313,14 +375,11 @@ function WorkspaceSettings({
 
 function RepoPicker({
   onSelect,
-  onCancel,
 }: {
   onSelect: (repo: GitHubRepo) => void
-  onCancel: () => void
 }) {
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [loading, startTransition] = useTransition()
-  const [search, setSearch] = useState("")
 
   useEffect(() => {
     startTransition(async () => {
@@ -329,66 +388,24 @@ function RepoPicker({
     })
   }, [])
 
-  const filtered = repos.filter(
-    (r) =>
-      r.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      r.name.toLowerCase().includes(search.toLowerCase()),
-  )
-
   return (
-    <div className="mt-2 space-y-2">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search repositories..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-md border border-input bg-background py-1.5 pl-8 pr-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          autoFocus
-        />
-      </div>
-
-      <div className="max-h-64 overflow-y-auto rounded-md border border-border">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
-            {search ? "No repos found" : "No repositories"}
-          </p>
-        ) : (
-          filtered.map((repo) => (
-            <button
+    <Command>
+      <CommandInput placeholder="Search repositories..." />
+      <CommandList>
+        <CommandEmpty>{loading ? "Loading..." : "No repositories found."}</CommandEmpty>
+        <CommandGroup>
+          {repos.map((repo) => (
+            <CommandItem
               key={repo.id}
-              onClick={() => onSelect(repo)}
-              className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left last:border-0 hover:bg-muted/50"
+              value={repo.fullName}
+              onSelect={() => onSelect(repo)}
             >
-              {repo.private && (
-                <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-xs">
-                  {repo.fullName}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {repo.defaultBranch}
-                </div>
-              </div>
-            </button>
-          ))
-        )}
-      </div>
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full text-xs"
-        onClick={onCancel}
-      >
-        Cancel
-      </Button>
-    </div>
+              {repo.private ? <FolderLock /> : <Folder />}
+              <span className="truncate">{repo.fullName}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
   )
 }
