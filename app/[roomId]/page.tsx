@@ -10,7 +10,7 @@ export default async function RoomPage({
 
   return (
     <RoomProviderWrapper roomId={roomId}>
-      <Canvas />
+      <Canvas roomId={roomId} />
     </RoomProviderWrapper>
   )
 }

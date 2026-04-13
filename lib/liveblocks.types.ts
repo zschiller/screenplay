@@ -42,7 +42,15 @@ export type AgentData = {
   statusMessage?: string
   error?: string
   createdAt: number
+}
+
+export type ChatSessionData = {
+  id: string
+  agentId: string
   sessionId?: string
+  label: string
+  createdAt: number
+  isStreaming?: boolean
 }
 
 export type ArtboardData = {
@@ -61,6 +69,7 @@ export type Storage = {
   workspaces: LiveMap<string, LiveObject<WorkspaceData>>
   sandboxes: LiveMap<string, LiveObject<AgentData>>
   artboards: LiveMap<string, LiveObject<ArtboardData>>
+  chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
 }
 
 export type Presence = {

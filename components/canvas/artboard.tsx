@@ -107,6 +107,7 @@ export function Artboard({
         label={artboard.label}
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
+        route={artboard.route}
         onRename={(label) => onRename(artboard.id, label)}
       />
       <button

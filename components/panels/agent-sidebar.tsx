@@ -16,6 +16,7 @@ import {
   Trash2,
   Frame,
   MoreHorizontal,
+  Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,6 +58,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import { Badge } from "@/components/ui/badge"
 import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
@@ -64,7 +66,7 @@ import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
-  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label">>
+  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
   selectedAgentId: string | null
   onSelectAgent: (id: string | null) => void
   onCreateWorkspace: (repo: GitHubRepo) => void
@@ -77,6 +79,8 @@ interface AgentSidebarProps {
   onAddArtboard: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onSelectArtboard: (artboardId: string) => void
+  onRenameArtboard: (id: string, label: string) => void
+  onRemoveArtboard: (id: string) => void
 }
 
 export function AgentSidebar({
@@ -95,13 +99,15 @@ export function AgentSidebar({
   onAddArtboard,
   onUpdateAgent,
   onSelectArtboard,
+  onRenameArtboard,
+  onRemoveArtboard,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
 
   return (
     <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto" onClick={() => onSelectAgent(null)}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto" onClick={() => { onSelectAgent(null) }}>
         <SidebarGroup>
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <Popover open={showPicker} onOpenChange={setShowPicker}>
@@ -110,7 +116,7 @@ export function AgentSidebar({
                 <FolderPlus />
               </SidebarGroupAction>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" side="right" align="start">
+            <PopoverContent className="w-72 p-0" side="bottom" align="end">
               <RepoPicker
                 onSelect={(repo) => {
                   onCreateWorkspace(repo)
@@ -120,7 +126,7 @@ export function AgentSidebar({
             </PopoverContent>
           </Popover>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-3">
               {workspaces
                 .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
                 .map((workspace) => {
@@ -145,7 +151,7 @@ export function AgentSidebar({
                                 <ChevronRight className="hidden group-hover/workspace-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                               </span>
                             </CollapsibleTrigger>
-                            <span className="truncate">{workspace.repoFullName}</span>
+                            <span className="truncate font-medium text-sidebar-foreground/70">{workspace.repoFullName}</span>
                           </SidebarMenuButton>
 
                           <SidebarMenuAction
@@ -177,7 +183,6 @@ export function AgentSidebar({
                             />
                           )}
 
-                          <SidebarMenuSub>
                           <SidebarMenu>
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
@@ -194,7 +199,6 @@ export function AgentSidebar({
                                     <div className="group/agent-row relative">
                                       <SidebarMenuButton
                                         className="!pr-14"
-                                        size="sm"
                                         isActive={selectedAgentId === agent.id}
                                         onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                       >
@@ -211,13 +215,37 @@ export function AgentSidebar({
                                         )}
                                       </SidebarMenuButton>
 
-                                      <SidebarMenuAction
-                                        className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
-                                        onClick={(e) => { e.stopPropagation(); onRefreshAgent(agent.id) }}
-                                        title="Restart"
-                                      >
-                                        <RefreshCw />
-                                      </SidebarMenuAction>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <SidebarMenuAction
+                                            className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100 aria-expanded:opacity-100"
+                                          >
+                                            <MoreHorizontal />
+                                          </SidebarMenuAction>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent side="right" align="start">
+                                          <DropdownMenuItem onClick={() => {
+                                            const newName = prompt("Rename branch", agent.branch ?? "")
+                                            if (newName?.trim()) onUpdateAgent(agent.id, { branch: newName.trim() })
+                                          }}>
+                                            <Pencil />
+                                            Rename
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
+                                            <GitFork />
+                                            Fork
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
+                                            <RefreshCw />
+                                            Restart
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem className="text-destructive" onClick={() => onRemoveAgent(agent.id)}>
+                                            <Trash2 />
+                                            Delete
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                       <SidebarMenuAction
                                         className="md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
                                         onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
@@ -242,10 +270,38 @@ export function AgentSidebar({
                                       <SidebarMenuSub>
                                         {agentArtboards.map((ab) => (
                                           <SidebarMenuSubItem key={ab.id}>
-                                            <SidebarMenuSubButton className="w-full" onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id) }}>
-                                              <Frame className="text-sidebar-foreground/70" />
-                                              <span>{ab.label}</span>
-                                            </SidebarMenuSubButton>
+                                            <div className="group/frame-row relative">
+                                              <SidebarMenuSubButton className="w-full !pr-7" onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id) }}>
+                                                <Frame className="text-sidebar-foreground/70" />
+                                                <span>{ab.label}</span>
+                                                <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
+                                                  <span className="truncate">{ab.route || "/"}</span>
+                                                </Badge>
+                                              </SidebarMenuSubButton>
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <SidebarMenuAction
+                                                    className="!top-1 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
+                                                  >
+                                                    <MoreHorizontal />
+                                                  </SidebarMenuAction>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent side="right" align="start">
+                                                  <DropdownMenuItem onClick={() => {
+                                                    const newLabel = prompt("Rename frame", ab.label)
+                                                    if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
+                                                  }}>
+                                                    <Pencil />
+                                                    Rename
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuSeparator />
+                                                  <DropdownMenuItem className="text-destructive" onClick={() => onRemoveArtboard(ab.id)}>
+                                                    <Trash2 />
+                                                    Delete
+                                                  </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            </div>
                                           </SidebarMenuSubItem>
                                         ))}
                                       </SidebarMenuSub>
@@ -261,7 +317,6 @@ export function AgentSidebar({
                               </p>
                             )}
                           </SidebarMenu>
-                          </SidebarMenuSub>
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
@@ -280,6 +335,7 @@ export function AgentSidebar({
     </SidebarProvider>
   )
 }
+
 
 function WorkspaceSettings({
   workspace,
