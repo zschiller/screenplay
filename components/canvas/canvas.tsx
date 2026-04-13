@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { PanelLeft } from "lucide-react"
 import {
   TransformWrapper,
   TransformComponent,
@@ -18,8 +17,6 @@ import {
 import { Artboard } from "./artboard"
 import { Cursors } from "./cursors"
 import type { JsonObject } from "@/lib/postmessage-protocol"
-import { Button } from "@/components/ui/button"
-import { Toolbar } from "@/components/panels/toolbar"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
 import { AgentChat } from "@/components/agent/agent-chat"
 import {
@@ -75,10 +72,8 @@ export function Canvas() {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
-  const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
 
@@ -293,7 +288,7 @@ export function Canvas() {
           y: cy - DEFAULT_ARTBOARD_HEIGHT / 2,
           width: DEFAULT_ARTBOARD_WIDTH,
           height: DEFAULT_ARTBOARD_HEIGHT,
-          label: "Screen 1",
+          label: "Frame 1",
           iframeState: {},
         }),
       )
@@ -381,10 +376,30 @@ export function Canvas() {
       )
       addArtboard(
         agentId,
-        `Screen ${existing.length + 1}`,
+        `Frame ${existing.length + 1}`,
       )
     },
     [agents, artboards, addArtboard],
+  )
+
+  const handleSelectArtboard = useCallback(
+    (artboardId: string) => {
+      const ref = transformRef.current
+      if (!ref) return
+      const el = document.getElementById(`artboard-${artboardId}`)
+      if (!el) return
+      const padding = 20
+      const rect = el.getBoundingClientRect()
+      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const scale = Math.min(
+        (wrapperW - padding * 2) / el.offsetWidth,
+        (wrapperH - padding * 2) / el.offsetHeight,
+        ZOOM_MAX,
+      )
+      ref.zoomToElement(el, scale, 300)
+    },
+    [],
   )
 
   const handleCreateWorkspace = useCallback(
@@ -657,6 +672,8 @@ export function Canvas() {
 
     for (const agent of agents) {
       if (!agent.sandboxName) continue
+      // Skip agents actively being provisioned — handleCreateAgent manages their lifecycle
+      if (agent.status === "creating" || agent.status === "starting") continue
 
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
@@ -664,16 +681,6 @@ export function Canvas() {
           updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
             status: "running",
-          })
-          // If this agent finished creating while we were away, add its first artboard
-          if (agent.status === "creating") {
-            ensureFirstArtboard(agent.id)
-          }
-        } else if (agent.status === "creating") {
-          // Still creating or failed — sandbox not ready yet
-          updateAgentInStorage(agent.id, {
-            status: "error",
-            error: "Creation interrupted — remove and try again",
           })
         } else {
           updateAgentInStorage(agent.id, {
@@ -683,7 +690,7 @@ export function Canvas() {
         }
       })
     }
-  }, [agents, workspaces, updateAgentInStorage, ensureFirstArtboard])
+  }, [agents, workspaces, updateAgentInStorage])
 
   // Heartbeat: extend sandbox timeouts while the tab is visible so they
   // stay alive as long as the user is actively using the page.
@@ -736,15 +743,7 @@ export function Canvas() {
   }, [updateMyPresence])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const chatOpen = sidebarOpen && !!selectedAgent?.sandboxName
-
-  // Sync sidebar panel with sidebarOpen state
-  useEffect(() => {
-    const panel = sidebarPanelRef.current
-    if (!panel) return
-    if (sidebarOpen) panel.expand()
-    else panel.collapse()
-  }, [sidebarOpen])
+  const chatOpen = !!selectedAgent?.sandboxName
 
   // Sync chat panel with chatOpen state
   useEffect(() => {
@@ -755,90 +754,78 @@ export function Canvas() {
   }, [chatOpen])
 
   return (
-    <div className="fixed inset-0 bg-muted/30">
-      <ResizablePanelGroup orientation="horizontal">
-        {/* Sidebar — always mounted, collapsed via imperative API */}
-        <ResizablePanel
-          id="sidebar"
-          panelRef={sidebarPanelRef}
-          defaultSize={280}
-          minSize={220}
-          maxSize={400}
-          collapsible
-          collapsedSize={0}
-          groupResizeBehavior="preserve-pixel-size"
-        >
-          <AgentSidebar
-            workspaces={workspaces}
-            agents={agents}
-            artboards={artboards}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
-            onCreateWorkspace={handleCreateWorkspace}
-            onUpdateWorkspace={updateWorkspaceInStorage}
-            onRemoveWorkspace={removeWorkspaceFromStorage}
-            onCreateAgent={handleCreateAgent}
-            onForkAgent={handleForkAgent}
-            onRefreshAgent={handleRefreshAgent}
-            onRemoveAgent={(id) => {
-              if (selectedAgentId === id) setSelectedAgentId(null)
-              removeAgentFromStorage(id)
-            }}
-            onAddArtboard={handleAddArtboardForAgent}
-            onUpdateAgent={updateAgentInStorage}
-            onClose={() => setSidebarOpen(false)}
+    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30">
+      {/* Sidebar */}
+      <ResizablePanel
+        id="sidebar"
+        defaultSize={240}
+        minSize={180}
+        maxSize={480}
+        collapsible
+        collapsedSize={0}
+        groupResizeBehavior="preserve-pixel-size"
+      >
+        <AgentSidebar
+          workspaces={workspaces}
+          agents={agents}
+          artboards={artboards}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={setSelectedAgentId}
+          onCreateWorkspace={handleCreateWorkspace}
+          onUpdateWorkspace={updateWorkspaceInStorage}
+          onRemoveWorkspace={removeWorkspaceFromStorage}
+          onCreateAgent={handleCreateAgent}
+          onForkAgent={handleForkAgent}
+          onRefreshAgent={handleRefreshAgent}
+          onRemoveAgent={(id) => {
+            if (selectedAgentId === id) setSelectedAgentId(null)
+            removeAgentFromStorage(id)
+          }}
+          onAddArtboard={handleAddArtboardForAgent}
+          onUpdateAgent={updateAgentInStorage}
+          onSelectArtboard={handleSelectArtboard}
+        />
+      </ResizablePanel>
+      <ResizableHandle className="focus-visible:ring-0" />
+
+      {/* Chat — always mounted, collapsed via imperative API */}
+      <ResizablePanel
+        id="chat"
+        panelRef={chatPanelRef}
+        defaultSize={chatOpen ? 480 : 0}
+        minSize={280}
+        collapsible
+        collapsedSize={0}
+        groupResizeBehavior="preserve-pixel-size"
+      >
+        {selectedAgent?.sandboxName && (
+          <AgentChat
+            key={selectedAgent.id}
+            sandboxId={selectedAgent.id}
+            sandboxName={selectedAgent.sandboxName}
+            branch={selectedAgent.branch}
+            sessionId={selectedAgent.sessionId}
+            onSessionId={(sid) =>
+              updateAgentInStorage(selectedAgent.id, {
+                sessionId: sid || undefined,
+              })
+            }
+            onBranchRename={(branch) =>
+              handleBranchRename(selectedAgent.id, branch)
+            }
           />
-        </ResizablePanel>
-        <ResizableHandle />
+        )}
+      </ResizablePanel>
+      <ResizableHandle disabled={!chatOpen} className={chatOpen ? "focus-visible:ring-0" : "!w-0 focus-visible:ring-0"} />
 
-        {/* Chat — always mounted, collapsed via imperative API */}
-        <ResizablePanel
-          id="chat"
-          panelRef={chatPanelRef}
-          defaultSize={chatOpen ? 480 : 0}
-          minSize={280}
-          collapsible
-          collapsedSize={0}
-          groupResizeBehavior="preserve-pixel-size"
-        >
-          {selectedAgent?.sandboxName && (
-            <AgentChat
-              key={selectedAgent.id}
-              sandboxId={selectedAgent.id}
-              sandboxName={selectedAgent.sandboxName}
-              branch={selectedAgent.branch}
-              sessionId={selectedAgent.sessionId}
-              onSessionId={(sid) =>
-                updateAgentInStorage(selectedAgent.id, {
-                  sessionId: sid || undefined,
-                })
-              }
-              onBranchRename={(branch) =>
-                handleBranchRename(selectedAgent.id, branch)
-              }
-            />
-          )}
-        </ResizablePanel>
-        <ResizableHandle disabled={!chatOpen} className={chatOpen ? "" : "!w-0"} />
-
-        {/* Canvas */}
-        <ResizablePanel id="canvas">
-          <div
-            className="relative h-full w-full"
-            style={{ clipPath: "inset(0)" }}
-            onPointerMove={handlePointerMove}
-            onPointerLeave={handlePointerLeave}
-          >
-            {!sidebarOpen && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-4 top-4 z-50 h-8 w-8 bg-background/80 shadow-sm backdrop-blur-sm"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            )}
+      {/* Canvas */}
+      <ResizablePanel id="canvas">
+            <div
+              className="relative h-full w-full"
+              style={{ clipPath: "inset(0)" }}
+              onPointerMove={handlePointerMove}
+              onPointerLeave={handlePointerLeave}
+            >
 
             <TransformWrapper
               ref={transformRef}
@@ -942,13 +929,11 @@ export function Canvas() {
                 </div>
               </TransformComponent>
 
-              <Toolbar zoom={zoom} />
             </TransformWrapper>
 
-            <Cursors viewport={{ ...viewportPos, zoom }} />
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+              <Cursors viewport={{ ...viewportPos, zoom }} />
+            </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   )
 }
