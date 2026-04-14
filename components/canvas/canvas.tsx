@@ -36,6 +36,7 @@ import {
   restartSandbox,
   reconnectSandbox,
   keepAliveSandbox,
+  crawlRoutes,
 } from "@/lib/sandbox-actions"
 import {
   ZOOM_MIN,
@@ -240,39 +241,110 @@ export function Canvas({ roomId }: { roomId: string }) {
 
   /** Add an artboard — used by the manual "add screen" button. */
   const addArtboard = useMutation(
-    ({ storage }, agentId: string, label: string) => {
+    ({ storage }, agentId: string, label: string): string | undefined => {
       const agent = storage.get("sandboxes").get(agentId)
       if (!agent || agent.get("status") !== "running") return
 
-      const { cx, cy } = getViewportCenter()
       const artboardsMap = storage.get("artboards")
-      const existing = Array.from(artboardsMap.values()).filter(
-        (a) => a.get("sandboxId") === agentId,
-      )
-      const offset = existing.length * 40
+      const allArtboards = Array.from(artboardsMap.values())
+
+      let x: number
+      let y: number
+
+      if (allArtboards.length === 0) {
+        const { cx, cy } = getViewportCenter()
+        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
+        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+      } else {
+        // Find the top edge (min y) and rightmost edge across all artboards
+        let minY = Infinity
+        let maxRight = -Infinity
+        for (const a of allArtboards) {
+          minY = Math.min(minY, a.get("y"))
+          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+        }
+        x = maxRight + 50
+        y = minY
+      }
+
       const id = nanoid()
       artboardsMap.set(
         id,
         new LiveObject({
           id,
           sandboxId: agentId,
-          x: cx - DEFAULT_ARTBOARD_WIDTH / 2 + offset,
-          y: cy - DEFAULT_ARTBOARD_HEIGHT / 2 + offset,
+          x,
+          y,
           width: DEFAULT_ARTBOARD_WIDTH,
           height: DEFAULT_ARTBOARD_HEIGHT,
           label,
           iframeState: {},
         }),
       )
+      return id
     },
     [getViewportCenter],
   )
 
-  /**
-   * Auto-create the first artboard for an agent.
-   * Guarded: skips if the agent is gone, not running, or already has artboards.
-   */
+  const addArtboardsForRoutes = useMutation(
+    ({ storage }, agentId: string, routes: { route: string; label: string }[]): string[] => {
+      const agent = storage.get("sandboxes").get(agentId)
+      if (!agent || agent.get("status") !== "running") return []
 
+      const artboardsMap = storage.get("artboards")
+      const allArtboards = Array.from(artboardsMap.values())
+      const existing = allArtboards.filter(
+        (a) => a.get("sandboxId") === agentId,
+      )
+      const existingRoutes = new Set(
+        existing.map((a) => a.get("route") || "/"),
+      )
+      const newRoutes = routes.filter((r) => !existingRoutes.has(r.route))
+      if (newRoutes.length === 0) return []
+
+      const gap = 50
+
+      let startX: number
+      let startY: number
+
+      if (allArtboards.length === 0) {
+        const { cx, cy } = getViewportCenter()
+        startX = cx - DEFAULT_ARTBOARD_WIDTH / 2
+        startY = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+      } else {
+        let minY = Infinity
+        let maxRight = -Infinity
+        for (const a of allArtboards) {
+          minY = Math.min(minY, a.get("y"))
+          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+        }
+        startX = maxRight + gap
+        startY = minY
+      }
+
+      const newIds: string[] = []
+      newRoutes.forEach(({ route, label }, i) => {
+        const id = nanoid()
+        newIds.push(id)
+        artboardsMap.set(
+          id,
+          new LiveObject({
+            id,
+            sandboxId: agentId,
+            x: startX + i * (DEFAULT_ARTBOARD_WIDTH + gap),
+            y: startY,
+            width: DEFAULT_ARTBOARD_WIDTH,
+            height: DEFAULT_ARTBOARD_HEIGHT,
+            label,
+            route,
+            iframeState: {},
+          }),
+        )
+      })
+      return newIds
+    },
+    [getViewportCenter],
+  )
 
   const moveArtboard = useMutation(
     ({ storage }, id: string, x: number, y: number) => {
@@ -309,6 +381,14 @@ export function Canvas({ roomId }: { roomId: string }) {
   const removeArtboard = useMutation(({ storage }, id: string) => {
     storage.get("artboards").delete(id)
   }, [])
+
+  const updateArtboardRoute = useMutation(
+    ({ storage }, id: string, route: string) => {
+      const artboard = storage.get("artboards").get(id)
+      if (artboard) artboard.set("route", route)
+    },
+    [],
+  )
 
   const updateArtboardState = useMutation(
     ({ storage }, id: string, state: JsonObject) => {
@@ -399,6 +479,71 @@ export function Canvas({ roomId }: { roomId: string }) {
 
   // --- Handlers ---
 
+  const handleSelectArtboard = useCallback(
+    (artboardId: string) => {
+      const ref = transformRef.current
+      if (!ref) return
+      const el = document.getElementById(`artboard-${artboardId}`)
+      if (!el) return
+      const padding = 20
+      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const scale = Math.min(
+        (wrapperW - padding * 2) / el.offsetWidth,
+        (wrapperH - padding * 2) / el.offsetHeight,
+        ZOOM_MAX,
+      )
+      ref.zoomToElement(el, scale, 300)
+    },
+    [],
+  )
+
+  const zoomToFitArtboards = useCallback(
+    (artboardIds: string[]) => {
+      const ref = transformRef.current
+      if (!ref || artboardIds.length === 0) return
+
+      if (artboardIds.length === 1) {
+        handleSelectArtboard(artboardIds[0])
+        return
+      }
+
+      // Compute bounding box across all artboard DOM elements
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const id of artboardIds) {
+        const el = document.getElementById(`artboard-${id}`)
+        if (!el) continue
+        const x = el.offsetLeft
+        const y = el.offsetTop
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x + el.offsetWidth)
+        maxY = Math.max(maxY, y + el.offsetHeight)
+      }
+      if (minX === Infinity) return
+
+      const padding = 60
+      const bboxW = maxX - minX
+      const bboxH = maxY - minY
+      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const scale = Math.min(
+        (wrapperW - padding * 2) / bboxW,
+        (wrapperH - padding * 2) / bboxH,
+        ZOOM_MAX,
+      )
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+      const posX = wrapperW / 2 - centerX * scale
+      const posY = wrapperH / 2 - centerY * scale
+      ref.setTransform(posX, posY, scale, 300)
+    },
+    [handleSelectArtboard],
+  )
+
   const handleAddArtboardForAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -406,12 +551,35 @@ export function Canvas({ roomId }: { roomId: string }) {
       const existing = artboards.filter(
         (a) => a.sandboxId === agentId,
       )
-      addArtboard(
+      const newId = addArtboard(
         agentId,
         `Frame ${existing.length + 1}`,
       )
+      if (newId) {
+        // Wait for DOM to render the new artboard, then zoom to it
+        requestAnimationFrame(() => {
+          handleSelectArtboard(newId)
+        })
+      }
     },
-    [agents, artboards, addArtboard],
+    [agents, artboards, addArtboard, handleSelectArtboard],
+  )
+
+  const handleCrawlRoutes = useCallback(
+    async (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent || agent.status !== "running") return
+      const result = await crawlRoutes(agent.sandboxName)
+      if (result.success) {
+        const newIds = addArtboardsForRoutes(agentId, result.routes)
+        if (newIds.length > 0) {
+          requestAnimationFrame(() => {
+            zoomToFitArtboards(newIds)
+          })
+        }
+      }
+    },
+    [agents, addArtboardsForRoutes, zoomToFitArtboards],
   )
 
   const handleSelectAgent = useCallback(
@@ -487,26 +655,6 @@ export function Canvas({ roomId }: { roomId: string }) {
       }
     },
     [chatSessions],
-  )
-
-  const handleSelectArtboard = useCallback(
-    (artboardId: string) => {
-      const ref = transformRef.current
-      if (!ref) return
-      const el = document.getElementById(`artboard-${artboardId}`)
-      if (!el) return
-      const padding = 20
-      const rect = el.getBoundingClientRect()
-      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-      const scale = Math.min(
-        (wrapperW - padding * 2) / el.offsetWidth,
-        (wrapperH - padding * 2) / el.offsetHeight,
-        ZOOM_MAX,
-      )
-      ref.zoomToElement(el, scale, 300)
-    },
-    [],
   )
 
   const handleCreateWorkspace = useCallback(
@@ -942,10 +1090,12 @@ export function Canvas({ roomId }: { roomId: string }) {
             removeAgentFromStorage(id)
           }}
           onAddArtboard={handleAddArtboardForAgent}
+          onCrawlRoutes={handleCrawlRoutes}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
           onSelectArtboard={handleSelectArtboard}
           onRenameArtboard={renameArtboard}
+          onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
         />
       </ResizablePanel>
@@ -1095,7 +1245,6 @@ export function Canvas({ roomId }: { roomId: string }) {
                         onFocus={setFocusedArtboardId}
                         onMove={moveArtboard}
                         onResize={resizeArtboard}
-                        onRename={renameArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
                       />
