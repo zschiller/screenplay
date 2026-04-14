@@ -56,15 +56,14 @@ ENCRYPTION_KEY=<64 hex chars>
 
 #### Vercel Sandbox
 
-`@vercel/sandbox` authenticates automatically when the app runs on Vercel — no extra variables are required in production. For local development against real sandboxes you also need:
+`@vercel/sandbox` authenticates via OIDC. In production on Vercel the OIDC token is injected automatically — no extra variables required. For local development, link the project once and pull a short-lived OIDC token into your env file:
 
 ```bash
-VERCEL_TOKEN=...       # Personal access token from vercel.com/account/tokens
-VERCEL_TEAM_ID=team_...
-VERCEL_PROJECT_ID=prj_...
+vercel link
+vercel env pull .env.local
 ```
 
-See the [Vercel Sandbox docs](https://vercel.com/docs/vercel-sandbox) for the latest auth requirements.
+This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env pull` when it expires).
 
 ### Deploying to Vercel
 
