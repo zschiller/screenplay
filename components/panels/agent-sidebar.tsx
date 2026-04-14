@@ -28,6 +28,7 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -69,6 +70,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Kbd } from "@/components/ui/kbd"
 import { BranchBadge } from "@/components/branch-badge"
+import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listUserRepos, listRepoBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github-actions"
 
@@ -124,6 +126,7 @@ export function AgentSidebar({
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
+  const diffStats = useDiffStats(agents, workspaces)
 
   // Auto-select agents when they finish creating
   const prevStatusRef = useRef<Map<string, string>>(new Map())
@@ -271,11 +274,13 @@ export function AgentSidebar({
                                       </SidebarMenuButton>
                                     ) : (
                                       <>
-                                        <div className="group/agent-row relative">
+                                        <div
+                                          className={`group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${selectedAgentId === agent.id ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : ""}`}
+                                          onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
+                                        >
                                           <SidebarMenuButton
-                                            className="!pr-14"
-                                            isActive={selectedAgentId === agent.id}
-                                            onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
+                                            className="!pr-0 !bg-transparent hover:!bg-transparent"
+                                            isActive={false}
                                           >
                                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                                               <span className="relative shrink-0">
@@ -289,52 +294,70 @@ export function AgentSidebar({
                                               <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
                                             )}
                                           </SidebarMenuButton>
-
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                              <SidebarMenuAction
-                                                className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100 aria-expanded:opacity-100"
-                                              >
-                                                <MoreHorizontal />
-                                              </SidebarMenuAction>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent side="right" align="start" className="w-48">
-                                              <DropdownMenuItem onClick={() => {
-                                                const raw = prompt("Rename branch", agent.branch ?? "")
-                                                if (!raw?.trim()) return
-                                                const sanitized = raw.trim().toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
-                                                if (sanitized.length < 1) return
-                                                onRenameBranch(agent.id, sanitized)
-                                              }}>
-                                                <Pencil />
-                                                Rename
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
-                                                <GitBranchPlus />
-                                                Duplicate branch
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
-                                                <RefreshCw />
-                                                Restart
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem onClick={() => onCrawlRoutes(agent.id)}>
-                                                <Frame />
-                                                Show all routes
-                                              </DropdownMenuItem>
-                                              <DropdownMenuSeparator />
-                                              <DropdownMenuItem variant="destructive" onClick={() => onRemoveAgent(agent.id)}>
-                                                <Trash2 />
-                                                Delete
-                                              </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
-                                          <SidebarMenuAction
-                                            className="md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
-                                            onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
-                                            title="Add frame"
-                                          >
-                                            <Plus />
-                                          </SidebarMenuAction>
+                                          <div className="group/slot flex items-center shrink-0 pl-2 pr-1">
+                                            {(() => {
+                                              const stats = diffStats.get(agent.id)
+                                              const hasStats = stats && (stats.additions > 0 || stats.deletions > 0)
+                                              return (
+                                                <>
+                                                  {hasStats && (
+                                                    <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/agent-row:hidden md:group-focus-within/agent-row:hidden md:group-has-data-[state=open]/slot:hidden">
+                                                      <span className="text-green-600 dark:text-green-400">+{stats.additions}</span>
+                                                      <span className="text-red-500 dark:text-red-400">-{stats.deletions}</span>
+                                                    </span>
+                                                  )}
+                                                  <span className="md:hidden md:group-hover/agent-row:flex md:group-focus-within/agent-row:flex md:group-has-data-[state=open]/slot:flex flex items-center">
+                                                    <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild>
+                                                        <button
+                                                          className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                                                          onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                          <MoreHorizontal className="size-4" />
+                                                        </button>
+                                                      </DropdownMenuTrigger>
+                                                      <DropdownMenuContent side="right" align="start" className="w-48">
+                                                        <DropdownMenuItem onClick={() => {
+                                                          const raw = prompt("Rename branch", agent.branch ?? "")
+                                                          if (!raw?.trim()) return
+                                                          const sanitized = raw.trim().toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+                                                          if (sanitized.length < 1) return
+                                                          onRenameBranch(agent.id, sanitized)
+                                                        }}>
+                                                          <Pencil />
+                                                          Rename
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
+                                                          <GitBranchPlus />
+                                                          Duplicate branch
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
+                                                          <RefreshCw />
+                                                          Restart
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => onCrawlRoutes(agent.id)}>
+                                                          <Frame />
+                                                          Show all routes
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem variant="destructive" onClick={() => onRemoveAgent(agent.id)}>
+                                                          <Trash2 />
+                                                          Delete
+                                                        </DropdownMenuItem>
+                                                      </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                    <button
+                                                      className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                                                      onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
+                                                      title="Add frame"
+                                                    >
+                                                      <Plus className="size-4" />
+                                                    </button>
+                                                  </span>
+                                                </>
+                                              )
+                                            })()}
+                                          </div>
                                         </div>
 
                                         {agent.error && (

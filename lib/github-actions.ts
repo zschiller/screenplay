@@ -169,6 +169,42 @@ export async function renameBranch(
   return { success: true }
 }
 
+export async function compareBranch(
+  owner: string,
+  repo: string,
+  base: string,
+  head: string,
+): Promise<{ additions: number; deletions: number } | null> {
+  const { userId } = await auth()
+  if (!userId) return null
+
+  const client = await clerkClient()
+  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
+  const token = tokens.data?.[0]?.token
+  if (!token) return null
+
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    },
+  )
+
+  if (!res.ok) return null
+
+  const data = await res.json()
+  let additions = 0
+  let deletions = 0
+  for (const file of data.files ?? []) {
+    additions += file.additions ?? 0
+    deletions += file.deletions ?? 0
+  }
+  return { additions, deletions }
+}
+
 export async function listRepoBranches(
   owner: string,
   repo: string,
