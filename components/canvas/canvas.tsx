@@ -27,10 +27,11 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable"
-import type { PanelImperativeHandle } from "react-resizable-panels"
+import { useDefaultLayout, type PanelImperativeHandle } from "react-resizable-panels"
 import type { AgentData, ChatSessionData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { GitHubRepo } from "@/lib/github-actions"
+import { useDiffStats } from "@/hooks/use-diff-stats"
 import {
   renameAgentBranch,
   restartSandbox,
@@ -57,6 +58,7 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
+  const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
   const others = useOthers()
@@ -65,6 +67,14 @@ export function Canvas({ roomId }: { roomId: string }) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setFocusedArtboardId(null)
+      if (e.key === "b" && e.metaKey) {
+        e.preventDefault()
+        const panel = sidebarPanelRef.current
+        if (panel) {
+          if (panel.isCollapsed()) panel.expand()
+          else panel.collapse()
+        }
+      }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
@@ -136,6 +146,8 @@ export function Canvas({ roomId }: { roomId: string }) {
     }
     return result
   })
+
+  const diffStats = useDiffStats(agents, workspaces)
 
   const chatSessions = useStorage((root) => {
     const result: ChatSessionData[] = []
@@ -1099,6 +1111,8 @@ export function Canvas({ roomId }: { roomId: string }) {
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const chatVisible = !!selectedAgent?.sandboxName
   const [chatCollapsed, setChatCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
   // Expand/collapse chat panel when agent selection changes
   useEffect(() => {
@@ -1117,14 +1131,18 @@ export function Canvas({ roomId }: { roomId: string }) {
   }, [chatVisible, selectedAgentId])
 
   return (
-    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30">
+    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
       {/* Sidebar */}
       <ResizablePanel
         id="sidebar"
         defaultSize="240px"
         minSize="180px"
         maxSize="480px"
+        collapsible
+        collapsedSize="0px"
         groupResizeBehavior="preserve-pixel-size"
+        panelRef={sidebarPanelRef}
+        onResize={(size) => setSidebarCollapsed(size.inPixels === 0)}
       >
         <AgentSidebar
           workspaces={workspaces}
@@ -1158,6 +1176,7 @@ export function Canvas({ roomId }: { roomId: string }) {
           onRenameArtboard={renameArtboard}
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
+          onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />
@@ -1166,7 +1185,7 @@ export function Canvas({ roomId }: { roomId: string }) {
       <ResizablePanel
         id="chat"
         defaultSize="0px"
-        minSize="280px"
+        minSize={chatVisible ? "280px" : "0px"}
         collapsible
         collapsedSize="0px"
         groupResizeBehavior="preserve-pixel-size"
@@ -1194,6 +1213,9 @@ export function Canvas({ roomId }: { roomId: string }) {
             onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
             onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
             onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
+            diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={() => sidebarPanelRef.current?.expand()}
           />
         )}
       </ResizablePanel>
