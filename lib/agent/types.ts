@@ -4,6 +4,7 @@ export type CustomToolName =
   | "edit_file"
   | "run_command"
   | "list_files"
+  | "submit_plan"
 
 export type ReadFileInput = { path: string }
 export type WriteFileInput = { path: string; content: string }
@@ -22,6 +23,8 @@ export type CustomToolInput =
   | RunCommandInput
   | ListFilesInput
 
+export type SubmitPlanInput = { plan: string }
+
 export type AgentMessage =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string }
@@ -36,6 +39,12 @@ export type AgentMessage =
       output: string
     }
   | { role: "error"; content: string }
+  | {
+      role: "plan"
+      content: string
+      status: "pending" | "approved" | "rejected"
+      planId: string
+    }
 
 export type AgentStreamEvent =
   | { type: "session_id"; sessionId: string }
@@ -47,4 +56,7 @@ export type AgentStreamEvent =
   | { type: "error"; message: string }
   | { type: "branch_rename"; branch: string }
   | { type: "chat_rename"; label: string }
+  | { type: "plan_submitted"; planId: string; plan: string; toolEventId: string }
+  | { type: "plan_approved"; planId: string }
+  | { type: "plan_rejected"; planId: string; feedback: string }
   | { type: "done" }

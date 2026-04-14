@@ -56,6 +56,7 @@ interface ChatPanelProps {
   onReopenChat: (chatId: string) => void
   onSessionId: (chatId: string, sessionId: string) => void
   onBranchRename: (branch: string) => void
+  onPlanModeChange: (chatId: string, planMode: boolean) => void
 }
 
 export function ChatPanel({
@@ -71,6 +72,7 @@ export function ChatPanel({
   onReopenChat,
   onSessionId,
   onBranchRename,
+  onPlanModeChange,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -103,7 +105,7 @@ export function ChatPanel({
       onValueChange={onSelectChat}
       className="flex h-full flex-col gap-0"
     >
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border bg-background">
         <div className="flex-1 overflow-x-auto min-w-0">
           <TabsList variant="line" className="h-9 px-2">
             {openChats.map((chat) => (
@@ -217,6 +219,8 @@ export function ChatPanel({
               branch={agent.branch}
               sessionId={chat.sessionId}
               isFirstChat={isFirst}
+              planMode={chat.planMode}
+              onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
               onSessionId={(sid) => onSessionId(chat.id, sid)}
               onBranchRename={onBranchRename}
               onChatRename={(label) => onRenameChat(chat.id, label)}
