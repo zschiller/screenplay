@@ -371,6 +371,50 @@ Rules:
   }
 }
 
+/**
+ * Get line-level diff stats (additions/deletions) for a sandbox branch
+ * compared to the default branch.
+ */
+/**
+ * Get line-level diff stats (additions/deletions) for a sandbox branch
+ * compared to the default branch. Uses the local origin ref to avoid
+ * needing auth for a fresh fetch.
+ */
+export async function getDiffStats(
+  sandboxName: string,
+  defaultBranch: string,
+): Promise<{ additions: number; deletions: number } | null> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    if (sandbox.status !== "running") return null
+
+    // Try fetching silently — may fail on private repos without token, that's ok
+    try { await sandbox.runCommand("git", ["fetch", "origin", defaultBranch, "--quiet"]) } catch {}
+
+    // Use numstat for reliable machine-parseable output
+    const result = await sandbox.runCommand("git", [
+      "diff",
+      "--numstat",
+      `origin/${defaultBranch}`,
+    ])
+    const stdout = (await result.stdout()).trim()
+    if (!stdout) return { additions: 0, deletions: 0 }
+
+    let additions = 0
+    let deletions = 0
+    for (const line of stdout.split("\n")) {
+      const [add, del] = line.split("\t")
+      // Binary files show "-" for add/del
+      if (add !== "-") additions += parseInt(add, 10) || 0
+      if (del !== "-") deletions += parseInt(del, 10) || 0
+    }
+
+    return { additions, deletions }
+  } catch {
+    return null
+  }
+}
+
 function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefined {
   const env = parseEnvVars(envVarsText)
   return Object.keys(env).length > 0 ? env : undefined

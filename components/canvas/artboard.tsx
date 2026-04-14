@@ -111,7 +111,10 @@ export function Artboard({
     return () => { cancelled = true }
   }, [src, serverReady])
 
-  const HANDLE = 6 // px thickness of resize handles
+  const HANDLE = 6 // base px thickness of resize handles
+  const h = HANDLE / zoom // scale inversely so handles stay usable when zoomed out
+  const hHalf = h / 2
+  const cornerSize = 12 / zoom
 
   return (
     <div
@@ -129,6 +132,7 @@ export function Artboard({
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
         route={artboard.route}
+        dragHandlers={focused ? undefined : dragHandlers}
       />
       <button
         onClick={() => onFocus(focused ? null : artboard.id)}
@@ -168,26 +172,25 @@ export function Artboard({
           </div>
         )}
 
-        {/* Overlay: captures pointer events for drag/pan */}
+        {/* Overlay: blocks iframe pointer events when not focused */}
         {!focused && (
           <div
-            className="absolute inset-0 cursor-grab active:cursor-grabbing"
-            {...dragHandlers}
+            className="absolute inset-0"
           />
         )}
       </div>
 
       {/* Resize handles — edges */}
-      <div className="absolute -top-[3px] left-2 right-2 h-[6px] cursor-n-resize" {...makeHandleProps("n")} style={{ height: HANDLE }} />
-      <div className="absolute -bottom-[3px] left-2 right-2 h-[6px] cursor-s-resize" {...makeHandleProps("s")} style={{ height: HANDLE }} />
-      <div className="absolute -left-[3px] top-2 bottom-2 w-[6px] cursor-w-resize" {...makeHandleProps("w")} style={{ width: HANDLE }} />
-      <div className="absolute -right-[3px] top-2 bottom-2 w-[6px] cursor-e-resize" {...makeHandleProps("e")} style={{ width: HANDLE }} />
+      <div className="absolute cursor-ns-resize" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+      <div className="absolute cursor-ns-resize" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+      <div className="absolute cursor-ew-resize" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
+      <div className="absolute cursor-ew-resize" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
 
       {/* Resize handles — corners */}
-      <div className="absolute -top-[3px] -left-[3px] h-3 w-3 cursor-nw-resize" {...makeHandleProps("nw")} />
-      <div className="absolute -top-[3px] -right-[3px] h-3 w-3 cursor-ne-resize" {...makeHandleProps("ne")} />
-      <div className="absolute -bottom-[3px] -left-[3px] h-3 w-3 cursor-sw-resize" {...makeHandleProps("sw")} />
-      <div className="absolute -bottom-[3px] -right-[3px] h-3 w-3 cursor-se-resize" {...makeHandleProps("se")} />
+      <div className="absolute cursor-nwse-resize" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+      <div className="absolute cursor-nesw-resize" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+      <div className="absolute cursor-nesw-resize" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+      <div className="absolute cursor-nwse-resize" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
     </div>
   )
 }

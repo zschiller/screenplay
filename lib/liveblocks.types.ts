@@ -51,6 +51,7 @@ export type ChatSessionData = {
   label: string
   createdAt: number
   isStreaming?: boolean
+  closedAt?: number
 }
 
 export type ArtboardData = {
@@ -65,11 +66,18 @@ export type ArtboardData = {
   route?: string
 }
 
+export type ViewportData = {
+  x: number
+  y: number
+  zoom: number
+}
+
 export type Storage = {
   workspaces: LiveMap<string, LiveObject<WorkspaceData>>
   sandboxes: LiveMap<string, LiveObject<AgentData>>
   artboards: LiveMap<string, LiveObject<ArtboardData>>
   chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
+  savedViewport?: LiveObject<ViewportData>
 }
 
 export type Presence = {
