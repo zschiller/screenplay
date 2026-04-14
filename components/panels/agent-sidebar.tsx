@@ -302,8 +302,8 @@ export function AgentSidebar({
                                                 <>
                                                   {hasStats && (
                                                     <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/agent-row:hidden md:group-focus-within/agent-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                      <span className="text-green-600 dark:text-green-400">+{stats.additions}</span>
-                                                      <span className="text-red-500 dark:text-red-400">-{stats.deletions}</span>
+                                                      <span className="text-green-700 dark:text-green-300">+{stats.additions}</span>
+                                                      <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
                                                     </span>
                                                   )}
                                                   <AgentDropdownSlot
