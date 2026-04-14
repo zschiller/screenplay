@@ -16,7 +16,9 @@ import {
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
+import { MessageSquare } from "lucide-react"
 import { Artboard } from "./artboard"
+import { Comments } from "./comments"
 import { Cursors } from "./cursors"
 import { FollowingToolbar } from "./following-toolbar"
 import type { JsonObject } from "@/lib/postmessage-protocol"
@@ -56,6 +58,8 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
+  const [commentMode, setCommentMode] = useState(false)
+  const [newCommentPos, setNewCommentPos] = useState<{ x: number; y: number; artboardId?: string } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -66,7 +70,25 @@ export function Canvas({ roomId }: { roomId: string }) {
   // Escape key unfocuses
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFocusedArtboardId(null)
+      if (e.key === "Escape") {
+        if (commentMode || newCommentPos) {
+          setCommentMode(false)
+          setNewCommentPos(null)
+        } else {
+          setFocusedArtboardId(null)
+        }
+      }
+      if (
+        e.key === "c" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement) &&
+        !(e.target as HTMLElement)?.isContentEditable
+      ) {
+        setCommentMode((m) => !m)
+        setNewCommentPos(null)
+      }
       if (e.key === "b" && e.metaKey) {
         e.preventDefault()
         const panel = sidebarPanelRef.current
@@ -1108,6 +1130,40 @@ export function Canvas({ roomId }: { roomId: string }) {
     updateMyPresence({ cursor: null })
   }, [updateMyPresence])
 
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!commentMode) return
+      const ref = transformRef.current
+      if (!ref) return
+      const { positionX, positionY, scale } = ref.state
+      const rect = e.currentTarget.getBoundingClientRect()
+      const relX = e.clientX - rect.left
+      const relY = e.clientY - rect.top
+      const canvasX = (relX - positionX) / scale
+      const canvasY = (relY - positionY) / scale
+
+      // Hit-test against artboard bounds — store offset relative to artboard
+      for (const ab of artboards) {
+        if (
+          canvasX >= ab.x &&
+          canvasX <= ab.x + ab.width &&
+          canvasY >= ab.y &&
+          canvasY <= ab.y + ab.height
+        ) {
+          setNewCommentPos({
+            x: canvasX - ab.x,
+            y: canvasY - ab.y,
+            artboardId: ab.id,
+          })
+          return
+        }
+      }
+
+      setNewCommentPos({ x: canvasX, y: canvasY })
+    },
+    [commentMode, artboards],
+  )
+
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const chatVisible = !!selectedAgent?.sandboxName
   const [chatCollapsed, setChatCollapsed] = useState(true)
@@ -1225,9 +1281,11 @@ export function Canvas({ roomId }: { roomId: string }) {
       <ResizablePanel id="canvas">
             <div
               className="relative h-full w-full"
-              style={{ clipPath: "inset(0)" }}
+              data-canvas-wrapper
+              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : undefined }}
               onPointerMove={handlePointerMove}
               onPointerLeave={handlePointerLeave}
+              onClick={commentMode ? handleCanvasClick : undefined}
             >
 
             <TransformWrapper
@@ -1252,11 +1310,11 @@ export function Canvas({ roomId }: { roomId: string }) {
                 disabled: focusedArtboardId !== null,
               }}
               trackPadPanning={{
-                disabled: focusedArtboardId !== null,
+                disabled: focusedArtboardId !== null || commentMode,
               }}
               panning={{
                 velocityDisabled: true,
-                disabled: focusedArtboardId !== null,
+                disabled: focusedArtboardId !== null || commentMode,
               }}
               onInit={(ref) => {
                 if (!viewportRestoredRef.current && savedViewport) {
@@ -1344,6 +1402,18 @@ export function Canvas({ roomId }: { roomId: string }) {
                       />
                     )
                   })}
+
+                  <Comments
+                    zoom={zoom}
+                    commentMode={commentMode}
+                    newCommentPos={newCommentPos}
+                    onNewCommentPlaced={() => {
+                      setNewCommentPos(null)
+                      setCommentMode(false)
+                    }}
+                    onCancelComment={() => setNewCommentPos(null)}
+                    artboards={artboards}
+                  />
                 </div>
               </TransformComponent>
 
@@ -1354,6 +1424,20 @@ export function Canvas({ roomId }: { roomId: string }) {
                 followingId={followingConnectionId}
                 onFollow={setFollowingConnectionId}
               />
+              <button
+                onClick={() => {
+                  setCommentMode((m) => !m)
+                  setNewCommentPos(null)
+                }}
+                className={`absolute left-4 top-4 z-[9998] flex h-8 w-8 items-center justify-center rounded-lg border shadow-sm transition-colors ${
+                  commentMode
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                }`}
+                title="Comment mode (C)"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
             </div>
       </ResizablePanel>
     </ResizablePanelGroup>
