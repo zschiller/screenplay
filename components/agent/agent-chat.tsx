@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   Send,
   Loader2,
+  ClipboardList,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
+import type { AgentMessage } from "@/lib/agent/types"
 
 interface AgentChatProps {
   chatId: string
@@ -17,6 +19,8 @@ interface AgentChatProps {
   branch: string
   sessionId?: string
   isFirstChat?: boolean
+  planMode?: boolean
+  onPlanModeChange?: (planMode: boolean) => void
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
@@ -30,6 +34,8 @@ export function AgentChat({
   branch,
   sessionId,
   isFirstChat,
+  planMode,
+  onPlanModeChange,
   onSessionId,
   onBranchRename,
   onChatRename,
@@ -39,7 +45,7 @@ export function AgentChat({
     isStreaming,
     isLoadingHistory,
     sendMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, onSessionId, onBranchRename, onChatRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, planMode, onSessionId, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -95,10 +101,17 @@ export function AgentChat({
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {messages.map((msg, i) => (
-              <AgentMessageItem key={i} message={msg} />
-            ))}
+          <div className="space-y-3">
+            {messages.map((msg, i) => {
+              if (msg.role === "tool_use") {
+                const result = messages.slice(i + 1).find(
+                  (m): m is AgentMessage & { role: "tool_result" } =>
+                    m.role === "tool_result" && m.name === msg.name
+                )
+                return <AgentMessageItem key={i} message={msg} toolResult={result} roomId={roomId} chatId={chatId} />
+              }
+              return <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+            })}
             {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -122,6 +135,15 @@ export function AgentChat({
             rows={1}
             className="flex-1 resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
+          <Button
+            variant={planMode ? "default" : "ghost"}
+            size="icon"
+            className={`h-7 w-7 shrink-0 ${!planMode ? "text-muted-foreground" : ""}`}
+            onClick={() => onPlanModeChange?.(!planMode)}
+            title={planMode ? "Plan mode enabled" : "Enable plan mode"}
+          >
+            <ClipboardList className="h-3 w-3" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"

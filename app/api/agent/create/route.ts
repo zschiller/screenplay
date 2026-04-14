@@ -95,16 +95,36 @@ async function createArtboardAndChat(
       if (a.get("sandboxId") === agentId) hasArtboard = true
     })
     if (!hasArtboard) {
-      const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
-      const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
+      const allArtboards = Array.from(artboardsMap.values())
+
+      let x: number
+      let y: number
+
+      if (allArtboards.length === 0) {
+        const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
+        const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
+        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
+        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+      } else {
+        // Place to the right of the rightmost artboard, aligned to the top
+        let minY = Infinity
+        let maxRight = -Infinity
+        for (const a of allArtboards) {
+          minY = Math.min(minY, a.get("y"))
+          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+        }
+        x = maxRight + 50
+        y = minY
+      }
+
       const artboardId = nanoid()
       artboardsMap.set(
         artboardId,
         new LiveObject<ArtboardData>({
           id: artboardId,
           sandboxId: agentId,
-          x: cx - DEFAULT_ARTBOARD_WIDTH / 2,
-          y: cy - DEFAULT_ARTBOARD_HEIGHT / 2,
+          x,
+          y,
           width: DEFAULT_ARTBOARD_WIDTH,
           height: DEFAULT_ARTBOARD_HEIGHT,
           label: "Frame 1",

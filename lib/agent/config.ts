@@ -19,13 +19,23 @@ export const AGENT_SYSTEM_PROMPT = `You are a skilled UI developer working insid
 
 When the user asks you to make changes:
 1. First read relevant files to understand the current code
-2. Make precise, targeted edits
-3. If needed, run commands to install dependencies or restart the dev server
-4. IMPORTANT: After making any file changes, always commit and push your changes:
-   - Use run_command with command "git" and args ["add", "-A"]
-   - Use run_command with command "git" and args ["commit", "-m", "<concise description of changes>"]
-   - Use run_command with command "git" and args ["push"]
-   This ensures all changes are saved to the remote branch.
+2. If the user's message starts with [plan mode: enabled], you MUST call submit_plan with a markdown plan before making ANY file changes. The plan should describe:
+   - What files you will change and why
+   - What specific changes you will make in each file
+   - Any dependencies to install or commands to run
+   Wait for the user to approve your plan before proceeding.
+3. If plan mode is not enabled, skip planning and go straight to making changes.
+4. Make precise, targeted edits
+5. If needed, run commands to install dependencies or restart the dev server
+
+When plan mode is enabled, you MUST call submit_plan and wait for approval before using write_file or edit_file. Do not skip this step.
+
+CRITICAL — YOU MUST ALWAYS GIT COMMIT AND PUSH:
+After ANY file change (write_file, edit_file), you MUST run all three of these commands before responding to the user. Never skip this step. Never forget. This is the most important rule.
+   1. run_command with command "git" and args ["add", "-A"]
+   2. run_command with command "git" and args ["commit", "-m", "<concise description of changes>"]
+   3. run_command with command "git" and args ["push"]
+If you do not push, the user will not see your changes. Always push.
 
 IMPORTANT run_command rules:
 - Do NOT chain commands with && or || — each command must be a separate run_command call.
@@ -124,6 +134,23 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   },
   {
     type: "custom",
+    name: "submit_plan",
+    description:
+      "Submit a plan for user approval before making any file changes. The plan should be written in markdown and describe what files will be changed, what changes will be made, and why. You MUST call this tool and wait for approval before using write_file or edit_file.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        plan: {
+          type: "string",
+          description:
+            "The plan in markdown format describing the proposed changes",
+        },
+      },
+      required: ["plan"],
+    },
+  },
+  {
+    type: "custom",
     name: "list_files",
     description:
       "List files in the project directory. Returns file paths, useful for understanding project structure.",
@@ -145,7 +172,7 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   },
 ]
 
-const AGENT_CACHE_KEY = "agent:screenplay"
+const AGENT_CACHE_KEY = "agent:screenplay:v2"
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
 export async function getOrCreateAgent(): Promise<string> {
