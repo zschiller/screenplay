@@ -12,11 +12,13 @@ import { LiveObject } from "@liveblocks/client"
 import {
   useEventListener,
   useMutation,
+  useOthers,
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
 import { Artboard } from "./artboard"
 import { Cursors } from "./cursors"
+import { FollowingToolbar } from "./following-toolbar"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
 import { ChatPanel } from "@/components/agent/chat-panel"
@@ -30,13 +32,7 @@ import type { AgentData, ChatSessionData, WorkspaceData } from "@/lib/liveblocks
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { GitHubRepo } from "@/lib/github-actions"
 import {
-  createAgentBranch,
   renameAgentBranch,
-  cloneSandbox,
-  installDependencies,
-  startDevServer,
-  configureAgentGit,
-  forkSandbox,
   restartSandbox,
   reconnectSandbox,
   keepAliveSandbox,
@@ -50,25 +46,6 @@ import {
   CANVAS_SIZE,
 } from "@/lib/constants"
 
-function parseWorkspaceEnv(text: string): Record<string, string> | undefined {
-  const env: Record<string, string> = {}
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eqIdx = trimmed.indexOf("=")
-    if (eqIdx === -1) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    let value = trimmed.slice(eqIdx + 1).trim()
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-    if (key) env[key] = value
-  }
-  return Object.keys(env).length > 0 ? env : undefined
-}
 
 export function Canvas({ roomId }: { roomId: string }) {
   const [zoom, setZoom] = useState(1)
@@ -76,9 +53,11 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
+  const others = useOthers()
 
   // Escape key unfocuses
   useEffect(() => {
@@ -293,35 +272,7 @@ export function Canvas({ roomId }: { roomId: string }) {
    * Auto-create the first artboard for an agent.
    * Guarded: skips if the agent is gone, not running, or already has artboards.
    */
-  const ensureFirstArtboard = useMutation(
-    ({ storage }, agentId: string) => {
-      const agent = storage.get("sandboxes").get(agentId)
-      if (!agent || agent.get("status") !== "running") return
 
-      const artboardsMap = storage.get("artboards")
-      const hasArtboard = Array.from(artboardsMap.values()).some(
-        (a) => a.get("sandboxId") === agentId,
-      )
-      if (hasArtboard) return
-
-      const { cx, cy } = getViewportCenter()
-      const id = nanoid()
-      artboardsMap.set(
-        id,
-        new LiveObject({
-          id,
-          sandboxId: agentId,
-          x: cx - DEFAULT_ARTBOARD_WIDTH / 2,
-          y: cy - DEFAULT_ARTBOARD_HEIGHT / 2,
-          width: DEFAULT_ARTBOARD_WIDTH,
-          height: DEFAULT_ARTBOARD_HEIGHT,
-          label: "Frame 1",
-          iframeState: {},
-        }),
-      )
-    },
-    [getViewportCenter],
-  )
 
   const moveArtboard = useMutation(
     ({ storage }, id: string, x: number, y: number) => {
@@ -329,6 +280,19 @@ export function Canvas({ roomId }: { roomId: string }) {
       if (artboard) {
         artboard.set("x", x)
         artboard.set("y", y)
+      }
+    },
+    [],
+  )
+
+  const resizeArtboard = useMutation(
+    ({ storage }, id: string, x: number, y: number, w: number, h: number) => {
+      const artboard = storage.get("artboards").get(id)
+      if (artboard) {
+        artboard.set("x", x)
+        artboard.set("y", y)
+        artboard.set("width", Math.max(320, w))
+        artboard.set("height", Math.max(200, h))
       }
     },
     [],
@@ -566,7 +530,7 @@ export function Canvas({ roomId }: { roomId: string }) {
   )
 
   const handleCreateAgent = useCallback(
-    async (workspaceId: string) => {
+    (workspaceId: string) => {
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
@@ -577,8 +541,9 @@ export function Canvas({ roomId }: { roomId: string }) {
         separator: "-",
         length: 3,
       })
+      const { cx, cy } = getViewportCenter()
 
-      const data: AgentData = {
+      addAgentToStorage(id, {
         id,
         workspaceId,
         sandboxName,
@@ -589,180 +554,116 @@ export function Canvas({ roomId }: { roomId: string }) {
         status: "creating",
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
-      }
-      addAgentToStorage(id, data)
-
-      // Step 1: Create branch
-      const branchResult = await createAgentBranch(workspace, branch)
-      if (!branchResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: branchResult.error || "Failed to create branch",
-        })
-        return
-      }
-
-      // Step 2: Clone repo into sandbox
-      updateAgentInStorage(id, { statusMessage: "Cloning repository…" })
-      const env = parseWorkspaceEnv(workspace.envVars)
-      const cloneResult = await cloneSandbox(sandboxName, workspace.cloneUrl, branch, 3000, env)
-      if (!cloneResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: cloneResult.error,
-        })
-        return
-      }
-
-      // Step 3: Install dependencies
-      updateAgentInStorage(id, { statusMessage: "Installing dependencies…" })
-      const installResult = await installDependencies(cloneResult.sandboxName, workspace.setupScript)
-      if (!installResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: installResult.error,
-        })
-        return
-      }
-
-      // Step 4: Start dev server
-      updateAgentInStorage(id, { statusMessage: "Starting dev server…" })
-      const serverResult = await startDevServer(cloneResult.sandboxName, 3000, workspace.devScript)
-      if (serverResult.status !== "running") {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: serverResult.error,
-        })
-        return
-      }
-
-      // Step 5: Configure git
-      updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace, branch)
-      if (!gitResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: gitResult.error,
-        })
-        return
-      }
-
-      updateAgentInStorage(id, {
-        previewDomain: serverResult.previewDomain,
-        status: "running",
-        statusMessage: undefined,
       })
-      ensureFirstArtboard(id)
 
-      // Auto-create first chat session
-      const chatId = nanoid()
-      addChatSession(chatId, { id: chatId, agentId: id, label: "Untitled", createdAt: Date.now() })
+      fetch("/api/agent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "new",
+          roomId,
+          agentId: id,
+          sandboxName,
+          branch,
+          workspaceId,
+          viewportCenter: { x: cx, y: cy },
+        }),
+      })
     },
-    [workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard, addChatSession],
+    [workspaces, addAgentToStorage, getViewportCenter, roomId],
   )
 
-  const handleForkAgent = useCallback(
-    async (agentId: string) => {
-      const sourceAgent = agents.find((a) => a.id === agentId)
-      if (!sourceAgent?.branch || !sourceAgent.sandboxName) return
-
-      const workspace = workspaces.find((w) => w.id === sourceAgent.workspaceId)
+  const handleCreateAgentFromBranch = useCallback(
+    (workspaceId: string, branch: string) => {
+      const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
       const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
-      const branch = uniqueNamesGenerator({
-        dictionaries: [adjectives, colors, animals],
-        separator: "-",
-        length: 3,
-      })
+      const { cx, cy } = getViewportCenter()
 
-      const data: AgentData = {
+      addAgentToStorage(id, {
         id,
-        workspaceId: sourceAgent.workspaceId,
+        workspaceId,
         sandboxName,
-        gitUrl: sourceAgent.gitUrl,
+        gitUrl: workspace.cloneUrl,
         branch,
         previewDomain: "",
         port: 3000,
         status: "creating",
-        statusMessage: "Snapshotting sandbox…",
+        statusMessage: "Cloning repository…",
         createdAt: Date.now(),
-      }
-      addAgentToStorage(id, data)
-
-      // Step 1: Create branch on GitHub
-      const branchResult = await createAgentBranch(workspace, branch, sourceAgent.branch)
-      if (!branchResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: branchResult.error || "Failed to create branch",
-        })
-        return
-      }
-
-      // Step 2: Fork sandbox via snapshot (preserves uncommitted changes + deps)
-      updateAgentInStorage(id, { statusMessage: "Forking sandbox…" })
-      const env = parseWorkspaceEnv(workspace.envVars)
-      const forkResult = await forkSandbox(
-        sourceAgent.sandboxName,
-        sandboxName,
-        branch,
-        3000,
-        workspace.devScript,
-        env,
-      )
-      if (forkResult.status !== "running") {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: forkResult.error,
-        })
-        return
-      }
-
-      // Step 3: Start dev server
-      updateAgentInStorage(id, { statusMessage: "Starting dev server…" })
-      const serverResult = await startDevServer(forkResult.sandboxName, 3000, workspace.devScript)
-      if (serverResult.status !== "running") {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: serverResult.error,
-        })
-        return
-      }
-
-      // Step 4: Configure git
-      updateAgentInStorage(id, { statusMessage: "Configuring git…" })
-      const gitResult = await configureAgentGit(forkResult.sandboxName, workspace, branch)
-      if (!gitResult.success) {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: undefined,
-          error: gitResult.error,
-        })
-        return
-      }
-
-      updateAgentInStorage(id, {
-        previewDomain: serverResult.previewDomain,
-        status: "running",
-        statusMessage: undefined,
       })
-      ensureFirstArtboard(id)
 
-      // Auto-create first chat session
-      const chatId = nanoid()
-      addChatSession(chatId, { id: chatId, agentId: id, label: "Untitled", createdAt: Date.now() })
+      fetch("/api/agent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "from-branch",
+          roomId,
+          agentId: id,
+          sandboxName,
+          branch,
+          workspaceId,
+          viewportCenter: { x: cx, y: cy },
+        }),
+      })
     },
-    [agents, workspaces, addAgentToStorage, updateAgentInStorage, ensureFirstArtboard, addChatSession],
+    [workspaces, addAgentToStorage, getViewportCenter, roomId],
+  )
+
+  const handleDuplicateBranch = useCallback(
+    (workspaceId: string, branch: string) => {
+      const workspace = workspaces.find((w) => w.id === workspaceId)
+      if (!workspace) return
+
+      const id = nanoid()
+      const sandboxName = `sp-${nanoid(10)}`
+      const newBranch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
+      const { cx, cy } = getViewportCenter()
+
+      addAgentToStorage(id, {
+        id,
+        workspaceId,
+        sandboxName,
+        gitUrl: workspace.cloneUrl,
+        branch: newBranch,
+        previewDomain: "",
+        port: 3000,
+        status: "creating",
+        statusMessage: "Creating branch…",
+        createdAt: Date.now(),
+      })
+
+      fetch("/api/agent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "duplicate-branch",
+          roomId,
+          agentId: id,
+          sandboxName,
+          branch: newBranch,
+          sourceBranch: branch,
+          workspaceId,
+          viewportCenter: { x: cx, y: cy },
+        }),
+      })
+    },
+    [workspaces, addAgentToStorage, getViewportCenter, roomId],
+  )
+
+  const handleForkAgent = useCallback(
+    (agentId: string) => {
+      const sourceAgent = agents.find((a) => a.id === agentId)
+      if (!sourceAgent?.branch || !sourceAgent.sandboxName) return
+      handleDuplicateBranch(sourceAgent.workspaceId, sourceAgent.branch)
+    },
+    [agents, handleDuplicateBranch],
   )
 
   const handleRefreshAgent = useCallback(
@@ -794,9 +695,10 @@ export function Canvas({ roomId }: { roomId: string }) {
   )
 
   const handleBranchRename = useCallback(
-    async (agentId: string, newBranch: string) => {
+    async (agentId: string, rawBranch: string) => {
+      const newBranch = rawBranch.toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
       const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.branch || agent.branch === newBranch) return
+      if (!newBranch || !agent?.sandboxName || !agent.branch || agent.branch === newBranch) return
 
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       if (!workspace) return
@@ -849,16 +751,41 @@ export function Canvas({ roomId }: { roomId: string }) {
   })
 
   // Reconnect agents on mount — check if they're still alive,
-  // including agents that were mid-creation when the page was reloaded
+  // and recover any that were mid-creation when the page was reloaded.
   const reconnectedRef = useRef(false)
   useEffect(() => {
     if (reconnectedRef.current || agents.length === 0) return
     reconnectedRef.current = true
 
     for (const agent of agents) {
+      // Agents stuck in creating/starting — ask server to resume.
+      // The server uses a Redis lock so only one instance handles it.
+      if (agent.status === "creating" || agent.status === "starting") {
+        if (!agent.sandboxName) {
+          // VM was never created — unrecoverable
+          updateAgentInStorage(agent.id, {
+            status: "error",
+            statusMessage: undefined,
+            error: "Sandbox creation was interrupted — delete and try again",
+          })
+          continue
+        }
+        fetch("/api/agent/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flow: "from-branch",
+            roomId,
+            agentId: agent.id,
+            sandboxName: agent.sandboxName,
+            branch: agent.branch,
+            workspaceId: agent.workspaceId,
+          }),
+        })
+        continue
+      }
+
       if (!agent.sandboxName) continue
-      // Skip agents actively being provisioned — handleCreateAgent manages their lifecycle
-      if (agent.status === "creating" || agent.status === "starting") continue
 
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
@@ -875,7 +802,8 @@ export function Canvas({ roomId }: { roomId: string }) {
         }
       })
     }
-  }, [agents, workspaces, updateAgentInStorage])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents, workspaces, updateAgentInStorage, roomId])
 
   // Heartbeat: extend sandbox timeouts while the tab is visible so they
   // stay alive as long as the user is actively using the page.
@@ -905,6 +833,38 @@ export function Canvas({ roomId }: { roomId: string }) {
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [agents])
+
+  // Follow another user's viewport
+  useEffect(() => {
+    if (followingConnectionId === null) return
+    const followed = others.find(
+      (o) => o.connectionId === followingConnectionId,
+    )
+    // If the user we're following disconnected, stop following
+    if (!followed) {
+      setFollowingConnectionId(null)
+      return
+    }
+    const { viewport } = followed.presence
+    const ref = transformRef.current
+    if (!ref) return
+
+    // Only move if our viewport actually differs
+    const { positionX, positionY, scale } = ref.state
+    const dx = Math.abs(positionX - viewport.x)
+    const dy = Math.abs(positionY - viewport.y)
+    const dz = Math.abs(scale - viewport.zoom)
+    if (dx < 1 && dy < 1 && dz < 0.001) return
+
+    ref.setTransform(viewport.x, viewport.y, viewport.zoom, 200)
+  }, [followingConnectionId, others])
+
+  // Stop following when the user manually pans/zooms
+  const handleFollowBreak = useCallback(() => {
+    if (followingConnectionId !== null) {
+      setFollowingConnectionId(null)
+    }
+  }, [followingConnectionId])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -967,6 +927,8 @@ export function Canvas({ roomId }: { roomId: string }) {
           onUpdateWorkspace={updateWorkspaceInStorage}
           onRemoveWorkspace={removeWorkspaceFromStorage}
           onCreateAgent={handleCreateAgent}
+          onCreateAgentFromBranch={handleCreateAgentFromBranch}
+          onDuplicateBranch={handleDuplicateBranch}
           onForkAgent={handleForkAgent}
           onRefreshAgent={handleRefreshAgent}
           onRemoveAgent={(id) => {
@@ -981,6 +943,7 @@ export function Canvas({ roomId }: { roomId: string }) {
           }}
           onAddArtboard={handleAddArtboardForAgent}
           onUpdateAgent={updateAgentInStorage}
+          onRenameBranch={handleBranchRename}
           onSelectArtboard={handleSelectArtboard}
           onRenameArtboard={renameArtboard}
           onRemoveArtboard={removeArtboard}
@@ -1067,6 +1030,9 @@ export function Canvas({ roomId }: { roomId: string }) {
                   viewport: { x: positionX, y: positionY, zoom: scale },
                 })
               }}
+              onPanningStart={handleFollowBreak}
+              onWheelStart={handleFollowBreak}
+              onPinchStart={handleFollowBreak}
               onTransform={(_ref, state) => {
                 setZoom(state.scale)
                 setViewportPos({ x: state.positionX, y: state.positionY })
@@ -1128,6 +1094,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                         focused={focusedArtboardId === artboard.id}
                         onFocus={setFocusedArtboardId}
                         onMove={moveArtboard}
+                        onResize={resizeArtboard}
                         onRename={renameArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
@@ -1140,6 +1107,10 @@ export function Canvas({ roomId }: { roomId: string }) {
             </TransformWrapper>
 
               <Cursors viewport={{ ...viewportPos, zoom }} />
+              <FollowingToolbar
+                followingId={followingConnectionId}
+                onFollow={setFollowingConnectionId}
+              />
             </div>
       </ResizablePanel>
     </ResizablePanelGroup>

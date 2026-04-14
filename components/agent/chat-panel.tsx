@@ -93,29 +93,46 @@ export function ChatPanel({
               <ChatTabLabel chat={chat} />
               <div className="absolute right-0 top-0 bottom-0 flex items-center pr-0.5 opacity-0 group-hover/tab:opacity-100 transition-opacity bg-[var(--background)]">
                 <div className="absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)] pointer-events-none" />
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
+                <span
+                  role="button"
+                  tabIndex={0}
                   title="Rename"
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation()
                     const newLabel = prompt("Rename chat", chat.label)
                     if (newLabel?.trim()) onRenameChat(chat.id, newLabel.trim())
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const newLabel = prompt("Rename chat", chat.label)
+                      if (newLabel?.trim()) onRenameChat(chat.id, newLabel.trim())
+                    }
+                  }}
                 >
                   <Pencil className="size-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
                   title="Delete"
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation()
                     onRemoveChat(chat.id)
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onRemoveChat(chat.id)
+                    }
+                  }}
                 >
                   <X className="size-3" />
-                </Button>
+                </span>
               </div>
             </TabsTrigger>
           ))}
