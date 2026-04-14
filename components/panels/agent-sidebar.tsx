@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Pencil,
   Route,
+  PanelLeftClose,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -97,6 +98,7 @@ interface AgentSidebarProps {
   onRenameArtboard: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
+  onCollapseSidebar?: () => void
 }
 
 export function AgentSidebar({
@@ -122,6 +124,7 @@ export function AgentSidebar({
   onRenameArtboard,
   onRouteChange,
   onRemoveArtboard,
+  onCollapseSidebar,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
@@ -143,12 +146,21 @@ export function AgentSidebar({
 
   return (
     <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-10 items-center justify-end px-4 pr-3">
+        <button
+          className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+          onClick={onCollapseSidebar}
+          title="Collapse sidebar"
+        >
+          <PanelLeftClose />
+        </button>
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-auto" onClick={() => { onSelectAgent(null) }}>
-        <SidebarGroup>
+        <SidebarGroup className="pt-0">
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <Popover open={showPicker} onOpenChange={setShowPicker}>
             <PopoverTrigger asChild>
-              <SidebarGroupAction title="Add workspace">
+              <SidebarGroupAction title="Add workspace" className="top-1.5">
                 <FolderPlus />
               </SidebarGroupAction>
             </PopoverTrigger>

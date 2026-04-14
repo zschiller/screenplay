@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw } from "lucide-react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelLeftOpen } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AgentChat } from "./agent-chat"
+import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ChatSessionData } from "@/lib/liveblocks.types"
+import type { DiffStats } from "@/hooks/use-diff-stats"
 import { chatStore } from "@/lib/chat-store"
 
 function useChatStatus(chatId: string) {
@@ -57,6 +59,9 @@ interface ChatPanelProps {
   onSessionId: (chatId: string, sessionId: string) => void
   onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
+  diffStats?: DiffStats
+  sidebarCollapsed?: boolean
+  onExpandSidebar?: () => void
 }
 
 export function ChatPanel({
@@ -73,6 +78,9 @@ export function ChatPanel({
   onSessionId,
   onBranchRename,
   onPlanModeChange,
+  diffStats,
+  sidebarCollapsed,
+  onExpandSidebar,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -105,6 +113,24 @@ export function ChatPanel({
       onValueChange={onSelectChat}
       className="flex h-full flex-col gap-0"
     >
+      <div className="flex h-10 items-center bg-background px-3">
+        {sidebarCollapsed && (
+          <button
+            className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+            onClick={onExpandSidebar}
+            title="Expand sidebar"
+          >
+            <PanelLeftOpen />
+          </button>
+        )}
+        <BranchBadge branch={agent.branch} colorKey={agent.id} icon className="text-[11px] py-0 px-1.5" />
+        {diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
+          <span className="ml-auto flex items-center gap-1 font-mono text-[10px]">
+            <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
+            <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
+          </span>
+        )}
+      </div>
       <div className="flex border-b border-border bg-background">
         <div className="flex-1 overflow-x-auto min-w-0">
           <TabsList variant="line" className="h-9 px-2">
