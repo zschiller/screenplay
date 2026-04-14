@@ -301,21 +301,13 @@ export function AgentSidebar({
                                               return (
                                                 <>
                                                   {hasStats && (
-                                                    <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/agent-row:hidden md:group-focus-within/agent-row:hidden md:group-has-data-[state=open]/slot:hidden">
+                                                    <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/agent-row:hidden md:group-focus-within/agent-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                       <span className="text-green-600 dark:text-green-400">+{stats.additions}</span>
                                                       <span className="text-red-500 dark:text-red-400">-{stats.deletions}</span>
                                                     </span>
                                                   )}
-                                                  <span className="md:hidden md:group-hover/agent-row:flex md:group-focus-within/agent-row:flex md:group-has-data-[state=open]/slot:flex flex items-center">
-                                                    <DropdownMenu>
-                                                      <DropdownMenuTrigger asChild>
-                                                        <button
-                                                          className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
-                                                          onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                          <MoreHorizontal className="size-4" />
-                                                        </button>
-                                                      </DropdownMenuTrigger>
+                                                  <AgentDropdownSlot
+                                                    menuContent={
                                                       <DropdownMenuContent side="right" align="start" className="w-48">
                                                         <DropdownMenuItem onClick={() => {
                                                           const raw = prompt("Rename branch", agent.branch ?? "")
@@ -345,7 +337,8 @@ export function AgentSidebar({
                                                           Delete
                                                         </DropdownMenuItem>
                                                       </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                    }
+                                                  >
                                                     <button
                                                       className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
                                                       onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
@@ -353,7 +346,7 @@ export function AgentSidebar({
                                                     >
                                                       <Plus className="size-4" />
                                                     </button>
-                                                  </span>
+                                                  </AgentDropdownSlot>
                                                 </>
                                               )
                                             })()}
@@ -442,6 +435,38 @@ export function AgentSidebar({
   )
 }
 
+
+function AgentDropdownSlot({ menuContent, children }: { menuContent: React.ReactNode; children?: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuClosing, setMenuClosing] = useState(false)
+  const handleOpenChange = useCallback((open: boolean) => {
+    setMenuOpen(open)
+    if (!open) {
+      setMenuClosing(true)
+      // Keep visible until Radix close animation finishes
+      setTimeout(() => setMenuClosing(false), 150)
+    }
+  }, [])
+  return (
+    <span
+      data-menu-visible={menuOpen || menuClosing || undefined}
+      className="md:hidden md:group-hover/agent-row:flex md:group-focus-within/agent-row:flex md:data-[menu-visible]:flex flex items-center"
+    >
+      <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        {menuContent}
+      </DropdownMenu>
+      {children}
+    </span>
+  )
+}
 
 function WorkspaceSettings({
   workspace,
