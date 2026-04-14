@@ -28,7 +28,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import type { AgentData, ChatSessionData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, ChatSessionData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { GitHubRepo } from "@/lib/github-actions"
 import {
@@ -56,6 +56,7 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
+  const viewportRestoredRef = useRef(false)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
   const others = useOthers()
@@ -147,10 +148,43 @@ export function Canvas({ roomId }: { roomId: string }) {
         label: cs.label,
         createdAt: cs.createdAt,
         isStreaming: cs.isStreaming,
+        closedAt: cs.closedAt,
       })
     }
     return result
   })
+
+  const savedViewport = useStorage((root) => {
+    if (!root.savedViewport) return null
+    return {
+      x: root.savedViewport.x,
+      y: root.savedViewport.y,
+      zoom: root.savedViewport.zoom,
+    }
+  })
+
+  const saveViewport = useMutation(
+    ({ storage }, vp: ViewportData) => {
+      const existing = storage.get("savedViewport")
+      if (existing) {
+        existing.set("x", vp.x)
+        existing.set("y", vp.y)
+        existing.set("zoom", vp.zoom)
+      } else {
+        storage.set("savedViewport", new LiveObject(vp))
+      }
+    },
+    [],
+  )
+
+  const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveViewportDebounced = useCallback(
+    (vp: ViewportData) => {
+      if (saveViewportTimerRef.current) clearTimeout(saveViewportTimerRef.current)
+      saveViewportTimerRef.current = setTimeout(() => saveViewport(vp), 500)
+    },
+    [saveViewport],
+  )
 
   const agentDomains = useStorage((root) => {
     const domains: Record<string, { previewDomain: string; branch: string }> =
@@ -620,13 +654,39 @@ export function Canvas({ roomId }: { roomId: string }) {
     [chatSessions, addChatSession],
   )
 
+  const handleCloseChat = useCallback(
+    (chatId: string) => {
+      if (selectedChatId === chatId) {
+        const chat = chatSessions.find((c) => c.id === chatId)
+        if (chat) {
+          const siblings = chatSessions
+            .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
+            .sort((a, b) => a.createdAt - b.createdAt)
+          setSelectedChatId(siblings[0]?.id ?? null)
+        } else {
+          setSelectedChatId(null)
+        }
+      }
+      updateChatSession(chatId, { closedAt: Date.now() })
+    },
+    [selectedChatId, chatSessions, updateChatSession],
+  )
+
+  const handleReopenChat = useCallback(
+    (chatId: string) => {
+      updateChatSession(chatId, { closedAt: 0 })
+      setSelectedChatId(chatId)
+    },
+    [updateChatSession],
+  )
+
   const handleRemoveChat = useCallback(
     (chatId: string) => {
       if (selectedChatId === chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (chat) {
           const siblings = chatSessions
-            .filter((c) => c.agentId === chat.agentId && c.id !== chatId)
+            .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
           setSelectedChatId(siblings[0]?.id ?? null)
         } else {
@@ -1128,6 +1188,8 @@ export function Canvas({ roomId }: { roomId: string }) {
             onCreateChat={() => handleCreateChat(selectedAgent.id)}
             onRenameChat={handleRenameChat}
             onRemoveChat={handleRemoveChat}
+            onCloseChat={handleCloseChat}
+            onReopenChat={handleReopenChat}
             onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
             onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
           />
@@ -1173,26 +1235,34 @@ export function Canvas({ roomId }: { roomId: string }) {
                 disabled: focusedArtboardId !== null,
               }}
               onInit={(ref) => {
-                const { scale, positionX, positionY } = ref.state
-                setZoom(scale)
-                setViewportPos({ x: positionX, y: positionY })
-                updateMyPresence({
-                  viewport: { x: positionX, y: positionY, zoom: scale },
-                })
+                if (!viewportRestoredRef.current && savedViewport) {
+                  viewportRestoredRef.current = true
+                  ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
+                  setZoom(savedViewport.zoom)
+                  setViewportPos({ x: savedViewport.x, y: savedViewport.y })
+                  updateMyPresence({ viewport: savedViewport })
+                } else {
+                  const { scale, positionX, positionY } = ref.state
+                  setZoom(scale)
+                  setViewportPos({ x: positionX, y: positionY })
+                  updateMyPresence({
+                    viewport: { x: positionX, y: positionY, zoom: scale },
+                  })
+                }
               }}
               onPanningStart={handleFollowBreak}
               onWheelStart={handleFollowBreak}
               onPinchStart={handleFollowBreak}
               onTransform={(_ref, state) => {
+                const vp = {
+                  x: state.positionX,
+                  y: state.positionY,
+                  zoom: state.scale,
+                }
                 setZoom(state.scale)
                 setViewportPos({ x: state.positionX, y: state.positionY })
-                updateMyPresence({
-                  viewport: {
-                    x: state.positionX,
-                    y: state.positionY,
-                    zoom: state.scale,
-                  },
-                })
+                updateMyPresence({ viewport: vp })
+                saveViewportDebounced(vp)
               }}
             >
               <TransformComponent

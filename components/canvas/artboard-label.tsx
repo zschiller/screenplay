@@ -8,11 +8,12 @@ interface ArtboardLabelProps {
   branch?: string
   sandboxId?: string
   route?: string
+  dragHandlers?: Record<string, unknown>
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, dragHandlers }: ArtboardLabelProps) {
   return (
-    <div className="absolute bottom-full left-0 mb-1 flex flex-col items-start whitespace-nowrap">
+    <div className="absolute bottom-full left-0 mb-1 flex flex-col items-start whitespace-nowrap cursor-grab active:cursor-grabbing" {...dragHandlers}>
       {branch && (
         <BranchBadge branch={branch} colorKey={sandboxId} className="text-[10px] py-0 px-1.5 mb-0.5" />
       )}
