@@ -17,6 +17,7 @@ import {
   Frame,
   MoreHorizontal,
   Pencil,
+  Route,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -87,10 +88,12 @@ interface AgentSidebarProps {
   onRefreshAgent: (id: string) => void
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
+  onCrawlRoutes: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
   onSelectArtboard: (artboardId: string) => void
   onRenameArtboard: (id: string, label: string) => void
+  onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
 }
 
@@ -110,10 +113,12 @@ export function AgentSidebar({
   onRefreshAgent,
   onRemoveAgent,
   onAddArtboard,
+  onCrawlRoutes,
   onUpdateAgent,
   onRenameBranch,
   onSelectArtboard,
   onRenameArtboard,
+  onRouteChange,
   onRemoveArtboard,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
@@ -312,8 +317,12 @@ export function AgentSidebar({
                                                 <RefreshCw />
                                                 Restart
                                               </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => onCrawlRoutes(agent.id)}>
+                                                <Frame />
+                                                Show all routes
+                                              </DropdownMenuItem>
                                               <DropdownMenuSeparator />
-                                              <DropdownMenuItem className="text-destructive" onClick={() => onRemoveAgent(agent.id)}>
+                                              <DropdownMenuItem variant="destructive" onClick={() => onRemoveAgent(agent.id)}>
                                                 <Trash2 />
                                                 Delete
                                               </DropdownMenuItem>
@@ -340,8 +349,8 @@ export function AgentSidebar({
                                           <SidebarMenuSubItem key={ab.id}>
                                             <div className="group/frame-row relative">
                                               <SidebarMenuSubButton className="w-full !pr-7" onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id) }}>
-                                                <Frame className="text-sidebar-foreground/70" />
-                                                <span>{ab.label}</span>
+                                                <Frame className="shrink-0 text-sidebar-foreground/70" />
+                                                <span className="truncate">{ab.label}</span>
                                                 <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
                                                   <span className="truncate">{ab.route || "/"}</span>
                                                 </Badge>
@@ -354,7 +363,7 @@ export function AgentSidebar({
                                                     <MoreHorizontal />
                                                   </SidebarMenuAction>
                                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent side="right" align="start">
+                                                <DropdownMenuContent side="right" align="start" className="w-48">
                                                   <DropdownMenuItem onClick={() => {
                                                     const newLabel = prompt("Rename frame", ab.label)
                                                     if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
@@ -362,8 +371,19 @@ export function AgentSidebar({
                                                     <Pencil />
                                                     Rename
                                                   </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => {
+                                                    const newRoute = prompt("Route path", ab.route || "/")
+                                                    if (newRoute != null) {
+                                                      let value = newRoute.trim() || "/"
+                                                      if (!value.startsWith("/")) value = "/" + value
+                                                      onRouteChange(ab.id, value)
+                                                    }
+                                                  }}>
+                                                    <Route />
+                                                    Change route
+                                                  </DropdownMenuItem>
                                                   <DropdownMenuSeparator />
-                                                  <DropdownMenuItem className="text-destructive" onClick={() => onRemoveArtboard(ab.id)}>
+                                                  <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboard(ab.id)}>
                                                     <Trash2 />
                                                     Delete
                                                   </DropdownMenuItem>
