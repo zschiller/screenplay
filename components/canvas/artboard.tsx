@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { MousePointer, Move } from "lucide-react"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
+import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { probeSandboxUrl } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
@@ -31,6 +32,7 @@ interface ArtboardProps {
   focused: boolean
   onFocus: (id: string | null) => void
   onMove: (id: string, x: number, y: number) => void
+  onResize: (id: string, x: number, y: number, w: number, h: number) => void
   onRename: (id: string, label: string) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
@@ -42,6 +44,7 @@ export function Artboard({
   focused,
   onFocus,
   onMove,
+  onResize,
   onRename,
   onRemove,
   onStateChanged,
@@ -56,6 +59,24 @@ export function Artboard({
   const dragHandlers = useArtboardDrag({
     zoom,
     onDrag: handleDrag,
+  })
+
+  const handleResize = useCallback(
+    (dx: number, dy: number, dw: number, dh: number) => {
+      onResize(
+        artboard.id,
+        artboard.x + dx,
+        artboard.y + dy,
+        artboard.width + dw,
+        artboard.height + dh,
+      )
+    },
+    [artboard.id, artboard.x, artboard.y, artboard.width, artboard.height, onResize],
+  )
+
+  const { makeHandleProps } = useArtboardResize({
+    zoom,
+    onResize: handleResize,
   })
 
   const { iframeRef } = usePostMessage({
@@ -91,6 +112,8 @@ export function Artboard({
     poll()
     return () => { cancelled = true }
   }, [src, serverReady])
+
+  const HANDLE = 6 // px thickness of resize handles
 
   return (
     <div
@@ -148,7 +171,7 @@ export function Artboard({
           </div>
         )}
 
-        {/* Overlay: captures pointer events for drag/pan. Double-click to focus and interact with iframe. */}
+        {/* Overlay: captures pointer events for drag/pan */}
         {!focused && (
           <div
             className="absolute inset-0 cursor-grab active:cursor-grabbing"
@@ -156,6 +179,18 @@ export function Artboard({
           />
         )}
       </div>
+
+      {/* Resize handles — edges */}
+      <div className="absolute -top-[3px] left-2 right-2 h-[6px] cursor-n-resize" {...makeHandleProps("n")} style={{ height: HANDLE }} />
+      <div className="absolute -bottom-[3px] left-2 right-2 h-[6px] cursor-s-resize" {...makeHandleProps("s")} style={{ height: HANDLE }} />
+      <div className="absolute -left-[3px] top-2 bottom-2 w-[6px] cursor-w-resize" {...makeHandleProps("w")} style={{ width: HANDLE }} />
+      <div className="absolute -right-[3px] top-2 bottom-2 w-[6px] cursor-e-resize" {...makeHandleProps("e")} style={{ width: HANDLE }} />
+
+      {/* Resize handles — corners */}
+      <div className="absolute -top-[3px] -left-[3px] h-3 w-3 cursor-nw-resize" {...makeHandleProps("nw")} />
+      <div className="absolute -top-[3px] -right-[3px] h-3 w-3 cursor-ne-resize" {...makeHandleProps("ne")} />
+      <div className="absolute -bottom-[3px] -left-[3px] h-3 w-3 cursor-sw-resize" {...makeHandleProps("sw")} />
+      <div className="absolute -bottom-[3px] -right-[3px] h-3 w-3 cursor-se-resize" {...makeHandleProps("se")} />
     </div>
   )
 }
