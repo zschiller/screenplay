@@ -72,13 +72,17 @@ export async function createBranch(
   repo: string,
   newBranchName: string,
   fromBranch: string,
+  ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const { userId } = await auth()
-  if (!userId) return { success: false, error: "Not authenticated" }
+  let token = ghToken
+  if (!token) {
+    const { userId } = await auth()
+    if (!userId) return { success: false, error: "Not authenticated" }
 
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+    const client = await clerkClient()
+    const tokens = await client.users.getUserOauthAccessToken(userId, "github")
+    token = tokens.data?.[0]?.token
+  }
   if (!token) return { success: false, error: "No GitHub token" }
 
   // Get the SHA of the source branch

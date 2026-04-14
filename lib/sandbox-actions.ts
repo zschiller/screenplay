@@ -21,7 +21,7 @@ export interface SandboxResult {
   error?: string
 }
 
-async function getGitHubToken(): Promise<string | null> {
+export async function getGitHubToken(): Promise<string | null> {
   const { userId } = await auth()
   if (!userId) return null
 
@@ -31,25 +31,7 @@ async function getGitHubToken(): Promise<string | null> {
   return token ?? null
 }
 
-function parseEnvVars(text: string): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eqIdx = trimmed.indexOf("=")
-    if (eqIdx === -1) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    let value = trimmed.slice(eqIdx + 1).trim()
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-    if (key) env[key] = value
-  }
-  return env
-}
+import { parseEnvVars } from "./env-utils"
 
 /**
  * Clone a repo into a new sandbox. Returns the sandbox name on success.
@@ -60,9 +42,10 @@ export async function cloneSandbox(
   branch: string,
   port: number = 3000,
   env?: Record<string, string>,
+  ghToken?: string,
 ): Promise<{ success: true; sandboxName: string } | { success: false; error: string }> {
   try {
-    const ghToken = await getGitHubToken()
+    if (!ghToken) ghToken = await getGitHubToken() ?? undefined
 
     const sandbox = await Sandbox.create({
       name: sandboxName,
@@ -262,67 +245,6 @@ export async function restartSandbox(
   }
 }
 
-/**
- * Fork a sandbox by snapshotting it and creating a new sandbox from that snapshot.
- * Preserves the full filesystem (uncommitted changes, node_modules, etc.).
- */
-export async function forkSandbox(
-  sourceSandboxName: string,
-  newSandboxName: string,
-  newBranch: string,
-  port: number = 3000,
-  devScript?: string,
-  env?: Record<string, string>,
-): Promise<SandboxResult> {
-  try {
-    const source = await Sandbox.get({ name: sourceSandboxName, resume: false })
-    const snap = await source.snapshot()
-
-    // Resume the source sandbox and restart its dev server (snapshot stopped it)
-    const sourceEnv = await getEnvVars(sourceSandboxName)
-    const resumedSource = await Sandbox.get({ name: sourceSandboxName })
-    const dev = devScript?.trim() || "npm run dev"
-    const [devCmd, ...devArgs] = dev.split(/\s+/)
-    await resumedSource.runCommand({
-      cmd: devCmd,
-      args: devArgs,
-      detached: true,
-      ...(sourceEnv ? { env: sourceEnv } : {}),
-    })
-
-    // Create new sandbox from snapshot
-    const sandbox = await Sandbox.create({
-      name: newSandboxName,
-      source: { type: "snapshot", snapshotId: snap.snapshotId },
-      ports: [port],
-      timeout: SANDBOX_TIMEOUT,
-      snapshotExpiration: SNAPSHOT_EXPIRATION,
-      resources: { vcpus: SANDBOX_VCPUS },
-      ...(env && Object.keys(env).length > 0 ? { env } : {}),
-    })
-
-    // Switch to the new branch
-    await sandbox.runCommand("git", ["checkout", "-b", newBranch])
-
-    if (env && Object.keys(env).length > 0) {
-      await storeEnvVars(sandbox.name, env)
-    }
-
-    return {
-      sandboxName: sandbox.name,
-      previewDomain: sandbox.domain(port),
-      status: "running",
-    }
-  } catch (e) {
-    return {
-      sandboxName: newSandboxName,
-      previewDomain: "",
-      status: "error",
-      error: e instanceof Error ? e.message : String(e),
-    }
-  }
-}
-
 export async function removeSandboxEnv(sandboxName: string): Promise<void> {
   await deleteEnvVars(sandboxName)
 }
@@ -352,12 +274,14 @@ export async function createAgentBranch(
   workspace: WorkspaceData,
   branchName: string,
   fromBranch?: string,
+  ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
   return createBranch(
     workspace.repoOwner,
     workspace.repoName,
     branchName,
     fromBranch || workspace.defaultBranch,
+    ghToken,
   )
 }
 
@@ -407,8 +331,9 @@ export async function configureAgentGit(
   sandboxName: string,
   workspace: WorkspaceData,
   branch: string,
+  ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const ghToken = await getGitHubToken()
+  if (!ghToken) ghToken = await getGitHubToken() ?? undefined
   if (!ghToken) {
     return { success: false, error: "No GitHub token available — the user may need to re-authenticate with GitHub." }
   }

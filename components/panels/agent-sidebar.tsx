@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import {
   FolderPlus,
   Plus,
@@ -8,9 +8,9 @@ import {
   FolderLock,
   Loader2,
   Settings,
-  X,
   ChevronRight,
   GitBranch,
+  GitBranchPlus,
   GitFork,
   RefreshCw,
   Trash2,
@@ -19,6 +19,7 @@ import {
   Pencil,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   SidebarGroup,
   SidebarGroupAction,
@@ -51,6 +52,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -59,9 +66,10 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Badge } from "@/components/ui/badge"
+import { Kbd } from "@/components/ui/kbd"
 import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
-import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
+import { listUserRepos, listRepoBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github-actions"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
@@ -73,11 +81,14 @@ interface AgentSidebarProps {
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
   onRemoveWorkspace: (id: string) => void
   onCreateAgent: (workspaceId: string) => void
+  onCreateAgentFromBranch: (workspaceId: string, branch: string) => void
+  onDuplicateBranch: (workspaceId: string, branch: string) => void
   onForkAgent: (agentId: string) => void
   onRefreshAgent: (id: string) => void
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
+  onRenameBranch: (agentId: string, newBranch: string) => void
   onSelectArtboard: (artboardId: string) => void
   onRenameArtboard: (id: string, label: string) => void
   onRemoveArtboard: (id: string) => void
@@ -93,17 +104,34 @@ export function AgentSidebar({
   onUpdateWorkspace,
   onRemoveWorkspace,
   onCreateAgent,
+  onCreateAgentFromBranch,
+  onDuplicateBranch,
   onForkAgent,
   onRefreshAgent,
   onRemoveAgent,
   onAddArtboard,
   onUpdateAgent,
+  onRenameBranch,
   onSelectArtboard,
   onRenameArtboard,
   onRemoveArtboard,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
+  const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
+
+  // Auto-select agents when they finish creating
+  const prevStatusRef = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    for (const agent of agents) {
+      const was = prev.get(agent.id)
+      if ((was === "creating" || was === "starting") && agent.status === "running") {
+        onSelectAgent(agent.id)
+      }
+    }
+    prevStatusRef.current = new Map(agents.map((a) => [a.id, a.status]))
+  }, [agents, onSelectAgent])
 
   return (
     <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -133,8 +161,6 @@ export function AgentSidebar({
                   const workspaceAgents = agents
                     .filter((a) => a.workspaceId === workspace.id)
                     .sort((a, b) => a.createdAt - b.createdAt)
-                  const showSettings = settingsWorkspaceId === workspace.id
-
                   return (
                     <Collapsible
                       key={workspace.id}
@@ -144,7 +170,7 @@ export function AgentSidebar({
                     >
                       <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
                         <div className="group/workspace-row relative">
-                          <SidebarMenuButton className="!pr-14" onClick={(e) => e.stopPropagation()}>
+                          <SidebarMenuButton className="!pr-[4.5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
                                 <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
@@ -154,13 +180,60 @@ export function AgentSidebar({
                             <span className="truncate font-medium text-sidebar-foreground/70">{workspace.repoFullName}</span>
                           </SidebarMenuButton>
 
-                          <SidebarMenuAction
-                            className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
-                            onClick={(e) => { e.stopPropagation(); setSettingsWorkspaceId(showSettings ? null : workspace.id) }}
-                            title="Settings"
+                          <Popover
+                            open={settingsWorkspaceId === workspace.id}
+                            onOpenChange={(open) => setSettingsWorkspaceId(open ? workspace.id : null)}
                           >
-                            <Settings />
+                            <PopoverTrigger asChild>
+                              <SidebarMenuAction
+                                className="right-[3.25rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Settings"
+                              >
+                                <Settings />
+                              </SidebarMenuAction>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-3" side="bottom" align="start">
+                              <WorkspaceSettings
+                                workspace={workspace}
+                                onUpdate={onUpdateWorkspace}
+                                onRemove={() => {
+                                  setSettingsWorkspaceId(null)
+                                  onRemoveWorkspace(workspace.id)
+                                }}
+                                onClose={() => setSettingsWorkspaceId(null)}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <SidebarMenuAction
+                            className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100"
+                            onClick={(e) => { e.stopPropagation(); setBranchPickerWorkspaceId(workspace.id) }}
+                            title="New agent from branch"
+                          >
+                            <GitBranch />
                           </SidebarMenuAction>
+                          <Dialog
+                            open={branchPickerWorkspaceId === workspace.id}
+                            onOpenChange={(open) => setBranchPickerWorkspaceId(open ? workspace.id : null)}
+                          >
+                            <DialogContent className="max-w-sm p-0 gap-0">
+                              <DialogHeader className="px-4 pt-4 pb-2">
+                                <DialogTitle>Select a branch</DialogTitle>
+                              </DialogHeader>
+                              <BranchPicker
+                                owner={workspace.repoOwner}
+                                repo={workspace.repoName}
+                                onSelect={(branch) => {
+                                  setBranchPickerWorkspaceId(null)
+                                  onCreateAgentFromBranch(workspace.id, branch)
+                                }}
+                                onDuplicate={(branch) => {
+                                  setBranchPickerWorkspaceId(null)
+                                  onDuplicateBranch(workspace.id, branch)
+                                }}
+                              />
+                            </DialogContent>
+                          </Dialog>
                           <SidebarMenuAction
                             className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
                             onClick={(e) => { e.stopPropagation(); onCreateAgent(workspace.id) }}
@@ -171,18 +244,6 @@ export function AgentSidebar({
                         </div>
 
                         <CollapsibleContent>
-                          {showSettings && (
-                            <WorkspaceSettings
-                              workspace={workspace}
-                              onUpdate={onUpdateWorkspace}
-                              onRemove={() => {
-                                setSettingsWorkspaceId(null)
-                                onRemoveWorkspace(workspace.id)
-                              }}
-                              onClose={() => setSettingsWorkspaceId(null)}
-                            />
-                          )}
-
                           <SidebarMenu>
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
@@ -196,74 +257,81 @@ export function AgentSidebar({
                                   className="group/collapsible-agent"
                                 >
                                   <SidebarMenuItem>
-                                    <div className="group/agent-row relative">
-                                      <SidebarMenuButton
-                                        className="!pr-14"
-                                        isActive={selectedAgentId === agent.id}
-                                        onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
-                                      >
-                                        <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                          <span className="relative shrink-0">
-                                            <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
-                                            <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
-                                          </span>
-                                        </CollapsibleTrigger>
-                                        {agent.branch ? (
-                                          <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
-                                        ) : (
-                                          <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
-                                        )}
+                                    {isLoading ? (
+                                      <SidebarMenuButton disabled className="pointer-events-none opacity-60">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-muted-foreground" />
+                                        <span className="truncate text-xs text-muted-foreground">
+                                          {agent.statusMessage || "Creating…"}
+                                        </span>
                                       </SidebarMenuButton>
-
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <SidebarMenuAction
-                                            className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100 aria-expanded:opacity-100"
+                                    ) : (
+                                      <>
+                                        <div className="group/agent-row relative">
+                                          <SidebarMenuButton
+                                            className="!pr-14"
+                                            isActive={selectedAgentId === agent.id}
+                                            onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                           >
-                                            <MoreHorizontal />
+                                            <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                              <span className="relative shrink-0">
+                                                <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
+                                                <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                              </span>
+                                            </CollapsibleTrigger>
+                                            {agent.branch ? (
+                                              <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+                                            ) : (
+                                              <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
+                                            )}
+                                          </SidebarMenuButton>
+
+                                          <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                              <SidebarMenuAction
+                                                className="right-7 md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100 aria-expanded:opacity-100"
+                                              >
+                                                <MoreHorizontal />
+                                              </SidebarMenuAction>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent side="right" align="start" className="w-48">
+                                              <DropdownMenuItem onClick={() => {
+                                                const raw = prompt("Rename branch", agent.branch ?? "")
+                                                if (!raw?.trim()) return
+                                                const sanitized = raw.trim().toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+                                                if (sanitized.length < 1) return
+                                                onRenameBranch(agent.id, sanitized)
+                                              }}>
+                                                <Pencil />
+                                                Rename
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
+                                                <GitBranchPlus />
+                                                Duplicate branch
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
+                                                <RefreshCw />
+                                                Restart
+                                              </DropdownMenuItem>
+                                              <DropdownMenuSeparator />
+                                              <DropdownMenuItem className="text-destructive" onClick={() => onRemoveAgent(agent.id)}>
+                                                <Trash2 />
+                                                Delete
+                                              </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                          </DropdownMenu>
+                                          <SidebarMenuAction
+                                            className="md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
+                                            onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
+                                            title="Add frame"
+                                          >
+                                            <Plus />
                                           </SidebarMenuAction>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent side="right" align="start">
-                                          <DropdownMenuItem onClick={() => {
-                                            const newName = prompt("Rename branch", agent.branch ?? "")
-                                            if (newName?.trim()) onUpdateAgent(agent.id, { branch: newName.trim() })
-                                          }}>
-                                            <Pencil />
-                                            Rename
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
-                                            <GitFork />
-                                            Fork
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
-                                            <RefreshCw />
-                                            Restart
-                                          </DropdownMenuItem>
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem className="text-destructive" onClick={() => onRemoveAgent(agent.id)}>
-                                            <Trash2 />
-                                            Delete
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                      <SidebarMenuAction
-                                        className="md:opacity-0 group-hover/agent-row:opacity-100 group-focus-within/agent-row:opacity-100"
-                                        onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
-                                        title="Add frame"
-                                      >
-                                        <Plus />
-                                      </SidebarMenuAction>
-                                    </div>
+                                        </div>
 
-                                    {isLoading && agent.statusMessage && (
-                                      <p className="px-2 pb-1 text-[10px] text-muted-foreground flex items-center gap-1">
-                                        <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
-                                        {agent.statusMessage}
-                                      </p>
-                                    )}
-
-                                    {agent.error && (
-                                      <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
+                                        {agent.error && (
+                                          <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
+                                        )}
+                                      </>
                                     )}
 
                                     <CollapsibleContent>
@@ -311,11 +379,6 @@ export function AgentSidebar({
                               )
                             })}
 
-                            {workspaceAgents.length === 0 && (
-                              <p className="py-2 px-2 text-xs text-sidebar-foreground/50">
-                                No agents yet
-                              </p>
-                            )}
                           </SidebarMenu>
                         </CollapsibleContent>
                       </SidebarMenuItem>
@@ -363,15 +426,10 @@ function WorkspaceSettings({
     envVars !== workspace.envVars
 
   return (
-    <div className="mx-2 mb-2 rounded-lg border border-sidebar-border bg-sidebar p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-sidebar-foreground/70 uppercase tracking-wide">
-          Settings
-        </span>
-        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onClose}>
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
+    <div className="space-y-3">
+      <span className="text-[10px] font-medium text-sidebar-foreground/70 uppercase tracking-wide">
+        Settings
+      </span>
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
@@ -429,6 +487,69 @@ function WorkspaceSettings({
   )
 }
 
+function BranchPicker({
+  owner,
+  repo,
+  onSelect,
+  onDuplicate,
+}: {
+  owner: string
+  repo: string
+  onSelect: (branch: string) => void
+  onDuplicate: (branch: string) => void
+}) {
+  const [branches, setBranches] = useState<GitHubBranch[]>([])
+  const [loading, startTransition] = useTransition()
+  const metaRef = useRef(false)
+
+  useEffect(() => {
+    startTransition(async () => {
+      const data = await listRepoBranches(owner, repo)
+      setBranches(data)
+    })
+  }, [owner, repo])
+
+  return (
+    <Command>
+      <CommandInput
+        placeholder="Search branches..."
+        onKeyDown={(e) => { metaRef.current = e.metaKey }}
+        onKeyUp={() => { metaRef.current = false }}
+      />
+      <CommandList>
+        <CommandEmpty>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-4">
+              <Spinner className="size-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Loading branches…</span>
+            </div>
+          ) : (
+            "No branches found."
+          )}
+        </CommandEmpty>
+        <CommandGroup>
+          {branches.map((b) => (
+            <CommandItem
+              key={b.name}
+              value={b.name}
+              onSelect={() => metaRef.current ? onDuplicate(b.name) : onSelect(b.name)}
+            >
+              <GitBranch className="text-sidebar-foreground/70" />
+              <span className="truncate flex-1">{b.name}</span>
+              <span className="hidden group-data-selected/command-item:flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+                <Kbd className="bg-popover">↵</Kbd>
+                <span>Open</span>
+                <Kbd className="ml-1.5 bg-popover">⌘↵</Kbd>
+                <span>Duplicate</span>
+              </span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  )
+}
+
 function RepoPicker({
   onSelect,
 }: {
@@ -448,7 +569,16 @@ function RepoPicker({
     <Command>
       <CommandInput placeholder="Search repositories..." />
       <CommandList>
-        <CommandEmpty>{loading ? "Loading..." : "No repositories found."}</CommandEmpty>
+        <CommandEmpty>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-4">
+              <Spinner className="size-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Loading repositories…</span>
+            </div>
+          ) : (
+            "No repositories found."
+          )}
+        </CommandEmpty>
         <CommandGroup>
           {repos.map((repo) => (
             <CommandItem
