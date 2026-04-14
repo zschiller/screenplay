@@ -115,5 +115,10 @@ declare global {
     Storage: Storage
     Presence: Presence
     UserMeta: UserMeta
+    ThreadMetadata: {
+      x: number
+      y: number
+      artboardId?: string
+    }
   }
 }

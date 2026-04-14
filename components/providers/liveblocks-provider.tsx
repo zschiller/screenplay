@@ -32,7 +32,15 @@ export function RoomProviderWrapper({
   children: ReactNode
 }) {
   return (
-    <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+    <LiveblocksProvider
+      authEndpoint="/api/liveblocks-auth"
+      resolveUsers={async ({ userIds }) => {
+        const params = new URLSearchParams()
+        userIds.forEach((id) => params.append("userIds", id))
+        const res = await fetch(`/api/liveblocks-users?${params}`)
+        return res.json()
+      }}
+    >
       <RoomProvider
         id={roomId}
         initialPresence={{
