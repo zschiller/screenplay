@@ -317,6 +317,60 @@ export async function renameAgentBranch(
   return { success: true }
 }
 
+/**
+ * Discover routes by listing the project files and asking the LLM to identify them.
+ */
+export async function crawlRoutes(
+  sandboxName: string,
+): Promise<{ success: true; routes: { route: string; label: string }[] } | { success: false; error: string }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+
+    // Get a broad file listing for the LLM to analyze
+    const result = await sandbox.runCommand("find", [
+      ".", "-maxdepth", "5", "-type", "f",
+      "!", "-path", "*/node_modules/*",
+      "!", "-path", "*/.git/*",
+      "!", "-path", "*/.next/*",
+      "!", "-path", "*/dist/*",
+      "!", "-path", "*/.nuxt/*",
+    ])
+    const fileList = (await result.stdout()).trim()
+    if (!fileList) return { success: true, routes: [{ route: "/", label: "Home" }] }
+
+    const { getClient } = await import("@/lib/agent/config")
+    const client = getClient()
+
+    const res = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: `You are analyzing a web project's file structure to discover its navigable routes.
+Look at the file listing and determine the framework (Next.js, SvelteKit, Nuxt, Remix, React Router, Astro, plain React, etc.) and identify all static, user-facing routes.
+
+Rules:
+- Only return concrete, navigable routes (no dynamic segments like [id] or :id)
+- Always include "/" if there's a home/index page
+- Return ONLY a JSON array of objects with "route" and "label" keys, nothing else
+- "label" should be a human-readable sentence case title for the route (e.g. "Home", "About us", "Blog posts")
+- Example: [{"route": "/", "label": "Home"}, {"route": "/about", "label": "About"}, {"route": "/pricing", "label": "Pricing"}]
+- If you can't determine routes, return [{"route": "/", "label": "Home"}]`,
+      messages: [{
+        role: "user",
+        content: `Here are the project files:\n\n${fileList}`,
+      }],
+    })
+
+    const text = res.content[0]?.type === "text" ? res.content[0].text.trim() : "[]"
+    // Extract JSON array from response (handle markdown fences)
+    const match = text.match(/\[[\s\S]*\]/)
+    const parsed: { route: string; label: string }[] = match ? JSON.parse(match[0]) : [{ route: "/", label: "Home" }]
+
+    return { success: true, routes: parsed }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefined {
   const env = parseEnvVars(envVarsText)
   return Object.keys(env).length > 0 ? env : undefined

@@ -33,7 +33,6 @@ interface ArtboardProps {
   onFocus: (id: string | null) => void
   onMove: (id: string, x: number, y: number) => void
   onResize: (id: string, x: number, y: number, w: number, h: number) => void
-  onRename: (id: string, label: string) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
 }
@@ -45,7 +44,6 @@ export function Artboard({
   onFocus,
   onMove,
   onResize,
-  onRename,
   onRemove,
   onStateChanged,
 }: ArtboardProps) {
@@ -131,7 +129,6 @@ export function Artboard({
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
         route={artboard.route}
-        onRename={(label) => onRename(artboard.id, label)}
       />
       <button
         onClick={() => onFocus(focused ? null : artboard.id)}
