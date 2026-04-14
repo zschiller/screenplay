@@ -19,20 +19,28 @@ export async function executeCustomTool(
 ): Promise<string> {
   const sandbox = await Sandbox.get({ name: sandboxName })
 
+  let result: string
   switch (toolName) {
     case "read_file":
-      return readFile(sandbox, toolInput as unknown as ReadFileInput)
+      result = await readFile(sandbox, toolInput as unknown as ReadFileInput)
+      break
     case "write_file":
-      return writeFile(sandbox, toolInput as unknown as WriteFileInput)
+      result = await writeFile(sandbox, toolInput as unknown as WriteFileInput)
+      break
     case "edit_file":
-      return editFile(sandbox, toolInput as unknown as EditFileInput)
+      result = await editFile(sandbox, toolInput as unknown as EditFileInput)
+      break
     case "run_command":
-      return runCommand(sandbox, toolInput as unknown as RunCommandInput)
+      result = await runCommand(sandbox, toolInput as unknown as RunCommandInput)
+      break
     case "list_files":
-      return listFiles(sandbox, toolInput as unknown as ListFilesInput)
+      result = await listFiles(sandbox, toolInput as unknown as ListFilesInput)
+      break
     default:
-      return `Unknown tool: ${toolName}`
+      result = `Unknown tool: ${toolName}`
   }
+  // Anthropic API requires tool result text to be at least 1 character
+  return result || "(empty)"
 }
 
 async function readFile(

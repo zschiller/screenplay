@@ -149,6 +149,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         createdAt: cs.createdAt,
         isStreaming: cs.isStreaming,
         closedAt: cs.closedAt,
+        planMode: cs.planMode,
       })
     }
     return result
@@ -1192,6 +1193,7 @@ export function Canvas({ roomId }: { roomId: string }) {
             onReopenChat={handleReopenChat}
             onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
             onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
+            onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
           />
         )}
       </ResizablePanel>

@@ -15,6 +15,7 @@ export interface SendMessageOptions {
   message: string
   isFirstChat?: boolean
   sessionId?: string
+  planMode?: boolean
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
@@ -146,6 +147,7 @@ class ChatStore {
           message: opts.message,
           sessionId: this.sessionIds.get(chatId) ?? opts.sessionId,
           isFirstChat: opts.isFirstChat,
+          planMode: opts.planMode,
         }),
       })
 
@@ -275,6 +277,46 @@ class ChatStore {
         cbs?.onChatRename?.(event.label)
         break
 
+      case "plan_submitted": {
+        const prev = this.getOrCreate(chatId).messages
+        this.update(chatId, {
+          messages: [
+            ...prev,
+            {
+              role: "plan" as const,
+              content: event.plan,
+              status: "pending" as const,
+              planId: event.planId,
+            },
+          ],
+        })
+        break
+      }
+
+      case "plan_approved": {
+        const prev = this.getOrCreate(chatId).messages
+        this.update(chatId, {
+          messages: prev.map((m) =>
+            m.role === "plan" && m.planId === event.planId
+              ? { ...m, status: "approved" as const }
+              : m
+          ),
+        })
+        break
+      }
+
+      case "plan_rejected": {
+        const prev = this.getOrCreate(chatId).messages
+        this.update(chatId, {
+          messages: prev.map((m) =>
+            m.role === "plan" && m.planId === event.planId
+              ? { ...m, status: "rejected" as const }
+              : m
+          ),
+        })
+        break
+      }
+
       case "error":
         this.update(chatId, {
           error: event.message,
@@ -287,6 +329,54 @@ class ChatStore {
 
       case "done":
         break
+    }
+  }
+
+  // --- Plan approval ---
+
+  async approvePlan(roomId: string, chatId: string, planId: string) {
+    try {
+      const res = await fetch("/api/agent/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, chatId, planId, approved: true }),
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || `HTTP ${res.status}`)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      this.update(chatId, {
+        error: msg,
+        messages: [
+          ...this.getOrCreate(chatId).messages,
+          { role: "error" as const, content: `Failed to approve plan: ${msg}` },
+        ],
+      })
+    }
+  }
+
+  async rejectPlan(roomId: string, chatId: string, planId: string, feedback: string) {
+    try {
+      const res = await fetch("/api/agent/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, chatId, planId, approved: false, feedback }),
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || `HTTP ${res.status}`)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      this.update(chatId, {
+        error: msg,
+        messages: [
+          ...this.getOrCreate(chatId).messages,
+          { role: "error" as const, content: `Failed to reject plan: ${msg}` },
+        ],
+      })
     }
   }
 

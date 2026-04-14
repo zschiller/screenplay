@@ -52,6 +52,20 @@ export type ChatSessionData = {
   createdAt: number
   isStreaming?: boolean
   closedAt?: number
+  planMode?: boolean
+}
+
+export type PlanData = {
+  id: string
+  chatId: string
+  agentId: string
+  content: string
+  status: "pending" | "approved" | "rejected"
+  toolEventId: string
+  sessionId: string
+  feedback?: string
+  createdAt: number
+  resolvedAt?: number
 }
 
 export type ArtboardData = {
@@ -77,6 +91,7 @@ export type Storage = {
   sandboxes: LiveMap<string, LiveObject<AgentData>>
   artboards: LiveMap<string, LiveObject<ArtboardData>>
   chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
+  plans: LiveMap<string, LiveObject<PlanData>>
   savedViewport?: LiveObject<ViewportData>
 }
 

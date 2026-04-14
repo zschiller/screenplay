@@ -46,6 +46,7 @@ export function RoomProviderWrapper({
           sandboxes: new LiveMap(),
           artboards: new LiveMap(),
           chatSessions: new LiveMap(),
+          plans: new LiveMap(),
         }}
       >
         <ClientSideSuspense

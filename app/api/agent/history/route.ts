@@ -24,6 +24,9 @@ export async function GET(req: Request) {
 
     const messages: AgentMessage[] = []
 
+    // Track submit_plan tool use IDs so we can determine status from tool results
+    const planToolUseIds = new Set<string>()
+
     for (const event of events.data) {
       switch (event.type) {
         case "user.message": {
@@ -47,14 +50,43 @@ export async function GET(req: Request) {
           break
         }
         case "agent.custom_tool_use": {
-          messages.push({
-            role: "tool_use",
-            name: event.name as CustomToolName,
-            input: event.input as Record<string, unknown>,
-          })
+          if (event.name === "submit_plan") {
+            const input = event.input as { plan: string }
+            planToolUseIds.add(event.id)
+            // Determine plan status by looking ahead for the tool result
+            const toolResult = events.data.find(
+              (e) => e.type === "user.custom_tool_result" && e.custom_tool_use_id === event.id,
+            )
+            let status: "pending" | "approved" | "rejected" = "pending"
+            if (toolResult && toolResult.type === "user.custom_tool_result") {
+              const resultText = toolResult.content
+                ?.map((b) => ("text" in b ? b.text : ""))
+                .join("") ?? ""
+              if (resultText.includes("Plan approved")) {
+                status = "approved"
+              } else if (resultText.includes("Plan rejected")) {
+                status = "rejected"
+              }
+            }
+            messages.push({
+              role: "plan",
+              content: input.plan,
+              status,
+              planId: event.id,
+            })
+          } else {
+            messages.push({
+              role: "tool_use",
+              name: event.name as CustomToolName,
+              input: event.input as Record<string, unknown>,
+            })
+          }
           break
         }
         case "user.custom_tool_result": {
+          // Skip tool results for submit_plan — already handled inline
+          if (planToolUseIds.has(event.custom_tool_use_id ?? "")) break
+
           // Extract tool name from the corresponding tool_use if possible
           let toolName: CustomToolName = "run_command"
           let output = ""
