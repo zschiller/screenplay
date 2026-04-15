@@ -19,6 +19,7 @@ import {
 } from "@liveblocks/react/suspense"
 import { MessageSquare } from "lucide-react"
 import { Artboard } from "./artboard"
+import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import { Cursors } from "./cursors"
 import { FollowingToolbar } from "./following-toolbar"
@@ -64,8 +65,9 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
+  const [hoveredArtboardId, setHoveredArtboardId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const marqueeRef = useRef<{ startX: number; startY: number } | null>(null)
+  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseSelection: Set<string> } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -1240,54 +1242,32 @@ export function Canvas({ roomId }: { roomId: string }) {
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      marqueeRef.current = { startX: canvas.x, startY: canvas.y }
+      marqueeRef.current = { startX: canvas.x, startY: canvas.y, shiftKey: e.shiftKey, baseSelection: new Set(selectedArtboardIds) }
       setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
+      if (!e.shiftKey) {
+        setSelectedArtboardIds(new Set())
+      }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedArtboardId, screenToCanvas],
+    [spaceHeld, commentMode, focusedArtboardId, screenToCanvas, selectedArtboardIds],
   )
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!marqueeRef.current) return
+      const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
       setMarquee((m) => m ? { ...m, currentX: canvas.x, currentY: canvas.y } : null)
-    },
-    [screenToCanvas],
-  )
 
-  const handleCanvasPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (!marqueeRef.current) {
-        return
-      }
-      const start = marqueeRef.current
-      const rect = e.currentTarget.getBoundingClientRect()
-      const end = screenToCanvas(e.clientX, e.clientY, rect)
-      marqueeRef.current = null
-      setMarquee(null)
-
-      const dx = Math.abs(end.x - start.startX)
-      const dy = Math.abs(end.y - start.startY)
-
-      if (dx < 3 && dy < 3) {
-        // Click on empty canvas — deselect all
-        if (!e.shiftKey) {
-          setSelectedArtboardIds(new Set())
-        }
-        return
-      }
-
-      // Marquee rectangle
-      const left = Math.min(start.startX, end.x)
-      const top = Math.min(start.startY, end.y)
-      const right = Math.max(start.startX, end.x)
-      const bottom = Math.max(start.startY, end.y)
+      // Live hit-testing during drag
+      const left = Math.min(start.startX, canvas.x)
+      const top = Math.min(start.startY, canvas.y)
+      const right = Math.max(start.startX, canvas.x)
+      const bottom = Math.max(start.startY, canvas.y)
 
       const hits = new Set<string>()
       for (const ab of artboards) {
-        // Check intersection (not containment) like Figma
         if (
           ab.x < right &&
           ab.x + ab.width > left &&
@@ -1298,20 +1278,39 @@ export function Canvas({ roomId }: { roomId: string }) {
         }
       }
 
-      if (e.shiftKey) {
-        setSelectedArtboardIds((prev) => {
-          const next = new Set(prev)
-          for (const id of hits) {
-            if (next.has(id)) next.delete(id)
-            else next.add(id)
-          }
-          return next
-        })
+      if (start.shiftKey) {
+        const next = new Set(start.baseSelection)
+        for (const id of hits) {
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+        }
+        setSelectedArtboardIds(next)
       } else {
         setSelectedArtboardIds(hits)
       }
     },
-    [artboards, screenToCanvas],
+    [screenToCanvas, artboards],
+  )
+
+  const handleCanvasPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!marqueeRef.current) return
+      const start = marqueeRef.current
+      const rect = e.currentTarget.getBoundingClientRect()
+      const end = screenToCanvas(e.clientX, e.clientY, rect)
+      marqueeRef.current = null
+      setMarquee(null)
+
+      // Treat tiny drags as clicks — deselect
+      const dx = Math.abs(end.x - start.startX)
+      const dy = Math.abs(end.y - start.startY)
+      if (dx < 3 && dy < 3) {
+        if (!e.shiftKey) {
+          setSelectedArtboardIds(new Set())
+        }
+      }
+    },
+    [screenToCanvas],
   )
 
   // Click on artboard to select
@@ -1354,12 +1353,28 @@ export function Canvas({ roomId }: { roomId: string }) {
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
       updateMyPresence({ cursor: { x: canvasX, y: canvasY } })
+
+      // Hit-test for hover highlight
+      let hovered: string | null = null
+      for (const ab of artboards) {
+        if (
+          canvasX >= ab.x &&
+          canvasX <= ab.x + ab.width &&
+          canvasY >= ab.y &&
+          canvasY <= ab.y + ab.height
+        ) {
+          hovered = ab.id
+          break
+        }
+      }
+      setHoveredArtboardId(hovered)
     },
-    [updateMyPresence],
+    [updateMyPresence, artboards],
   )
 
   const handlePointerLeave = useCallback(() => {
     updateMyPresence({ cursor: null })
+    setHoveredArtboardId(null)
   }, [updateMyPresence])
 
   const handleCanvasClick = useCallback(
@@ -1641,24 +1656,11 @@ export function Canvas({ roomId }: { roomId: string }) {
                         onResize={resizeArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
+                        multiSelected={selectedArtboardIds.size > 1}
                         spaceHeld={spaceHeld}
                       />
                     )
                   })}
-
-                  {/* Marquee selection rectangle */}
-                  {marquee && (
-                    <div
-                      className="absolute border border-primary bg-primary/10"
-                      style={{
-                        left: Math.min(marquee.startX, marquee.currentX),
-                        top: Math.min(marquee.startY, marquee.currentY),
-                        width: Math.abs(marquee.currentX - marquee.startX),
-                        height: Math.abs(marquee.currentY - marquee.startY),
-                        pointerEvents: "none",
-                      }}
-                    />
-                  )}
 
                   <Comments
                     zoom={zoom}
@@ -1676,6 +1678,15 @@ export function Canvas({ roomId }: { roomId: string }) {
 
             </TransformWrapper>
 
+              <SelectionOverlay
+                zoom={zoom}
+                viewportPos={viewportPos}
+                selectedArtboardIds={selectedArtboardIds}
+                focusedArtboardId={focusedArtboardId}
+                hoveredArtboardId={hoveredArtboardId}
+                artboards={artboards}
+                marquee={marquee}
+              />
               <Cursors viewport={{ ...viewportPos, zoom }} />
               <FollowingToolbar
                 followingId={followingConnectionId}
