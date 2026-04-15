@@ -11,6 +11,7 @@ import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-
 import { LiveObject } from "@liveblocks/client"
 import {
   useEventListener,
+  useHistory,
   useMutation,
   useOthers,
   useStorage,
@@ -60,32 +61,43 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{ x: number; y: number; artboardId?: string } | null>(null)
+  const [spaceHeld, setSpaceHeld] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const marqueeRef = useRef<{ startX: number; startY: number } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
   const others = useOthers()
+  const history = useHistory()
 
-  // Escape key unfocuses
+  // Refs so keyboard handler stays current without re-binding
+  const selectedArtboardIdsRef = useRef(selectedArtboardIds)
+  selectedArtboardIdsRef.current = selectedArtboardIds
+  const removeArtboardsRef = useRef<(ids: string[]) => void>(() => {})
+
+  // Keyboard shortcuts
   useEffect(() => {
+    const isEditing = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      return tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (commentMode || newCommentPos) {
           setCommentMode(false)
           setNewCommentPos(null)
-        } else {
+        } else if (focusedArtboardId) {
           setFocusedArtboardId(null)
+        } else {
+          setSelectedArtboardIds(new Set())
         }
       }
-      if (
-        e.key === "c" &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement) &&
-        !(e.target as HTMLElement)?.isContentEditable
-      ) {
+      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
         setNewCommentPos(null)
       }
@@ -97,10 +109,44 @@ export function Canvas({ roomId }: { roomId: string }) {
           else panel.collapse()
         }
       }
+      if (e.key === " " && !e.repeat) {
+        if (!isEditing(e)) {
+          e.preventDefault()
+          setSpaceHeld(true)
+        }
+      }
+      // Delete/Backspace removes selected artboards
+      if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
+        const ids = selectedArtboardIdsRef.current
+        if (ids.size > 0) {
+          e.preventDefault()
+          removeArtboardsRef.current(Array.from(ids))
+          setSelectedArtboardIds(new Set())
+        }
+      }
+      // Undo: Cmd/Ctrl+Z
+      if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isEditing(e)) {
+        e.preventDefault()
+        history.undo()
+      }
+      // Redo: Cmd/Ctrl+Shift+Z
+      if (e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey && !isEditing(e)) {
+        e.preventDefault()
+        history.redo()
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === " ") {
+        setSpaceHeld(false)
+      }
     }
     window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [])
+    window.addEventListener("keyup", handleKeyUp)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
+  }, [commentMode, newCommentPos, focusedArtboardId, history])
 
   const artboards = useStorage((root) => {
     const result: Array<{
@@ -426,6 +472,20 @@ export function Canvas({ roomId }: { roomId: string }) {
     [],
   )
 
+  const moveArtboardsByDelta = useMutation(
+    ({ storage }, ids: string[], dx: number, dy: number) => {
+      const artboardsMap = storage.get("artboards")
+      for (const id of ids) {
+        const artboard = artboardsMap.get(id)
+        if (artboard) {
+          artboard.set("x", artboard.get("x") + dx)
+          artboard.set("y", artboard.get("y") + dy)
+        }
+      }
+    },
+    [],
+  )
+
   const resizeArtboard = useMutation(
     ({ storage }, id: string, x: number, y: number, w: number, h: number) => {
       const artboard = storage.get("artboards").get(id)
@@ -450,6 +510,14 @@ export function Canvas({ roomId }: { roomId: string }) {
   const removeArtboard = useMutation(({ storage }, id: string) => {
     storage.get("artboards").delete(id)
   }, [])
+
+  const removeArtboards = useMutation(({ storage }, ids: string[]) => {
+    const artboardsMap = storage.get("artboards")
+    for (const id of ids) {
+      artboardsMap.delete(id)
+    }
+  }, [])
+  removeArtboardsRef.current = removeArtboards
 
   const updateArtboardRoute = useMutation(
     ({ storage }, id: string, route: string) => {
@@ -1109,6 +1177,170 @@ export function Canvas({ roomId }: { roomId: string }) {
     }
   }, [followingConnectionId])
 
+  // Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom
+  const canvasWrapperRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = canvasWrapperRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
+      if (focusedArtboardId !== null) return
+      e.preventDefault()
+      const ref = transformRef.current
+      if (!ref) return
+
+      if (followingConnectionId !== null) {
+        setFollowingConnectionId(null)
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom at cursor position
+        const rect = el.getBoundingClientRect()
+        const cursorX = e.clientX - rect.left
+        const cursorY = e.clientY - rect.top
+        const { positionX, positionY, scale } = ref.state
+        const delta = -e.deltaY
+        const factor = 1 + delta * ZOOM_STEP
+        const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale * factor))
+        const ratio = newScale / scale
+        const newPosX = cursorX - (cursorX - positionX) * ratio
+        const newPosY = cursorY - (cursorY - positionY) * ratio
+        ref.setTransform(newPosX, newPosY, newScale, 0)
+      } else {
+        // Pan
+        const { positionX, positionY, scale } = ref.state
+        ref.setTransform(positionX - e.deltaX, positionY - e.deltaY, scale, 0)
+      }
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [focusedArtboardId, followingConnectionId])
+
+  // Convert screen coordinates to canvas coordinates
+  const screenToCanvas = useCallback((clientX: number, clientY: number, rect: DOMRect) => {
+    const ref = transformRef.current
+    if (!ref) return { x: 0, y: 0 }
+    const { positionX, positionY, scale } = ref.state
+    return {
+      x: (clientX - rect.left - positionX) / scale,
+      y: (clientY - rect.top - positionY) / scale,
+    }
+  }, [])
+
+  // Marquee selection: pointerdown on empty canvas starts marquee
+  const handleCanvasPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Only left-click, not during space-pan, comment mode, or artboard focus
+      if (e.button !== 0 || spaceHeld || commentMode || focusedArtboardId !== null) return
+      // Ignore if clicking on an artboard or interactive element
+      const target = e.target as HTMLElement
+      if (target.closest("[data-artboard]") || target.closest("button")) return
+
+      const rect = e.currentTarget.getBoundingClientRect()
+      const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+      marqueeRef.current = { startX: canvas.x, startY: canvas.y }
+      setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
+      e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    [spaceHeld, commentMode, focusedArtboardId, screenToCanvas],
+  )
+
+  const handleCanvasPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!marqueeRef.current) return
+      const rect = e.currentTarget.getBoundingClientRect()
+      const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+      setMarquee((m) => m ? { ...m, currentX: canvas.x, currentY: canvas.y } : null)
+    },
+    [screenToCanvas],
+  )
+
+  const handleCanvasPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!marqueeRef.current) {
+        return
+      }
+      const start = marqueeRef.current
+      const rect = e.currentTarget.getBoundingClientRect()
+      const end = screenToCanvas(e.clientX, e.clientY, rect)
+      marqueeRef.current = null
+      setMarquee(null)
+
+      const dx = Math.abs(end.x - start.startX)
+      const dy = Math.abs(end.y - start.startY)
+
+      if (dx < 3 && dy < 3) {
+        // Click on empty canvas — deselect all
+        if (!e.shiftKey) {
+          setSelectedArtboardIds(new Set())
+        }
+        return
+      }
+
+      // Marquee rectangle
+      const left = Math.min(start.startX, end.x)
+      const top = Math.min(start.startY, end.y)
+      const right = Math.max(start.startX, end.x)
+      const bottom = Math.max(start.startY, end.y)
+
+      const hits = new Set<string>()
+      for (const ab of artboards) {
+        // Check intersection (not containment) like Figma
+        if (
+          ab.x < right &&
+          ab.x + ab.width > left &&
+          ab.y < bottom &&
+          ab.y + ab.height > top
+        ) {
+          hits.add(ab.id)
+        }
+      }
+
+      if (e.shiftKey) {
+        setSelectedArtboardIds((prev) => {
+          const next = new Set(prev)
+          for (const id of hits) {
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+          }
+          return next
+        })
+      } else {
+        setSelectedArtboardIds(hits)
+      }
+    },
+    [artboards, screenToCanvas],
+  )
+
+  // Click on artboard to select
+  const handleArtboardSelect = useCallback(
+    (id: string, shiftKey: boolean) => {
+      if (shiftKey) {
+        setSelectedArtboardIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      } else {
+        setSelectedArtboardIds(new Set([id]))
+      }
+    },
+    [],
+  )
+
+  const handleMoveSelected = useCallback(
+    (dx: number, dy: number) => {
+      const ids = Array.from(selectedArtboardIdsRef.current)
+      if (ids.length > 0) {
+        moveArtboardsByDelta(ids, dx, dy)
+      }
+    },
+    [moveArtboardsByDelta],
+  )
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       const ref = transformRef.current
@@ -1282,8 +1514,14 @@ export function Canvas({ roomId }: { roomId: string }) {
             <div
               className="relative h-full w-full"
               data-canvas-wrapper
-              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : undefined }}
-              onPointerMove={handlePointerMove}
+              ref={canvasWrapperRef}
+              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : spaceHeld ? (isPanning ? "grabbing" : "grab") : undefined }}
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={(e) => {
+                handlePointerMove(e)
+                handleCanvasPointerMove(e)
+              }}
+              onPointerUp={handleCanvasPointerUp}
               onPointerLeave={handlePointerLeave}
               onClick={commentMode ? handleCanvasClick : undefined}
             >
@@ -1305,16 +1543,16 @@ export function Canvas({ roomId }: { roomId: string }) {
               centerOnInit={false}
               doubleClick={{ disabled: true }}
               wheel={{
-                wheelDisabled: true,
-                step: ZOOM_STEP,
-                disabled: focusedArtboardId !== null,
+                disabled: true,
               }}
               trackPadPanning={{
-                disabled: focusedArtboardId !== null || commentMode,
+                disabled: true,
               }}
               panning={{
                 velocityDisabled: true,
                 disabled: focusedArtboardId !== null || commentMode,
+                allowLeftClickPan: spaceHeld,
+                allowMiddleClickPan: true,
               }}
               onInit={(ref) => {
                 if (!viewportRestoredRef.current && savedViewport) {
@@ -1332,7 +1570,8 @@ export function Canvas({ roomId }: { roomId: string }) {
                   })
                 }
               }}
-              onPanningStart={handleFollowBreak}
+              onPanningStart={() => { handleFollowBreak(); setIsPanning(true) }}
+              onPanningStop={() => setIsPanning(false)}
               onWheelStart={handleFollowBreak}
               onPinchStart={handleFollowBreak}
               onTransform={(_ref, state) => {
@@ -1394,14 +1633,32 @@ export function Canvas({ roomId }: { roomId: string }) {
                         }}
                         zoom={zoom}
                         focused={focusedArtboardId === artboard.id}
+                        selected={selectedArtboardIds.has(artboard.id)}
                         onFocus={setFocusedArtboardId}
+                        onSelect={handleArtboardSelect}
                         onMove={moveArtboard}
+                        onMoveSelected={handleMoveSelected}
                         onResize={resizeArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
+                        spaceHeld={spaceHeld}
                       />
                     )
                   })}
+
+                  {/* Marquee selection rectangle */}
+                  {marquee && (
+                    <div
+                      className="absolute border border-primary bg-primary/10"
+                      style={{
+                        left: Math.min(marquee.startX, marquee.currentX),
+                        top: Math.min(marquee.startY, marquee.currentY),
+                        width: Math.abs(marquee.currentX - marquee.startX),
+                        height: Math.abs(marquee.currentY - marquee.startY),
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
 
                   <Comments
                     zoom={zoom}

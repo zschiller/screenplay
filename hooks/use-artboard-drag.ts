@@ -6,7 +6,7 @@ interface UseDragOptions {
   zoom: number
   onDrag: (dx: number, dy: number) => void
   onDragEnd?: () => void
-  onClick?: () => void
+  onClick?: (e: React.PointerEvent) => void
 }
 
 export function useArtboardDrag({
@@ -52,7 +52,7 @@ export function useArtboardDrag({
       dragging.current = false
       ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
       if (!didMove.current) {
-        onClick?.()
+        onClick?.(e)
       } else {
         onDragEnd?.()
       }
