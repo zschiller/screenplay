@@ -1515,7 +1515,7 @@ export function Canvas({ roomId }: { roomId: string }) {
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : spaceHeld ? (isPanning ? "grabbing" : "grab") : undefined }}
+              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
                 handlePointerMove(e)
