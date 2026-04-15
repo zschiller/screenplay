@@ -148,11 +148,18 @@ export function Artboard({
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
         route={artboard.route}
+        zoom={zoom}
+        artboardWidth={artboard.width}
         dragHandlers={focused ? undefined : dragHandlers}
       />
       <button
         onClick={() => onFocus(focused ? null : artboard.id)}
-        className={`absolute -right-1 -top-7 z-10 flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
+        className={`absolute right-0 bottom-full z-10 flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
+        style={{
+          transform: `scale(${1 / zoom})`,
+          transformOrigin: "bottom right",
+          marginBottom: 4 / zoom,
+        }}
         title={focused ? "Back to canvas mode" : "Interact with app"}
       >
         {focused ? (
