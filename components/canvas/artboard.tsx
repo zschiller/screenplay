@@ -30,33 +30,46 @@ interface ArtboardProps {
   artboard: ArtboardData
   zoom: number
   focused: boolean
+  selected: boolean
   onFocus: (id: string | null) => void
+  onSelect: (id: string, shiftKey: boolean) => void
   onMove: (id: string, x: number, y: number) => void
+  onMoveSelected: (dx: number, dy: number) => void
   onResize: (id: string, x: number, y: number, w: number, h: number) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
+  spaceHeld: boolean
 }
 
 export function Artboard({
   artboard,
   zoom,
   focused,
+  selected,
   onFocus,
+  onSelect,
   onMove,
+  onMoveSelected,
   onResize,
   onRemove,
   onStateChanged,
+  spaceHeld,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
-      onMove(artboard.id, artboard.x + dx, artboard.y + dy)
+      if (selected) {
+        onMoveSelected(dx, dy)
+      } else {
+        onMove(artboard.id, artboard.x + dx, artboard.y + dy)
+      }
     },
-    [artboard.id, artboard.x, artboard.y, onMove],
+    [artboard.id, artboard.x, artboard.y, selected, onMove, onMoveSelected],
   )
 
   const dragHandlers = useArtboardDrag({
     zoom,
     onDrag: handleDrag,
+    onClick: (e) => onSelect(artboard.id, e.shiftKey),
   })
 
   const handleResize = useCallback(
@@ -119,6 +132,7 @@ export function Artboard({
   return (
     <div
       id={`artboard-${artboard.id}`}
+      data-artboard
       className="absolute"
       style={{
         left: artboard.x,
@@ -146,7 +160,7 @@ export function Artboard({
         )}
       </button>
       <div
-        className={`relative h-full w-full overflow-hidden rounded-lg border shadow-sm ${focused ? "border-primary" : "border-border"}`}
+        className={`relative h-full w-full overflow-hidden rounded-lg border shadow-sm ${focused ? "border-primary" : selected ? "border-primary" : "border-border"}`}
       >
         {src && serverReady ? (
           <iframe
@@ -172,10 +186,20 @@ export function Artboard({
           </div>
         )}
 
-        {/* Overlay: blocks iframe pointer events when not focused */}
+        {/* Overlay: blocks iframe pointer events when not focused; drag to move, click to select */}
         {!focused && (
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 cursor-default"
+            onPointerDownCapture={(e) => {
+              if (e.button === 0 && !spaceHeld) {
+                // If already selected, don't narrow selection on pointerdown —
+                // let the drag move all selected. Narrow on click (pointerup without drag).
+                if (!selected || e.shiftKey) {
+                  onSelect(artboard.id, e.shiftKey)
+                }
+              }
+            }}
+            {...(spaceHeld ? {} : dragHandlers)}
           />
         )}
       </div>
