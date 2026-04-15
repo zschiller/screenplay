@@ -92,14 +92,6 @@ npm run typecheck  # tsc --noEmit
 npm run format     # Prettier
 ```
 
-### Adding shadcn/ui components
+## License
 
-```bash
-npx shadcn@latest add button
-```
-
-This will place the ui components in the `components/ui` directory. Import them as:
-
-```tsx
-import { Button } from "@/components/ui/button"
-```
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
