@@ -38,6 +38,7 @@ interface ArtboardProps {
   onResize: (id: string, x: number, y: number, w: number, h: number) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
+  multiSelected: boolean
   spaceHeld: boolean
 }
 
@@ -53,6 +54,7 @@ export function Artboard({
   onResize,
   onRemove,
   onStateChanged,
+  multiSelected,
   spaceHeld,
 }: ArtboardProps) {
   const handleDrag = useCallback(
@@ -160,7 +162,7 @@ export function Artboard({
         )}
       </button>
       <div
-        className={`relative h-full w-full overflow-hidden rounded-lg border shadow-sm ${focused ? "border-primary" : selected ? "border-primary" : "border-border"}`}
+        className="relative h-full w-full overflow-hidden rounded-lg border border-border shadow-sm"
       >
         {src && serverReady ? (
           <iframe
@@ -204,17 +206,21 @@ export function Artboard({
         )}
       </div>
 
-      {/* Resize handles — edges */}
-      <div className="absolute cursor-ns-resize" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-      <div className="absolute cursor-ns-resize" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-      <div className="absolute cursor-ew-resize" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
-      <div className="absolute cursor-ew-resize" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
-
-      {/* Resize handles — corners */}
-      <div className="absolute cursor-nwse-resize" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nesw-resize" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nesw-resize" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nwse-resize" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+      {/* Resize handles — only when singly selected */}
+      {selected && !multiSelected && (
+        <>
+          {/* Edges */}
+          <div className="absolute cursor-ns-resize" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+          <div className="absolute cursor-ns-resize" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+          <div className="absolute cursor-ew-resize" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
+          <div className="absolute cursor-ew-resize" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
+          {/* Corners */}
+          <div className="absolute cursor-nwse-resize" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nesw-resize" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nesw-resize" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nwse-resize" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+        </>
+      )}
     </div>
   )
 }
