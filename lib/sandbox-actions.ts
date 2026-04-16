@@ -208,14 +208,38 @@ export async function restartSandbox(
   port: number = 3000,
   setupScript?: string,
   devScript?: string,
+  ghToken?: string,
 ): Promise<SandboxResult> {
   try {
     const safeEnv = await getEnvVars(sandboxName)
 
-    // Sandbox.get auto-resumes stopped persistent sandboxes
-    const sandbox = await Sandbox.get({ name: sandboxName })
+    let sandbox: Awaited<ReturnType<typeof Sandbox.get>>
+    let recreated = false
+    try {
+      // Sandbox.get auto-resumes stopped persistent sandboxes
+      sandbox = await Sandbox.get({ name: sandboxName })
+    } catch {
+      // Sandbox no longer exists (snapshot expired / deleted) — recreate it
+      if (!ghToken) ghToken = await getGitHubToken() ?? undefined
+      const created = await Sandbox.create({
+        name: sandboxName,
+        source: ghToken
+          ? { type: "git", url: gitUrl, revision: branch, username: "x-access-token", password: ghToken }
+          : { type: "git", url: gitUrl, revision: branch },
+        ports: [port],
+        timeout: SANDBOX_TIMEOUT,
+        snapshotExpiration: SNAPSHOT_EXPIRATION,
+        resources: { vcpus: SANDBOX_VCPUS },
+        ...(safeEnv && Object.keys(safeEnv).length > 0 ? { env: safeEnv } : {}),
+      })
+      sandbox = created
+      recreated = true
+    }
 
-    await sandbox.runCommand("git", ["pull", "origin", branch])
+    // Only pull if the sandbox already existed (freshly cloned sandboxes are up to date)
+    if (!recreated) {
+      await sandbox.runCommand("git", ["pull", "origin", branch])
+    }
 
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
