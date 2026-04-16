@@ -222,27 +222,60 @@ async function ensureSessionReady(
   sessionId: string,
   sandboxName: string,
 ) {
-  const session = await client.beta.sessions.retrieve(sessionId)
+  // Retry loop: resolve pending tools until session is ready for a user message
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const session = await client.beta.sessions.retrieve(sessionId)
 
-  if (session.status === "terminated") {
-    throw new Error("Session terminated")
-  }
-
-  if (session.status === "idle") {
-    await resolveStuckToolCalls(sessionId, sandboxName)
-    const updated = await client.beta.sessions.retrieve(sessionId)
-    if (updated.status === "running") {
-      await waitForIdle(client, sessionId)
+    if (session.status === "terminated") {
+      throw new Error("Session terminated")
     }
-    return
-  }
 
-  if (session.status === "running") {
-    await waitForIdle(client, sessionId)
-    await resolveStuckToolCalls(sessionId, sandboxName)
-    const updated = await client.beta.sessions.retrieve(sessionId)
-    if (updated.status === "running") {
+    if (session.status === "running") {
       await waitForIdle(client, sessionId)
+      continue
+    }
+
+    if (session.status === "idle") {
+      // Check if session is actually ready (end_turn) vs waiting for tool results
+      const recent = await client.beta.sessions.events.list(sessionId, {
+        limit: 50,
+        order: "desc",
+      })
+      const idle = recent.data.find((e) => e.type === "session.status_idle")
+      if (
+        idle?.type === "session.status_idle" &&
+        idle.stop_reason?.type === "requires_action"
+      ) {
+        // Session is waiting for tool results — resolve them directly
+        for (const eid of idle.stop_reason.event_ids) {
+          const tu = recent.data.find(
+            (e) => e.type === "agent.custom_tool_use" && e.id === eid,
+          )
+          if (!tu || tu.type !== "agent.custom_tool_use") continue
+
+          let output = "Tool execution was interrupted."
+          try {
+            output = await executeCustomTool(
+              sandboxName,
+              tu.name as CustomToolName,
+              tu.input as Record<string, unknown>,
+            )
+          } catch (e) {
+            output = `Error: ${e instanceof Error ? e.message : String(e)}`
+          }
+          await client.beta.sessions.events.send(sessionId, {
+            events: [{
+              type: "user.custom_tool_result",
+              custom_tool_use_id: eid,
+              content: [{ type: "text", text: output || "(empty)" }],
+            }],
+          })
+        }
+        // After resolving, the session may start running again — loop to wait
+        continue
+      }
+      // Session is idle with end_turn — ready for a new message
+      return
     }
   }
 }
