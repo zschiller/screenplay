@@ -143,7 +143,7 @@ export function ChatPanel({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="left">
-                Collapse chat <Kbd>⌘⌥B</Kbd>
+                Collapse chat <Kbd>⌘I</Kbd>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
