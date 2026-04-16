@@ -48,6 +48,7 @@ export function RoomProviderWrapper({
           viewport: { x: 0, y: 0, zoom: 1 },
           name: "",
           color: getRandomColor(),
+          selectedArtboardIds: [],
         }}
         initialStorage={{
           workspaces: new LiveMap(),

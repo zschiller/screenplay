@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/command"
 import { Badge } from "@/components/ui/badge"
 import { Kbd } from "@/components/ui/kbd"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
@@ -79,8 +80,8 @@ interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
   artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
-  selectedAgentId: string | null
-  onSelectAgent: (id: string | null) => void
+  selectedArtboardIds: Set<string>
+  onSelectAgent: (id: string) => void
   onCreateWorkspace: (repo: GitHubRepo) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
   onRemoveWorkspace: (id: string) => void
@@ -94,7 +95,7 @@ interface AgentSidebarProps {
   onCrawlRoutes: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
-  onSelectArtboard: (artboardId: string) => void
+  onSelectArtboard: (artboardId: string, shiftKey: boolean) => void
   onRenameArtboard: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
@@ -105,7 +106,7 @@ export function AgentSidebar({
   workspaces,
   agents,
   artboards,
-  selectedAgentId,
+  selectedArtboardIds,
   onSelectAgent,
   onCreateWorkspace,
   onUpdateWorkspace,
@@ -145,17 +146,25 @@ export function AgentSidebar({
   }, [agents, onSelectAgent])
 
   return (
-    <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-10 items-center justify-end px-4 pr-3">
-        <button
-          className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-          onClick={onCollapseSidebar}
-          title="Collapse sidebar"
-        >
-          <PanelLeftClose />
-        </button>
+    <SidebarProvider className="flex h-full flex-col select-none bg-sidebar text-sidebar-foreground">
+      <div className="flex h-12 items-center justify-end px-4 pr-3">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+                onClick={onCollapseSidebar}
+              >
+                <PanelLeftClose />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              Collapse sidebar <Kbd>⌘B</Kbd>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto" onClick={() => { onSelectAgent(null) }}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <SidebarGroup className="pt-0">
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <Popover open={showPicker} onOpenChange={setShowPicker}>
@@ -287,7 +296,7 @@ export function AgentSidebar({
                                     ) : (
                                       <>
                                         <div
-                                          className={`group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${selectedAgentId === agent.id ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : ""}`}
+                                          className="group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                                           onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                         >
                                           <SidebarMenuButton
@@ -376,7 +385,7 @@ export function AgentSidebar({
                                         {agentArtboards.map((ab) => (
                                           <SidebarMenuSubItem key={ab.id}>
                                             <div className="group/frame-row relative">
-                                              <SidebarMenuSubButton className="w-full !pr-7" onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id) }}>
+                                              <SidebarMenuSubButton className="w-full !pr-7" isActive={selectedArtboardIds.has(ab.id)} onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}>
                                                 <Frame className="shrink-0 text-sidebar-foreground/70" />
                                                 <span className="truncate">{ab.label}</span>
                                                 <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">

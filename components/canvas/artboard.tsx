@@ -169,7 +169,7 @@ export function Artboard({
         )}
       </button>
       <div
-        className="relative h-full w-full overflow-hidden rounded-lg border border-border shadow-sm"
+        className="relative h-full w-full overflow-hidden"
       >
         {src && serverReady ? (
           <iframe

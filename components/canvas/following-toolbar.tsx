@@ -34,11 +34,9 @@ export function FollowingToolbar({
   const others = useOthers()
   const self = useSelf()
 
-  if (others.length === 0) return null
-
   return (
     <TooltipProvider>
-      <div className="absolute right-4 top-4 z-[9998] flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
+      <div className="flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
         {/* Current user */}
         {self && (
           <Tooltip>

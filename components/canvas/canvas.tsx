@@ -17,7 +17,10 @@ import {
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
-import { MessageSquare } from "lucide-react"
+import { MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Kbd } from "@/components/ui/kbd"
 import { Artboard } from "./artboard"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
@@ -59,6 +62,9 @@ export function Canvas({ roomId }: { roomId: string }) {
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  // Per-workspace / per-agent memory so switching back restores prior selection
+  const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
+  const selectedChatByAgentRef = useRef<Record<string, string>>({})
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{ x: number; y: number; artboardId?: string } | null>(null)
@@ -99,13 +105,25 @@ export function Canvas({ roomId }: { roomId: string }) {
           setSelectedArtboardIds(new Set())
         }
       }
+      if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+        setCommentMode(false)
+        setNewCommentPos(null)
+      }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
         setNewCommentPos(null)
       }
-      if (e.key === "b" && e.metaKey) {
+      if (e.key === "b" && e.metaKey && !e.altKey) {
         e.preventDefault()
         const panel = sidebarPanelRef.current
+        if (panel) {
+          if (panel.isCollapsed()) panel.expand()
+          else panel.collapse()
+        }
+      }
+      if (e.key === "b" && e.metaKey && e.altKey) {
+        e.preventDefault()
+        const panel = chatPanelRef.current
         if (panel) {
           if (panel.isCollapsed()) panel.expand()
           else panel.collapse()
@@ -723,23 +741,40 @@ export function Canvas({ roomId }: { roomId: string }) {
 
   const handleSelectAgent = useCallback(
     (agentId: string | null) => {
-      // If re-selecting the same agent and chat was dragged closed, re-expand
-      if (agentId && agentId === selectedAgentId) {
-        const panel = chatPanelRef.current
-        if (panel?.isCollapsed()) panel.expand()
-        return
+      if (!agentId) return
+
+      // Save outgoing agent's chat selection
+      if (selectedAgentId && selectedChatId) {
+        selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
       }
+
+      // Save agent selection for its workspace
+      const agent = agents.find((a) => a.id === agentId)
+      if (agent) {
+        selectedAgentByWorkspaceRef.current[agent.workspaceId] = agentId
+      }
+
       setSelectedAgentId(agentId)
-      if (agentId) {
-        const agentChats = chatSessions
-          .filter((c) => c.agentId === agentId)
-          .sort((a, b) => a.createdAt - b.createdAt)
-        setSelectedChatId(agentChats[0]?.id ?? null)
+
+      // Restore remembered chat or fall back to first open
+      const rememberedChat = selectedChatByAgentRef.current[agentId]
+      const agentChats = chatSessions
+        .filter((c) => c.agentId === agentId && !c.closedAt)
+        .sort((a, b) => a.createdAt - b.createdAt)
+      if (rememberedChat && agentChats.some((c) => c.id === rememberedChat)) {
+        setSelectedChatId(rememberedChat)
       } else {
-        setSelectedChatId(null)
+        setSelectedChatId(agentChats[0]?.id ?? null)
+      }
+
+      const panel = chatPanelRef.current
+      if (panel?.isCollapsed()) {
+        panel.expand()
+        const { inPixels } = panel.getSize()
+        if (inPixels < 480) panel.resize(480)
       }
     },
-    [chatSessions, selectedAgentId],
+    [agents, chatSessions, selectedAgentId, selectedChatId],
   )
 
   const handleCreateChat = useCallback(
@@ -816,7 +851,10 @@ export function Canvas({ roomId }: { roomId: string }) {
       setSelectedChatId(chatId)
       if (chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) setSelectedAgentId(chat.agentId)
+        if (chat) {
+          setSelectedAgentId(chat.agentId)
+          selectedChatByAgentRef.current[chat.agentId] = chatId
+        }
       }
     },
     [chatSessions],
@@ -1239,6 +1277,9 @@ export function Canvas({ roomId }: { roomId: string }) {
       // Ignore if clicking on an artboard or interactive element
       const target = e.target as HTMLElement
       if (target.closest("[data-artboard]") || target.closest("button")) return
+      // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
+      const wrapperRect = e.currentTarget.getBoundingClientRect()
+      if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8) return
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
@@ -1411,27 +1452,31 @@ export function Canvas({ roomId }: { roomId: string }) {
     [commentMode, artboards],
   )
 
+  // Broadcast artboard selection to other users via presence
+  useEffect(() => {
+    updateMyPresence({ selectedArtboardIds: Array.from(selectedArtboardIds) })
+  }, [selectedArtboardIds, updateMyPresence])
+
+  // Collect other users' selections for the overlay
+  const othersSelections = others.map((other) => ({
+    selectedArtboardIds: other.presence.selectedArtboardIds ?? [],
+    color: other.presence.color,
+    name: other.info?.name || other.presence.name || "Anonymous",
+  }))
+
+  // Auto-select the first running agent when none is selected
+  useEffect(() => {
+    if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
+    const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
+    if (firstRunning) {
+      setSelectedAgentId(firstRunning.id)
+    }
+  }, [selectedAgentId, agents])
+
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const chatVisible = !!selectedAgent?.sandboxName
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
-
-  // Expand/collapse chat panel when agent selection changes
-  useEffect(() => {
-    const panel = chatPanelRef.current
-    if (!panel) return
-    if (chatVisible) {
-      if (panel.isCollapsed()) {
-        panel.expand()
-        // If no prior size, set a comfortable default
-        const { inPixels } = panel.getSize()
-        if (inPixels < 480) panel.resize(480)
-      }
-    } else {
-      if (!panel.isCollapsed()) panel.collapse()
-    }
-  }, [chatVisible, selectedAgentId])
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
@@ -1451,7 +1496,7 @@ export function Canvas({ roomId }: { roomId: string }) {
           workspaces={workspaces}
           agents={agents}
           artboards={artboards}
-          selectedAgentId={selectedAgentId}
+          selectedArtboardIds={selectedArtboardIds}
           onSelectAgent={handleSelectAgent}
           onCreateWorkspace={handleCreateWorkspace}
           onUpdateWorkspace={updateWorkspaceInStorage}
@@ -1465,6 +1510,7 @@ export function Canvas({ roomId }: { roomId: string }) {
             if (selectedAgentId === id) {
               setSelectedAgentId(null)
               setSelectedChatId(null)
+              chatPanelRef.current?.collapse()
             }
             chatSessions
               .filter((c) => c.agentId === id)
@@ -1475,7 +1521,18 @@ export function Canvas({ roomId }: { roomId: string }) {
           onCrawlRoutes={handleCrawlRoutes}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
-          onSelectArtboard={handleSelectArtboard}
+          onSelectArtboard={(id, shiftKey) => {
+            if (shiftKey) {
+              setSelectedArtboardIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(id)) next.delete(id)
+                else next.add(id)
+                return next
+              })
+            } else {
+              setSelectedArtboardIds(new Set([id]))
+            }
+          }}
           onRenameArtboard={renameArtboard}
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
@@ -1483,46 +1540,6 @@ export function Canvas({ roomId }: { roomId: string }) {
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />
-
-      {/* Chat — always mounted, toggled via collapse/expand */}
-      <ResizablePanel
-        id="chat"
-        defaultSize="0px"
-        minSize={chatVisible ? "280px" : "0px"}
-        collapsible
-        collapsedSize="0px"
-        groupResizeBehavior="preserve-pixel-size"
-        panelRef={chatPanelRef}
-        onResize={(size) => {
-          setChatCollapsed(size.inPixels === 0)
-          // Prevent the panel from opening when no agent is selected (e.g. via sidebar resize)
-          if (size.inPixels > 0 && !chatVisible) {
-            chatPanelRef.current?.collapse()
-          }
-        }}
-      >
-        {selectedAgent?.sandboxName && (
-          <ChatPanel
-            agent={selectedAgent}
-            chatSessions={chatSessions.filter((c) => c.agentId === selectedAgentId)}
-            selectedChatId={selectedChatId}
-            roomId={roomId}
-            onSelectChat={setSelectedChatId}
-            onCreateChat={() => handleCreateChat(selectedAgent.id)}
-            onRenameChat={handleRenameChat}
-            onRemoveChat={handleRemoveChat}
-            onCloseChat={handleCloseChat}
-            onReopenChat={handleReopenChat}
-            onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
-            onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
-            onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
-            diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
-            sidebarCollapsed={sidebarCollapsed}
-            onExpandSidebar={() => sidebarPanelRef.current?.expand()}
-          />
-        )}
-      </ResizablePanel>
-      <ResizableHandle className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"} disabled={chatCollapsed} />
 
       {/* Canvas */}
       <ResizablePanel id="canvas">
@@ -1615,26 +1632,6 @@ export function Canvas({ roomId }: { roomId: string }) {
                   className="relative"
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
-                  <svg className="pointer-events-none absolute inset-0 h-full w-full">
-                    <defs>
-                      <pattern
-                        id="dot-grid"
-                        x="0"
-                        y="0"
-                        width="40"
-                        height="40"
-                        patternUnits="userSpaceOnUse"
-                      >
-                        <circle
-                          cx="1"
-                          cy="1"
-                          r="1"
-                          className="fill-foreground/10"
-                        />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#dot-grid)" />
-                  </svg>
 
                   {artboards.map((artboard) => {
                     const agentInfo = agentDomains[artboard.sandboxId]
@@ -1686,27 +1683,146 @@ export function Canvas({ roomId }: { roomId: string }) {
                 hoveredArtboardId={hoveredArtboardId}
                 artboards={artboards}
                 marquee={marquee}
+                othersSelections={othersSelections}
               />
               <Cursors viewport={{ ...viewportPos, zoom }} />
-              <FollowingToolbar
-                followingId={followingConnectionId}
-                onFollow={setFollowingConnectionId}
-              />
-              <button
-                onClick={() => {
-                  setCommentMode((m) => !m)
-                  setNewCommentPos(null)
-                }}
-                className={`absolute left-4 top-4 z-[9998] flex h-8 w-8 items-center justify-center rounded-lg border shadow-sm transition-colors ${
-                  commentMode
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                }`}
-                title="Comment mode (C)"
-              >
-                <MessageSquare className="h-4 w-4" />
-              </button>
+              <div className="pointer-events-none absolute left-0 top-0 z-[9998] flex h-12 items-center px-2">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
+                  {sidebarCollapsed && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => sidebarPanelRef.current?.expand()}
+                          >
+                            <PanelLeftOpen className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Expand sidebar <Kbd>⌘B</Kbd>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <Button
+                    variant={!commentMode ? "default" : "ghost"}
+                    size="icon-xs"
+                    onClick={() => {
+                      setCommentMode(false)
+                      setNewCommentPos(null)
+                    }}
+                    title="Select (V)"
+                  >
+                    <MousePointer2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={commentMode ? "default" : "ghost"}
+                    size="icon-xs"
+                    onClick={() => {
+                      setCommentMode((m) => !m)
+                      setNewCommentPos(null)
+                    }}
+                    title="Comment mode (C)"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="pointer-events-none absolute right-0 top-0 z-[9998] flex h-12 items-center px-2">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
+                  <FollowingToolbar
+                    followingId={followingConnectionId}
+                    onFollow={setFollowingConnectionId}
+                  />
+                  {chatCollapsed && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => chatPanelRef.current?.expand()}
+                          >
+                            <PanelRightOpen className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Expand chat <Kbd>⌘⌥B</Kbd>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
             </div>
+      </ResizablePanel>
+      <ResizableHandle className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"} disabled={chatCollapsed} />
+
+      {/* Chat — right panel */}
+      <ResizablePanel
+        id="chat"
+        defaultSize="0px"
+        minSize="280px"
+        collapsible
+        collapsedSize="0px"
+        groupResizeBehavior="preserve-pixel-size"
+        panelRef={chatPanelRef}
+        onResize={(size) => setChatCollapsed(size.inPixels === 0)}
+      >
+        {selectedAgent?.sandboxName ? (
+          <ChatPanel
+            agent={selectedAgent}
+            agents={agents}
+            onSelectAgent={handleSelectAgent}
+            chatSessions={chatSessions.filter((c) => c.agentId === selectedAgentId)}
+            selectedChatId={selectedChatId}
+            roomId={roomId}
+            onSelectChat={handleSelectChat}
+            onCreateChat={() => handleCreateChat(selectedAgent.id)}
+            onRenameChat={handleRenameChat}
+            onRemoveChat={handleRemoveChat}
+            onCloseChat={handleCloseChat}
+            onReopenChat={handleReopenChat}
+            onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
+            onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
+            onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
+            diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
+            onCollapse={() => chatPanelRef.current?.collapse()}
+          />
+        ) : (
+          <div className="flex h-full flex-col bg-background">
+            <div className="flex h-12 items-center bg-background px-3">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+                      onClick={() => chatPanelRef.current?.collapse()}
+                    >
+                      <PanelRightClose className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    Collapse chat <Kbd>⌘⌥B</Kbd>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="text-xs text-muted-foreground">
+                {workspaces.length === 0 ? "No workspaces" : "No active agents"}
+              </span>
+            </div>
+            <div className="border-b border-border" />
+            <div className="flex flex-1 items-center justify-center px-6">
+              <p className="text-sm text-muted-foreground">
+                {workspaces.length === 0
+                  ? "Add a workspace to get started"
+                  : "Waiting for an agent to start…"}
+              </p>
+            </div>
+          </div>
+        )}
       </ResizablePanel>
     </ResizablePanelGroup>
   )

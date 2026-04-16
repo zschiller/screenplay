@@ -100,6 +100,7 @@ export type Presence = {
   viewport: { x: number; y: number; zoom: number }
   name: string
   color: string
+  selectedArtboardIds: string[]
 }
 
 export type UserMeta = {
