@@ -1,16 +1,31 @@
 "use client"
 
-import { useEffect, useMemo, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelLeftOpen } from "lucide-react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Kbd } from "@/components/ui/kbd"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { AgentChat } from "./agent-chat"
 import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ChatSessionData } from "@/lib/liveblocks.types"
@@ -47,6 +62,8 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
 
 interface ChatPanelProps {
   agent: AgentData
+  agents: AgentData[]
+  onSelectAgent: (id: string) => void
   chatSessions: ChatSessionData[]
   selectedChatId: string | null
   roomId: string
@@ -60,12 +77,13 @@ interface ChatPanelProps {
   onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
   diffStats?: DiffStats
-  sidebarCollapsed?: boolean
-  onExpandSidebar?: () => void
+  onCollapse?: () => void
 }
 
 export function ChatPanel({
   agent,
+  agents,
+  onSelectAgent,
   chatSessions,
   selectedChatId,
   roomId,
@@ -79,8 +97,7 @@ export function ChatPanel({
   onBranchRename,
   onPlanModeChange,
   diffStats,
-  sidebarCollapsed,
-  onExpandSidebar,
+  onCollapse,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -113,23 +130,39 @@ export function ChatPanel({
       onValueChange={onSelectChat}
       className="flex h-full flex-col gap-0"
     >
-      <div className="flex h-10 items-center bg-background px-3">
-        {sidebarCollapsed && (
-          <button
-            className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-            onClick={onExpandSidebar}
-            title="Expand sidebar"
-          >
-            <PanelLeftOpen />
-          </button>
+      <div className="flex h-12 items-center bg-background px-3">
+        {onCollapse && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+                  onClick={onCollapse}
+                >
+                  <PanelRightClose />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                Collapse chat <Kbd>⌘⌥B</Kbd>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
-        <BranchBadge branch={agent.branch} colorKey={agent.id} icon className="text-[11px] py-0 px-1.5" />
-        {diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
-          <span className="ml-auto flex items-center gap-1 font-mono text-[10px]">
-            <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
-            <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
-          </span>
-        )}
+        <AgentPicker
+          agents={agents}
+          currentAgentId={agent.id}
+          currentBranch={agent.branch}
+          currentColorKey={agent.id}
+          onSelect={onSelectAgent}
+        />
+        <div className="ml-auto flex items-center gap-1.5">
+          {diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
+            <span className="flex items-center gap-1 font-mono text-[10px]">
+              <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
+              <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex border-b border-border bg-background">
         <div className="flex-1 overflow-x-auto min-w-0">
@@ -255,5 +288,56 @@ export function ChatPanel({
         )
       })}
     </Tabs>
+  )
+}
+
+function AgentPicker({
+  agents,
+  currentAgentId,
+  currentBranch,
+  currentColorKey,
+  onSelect,
+}: {
+  agents: AgentData[]
+  currentAgentId: string
+  currentBranch: string
+  currentColorKey: string
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const runnableAgents = agents.filter((a) => a.status === "running" && a.branch)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-0.5">
+          <BranchBadge branch={currentBranch} colorKey={currentColorKey} className="text-[11px] py-0 px-1.5" />
+          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" side="bottom" align="start">
+        <Command>
+          <CommandInput placeholder="Search branches..." />
+          <CommandList>
+            <CommandEmpty>No branches found.</CommandEmpty>
+            <CommandGroup>
+              {runnableAgents.map((a) => (
+                <CommandItem
+                  key={a.id}
+                  value={a.branch}
+                  onSelect={() => {
+                    onSelect(a.id)
+                    setOpen(false)
+                  }}
+                >
+                  <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
+                  <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

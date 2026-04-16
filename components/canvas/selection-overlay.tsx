@@ -3,6 +3,12 @@
 import { useEffect, useRef } from "react"
 import type { ArtboardData } from "./artboard"
 
+interface OtherSelection {
+  selectedArtboardIds: string[]
+  color: string
+  name: string
+}
+
 interface SelectionOverlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -16,6 +22,7 @@ interface SelectionOverlayProps {
     currentX: number
     currentY: number
   } | null
+  othersSelections: OtherSelection[]
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -38,6 +45,7 @@ export function SelectionOverlay({
   hoveredArtboardId,
   artboards,
   marquee,
+  othersSelections,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -87,6 +95,24 @@ export function SelectionOverlay({
           Math.round(sh) + 1,
         )
         ctx.globalAlpha = 1
+      }
+    }
+
+    // Draw other users' selections
+    for (const other of othersSelections) {
+      if (other.selectedArtboardIds.length === 0) continue
+      ctx.strokeStyle = other.color
+      ctx.lineWidth = 1
+      for (const id of other.selectedArtboardIds) {
+        const ab = artboards.find((a) => a.id === id)
+        if (!ab) continue
+        const tl = toScreen(ab.x, ab.y)
+        const br = toScreen(ab.x + ab.width, ab.y + ab.height)
+        const l = Math.round(tl.x)
+        const t = Math.round(tl.y)
+        const r = Math.round(br.x)
+        const b = Math.round(br.y)
+        ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
       }
     }
 
@@ -180,7 +206,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboards, marquee])
+  }, [zoom, viewportPos, selectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboards, marquee, othersSelections])
 
   // Keep canvas sized to container
   useEffect(() => {
