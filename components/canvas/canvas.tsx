@@ -129,6 +129,22 @@ export function Canvas({ roomId }: { roomId: string }) {
           else panel.collapse()
         }
       }
+      // Toggle both side panels: Cmd+.
+      if (e.key === "." && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault()
+        const sidebarPanel = sidebarPanelRef.current
+        const chatPanel = chatPanelRef.current
+        const anyOpen =
+          (sidebarPanel && !sidebarPanel.isCollapsed()) ||
+          (chatPanel && !chatPanel.isCollapsed())
+        if (anyOpen) {
+          if (sidebarPanel && !sidebarPanel.isCollapsed()) sidebarPanel.collapse()
+          if (chatPanel && !chatPanel.isCollapsed()) chatPanel.collapse()
+        } else {
+          if (sidebarPanel) sidebarPanel.expand()
+          if (chatPanel) chatPanel.expand()
+        }
+      }
       if (e.key === " " && !e.repeat) {
         if (!isEditing(e)) {
           e.preventDefault()
