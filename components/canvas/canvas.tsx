@@ -121,7 +121,7 @@ export function Canvas({ roomId }: { roomId: string }) {
           else panel.collapse()
         }
       }
-      if (e.key === "b" && e.metaKey && e.altKey) {
+      if ((e.key === "i" || e.key === "I") && e.metaKey && !e.altKey && !e.ctrlKey && !isEditing(e)) {
         e.preventDefault()
         const panel = chatPanelRef.current
         if (panel) {
@@ -1765,7 +1765,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom">
-                          Expand chat <Kbd>⌘⌥B</Kbd>
+                          Expand chat <Kbd>⌘I</Kbd>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -1821,7 +1821,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="left">
-                    Collapse chat <Kbd>⌘⌥B</Kbd>
+                    Collapse chat <Kbd>⌘I</Kbd>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
