@@ -8,15 +8,24 @@ export type JsonValue =
 
 export type JsonObject = { [key: string]: JsonValue }
 
+export type DomRect = { x: number; y: number; width: number; height: number }
+export type DomOp = "querySelector" | "getRect" | "getOuterHTML"
+
 // Canvas -> Iframe
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
+  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; handle?: string }
+  | { type: "screenplay:pick-start"; id: string }
+  | { type: "screenplay:pick-stop"; id: string }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
   | { type: "screenplay:ready" }
   | { type: "screenplay:state-changed"; state: JsonObject }
+  | { type: "screenplay:dom-result"; id: string; ok: true; value: JsonValue }
+  | { type: "screenplay:dom-result"; id: string; ok: false; error: string }
+  | { type: "screenplay:picked"; handle: string; selector: string; rect: DomRect; outerHTML: string }
 
 export function isScreenplayMessage(
   data: unknown,
