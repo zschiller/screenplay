@@ -62,7 +62,7 @@ export async function cloneSandbox(
             url: gitUrl,
             revision: branch,
           },
-      ports: [port],
+      ports: [port, port + 1],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },
@@ -98,6 +98,74 @@ export async function installDependencies(
 }
 
 /**
+ * Write the in-sandbox HTML-injecting proxy and DOM bridge script to
+ * /root/.screenplay/. Idempotent — safe to call on every dev-server start.
+ * The proxy forwards the public port (port + 1) to the user's devserver on
+ * `port`, injecting a <script> tag that exposes a postMessage DOM bridge.
+ */
+export async function installBridge(
+  sandboxName: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const { PROXY_JS, BRIDGE_JS } = await import("./sandbox-bridge")
+    await sandbox.writeFiles([
+      { path: "/root/.screenplay/proxy.mjs", content: PROXY_JS },
+      { path: "/root/.screenplay/bridge.js", content: BRIDGE_JS },
+    ])
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Launch both the user's dev server and the bridge proxy. Installs the bridge
+ * files first (idempotent). Returns a SandboxResult pointing at the proxy
+ * URL (port + 1) rather than the devserver URL.
+ */
+async function _launchDevAndProxy(
+  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  port: number,
+  devScript?: string,
+  env?: Record<string, string> | null,
+): Promise<SandboxResult> {
+  const install = await installBridge(sandbox.name)
+  if (!install.success) {
+    return { sandboxName: sandbox.name, previewDomain: "", status: "error", error: install.error }
+  }
+
+  const dev = devScript?.trim() || "npm run dev"
+  const [devCmd, ...devArgs] = dev.split(/\s+/)
+  await sandbox.runCommand({
+    cmd: devCmd,
+    args: devArgs,
+    detached: true,
+    ...(env ? { env } : {}),
+  })
+
+  // Restart-on-crash wrapper so a proxy bug doesn't permanently dark the iframe.
+  await sandbox.runCommand({
+    cmd: "sh",
+    args: [
+      "-c",
+      "while true; do node /root/.screenplay/proxy.mjs; sleep 1; done",
+    ],
+    detached: true,
+    env: {
+      SCREENPLAY_UPSTREAM_PORT: String(port),
+      SCREENPLAY_LISTEN_PORT: String(port + 1),
+    },
+  })
+
+  return {
+    sandboxName: sandbox.name,
+    previewDomain: sandbox.domain(port + 1),
+    status: "running",
+  }
+}
+
+/**
  * Start the dev server in an existing sandbox. Returns the preview domain.
  */
 export async function startDevServer(
@@ -107,18 +175,7 @@ export async function startDevServer(
 ): Promise<SandboxResult> {
   try {
     const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
-    const dev = devScript?.trim() || "npm run dev"
-    const [devCmd, ...devArgs] = dev.split(/\s+/)
-    await sandbox.runCommand({
-      cmd: devCmd,
-      args: devArgs,
-      detached: true,
-    })
-    return {
-      sandboxName: sandbox.name,
-      previewDomain: sandbox.domain(port),
-      status: "running",
-    }
+    return await _launchDevAndProxy(sandbox, port, devScript)
   } catch (e) {
     return {
       sandboxName,
@@ -165,7 +222,7 @@ export async function reconnectSandbox(
     if (check.status === "running") {
       return {
         sandboxName: check.name,
-        previewDomain: check.domain(port),
+        previewDomain: check.domain(port + 1),
         status: "running",
       }
     }
@@ -173,20 +230,7 @@ export async function reconnectSandbox(
     // Sandbox timed out — resume it and restart the dev server
     const sandbox = await Sandbox.get({ name: sandboxName })
     const safeEnv = await getEnvVars(sandboxName)
-    const dev = devScript?.trim() || "npm run dev"
-    const [devCmd, ...devArgs] = dev.split(/\s+/)
-    await sandbox.runCommand({
-      cmd: devCmd,
-      args: devArgs,
-      detached: true,
-      ...(safeEnv ? { env: safeEnv } : {}),
-    })
-
-    return {
-      sandboxName: sandbox.name,
-      previewDomain: sandbox.domain(port),
-      status: "running",
-    }
+    return await _launchDevAndProxy(sandbox, port, devScript, safeEnv)
   } catch (e) {
     return {
       sandboxName,
@@ -226,7 +270,7 @@ export async function restartSandbox(
         source: ghToken
           ? { type: "git", url: gitUrl, revision: branch, username: "x-access-token", password: ghToken }
           : { type: "git", url: gitUrl, revision: branch },
-        ports: [port],
+        ports: [port, port + 1],
         timeout: SANDBOX_TIMEOUT,
         snapshotExpiration: SNAPSHOT_EXPIRATION,
         resources: { vcpus: SANDBOX_VCPUS },
@@ -245,20 +289,7 @@ export async function restartSandbox(
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     await sandbox.runCommand(setupCmd, setupArgs)
 
-    const dev = devScript?.trim() || "npm run dev"
-    const [devCmd, ...devArgs] = dev.split(/\s+/)
-    await sandbox.runCommand({
-      cmd: devCmd,
-      args: devArgs,
-      detached: true,
-      ...(safeEnv ? { env: safeEnv } : {}),
-    })
-
-    return {
-      sandboxName: sandbox.name,
-      previewDomain: sandbox.domain(port),
-      status: "running",
-    }
+    return await _launchDevAndProxy(sandbox, port, devScript, safeEnv)
   } catch (e) {
     return {
       sandboxName,
