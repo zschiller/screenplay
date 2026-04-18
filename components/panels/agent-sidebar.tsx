@@ -7,7 +7,6 @@ import {
   Folder,
   Loader2,
   Settings,
-  ChevronLeft,
   ChevronRight,
   GitBranch,
   GitBranchPlus,
@@ -20,7 +19,6 @@ import {
   Route,
   PanelLeftClose,
 } from "lucide-react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -163,14 +161,7 @@ export function AgentSidebar({
 
   return (
     <SidebarProvider className="flex h-full flex-col select-none bg-sidebar text-sidebar-foreground">
-      <div className="flex h-12 items-center justify-between px-4 pr-3">
-        <Link
-          href="/"
-          className="-ml-1.5 flex h-6 items-center gap-0.5 rounded-md pl-0.5 pr-1.5 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-3.5 [&>svg]:shrink-0"
-        >
-          <ChevronLeft />
-          All projects
-        </Link>
+      <div className="flex h-12 items-center justify-end px-4 pr-3">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
