@@ -24,16 +24,19 @@ const REQUEST_TIMEOUT_MS = 5000
 
 interface Options {
   onPicked?: (p: PickResult) => void
+  onHover?: (rect: DomRect | null) => void
 }
 
 export function useScreenplayDom(
   iframeRef: RefObject<HTMLIFrameElement | null>,
-  { onPicked }: Options = {},
+  { onPicked, onHover }: Options = {},
 ) {
   const pending = useRef(new Map<string, Pending>())
   const seq = useRef(0)
   const onPickedRef = useRef(onPicked)
   onPickedRef.current = onPicked
+  const onHoverRef = useRef(onHover)
+  onHoverRef.current = onHover
 
   const request = useCallback(
     <T,>(msg: {
@@ -81,6 +84,8 @@ export function useScreenplayDom(
           rect: d.rect,
           outerHTML: d.outerHTML,
         })
+      } else if (d.type === "screenplay:hover") {
+        onHoverRef.current?.(d.rect)
       }
     }
 

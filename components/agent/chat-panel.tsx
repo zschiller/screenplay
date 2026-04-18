@@ -76,6 +76,7 @@ interface ChatPanelProps {
   onSessionId: (chatId: string, sessionId: string) => void
   onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
+  onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
   onCollapse?: () => void
 }
@@ -96,6 +97,7 @@ export function ChatPanel({
   onSessionId,
   onBranchRename,
   onPlanModeChange,
+  onModelChange,
   diffStats,
   onCollapse,
 }: ChatPanelProps) {
@@ -280,6 +282,8 @@ export function ChatPanel({
               isFirstChat={isFirst}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
+              model={chat.model}
+              onModelChange={(m) => onModelChange(chat.id, m)}
               onSessionId={(sid) => onSessionId(chat.id, sid)}
               onBranchRename={onBranchRename}
               onChatRename={(label) => onRenameChat(chat.id, label)}

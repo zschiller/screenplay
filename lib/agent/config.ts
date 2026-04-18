@@ -172,22 +172,25 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   },
 ]
 
-const AGENT_CACHE_KEY = "agent:screenplay:v2"
+const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v2"
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
-export async function getOrCreateAgent(): Promise<string> {
-  const cached = await redis.get<string>(AGENT_CACHE_KEY)
+export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
+
+export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Promise<string> {
+  const cacheKey = `${AGENT_CACHE_KEY_PREFIX}:${model}`
+  const cached = await redis.get<string>(cacheKey)
   if (cached) return cached
 
   const client = getClient()
   const agent = await client.beta.agents.create({
-    name: "Screenplay Editor",
-    model: "claude-sonnet-4-6",
+    name: `Screenplay Editor (${model})`,
+    model,
     system: AGENT_SYSTEM_PROMPT,
     tools: AGENT_TOOLS,
   })
 
-  await redis.set(AGENT_CACHE_KEY, agent.id)
+  await redis.set(cacheKey, agent.id)
   return agent.id
 }
 

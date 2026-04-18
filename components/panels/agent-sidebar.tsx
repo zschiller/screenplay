@@ -5,9 +5,9 @@ import {
   FolderPlus,
   Plus,
   Folder,
-  FolderLock,
   Loader2,
   Settings,
+  ChevronLeft,
   ChevronRight,
   GitBranch,
   GitBranchPlus,
@@ -20,6 +20,7 @@ import {
   Route,
   PanelLeftClose,
 } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -72,9 +73,12 @@ import { Badge } from "@/components/ui/badge"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
+import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
-import { listUserRepos, listRepoBranches, type GitHubRepo, type GitHubBranch } from "@/lib/github-actions"
+import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
+import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
+import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
@@ -82,7 +86,7 @@ interface AgentSidebarProps {
   artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
   selectedArtboardIds: Set<string>
   onSelectAgent: (id: string) => void
-  onCreateWorkspace: (repo: GitHubRepo) => void
+  onCreateWorkspace: (pick: RepoPickerSelection) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
   onRemoveWorkspace: (id: string) => void
   onCreateAgent: (workspaceId: string) => void
@@ -130,7 +134,19 @@ export function AgentSidebar({
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
+  const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const diffStats = useDiffStats(agents, workspaces)
+
+  useEffect(() => {
+    if (!showPicker) return
+    let cancelled = false
+    listWorkspaceConfigs().then((list) => {
+      if (!cancelled) setSavedConfigs(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [showPicker])
 
   // Auto-select agents when they finish creating
   const prevStatusRef = useRef<Map<string, string>>(new Map())
@@ -147,7 +163,14 @@ export function AgentSidebar({
 
   return (
     <SidebarProvider className="flex h-full flex-col select-none bg-sidebar text-sidebar-foreground">
-      <div className="flex h-12 items-center justify-end px-4 pr-3">
+      <div className="flex h-12 items-center justify-between px-4 pr-3">
+        <Link
+          href="/"
+          className="-ml-1.5 flex h-6 items-center gap-0.5 rounded-md pl-0.5 pr-1.5 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-3.5 [&>svg]:shrink-0"
+        >
+          <ChevronLeft />
+          All projects
+        </Link>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -175,8 +198,9 @@ export function AgentSidebar({
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" side="bottom" align="end">
               <RepoPicker
-                onSelect={(repo) => {
-                  onCreateWorkspace(repo)
+                configs={savedConfigs}
+                onSelect={(pick) => {
+                  onCreateWorkspace(pick)
                   setShowPicker(false)
                 }}
               />
@@ -502,16 +526,39 @@ function WorkspaceSettings({
 }) {
   const [setupScript, setSetupScript] = useState(workspace.setupScript)
   const [devScript, setDevScript] = useState(workspace.devScript)
+  const [devServerPort, setDevServerPort] = useState(
+    String(workspace.devServerPort ?? 3000),
+  )
   const [envVars, setEnvVars] = useState(workspace.envVars)
 
+  const parsedPort = Number.parseInt(devServerPort, 10)
+  const portIsValid =
+    Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
+
   const handleSave = useCallback(() => {
-    onUpdate(workspace.id, { setupScript, devScript, envVars })
+    if (!portIsValid) return
+    onUpdate(workspace.id, {
+      setupScript,
+      devScript,
+      devServerPort: parsedPort,
+      envVars,
+    })
     onClose()
-  }, [workspace.id, setupScript, devScript, envVars, onUpdate, onClose])
+  }, [
+    workspace.id,
+    setupScript,
+    devScript,
+    parsedPort,
+    portIsValid,
+    envVars,
+    onUpdate,
+    onClose,
+  ])
 
   const hasChanges =
     setupScript !== workspace.setupScript ||
     devScript !== workspace.devScript ||
+    parsedPort !== (workspace.devServerPort ?? 3000) ||
     envVars !== workspace.envVars
 
   return (
@@ -548,6 +595,21 @@ function WorkspaceSettings({
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+          Dev server port
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={65535}
+          value={devServerPort}
+          onChange={(e) => setDevServerPort(e.target.value)}
+          placeholder="3000"
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
           Environment variables
         </label>
         <textarea
@@ -560,7 +622,12 @@ function WorkspaceSettings({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button size="sm" className="flex-1 text-xs" onClick={handleSave} disabled={!hasChanges}>
+        <Button
+          size="sm"
+          className="flex-1 text-xs"
+          onClick={handleSave}
+          disabled={!hasChanges || !portIsValid}
+        >
           Save
         </Button>
         <Button
@@ -639,48 +706,3 @@ function BranchPicker({
   )
 }
 
-function RepoPicker({
-  onSelect,
-}: {
-  onSelect: (repo: GitHubRepo) => void
-}) {
-  const [repos, setRepos] = useState<GitHubRepo[]>([])
-  const [loading, startTransition] = useTransition()
-
-  useEffect(() => {
-    startTransition(async () => {
-      const data = await listUserRepos()
-      setRepos(data)
-    })
-  }, [])
-
-  return (
-    <Command>
-      <CommandInput placeholder="Search repositories..." />
-      <CommandList>
-        <CommandEmpty>
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-4">
-              <Spinner className="size-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading repositories…</span>
-            </div>
-          ) : (
-            "No repositories found."
-          )}
-        </CommandEmpty>
-        <CommandGroup>
-          {repos.map((repo) => (
-            <CommandItem
-              key={repo.id}
-              value={repo.fullName}
-              onSelect={() => onSelect(repo)}
-            >
-              {repo.private ? <FolderLock /> : <Folder />}
-              <span className="truncate">{repo.fullName}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </CommandList>
-    </Command>
-  )
-}

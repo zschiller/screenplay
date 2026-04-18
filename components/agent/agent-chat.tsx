@@ -1,15 +1,51 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  Send,
+  ArrowUp,
   Loader2,
   ClipboardList,
+  ChevronDown,
+  Check,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
+import { inputStore } from "@/lib/input-store"
+import { getModels, type ModelInfo } from "@/lib/models-store"
+
+const DEFAULT_MODEL_ID = "claude-sonnet-4-6"
+
+const MODEL_FAMILIES: Array<{ id: string; label: string }> = [
+  { id: "opus", label: "Opus" },
+  { id: "sonnet", label: "Sonnet" },
+  { id: "haiku", label: "Haiku" },
+]
+
+function groupModelsByFamily(models: ModelInfo[]) {
+  const groups = MODEL_FAMILIES.map((f) => ({
+    ...f,
+    models: models.filter((m) => m.id.toLowerCase().includes(f.id)),
+  }))
+  const assigned = new Set(groups.flatMap((g) => g.models.map((m) => m.id)))
+  const other = models.filter((m) => !assigned.has(m.id))
+  return other.length > 0
+    ? [...groups, { id: "other", label: "Other", models: other }]
+    : groups
+}
 
 interface AgentChatProps {
   chatId: string
@@ -21,6 +57,8 @@ interface AgentChatProps {
   isFirstChat?: boolean
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
+  model?: string
+  onModelChange?: (model: string) => void
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
@@ -36,6 +74,8 @@ export function AgentChat({
   isFirstChat,
   planMode,
   onPlanModeChange,
+  model,
+  onModelChange,
   onSessionId,
   onBranchRename,
   onChatRename,
@@ -48,6 +88,7 @@ export function AgentChat({
   } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, planMode, onSessionId, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
+  const [models, setModels] = useState<ModelInfo[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -56,14 +97,37 @@ export function AgentChat({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  useEffect(() => {
+    let cancelled = false
+    getModels().then((list) => {
+      if (!cancelled) setModels(list)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // Allow other parts of the app (e.g. the inspect tool) to append text to this chat's draft.
+  useEffect(() => {
+    return inputStore.subscribe(chatId, (text) => {
+      setInput((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text))
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current
+        if (!ta) return
+        ta.focus()
+        const end = ta.value.length
+        ta.setSelectionRange(end, end)
+      })
+    })
+  }, [chatId])
+
+  const effectiveModel = model ?? DEFAULT_MODEL_ID
+
   const handleSubmit = useCallback(() => {
     if (!input.trim() || isStreaming) return
-    sendMessage(input.trim())
+    sendMessage(input.trim(), { model: effectiveModel })
     setInput("")
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-    }
-  }, [input, isStreaming, sendMessage])
+  }, [input, isStreaming, sendMessage, effectiveModel])
+
+  const modelLocked = Boolean(sessionId)
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -75,14 +139,11 @@ export function AgentChat({
     [handleSubmit],
   )
 
-  const handleTextareaChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInput(e.target.value)
-      e.target.style.height = "auto"
-      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
-    },
-    [],
-  )
+  const currentModel =
+    models.find((m) => m.id === effectiveModel) ??
+    { id: effectiveModel, label: effectiveModel }
+
+  const modelGroups = useMemo(() => groupModelsByFamily(models), [models])
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -125,40 +186,78 @@ export function AgentChat({
 
       {/* Input */}
       <div className="border-t border-border p-3">
-        <div className="flex items-end gap-2">
-          <textarea
+        <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
+          <InputGroupTextarea
             ref={textareaRef}
             value={input}
-            onChange={handleTextareaChange}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask the agent..."
-            rows={1}
-            className="flex-1 resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            rows={2}
+            className="max-h-48 text-xs"
           />
-          <Button
-            variant={planMode ? "default" : "ghost"}
-            size="icon"
-            className={`h-7 w-7 shrink-0 ${!planMode ? "text-muted-foreground" : ""}`}
-            onClick={() => onPlanModeChange?.(!planMode)}
-            title={planMode ? "Plan mode enabled" : "Enable plan mode"}
-          >
-            <ClipboardList className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            onClick={handleSubmit}
-            disabled={!input.trim() || isStreaming}
-            title="Send"
-          >
-            {isStreaming ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Send className="h-3 w-3" />
-            )}
-          </Button>
-        </div>
+          <InputGroupAddon align="block-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <InputGroupButton
+                  size="xs"
+                  className="text-xs"
+                  disabled={modelLocked}
+                  title={modelLocked ? "Model is locked to this session" : "Change model"}
+                >
+                  {currentModel.label}
+                  <ChevronDown />
+                </InputGroupButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                {models.length === 0 ? (
+                  <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
+                ) : (
+                  modelGroups
+                    .filter((g) => g.models.length > 0)
+                    .map((group, idx) => (
+                      <div key={group.id}>
+                        {idx > 0 && <DropdownMenuSeparator />}
+                        {group.models.map((m) => (
+                          <DropdownMenuItem
+                            key={m.id}
+                            onSelect={() => onModelChange?.(m.id)}
+                          >
+                            <span className="flex-1">{m.label}</span>
+                            {m.id === effectiveModel && <Check className="size-3.5" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <InputGroupButton
+              size="xs"
+              variant={planMode ? "default" : "ghost"}
+              onClick={() => onPlanModeChange?.(!planMode)}
+              title={planMode ? "Plan mode enabled" : "Enable plan mode"}
+              className="text-xs"
+            >
+              <ClipboardList />
+              Plan
+            </InputGroupButton>
+            <InputGroupButton
+              size="icon-xs"
+              variant={input.trim() && !isStreaming ? "default" : "ghost"}
+              onClick={handleSubmit}
+              disabled={!input.trim() || isStreaming}
+              title="Send"
+              className="ml-auto"
+            >
+              {isStreaming ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <ArrowUp />
+              )}
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
       </div>
     </div>
   )
