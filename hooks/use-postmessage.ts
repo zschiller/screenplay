@@ -8,12 +8,14 @@ interface UsePostMessageOptions {
   artboardId: string
   iframeState: JsonObject
   onStateChanged: (artboardId: string, state: JsonObject) => void
+  onNavigation?: (artboardId: string, path: string) => void
 }
 
 export function usePostMessage({
   artboardId,
   iframeState,
   onStateChanged,
+  onNavigation,
 }: UsePostMessageOptions) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const stateRef = useRef(iframeState)
@@ -39,12 +41,14 @@ export function usePostMessage({
         sendMessage("screenplay:init", stateRef.current)
       } else if (e.data.type === "screenplay:state-changed") {
         onStateChanged(artboardId, e.data.state)
+      } else if (e.data.type === "screenplay:navigation") {
+        onNavigation?.(artboardId, e.data.path)
       }
     }
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [artboardId, onStateChanged, sendMessage])
+  }, [artboardId, onStateChanged, onNavigation, sendMessage])
 
   return { iframeRef, sendMessage }
 }

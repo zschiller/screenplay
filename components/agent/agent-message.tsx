@@ -46,7 +46,14 @@ function ToolIndicator({
 }) {
   const [expanded, setExpanded] = useState(false)
   const Icon = toolIcons[message.name] ?? Terminal
-  const path = (message.input as Record<string, unknown>).path
+  const input = message.input as Record<string, unknown>
+  const path = input.path
+  const isRunCommand = message.name === "run_command"
+  const command = isRunCommand
+    ? [input.command, ...((input.args as string[] | undefined) ?? [])]
+        .filter(Boolean)
+        .join(" ")
+    : null
 
   return (
     <button
@@ -57,7 +64,11 @@ function ToolIndicator({
         <Icon className="h-3 w-3 shrink-0" />
         <span className="flex-1 truncate">
           {formatToolName(message.name)}
-          {path ? ` ${String(path)}` : null}
+          {isRunCommand && command ? (
+            <> <code className="font-mono text-[11px] align-baseline">{command}</code></>
+          ) : path ? (
+            ` ${String(path)}`
+          ) : null}
         </span>
         <ChevronDown
           className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
@@ -150,8 +161,8 @@ export function AgentMessageItem({ message, toolResult, roomId, chatId }: { mess
       const displayContent = message.content.replace(/^\[branch: [^\]]+\] /, "")
       return (
         <div className="flex justify-end">
-          <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
-            {displayContent}
+          <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground prose prose-sm prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-primary-foreground/10 prose-pre:border-0">
+            <Markdown>{displayContent}</Markdown>
           </div>
         </div>
       )

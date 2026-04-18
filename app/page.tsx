@@ -1,13 +1,16 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { nanoid } from "nanoid"
 import { useAuth, SignInButton, UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
+import { WorkspaceConfigsDialog } from "@/components/home/workspace-configs-dialog"
 
 export default function Page() {
   const router = useRouter()
   const { isSignedIn, isLoaded } = useAuth()
+  const [configsOpen, setConfigsOpen] = useState(false)
 
   const handleCreateRoom = () => {
     const roomId = nanoid(10)
@@ -27,7 +30,14 @@ export default function Page() {
       {isSignedIn ? (
         <div className="flex items-center gap-4">
           <Button onClick={handleCreateRoom}>Create Room</Button>
+          <Button variant="outline" onClick={() => setConfigsOpen(true)}>
+            Configured Repositories
+          </Button>
           <UserButton />
+          <WorkspaceConfigsDialog
+            open={configsOpen}
+            onOpenChange={setConfigsOpen}
+          />
         </div>
       ) : (
         <SignInButton mode="modal">

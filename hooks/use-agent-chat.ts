@@ -16,6 +16,10 @@ interface UseAgentChatOptions {
   onChatRename?: (label: string) => void
 }
 
+interface SendOptions {
+  model?: string
+}
+
 export function useAgentChat({
   chatId,
   roomId,
@@ -55,7 +59,7 @@ export function useAgentChat({
   }, [chatId, state.isStreaming])
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, options?: SendOptions) => {
       chatStore.sendMessage({
         roomId,
         chatId,
@@ -65,6 +69,7 @@ export function useAgentChat({
         isFirstChat,
         sessionId,
         planMode,
+        model: options?.model,
         onSessionId,
         onBranchRename,
         onChatRename,

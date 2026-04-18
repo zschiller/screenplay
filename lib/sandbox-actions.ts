@@ -99,9 +99,11 @@ export async function installDependencies(
 
 /**
  * Write the in-sandbox HTML-injecting proxy and DOM bridge script to
- * /root/.screenplay/. Idempotent — safe to call on every dev-server start.
- * The proxy forwards the public port (port + 1) to the user's devserver on
- * `port`, injecting a <script> tag that exposes a postMessage DOM bridge.
+ * /tmp/screenplay/. Idempotent — safe to call on every dev-server start.
+ * Uses /tmp because commands run as the `vercel-sandbox` user, which has no
+ * read access to /root. The proxy forwards the public port (port + 1) to the
+ * user's devserver on `port`, injecting a <script> tag that exposes a
+ * postMessage DOM bridge.
  */
 export async function installBridge(
   sandboxName: string,
@@ -110,8 +112,8 @@ export async function installBridge(
     const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const { PROXY_JS, BRIDGE_JS } = await import("./sandbox-bridge")
     await sandbox.writeFiles([
-      { path: "/root/.screenplay/proxy.mjs", content: PROXY_JS },
-      { path: "/root/.screenplay/bridge.js", content: BRIDGE_JS },
+      { path: "/tmp/screenplay/proxy.mjs", content: PROXY_JS },
+      { path: "/tmp/screenplay/bridge.js", content: BRIDGE_JS },
     ])
     return { success: true }
   } catch (e) {
@@ -149,7 +151,7 @@ async function _launchDevAndProxy(
     cmd: "sh",
     args: [
       "-c",
-      "while true; do node /root/.screenplay/proxy.mjs; sleep 1; done",
+      "while true; do node /tmp/screenplay/proxy.mjs; sleep 1; done",
     ],
     detached: true,
     env: {

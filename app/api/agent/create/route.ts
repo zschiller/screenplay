@@ -74,6 +74,7 @@ async function getWorkspaceFromStorage(
       cloneUrl: ws.get("cloneUrl"),
       setupScript: ws.get("setupScript") ?? "",
       devScript: ws.get("devScript") ?? "",
+      devServerPort: ws.get("devServerPort") ?? 3000,
       envVars: ws.get("envVars") ?? "",
       createdAt: ws.get("createdAt"),
     }
@@ -188,7 +189,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 2: Clone repo into sandbox
   await updateAgent(roomId, agentId, { statusMessage: "Cloning repository…" })
-  const cloneResult = await cloneSandbox(sandboxName, workspace.cloneUrl, branch, 3000, envOrUndefined, ghToken)
+  const cloneResult = await cloneSandbox(sandboxName, workspace.cloneUrl, branch, workspace.devServerPort, envOrUndefined, ghToken)
   if (!cloneResult.success) {
     await markError(roomId, agentId, cloneResult.error)
     return
@@ -204,7 +205,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 4: Start dev server
   await updateAgent(roomId, agentId, { statusMessage: "Starting dev server…" })
-  const serverResult = await startDevServer(cloneResult.sandboxName, 3000, workspace.devScript)
+  const serverResult = await startDevServer(cloneResult.sandboxName, workspace.devServerPort, workspace.devScript)
   if (serverResult.status !== "running") {
     await markError(roomId, agentId, serverResult.error)
     return
