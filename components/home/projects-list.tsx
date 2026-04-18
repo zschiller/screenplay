@@ -34,7 +34,6 @@ export function ProjectsList() {
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [shareProjectId, setShareProjectId] = useState<string | null>(null)
-  const [renameProjectId, setRenameProjectId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -63,15 +62,17 @@ export function ProjectsList() {
     setProjects((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const handleRename = async (id: string, name: string) => {
-    await renameProject(id, name)
+  const handleRename = async (id: string, currentName: string) => {
+    const next = prompt("Rename project", currentName)
+    if (next === null) return
+    const trimmed = next.trim() || "Untitled"
+    await renameProject(id, trimmed)
     setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: name.trim() || "Untitled" } : p)),
+      prev.map((p) => (p.id === id ? { ...p, name: trimmed } : p)),
     )
   }
 
   const shareTarget = projects.find((p) => p.id === shareProjectId) ?? null
-  const renameTarget = projects.find((p) => p.id === renameProjectId) ?? null
 
   return (
     <div className="w-full max-w-xl">
@@ -115,7 +116,7 @@ export function ProjectsList() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setRenameProjectId(project.id)}
+                      onClick={() => handleRename(project.id, project.name)}
                       title="Rename"
                     >
                       <Pencil className="size-3.5" />
@@ -152,11 +153,6 @@ export function ProjectsList() {
       <ShareProjectDialog
         project={shareTarget}
         onOpenChange={(open) => !open && setShareProjectId(null)}
-      />
-      <RenameProjectDialog
-        project={renameTarget}
-        onOpenChange={(open) => !open && setRenameProjectId(null)}
-        onRename={handleRename}
       />
     </div>
   )
@@ -217,67 +213,6 @@ function CreateProjectDialog({
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting ? "Creating…" : "Create"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function RenameProjectDialog({
-  project,
-  onOpenChange,
-  onRename,
-}: {
-  project: ProjectSummary | null
-  onOpenChange: (open: boolean) => void
-  onRename: (id: string, name: string) => Promise<void>
-}) {
-  const [name, setName] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (project) setName(project.name)
-  }, [project])
-
-  if (!project) return null
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    try {
-      await onRename(project.id, name)
-      onOpenChange(false)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={!!project} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Rename project</DialogTitle>
-          </DialogHeader>
-          <div className="my-4">
-            <Input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </form>

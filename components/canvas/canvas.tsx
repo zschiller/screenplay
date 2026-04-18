@@ -18,10 +18,18 @@ import {
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
-import { Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Kbd } from "@/components/ui/kbd"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { Artboard } from "./artboard"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
@@ -61,7 +69,9 @@ import {
 } from "@/lib/constants"
 
 
-export function Canvas({ roomId }: { roomId: string }) {
+export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
+  const router = useRouter()
+  const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
@@ -1871,6 +1881,47 @@ export function Canvas({ roomId }: { roomId: string }) {
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium">
+                        {currentProjectName}
+                        <ChevronDown className="h-3 w-3 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setTimeout(async () => {
+                            const next = window.prompt("Rename project", currentProjectName)
+                            if (next === null) return
+                            const trimmed = next.trim() || "Untitled"
+                            await renameProject(roomId, trimmed)
+                            setCurrentProjectName(trimmed)
+                          }, 0)
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => {
+                          setTimeout(async () => {
+                            if (!window.confirm("Delete this project? This cannot be undone.")) return
+                            await deleteProject(roomId)
+                            router.push("/")
+                          }, 0)
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1888,7 +1939,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                           <MousePointer2 className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom">
+                      <TooltipContent side="top">
                         Select <Kbd>V</Kbd>
                       </TooltipContent>
                     </Tooltip>
@@ -1908,7 +1959,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                           <Crosshair className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom">
+                      <TooltipContent side="top">
                         Reference <Kbd>I</Kbd>
                       </TooltipContent>
                     </Tooltip>
@@ -1928,7 +1979,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                           <MessageSquare className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom">
+                      <TooltipContent side="top">
                         Comment <Kbd>C</Kbd>
                       </TooltipContent>
                     </Tooltip>
