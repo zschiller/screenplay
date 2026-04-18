@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 
 type DeleteProjectDialogProps = {
   open: boolean
@@ -55,26 +55,24 @@ export function DeleteProjectDialog({
         {error && <p className="text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button
-              variant="destructive"
-              disabled={deleting}
-              onClick={async (event) => {
-                event.preventDefault()
-                setDeleting(true)
-                setError(null)
-                try {
-                  await onConfirm()
-                } catch (err) {
-                  setError(
-                    err instanceof Error ? err.message : "Failed to delete project",
-                  )
-                  setDeleting(false)
-                }
-              }}
-            >
-              {deleting ? "Deleting…" : "Delete"}
-            </Button>
+          <AlertDialogAction
+            className={buttonVariants({ variant: "destructive" })}
+            disabled={deleting}
+            onClick={async (event) => {
+              event.preventDefault()
+              setDeleting(true)
+              setError(null)
+              try {
+                await onConfirm()
+              } catch (err) {
+                setError(
+                  err instanceof Error ? err.message : "Failed to delete project",
+                )
+                setDeleting(false)
+              }
+            }}
+          >
+            {deleting ? "Deleting…" : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
