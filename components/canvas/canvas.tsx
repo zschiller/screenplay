@@ -909,7 +909,9 @@ export function Canvas({ roomId }: { roomId: string }) {
       }
       const chat = chatSessions.find((c) => c.id === selectedChatId)
       const agent = chat ? agents.find((a) => a.id === chat.agentId) : null
-      const text = `${note}\n\nElement: \`${inspectNote.selector}\``
+      const artboard = artboards.find((a) => a.id === inspectNote.artboardId)
+      const route = artboard?.route || "/"
+      const text = `${note}\n\nRoute: \`${route}\`\nElement: \`${inspectNote.selector}\``
       if (chat && agent?.sandboxName && agent.branch) {
         const isFirstChat = !chatSessions.some(
           (c) => c.agentId === chat.agentId && c.id !== chat.id && c.sessionId,
@@ -941,7 +943,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         if (inPixels < 480) panel.resize(480)
       }
     },
-    [inspectNote, selectedChatId, chatSessions, agents, roomId, updateChatSession],
+    [inspectNote, selectedChatId, chatSessions, agents, artboards, roomId, updateChatSession],
   )
 
   const handleRemoveChat = useCallback(
