@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import {
   createProject,
   deleteProject,
@@ -34,6 +35,7 @@ export function ProjectsList() {
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [shareProjectId, setShareProjectId] = useState<string | null>(null)
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -56,12 +58,6 @@ export function ProjectsList() {
     router.push(`/${project.id}`)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this project? This cannot be undone.")) return
-    await deleteProject(id)
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-  }
-
   const handleRename = async (id: string, currentName: string) => {
     const next = prompt("Rename project", currentName)
     if (next === null) return
@@ -73,6 +69,7 @@ export function ProjectsList() {
   }
 
   const shareTarget = projects.find((p) => p.id === shareProjectId) ?? null
+  const deleteTarget = projects.find((p) => p.id === deleteProjectId) ?? null
 
   return (
     <div className="w-full max-w-xl">
@@ -130,9 +127,9 @@ export function ProjectsList() {
                       <Share2 className="size-3.5" />
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="destructive"
                       size="icon-sm"
-                      onClick={() => handleDelete(project.id)}
+                      onClick={() => setDeleteProjectId(project.id)}
                       title="Delete"
                     >
                       <Trash2 className="size-3.5" />
@@ -153,6 +150,17 @@ export function ProjectsList() {
       <ShareProjectDialog
         project={shareTarget}
         onOpenChange={(open) => !open && setShareProjectId(null)}
+      />
+      <DeleteProjectDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteProjectId(null)}
+        projectName={deleteTarget?.name ?? ""}
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          await deleteProject(deleteTarget.id)
+          setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+          setDeleteProjectId(null)
+        }}
       />
     </div>
   )
