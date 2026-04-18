@@ -34,6 +34,7 @@ export function RoomProviderWrapper({
   return (
     <LiveblocksProvider
       authEndpoint="/api/liveblocks-auth"
+      badgeLocation="bottom-left"
       resolveUsers={async ({ userIds }) => {
         const params = new URLSearchParams()
         userIds.forEach((id) => params.append("userIds", id))

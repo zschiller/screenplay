@@ -26,6 +26,7 @@ export type WorkspaceData = {
   cloneUrl: string
   setupScript: string
   devScript: string
+  devServerPort: number
   envVars: string
   createdAt: number
 }
@@ -53,6 +54,7 @@ export type ChatSessionData = {
   isStreaming?: boolean
   closedAt?: number
   planMode?: boolean
+  model?: string
 }
 
 export type PlanData = {

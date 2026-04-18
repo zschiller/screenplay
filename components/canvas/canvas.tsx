@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   TransformWrapper,
   TransformComponent,
@@ -17,15 +18,19 @@ import {
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
-import { MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Kbd } from "@/components/ui/kbd"
 import { Artboard } from "./artboard"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
+import { InspectComposer } from "./inspect-composer"
 import { Cursors } from "./cursors"
 import { FollowingToolbar } from "./following-toolbar"
+import type { PickResult } from "@/hooks/use-screenplay-dom"
+import type { DomRect } from "@/lib/postmessage-protocol"
+import { inputStore } from "@/lib/input-store"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
 import { ChatPanel } from "@/components/agent/chat-panel"
@@ -37,7 +42,7 @@ import {
 import { useDefaultLayout, type PanelImperativeHandle } from "react-resizable-panels"
 import type { AgentData, ChatSessionData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
-import type { GitHubRepo } from "@/lib/github-actions"
+import type { RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import {
   renameAgentBranch,
@@ -65,9 +70,23 @@ export function Canvas({ roomId }: { roomId: string }) {
   // Per-workspace / per-agent memory so switching back restores prior selection
   const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
+  const inspectHandlersRef = useRef<{
+    branchRename: (agentId: string, branch: string) => void
+    renameChat: (chatId: string, label: string) => void
+  }>({ branchRename: () => {}, renameChat: () => {} })
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{ x: number; y: number; artboardId?: string } | null>(null)
+  const [pickMode, setPickMode] = useState(false)
+  const [inspectHover, setInspectHover] = useState<{
+    artboardId: string
+    rect: DomRect
+  } | null>(null)
+  const [inspectNote, setInspectNote] = useState<{
+    artboardId: string
+    selector: string
+    rect: DomRect
+  } | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
@@ -96,7 +115,11 @@ export function Canvas({ roomId }: { roomId: string }) {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (commentMode || newCommentPos) {
+        if (pickMode || inspectNote) {
+          setPickMode(false)
+          setInspectNote(null)
+          setInspectHover(null)
+        } else if (commentMode || newCommentPos) {
           setCommentMode(false)
           setNewCommentPos(null)
         } else if (focusedArtboardId) {
@@ -108,9 +131,22 @@ export function Canvas({ roomId }: { roomId: string }) {
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode(false)
         setNewCommentPos(null)
+        setPickMode(false)
+        setInspectNote(null)
+        setInspectHover(null)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
+        setNewCommentPos(null)
+        setPickMode(false)
+        setInspectNote(null)
+        setInspectHover(null)
+      }
+      if (e.key === "i" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+        setPickMode((m) => !m)
+        setInspectNote(null)
+        setInspectHover(null)
+        setCommentMode(false)
         setNewCommentPos(null)
       }
       if (e.key === "b" && e.metaKey && !e.altKey) {
@@ -182,7 +218,7 @@ export function Canvas({ roomId }: { roomId: string }) {
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, focusedArtboardId, history])
+  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, history])
 
   const artboards = useStorage((root) => {
     const result: Array<{
@@ -224,6 +260,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         cloneUrl: ws.cloneUrl,
         setupScript: ws.setupScript ?? "",
         devScript: ws.devScript ?? "",
+        devServerPort: ws.devServerPort ?? 3000,
         envVars: ws.envVars ?? "",
         createdAt: ws.createdAt,
       })
@@ -266,6 +303,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         isStreaming: cs.isStreaming,
         closedAt: cs.closedAt,
         planMode: cs.planMode,
+        model: cs.model,
       })
     }
     return result
@@ -756,7 +794,7 @@ export function Canvas({ roomId }: { roomId: string }) {
   )
 
   const handleSelectAgent = useCallback(
-    (agentId: string | null) => {
+    (agentId: string | null, options?: { expandPanel?: boolean }) => {
       if (!agentId) return
 
       // Save outgoing agent's chat selection
@@ -783,11 +821,13 @@ export function Canvas({ roomId }: { roomId: string }) {
         setSelectedChatId(agentChats[0]?.id ?? null)
       }
 
-      const panel = chatPanelRef.current
-      if (panel?.isCollapsed()) {
-        panel.expand()
-        const { inPixels } = panel.getSize()
-        if (inPixels < 480) panel.resize(480)
+      if (options?.expandPanel !== false) {
+        const panel = chatPanelRef.current
+        if (panel?.isCollapsed()) {
+          panel.expand()
+          const { inPixels } = panel.getSize()
+          if (inPixels < 480) panel.resize(480)
+        }
       }
     },
     [agents, chatSessions, selectedAgentId, selectedChatId],
@@ -836,6 +876,74 @@ export function Canvas({ roomId }: { roomId: string }) {
     [updateChatSession],
   )
 
+  const handleInspectPicked = useCallback(
+    (artboardId: string, sandboxId: string, pick: PickResult) => {
+      setInspectNote({
+        artboardId,
+        selector: pick.selector,
+        rect: pick.rect,
+      })
+      handleSelectAgent(sandboxId, { expandPanel: false })
+    },
+    [handleSelectAgent],
+  )
+
+  const handleInspectHover = useCallback(
+    (artboardId: string, rect: DomRect | null) => {
+      if (!rect) {
+        setInspectHover((h) => (h?.artboardId === artboardId ? null : h))
+      } else {
+        setInspectHover({ artboardId, rect })
+      }
+    },
+    [],
+  )
+
+  const handleInspectSubmit = useCallback(
+    (note: string) => {
+      if (!inspectNote || !selectedChatId) {
+        setInspectNote(null)
+        setPickMode(false)
+        setInspectHover(null)
+        return
+      }
+      const chat = chatSessions.find((c) => c.id === selectedChatId)
+      const agent = chat ? agents.find((a) => a.id === chat.agentId) : null
+      const text = `${note}\n\nElement: \`${inspectNote.selector}\``
+      if (chat && agent?.sandboxName && agent.branch) {
+        const isFirstChat = !chatSessions.some(
+          (c) => c.agentId === chat.agentId && c.id !== chat.id && c.sessionId,
+        )
+        chatStore.sendMessage({
+          roomId,
+          chatId: chat.id,
+          sandboxName: agent.sandboxName,
+          branch: agent.branch,
+          message: text,
+          isFirstChat,
+          sessionId: chat.sessionId,
+          planMode: chat.planMode,
+          model: chat.model,
+          onSessionId: (sid) => updateChatSession(chat.id, { sessionId: sid || undefined }),
+          onBranchRename: (branch) => inspectHandlersRef.current.branchRename(agent.id, branch),
+          onChatRename: (label) => inspectHandlersRef.current.renameChat(chat.id, label),
+        })
+      } else {
+        inputStore.append(selectedChatId, text)
+      }
+      setInspectNote(null)
+      setPickMode(false)
+      setInspectHover(null)
+      const panel = chatPanelRef.current
+      if (panel?.isCollapsed()) {
+        panel.expand()
+        const { inPixels } = panel.getSize()
+        if (inPixels < 480) panel.resize(480)
+      }
+    },
+    [inspectNote, selectedChatId, chatSessions, agents, roomId, updateChatSession],
+  )
+
   const handleRemoveChat = useCallback(
     (chatId: string) => {
       if (selectedChatId === chatId) {
@@ -877,20 +985,36 @@ export function Canvas({ roomId }: { roomId: string }) {
   )
 
   const handleCreateWorkspace = useCallback(
-    (repo: GitHubRepo) => {
+    (pick: RepoPickerSelection) => {
       const id = nanoid()
-      const data: WorkspaceData = {
-        id,
-        repoFullName: repo.fullName,
-        repoOwner: repo.owner,
-        repoName: repo.name,
-        defaultBranch: repo.defaultBranch,
-        cloneUrl: repo.cloneUrl,
-        setupScript: "",
-        devScript: "",
-        envVars: "",
-        createdAt: Date.now(),
-      }
+      const data: WorkspaceData =
+        pick.kind === "config"
+          ? {
+              id,
+              repoFullName: pick.config.repoFullName,
+              repoOwner: pick.config.repoOwner,
+              repoName: pick.config.repoName,
+              defaultBranch: pick.config.defaultBranch,
+              cloneUrl: pick.config.cloneUrl,
+              setupScript: pick.config.setupScript,
+              devScript: pick.config.devScript,
+              devServerPort: pick.config.devServerPort,
+              envVars: pick.config.envVars,
+              createdAt: Date.now(),
+            }
+          : {
+              id,
+              repoFullName: pick.repo.fullName,
+              repoOwner: pick.repo.owner,
+              repoName: pick.repo.name,
+              defaultBranch: pick.repo.defaultBranch,
+              cloneUrl: pick.repo.cloneUrl,
+              setupScript: "",
+              devScript: "",
+              devServerPort: 3000,
+              envVars: "",
+              createdAt: Date.now(),
+            }
       addWorkspaceToStorage(id, data)
     },
     [addWorkspaceToStorage],
@@ -917,7 +1041,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         gitUrl: workspace.cloneUrl,
         branch,
         previewDomain: "",
-        port: 3000,
+        port: workspace.devServerPort ?? 3000,
         status: "creating",
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
@@ -956,7 +1080,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         gitUrl: workspace.cloneUrl,
         branch,
         previewDomain: "",
-        port: 3000,
+        port: workspace.devServerPort ?? 3000,
         status: "creating",
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
@@ -1000,7 +1124,7 @@ export function Canvas({ roomId }: { roomId: string }) {
         gitUrl: workspace.cloneUrl,
         branch: newBranch,
         previewDomain: "",
-        port: 3000,
+        port: workspace.devServerPort ?? 3000,
         status: "creating",
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
@@ -1082,6 +1206,11 @@ export function Canvas({ roomId }: { roomId: string }) {
     },
     [agents, workspaces, updateAgentInStorage],
   )
+
+  inspectHandlersRef.current = {
+    branchRename: handleBranchRename,
+    renameChat: handleRenameChat,
+  }
 
   // Load history for all chat sessions that have a sessionId so other
   // clients can see past messages for chats they haven't opened yet.
@@ -1288,8 +1417,8 @@ export function Canvas({ roomId }: { roomId: string }) {
   // Marquee selection: pointerdown on empty canvas starts marquee
   const handleCanvasPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only left-click, not during space-pan, comment mode, or artboard focus
-      if (e.button !== 0 || spaceHeld || commentMode || focusedArtboardId !== null) return
+      // Only left-click, not during space-pan, comment/pick mode, or artboard focus
+      if (e.button !== 0 || spaceHeld || commentMode || pickMode || focusedArtboardId !== null) return
       // Ignore if clicking on an artboard or interactive element
       const target = e.target as HTMLElement
       if (target.closest("[data-artboard]") || target.closest("button")) return
@@ -1306,7 +1435,7 @@ export function Canvas({ roomId }: { roomId: string }) {
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedArtboardId, screenToCanvas, selectedArtboardIds],
+    [spaceHeld, commentMode, pickMode, focusedArtboardId, screenToCanvas, selectedArtboardIds],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -1563,7 +1692,7 @@ export function Canvas({ roomId }: { roomId: string }) {
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: commentMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: commentMode || pickMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
                 handlePointerMove(e)
@@ -1598,7 +1727,7 @@ export function Canvas({ roomId }: { roomId: string }) {
               }}
               panning={{
                 velocityDisabled: true,
-                disabled: focusedArtboardId !== null || commentMode,
+                disabled: focusedArtboardId !== null || commentMode || pickMode,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
               }}
@@ -1669,8 +1798,12 @@ export function Canvas({ roomId }: { roomId: string }) {
                         onResize={resizeArtboard}
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
+                        onRouteChange={updateArtboardRoute}
                         multiSelected={selectedArtboardIds.size > 1}
                         spaceHeld={spaceHeld}
+                        pickMode={pickMode}
+                        onPicked={handleInspectPicked}
+                        onHover={handleInspectHover}
                       />
                     )
                   })}
@@ -1686,6 +1819,7 @@ export function Canvas({ roomId }: { roomId: string }) {
                     onCancelComment={() => setNewCommentPos(null)}
                     artboards={artboards}
                   />
+
                 </div>
               </TransformComponent>
 
@@ -1700,6 +1834,19 @@ export function Canvas({ roomId }: { roomId: string }) {
                 artboards={artboards}
                 marquee={marquee}
                 othersSelections={othersSelections}
+                hideResizeHandles={pickMode}
+                inspectRect={(() => {
+                  const source = (pickMode && inspectHover) ? inspectHover : inspectNote
+                  if (!source) return null
+                  const ab = artboards.find((a) => a.id === source.artboardId)
+                  if (!ab) return null
+                  return {
+                    x: ab.x + source.rect.x,
+                    y: ab.y + source.rect.y,
+                    width: source.rect.width,
+                    height: source.rect.height,
+                  }
+                })()}
               />
               <Cursors viewport={{ ...viewportPos, zoom }} />
               <div className="pointer-events-none absolute left-0 top-0 z-[9998] flex h-12 items-center px-2">
@@ -1722,28 +1869,68 @@ export function Canvas({ roomId }: { roomId: string }) {
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <Button
-                    variant={!commentMode ? "default" : "ghost"}
-                    size="icon-xs"
-                    onClick={() => {
-                      setCommentMode(false)
-                      setNewCommentPos(null)
-                    }}
-                    title="Select (V)"
-                  >
-                    <MousePointer2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant={commentMode ? "default" : "ghost"}
-                    size="icon-xs"
-                    onClick={() => {
-                      setCommentMode((m) => !m)
-                      setNewCommentPos(null)
-                    }}
-                    title="Comment mode (C)"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={!commentMode && !pickMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                            setPickMode(false)
+                            setInspectNote(null)
+                            setInspectHover(null)
+                          }}
+                        >
+                          <MousePointer2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Select <Kbd>V</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={pickMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setPickMode((m) => !m)
+                            setInspectNote(null)
+                            setInspectHover(null)
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                          }}
+                        >
+                          <Crosshair className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Reference <Kbd>I</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={commentMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setCommentMode((m) => !m)
+                            setNewCommentPos(null)
+                            setPickMode(false)
+                            setInspectNote(null)
+                            setInspectHover(null)
+                          }}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Comment <Kbd>C</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               <div className="pointer-events-none absolute right-0 top-0 z-[9998] flex h-12 items-center px-2">
@@ -1804,6 +1991,7 @@ export function Canvas({ roomId }: { roomId: string }) {
             onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
             onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
             onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
+            onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
             diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
             onCollapse={() => chatPanelRef.current?.collapse()}
           />
@@ -1840,6 +2028,25 @@ export function Canvas({ roomId }: { roomId: string }) {
           </div>
         )}
       </ResizablePanel>
+      {inspectNote && typeof document !== "undefined" && (() => {
+        const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect()
+        const ab = artboards.find((a) => a.id === inspectNote.artboardId)
+        if (!wrapperRect || !ab) return null
+        const canvasX = ab.x + inspectNote.rect.x
+        const canvasY = ab.y + inspectNote.rect.y + inspectNote.rect.height
+        const screenX = wrapperRect.left + canvasX * zoom + viewportPos.x
+        const screenY = wrapperRect.top + canvasY * zoom + viewportPos.y
+        return createPortal(
+          <div className="fixed z-[10000]" style={{ left: screenX, top: screenY + 4 }}>
+            <InspectComposer
+              selector={inspectNote.selector}
+              onSubmit={handleInspectSubmit}
+              onCancel={() => setInspectNote(null)}
+            />
+          </div>,
+          document.body,
+        )
+      })()}
     </ResizablePanelGroup>
   )
 }

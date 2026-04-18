@@ -16,6 +16,7 @@ export interface SendMessageOptions {
   isFirstChat?: boolean
   sessionId?: string
   planMode?: boolean
+  model?: string
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
@@ -148,6 +149,7 @@ class ChatStore {
           sessionId: this.sessionIds.get(chatId) ?? opts.sessionId,
           isFirstChat: opts.isFirstChat,
           planMode: opts.planMode,
+          model: opts.model,
         }),
       })
 

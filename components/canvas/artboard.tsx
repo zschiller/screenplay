@@ -1,13 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { MousePointer, Move } from "lucide-react"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
+import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
-import type { JsonObject } from "@/lib/postmessage-protocol"
+import type { DomRect, JsonObject } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
 const MAX_PROBES = 60 // ~2 minutes
@@ -38,8 +39,12 @@ interface ArtboardProps {
   onResize: (id: string, x: number, y: number, w: number, h: number) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
+  onRouteChange?: (id: string, route: string) => void
   multiSelected: boolean
   spaceHeld: boolean
+  pickMode: boolean
+  onPicked: (artboardId: string, sandboxId: string, pick: PickResult) => void
+  onHover: (artboardId: string, rect: DomRect | null) => void
 }
 
 export function Artboard({
@@ -54,8 +59,12 @@ export function Artboard({
   onResize,
   onRemove,
   onStateChanged,
+  onRouteChange,
   multiSelected,
   spaceHeld,
+  pickMode,
+  onPicked,
+  onHover,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -92,27 +101,69 @@ export function Artboard({
     onResize: handleResize,
   })
 
+  // Track the path last reported by the iframe itself. When artboard.route
+  // changes to match this path, we know the change was the echo of in-iframe
+  // navigation and should not reload the iframe.
+  const reportedPathRef = useRef<string | null>(null)
+
+  const handleNavigation = useCallback(
+    (id: string, path: string) => {
+      reportedPathRef.current = path
+      onRouteChange?.(id, path)
+    },
+    [onRouteChange],
+  )
+
   const { iframeRef } = usePostMessage({
     artboardId: artboard.id,
     iframeState: artboard.iframeState ?? {},
     onStateChanged,
+    onNavigation: handleNavigation,
   })
 
-  const src = artboard.iframeUrl
+  const dom = useScreenplayDom(iframeRef, {
+    onPicked: (p) => onPicked(artboard.id, artboard.sandboxId, p),
+    onHover: (rect) => onHover(artboard.id, rect),
+  })
+
+  useEffect(() => {
+    if (!pickMode) return
+    dom.startPick().catch(() => {})
+    return () => {
+      dom.stopPick().catch(() => {})
+    }
+  }, [pickMode, dom])
+
+  const desiredSrc = artboard.iframeUrl
     ? artboard.iframeUrl + (artboard.route ?? "")
     : undefined
+
+  // The `src` actually applied to the iframe. We avoid changing it when the
+  // route update originated from in-iframe navigation (that would reload the
+  // iframe back onto the path it's already on).
+  const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
+
+  useEffect(() => {
+    if (!artboard.iframeUrl) {
+      setIframeSrc(undefined)
+      return
+    }
+    const route = artboard.route ?? ""
+    if (route === reportedPathRef.current) return
+    setIframeSrc(artboard.iframeUrl + route)
+  }, [artboard.iframeUrl, artboard.route])
 
   const [serverReady, setServerReady] = useState(false)
 
   useEffect(() => {
-    if (!src || serverReady) return
+    if (!desiredSrc || serverReady) return
 
     let cancelled = false
     let probes = 0
 
     async function poll() {
       while (!cancelled && probes < MAX_PROBES) {
-        const up = await probeSandboxUrl(src!)
+        const up = await probeSandboxUrl(desiredSrc!)
         if (up && !cancelled) {
           setServerReady(true)
           return
@@ -124,7 +175,7 @@ export function Artboard({
 
     poll()
     return () => { cancelled = true }
-  }, [src, serverReady])
+  }, [desiredSrc, serverReady])
 
   const HANDLE = 6 // base px thickness of resize handles
   const h = HANDLE / zoom // scale inversely so handles stay usable when zoomed out
@@ -171,16 +222,16 @@ export function Artboard({
       <div
         className="relative h-full w-full overflow-hidden"
       >
-        {src && serverReady ? (
+        {iframeSrc && serverReady ? (
           <iframe
             ref={iframeRef}
-            src={src}
+            src={iframeSrc}
             className="h-full w-full border-0 bg-white dark:bg-zinc-900"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
-            {src ? (
+            {desiredSrc ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
                 <span className="text-xs text-muted-foreground">
@@ -195,8 +246,9 @@ export function Artboard({
           </div>
         )}
 
-        {/* Overlay: blocks iframe pointer events when not focused; drag to move, click to select */}
-        {!focused && (
+        {/* Overlay: blocks iframe pointer events when not focused; drag to move, click to select.
+            Suppressed during pickMode so the in-iframe picker receives pointer events. */}
+        {!focused && !pickMode && (
           <div
             className="absolute inset-0 cursor-default"
             onPointerDownCapture={(e) => {
@@ -213,8 +265,8 @@ export function Artboard({
         )}
       </div>
 
-      {/* Resize handles — only when singly selected */}
-      {selected && !multiSelected && (
+      {/* Resize handles — only when singly selected and not inspecting */}
+      {selected && !multiSelected && !pickMode && (
         <>
           {/* Edges */}
           <div className="absolute cursor-ns-resize" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />

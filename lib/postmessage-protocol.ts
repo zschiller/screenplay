@@ -26,6 +26,8 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:dom-result"; id: string; ok: true; value: JsonValue }
   | { type: "screenplay:dom-result"; id: string; ok: false; error: string }
   | { type: "screenplay:picked"; handle: string; selector: string; rect: DomRect; outerHTML: string }
+  | { type: "screenplay:hover"; rect: DomRect | null }
+  | { type: "screenplay:navigation"; path: string }
 
 export function isScreenplayMessage(
   data: unknown,

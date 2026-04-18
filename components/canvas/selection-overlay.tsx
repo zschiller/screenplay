@@ -23,6 +23,8 @@ interface SelectionOverlayProps {
     currentY: number
   } | null
   othersSelections: OtherSelection[]
+  hideResizeHandles?: boolean
+  inspectRect?: { x: number; y: number; width: number; height: number } | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -46,6 +48,8 @@ export function SelectionOverlay({
   artboards,
   marquee,
   othersSelections,
+  hideResizeHandles,
+  inspectRect,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -138,7 +142,7 @@ export function SelectionOverlay({
     }
 
     // Draw resize handles for single selection
-    if (selectedArtboardIds.size === 1) {
+    if (selectedArtboardIds.size === 1 && !hideResizeHandles) {
       const id = selectedArtboardIds.values().next().value as string
       const edges = frameEdges.get(id)
       if (edges) {
@@ -185,6 +189,24 @@ export function SelectionOverlay({
       }
     }
 
+    // Draw inspect rect (hovered or picked element)
+    if (inspectRect) {
+      const tl = toScreen(inspectRect.x, inspectRect.y)
+      const br = toScreen(inspectRect.x + inspectRect.width, inspectRect.y + inspectRect.height)
+      const l = Math.round(tl.x)
+      const t = Math.round(tl.y)
+      const r = Math.round(br.x)
+      const b = Math.round(br.y)
+      ctx.globalAlpha = 0.1
+      ctx.fillStyle = "#3b82f6"
+      ctx.fillRect(l, t, r - l, b - t)
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = "#3b82f6"
+      ctx.lineWidth = 1
+      // Inside stroke: inset by 0.5 so the 1px line sits entirely within the bounds
+      ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
+    }
+
     // Draw marquee rectangle
     if (marquee) {
       // Convert both corners to screen space, then round edges independently
@@ -206,7 +228,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboards, marquee, othersSelections])
+  }, [zoom, viewportPos, selectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboards, marquee, othersSelections, hideResizeHandles, inspectRect])
 
   // Keep canvas sized to container
   useEffect(() => {

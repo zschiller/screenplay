@@ -26,6 +26,7 @@ interface RequestBody {
   sessionId?: string
   isFirstChat?: boolean
   planMode?: boolean
+  model?: string
 }
 
 /**
@@ -324,7 +325,7 @@ export async function POST(req: Request) {
   }
 
   const body: RequestBody = await req.json()
-  const { roomId, chatId, sandboxName, branch, message, sessionId: existingSessionId, isFirstChat, planMode } = body
+  const { roomId, chatId, sandboxName, branch, message, sessionId: existingSessionId, isFirstChat, planMode, model } = body
 
   if (!roomId || !chatId || !sandboxName || !message) {
     return new Response("Missing required fields", { status: 400 })
@@ -332,9 +333,10 @@ export async function POST(req: Request) {
 
   const client = getClient()
 
-  // Resolve agent + environment up front
+  // Resolve agent + environment up front. Model only affects new sessions —
+  // existing sessions stay bound to whichever agent/model they were created with.
   const [agentId, environmentId] = await Promise.all([
-    getOrCreateAgent(),
+    getOrCreateAgent(model),
     getOrCreateEnvironment(),
   ])
 
