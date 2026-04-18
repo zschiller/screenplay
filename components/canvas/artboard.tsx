@@ -250,7 +250,7 @@ export function Artboard({
             Suppressed during pickMode so the in-iframe picker receives pointer events. */}
         {!focused && !pickMode && (
           <div
-            className="absolute inset-0 cursor-default"
+            className="absolute inset-0 cursor-default touch-none"
             onPointerDownCapture={(e) => {
               if (e.button === 0 && !spaceHeld) {
                 // If already selected, don't narrow selection on pointerdown —
@@ -269,15 +269,15 @@ export function Artboard({
       {selected && !multiSelected && !pickMode && (
         <>
           {/* Edges */}
-          <div className="absolute cursor-ns-resize" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-          <div className="absolute cursor-ns-resize" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-          <div className="absolute cursor-ew-resize" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
-          <div className="absolute cursor-ew-resize" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
+          <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+          <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
+          <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
+          <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
           {/* Corners */}
-          <div className="absolute cursor-nwse-resize" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nesw-resize" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nesw-resize" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nwse-resize" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
+          <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
         </>
       )}
     </div>
