@@ -29,6 +29,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { Artboard } from "./artboard"
 import { SelectionOverlay } from "./selection-overlay"
@@ -72,6 +82,9 @@ import {
 export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
@@ -1905,12 +1918,10 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
-                        onSelect={() => {
-                          setTimeout(async () => {
-                            if (!window.confirm("Delete this project? This cannot be undone.")) return
-                            await deleteProject(roomId)
-                            router.push("/")
-                          }, 0)
+                        onSelect={(event) => {
+                          event.preventDefault()
+                          setDeleteError(null)
+                          setDeleteDialogOpen(true)
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1918,6 +1929,50 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <AlertDialog
+                    open={deleteDialogOpen}
+                    onOpenChange={(open) => {
+                      if (deleting) return
+                      setDeleteDialogOpen(open)
+                      if (!open) setDeleteError(null)
+                    }}
+                  >
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete &ldquo;{currentProjectName}&rdquo;?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This project and all of its contents will be permanently deleted. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      {deleteError && (
+                        <p className="text-sm text-destructive">{deleteError}</p>
+                      )}
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={deleting}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={async (event) => {
+                            event.preventDefault()
+                            setDeleting(true)
+                            setDeleteError(null)
+                            try {
+                              await deleteProject(roomId)
+                              setDeleteDialogOpen(false)
+                              router.push("/")
+                            } catch (err) {
+                              setDeleteError(
+                                err instanceof Error ? err.message : "Failed to delete project",
+                              )
+                              setDeleting(false)
+                            }
+                          }}
+                        >
+                          {deleting ? "Deleting…" : "Delete"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
               <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
