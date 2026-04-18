@@ -57,6 +57,20 @@ export async function createProject(
     },
   })
 
+  // Initialize storage server-side to mirror the RoomProvider's initialStorage.
+  // Without this, the first client mutation races against Liveblocks' lazy
+  // storage init and the request is rejected with 400.
+  await liveblocks.initializeStorageDocument(id, {
+    liveblocksType: "LiveObject",
+    data: {
+      workspaces: { liveblocksType: "LiveMap", data: {} },
+      sandboxes: { liveblocksType: "LiveMap", data: {} },
+      artboards: { liveblocksType: "LiveMap", data: {} },
+      chatSessions: { liveblocksType: "LiveMap", data: {} },
+      plans: { liveblocksType: "LiveMap", data: {} },
+    },
+  })
+
   return {
     id: room.id,
     name: trimmed,
