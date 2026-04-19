@@ -214,7 +214,7 @@ export function AgentSidebar({
                     >
                       <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
                         <div className="group/workspace-row relative">
-                          <SidebarMenuButton className="!pr-[5rem]" onClick={(e) => e.stopPropagation()}>
+                          <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[5rem] group-focus-within/workspace-row:!pr-[5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
                                 <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
