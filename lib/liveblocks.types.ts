@@ -82,6 +82,14 @@ export type ArtboardData = {
   route?: string
 }
 
+export type TextLayerData = {
+  id: string
+  x: number
+  y: number
+  width: number
+  autoWidth: boolean
+}
+
 export type ViewportData = {
   x: number
   y: number
@@ -92,6 +100,7 @@ export type Storage = {
   workspaces: LiveMap<string, LiveObject<WorkspaceData>>
   sandboxes: LiveMap<string, LiveObject<AgentData>>
   artboards: LiveMap<string, LiveObject<ArtboardData>>
+  textLayers: LiveMap<string, LiveObject<TextLayerData>>
   chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
   plans: LiveMap<string, LiveObject<PlanData>>
   savedViewport?: LiveObject<ViewportData>
@@ -103,6 +112,7 @@ export type Presence = {
   name: string
   color: string
   selectedArtboardIds: string[]
+  selectedTextLayerIds: string[]
 }
 
 export type UserMeta = {

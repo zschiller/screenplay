@@ -9,16 +9,17 @@ import {
 } from "react-zoom-pan-pinch"
 import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
-import { LiveObject } from "@liveblocks/client"
+import { LiveMap, LiveObject } from "@liveblocks/client"
 import {
   useEventListener,
   useHistory,
   useMutation,
   useOthers,
+  useSelf,
   useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
-import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
+import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -30,8 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
+import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { Artboard } from "./artboard"
+import { TextLayer } from "./text-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import { InspectComposer } from "./inspect-composer"
@@ -49,7 +52,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable"
 import { useDefaultLayout, type PanelImperativeHandle } from "react-resizable-panels"
-import type { AgentData, ChatSessionData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -102,21 +105,34 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
+  const [selectedTextLayerIds, setSelectedTextLayerIds] = useState<Set<string>>(new Set())
   const [hoveredArtboardId, setHoveredArtboardId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseSelection: Set<string> } | null>(null)
+  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseArtboards: Set<string>; baseTextLayers: Set<string> } | null>(null)
+  const [textMode, setTextMode] = useState(false)
+  const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null)
+  const [textDraft, setTextDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const textDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const updateMyPresence = useUpdateMyPresence()
+  const self = useSelf()
   const others = useOthers()
   const history = useHistory()
 
   // Refs so keyboard handler stays current without re-binding
   const selectedArtboardIdsRef = useRef(selectedArtboardIds)
   selectedArtboardIdsRef.current = selectedArtboardIds
+  const selectedTextLayerIdsRef = useRef(selectedTextLayerIds)
+  selectedTextLayerIdsRef.current = selectedTextLayerIds
+  const editingTextLayerIdRef = useRef(editingTextLayerId)
+  editingTextLayerIdRef.current = editingTextLayerId
+  const textModeRef = useRef(textMode)
+  textModeRef.current = textMode
   const removeArtboardsRef = useRef<(ids: string[]) => void>(() => {})
+  const removeTextLayersRef = useRef<(ids: string[]) => void>(() => {})
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -127,6 +143,14 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (editingTextLayerIdRef.current) {
+          setEditingTextLayerId(null)
+          return
+        }
+        if (textModeRef.current) {
+          setTextMode(false)
+          return
+        }
         if (pickMode || inspectNote) {
           setPickMode(false)
           setInspectNote(null)
@@ -138,6 +162,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           setFocusedArtboardId(null)
         } else {
           setSelectedArtboardIds(new Set())
+          setSelectedTextLayerIds(new Set())
         }
       }
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
@@ -146,6 +171,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         setPickMode(false)
         setInspectNote(null)
         setInspectHover(null)
+        setTextMode(false)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
@@ -153,6 +179,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         setPickMode(false)
         setInspectNote(null)
         setInspectHover(null)
+        setTextMode(false)
       }
       if (e.key === "i" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setPickMode((m) => !m)
@@ -160,6 +187,15 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         setInspectHover(null)
         setCommentMode(false)
         setNewCommentPos(null)
+        setTextMode(false)
+      }
+      if (e.key === "t" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+        setTextMode((m) => !m)
+        setCommentMode(false)
+        setNewCommentPos(null)
+        setPickMode(false)
+        setInspectNote(null)
+        setInspectHover(null)
       }
       if (e.key === "b" && e.metaKey && !e.altKey) {
         e.preventDefault()
@@ -199,13 +235,20 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           setSpaceHeld(true)
         }
       }
-      // Delete/Backspace removes selected artboards
+      // Delete/Backspace removes selected artboards and text layers
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
-        const ids = selectedArtboardIdsRef.current
-        if (ids.size > 0) {
+        const abIds = selectedArtboardIdsRef.current
+        const txtIds = selectedTextLayerIdsRef.current
+        if (abIds.size > 0 || txtIds.size > 0) {
           e.preventDefault()
-          removeArtboardsRef.current(Array.from(ids))
-          setSelectedArtboardIds(new Set())
+          if (abIds.size > 0) {
+            removeArtboardsRef.current(Array.from(abIds))
+            setSelectedArtboardIds(new Set())
+          }
+          if (txtIds.size > 0) {
+            removeTextLayersRef.current(Array.from(txtIds))
+            setSelectedTextLayerIds(new Set())
+          }
         }
       }
       // Undo: Cmd/Ctrl+Z
@@ -255,6 +298,22 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         label: artboard.label,
         iframeState: artboard.iframeState as JsonObject,
         route: artboard.route,
+      })
+    }
+    return result
+  })
+
+  const textLayers = useStorage((root) => {
+    const result: TextLayerData[] = []
+    const map = root.textLayers
+    if (!map) return result
+    for (const [key, t] of Object.entries(map)) {
+      result.push({
+        id: key,
+        x: t.x,
+        y: t.y,
+        width: t.width,
+        autoWidth: t.autoWidth,
       })
     }
     return result
@@ -622,6 +681,80 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     },
     [],
   )
+
+  // --- Text layer mutations ---
+
+  const addTextLayer = useMutation(
+    ({ storage }, data: TextLayerData) => {
+      let map = storage.get("textLayers")
+      if (!map) {
+        storage.set("textLayers", new LiveMap())
+        map = storage.get("textLayers")!
+      }
+      map.set(data.id, new LiveObject(data))
+    },
+    [],
+  )
+
+  const moveTextLayer = useMutation(
+    ({ storage }, id: string, x: number, y: number) => {
+      const t = storage.get("textLayers")?.get(id)
+      if (t) {
+        t.set("x", x)
+        t.set("y", y)
+      }
+    },
+    [],
+  )
+
+  const moveTextLayersByDelta = useMutation(
+    ({ storage }, ids: string[], dx: number, dy: number) => {
+      const map = storage.get("textLayers")
+      if (!map) return
+      for (const id of ids) {
+        const t = map.get(id)
+        if (t) {
+          t.set("x", t.get("x") + dx)
+          t.set("y", t.get("y") + dy)
+        }
+      }
+    },
+    [],
+  )
+
+  const resizeTextLayer = useMutation(
+    ({ storage }, id: string, x: number, width: number) => {
+      const t = storage.get("textLayers")?.get(id)
+      if (t) {
+        t.set("x", x)
+        t.set("width", Math.max(40, width))
+        if (t.get("autoWidth")) t.set("autoWidth", false)
+      }
+    },
+    [],
+  )
+
+  const setTextLayerAutoWidth = useMutation(
+    ({ storage }, id: string, autoWidth: boolean, width?: number) => {
+      const t = storage.get("textLayers")?.get(id)
+      if (!t) return
+      t.set("autoWidth", autoWidth)
+      if (!autoWidth && typeof width === "number") {
+        t.set("width", Math.max(40, width))
+      }
+    },
+    [],
+  )
+
+  const removeTextLayers = useMutation(
+    ({ storage }, ids: string[]) => {
+      const map = storage.get("textLayers")
+      if (!map) return
+      for (const id of ids) map.delete(id)
+    },
+    [],
+  )
+  removeTextLayersRef.current = removeTextLayers
 
   // --- Agent mutations ---
 
@@ -1428,32 +1561,59 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     }
   }, [])
 
-  // Marquee selection: pointerdown on empty canvas starts marquee
+  // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
   const handleCanvasPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only left-click, not during space-pan, comment/pick mode, or artboard focus
-      if (e.button !== 0 || spaceHeld || commentMode || pickMode || focusedArtboardId !== null) return
-      // Ignore if clicking on an artboard or interactive element
+      if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
       const target = e.target as HTMLElement
-      if (target.closest("[data-artboard]") || target.closest("button")) return
+      if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button")) return
+
+      // Text tool: start a draft rectangle (click or click+drag)
+      if (textMode) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        textDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
+        setTextDraft(textDraftRef.current)
+        e.currentTarget.setPointerCapture(e.pointerId)
+        return
+      }
+
+      if (commentMode || pickMode) return
       // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
       const wrapperRect = e.currentTarget.getBoundingClientRect()
       if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8) return
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      marqueeRef.current = { startX: canvas.x, startY: canvas.y, shiftKey: e.shiftKey, baseSelection: new Set(selectedArtboardIds) }
+      marqueeRef.current = {
+        startX: canvas.x,
+        startY: canvas.y,
+        shiftKey: e.shiftKey,
+        baseArtboards: new Set(selectedArtboardIds),
+        baseTextLayers: new Set(selectedTextLayerIds),
+      }
       setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
       if (!e.shiftKey) {
         setSelectedArtboardIds(new Set())
+        setSelectedTextLayerIds(new Set())
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, pickMode, focusedArtboardId, screenToCanvas, selectedArtboardIds],
+    [spaceHeld, commentMode, pickMode, focusedArtboardId, textMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds],
   )
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Text-tool draft tracking
+      if (textDraftRef.current) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const next = { ...textDraftRef.current, currentX: canvas.x, currentY: canvas.y }
+        textDraftRef.current = next
+        setTextDraft(next)
+        return
+      }
+
       if (!marqueeRef.current) return
       const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
@@ -1466,7 +1626,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       const right = Math.max(start.startX, canvas.x)
       const bottom = Math.max(start.startY, canvas.y)
 
-      const hits = new Set<string>()
+      const abHits = new Set<string>()
       for (const ab of artboards) {
         if (
           ab.x < right &&
@@ -1474,26 +1634,68 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           ab.y < bottom &&
           ab.y + ab.height > top
         ) {
-          hits.add(ab.id)
+          abHits.add(ab.id)
+        }
+      }
+      const txtHits = new Set<string>()
+      for (const t of textLayers) {
+        const el = document.getElementById(`text-layer-${t.id}`)
+        const w = t.autoWidth ? (el?.offsetWidth ?? t.width) : t.width
+        const h = el?.offsetHeight ?? 24
+        if (t.x < right && t.x + w > left && t.y < bottom && t.y + h > top) {
+          txtHits.add(t.id)
         }
       }
 
       if (start.shiftKey) {
-        const next = new Set(start.baseSelection)
-        for (const id of hits) {
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
+        const nextAb = new Set(start.baseArtboards)
+        for (const id of abHits) {
+          if (nextAb.has(id)) nextAb.delete(id)
+          else nextAb.add(id)
         }
-        setSelectedArtboardIds(next)
+        setSelectedArtboardIds(nextAb)
+        const nextTxt = new Set(start.baseTextLayers)
+        for (const id of txtHits) {
+          if (nextTxt.has(id)) nextTxt.delete(id)
+          else nextTxt.add(id)
+        }
+        setSelectedTextLayerIds(nextTxt)
       } else {
-        setSelectedArtboardIds(hits)
+        setSelectedArtboardIds(abHits)
+        setSelectedTextLayerIds(txtHits)
       }
     },
-    [screenToCanvas, artboards],
+    [screenToCanvas, artboards, textLayers],
   )
 
   const handleCanvasPointerUp = useCallback(
     (e: React.PointerEvent) => {
+      // Text-tool: release creates a new text layer
+      if (textDraftRef.current) {
+        const d = textDraftRef.current
+        textDraftRef.current = null
+        setTextDraft(null)
+        const dx = d.currentX - d.startX
+        const dy = d.currentY - d.startY
+        const id = nanoid()
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+          addTextLayer({ id, x: d.startX, y: d.startY, width: 200, autoWidth: true })
+        } else {
+          addTextLayer({
+            id,
+            x: Math.min(d.startX, d.currentX),
+            y: Math.min(d.startY, d.currentY),
+            width: Math.max(40, Math.abs(dx)),
+            autoWidth: false,
+          })
+        }
+        setTextMode(false)
+        setSelectedArtboardIds(new Set())
+        setSelectedTextLayerIds(new Set([id]))
+        setEditingTextLayerId(id)
+        return
+      }
+
       if (!marqueeRef.current) return
       const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
@@ -1507,10 +1709,11 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       if (dx < 3 && dy < 3) {
         if (!e.shiftKey) {
           setSelectedArtboardIds(new Set())
+          setSelectedTextLayerIds(new Set())
         }
       }
     },
-    [screenToCanvas],
+    [screenToCanvas, addTextLayer],
   )
 
   // Click on artboard to select
@@ -1525,6 +1728,24 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         })
       } else {
         setSelectedArtboardIds(new Set([id]))
+        setSelectedTextLayerIds(new Set())
+      }
+    },
+    [],
+  )
+
+  const handleTextLayerSelect = useCallback(
+    (id: string, shiftKey: boolean) => {
+      if (shiftKey) {
+        setSelectedTextLayerIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      } else {
+        setSelectedTextLayerIds(new Set([id]))
+        setSelectedArtboardIds(new Set())
       }
     },
     [],
@@ -1532,12 +1753,12 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
   const handleMoveSelected = useCallback(
     (dx: number, dy: number) => {
-      const ids = Array.from(selectedArtboardIdsRef.current)
-      if (ids.length > 0) {
-        moveArtboardsByDelta(ids, dx, dy)
-      }
+      const abIds = Array.from(selectedArtboardIdsRef.current)
+      const txtIds = Array.from(selectedTextLayerIdsRef.current)
+      if (abIds.length > 0) moveArtboardsByDelta(abIds, dx, dy)
+      if (txtIds.length > 0) moveTextLayersByDelta(txtIds, dx, dy)
     },
-    [moveArtboardsByDelta],
+    [moveArtboardsByDelta, moveTextLayersByDelta],
   )
 
   const handlePointerMove = useCallback(
@@ -1611,14 +1832,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     [commentMode, artboards],
   )
 
-  // Broadcast artboard selection to other users via presence
+  // Broadcast selection to other users via presence
   useEffect(() => {
-    updateMyPresence({ selectedArtboardIds: Array.from(selectedArtboardIds) })
-  }, [selectedArtboardIds, updateMyPresence])
+    updateMyPresence({
+      selectedArtboardIds: Array.from(selectedArtboardIds),
+      selectedTextLayerIds: Array.from(selectedTextLayerIds),
+    })
+  }, [selectedArtboardIds, selectedTextLayerIds, updateMyPresence])
 
   // Collect other users' selections for the overlay
   const othersSelections = others.map((other) => ({
     selectedArtboardIds: other.presence.selectedArtboardIds ?? [],
+    selectedTextLayerIds: other.presence.selectedTextLayerIds ?? [],
     color: other.presence.color,
     name: other.info?.name || other.presence.name || "Anonymous",
   }))
@@ -1635,6 +1860,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
   return (
@@ -1706,7 +1932,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: commentMode || pickMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: textMode ? "text" : commentMode || pickMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
                 handlePointerMove(e)
@@ -1741,7 +1967,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               }}
               panning={{
                 velocityDisabled: true,
-                disabled: focusedArtboardId !== null || commentMode || pickMode,
+                disabled: focusedArtboardId !== null || commentMode || pickMode || textMode || editingTextLayerId !== null,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
               }}
@@ -1813,7 +2039,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
                         onRouteChange={updateArtboardRoute}
-                        multiSelected={selectedArtboardIds.size > 1}
+                        multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                         spaceHeld={spaceHeld}
                         pickMode={pickMode}
                         onPicked={handleInspectPicked}
@@ -1821,6 +2047,27 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       />
                     )
                   })}
+
+                  {textLayers.map((layer) => (
+                    <TextLayer
+                      key={layer.id}
+                      layer={layer}
+                      zoom={zoom}
+                      selected={selectedTextLayerIds.has(layer.id)}
+                      multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
+                      editing={editingTextLayerId === layer.id}
+                      spaceHeld={spaceHeld}
+                      userName={self?.presence.name || self?.info?.name || "Anonymous"}
+                      userColor={self?.presence.color || "#888"}
+                      onSelect={handleTextLayerSelect}
+                      onMove={moveTextLayer}
+                      onMoveSelected={handleMoveSelected}
+                      onResize={resizeTextLayer}
+                      onSetAutoWidth={setTextLayerAutoWidth}
+                      onStartEdit={setEditingTextLayerId}
+                      onStopEdit={() => setEditingTextLayerId(null)}
+                    />
+                  ))}
 
                   <Comments
                     zoom={zoom}
@@ -1843,10 +2090,13 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                 zoom={zoom}
                 viewportPos={viewportPos}
                 selectedArtboardIds={selectedArtboardIds}
+                selectedTextLayerIds={selectedTextLayerIds}
                 focusedArtboardId={focusedArtboardId}
                 hoveredArtboardId={hoveredArtboardId}
                 artboards={artboards}
+                textLayers={textLayers}
                 marquee={marquee}
+                textDraft={textDraft}
                 othersSelections={othersSelections}
                 hideResizeHandles={pickMode}
                 inspectRect={(() => {
@@ -1935,7 +2185,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !pickMode ? "default" : "ghost"}
+                          variant={!commentMode && !pickMode && !textMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
@@ -1943,6 +2193,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                             setPickMode(false)
                             setInspectNote(null)
                             setInspectHover(null)
+                            setTextMode(false)
                           }}
                         >
                           <MousePointer2 className="h-3.5 w-3.5" />
@@ -1950,6 +2201,27 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         Select <Kbd>V</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={textMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setTextMode((m) => !m)
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                            setPickMode(false)
+                            setInspectNote(null)
+                            setInspectHover(null)
+                          }}
+                        >
+                          <Type className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Text <Kbd>T</Kbd>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -1963,6 +2235,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                             setInspectHover(null)
                             setCommentMode(false)
                             setNewCommentPos(null)
+                            setTextMode(false)
                           }}
                         >
                           <Crosshair className="h-3.5 w-3.5" />
@@ -1983,6 +2256,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                             setPickMode(false)
                             setInspectNote(null)
                             setInspectHover(null)
+                            setTextMode(false)
                           }}
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
@@ -2000,6 +2274,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                   <FollowingToolbar
                     followingId={followingConnectionId}
                     onFollow={setFollowingConnectionId}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => setShareDialogOpen(true)}
+                  >
+                    Share
+                  </Button>
+                  <ShareProjectDialog
+                    open={shareDialogOpen}
+                    onOpenChange={setShareDialogOpen}
+                    projectId={roomId}
+                    projectName={currentProjectName}
                   />
                   {chatCollapsed && (
                     <TooltipProvider>

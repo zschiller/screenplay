@@ -169,7 +169,10 @@ export function ChatPanel({
       <div className="flex border-b border-border bg-background">
         <div className="flex-1 overflow-x-auto min-w-0">
           <TabsList variant="line" className="h-9 px-2">
-            {openChats.map((chat) => (
+            {openChats.map((chat) => {
+              const isUntitledEmpty = chat.label === "Untitled" && !chat.sessionId
+              const canClose = openChats.length > 1 || !isUntitledEmpty
+              return (
               <TabsTrigger
                 key={chat.id}
                 value={chat.id}
@@ -201,17 +204,20 @@ export function ChatPanel({
                   </span>
                   <span
                     role="button"
-                    tabIndex={0}
-                    title="Close"
-                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    aria-disabled={!canClose}
+                    tabIndex={canClose ? 0 : -1}
+                    title={canClose ? "Close" : "Can't close the last chat"}
+                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground ${canClose ? "hover:bg-accent hover:text-accent-foreground cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (!canClose) return
                       onCloseChat(chat.id)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         e.stopPropagation()
+                        if (!canClose) return
                         onCloseChat(chat.id)
                       }
                     }}
@@ -220,7 +226,8 @@ export function ChatPanel({
                   </span>
                 </div>
               </TabsTrigger>
-            ))}
+              )
+            })}
             <Button
               variant="ghost"
               size="icon-xs"
