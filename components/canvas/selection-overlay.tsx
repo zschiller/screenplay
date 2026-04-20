@@ -222,7 +222,7 @@ export function SelectionOverlay({
       const id = selectedTextLayerIds.values().next().value as string
       const edges = textFrameEdges.get(id)
       const layer = textLayers.find((l) => l.id === id)
-      if (edges && layer && !layer.autoWidth) {
+      if (edges && layer) {
         const { l, t, r, b } = edges
         const my = Math.round((t + b) / 2)
         const hs = HANDLE_SIZE

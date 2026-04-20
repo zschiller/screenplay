@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { createPortal } from "react-dom"
 import {
   TransformWrapper,
   TransformComponent,
@@ -24,6 +23,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Kbd } from "@/components/ui/kbd"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1438,9 +1438,9 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     reconnectedRef.current = true
 
     for (const agent of agents) {
-      // Agents stuck in creating/starting — ask server to resume.
+      // Agents stuck mid-creation — ask server to resume the pipeline.
       // The server uses a Redis lock so only one instance handles it.
-      if (agent.status === "creating" || agent.status === "starting") {
+      if (agent.status === "creating") {
         if (!agent.sandboxName) {
           // VM was never created — unrecoverable
           updateAgentInStorage(agent.id, {
@@ -1467,16 +1467,22 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
       if (!agent.sandboxName) continue
 
+      // Covers normal reloads and restarts (status === "starting") that were
+      // interrupted by a page reload. reconnectSandbox probes the existing
+      // sandbox first, so it won't recreate one that's already running.
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
         if (result.status === "running") {
           updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
             status: "running",
+            statusMessage: "",
+            error: "",
           })
         } else {
           updateAgentInStorage(agent.id, {
             status: "stopped",
+            statusMessage: "",
             error: result.error || "Sandbox could not be resumed — click refresh to retry",
           })
         }
@@ -1558,14 +1564,9 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       e.preventDefault()
       const ref = transformRef.current
       if (!ref) return
-
-      if (followingConnectionId !== null) {
-        setFollowingConnectionId(null)
-      }
-
+      if (followingConnectionId !== null) setFollowingConnectionId(null)
+      const rect = el.getBoundingClientRect()
       if (e.ctrlKey || e.metaKey) {
-        // Zoom at cursor position
-        const rect = el.getBoundingClientRect()
         const cursorX = e.clientX - rect.left
         const cursorY = e.clientY - rect.top
         const { positionX, positionY, scale } = ref.state
@@ -1577,7 +1578,6 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         const newPosY = cursorY - (cursorY - positionY) * ratio
         ref.setTransform(newPosX, newPosY, newScale, 0)
       } else {
-        // Pan
         const { positionX, positionY, scale } = ref.state
         ref.setTransform(positionX - e.deltaX, positionY - e.deltaY, scale, 0)
       }
@@ -1956,6 +1956,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               setSelectedTextLayerIds(new Set())
             }
           }}
+          onZoomToArtboard={handleSelectArtboard}
           onRenameArtboard={renameArtboard}
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
@@ -1970,7 +1971,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: textMode ? "text" : commentMode || pickMode ? "crosshair" : isPanning ? "grabbing" : spaceHeld ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : commentMode || pickMode ? "crosshair" : undefined }}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
                 handlePointerMove(e)
@@ -2005,7 +2006,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               }}
               panning={{
                 velocityDisabled: true,
-                disabled: focusedArtboardId !== null || commentMode || pickMode || textMode || editingTextLayerId !== null,
+                disabled: focusedArtboardId !== null || editingTextLayerId !== null,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
               }}
@@ -2417,7 +2418,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           </div>
         )}
       </ResizablePanel>
-      {inspectNote && typeof document !== "undefined" && (() => {
+      {inspectNote && (() => {
         const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect()
         const ab = artboards.find((a) => a.id === inspectNote.artboardId)
         if (!wrapperRect || !ab) return null
@@ -2425,15 +2426,29 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         const canvasY = ab.y + inspectNote.rect.y + inspectNote.rect.height
         const screenX = wrapperRect.left + canvasX * zoom + viewportPos.x
         const screenY = wrapperRect.top + canvasY * zoom + viewportPos.y
-        return createPortal(
-          <div className="fixed z-[10000]" style={{ left: screenX, top: screenY + 4 }}>
-            <InspectComposer
-              selector={inspectNote.selector}
-              onSubmit={handleInspectSubmit}
-              onCancel={() => setInspectNote(null)}
-            />
-          </div>,
-          document.body,
+        return (
+          <Popover open onOpenChange={(o) => { if (!o) setInspectNote(null) }}>
+            <PopoverAnchor asChild>
+              <div
+                className="pointer-events-none fixed"
+                style={{ left: screenX, top: screenY, width: 0, height: 0 }}
+              />
+            </PopoverAnchor>
+            <PopoverContent
+              side="bottom"
+              align="start"
+              sideOffset={4}
+              className="block w-64 gap-0 p-2"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <InspectComposer
+                selector={inspectNote.selector}
+                onSubmit={handleInspectSubmit}
+                onCancel={() => setInspectNote(null)}
+              />
+            </PopoverContent>
+          </Popover>
         )
       })()}
     </ResizablePanelGroup>

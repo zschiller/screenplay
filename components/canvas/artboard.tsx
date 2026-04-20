@@ -6,12 +6,25 @@ import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
-import { probeSandboxUrl } from "@/lib/sandbox-actions"
+import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import type { DomRect, JsonObject } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
 const MAX_PROBES = 60 // ~2 minutes
+
+// Cached expected bridge version — fetched once per session.
+let expectedBridgeVersionPromise: Promise<string> | null = null
+function fetchExpectedBridgeVersion(): Promise<string> {
+  if (!expectedBridgeVersionPromise) {
+    expectedBridgeVersionPromise = getBridgeVersion().catch(() => "")
+  }
+  return expectedBridgeVersionPromise
+}
+
+// Per-sandbox reinstall guard so a stale bridge only triggers one reinstall
+// cycle — avoids a loop if a sandbox somehow can't serve the fresh file.
+const reinstalledSandboxes = new Set<string>()
 
 export interface ArtboardData {
   id: string
@@ -122,25 +135,57 @@ export function Artboard({
     [onRouteChange],
   )
 
+  const handleReady = useCallback(
+    async (_id: string, reportedVersion: string | undefined) => {
+      const expected = await fetchExpectedBridgeVersion()
+      if (!expected || expected === reportedVersion) return
+      if (reinstalledSandboxes.has(artboard.sandboxId)) return
+      reinstalledSandboxes.add(artboard.sandboxId)
+      const result = await installBridge(artboard.sandboxId)
+      if (!result.success) {
+        reinstalledSandboxes.delete(artboard.sandboxId)
+        return
+      }
+      const iframe = iframeRef.current
+      if (!iframe) return
+      // Cross-origin iframe: cycle src to force a reload that re-fetches
+      // bridge.js, which the proxy now reads fresh from disk.
+      const src = iframe.src
+      iframe.src = "about:blank"
+      requestAnimationFrame(() => {
+        const i = iframeRef.current
+        if (i) i.src = src
+      })
+    },
+    [artboard.sandboxId],
+  )
+
   const { iframeRef } = usePostMessage({
     artboardId: artboard.id,
     iframeState: artboard.iframeState ?? {},
     onStateChanged,
     onNavigation: handleNavigation,
+    onReady: handleReady,
   })
 
-  const dom = useScreenplayDom(iframeRef, {
-    onPicked: (p) => onPicked(artboard.id, artboard.sandboxId, p),
-    onHover: (rect) => onHover(artboard.id, rect),
-  })
+  const dom = useScreenplayDom(iframeRef)
 
-  useEffect(() => {
-    if (!pickMode) return
-    dom.startPick().catch(() => {})
-    return () => {
-      dom.stopPick().catch(() => {})
-    }
-  }, [pickMode, dom])
+  const queryElementAtPoint = useCallback(
+    async (clientX: number, clientY: number) => {
+      const iframe = iframeRef.current
+      if (!iframe) return null
+      const rect = iframe.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null
+      try {
+        return await dom.elementAtPoint(x, y)
+      } catch {
+        return null
+      }
+    },
+    [dom, iframeRef],
+  )
 
   const desiredSrc = artboard.iframeUrl
     ? artboard.iframeUrl + (artboard.route ?? "")
@@ -236,6 +281,7 @@ export function Artboard({
             src={iframeSrc}
             className="h-full w-full border-0 bg-white dark:bg-zinc-900"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            style={{ pointerEvents: focused ? "auto" : "none" }}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
@@ -254,23 +300,39 @@ export function Artboard({
           </div>
         )}
 
-        {/* Overlay: blocks iframe pointer events when not focused; drag to move, click to select.
-            Suppressed during pickMode so the in-iframe picker receives pointer events. */}
-        {!focused && !pickMode && (
+        {/* Overlay sits above the iframe (which is pointer-events:none unless
+            focused). In pickMode it forwards pointer tracking to the in-iframe
+            picker via postMessage; otherwise handles drag-to-move / click. */}
+        {!focused && (
           <div
-            className="absolute inset-0 cursor-default touch-none"
+            className="absolute inset-0 touch-none"
+            style={{ cursor: "inherit" }}
+            {...(pickMode || spaceHeld ? {} : dragHandlers)}
+            {...(pickMode && !spaceHeld
+              ? {
+                  onPointerMove: async (e: React.PointerEvent) => {
+                    const result = await queryElementAtPoint(e.clientX, e.clientY)
+                    onHover(artboard.id, result ? result.rect : null)
+                  },
+                  onPointerLeave: () => onHover(artboard.id, null),
+                  onClickCapture: async (e: React.MouseEvent) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const result = await queryElementAtPoint(e.clientX, e.clientY)
+                    if (result) onPicked(artboard.id, artboard.sandboxId, result)
+                  },
+                }
+              : {})}
             onPointerDownCapture={(e) => {
+              if (pickMode) return
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
-                // If already selected, don't narrow selection on pointerdown —
-                // let the drag move all selected. Narrow on click (pointerup without drag).
                 if (!selected || e.shiftKey) {
                   selectedOnPointerDown.current = true
                   onSelect(artboard.id, e.shiftKey)
                 }
               }
             }}
-            {...(spaceHeld ? {} : dragHandlers)}
           />
         )}
       </div>

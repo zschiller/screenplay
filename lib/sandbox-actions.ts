@@ -121,6 +121,11 @@ export async function installBridge(
   }
 }
 
+export async function getBridgeVersion(): Promise<string> {
+  const { BRIDGE_VERSION } = await import("./sandbox-bridge")
+  return BRIDGE_VERSION
+}
+
 /**
  * Launch both the user's dev server and the bridge proxy. Installs the bridge
  * files first (idempotent). Returns a SandboxResult pointing at the proxy
