@@ -5,7 +5,7 @@ import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
-import { ArrowUp, WrapText } from "lucide-react"
+import { ArrowRightFromLine, ArrowUp, ScanText } from "lucide-react"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { useTextFragment, useYjs } from "@/components/providers/yjs-provider"
@@ -140,17 +140,44 @@ export function TextLayer({
     },
   })
 
+  const resizeWidthRef = useRef<number | null>(null)
+
   const handleResize = useCallback(
     (dx: number, _dy: number, dw: number, _dh: number) => {
-      onResize(layer.id, layer.x + dx, layer.width + dw)
+      if (resizeWidthRef.current == null) {
+        const rect = rootRef.current?.getBoundingClientRect()
+        resizeWidthRef.current = rect ? rect.width / zoom : layer.width
+      }
+      resizeWidthRef.current += dw
+      const newWidth = Math.max(20, Math.ceil(resizeWidthRef.current))
+      if (layer.autoWidth) {
+        onSetAutoWidth(layer.id, false, newWidth)
+      } else {
+        onResize(layer.id, layer.x + dx, newWidth)
+      }
     },
-    [layer.id, layer.x, layer.width, onResize],
+    [layer.id, layer.x, layer.width, layer.autoWidth, zoom, onResize, onSetAutoWidth],
   )
 
   const { makeHandleProps } = useArtboardResize({
     zoom,
     onResize: handleResize,
   })
+
+  const wrapHandleProps = (side: "w" | "e") => {
+    const props = makeHandleProps(side)
+    return {
+      ...props,
+      onPointerDown: (e: React.PointerEvent) => {
+        resizeWidthRef.current = null
+        props.onPointerDown(e)
+      },
+      onPointerUp: (e: React.PointerEvent) => {
+        resizeWidthRef.current = null
+        props.onPointerUp(e)
+      },
+    }
+  }
 
   const HANDLE = 6 / zoom
   const hHalf = HANDLE / 2
@@ -176,11 +203,14 @@ export function TextLayer({
       }}
     >
       <div className="relative">
-        <EditorContent editor={editor} />
+        <div style={{ pointerEvents: editing ? "auto" : "none" }}>
+          <EditorContent editor={editor} />
+        </div>
 
         {!editing && (
           <div
-            className="absolute inset-0 cursor-default touch-none"
+            className="absolute inset-0 touch-none"
+            style={{ cursor: "inherit" }}
             onPointerDownCapture={(e) => {
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
@@ -195,16 +225,16 @@ export function TextLayer({
         )}
       </div>
 
-      {selected && !multiSelected && !layer.autoWidth && (
+      {selected && !multiSelected && (
         <>
           <div
             className="absolute cursor-ew-resize touch-none"
-            {...makeHandleProps("w")}
+            {...wrapHandleProps("w")}
             style={{ left: -hHalf, top: 0, bottom: 0, width: HANDLE }}
           />
           <div
             className="absolute cursor-ew-resize touch-none"
-            {...makeHandleProps("e")}
+            {...wrapHandleProps("e")}
             style={{ right: -hHalf, top: 0, bottom: 0, width: HANDLE }}
           />
         </>
@@ -226,7 +256,7 @@ export function TextLayer({
                   type="button"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex h-5 items-center gap-1 rounded-sm border border-border bg-background px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
+                  className="flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-border bg-background px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
                 >
                   <ArrowUp className="h-3 w-3 shrink-0" />
                   <span>Send to Claude</span>
@@ -283,20 +313,21 @@ export function TextLayer({
             onClick={(e) => {
               e.stopPropagation()
               if (layer.autoWidth) {
-                const w = rootRef.current?.offsetWidth ?? layer.width
+                const rect = rootRef.current?.getBoundingClientRect()
+                const w = rect ? Math.ceil(rect.width / zoom) : layer.width
                 onSetAutoWidth(layer.id, false, w)
               } else {
                 onSetAutoWidth(layer.id, true)
               }
             }}
             title={layer.autoWidth ? "Switch to fixed width" : "Switch to auto width"}
-            className={`flex h-5 w-5 items-center justify-center rounded-sm border transition-colors ${
-              layer.autoWidth
-                ? "border-border bg-background text-muted-foreground hover:bg-muted"
-                : "border-primary bg-primary text-primary-foreground"
-            }`}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-colors hover:bg-muted"
           >
-            <WrapText className="h-3 w-3" />
+            {layer.autoWidth ? (
+              <ArrowRightFromLine className="h-3 w-3" />
+            ) : (
+              <ScanText className="h-3 w-3" />
+            )}
           </button>
         </div>
       )}

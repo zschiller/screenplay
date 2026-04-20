@@ -9,24 +9,31 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue }
 
 export type DomRect = { x: number; y: number; width: number; height: number }
-export type DomOp = "querySelector" | "getRect" | "getOuterHTML"
+export type DomOp = "querySelector" | "getRect" | "getOuterHTML" | "elementAtPoint"
 
 // Canvas -> Iframe
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
-  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; handle?: string }
+  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; handle?: string; x?: number; y?: number }
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
+  | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
-  | { type: "screenplay:ready" }
+  | { type: "screenplay:ready"; version?: string }
   | { type: "screenplay:state-changed"; state: JsonObject }
   | { type: "screenplay:dom-result"; id: string; ok: true; value: JsonValue }
   | { type: "screenplay:dom-result"; id: string; ok: false; error: string }
   | { type: "screenplay:picked"; handle: string; selector: string; rect: DomRect; outerHTML: string }
   | { type: "screenplay:hover"; rect: DomRect | null }
+  | { type: "screenplay:wheel"; deltaX: number; deltaY: number; ctrlKey: boolean; metaKey: boolean; clientX: number; clientY: number }
+  | { type: "screenplay:pan-start" }
+  | { type: "screenplay:pan-delta"; dx: number; dy: number }
+  | { type: "screenplay:pan-end" }
+  | { type: "screenplay:space-down" }
+  | { type: "screenplay:space-up" }
   | { type: "screenplay:navigation"; path: string }
 
 export function isScreenplayMessage(

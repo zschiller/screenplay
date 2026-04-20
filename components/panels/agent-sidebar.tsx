@@ -83,7 +83,7 @@ interface AgentSidebarProps {
   agents: AgentData[]
   artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
   selectedArtboardIds: Set<string>
-  onSelectAgent: (id: string) => void
+  onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
   onRemoveWorkspace: (id: string) => void
@@ -98,6 +98,7 @@ interface AgentSidebarProps {
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
   onSelectArtboard: (artboardId: string, shiftKey: boolean) => void
+  onZoomToArtboard: (artboardId: string) => void
   onRenameArtboard: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
@@ -124,6 +125,7 @@ export function AgentSidebar({
   onUpdateAgent,
   onRenameBranch,
   onSelectArtboard,
+  onZoomToArtboard,
   onRenameArtboard,
   onRouteChange,
   onRemoveArtboard,
@@ -213,8 +215,11 @@ export function AgentSidebar({
                       className="group/collapsible"
                     >
                       <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
-                        <div className="group/workspace-row relative">
-                          <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[5rem] group-focus-within/workspace-row:!pr-[5rem]" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="group/workspace-row relative"
+                          data-settings-open={settingsWorkspaceId === workspace.id || undefined}
+                        >
+                          <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[5rem] group-focus-within/workspace-row:!pr-[5rem] group-data-[settings-open]/workspace-row:!pr-[5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
                                 <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
@@ -250,7 +255,7 @@ export function AgentSidebar({
                             </PopoverContent>
                           </Popover>
                           <SidebarMenuAction
-                            className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100"
+                            className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
                             onClick={(e) => { e.stopPropagation(); setBranchPickerWorkspaceId(workspace.id) }}
                             title="New agent from branch"
                           >
@@ -279,7 +284,7 @@ export function AgentSidebar({
                             </DialogContent>
                           </Dialog>
                           <SidebarMenuAction
-                            className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
+                            className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100"
                             onClick={(e) => { e.stopPropagation(); onCreateAgent(workspace.id) }}
                             title="New agent"
                           >
@@ -312,7 +317,8 @@ export function AgentSidebar({
                                       <>
                                         <div
                                           className="group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                                          onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
+                                          onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id, { expandPanel: false }) }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                         >
                                           <SidebarMenuButton
                                             className="!pr-0 !bg-transparent hover:!bg-transparent"
@@ -400,7 +406,7 @@ export function AgentSidebar({
                                         {agentArtboards.map((ab) => (
                                           <SidebarMenuSubItem key={ab.id}>
                                             <div className="group/frame-row relative">
-                                              <SidebarMenuSubButton className="w-full !pr-7" isActive={selectedArtboardIds.has(ab.id)} onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}>
+                                              <SidebarMenuSubButton className="w-full !pr-7" isActive={selectedArtboardIds.has(ab.id)} onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }} onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}>
                                                 <Frame className="shrink-0 text-sidebar-foreground/70" />
                                                 <span className="truncate">{ab.label}</span>
                                                 <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">

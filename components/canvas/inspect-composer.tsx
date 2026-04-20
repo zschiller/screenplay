@@ -38,11 +38,7 @@ export function InspectComposer({ selector, onSubmit, onCancel }: InspectCompose
   )
 
   return (
-    <div
-      className="w-64 rounded-md border border-border bg-background p-2 shadow-lg"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       <div className="mb-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
         <span className="truncate font-mono" title={selector}>{selector}</span>
         <Button
@@ -75,6 +71,6 @@ export function InspectComposer({ selector, onSubmit, onCancel }: InspectCompose
           <ArrowUp className="h-3 w-3" />
         </Button>
       </div>
-    </div>
+    </>
   )
 }

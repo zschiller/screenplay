@@ -22,14 +22,38 @@ type Pending = {
 
 const REQUEST_TIMEOUT_MS = 5000
 
+export type WheelForward = {
+  deltaX: number
+  deltaY: number
+  ctrlKey: boolean
+  metaKey: boolean
+  clientX: number
+  clientY: number
+}
+
 interface Options {
   onPicked?: (p: PickResult) => void
   onHover?: (rect: DomRect | null) => void
+  onWheel?: (e: WheelForward) => void
+  onPanStart?: () => void
+  onPanDelta?: (dx: number, dy: number) => void
+  onPanEnd?: () => void
+  onSpaceDown?: () => void
+  onSpaceUp?: () => void
 }
 
 export function useScreenplayDom(
   iframeRef: RefObject<HTMLIFrameElement | null>,
-  { onPicked, onHover }: Options = {},
+  {
+    onPicked,
+    onHover,
+    onWheel,
+    onPanStart,
+    onPanDelta,
+    onPanEnd,
+    onSpaceDown,
+    onSpaceUp,
+  }: Options = {},
 ) {
   const pending = useRef(new Map<string, Pending>())
   const seq = useRef(0)
@@ -37,13 +61,32 @@ export function useScreenplayDom(
   onPickedRef.current = onPicked
   const onHoverRef = useRef(onHover)
   onHoverRef.current = onHover
+  const onWheelRef = useRef(onWheel)
+  onWheelRef.current = onWheel
+  const onPanStartRef = useRef(onPanStart)
+  onPanStartRef.current = onPanStart
+  const onPanDeltaRef = useRef(onPanDelta)
+  onPanDeltaRef.current = onPanDelta
+  const onPanEndRef = useRef(onPanEnd)
+  onPanEndRef.current = onPanEnd
+  const onSpaceDownRef = useRef(onSpaceDown)
+  onSpaceDownRef.current = onSpaceDown
+  const onSpaceUpRef = useRef(onSpaceUp)
+  onSpaceUpRef.current = onSpaceUp
 
   const request = useCallback(
     <T,>(msg: {
-      type: "screenplay:dom-query" | "screenplay:pick-start" | "screenplay:pick-stop"
+      type:
+        | "screenplay:dom-query"
+        | "screenplay:pick-start"
+        | "screenplay:pick-stop"
+        | "screenplay:set-forward-input"
       op?: DomOp
       selector?: string
       handle?: string
+      enabled?: boolean
+      x?: number
+      y?: number
     }): Promise<T> => {
       const iframe = iframeRef.current
       if (!iframe?.contentWindow) return Promise.reject(new Error("iframe not mounted"))
@@ -86,6 +129,25 @@ export function useScreenplayDom(
         })
       } else if (d.type === "screenplay:hover") {
         onHoverRef.current?.(d.rect)
+      } else if (d.type === "screenplay:wheel") {
+        onWheelRef.current?.({
+          deltaX: d.deltaX,
+          deltaY: d.deltaY,
+          ctrlKey: d.ctrlKey,
+          metaKey: d.metaKey,
+          clientX: d.clientX,
+          clientY: d.clientY,
+        })
+      } else if (d.type === "screenplay:pan-start") {
+        onPanStartRef.current?.()
+      } else if (d.type === "screenplay:pan-delta") {
+        onPanDeltaRef.current?.(d.dx, d.dy)
+      } else if (d.type === "screenplay:pan-end") {
+        onPanEndRef.current?.()
+      } else if (d.type === "screenplay:space-down") {
+        onSpaceDownRef.current?.()
+      } else if (d.type === "screenplay:space-up") {
+        onSpaceUpRef.current?.()
       }
     }
 
@@ -117,8 +179,17 @@ export function useScreenplayDom(
           op: "getOuterHTML",
           handle,
         }),
+      elementAtPoint: (x: number, y: number) =>
+        request<PickResult | null>({
+          type: "screenplay:dom-query",
+          op: "elementAtPoint",
+          x,
+          y,
+        }),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),
+      setForwardInput: (enabled: boolean) =>
+        request<null>({ type: "screenplay:set-forward-input", enabled }),
     }),
     [request],
   )

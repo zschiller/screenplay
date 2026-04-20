@@ -9,6 +9,7 @@ interface UsePostMessageOptions {
   iframeState: JsonObject
   onStateChanged: (artboardId: string, state: JsonObject) => void
   onNavigation?: (artboardId: string, path: string) => void
+  onReady?: (artboardId: string, version: string | undefined) => void
 }
 
 export function usePostMessage({
@@ -16,10 +17,13 @@ export function usePostMessage({
   iframeState,
   onStateChanged,
   onNavigation,
+  onReady,
 }: UsePostMessageOptions) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const stateRef = useRef(iframeState)
   stateRef.current = iframeState
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
 
   const sendMessage = useCallback(
     (type: "screenplay:init" | "screenplay:state-update", state: JsonObject) => {
@@ -39,6 +43,7 @@ export function usePostMessage({
 
       if (e.data.type === "screenplay:ready") {
         sendMessage("screenplay:init", stateRef.current)
+        onReadyRef.current?.(artboardId, e.data.version)
       } else if (e.data.type === "screenplay:state-changed") {
         onStateChanged(artboardId, e.data.state)
       } else if (e.data.type === "screenplay:navigation") {
