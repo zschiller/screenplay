@@ -995,6 +995,43 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     [chatSessions, addChatSession],
   )
 
+  const handleSubmitAsPlan = useCallback(
+    (text: string, agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent?.sandboxName || !agent.branch) return
+
+      const chatId = nanoid()
+      const isFirstChat = !chatSessions.some(
+        (c) => c.agentId === agentId && c.sessionId,
+      )
+
+      addChatSession(chatId, {
+        id: chatId,
+        agentId,
+        label: "Untitled",
+        createdAt: Date.now(),
+        planMode: true,
+      })
+
+      chatStore.sendMessage({
+        roomId,
+        chatId,
+        sandboxName: agent.sandboxName,
+        branch: agent.branch,
+        message: text,
+        isFirstChat,
+        planMode: true,
+        onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
+        onBranchRename: (branch) => updateAgentInStorage(agentId, { branch }),
+        onChatRename: (label) => updateChatSession(chatId, { label }),
+      })
+
+      setSelectedAgentId(agentId)
+      setSelectedChatId(chatId)
+    },
+    [agents, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
+  )
+
   const handleCloseChat = useCallback(
     (chatId: string) => {
       if (selectedChatId === chatId) {
@@ -1916,6 +1953,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
               })
             } else {
               setSelectedArtboardIds(new Set([id]))
+              setSelectedTextLayerIds(new Set())
             }
           }}
           onRenameArtboard={renameArtboard}
@@ -2066,6 +2104,9 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       onSetAutoWidth={setTextLayerAutoWidth}
                       onStartEdit={setEditingTextLayerId}
                       onStopEdit={() => setEditingTextLayerId(null)}
+                      workspaces={workspaces}
+                      agents={agents}
+                      onSubmitAsPlan={agents.length > 0 ? handleSubmitAsPlan : undefined}
                     />
                   ))}
 

@@ -77,10 +77,18 @@ export function Artboard({
     [artboard.id, artboard.x, artboard.y, selected, onMove, onMoveSelected],
   )
 
+  const selectedOnPointerDown = useRef(false)
+
   const dragHandlers = useArtboardDrag({
     zoom,
     onDrag: handleDrag,
-    onClick: (e) => onSelect(artboard.id, e.shiftKey),
+    onClick: (e) => {
+      if (selectedOnPointerDown.current) {
+        selectedOnPointerDown.current = false
+        return
+      }
+      onSelect(artboard.id, e.shiftKey)
+    },
   })
 
   const handleResize = useCallback(
@@ -253,9 +261,11 @@ export function Artboard({
             className="absolute inset-0 cursor-default touch-none"
             onPointerDownCapture={(e) => {
               if (e.button === 0 && !spaceHeld) {
+                selectedOnPointerDown.current = false
                 // If already selected, don't narrow selection on pointerdown —
                 // let the drag move all selected. Narrow on click (pointerup without drag).
                 if (!selected || e.shiftKey) {
+                  selectedOnPointerDown.current = true
                   onSelect(artboard.id, e.shiftKey)
                 }
               }
