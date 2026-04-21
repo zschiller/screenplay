@@ -30,6 +30,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import { Input } from "@workspace/ui/components/input"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
@@ -77,6 +86,9 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [renameDraft, setRenameDraft] = useState("")
+  const [renaming, setRenaming] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
@@ -324,6 +336,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     for (const [key, ws] of Object.entries(root.workspaces)) {
       result.push({
         id: key,
+        name: ws.name ?? "",
         repoFullName: ws.repoFullName,
         repoOwner: ws.repoOwner,
         repoName: ws.repoName,
@@ -1175,6 +1188,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         pick.kind === "config"
           ? {
               id,
+              name: pick.config.name,
               repoFullName: pick.config.repoFullName,
               repoOwner: pick.config.repoOwner,
               repoName: pick.config.repoName,
@@ -1188,6 +1202,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             }
           : {
               id,
+              name: "",
               repoFullName: pick.repo.fullName,
               repoOwner: pick.repo.owner,
               repoName: pick.repo.name,
@@ -1603,6 +1618,10 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
       const target = e.target as HTMLElement
+      // React forwards events from portaled children (dropdowns, dialogs, popovers)
+      // through the React tree even though the DOM target lives on document.body.
+      // Ignore those so we don't capture the pointer and swallow the child's click.
+      if (!e.currentTarget.contains(target)) return
       if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button")) return
 
       // Text tool: start a draft rectangle (click or click+drag)
@@ -2185,13 +2204,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                     <DropdownMenuContent align="start">
                       <DropdownMenuItem
                         onSelect={() => {
-                          setTimeout(async () => {
-                            const next = window.prompt("Rename project", currentProjectName)
-                            if (next === null) return
-                            const trimmed = next.trim() || "Untitled"
-                            await renameProject(roomId, trimmed)
-                            setCurrentProjectName(trimmed)
-                          }, 0)
+                          setRenameDraft(currentProjectName)
+                          setRenameDialogOpen(true)
                         }}
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -2199,16 +2213,65 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
-                        onSelect={(event) => {
-                          event.preventDefault()
-                          setDeleteDialogOpen(true)
-                        }}
+                        onSelect={() => setDeleteDialogOpen(true)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <Dialog
+                    open={renameDialogOpen}
+                    onOpenChange={(next) => {
+                      if (renaming) return
+                      setRenameDialogOpen(next)
+                    }}
+                  >
+                    <DialogContent className="sm:max-w-md">
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault()
+                          const trimmed = renameDraft.trim() || "Untitled"
+                          setRenaming(true)
+                          try {
+                            await renameProject(roomId, trimmed)
+                            setCurrentProjectName(trimmed)
+                            setRenameDialogOpen(false)
+                          } finally {
+                            setRenaming(false)
+                          }
+                        }}
+                      >
+                        <DialogHeader>
+                          <DialogTitle>Rename project</DialogTitle>
+                          <DialogDescription>
+                            Give this project a new name.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="my-4">
+                          <Input
+                            autoFocus
+                            value={renameDraft}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            placeholder="Untitled"
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setRenameDialogOpen(false)}
+                            disabled={renaming}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={renaming}>
+                            {renaming ? "Saving…" : "Save"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
                   <DeleteProjectDialog
                     open={deleteDialogOpen}
                     onOpenChange={setDeleteDialogOpen}
