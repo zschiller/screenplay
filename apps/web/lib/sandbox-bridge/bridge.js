@@ -2,6 +2,63 @@
   if (window.__screenplayBridge) return
   window.__screenplayBridge = true
 
+  // HMR-status tracking. Patches WebSocket + EventSource so we can observe
+  // the dev server's HMR channel (Next webpack/turbopack, Vite, etc.) and
+  // notify the parent on connect/close. Pattern is broad because turbopack
+  // endpoints have shifted across Next versions — we match any `/_next/`
+  // URL as well as explicit hmr/vite markers.
+  const HMR_URL_RE = /(_next|hmr|vite|__webpack|turbopack)/i
+  const RECONNECTING_GRACE_MS = 5000
+  let hmrStatus = "unknown"
+  let disconnectTimer = null
+  function postHmrStatus(next) {
+    if (next === hmrStatus) return
+    hmrStatus = next
+    parent.postMessage({ type: "screenplay:hmr-status", status: next }, "*")
+  }
+  function attachOpenClose(conn) {
+    conn.addEventListener("open", () => {
+      if (disconnectTimer) {
+        clearTimeout(disconnectTimer)
+        disconnectTimer = null
+      }
+      postHmrStatus("connected")
+    })
+    const onGone = () => {
+      postHmrStatus("reconnecting")
+      if (disconnectTimer) clearTimeout(disconnectTimer)
+      disconnectTimer = setTimeout(() => postHmrStatus("disconnected"), RECONNECTING_GRACE_MS)
+    }
+    conn.addEventListener("close", onGone)
+    conn.addEventListener("error", onGone)
+  }
+  const NativeWebSocket = window.WebSocket
+  if (NativeWebSocket && !window.__screenplayWsPatched) {
+    window.__screenplayWsPatched = true
+    class PatchedWebSocket extends NativeWebSocket {
+      constructor(url, protocols) {
+        super(url, protocols)
+        try {
+          if (HMR_URL_RE.test(String(url))) attachOpenClose(this)
+        } catch {}
+      }
+    }
+    window.WebSocket = PatchedWebSocket
+  }
+  const NativeEventSource = window.EventSource
+  if (NativeEventSource && !window.__screenplayEsPatched) {
+    window.__screenplayEsPatched = true
+    class PatchedEventSource extends NativeEventSource {
+      constructor(url, init) {
+        super(url, init)
+        try {
+          if (HMR_URL_RE.test(String(url))) attachOpenClose(this)
+        } catch {}
+      }
+    }
+    window.EventSource = PatchedEventSource
+  }
+
   const HANDLES_MAX = 1024
   const handleToEl = new Map()
   const elToHandle = new WeakMap()

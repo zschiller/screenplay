@@ -1,14 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { MousePointer, Move } from "lucide-react"
+import { MousePointer, Move, RotateCw } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
-import type { DomRect, JsonObject } from "@/lib/postmessage-protocol"
+import type { DomRect, HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
 const MAX_PROBES = 60 // ~2 minutes
@@ -135,6 +136,19 @@ export function Artboard({
     [onRouteChange],
   )
 
+  const reloadIframe = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+    // Cross-origin iframe: cycle src through about:blank to force a full
+    // reload that re-fetches bridge.js and the dev server page.
+    const src = iframe.src
+    iframe.src = "about:blank"
+    requestAnimationFrame(() => {
+      const i = iframeRef.current
+      if (i) i.src = src
+    })
+  }, [])
+
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
       const expected = await fetchExpectedBridgeVersion()
@@ -146,19 +160,16 @@ export function Artboard({
         reinstalledSandboxes.delete(artboard.sandboxId)
         return
       }
-      const iframe = iframeRef.current
-      if (!iframe) return
-      // Cross-origin iframe: cycle src to force a reload that re-fetches
-      // bridge.js, which the proxy now reads fresh from disk.
-      const src = iframe.src
-      iframe.src = "about:blank"
-      requestAnimationFrame(() => {
-        const i = iframeRef.current
-        if (i) i.src = src
-      })
+      reloadIframe()
     },
-    [artboard.sandboxId],
+    [artboard.sandboxId, reloadIframe],
   )
+
+  const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
+
+  const handleHmrStatus = useCallback((_id: string, status: HmrStatus) => {
+    setHmrStatus(status)
+  }, [])
 
   const { iframeRef } = usePostMessage({
     artboardId: artboard.id,
@@ -166,6 +177,7 @@ export function Artboard({
     onStateChanged,
     onNavigation: handleNavigation,
     onReady: handleReady,
+    onHmrStatus: handleHmrStatus,
   })
 
   const dom = useScreenplayDom(iframeRef)
@@ -255,23 +267,34 @@ export function Artboard({
         zoom={zoom}
         artboardWidth={artboard.width}
         dragHandlers={focused ? undefined : dragHandlers}
+        hmrStatus={hmrStatus}
       />
-      <button
-        onClick={() => onFocus(focused ? null : artboard.id)}
-        className={`absolute right-0 bottom-full z-10 flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
+      <div
+        className="absolute right-0 bottom-full z-10 flex items-center gap-1"
         style={{
           transform: `scale(${1 / zoom})`,
           transformOrigin: "bottom right",
           marginBottom: 4 / zoom,
         }}
-        title={focused ? "Back to canvas mode" : "Interact with app"}
       >
-        {focused ? (
-          <Move className="h-3 w-3" />
-        ) : (
-          <MousePointer className="h-3 w-3" />
+        {hmrStatus === "disconnected" && (
+          <Button size="xs" onClick={reloadIframe}>
+            <RotateCw />
+            Reload
+          </Button>
         )}
-      </button>
+        <button
+          onClick={() => onFocus(focused ? null : artboard.id)}
+          className={`flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
+          title={focused ? "Back to canvas mode" : "Interact with app"}
+        >
+          {focused ? (
+            <Move className="h-3 w-3" />
+          ) : (
+            <MousePointer className="h-3 w-3" />
+          )}
+        </button>
+      </div>
       <div
         className="relative h-full w-full overflow-hidden"
       >
