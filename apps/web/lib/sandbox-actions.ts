@@ -61,13 +61,19 @@ async function runLogged(
   const label = options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
-  const script =
+  // Wrap the command in `script` so it runs under a pseudo-TTY. Without
+  // this, tools like pnpm/npm detect stdout isn't a terminal and either
+  // suppress progress output entirely or buffer it in 8KB chunks — so the
+  // Logs panel appears frozen during install. The pty also makes tools
+  // emit ANSI colors without needing tool-specific flags.
+  const inner = `${FORCE_COLOR_ENV} ${quotedCmd}`
+  const sh =
     `mkdir -p /tmp/screenplay; ` +
     `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `${FORCE_COLOR_ENV} ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
+    `script -q -e -f -c ${shellQuote(inner)} /dev/null >> ${SANDBOX_LOG_PATH} 2>&1`
   return sandbox.runCommand({
     cmd: "sh",
-    args: ["-c", script],
+    args: ["-c", sh],
     ...(options.env ? { env: options.env } : {}),
   })
 }
@@ -189,8 +195,7 @@ async function _launchDevAndProxy(
       "-c",
       `mkdir -p /tmp/screenplay; ` +
         `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-        `export ${FORCE_COLOR_ENV}; ` +
-        `exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+        `exec script -q -e -f -c ${shellQuote(`${FORCE_COLOR_ENV} ${dev}`)} /dev/null >> ${SANDBOX_LOG_PATH} 2>&1`,
     ],
     detached: true,
     ...(env ? { env } : {}),
