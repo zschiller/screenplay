@@ -152,13 +152,14 @@ export function ChatPanel({
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Auto-open the logs tab when the sandbox enters a starting state so users
-  // can watch install/boot output. Reset on transition out of starting so the
-  // next restart opens logs again.
-  const prevStatusRef = useRef(agent.status)
+  // Auto-open the logs tab when the sandbox enters (or is already in) a
+  // starting state so users can watch install/boot output.
+  const prevStatusRef = useRef<AgentData["status"] | null>(null)
   useEffect(() => {
     const prev = prevStatusRef.current
-    if (prev !== "starting" && prev !== "creating" && (agent.status === "starting" || agent.status === "creating")) {
+    const isStarting = agent.status === "starting" || agent.status === "creating"
+    const wasStarting = prev === "starting" || prev === "creating"
+    if (isStarting && !wasStarting) {
       setShowLogs(true)
     }
     prevStatusRef.current = agent.status
