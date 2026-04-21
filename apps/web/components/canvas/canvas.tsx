@@ -1927,6 +1927,19 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Expand the chat panel when the selected agent is booting so the user
+  // can see the auto-opened logs tab.
+  const selectedStatus = selectedAgent?.status
+  useEffect(() => {
+    if (selectedStatus !== "creating" && selectedStatus !== "starting") return
+    const panel = chatPanelRef.current
+    if (panel?.isCollapsed()) {
+      panel.expand()
+      const { inPixels } = panel.getSize()
+      if (inPixels < 480) panel.resize(480)
+    }
+  }, [selectedAgentId, selectedStatus])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 

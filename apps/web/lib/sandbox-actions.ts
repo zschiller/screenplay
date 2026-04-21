@@ -38,15 +38,14 @@ const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
 //   progress (vs. its default silent/summary mode when not on a TTY)
-// - NPM_CONFIG_LOGLEVEL=info + NPM_CONFIG_PROGRESS=false: npm prints each
-//   step on its own line instead of using animated progress bars
+// - NPM_CONFIG_PROGRESS=false: disables the animated progress bar npm
+//   tries to use (which uses carriage returns that look ugly in a log)
 // - FORCE_COLOR / CLICOLOR_FORCE / TERM: keep ANSI colors enabled
 const LOG_ENV = [
   "FORCE_COLOR=1",
   "CLICOLOR_FORCE=1",
   "TERM=xterm-256color",
   "PNPM_CONFIG_REPORTER=append-only",
-  "NPM_CONFIG_LOGLEVEL=info",
   "NPM_CONFIG_PROGRESS=false",
 ].join(" ")
 
