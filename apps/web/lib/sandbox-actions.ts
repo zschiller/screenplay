@@ -35,11 +35,11 @@ import { parseEnvVars } from "./env-utils"
 
 const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 
-// Force ANSI color output from tools that would otherwise strip it because
-// stdout is redirected to a file. FORCE_COLOR is respected by Node/npm/chalk,
-// CLICOLOR_FORCE by git and many Unix tools, and TERM helps the rest.
-const FORCE_COLOR_ENV =
-  "FORCE_COLOR=1 CLICOLOR_FORCE=1 TERM=xterm-256color"
+// CI=1 tells pnpm/npm/next to use log-friendly output (no spinners or cursor
+// tricks) while still printing progress. FORCE_COLOR/CLICOLOR_FORCE keep ANSI
+// colors on since stdout isn't a TTY. TERM helps tools that check it.
+const LOG_ENV =
+  "CI=1 FORCE_COLOR=1 CLICOLOR_FORCE=1 TERM=xterm-256color"
 
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
@@ -61,16 +61,13 @@ async function runLogged(
   const label = options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
-  // Wrap the command in `script` so it runs under a pseudo-TTY. Without
-  // this, tools like pnpm/npm detect stdout isn't a terminal and either
-  // suppress progress output entirely or buffer it in 8KB chunks — so the
-  // Logs panel appears frozen during install. The pty also makes tools
-  // emit ANSI colors without needing tool-specific flags.
-  const inner = `${FORCE_COLOR_ENV} ${quotedCmd}`
+  // stdbuf forces line buffering so lines reach the log file (and tail -F)
+  // as soon as they're printed, rather than sitting in the process's 8KB
+  // stdio buffer until it fills.
   const sh =
     `mkdir -p /tmp/screenplay; ` +
     `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `script -q -e -f -c ${shellQuote(inner)} /dev/null >> ${SANDBOX_LOG_PATH} 2>&1`
+    `${LOG_ENV} stdbuf -oL -eL ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
   return sandbox.runCommand({
     cmd: "sh",
     args: ["-c", sh],
@@ -195,7 +192,8 @@ async function _launchDevAndProxy(
       "-c",
       `mkdir -p /tmp/screenplay; ` +
         `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-        `exec script -q -e -f -c ${shellQuote(`${FORCE_COLOR_ENV} ${dev}`)} /dev/null >> ${SANDBOX_LOG_PATH} 2>&1`,
+        `export ${LOG_ENV}; ` +
+        `exec stdbuf -oL -eL ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
     ],
     detached: true,
     ...(env ? { env } : {}),
