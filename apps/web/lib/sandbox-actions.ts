@@ -33,6 +33,39 @@ export async function getGitHubToken(): Promise<string | null> {
 
 import { parseEnvVars } from "./env-utils"
 
+const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * Run a command in the sandbox with stdout+stderr tee'd to the shared
+ * sandbox log file so the Logs panel can surface the full startup output
+ * (npm install, git pull, dev server, etc.). The command's exit code is
+ * preserved. Callers that need stdout content should still use
+ * `sandbox.runCommand` directly — this helper discards buffered output.
+ */
+async function runLogged(
+  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  cmd: string,
+  args: string[],
+  options: { env?: Record<string, string>; label?: string } = {},
+) {
+  const label = options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
+  const header = shellQuote(`\n$ ${label}\n`)
+  const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
+  const script =
+    `mkdir -p /tmp/screenplay; ` +
+    `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+    `${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
+  return sandbox.runCommand({
+    cmd: "sh",
+    args: ["-c", script],
+    ...(options.env ? { env: options.env } : {}),
+  })
+}
+
 /**
  * Clone a repo into a new sandbox. Returns the sandbox name on success.
  */
@@ -90,7 +123,7 @@ export async function installDependencies(
     const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
-    await sandbox.runCommand(setupCmd, setupArgs)
+    await runLogged(sandbox, setupCmd, setupArgs)
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
@@ -143,10 +176,15 @@ async function _launchDevAndProxy(
   }
 
   const dev = devScript?.trim() || "npm run dev"
-  const [devCmd, ...devArgs] = dev.split(/\s+/)
+  const devHeader = shellQuote(`\n$ ${dev}\n`)
   await sandbox.runCommand({
-    cmd: devCmd,
-    args: devArgs,
+    cmd: "sh",
+    args: [
+      "-c",
+      `mkdir -p /tmp/screenplay; ` +
+        `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+        `exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+    ],
     detached: true,
     ...(env ? { env } : {}),
   })
@@ -289,12 +327,12 @@ export async function restartSandbox(
 
     // Only pull if the sandbox already existed (freshly cloned sandboxes are up to date)
     if (!recreated) {
-      await sandbox.runCommand("git", ["pull", "origin", branch])
+      await runLogged(sandbox, "git", ["pull", "origin", branch])
     }
 
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
-    await sandbox.runCommand(setupCmd, setupArgs)
+    await runLogged(sandbox, setupCmd, setupArgs)
 
     return await _launchDevAndProxy(sandbox, port, devScript, safeEnv)
   } catch (e) {
@@ -309,6 +347,30 @@ export async function restartSandbox(
 
 export async function removeSandboxEnv(sandboxName: string): Promise<void> {
   await deleteEnvVars(sandboxName)
+}
+
+/**
+ * Read the dev server log file from the sandbox. Returns the last N lines so
+ * the response stays bounded even for long-running servers.
+ */
+export async function getSandboxLogs(
+  sandboxName: string,
+  maxLines: number = 1000,
+): Promise<{ success: true; content: string } | { success: false; error: string }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    if (sandbox.status !== "running") {
+      return { success: true, content: "" }
+    }
+    const result = await sandbox.runCommand("sh", [
+      "-c",
+      `tail -n ${maxLines} ${SANDBOX_LOG_PATH} 2>/dev/null || true`,
+    ])
+    const content = await result.stdout()
+    return { success: true, content }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /**

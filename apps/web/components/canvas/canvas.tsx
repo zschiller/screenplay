@@ -1047,20 +1047,27 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
   const handleCloseChat = useCallback(
     (chatId: string) => {
-      if (selectedChatId === chatId) {
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) {
-          const siblings = chatSessions
+      const chat = chatSessions.find((c) => c.id === chatId)
+      const siblings = chat
+        ? chatSessions
             .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
-          setSelectedChatId(siblings[0]?.id ?? null)
-        } else {
-          setSelectedChatId(null)
-        }
-      }
+        : []
       updateChatSession(chatId, { closedAt: Date.now() })
+      if (chat && siblings.length === 0) {
+        const newId = nanoid()
+        addChatSession(newId, {
+          id: newId,
+          agentId: chat.agentId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+        setSelectedChatId(newId)
+      } else if (selectedChatId === chatId) {
+        setSelectedChatId(siblings[0]?.id ?? null)
+      }
     },
-    [selectedChatId, chatSessions, updateChatSession],
+    [selectedChatId, chatSessions, updateChatSession, addChatSession],
   )
 
   const handleReopenChat = useCallback(
