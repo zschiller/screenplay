@@ -11,6 +11,8 @@ export type JsonObject = { [key: string]: JsonValue }
 export type DomRect = { x: number; y: number; width: number; height: number }
 export type DomOp = "querySelector" | "getRect" | "getOuterHTML" | "elementAtPoint"
 
+export type HmrStatus = "connected" | "reconnecting" | "disconnected"
+
 // Canvas -> Iframe
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
@@ -35,6 +37,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:space-down" }
   | { type: "screenplay:space-up" }
   | { type: "screenplay:navigation"; path: string }
+  | { type: "screenplay:hmr-status"; status: HmrStatus }
 
 export function isScreenplayMessage(
   data: unknown,
