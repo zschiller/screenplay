@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check } from "lucide-react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight } from "lucide-react"
+import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Button } from "@workspace/ui/components/button"
@@ -31,6 +32,25 @@ import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ChatSessionData } from "@/lib/liveblocks.types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import { chatStore } from "@/lib/chat-store"
+
+function useLatestPr(chatId: string): { url: string; number: string } | null {
+  const messages = useSyncExternalStore(
+    (cb) => chatStore.subscribe(chatId, cb),
+    () => chatStore.getSnapshot(chatId).messages,
+    () => [],
+  )
+  return useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role === "tool_result" && m.name === "create_pr") {
+        const url = m.output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
+        const num = m.output.match(/#(\d+)/)?.[1]
+        if (url && num) return { url, number: num }
+      }
+    }
+    return null
+  }, [messages])
+}
 
 function useChatStatus(chatId: string) {
   const isStreaming = useSyncExternalStore(
@@ -125,6 +145,12 @@ export function ChatPanel({
   }, [selectedChatId, openChats, onSelectChat])
 
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
+  const latestPr = useLatestPr(activeTab)
+
+  const handleCreatePr = () => {
+    if (!activeTab) return
+    inputStore.send(activeTab, "Create a pull request for the changes on this branch.")
+  }
 
   return (
     <Tabs
@@ -163,6 +189,30 @@ export function ChatPanel({
               <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
               <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
             </span>
+          )}
+          {latestPr ? (
+            <Button size="xs" variant="outline" asChild>
+              <a
+                href={latestPr.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group"
+              >
+                <GitPullRequest />
+                #{latestPr.number}
+                <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
+              </a>
+            </Button>
+          ) : (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={handleCreatePr}
+              disabled={!activeTab}
+            >
+              <GitPullRequest />
+              Create PR
+            </Button>
           )}
         </div>
       </div>

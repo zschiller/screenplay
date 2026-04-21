@@ -10,37 +10,75 @@ import type {
   EditFileInput,
   RunCommandInput,
   ListFilesInput,
+  CreatePrInput,
 } from "./types"
+import { redactSensitiveInfo } from "./redact"
+import { createGitHubPr } from "@/lib/github-pr"
+
+export interface ToolContext {
+  sandboxName: string
+  roomId: string
+  userId: string
+}
 
 export async function executeCustomTool(
-  sandboxName: string,
+  ctx: ToolContext,
   toolName: CustomToolName,
   toolInput: Record<string, unknown>,
 ): Promise<string> {
-  const sandbox = await Sandbox.get({ name: sandboxName })
-
   let result: string
   switch (toolName) {
     case "read_file":
-      result = await readFile(sandbox, toolInput as unknown as ReadFileInput)
-      break
     case "write_file":
-      result = await writeFile(sandbox, toolInput as unknown as WriteFileInput)
-      break
     case "edit_file":
-      result = await editFile(sandbox, toolInput as unknown as EditFileInput)
-      break
     case "run_command":
-      result = await runCommand(sandbox, toolInput as unknown as RunCommandInput)
+    case "list_files": {
+      const sandbox = await Sandbox.get({ name: ctx.sandboxName })
+      switch (toolName) {
+        case "read_file":
+          result = await readFile(sandbox, toolInput as unknown as ReadFileInput)
+          break
+        case "write_file":
+          result = await writeFile(sandbox, toolInput as unknown as WriteFileInput)
+          break
+        case "edit_file":
+          result = await editFile(sandbox, toolInput as unknown as EditFileInput)
+          break
+        case "run_command":
+          result = await runCommand(sandbox, toolInput as unknown as RunCommandInput)
+          break
+        case "list_files":
+          result = await listFiles(sandbox, toolInput as unknown as ListFilesInput)
+          break
+      }
       break
-    case "list_files":
-      result = await listFiles(sandbox, toolInput as unknown as ListFilesInput)
+    }
+    case "create_pr":
+      result = await createPr(ctx, toolInput as unknown as CreatePrInput)
       break
     default:
       result = `Unknown tool: ${toolName}`
   }
   // Anthropic API requires tool result text to be at least 1 character
   return result || "(empty)"
+}
+
+async function createPr(
+  ctx: ToolContext,
+  input: CreatePrInput,
+): Promise<string> {
+  try {
+    const { url, number } = await createGitHubPr({
+      userId: ctx.userId,
+      roomId: ctx.roomId,
+      sandboxName: ctx.sandboxName,
+      title: input.title,
+      body: input.body,
+    })
+    return `Created PR #${number}: ${url}`
+  } catch (e) {
+    return `Failed to create PR: ${e instanceof Error ? e.message : String(e)}`
+  }
 }
 
 async function readFile(
@@ -136,8 +174,8 @@ async function runCommand(
 
   const result = await sandbox.runCommand(cmd, args)
   const parts: string[] = []
-  let stdout = await result.stdout()
-  let stderr = await result.stderr()
+  let stdout = redactSensitiveInfo(await result.stdout())
+  let stderr = redactSensitiveInfo(await result.stderr())
   if (stdout) {
     if (stdout.length > MAX_OUTPUT_LENGTH) {
       stdout = stdout.slice(0, MAX_OUTPUT_LENGTH) + `\n...(truncated ${stdout.length - MAX_OUTPUT_LENGTH} chars)`

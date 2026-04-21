@@ -4,7 +4,7 @@ import { Redis } from "@upstash/redis"
 import { nanoid } from "nanoid"
 import { LiveObject } from "@liveblocks/client"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
-import { executeCustomTool } from "@/lib/agent/tool-executor"
+import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import type { PlanData } from "@/lib/liveblocks.types"
 import { liveblocks } from "@/lib/liveblocks-server"
@@ -163,7 +163,7 @@ async function findPendingPlan(roomId: string, sessionId: string): Promise<PlanD
 /**
  * Safety net: resolve stuck tool calls if the handler died mid-execution.
  */
-async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
+async function resolveStuckToolCalls(sessionId: string, ctx: ToolContext) {
   const lockKey = `session-recover:${sessionId}`
   const locked = await redis.set(lockKey, "1", { nx: true, ex: 120 })
   if (locked !== "OK") return
@@ -194,7 +194,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
       if (tu?.type === "agent.custom_tool_use") {
         try {
           output = await executeCustomTool(
-            sandboxName,
+            ctx,
             tu.name as CustomToolName,
             tu.input as Record<string, unknown>,
           )
@@ -221,7 +221,7 @@ async function resolveStuckToolCalls(sessionId: string, sandboxName: string) {
 async function ensureSessionReady(
   client: ReturnType<typeof getClient>,
   sessionId: string,
-  sandboxName: string,
+  ctx: ToolContext,
 ) {
   // Retry loop: resolve pending tools until session is ready for a user message
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -257,7 +257,7 @@ async function ensureSessionReady(
           let output = "Tool execution was interrupted."
           try {
             output = await executeCustomTool(
-              sandboxName,
+              ctx,
               tu.name as CustomToolName,
               tu.input as Record<string, unknown>,
             )
@@ -331,6 +331,8 @@ export async function POST(req: Request) {
     return new Response("Missing required fields", { status: 400 })
   }
 
+  const toolCtx: ToolContext = { sandboxName, roomId, userId }
+
   const client = getClient()
 
   // Resolve agent + environment up front. Model only affects new sessions —
@@ -380,7 +382,7 @@ export async function POST(req: Request) {
         let output: string
         try {
           output = await executeCustomTool(
-            sandboxName,
+            toolCtx,
             pending.name as CustomToolName,
             pending.input,
           )
@@ -471,7 +473,7 @@ export async function POST(req: Request) {
                     if (!toolEvent) continue
                     let output: string
                     try {
-                      output = await executeCustomTool(sandboxName, toolEvent.name as CustomToolName, toolEvent.input)
+                      output = await executeCustomTool(toolCtx, toolEvent.name as CustomToolName, toolEvent.input)
                     } catch (e) {
                       output = `Error: ${e instanceof Error ? e.message : String(e)}`
                     }
@@ -514,7 +516,7 @@ export async function POST(req: Request) {
       return Response.json({ sessionId })
     }
 
-    await ensureSessionReady(client, sessionId, sandboxName)
+    await ensureSessionReady(client, sessionId, toolCtx)
   }
 
   // Broadcast session_id to all clients immediately
@@ -671,7 +673,7 @@ export async function POST(req: Request) {
                 let output: string
                 try {
                   output = await executeCustomTool(
-                    sandboxName,
+                    toolCtx,
                     toolEvent.name as CustomToolName,
                     toolEvent.input,
                   )
@@ -729,7 +731,7 @@ export async function POST(req: Request) {
   })
 
   // Safety net for stuck tool calls
-  after(() => resolveStuckToolCalls(responseSessionId, sandboxName))
+  after(() => resolveStuckToolCalls(responseSessionId, toolCtx))
 
   return Response.json({ sessionId: responseSessionId })
 }

@@ -1,7 +1,7 @@
 import { after } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { getClient } from "@/lib/agent/config"
-import { executeCustomTool } from "@/lib/agent/tool-executor"
+import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import { liveblocks } from "@/lib/liveblocks-server"
 import type { PlanData } from "@/lib/liveblocks.types"
@@ -91,6 +91,11 @@ export async function POST(req: Request) {
 
   const client = getClient()
   const { sessionId, toolEventId } = planData
+  const toolCtx: ToolContext = {
+    sandboxName: planData.agentId,
+    roomId,
+    userId,
+  }
 
   // Broadcast approval/rejection to all clients
   if (approved) {
@@ -126,7 +131,7 @@ export async function POST(req: Request) {
         let output: string
         try {
           output = await executeCustomTool(
-            planData.agentId,
+            toolCtx,
             tu.name as CustomToolName,
             tu.input as Record<string, unknown>,
           )
@@ -246,7 +251,7 @@ export async function POST(req: Request) {
                 let output: string
                 try {
                   output = await executeCustomTool(
-                    planData!.agentId,
+                    toolCtx,
                     toolEvent.name as import("@/lib/agent/types").CustomToolName,
                     toolEvent.input,
                   )

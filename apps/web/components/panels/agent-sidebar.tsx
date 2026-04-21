@@ -226,7 +226,12 @@ export function AgentSidebar({
                                 <ChevronRight className="hidden group-hover/workspace-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                               </span>
                             </CollapsibleTrigger>
-                            <span className="truncate font-medium text-sidebar-foreground/70">{workspace.repoFullName}</span>
+                            <span className="truncate font-medium text-sidebar-foreground/70">
+                              {workspace.repoFullName}
+                              {workspace.name ? (
+                                <span className="text-sidebar-foreground/50"> · {workspace.name}</span>
+                              ) : null}
+                            </span>
                           </SidebarMenuButton>
 
                           <Popover
@@ -521,6 +526,7 @@ function WorkspaceSettings({
   onRemove: () => void
   onClose: () => void
 }) {
+  const [name, setName] = useState(workspace.name ?? "")
   const [setupScript, setSetupScript] = useState(workspace.setupScript)
   const [devScript, setDevScript] = useState(workspace.devScript)
   const [devServerPort, setDevServerPort] = useState(
@@ -535,6 +541,7 @@ function WorkspaceSettings({
   const handleSave = useCallback(() => {
     if (!portIsValid) return
     onUpdate(workspace.id, {
+      name: name.trim(),
       setupScript,
       devScript,
       devServerPort: parsedPort,
@@ -543,6 +550,7 @@ function WorkspaceSettings({
     onClose()
   }, [
     workspace.id,
+    name,
     setupScript,
     devScript,
     parsedPort,
@@ -553,6 +561,7 @@ function WorkspaceSettings({
   ])
 
   const hasChanges =
+    name.trim() !== (workspace.name ?? "") ||
     setupScript !== workspace.setupScript ||
     devScript !== workspace.devScript ||
     parsedPort !== (workspace.devServerPort ?? 3000) ||
@@ -563,6 +572,19 @@ function WorkspaceSettings({
       <span className="text-[10px] font-medium text-sidebar-foreground/70 uppercase tracking-wide">
         Settings
       </span>
+
+      <div>
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+          Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={workspace.repoFullName}
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
+        />
+      </div>
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
