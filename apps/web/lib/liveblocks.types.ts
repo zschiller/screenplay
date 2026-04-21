@@ -19,7 +19,7 @@ export type SandboxStatus =
 
 export type WorkspaceData = {
   id: string
-  alias?: string
+  name: string
   repoFullName: string
   repoOwner: string
   repoName: string

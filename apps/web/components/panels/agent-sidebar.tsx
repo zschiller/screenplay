@@ -227,7 +227,10 @@ export function AgentSidebar({
                               </span>
                             </CollapsibleTrigger>
                             <span className="truncate font-medium text-sidebar-foreground/70">
-                              {workspace.alias || workspace.repoFullName}
+                              {workspace.repoFullName}
+                              {workspace.name ? (
+                                <span className="text-sidebar-foreground/50"> · {workspace.name}</span>
+                              ) : null}
                             </span>
                           </SidebarMenuButton>
 
@@ -523,7 +526,7 @@ function WorkspaceSettings({
   onRemove: () => void
   onClose: () => void
 }) {
-  const [alias, setAlias] = useState(workspace.alias ?? "")
+  const [name, setName] = useState(workspace.name ?? "")
   const [setupScript, setSetupScript] = useState(workspace.setupScript)
   const [devScript, setDevScript] = useState(workspace.devScript)
   const [devServerPort, setDevServerPort] = useState(
@@ -537,9 +540,8 @@ function WorkspaceSettings({
 
   const handleSave = useCallback(() => {
     if (!portIsValid) return
-    const trimmedAlias = alias.trim()
     onUpdate(workspace.id, {
-      alias: trimmedAlias || undefined,
+      name: name.trim(),
       setupScript,
       devScript,
       devServerPort: parsedPort,
@@ -548,7 +550,7 @@ function WorkspaceSettings({
     onClose()
   }, [
     workspace.id,
-    alias,
+    name,
     setupScript,
     devScript,
     parsedPort,
@@ -559,7 +561,7 @@ function WorkspaceSettings({
   ])
 
   const hasChanges =
-    (alias.trim() || undefined) !== (workspace.alias || undefined) ||
+    name.trim() !== (workspace.name ?? "") ||
     setupScript !== workspace.setupScript ||
     devScript !== workspace.devScript ||
     parsedPort !== (workspace.devServerPort ?? 3000) ||
@@ -573,12 +575,12 @@ function WorkspaceSettings({
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Alias
+          Name
         </label>
         <input
           type="text"
-          value={alias}
-          onChange={(e) => setAlias(e.target.value)}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           placeholder={workspace.repoFullName}
           className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
         />

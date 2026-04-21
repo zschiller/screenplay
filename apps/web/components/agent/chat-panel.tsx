@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ExternalLink } from "lucide-react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
@@ -200,7 +200,7 @@ export function ChatPanel({
               >
                 <GitPullRequest />
                 #{latestPr.number}
-                <ExternalLink className="opacity-60 group-hover:opacity-100" />
+                <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
               </a>
             </Button>
           ) : (

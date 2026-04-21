@@ -336,6 +336,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     for (const [key, ws] of Object.entries(root.workspaces)) {
       result.push({
         id: key,
+        name: ws.name ?? "",
         repoFullName: ws.repoFullName,
         repoOwner: ws.repoOwner,
         repoName: ws.repoName,
@@ -1187,6 +1188,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         pick.kind === "config"
           ? {
               id,
+              name: pick.config.name,
               repoFullName: pick.config.repoFullName,
               repoOwner: pick.config.repoOwner,
               repoName: pick.config.repoName,
@@ -1200,6 +1202,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             }
           : {
               id,
+              name: "",
               repoFullName: pick.repo.fullName,
               repoOwner: pick.repo.owner,
               repoName: pick.repo.name,
@@ -1615,6 +1618,10 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
       const target = e.target as HTMLElement
+      // React forwards events from portaled children (dropdowns, dialogs, popovers)
+      // through the React tree even though the DOM target lives on document.body.
+      // Ignore those so we don't capture the pointer and swallow the child's click.
+      if (!e.currentTarget.contains(target)) return
       if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button")) return
 
       // Text tool: start a draft rectangle (click or click+drag)

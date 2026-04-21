@@ -67,6 +67,7 @@ async function getWorkspaceFromStorage(
     if (!ws) return
     workspace = {
       id: workspaceId,
+      name: ws.get("name") ?? "",
       repoFullName: ws.get("repoFullName"),
       repoOwner: ws.get("repoOwner"),
       repoName: ws.get("repoName"),
