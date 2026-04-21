@@ -35,6 +35,12 @@ import { parseEnvVars } from "./env-utils"
 
 const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 
+// Force ANSI color output from tools that would otherwise strip it because
+// stdout is redirected to a file. FORCE_COLOR is respected by Node/npm/chalk,
+// CLICOLOR_FORCE by git and many Unix tools, and TERM helps the rest.
+const FORCE_COLOR_ENV =
+  "FORCE_COLOR=1 CLICOLOR_FORCE=1 TERM=xterm-256color"
+
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
 }
@@ -58,7 +64,7 @@ async function runLogged(
   const script =
     `mkdir -p /tmp/screenplay; ` +
     `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
+    `${FORCE_COLOR_ENV} ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
   return sandbox.runCommand({
     cmd: "sh",
     args: ["-c", script],
@@ -183,6 +189,7 @@ async function _launchDevAndProxy(
       "-c",
       `mkdir -p /tmp/screenplay; ` +
         `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+        `export ${FORCE_COLOR_ENV}; ` +
         `exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
     ],
     detached: true,
