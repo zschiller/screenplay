@@ -41,6 +41,9 @@ IMPORTANT run_command rules:
 - Do NOT chain commands with && or || — each command must be a separate run_command call.
 - For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
+Opening a pull request:
+When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
+
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
 
 Keep your responses concise. Show the user what you changed and why.`
@@ -151,6 +154,27 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   },
   {
     type: "custom",
+    name: "create_pr",
+    description:
+      "Open a GitHub pull request from this agent's branch into the workspace's default branch. Call this when the user asks to create, open, or submit a PR. You should always provide a title generated from the recent changes. Optionally provide a markdown body summarizing what changed. Returns the PR URL and number.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description:
+            "Concise PR title summarizing the change. Defaults to the branch name if omitted.",
+        },
+        body: {
+          type: "string",
+          description:
+            "Optional markdown PR body summarizing the changes. Keep it short.",
+        },
+      },
+    },
+  },
+  {
+    type: "custom",
     name: "list_files",
     description:
       "List files in the project directory. Returns file paths, useful for understanding project structure.",
@@ -172,7 +196,7 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   },
 ]
 
-const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v2"
+const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v3"
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"

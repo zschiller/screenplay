@@ -5,6 +5,7 @@ export type CustomToolName =
   | "run_command"
   | "list_files"
   | "submit_plan"
+  | "create_pr"
 
 export type ReadFileInput = { path: string }
 export type WriteFileInput = { path: string; content: string }
@@ -15,6 +16,7 @@ export type EditFileInput = {
 }
 export type RunCommandInput = { command: string; args?: string[] }
 export type ListFilesInput = { path?: string; pattern?: string }
+export type CreatePrInput = { title?: string; body?: string }
 
 export type CustomToolInput =
   | ReadFileInput
@@ -22,6 +24,7 @@ export type CustomToolInput =
   | EditFileInput
   | RunCommandInput
   | ListFilesInput
+  | CreatePrInput
 
 export type SubmitPlanInput = { plan: string }
 

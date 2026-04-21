@@ -12,6 +12,9 @@ import {
   CheckCircle2,
   XCircle,
   ClipboardList,
+  GitPullRequest,
+  ExternalLink,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -23,6 +26,7 @@ const toolIcons: Record<string, typeof FileText> = {
   edit_file: Pencil,
   run_command: Terminal,
   list_files: FolderOpen,
+  create_pr: GitPullRequest,
 }
 
 const toolLabels: Record<string, string> = {
@@ -31,10 +35,83 @@ const toolLabels: Record<string, string> = {
   edit_file: "Edit",
   run_command: "Run command",
   list_files: "List files",
+  create_pr: "Create PR",
 }
 
 function formatToolName(name: string): string {
   return toolLabels[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function CreatePrIndicator({
+  message,
+  result,
+}: {
+  message: AgentMessage & { role: "tool_use" }
+  result?: AgentMessage & { role: "tool_result" }
+}) {
+  const input = message.input as { title?: string; body?: string }
+  const title = input.title?.trim() || "Pull request"
+
+  if (!result) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-foreground truncate">{title}</div>
+          <div className="text-[11px] text-muted-foreground">Opening pull request…</div>
+        </div>
+      </div>
+    )
+  }
+
+  const output = result.output
+  const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/)
+  const numberMatch = output.match(/#(\d+)/)
+  const failed = /^Failed to create PR/i.test(output)
+
+  if (failed) {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium">Couldn&apos;t open pull request</div>
+          <div className="mt-0.5 text-[11px] opacity-90 break-words">
+            {output.replace(/^Failed to create PR:\s*/i, "")}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (urlMatch) {
+    const url = urlMatch[0]
+    const number = numberMatch?.[1]
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs transition-colors hover:border-foreground/20 hover:bg-muted"
+      >
+        <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-foreground truncate">{title}</div>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            {number && <span>#{number}</span>}
+            {number && <span>·</span>}
+            <span className="truncate">github.com</span>
+          </div>
+        </div>
+        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      </a>
+    )
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
+      {output}
+    </div>
+  )
 }
 
 function ToolIndicator({
@@ -45,6 +122,9 @@ function ToolIndicator({
   result?: AgentMessage & { role: "tool_result" }
 }) {
   const [expanded, setExpanded] = useState(false)
+  if (message.name === "create_pr") {
+    return <CreatePrIndicator message={message} result={result} />
+  }
   const Icon = toolIcons[message.name] ?? Terminal
   const input = message.input as Record<string, unknown>
   const path = input.path

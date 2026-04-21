@@ -97,7 +97,12 @@ export async function createBranch(
   )
 
   if (!refRes.ok) {
-    return { success: false, error: `Failed to get ref for ${fromBranch}` }
+    const err = await refRes.json().catch(() => ({}))
+    const detail = err?.message ? `: ${err.message}` : ""
+    return {
+      success: false,
+      error: `Failed to get ref for ${fromBranch} (${refRes.status})${detail}`,
+    }
   }
 
   const refData = await refRes.json()

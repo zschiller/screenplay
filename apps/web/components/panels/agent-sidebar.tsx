@@ -226,7 +226,9 @@ export function AgentSidebar({
                                 <ChevronRight className="hidden group-hover/workspace-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                               </span>
                             </CollapsibleTrigger>
-                            <span className="truncate font-medium text-sidebar-foreground/70">{workspace.repoFullName}</span>
+                            <span className="truncate font-medium text-sidebar-foreground/70">
+                              {workspace.alias || workspace.repoFullName}
+                            </span>
                           </SidebarMenuButton>
 
                           <Popover
@@ -521,6 +523,7 @@ function WorkspaceSettings({
   onRemove: () => void
   onClose: () => void
 }) {
+  const [alias, setAlias] = useState(workspace.alias ?? "")
   const [setupScript, setSetupScript] = useState(workspace.setupScript)
   const [devScript, setDevScript] = useState(workspace.devScript)
   const [devServerPort, setDevServerPort] = useState(
@@ -534,7 +537,9 @@ function WorkspaceSettings({
 
   const handleSave = useCallback(() => {
     if (!portIsValid) return
+    const trimmedAlias = alias.trim()
     onUpdate(workspace.id, {
+      alias: trimmedAlias || undefined,
       setupScript,
       devScript,
       devServerPort: parsedPort,
@@ -543,6 +548,7 @@ function WorkspaceSettings({
     onClose()
   }, [
     workspace.id,
+    alias,
     setupScript,
     devScript,
     parsedPort,
@@ -553,6 +559,7 @@ function WorkspaceSettings({
   ])
 
   const hasChanges =
+    (alias.trim() || undefined) !== (workspace.alias || undefined) ||
     setupScript !== workspace.setupScript ||
     devScript !== workspace.devScript ||
     parsedPort !== (workspace.devServerPort ?? 3000) ||
@@ -563,6 +570,19 @@ function WorkspaceSettings({
       <span className="text-[10px] font-medium text-sidebar-foreground/70 uppercase tracking-wide">
         Settings
       </span>
+
+      <div>
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+          Alias
+        </label>
+        <input
+          type="text"
+          value={alias}
+          onChange={(e) => setAlias(e.target.value)}
+          placeholder={workspace.repoFullName}
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
+        />
+      </div>
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">

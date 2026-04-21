@@ -121,6 +121,13 @@ export function AgentChat({
 
   const effectiveModel = model ?? DEFAULT_MODEL_ID
 
+  // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
+  useEffect(() => {
+    return inputStore.subscribeSend(chatId, (text) => {
+      sendMessage(text, { model: effectiveModel })
+    })
+  }, [chatId, sendMessage, effectiveModel])
+
   const handleSubmit = useCallback(() => {
     if (!input.trim() || isStreaming) return
     sendMessage(input.trim(), { model: effectiveModel })
