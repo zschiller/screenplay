@@ -149,9 +149,8 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
   const latestPr = useLatestPr(activeTab)
-  const [showLogs, setShowLogs] = useState(
-    agent.status === "creating" || agent.status === "starting",
-  )
+  const isAgentBusy = agent.status === "creating" || agent.status === "starting"
+  const [showLogs, setShowLogs] = useState(isAgentBusy)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
   // Auto-open the logs tab whenever the sandbox is (or becomes) busy so
@@ -233,7 +232,8 @@ export function ChatPanel({
               size="xs"
               variant="outline"
               onClick={handleCreatePr}
-              disabled={!activeTab}
+              disabled={!activeTab || isAgentBusy}
+              title={isAgentBusy ? "Sandbox still starting…" : undefined}
             >
               <GitPullRequest />
               Create PR
@@ -309,7 +309,8 @@ export function ChatPanel({
               size="icon-xs"
               className="shrink-0 ml-1"
               onClick={onCreateChat}
-              title="New chat"
+              disabled={isAgentBusy}
+              title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
             >
               <Plus className="size-3" />
             </Button>
@@ -400,7 +401,7 @@ function AgentPicker({
   onSelect: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const runnableAgents = agents.filter((a) => a.status === "running" && a.branch)
+  const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -416,19 +417,23 @@ function AgentPicker({
           <CommandList>
             <CommandEmpty>No branches found.</CommandEmpty>
             <CommandGroup>
-              {runnableAgents.map((a) => (
-                <CommandItem
-                  key={a.id}
-                  value={a.branch}
-                  onSelect={() => {
-                    onSelect(a.id)
-                    setOpen(false)
-                  }}
-                >
-                  <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
-                  <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
-                </CommandItem>
-              ))}
+              {pickableAgents.map((a) => {
+                const isBusy = a.status === "creating" || a.status === "starting"
+                return (
+                  <CommandItem
+                    key={a.id}
+                    value={a.branch}
+                    onSelect={() => {
+                      onSelect(a.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
+                    <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                    {isBusy && <Spinner className="ml-auto size-3" />}
+                  </CommandItem>
+                )
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

@@ -311,15 +311,7 @@ export function AgentSidebar({
                                   className="group/collapsible-agent"
                                 >
                                   <SidebarMenuItem>
-                                    {isLoading ? (
-                                      <SidebarMenuButton disabled className="pointer-events-none opacity-60">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-muted-foreground" />
-                                        <span className="truncate text-xs text-muted-foreground">
-                                          {agent.statusMessage || "Creating…"}
-                                        </span>
-                                      </SidebarMenuButton>
-                                    ) : (
-                                      <>
+                                    <>
                                         <div
                                           className="group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                                           onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id, { expandPanel: false }) }}
@@ -328,11 +320,18 @@ export function AgentSidebar({
                                           <SidebarMenuButton
                                             className="!pr-0 !bg-transparent hover:!bg-transparent"
                                             isActive={false}
+                                            title={isLoading ? (agent.statusMessage || "Starting…") : undefined}
                                           >
                                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                                               <span className="relative shrink-0">
-                                                <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
-                                                <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                                {isLoading ? (
+                                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-sidebar-foreground/70" />
+                                                ) : (
+                                                  <>
+                                                    <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
+                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                                  </>
+                                                )}
                                               </span>
                                             </CollapsibleTrigger>
                                             {agent.branch ? (
@@ -387,9 +386,10 @@ export function AgentSidebar({
                                                     }
                                                   >
                                                     <button
-                                                      className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+                                                      className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                                                       onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
-                                                      title="Add frame"
+                                                      title={isLoading ? "Sandbox still starting…" : "Add frame"}
+                                                      disabled={isLoading}
                                                     >
                                                       <Plus className="size-4" />
                                                     </button>
@@ -404,7 +404,6 @@ export function AgentSidebar({
                                           <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
                                         )}
                                       </>
-                                    )}
 
                                     <CollapsibleContent>
                                       <SidebarMenuSub>

@@ -1252,6 +1252,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1291,6 +1292,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
       })
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1335,6 +1337,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
