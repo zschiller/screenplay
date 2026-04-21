@@ -1911,13 +1911,17 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     name: other.info?.name || other.presence.name || "Anonymous",
   }))
 
-  // Auto-select the first running agent when none is selected
+  // Auto-select an agent when none is selected. Prefer running agents, but
+  // fall back to creating/starting ones so a freshly-created agent's panel
+  // mounts while it's still booting (so the user can watch its logs).
   useEffect(() => {
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
-    if (firstRunning) {
-      setSelectedAgentId(firstRunning.id)
-    }
+    const firstStarting = agents.find(
+      (a) => a.sandboxName && (a.status === "creating" || a.status === "starting"),
+    )
+    const pick = firstRunning ?? firstStarting
+    if (pick) setSelectedAgentId(pick.id)
   }, [selectedAgentId, agents])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)

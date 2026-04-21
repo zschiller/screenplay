@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -149,21 +149,19 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
   const latestPr = useLatestPr(activeTab)
-  const [showLogs, setShowLogs] = useState(false)
+  const [showLogs, setShowLogs] = useState(
+    agent.status === "creating" || agent.status === "starting",
+  )
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Auto-open the logs tab when the sandbox enters (or is already in) a
-  // starting state so users can watch install/boot output.
-  const prevStatusRef = useRef<AgentData["status"] | null>(null)
+  // Auto-open the logs tab whenever the sandbox is (or becomes) busy so
+  // users can watch install/boot output. The dep on agent.id means switching
+  // to another busy agent also opens its logs.
   useEffect(() => {
-    const prev = prevStatusRef.current
-    const isStarting = agent.status === "starting" || agent.status === "creating"
-    const wasStarting = prev === "starting" || prev === "creating"
-    if (isStarting && !wasStarting) {
+    if (agent.status === "creating" || agent.status === "starting") {
       setShowLogs(true)
     }
-    prevStatusRef.current = agent.status
-  }, [agent.status])
+  }, [agent.id, agent.status])
 
   const handleCreatePr = () => {
     if (!activeTab) return
