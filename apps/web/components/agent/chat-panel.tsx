@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -151,6 +151,18 @@ export function ChatPanel({
   const latestPr = useLatestPr(activeTab)
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
+
+  // Auto-open the logs tab when the sandbox enters a starting state so users
+  // can watch install/boot output. Reset on transition out of starting so the
+  // next restart opens logs again.
+  const prevStatusRef = useRef(agent.status)
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    if (prev !== "starting" && prev !== "creating" && (agent.status === "starting" || agent.status === "creating")) {
+      setShowLogs(true)
+    }
+    prevStatusRef.current = agent.status
+  }, [agent.status])
 
   const handleCreatePr = () => {
     if (!activeTab) return

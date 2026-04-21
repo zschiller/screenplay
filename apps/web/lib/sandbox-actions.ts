@@ -35,11 +35,20 @@ import { parseEnvVars } from "./env-utils"
 
 const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 
-// CI=1 tells pnpm/npm/next to use log-friendly output (no spinners or cursor
-// tricks) while still printing progress. FORCE_COLOR/CLICOLOR_FORCE keep ANSI
-// colors on since stdout isn't a TTY. TERM helps tools that check it.
-const LOG_ENV =
-  "CI=1 FORCE_COLOR=1 CLICOLOR_FORCE=1 TERM=xterm-256color"
+// Env vars to make install output readable and live-streamable:
+// - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
+//   progress (vs. its default silent/summary mode when not on a TTY)
+// - NPM_CONFIG_LOGLEVEL=info + NPM_CONFIG_PROGRESS=false: npm prints each
+//   step on its own line instead of using animated progress bars
+// - FORCE_COLOR / CLICOLOR_FORCE / TERM: keep ANSI colors enabled
+const LOG_ENV = [
+  "FORCE_COLOR=1",
+  "CLICOLOR_FORCE=1",
+  "TERM=xterm-256color",
+  "PNPM_CONFIG_REPORTER=append-only",
+  "NPM_CONFIG_LOGLEVEL=info",
+  "NPM_CONFIG_PROGRESS=false",
+].join(" ")
 
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
@@ -61,13 +70,11 @@ async function runLogged(
   const label = options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
-  // stdbuf forces line buffering so lines reach the log file (and tail -F)
-  // as soon as they're printed, rather than sitting in the process's 8KB
-  // stdio buffer until it fills.
   const sh =
     `mkdir -p /tmp/screenplay; ` +
     `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `${LOG_ENV} stdbuf -oL -eL ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1`
+    `${LOG_ENV} ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1; ` +
+    `printf '[exit %s]\\n' $? >> ${SANDBOX_LOG_PATH} 2>/dev/null`
   return sandbox.runCommand({
     cmd: "sh",
     args: ["-c", sh],
@@ -193,7 +200,7 @@ async function _launchDevAndProxy(
       `mkdir -p /tmp/screenplay; ` +
         `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
         `export ${LOG_ENV}; ` +
-        `exec stdbuf -oL -eL ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+        `exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
     ],
     detached: true,
     ...(env ? { env } : {}),
