@@ -82,34 +82,6 @@ import {
 } from "@/lib/constants"
 
 
-function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () => void }) {
-  const onReadyRef = useRef(onReady)
-  onReadyRef.current = onReady
-  useEffect(() => {
-    const abort = new AbortController()
-    const run = async () => {
-      while (!abort.signal.aborted) {
-        try {
-          const res = await fetch(
-            `/api/sandbox/${encodeURIComponent(sandboxName)}/status`,
-            { signal: abort.signal, cache: "no-store" },
-          )
-          if (res.ok) {
-            onReadyRef.current()
-            return
-          }
-        } catch (e) {
-          if ((e as Error).name === "AbortError") return
-        }
-        await new Promise((r) => setTimeout(r, 1500))
-      }
-    }
-    run()
-    return () => abort.abort()
-  }, [sandboxName])
-  return null
-}
-
 export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
@@ -121,11 +93,6 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  // Agents created in this session whose sandbox isn't reachable yet.
-  // LogProbe polls /api/sandbox/[name]/status for each, and on 200 we flip
-  // selection to the new agent — so the sidebar doesn't switch until there
-  // are actually logs to show.
-  const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   // Per-workspace / per-agent memory so switching back restores prior selection
   const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
@@ -1285,7 +1252,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1325,7 +1292,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
       })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1370,7 +1337,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      setSelectedAgentId(id)
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1947,14 +1914,17 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     name: other.info?.name || other.presence.name || "Anonymous",
   }))
 
-  // Auto-select the first running agent when none is selected. Booting
-  // agents (creating/starting) intentionally aren't picked here — they'd
-  // mount an empty ChatPanel before logs are ready; instead, a LogProbe
-  // promotes them once their sandbox actually responds.
+  // Auto-select an agent when none is selected. Prefer running agents, but
+  // fall back to creating/starting ones so a freshly-created agent's panel
+  // mounts while it's still booting (so the user can watch its logs).
   useEffect(() => {
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
-    if (firstRunning) setSelectedAgentId(firstRunning.id)
+    const firstStarting = agents.find(
+      (a) => a.sandboxName && (a.status === "creating" || a.status === "starting"),
+    )
+    const pick = firstRunning ?? firstStarting
+    if (pick) setSelectedAgentId(pick.id)
   }, [selectedAgentId, agents])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
@@ -1976,30 +1946,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
-  // Drop pending entries whose agent has been deleted. Selection is handled
-  // by each LogProbe's onReady callback (which also removes itself).
-  useEffect(() => {
-    setPendingAgentIds((prev) => prev.filter((id) => agents.some((a) => a.id === id)))
-  }, [agents])
-
-  const handlePendingReady = useCallback((id: string) => {
-    setSelectedAgentId(id)
-    setPendingAgentIds((prev) => prev.filter((p) => p !== id))
-  }, [])
-
   return (
-    <>
-    {pendingAgentIds.map((id) => {
-      const pending = agents.find((a) => a.id === id)
-      if (!pending?.sandboxName) return null
-      return (
-        <LogProbe
-          key={id}
-          sandboxName={pending.sandboxName}
-          onReady={() => handlePendingReady(id)}
-        />
-      )
-    })}
     <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
       {/* Sidebar */}
       <ResizablePanel
@@ -2596,6 +2543,5 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         )
       })()}
     </ResizablePanelGroup>
-    </>
   )
 }
