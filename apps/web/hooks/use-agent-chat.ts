@@ -10,6 +10,7 @@ interface UseAgentChatOptions {
   branch: string
   sessionId?: string
   isFirstChat?: boolean
+  autoNamedBranch?: boolean
   planMode?: boolean
   onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
@@ -27,6 +28,7 @@ export function useAgentChat({
   branch,
   sessionId,
   isFirstChat,
+  autoNamedBranch,
   planMode,
   onSessionId,
   onBranchRename,
@@ -67,6 +69,7 @@ export function useAgentChat({
         branch,
         message: text,
         isFirstChat,
+        autoNamedBranch,
         sessionId,
         planMode,
         model: options?.model,
@@ -75,7 +78,7 @@ export function useAgentChat({
         onChatRename,
       })
     },
-    [chatId, roomId, sandboxName, branch, isFirstChat, sessionId, planMode, onSessionId, onBranchRename, onChatRename],
+    [chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, sessionId, planMode, onSessionId, onBranchRename, onChatRename],
   )
 
   return {

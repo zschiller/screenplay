@@ -55,6 +55,7 @@ interface AgentChatProps {
   branch: string
   sessionId?: string
   isFirstChat?: boolean
+  autoNamedBranch?: boolean
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
   model?: string
@@ -72,6 +73,7 @@ export function AgentChat({
   branch,
   sessionId,
   isFirstChat,
+  autoNamedBranch,
   planMode,
   onPlanModeChange,
   model,
@@ -85,7 +87,7 @@ export function AgentChat({
     isStreaming,
     isLoadingHistory,
     sendMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, planMode, onSessionId, onBranchRename, onChatRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, autoNamedBranch, planMode, onSessionId, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
   const [models, setModels] = useState<ModelInfo[]>([])
