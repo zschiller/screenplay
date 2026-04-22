@@ -65,11 +65,50 @@ export async function getSandboxCliContext(): Promise<{ scope?: string; project?
 export async function getGitHubToken(): Promise<string | null> {
   const { userId } = await auth()
   if (!userId) return null
+  return getGitHubTokenForUser(userId)
+}
 
+async function getGitHubTokenForUser(userId: string): Promise<string | null> {
   const client = await clerkClient()
   const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
-  return token ?? null
+  return tokens.data?.[0]?.token ?? null
+}
+
+/**
+ * Env vars to pass into a `sandbox.runCommand` that may hit GitHub. The
+ * in-sandbox git credential helper reads SCREENPLAY_GH_TOKEN and echoes
+ * it as HTTP basic auth — no server round-trip, no persistent creds in
+ * the sandbox, attribution stays with whoever triggered this command.
+ */
+async function buildSandboxGitEnv(
+  userId: string,
+): Promise<Record<string, string> | undefined> {
+  const token = await getGitHubTokenForUser(userId)
+  if (!token) return undefined
+  return { SCREENPLAY_GH_TOKEN: token }
+}
+
+/**
+ * Resolve the user whose GitHub identity should be used for a given sandbox
+ * operation. Prefers the live Clerk user on the current request (so each
+ * collaborator's git actions are correctly attributed to them). Falls back to
+ * the workspace/project owner for non-interactive paths — the owner is the
+ * one constant identity tied to the project.
+ */
+export async function resolveActingUserId(
+  fallbackRoomId?: string,
+): Promise<string | null> {
+  const live = (await auth()).userId
+  if (live) return live
+  if (!fallbackRoomId) return null
+  try {
+    const { liveblocks } = await import("./liveblocks-server")
+    const room = await liveblocks.getRoom(fallbackRoomId)
+    const owner = room.metadata.ownerId
+    return typeof owner === "string" && owner ? owner : null
+  } catch {
+    return null
+  }
 }
 
 import { parseEnvVars } from "./env-utils"
@@ -258,6 +297,29 @@ export async function installClaudeCode(
         `mkdir -p "$HOME/.claude" && printf '%s' "$CLAUDE_MD" > "$HOME/.claude/CLAUDE.md"`,
       ],
       env: { CLAUDE_MD: claudeMd },
+    })
+
+    // Per-command credential helper: git invokes it whenever it needs
+    // GitHub auth, and it reads SCREENPLAY_GH_TOKEN from the env the server
+    // set on the triggering runCommand. No token is persisted in the
+    // sandbox — every command brings its own, so two users sharing this
+    // sandbox correctly push as themselves rather than riding on whoever
+    // provisioned it first.
+    const credentialHelper = [
+      "#!/bin/sh",
+      `[ "\${1:-}" = "get" ] || exit 0`,
+      "cat >/dev/null",
+      `[ -n "\${SCREENPLAY_GH_TOKEN:-}" ] || exit 0`,
+      `printf 'username=x-access-token\\npassword=%s\\n' "$SCREENPLAY_GH_TOKEN"`,
+      "",
+    ].join("\n")
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        `mkdir -p "$HOME/.screenplay" && printf '%s' "$HELPER" > "$HOME/.screenplay/git-credential-helper.sh" && chmod +x "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.helper "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
+      ],
+      env: { HELPER: credentialHelper },
     })
 
     return { success: true }
@@ -505,7 +567,9 @@ export async function restartSandbox(
       // Kill the old dev server + proxy first so install doesn't race the
       // running process and the relaunch below doesn't collide on the port.
       await _stopDevAndProxy(sandbox, port)
-      await runLogged(sandbox, "git", ["pull", "origin", branch])
+      const actingUserId = (await auth()).userId
+      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
+      await runLogged(sandbox, "git", ["pull", "origin", branch], { env: gitEnv })
     }
 
     const setup = setupScript?.trim() || "npm install"
@@ -691,7 +755,15 @@ export async function getDiffStats(
     if (sandbox.status !== "running") return null
 
     // Try fetching silently — may fail on private repos without token, that's ok
-    try { await sandbox.runCommand("git", ["fetch", "origin", defaultBranch, "--quiet"]) } catch {}
+    try {
+      const actingUserId = (await auth()).userId
+      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
+      await sandbox.runCommand({
+        cmd: "git",
+        args: ["fetch", "origin", defaultBranch, "--quiet"],
+        ...(gitEnv ? { env: gitEnv } : {}),
+      })
+    } catch {}
 
     // Use numstat for reliable machine-parseable output
     const result = await sandbox.runCommand("git", [
@@ -723,21 +795,18 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 }
 
 /**
- * Step 3: Configure git auth and identity so the agent can push commits.
- * Also ensures we're on the correct branch (not detached HEAD) since
- * Sandbox.create with revision may leave HEAD detached.
+ * Step 3: Configure git identity and normalize the branch / remote state so
+ * the agent can push commits. Auth is NOT baked into the remote URL — the
+ * credential helper installed by `installClaudeCode` reads SCREENPLAY_GH_TOKEN
+ * from the env of the command that invoked git, and the server attaches
+ * the acting user's token per command. Each collaborator's pushes are
+ * attributed to them rather than to whoever provisioned the sandbox.
  */
 export async function configureAgentGit(
   sandboxName: string,
   workspace: WorkspaceData,
   branch: string,
-  ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  if (!ghToken) ghToken = await getGitHubToken() ?? undefined
-  if (!ghToken) {
-    return { success: false, error: "No GitHub token available — the user may need to re-authenticate with GitHub." }
-  }
-
   const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
 
   // Ensure we're on the actual branch, not a detached HEAD.
@@ -749,7 +818,7 @@ export async function configureAgentGit(
     "remote",
     "set-url",
     "origin",
-    `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+    `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
   ])
   if (setUrl.exitCode !== 0) {
     return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }

@@ -219,7 +219,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 5: Configure git
   await updateAgent(roomId, agentId, { statusMessage: "Configuring git…" })
-  const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace, branch, ghToken)
+  const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace, branch)
   if (!gitResult.success) {
     await markError(roomId, agentId, gitResult.error)
     return
