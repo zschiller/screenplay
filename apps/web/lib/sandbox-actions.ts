@@ -190,6 +190,20 @@ async function _launchDevAndProxy(
     return { sandboxName: sandbox.name, previewDomain: "", status: "error", error: install.error }
   }
 
+  // Kill any previously-running dev server / proxy so restart doesn't stack duplicates.
+  // Covers: processes bound to the dev or proxy port, and the proxy restart-on-crash wrapper.
+  await sandbox.runCommand({
+    cmd: "sh",
+    args: [
+      "-c",
+      `pkill -f "proxy.mjs" 2>/dev/null; ` +
+        `fuser -k -TERM ${port}/tcp ${port + 1}/tcp 2>/dev/null; ` +
+        `sleep 1; ` +
+        `fuser -k -KILL ${port}/tcp ${port + 1}/tcp 2>/dev/null; ` +
+        `true`,
+    ],
+  })
+
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
   await sandbox.runCommand({
