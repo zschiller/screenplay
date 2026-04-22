@@ -155,6 +155,13 @@ export function ChatPanel({
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
+  // Reset the logs-visible flag whenever we switch to a different agent so
+  // a freshly-selected agent (whose LogsPanel is still fetching) doesn't
+  // inherit the previous agent's "logs tab open" state.
+  useEffect(() => {
+    setShowLogs(false)
+  }, [agent.id])
+
   // Fired by LogsPanel the first time it successfully connects to the stream.
   // We only auto-open logs at this point (not on agent.status === "starting")
   // so the panel doesn't flash before there's anything to show.
