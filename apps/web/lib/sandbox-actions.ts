@@ -102,10 +102,17 @@ function buildSandboxAuthEnv(
   const webUrl = getWebUrl()
   if (!webUrl) return undefined
   try {
-    return {
+    const env: Record<string, string> = {
       SCREENPLAY_AUTH: signSandboxAuth(userId, sandboxName),
       SCREENPLAY_WEB_URL: webUrl,
     }
+    // Previews sit behind Vercel Deployment Protection; the helper includes
+    // this secret as a header so its callback isn't intercepted by the
+    // Vercel auth wall. Ignored in prod (no protection there anyway).
+    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      env.SCREENPLAY_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    }
+    return env
   } catch {
     return undefined
   }
@@ -338,7 +345,12 @@ export async function installClaudeCode(
       "cat >/dev/null",
       `[ -n "\${SCREENPLAY_AUTH:-}" ] || exit 0`,
       `[ -n "\${SCREENPLAY_WEB_URL:-}" ] || exit 0`,
-      `token=$(curl -s -f -m 10 -H "Authorization: Bearer $SCREENPLAY_AUTH" "$SCREENPLAY_WEB_URL/api/sandbox/git-credentials") || exit 0`,
+      // SCREENPLAY_BYPASS bypasses Vercel Deployment Protection on preview
+      // deployments — without it, the callback lands on Vercel's auth wall
+      // and curl gets HTML back instead of the token.
+      `bypass_header=""`,
+      `[ -n "\${SCREENPLAY_BYPASS:-}" ] && bypass_header="-H x-vercel-protection-bypass:$SCREENPLAY_BYPASS"`,
+      `token=$(curl -s -f -m 10 -H "Authorization: Bearer $SCREENPLAY_AUTH" $bypass_header "$SCREENPLAY_WEB_URL/api/sandbox/git-credentials") || exit 0`,
       `[ -n "$token" ] || exit 0`,
       `printf 'username=x-access-token\\npassword=%s\\n' "$token"`,
       "",

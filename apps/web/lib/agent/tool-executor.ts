@@ -83,10 +83,14 @@ function buildAgentAuthEnv(ctx: ToolContext): Record<string, string> | undefined
   const webUrl = resolveWebUrl()
   if (!webUrl) return undefined
   try {
-    return {
+    const env: Record<string, string> = {
       SCREENPLAY_AUTH: signSandboxAuth(ctx.userId, ctx.sandboxName),
       SCREENPLAY_WEB_URL: webUrl,
     }
+    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      env.SCREENPLAY_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    }
+    return env
   } catch {
     return undefined
   }
