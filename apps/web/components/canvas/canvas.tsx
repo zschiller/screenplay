@@ -82,6 +82,38 @@ import {
 } from "@/lib/constants"
 
 
+// Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
+// Used to defer selection of a just-created agent until its sandbox is actually
+// streaming logs — otherwise flipping selection now shows an empty chat panel.
+function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () => void }) {
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
+  useEffect(() => {
+    const abort = new AbortController()
+    ;(async () => {
+      while (!abort.signal.aborted) {
+        try {
+          const res = await fetch(
+            `/api/sandbox/${encodeURIComponent(sandboxName)}/logs`,
+            { signal: abort.signal, cache: "no-store" },
+          )
+          if (res.ok) {
+            try { await res.body?.cancel() } catch {}
+            onReadyRef.current()
+            return
+          }
+          try { await res.body?.cancel() } catch {}
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return
+        }
+        await new Promise((r) => setTimeout(r, 1500))
+      }
+    })()
+    return () => abort.abort()
+  }, [sandboxName])
+  return null
+}
+
 export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
@@ -93,6 +125,11 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  // Agents created this session whose sandbox isn't streaming logs yet.
+  // A LogProbe is rendered for each; on ready we flip selection and drop
+  // the id. No cleanup effect — filtering in render handles deletions,
+  // so agents from Liveblocks can be a new reference every render safely.
+  const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   // Per-workspace / per-agent memory so switching back restores prior selection
   const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
@@ -1047,20 +1084,27 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
   const handleCloseChat = useCallback(
     (chatId: string) => {
-      if (selectedChatId === chatId) {
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) {
-          const siblings = chatSessions
+      const chat = chatSessions.find((c) => c.id === chatId)
+      const siblings = chat
+        ? chatSessions
             .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
-          setSelectedChatId(siblings[0]?.id ?? null)
-        } else {
-          setSelectedChatId(null)
-        }
-      }
+        : []
       updateChatSession(chatId, { closedAt: Date.now() })
+      if (chat && siblings.length === 0) {
+        const newId = nanoid()
+        addChatSession(newId, {
+          id: newId,
+          agentId: chat.agentId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+        setSelectedChatId(newId)
+      } else if (selectedChatId === chatId) {
+        setSelectedChatId(siblings[0]?.id ?? null)
+      }
     },
-    [selectedChatId, chatSessions, updateChatSession],
+    [selectedChatId, chatSessions, updateChatSession, addChatSession],
   )
 
   const handleReopenChat = useCallback(
@@ -1245,6 +1289,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1284,6 +1329,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
       })
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1328,6 +1374,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1904,22 +1951,53 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     name: other.info?.name || other.presence.name || "Anonymous",
   }))
 
-  // Auto-select the first running agent when none is selected
+  // Auto-select the first running agent when none is selected. Booting
+  // agents aren't picked here — a LogProbe (rendered for each pending id)
+  // promotes them once their sandbox is streaming logs, which avoids the
+  // "switch to empty panel then hang on 'Connecting…'" flicker.
   useEffect(() => {
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
-    if (firstRunning) {
-      setSelectedAgentId(firstRunning.id)
-    }
+    if (firstRunning) setSelectedAgentId(firstRunning.id)
   }, [selectedAgentId, agents])
+
+  const handlePendingReady = useCallback((id: string) => {
+    setSelectedAgentId(id)
+    setPendingAgentIds((prev) => prev.filter((p) => p !== id))
+  }, [])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Expand the collapsed chat panel when the logs stream actually starts,
+  // so the panel opens as the user sees live install/boot output — not
+  // earlier (when the sandbox doesn't exist yet and the stream would just
+  // show "Connecting…").
+  const handleLogsReady = useCallback(() => {
+    const panel = chatPanelRef.current
+    if (panel?.isCollapsed()) {
+      panel.expand()
+      const { inPixels } = panel.getSize()
+      if (inPixels < 480) panel.resize(480)
+    }
+  }, [])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
   return (
+    <>
+      {pendingAgentIds.map((id) => {
+        const pending = agents.find((a) => a.id === id)
+        if (!pending?.sandboxName) return null
+        return (
+          <LogProbe
+            key={id}
+            sandboxName={pending.sandboxName}
+            onReady={() => handlePendingReady(id)}
+          />
+        )
+      })}
     <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
       {/* Sidebar */}
       <ResizablePanel
@@ -2447,6 +2525,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
             diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
             onCollapse={() => chatPanelRef.current?.collapse()}
+            onLogsReady={handleLogsReady}
           />
         ) : (
           <div className="flex h-full flex-col bg-background">
@@ -2515,5 +2594,6 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         )
       })()}
     </ResizablePanelGroup>
+    </>
   )
 }
