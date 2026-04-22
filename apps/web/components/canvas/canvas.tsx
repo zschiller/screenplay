@@ -1070,6 +1070,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         branch: agent.branch,
         message: text,
         isFirstChat,
+        autoNamedBranch: agent.autoNamedBranch,
         planMode: true,
         onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
         onBranchRename: (branch) => updateAgentInStorage(agentId, { branch }),
@@ -1162,6 +1163,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           branch: agent.branch,
           message: text,
           isFirstChat,
+          autoNamedBranch: agent.autoNamedBranch,
           sessionId: chat.sessionId,
           planMode: chat.planMode,
           model: chat.model,
@@ -1328,6 +1330,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         status: "creating",
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
+        autoNamedBranch: false,
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2058,6 +2061,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
+          activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt).map((c) => c.agentId))}
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />

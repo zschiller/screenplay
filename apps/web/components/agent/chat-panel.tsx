@@ -55,6 +55,24 @@ function useLatestPr(chatId: string): { url: string; number: string } | null {
   }, [messages])
 }
 
+function useAnyChatStreaming(chatIds: string[]): boolean {
+  const key = chatIds.join(",")
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const unsubs = chatIds.map((id) => chatStore.subscribe(id, cb))
+      return () => unsubs.forEach((u) => u())
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  )
+  const getSnapshot = useCallback(
+    () => chatIds.some((id) => chatStore.getSnapshot(id).isStreaming),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, () => false)
+}
+
 function useChatStatus(chatId: string) {
   const isStreaming = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
@@ -152,6 +170,11 @@ export function ChatPanel({
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
   const latestPr = useLatestPr(activeTab)
   const isAgentBusy = agent.status === "creating" || agent.status === "starting"
+  const allChatIds = useMemo(
+    () => chatSessions.map((c) => c.id),
+    [chatSessions],
+  )
+  const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
@@ -242,8 +265,14 @@ export function ChatPanel({
               size="xs"
               variant="outline"
               onClick={handleCreatePr}
-              disabled={!activeTab || isAgentBusy}
-              title={isAgentBusy ? "Sandbox still starting…" : undefined}
+              disabled={!activeTab || isAgentBusy || anyChatStreaming}
+              title={
+                isAgentBusy
+                  ? "Sandbox still starting…"
+                  : anyChatStreaming
+                    ? "Agent is working on this branch…"
+                    : undefined
+              }
             >
               <GitPullRequest />
               Create PR
@@ -382,6 +411,7 @@ export function ChatPanel({
               branch={agent.branch}
               sessionId={chat.sessionId}
               isFirstChat={isFirst}
+              autoNamedBranch={agent.autoNamedBranch}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
               model={chat.model}

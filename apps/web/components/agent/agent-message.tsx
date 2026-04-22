@@ -93,7 +93,7 @@ function CreatePrIndicator({
         rel="noopener noreferrer"
         className="group flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs transition-colors hover:border-foreground/20 hover:bg-muted"
       >
-        <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-green-700 dark:text-green-300" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-foreground truncate">{title}</div>
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">

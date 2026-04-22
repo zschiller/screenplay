@@ -25,6 +25,7 @@ interface RequestBody {
   message: string
   sessionId?: string
   isFirstChat?: boolean
+  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
 }
@@ -307,6 +308,14 @@ async function broadcastChatEvent(roomId: string, chatId: string, event: AgentSt
   }
 }
 
+function deriveFallbackLabel(message: string): string {
+  const cleaned = message.replace(/\s+/g, " ").trim()
+  if (!cleaned) return ""
+  const words = cleaned.split(" ").slice(0, 6).join(" ")
+  const truncated = words.length > 50 ? `${words.slice(0, 50).trimEnd()}…` : words
+  return truncated
+}
+
 async function broadcastChatSignal(roomId: string, chatId: string, signal: "chat-stream-start" | "chat-stream-end") {
   try {
     await liveblocks.broadcastEvent(roomId, {
@@ -325,7 +334,7 @@ export async function POST(req: Request) {
   }
 
   const body: RequestBody = await req.json()
-  const { roomId, chatId, sandboxName, branch, message, sessionId: existingSessionId, isFirstChat, planMode, model } = body
+  const { roomId, chatId, sandboxName, branch, message, sessionId: existingSessionId, isFirstChat, autoNamedBranch, planMode, model } = body
 
   if (!roomId || !chatId || !sandboxName || !message) {
     return new Response("Missing required fields", { status: 400 })
@@ -522,38 +531,55 @@ export async function POST(req: Request) {
   // Broadcast session_id to all clients immediately
   broadcastChatEvent(roomId, chatId, { type: "session_id", sessionId })
 
-  // For new sessions on the first chat, generate a descriptive branch name and chat label
+  // For every new chat session, generate a chat label (and a branch name on
+  // the first chat for the agent).
   let effectiveBranch = branch
-  if (!existingSessionId && isFirstChat !== false) {
+  if (!existingSessionId) {
+    const shouldNameBranch = isFirstChat !== false && autoNamedBranch !== false
+    let rawBranch = ""
+    let chatLabel = ""
     try {
+      const system = shouldNameBranch
+        ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode"
+        : "Generate a short chat label for the user's request (2-5 words, title case). Output ONLY the label — no explanation, backticks, or quotes.\n\nExamples:\nFix Login Button\nAdd Dark Mode"
       const nameRes = await client.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 60,
-        system: "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode",
+        max_tokens: 200,
+        system,
         messages: [{ role: "user", content: message }],
       })
       const rawText = nameRes.content[0]?.type === "text" ? nameRes.content[0].text.trim() : ""
-      const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean)
+      const lines = rawText
+        .split("\n")
+        .map((l) => l.trim().replace(/^["'`]+|["'`]+$/g, "").replace(/^[-*\d.)\s]+/, "").trim())
+        .filter(Boolean)
 
-      const rawBranch = (lines[0] ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
-      if (rawBranch.length >= 3 && rawBranch.length <= 50) {
-        effectiveBranch = await deduplicateBranchName(roomId, rawBranch, userId)
-        await broadcastChatEvent(roomId, chatId, { type: "branch_rename", branch: effectiveBranch })
-      }
-
-      const chatLabel = lines[1] ?? ""
-      if (chatLabel.length >= 2 && chatLabel.length <= 60) {
-        // Persist the label directly in Liveblocks storage so it survives
-        // even if the client-side callback is temporarily cleared during a
-        // React re-render triggered by the earlier session_id broadcast.
-        await liveblocks.mutateStorage(roomId, ({ root }) => {
-          const cs = root.get("chatSessions")?.get(chatId)
-          if (cs) cs.set("label", chatLabel)
-        })
-        await broadcastChatEvent(roomId, chatId, { type: "chat_rename", label: chatLabel })
+      if (shouldNameBranch) {
+        rawBranch = (lines[0] ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+        chatLabel = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
+      } else {
+        chatLabel = (lines[0] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
       }
     } catch (e) {
       console.error("Branch/chat rename generation failed:", e)
+    }
+
+    if (shouldNameBranch && rawBranch.length >= 3 && rawBranch.length <= 50) {
+      effectiveBranch = await deduplicateBranchName(roomId, rawBranch, userId)
+      await broadcastChatEvent(roomId, chatId, { type: "branch_rename", branch: effectiveBranch })
+    }
+
+    const finalLabel =
+      chatLabel.length >= 2 && chatLabel.length <= 60 ? chatLabel : deriveFallbackLabel(message)
+    if (finalLabel) {
+      // Persist the label directly in Liveblocks storage so it survives
+      // even if the client-side callback is temporarily cleared during a
+      // React re-render triggered by the earlier session_id broadcast.
+      await liveblocks.mutateStorage(roomId, ({ root }) => {
+        const cs = root.get("chatSessions")?.get(chatId)
+        if (cs) cs.set("label", finalLabel)
+      })
+      await broadcastChatEvent(roomId, chatId, { type: "chat_rename", label: finalLabel })
     }
   }
 

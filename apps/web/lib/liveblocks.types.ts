@@ -44,6 +44,8 @@ export type AgentData = {
   statusMessage?: string
   error?: string
   createdAt: number
+  /** False when the branch was opened from an existing remote branch — skip auto-rename on first chat. */
+  autoNamedBranch?: boolean
 }
 
 export type ChatSessionData = {
