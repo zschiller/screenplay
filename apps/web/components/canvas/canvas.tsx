@@ -82,6 +82,38 @@ import {
 } from "@/lib/constants"
 
 
+// Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
+// Used to defer selection of a just-created agent until its sandbox is actually
+// streaming logs — otherwise flipping selection now shows an empty chat panel.
+function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () => void }) {
+  const onReadyRef = useRef(onReady)
+  onReadyRef.current = onReady
+  useEffect(() => {
+    const abort = new AbortController()
+    ;(async () => {
+      while (!abort.signal.aborted) {
+        try {
+          const res = await fetch(
+            `/api/sandbox/${encodeURIComponent(sandboxName)}/logs`,
+            { signal: abort.signal, cache: "no-store" },
+          )
+          if (res.ok) {
+            try { await res.body?.cancel() } catch {}
+            onReadyRef.current()
+            return
+          }
+          try { await res.body?.cancel() } catch {}
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return
+        }
+        await new Promise((r) => setTimeout(r, 1500))
+      }
+    })()
+    return () => abort.abort()
+  }, [sandboxName])
+  return null
+}
+
 export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
@@ -93,6 +125,11 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  // Agents created this session whose sandbox isn't streaming logs yet.
+  // A LogProbe is rendered for each; on ready we flip selection and drop
+  // the id. No cleanup effect — filtering in render handles deletions,
+  // so agents from Liveblocks can be a new reference every render safely.
+  const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   // Per-workspace / per-agent memory so switching back restores prior selection
   const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
@@ -1252,7 +1289,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
-      setSelectedAgentId(id)
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1292,7 +1329,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Cloning repository…",
         createdAt: Date.now(),
       })
-      setSelectedAgentId(id)
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1337,7 +1374,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         statusMessage: "Creating branch…",
         createdAt: Date.now(),
       })
-      setSelectedAgentId(id)
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/agent/create", {
         method: "POST",
@@ -1914,18 +1951,20 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     name: other.info?.name || other.presence.name || "Anonymous",
   }))
 
-  // Auto-select an agent when none is selected. Prefer running agents, but
-  // fall back to creating/starting ones so a freshly-created agent's panel
-  // mounts while it's still booting (so the user can watch its logs).
+  // Auto-select the first running agent when none is selected. Booting
+  // agents aren't picked here — a LogProbe (rendered for each pending id)
+  // promotes them once their sandbox is streaming logs, which avoids the
+  // "switch to empty panel then hang on 'Connecting…'" flicker.
   useEffect(() => {
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
-    const firstStarting = agents.find(
-      (a) => a.sandboxName && (a.status === "creating" || a.status === "starting"),
-    )
-    const pick = firstRunning ?? firstStarting
-    if (pick) setSelectedAgentId(pick.id)
+    if (firstRunning) setSelectedAgentId(firstRunning.id)
   }, [selectedAgentId, agents])
+
+  const handlePendingReady = useCallback((id: string) => {
+    setSelectedAgentId(id)
+    setPendingAgentIds((prev) => prev.filter((p) => p !== id))
+  }, [])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
@@ -1947,6 +1986,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
   return (
+    <>
+      {pendingAgentIds.map((id) => {
+        const pending = agents.find((a) => a.id === id)
+        if (!pending?.sandboxName) return null
+        return (
+          <LogProbe
+            key={id}
+            sandboxName={pending.sandboxName}
+            onReady={() => handlePendingReady(id)}
+          />
+        )
+      })}
     <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
       {/* Sidebar */}
       <ResizablePanel
@@ -2543,5 +2594,6 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         )
       })()}
     </ResizablePanelGroup>
+    </>
   )
 }
