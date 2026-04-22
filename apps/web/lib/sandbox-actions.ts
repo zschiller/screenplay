@@ -832,10 +832,19 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 
 /**
  * Step 3: Configure git identity and normalize the branch / remote state so
- * the agent can push commits. Auth is NOT baked in here — we rely on the
- * credential helper installed by `installClaudeCode` to mint the acting
- * user's token per command, so each collaborator's pushes are attributed
- * to them rather than to whoever happened to provision the sandbox.
+ * the agent can push commits.
+ *
+ * Auth model depends on whether the sandbox can reach the web app:
+ *
+ * - Prod / preview: a plain remote URL — the credential helper installed
+ *   by `installClaudeCode` mints per-user tokens on demand, so each
+ *   collaborator's pushes are attributed to them rather than to whoever
+ *   provisioned the sandbox.
+ *
+ * - Local dev (no callback URL): embed the current user's token in the
+ *   remote URL. The sandbox has no way to call back to localhost, so the
+ *   helper can't run. This is the pre-multiuser-fix behavior and is fine
+ *   for local dev since there's only one user anyway.
  */
 export async function configureAgentGit(
   sandboxName: string,
@@ -849,12 +858,23 @@ export async function configureAgentGit(
   await sandbox.runCommand("git", ["checkout", "-B", branch])
   await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
 
-  const setUrl = await sandbox.runCommand("git", [
-    "remote",
-    "set-url",
-    "origin",
-    `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
-  ])
+  let remoteUrl: string
+  if (getWebUrl()) {
+    remoteUrl = `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`
+  } else {
+    const ghToken = await getGitHubToken()
+    if (!ghToken) {
+      return {
+        success: false,
+        error:
+          "No GitHub token available and no sandbox callback URL configured — " +
+          "set SCREENPLAY_WEB_URL (e.g. an ngrok tunnel) or re-authenticate with GitHub.",
+      }
+    }
+    remoteUrl = `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`
+  }
+
+  const setUrl = await sandbox.runCommand("git", ["remote", "set-url", "origin", remoteUrl])
   if (setUrl.exitCode !== 0) {
     return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }
   }
