@@ -14,7 +14,7 @@ import type {
 } from "./types"
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
-import { signSandboxAuth } from "@/lib/sandbox-jwt"
+import { clerkClient } from "@clerk/nextjs/server"
 
 export interface ToolContext {
   sandboxName: string
@@ -65,32 +65,18 @@ export async function executeCustomTool(
 }
 
 /**
- * Build env vars that let the in-sandbox git credential helper mint the
- * acting user's GitHub token on demand. Passed on every agent-driven
- * runCommand — the agent can push at any time and we want each push
- * attributed to whoever's turn triggered the command, not whoever first
+ * Look up the acting user's GitHub token and hand it to the next
+ * runCommand as SCREENPLAY_GH_TOKEN. The in-sandbox credential helper
+ * feeds it to git, so every push from this turn is attributed to
+ * whichever collaborator triggered the command — not to whoever first
  * provisioned the (shared) sandbox.
  */
-function resolveWebUrl(): string | null {
-  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  }
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  return null
-}
-
-function buildAgentAuthEnv(ctx: ToolContext): Record<string, string> | undefined {
-  const webUrl = resolveWebUrl()
-  if (!webUrl) return undefined
+async function buildAgentGitEnv(ctx: ToolContext): Promise<Record<string, string> | undefined> {
   try {
-    const env: Record<string, string> = {
-      SCREENPLAY_AUTH: signSandboxAuth(ctx.userId, ctx.sandboxName),
-      SCREENPLAY_WEB_URL: webUrl,
-    }
-    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-      env.SCREENPLAY_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-    }
-    return env
+    const client = await clerkClient()
+    const tokens = await client.users.getUserOauthAccessToken(ctx.userId, "github")
+    const token = tokens.data?.[0]?.token
+    return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
   } catch {
     return undefined
   }
@@ -206,11 +192,11 @@ async function runCommand(
     args = tokens.slice(1)
   }
 
-  const authEnv = buildAgentAuthEnv(ctx)
+  const gitEnv = await buildAgentGitEnv(ctx)
   const result = await sandbox.runCommand({
     cmd,
     args,
-    ...(authEnv ? { env: authEnv } : {}),
+    ...(gitEnv ? { env: gitEnv } : {}),
   })
   const parts: string[] = []
   let stdout = redactSensitiveInfo(await result.stdout())

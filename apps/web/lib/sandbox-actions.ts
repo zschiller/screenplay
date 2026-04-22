@@ -4,7 +4,6 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
-import { signSandboxAuth } from "./sandbox-jwt"
 import type { WorkspaceData } from "./liveblocks.types"
 
 // 30 minutes — keep sandboxes alive only while actively used.
@@ -66,56 +65,27 @@ export async function getSandboxCliContext(): Promise<{ scope?: string; project?
 export async function getGitHubToken(): Promise<string | null> {
   const { userId } = await auth()
   if (!userId) return null
+  return getGitHubTokenForUser(userId)
+}
 
+async function getGitHubTokenForUser(userId: string): Promise<string | null> {
   const client = await clerkClient()
   const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
-  return token ?? null
+  return tokens.data?.[0]?.token ?? null
 }
 
 /**
- * Base URL the in-sandbox git credential helper calls back to. On Vercel
- * this is always available: VERCEL_PROJECT_PRODUCTION_URL in prod (stable
- * aliased domain) and VERCEL_URL in previews (per-deployment hostname).
- * Returns null in local dev — callers fall back to embedding the token
- * in the git remote URL since localhost isn't reachable from the sandbox.
+ * Env vars to pass into a `sandbox.runCommand` that may hit GitHub. The
+ * in-sandbox git credential helper reads SCREENPLAY_GH_TOKEN and echoes
+ * it as HTTP basic auth — no server round-trip, no persistent creds in
+ * the sandbox, attribution stays with whoever triggered this command.
  */
-function getWebUrl(): string | null {
-  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  }
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  return null
-}
-
-/**
- * Env vars to pass into a `sandbox.runCommand` that may hit GitHub, so the
- * in-sandbox git credential helper can mint the acting user's token. Returns
- * undefined if either the JWT secret or callback URL isn't configured — the
- * command will still run, git auth will fail loudly, and the caller can
- * surface that to the user.
- */
-function buildSandboxAuthEnv(
+async function buildSandboxGitEnv(
   userId: string,
-  sandboxName: string,
-): Record<string, string> | undefined {
-  const webUrl = getWebUrl()
-  if (!webUrl) return undefined
-  try {
-    const env: Record<string, string> = {
-      SCREENPLAY_AUTH: signSandboxAuth(userId, sandboxName),
-      SCREENPLAY_WEB_URL: webUrl,
-    }
-    // Previews sit behind Vercel Deployment Protection; the helper includes
-    // this secret as a header so its callback isn't intercepted by the
-    // Vercel auth wall. Ignored in prod (no protection there anyway).
-    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-      env.SCREENPLAY_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-    }
-    return env
-  } catch {
-    return undefined
-  }
+): Promise<Record<string, string> | undefined> {
+  const token = await getGitHubTokenForUser(userId)
+  if (!token) return undefined
+  return { SCREENPLAY_GH_TOKEN: token }
 }
 
 /**
@@ -330,29 +300,17 @@ export async function installClaudeCode(
     })
 
     // Per-command credential helper: git invokes it whenever it needs
-    // GitHub auth, and it trades the caller-provided SCREENPLAY_AUTH JWT
-    // (set on the same runCommand that invoked git) for that user's GitHub
-    // token via a callback to the web app. No token is ever stored in the
-    // sandbox — so two users sharing this sandbox correctly push as
-    // themselves rather than riding on whoever set things up first.
-    //
-    // `exit 0` on missing env / failed mint: git then prompts, which in a
-    // non-interactive sandbox means it fails loudly with a clear error.
+    // GitHub auth, and it reads SCREENPLAY_GH_TOKEN from the env the server
+    // set on the triggering runCommand. No token is persisted in the
+    // sandbox — every command brings its own, so two users sharing this
+    // sandbox correctly push as themselves rather than riding on whoever
+    // provisioned it first.
     const credentialHelper = [
       "#!/bin/sh",
-      "set -eu",
       `[ "\${1:-}" = "get" ] || exit 0`,
       "cat >/dev/null",
-      `[ -n "\${SCREENPLAY_AUTH:-}" ] || exit 0`,
-      `[ -n "\${SCREENPLAY_WEB_URL:-}" ] || exit 0`,
-      // SCREENPLAY_BYPASS bypasses Vercel Deployment Protection on preview
-      // deployments — without it, the callback lands on Vercel's auth wall
-      // and curl gets HTML back instead of the token.
-      `bypass_header=""`,
-      `[ -n "\${SCREENPLAY_BYPASS:-}" ] && bypass_header="-H x-vercel-protection-bypass:$SCREENPLAY_BYPASS"`,
-      `token=$(curl -s -f -m 10 -H "Authorization: Bearer $SCREENPLAY_AUTH" $bypass_header "$SCREENPLAY_WEB_URL/api/sandbox/git-credentials") || exit 0`,
-      `[ -n "$token" ] || exit 0`,
-      `printf 'username=x-access-token\\npassword=%s\\n' "$token"`,
+      `[ -n "\${SCREENPLAY_GH_TOKEN:-}" ] || exit 0`,
+      `printf 'username=x-access-token\\npassword=%s\\n' "$SCREENPLAY_GH_TOKEN"`,
       "",
     ].join("\n")
     await sandbox.runCommand({
@@ -610,10 +568,8 @@ export async function restartSandbox(
       // running process and the relaunch below doesn't collide on the port.
       await _stopDevAndProxy(sandbox, port)
       const actingUserId = (await auth()).userId
-      const authEnv = actingUserId
-        ? buildSandboxAuthEnv(actingUserId, sandboxName)
-        : undefined
-      await runLogged(sandbox, "git", ["pull", "origin", branch], { env: authEnv })
+      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
+      await runLogged(sandbox, "git", ["pull", "origin", branch], { env: gitEnv })
     }
 
     const setup = setupScript?.trim() || "npm install"
@@ -801,13 +757,11 @@ export async function getDiffStats(
     // Try fetching silently — may fail on private repos without token, that's ok
     try {
       const actingUserId = (await auth()).userId
-      const authEnv = actingUserId
-        ? buildSandboxAuthEnv(actingUserId, sandboxName)
-        : undefined
+      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
       await sandbox.runCommand({
         cmd: "git",
         args: ["fetch", "origin", defaultBranch, "--quiet"],
-        ...(authEnv ? { env: authEnv } : {}),
+        ...(gitEnv ? { env: gitEnv } : {}),
       })
     } catch {}
 
@@ -842,19 +796,11 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 
 /**
  * Step 3: Configure git identity and normalize the branch / remote state so
- * the agent can push commits.
- *
- * Auth model depends on whether the sandbox can reach the web app:
- *
- * - Prod / preview: a plain remote URL — the credential helper installed
- *   by `installClaudeCode` mints per-user tokens on demand, so each
- *   collaborator's pushes are attributed to them rather than to whoever
- *   provisioned the sandbox.
- *
- * - Local dev (no callback URL): embed the current user's token in the
- *   remote URL. The sandbox has no way to call back to localhost, so the
- *   helper can't run. This is the pre-multiuser-fix behavior and is fine
- *   for local dev since there's only one user anyway.
+ * the agent can push commits. Auth is NOT baked into the remote URL — the
+ * credential helper installed by `installClaudeCode` reads SCREENPLAY_GH_TOKEN
+ * from the env of the command that invoked git, and the server attaches
+ * the acting user's token per command. Each collaborator's pushes are
+ * attributed to them rather than to whoever provisioned the sandbox.
  */
 export async function configureAgentGit(
   sandboxName: string,
@@ -868,21 +814,12 @@ export async function configureAgentGit(
   await sandbox.runCommand("git", ["checkout", "-B", branch])
   await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
 
-  let remoteUrl: string
-  if (getWebUrl()) {
-    remoteUrl = `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`
-  } else {
-    const ghToken = await getGitHubToken()
-    if (!ghToken) {
-      return {
-        success: false,
-        error: "No GitHub token available — the user may need to re-authenticate with GitHub.",
-      }
-    }
-    remoteUrl = `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`
-  }
-
-  const setUrl = await sandbox.runCommand("git", ["remote", "set-url", "origin", remoteUrl])
+  const setUrl = await sandbox.runCommand("git", [
+    "remote",
+    "set-url",
+    "origin",
+    `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+  ])
   if (setUrl.exitCode !== 0) {
     return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }
   }
