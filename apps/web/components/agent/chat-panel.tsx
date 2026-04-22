@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
@@ -28,10 +28,13 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { AgentChat } from "./agent-chat"
+import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ChatSessionData } from "@/lib/liveblocks.types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import { chatStore } from "@/lib/chat-store"
+
+const LOGS_TAB_VALUE = "__sandbox_logs__"
 
 function useLatestPr(chatId: string): { url: string; number: string } | null {
   const messages = useSyncExternalStore(
@@ -99,6 +102,7 @@ interface ChatPanelProps {
   onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
   onCollapse?: () => void
+  onLogsReady?: () => void
 }
 
 export function ChatPanel({
@@ -120,6 +124,7 @@ export function ChatPanel({
   onModelChange,
   diffStats,
   onCollapse,
+  onLogsReady,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -146,16 +151,45 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
   const latestPr = useLatestPr(activeTab)
+  const isAgentBusy = agent.status === "creating" || agent.status === "starting"
+  const [showLogs, setShowLogs] = useState(false)
+  const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
+
+  // Reset the logs-visible flag whenever we switch to a different agent so
+  // a freshly-selected agent (whose LogsPanel is still fetching) doesn't
+  // inherit the previous agent's "logs tab open" state.
+  useEffect(() => {
+    setShowLogs(false)
+  }, [agent.id])
+
+  // Fired by LogsPanel the first time it successfully connects to the stream.
+  // We only auto-open logs at this point (not on agent.status === "starting")
+  // so the panel doesn't flash before there's anything to show.
+  const handleLogsConnected = useCallback(() => {
+    if (agent.status === "creating" || agent.status === "starting") {
+      setShowLogs(true)
+      onLogsReady?.()
+    }
+  }, [agent.status, onLogsReady])
 
   const handleCreatePr = () => {
     if (!activeTab) return
     inputStore.send(activeTab, "Create a pull request for the changes on this branch.")
   }
 
+  const handleTabChange = (value: string) => {
+    if (value === LOGS_TAB_VALUE) {
+      setShowLogs(true)
+    } else {
+      setShowLogs(false)
+      onSelectChat(value)
+    }
+  }
+
   return (
     <Tabs
-      value={activeTab}
-      onValueChange={onSelectChat}
+      value={tabsValue}
+      onValueChange={handleTabChange}
       className="flex h-full flex-col gap-0"
     >
       <div className="flex h-12 items-center bg-background px-3">
@@ -208,7 +242,8 @@ export function ChatPanel({
               size="xs"
               variant="outline"
               onClick={handleCreatePr}
-              disabled={!activeTab}
+              disabled={!activeTab || isAgentBusy}
+              title={isAgentBusy ? "Sandbox still starting…" : undefined}
             >
               <GitPullRequest />
               Create PR
@@ -219,10 +254,15 @@ export function ChatPanel({
       <div className="flex border-b border-border bg-background">
         <div className="flex-1 overflow-x-auto min-w-0">
           <TabsList variant="line" className="h-9 px-2">
-            {openChats.map((chat) => {
-              const isUntitledEmpty = chat.label === "Untitled" && !chat.sessionId
-              const canClose = openChats.length > 1 || !isUntitledEmpty
-              return (
+            <TabsTrigger
+              value={LOGS_TAB_VALUE}
+              className="shrink-0 px-1.5"
+              aria-label="Sandbox logs"
+              title="Sandbox logs"
+            >
+              <Logs className="size-3.5" />
+            </TabsTrigger>
+            {openChats.map((chat) => (
               <TabsTrigger
                 key={chat.id}
                 value={chat.id}
@@ -254,20 +294,17 @@ export function ChatPanel({
                   </span>
                   <span
                     role="button"
-                    aria-disabled={!canClose}
-                    tabIndex={canClose ? 0 : -1}
-                    title={canClose ? "Close" : "Can't close the last chat"}
-                    className={`inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground ${canClose ? "hover:bg-accent hover:text-accent-foreground cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
+                    tabIndex={0}
+                    title="Close"
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (!canClose) return
                       onCloseChat(chat.id)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         e.stopPropagation()
-                        if (!canClose) return
                         onCloseChat(chat.id)
                       }
                     }}
@@ -276,14 +313,14 @@ export function ChatPanel({
                   </span>
                 </div>
               </TabsTrigger>
-              )
-            })}
+            ))}
             <Button
               variant="ghost"
               size="icon-xs"
               className="shrink-0 ml-1"
               onClick={onCreateChat}
-              title="New chat"
+              disabled={isAgentBusy}
+              title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
             >
               <Plus className="size-3" />
             </Button>
@@ -317,6 +354,14 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      <TabsContent
+        value={LOGS_TAB_VALUE}
+        className="flex-1 overflow-hidden data-[state=inactive]:hidden"
+        forceMount
+      >
+        <LogsPanel sandboxName={agent.sandboxName} onConnected={handleLogsConnected} />
+      </TabsContent>
 
       {openChats.map((chat) => {
         const isFirst = !chatSessions.some(
@@ -366,7 +411,7 @@ function AgentPicker({
   onSelect: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const runnableAgents = agents.filter((a) => a.status === "running" && a.branch)
+  const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -382,19 +427,23 @@ function AgentPicker({
           <CommandList>
             <CommandEmpty>No branches found.</CommandEmpty>
             <CommandGroup>
-              {runnableAgents.map((a) => (
-                <CommandItem
-                  key={a.id}
-                  value={a.branch}
-                  onSelect={() => {
-                    onSelect(a.id)
-                    setOpen(false)
-                  }}
-                >
-                  <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
-                  <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
-                </CommandItem>
-              ))}
+              {pickableAgents.map((a) => {
+                const isBusy = a.status === "creating" || a.status === "starting"
+                return (
+                  <CommandItem
+                    key={a.id}
+                    value={a.branch}
+                    onSelect={() => {
+                      onSelect(a.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
+                    <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                    {isBusy && <Spinner className="ml-auto size-3" />}
+                  </CommandItem>
+                )
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
