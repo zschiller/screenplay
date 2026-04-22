@@ -1931,18 +1931,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  // Expand the chat panel when the selected agent is booting so the user
-  // can see the auto-opened logs tab.
-  const selectedStatus = selectedAgent?.status
-  useEffect(() => {
-    if (selectedStatus !== "creating" && selectedStatus !== "starting") return
+  // Expand the collapsed chat panel when the logs stream actually starts,
+  // so the panel opens as the user sees live install/boot output — not
+  // earlier (when the sandbox doesn't exist yet and the stream would just
+  // show "Connecting…").
+  const handleLogsReady = useCallback(() => {
     const panel = chatPanelRef.current
     if (panel?.isCollapsed()) {
       panel.expand()
       const { inPixels } = panel.getSize()
       if (inPixels < 480) panel.resize(480)
     }
-  }, [selectedAgentId, selectedStatus])
+  }, [])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
 
@@ -2474,6 +2474,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
             diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
             onCollapse={() => chatPanelRef.current?.collapse()}
+            onLogsReady={handleLogsReady}
           />
         ) : (
           <div className="flex h-full flex-col bg-background">

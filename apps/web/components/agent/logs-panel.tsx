@@ -38,12 +38,20 @@ const ANSI_BG_CLASS: Record<string, string> = {
   "85,255,255": "bg-cyan-500/15 dark:bg-cyan-400/15",
 }
 
-export function LogsPanel({ sandboxName }: { sandboxName: string }) {
+export function LogsPanel({
+  sandboxName,
+  onConnected,
+}: {
+  sandboxName: string
+  onConnected?: () => void
+}) {
   const [content, setContent] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
+  const onConnectedRef = useRef(onConnected)
+  onConnectedRef.current = onConnected
 
   useEffect(() => {
     const abort = new AbortController()
@@ -61,6 +69,7 @@ export function LogsPanel({ sandboxName }: { sandboxName: string }) {
       }
       setConnected(true)
       setError(null)
+      if (!isReconnect) onConnectedRef.current?.()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       while (true) {

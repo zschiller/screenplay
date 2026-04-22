@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -102,6 +102,7 @@ interface ChatPanelProps {
   onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
   onCollapse?: () => void
+  onLogsReady?: () => void
 }
 
 export function ChatPanel({
@@ -123,6 +124,7 @@ export function ChatPanel({
   onModelChange,
   diffStats,
   onCollapse,
+  onLogsReady,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -150,17 +152,18 @@ export function ChatPanel({
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
   const latestPr = useLatestPr(activeTab)
   const isAgentBusy = agent.status === "creating" || agent.status === "starting"
-  const [showLogs, setShowLogs] = useState(isAgentBusy)
+  const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Auto-open the logs tab whenever the sandbox is (or becomes) busy so
-  // users can watch install/boot output. The dep on agent.id means switching
-  // to another busy agent also opens its logs.
-  useEffect(() => {
+  // Fired by LogsPanel the first time it successfully connects to the stream.
+  // We only auto-open logs at this point (not on agent.status === "starting")
+  // so the panel doesn't flash before there's anything to show.
+  const handleLogsConnected = useCallback(() => {
     if (agent.status === "creating" || agent.status === "starting") {
       setShowLogs(true)
+      onLogsReady?.()
     }
-  }, [agent.id, agent.status])
+  }, [agent.status, onLogsReady])
 
   const handleCreatePr = () => {
     if (!activeTab) return
@@ -350,7 +353,7 @@ export function ChatPanel({
         className="flex-1 overflow-hidden data-[state=inactive]:hidden"
         forceMount
       >
-        <LogsPanel sandboxName={agent.sandboxName} />
+        <LogsPanel sandboxName={agent.sandboxName} onConnected={handleLogsConnected} />
       </TabsContent>
 
       {openChats.map((chat) => {
