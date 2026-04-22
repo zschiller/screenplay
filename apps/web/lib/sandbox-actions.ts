@@ -1,7 +1,7 @@
 "use server"
 
 import { auth, clerkClient } from "@clerk/nextjs/server"
-import { Sandbox } from "@vercel/sandbox"
+import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
 import type { WorkspaceData } from "./liveblocks.types"
@@ -14,11 +14,52 @@ const SNAPSHOT_EXPIRATION = 24 * 60 * 60 * 1000
 // 1 vCPU = 2048 MB memory — sufficient for a Node.js dev server
 const SANDBOX_VCPUS = 1
 
+// Brokers Anthropic auth at the firewall: the sandbox never sees the real key.
+// The "*": [] rule lets everything else pass through end-to-end unchanged.
+// Returns undefined if the server has no key, so sandboxes still boot on
+// `allow-all` in that case rather than failing creation.
+function buildNetworkPolicy(): NetworkPolicy | undefined {
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key) return undefined
+  return {
+    allow: {
+      "api.anthropic.com": [{ transform: [{ headers: { "x-api-key": key } }] }],
+      "*": [],
+    },
+  }
+}
+
+// Claude Code gates on ANTHROPIC_API_KEY being set — the value doesn't matter
+// since the firewall proxy overrides the header on egress.
+const BROKERED_ANTHROPIC_ENV = { ANTHROPIC_API_KEY: "brokered" }
+
 export interface SandboxResult {
   sandboxName: string
   previewDomain: string
   status: "running" | "error"
   error?: string
+}
+
+/**
+ * Team + project slugs for the sandbox CLI, decoded from the project's OIDC
+ * token. Used to build a `sandbox ssh --scope <team> --project <project> <name>`
+ * string that resolves from anywhere. Returns {} if the token is missing or
+ * malformed — the UI falls back to a bare `sandbox ssh <name>`.
+ */
+export async function getSandboxCliContext(): Promise<{ scope?: string; project?: string }> {
+  const token = process.env.VERCEL_OIDC_TOKEN
+  if (!token) return {}
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1] ?? "", "base64url").toString(),
+    )
+    return {
+      scope: typeof payload.owner === "string" ? payload.owner : undefined,
+      project: typeof payload.project === "string" ? payload.project : undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 export async function getGitHubToken(): Promise<string | null> {
@@ -95,6 +136,9 @@ export async function cloneSandbox(
   try {
     if (!ghToken) ghToken = await getGitHubToken() ?? undefined
 
+    const networkPolicy = buildNetworkPolicy()
+    const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(env ?? {}) }
+
     const sandbox = await Sandbox.create({
       name: sandboxName,
       source: ghToken
@@ -114,7 +158,8 @@ export async function cloneSandbox(
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },
-      ...(env && Object.keys(env).length > 0 ? { env } : {}),
+      env: mergedEnv,
+      networkPolicy,
     })
 
     if (env && Object.keys(env).length > 0) {
@@ -139,6 +184,82 @@ export async function installDependencies(
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     await runLogged(sandbox, setupCmd, setupArgs)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Install the Claude Code CLI globally so `sandbox ssh <name>` lands in a box
+ * where `claude` just works. Best-effort — never throws; the dev pipeline
+ * should not fail just because the CLI install hiccupped.
+ */
+export async function installClaudeCode(
+  sandboxName: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const result = await sandbox.runCommand({
+      cmd: "npm",
+      args: ["install", "-g", "@anthropic-ai/claude-code"],
+      sudo: true,
+    })
+    if (result.exitCode !== 0) {
+      return { success: false, error: (await result.stderr()).slice(0, 500) }
+    }
+
+    // Pre-seed ~/.claude.json so the user lands in an already-onboarded state:
+    // theme set, API-key prompt approved for our "brokered" placeholder, and
+    // /vercel/sandbox pre-trusted.
+    const claudeConfig = JSON.stringify({
+      theme: "auto",
+      hasCompletedOnboarding: true,
+      customApiKeyResponses: { approved: ["brokered"], rejected: [] },
+      projects: {
+        "/vercel/sandbox": {
+          hasTrustDialogAccepted: true,
+          projectOnboardingSeenCount: 1,
+          allowedTools: [],
+          mcpContextUris: [],
+          mcpServers: {},
+          enabledMcpjsonServers: [],
+          disabledMcpjsonServers: [],
+        },
+      },
+    })
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", `printf '%s' "$CLAUDE_CONFIG" > "$HOME/.claude.json"`],
+      env: { CLAUDE_CONFIG: claudeConfig },
+    })
+
+    // User-level CLAUDE.md so every session in this sandbox inherits the
+    // always-commit-and-push rule. Lives in $HOME (not the cloned repo) so it
+    // doesn't pollute the user's git history.
+    const claudeMd = [
+      "# Screenplay sandbox rules",
+      "",
+      "## CRITICAL — always commit and push after changes",
+      "",
+      "After ANY file change, you MUST run these three commands before ending your turn. Never skip. This is the most important rule.",
+      "",
+      "1. `git add -A`",
+      "2. `git commit -m \"<concise description of changes>\"`",
+      "3. `git push`",
+      "",
+      "If you do not push, the user will not see your changes in the Screenplay UI. Always push.",
+      "",
+    ].join("\n")
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        `mkdir -p "$HOME/.claude" && printf '%s' "$CLAUDE_MD" > "$HOME/.claude/CLAUDE.md"`,
+      ],
+      env: { CLAUDE_MD: claudeMd },
+    })
+
     return { success: true }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
@@ -326,6 +447,8 @@ export async function restartSandbox(
     } catch {
       // Sandbox no longer exists (snapshot expired / deleted) — recreate it
       if (!ghToken) ghToken = await getGitHubToken() ?? undefined
+      const networkPolicy = buildNetworkPolicy()
+      const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
       const created = await Sandbox.create({
         name: sandboxName,
         source: ghToken
@@ -335,7 +458,8 @@ export async function restartSandbox(
         timeout: SANDBOX_TIMEOUT,
         snapshotExpiration: SNAPSHOT_EXPIRATION,
         resources: { vcpus: SANDBOX_VCPUS },
-        ...(safeEnv && Object.keys(safeEnv).length > 0 ? { env: safeEnv } : {}),
+        env: mergedEnv,
+        networkPolicy,
       })
       sandbox = created
       recreated = true
