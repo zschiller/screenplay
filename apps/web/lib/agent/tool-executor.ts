@@ -14,6 +14,7 @@ import type {
 } from "./types"
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
+import { clerkClient } from "@clerk/nextjs/server"
 
 export interface ToolContext {
   sandboxName: string
@@ -45,7 +46,7 @@ export async function executeCustomTool(
           result = await editFile(sandbox, toolInput as unknown as EditFileInput)
           break
         case "run_command":
-          result = await runCommand(sandbox, toolInput as unknown as RunCommandInput)
+          result = await runCommand(sandbox, toolInput as unknown as RunCommandInput, ctx)
           break
         case "list_files":
           result = await listFiles(sandbox, toolInput as unknown as ListFilesInput)
@@ -61,6 +62,24 @@ export async function executeCustomTool(
   }
   // Anthropic API requires tool result text to be at least 1 character
   return result || "(empty)"
+}
+
+/**
+ * Look up the acting user's GitHub token and hand it to the next
+ * runCommand as SCREENPLAY_GH_TOKEN. The in-sandbox credential helper
+ * feeds it to git, so every push from this turn is attributed to
+ * whichever collaborator triggered the command — not to whoever first
+ * provisioned the (shared) sandbox.
+ */
+async function buildAgentGitEnv(ctx: ToolContext): Promise<Record<string, string> | undefined> {
+  try {
+    const client = await clerkClient()
+    const tokens = await client.users.getUserOauthAccessToken(ctx.userId, "github")
+    const token = tokens.data?.[0]?.token
+    return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
+  } catch {
+    return undefined
+  }
 }
 
 async function createPr(
@@ -153,6 +172,7 @@ const SHELL_OPERATORS = /[&&|;><$`(){}]/
 async function runCommand(
   sandbox: Sandbox,
   input: RunCommandInput,
+  ctx: ToolContext,
 ): Promise<string> {
   let cmd: string
   let args: string[]
@@ -172,7 +192,12 @@ async function runCommand(
     args = tokens.slice(1)
   }
 
-  const result = await sandbox.runCommand(cmd, args)
+  const gitEnv = await buildAgentGitEnv(ctx)
+  const result = await sandbox.runCommand({
+    cmd,
+    args,
+    ...(gitEnv ? { env: gitEnv } : {}),
+  })
   const parts: string[] = []
   let stdout = redactSensitiveInfo(await result.stdout())
   let stderr = redactSensitiveInfo(await result.stderr())
