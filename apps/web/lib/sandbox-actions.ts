@@ -74,15 +74,19 @@ export async function getGitHubToken(): Promise<string | null> {
 }
 
 /**
- * Base URL the in-sandbox git credential helper calls back to. Prefer the
- * explicit SCREENPLAY_WEB_URL — `VERCEL_URL` is the per-deployment hostname,
- * fine for preview builds but not always what you want in production.
+ * Base URL the in-sandbox git credential helper calls back to. On Vercel
+ * this is available automatically: VERCEL_PROJECT_PRODUCTION_URL in prod
+ * (stable aliased domain) and VERCEL_URL in previews (per-deployment
+ * hostname). SCREENPLAY_WEB_URL overrides if set — useful for local dev
+ * where the sandbox needs to reach the dev server via a tunnel.
  */
 function getWebUrl(): string | null {
   const explicit = process.env.SCREENPLAY_WEB_URL
   if (explicit) return explicit.replace(/\/$/, "")
-  const vercel = process.env.VERCEL_URL
-  if (vercel) return `https://${vercel}`
+  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  }
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
   return null
 }
 

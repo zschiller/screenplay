@@ -71,14 +71,22 @@ export async function executeCustomTool(
  * attributed to whoever's turn triggered the command, not whoever first
  * provisioned the (shared) sandbox.
  */
+function resolveWebUrl(): string | null {
+  if (process.env.SCREENPLAY_WEB_URL) return process.env.SCREENPLAY_WEB_URL.replace(/\/$/, "")
+  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  }
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return null
+}
+
 function buildAgentAuthEnv(ctx: ToolContext): Record<string, string> | undefined {
-  const webUrl = process.env.SCREENPLAY_WEB_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+  const webUrl = resolveWebUrl()
   if (!webUrl) return undefined
   try {
     return {
       SCREENPLAY_AUTH: signSandboxAuth(ctx.userId, ctx.sandboxName),
-      SCREENPLAY_WEB_URL: webUrl.replace(/\/$/, ""),
+      SCREENPLAY_WEB_URL: webUrl,
     }
   } catch {
     return undefined
