@@ -1979,10 +1979,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   // Drop pending entries whose agent has been deleted. Selection is handled
   // by each LogProbe's onReady callback (which also removes itself).
   useEffect(() => {
-    setPendingAgentIds((prev) => {
-      const next = prev.filter((id) => agents.some((a) => a.id === id))
-      return next.length === prev.length ? prev : next
-    })
+    setPendingAgentIds((prev) => prev.filter((id) => agents.some((a) => a.id === id)))
   }, [agents])
 
   const handlePendingReady = useCallback((id: string) => {
