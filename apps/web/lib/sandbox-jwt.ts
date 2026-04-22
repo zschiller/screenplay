@@ -15,10 +15,10 @@ export interface SandboxAuthClaims {
 }
 
 function getSecret(): Buffer {
-  const raw = process.env.SCREENPLAY_SANDBOX_JWT_SECRET
+  const raw = process.env.SANDBOX_JWT_SECRET
   if (!raw) {
     throw new Error(
-      "SCREENPLAY_SANDBOX_JWT_SECRET is not set — required to sign sandbox auth tokens",
+      "SANDBOX_JWT_SECRET is not set — required to sign sandbox auth tokens",
     )
   }
   return Buffer.from(raw, "utf8")
