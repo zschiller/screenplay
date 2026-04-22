@@ -11,6 +11,9 @@ import {
   GitBranch,
   GitBranchPlus,
   GitFork,
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
   RefreshCw,
   Trash2,
   Frame,
@@ -74,6 +77,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@works
 import { BranchBadge } from "@/components/branch-badge"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
+import { useBranchPrs } from "@/hooks/use-branch-prs"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
@@ -105,6 +109,7 @@ interface AgentSidebarProps {
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
   onCollapseSidebar?: () => void
+  activeAgentIds?: Set<string>
 }
 
 export function AgentSidebar({
@@ -132,6 +137,7 @@ export function AgentSidebar({
   onRouteChange,
   onRemoveArtboard,
   onCollapseSidebar,
+  activeAgentIds,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
@@ -139,6 +145,7 @@ export function AgentSidebar({
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
+  const branchPrs = useBranchPrs(agents, workspaces)
 
   useEffect(() => {
     let cancelled = false
@@ -318,6 +325,8 @@ export function AgentSidebar({
                           <SidebarMenu>
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
+                              const isActive = activeAgentIds?.has(agent.id) ?? false
+                              const pr = branchPrs.get(agent.id)
                               const agentArtboards = artboards.filter((a) => a.sandboxId === agent.id)
 
                               return (
@@ -341,8 +350,23 @@ export function AgentSidebar({
                                           >
                                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                                               <span className="relative shrink-0">
-                                                {isLoading ? (
+                                                {isLoading || isActive ? (
                                                   <Loader2 className="h-3.5 w-3.5 animate-spin text-sidebar-foreground/70" />
+                                                ) : pr?.state === "merged" ? (
+                                                  <>
+                                                    <GitMerge className="block group-hover/agent-row:hidden text-purple-600 dark:text-purple-400" />
+                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                                  </>
+                                                ) : pr?.state === "open" ? (
+                                                  <>
+                                                    <GitPullRequest className="block group-hover/agent-row:hidden text-green-700 dark:text-green-300" />
+                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                                  </>
+                                                ) : pr?.state === "closed" ? (
+                                                  <>
+                                                    <GitPullRequestClosed className="block group-hover/agent-row:hidden text-red-600 dark:text-red-400" />
+                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
+                                                  </>
                                                 ) : (
                                                   <>
                                                     <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />

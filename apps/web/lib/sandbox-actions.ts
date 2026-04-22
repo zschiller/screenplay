@@ -296,6 +296,41 @@ export async function getBridgeVersion(): Promise<string> {
 }
 
 /**
+ * Kill any previously-started dev server and proxy wrapper so a relaunch
+ * doesn't race the old process for the port. Idempotent — safe to call when
+ * nothing is running.
+ */
+async function _stopDevAndProxy(
+  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  port: number,
+): Promise<void> {
+  const header = shellQuote(`\n$ stopping previous dev server & proxy\n`)
+  const proxyPort = port + 1
+  // SIGKILL everything matching the proxy cmdline — this covers both the
+  // `while true; ... node proxy.mjs ...` wrapper shell (whose argv contains
+  // proxy.mjs) and the node process itself. Without -9 the wrapper can
+  // respawn proxy.mjs before the relaunch. We then retry port-based kills
+  // until both ports are actually free, since a single SIGTERM + sleep 1
+  // is not enough to guarantee the listener has released the port.
+  const sh =
+    `mkdir -p /tmp/screenplay; ` +
+    `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+    `pkill -9 -f "screenplay/proxy.mjs" 2>/dev/null; ` +
+    `for attempt in 1 2 3 4 5 6; do ` +
+    `  p1=$(lsof -ti tcp:${port} 2>/dev/null); ` +
+    `  p2=$(lsof -ti tcp:${proxyPort} 2>/dev/null); ` +
+    `  if [ -z "$p1" ] && [ -z "$p2" ]; then break; fi; ` +
+    `  [ -n "$p1" ] && kill -9 $p1 2>/dev/null; ` +
+    `  [ -n "$p2" ] && kill -9 $p2 2>/dev/null; ` +
+    `  fuser -k -KILL ${port}/tcp 2>/dev/null; ` +
+    `  fuser -k -KILL ${proxyPort}/tcp 2>/dev/null; ` +
+    `  sleep 1; ` +
+    `done; ` +
+    `exit 0`
+  await sandbox.runCommand({ cmd: "sh", args: ["-c", sh] })
+}
+
+/**
  * Launch both the user's dev server and the bridge proxy. Installs the bridge
  * files first (idempotent). Returns a SandboxResult pointing at the proxy
  * URL (port + 1) rather than the devserver URL.
@@ -467,6 +502,9 @@ export async function restartSandbox(
 
     // Only pull if the sandbox already existed (freshly cloned sandboxes are up to date)
     if (!recreated) {
+      // Kill the old dev server + proxy first so install doesn't race the
+      // running process and the relaunch below doesn't collide on the port.
+      await _stopDevAndProxy(sandbox, port)
       await runLogged(sandbox, "git", ["pull", "origin", branch])
     }
 

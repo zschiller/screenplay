@@ -210,6 +210,52 @@ export async function compareBranch(
   return { additions, deletions }
 }
 
+export type BranchPrState = "open" | "closed" | "merged"
+
+export interface BranchPrInfo {
+  number: number
+  url: string
+  state: BranchPrState
+}
+
+export async function listBranchPullRequest(
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<BranchPrInfo | null> {
+  const { userId } = await auth()
+  if (!userId) return null
+
+  const client = await clerkClient()
+  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
+  const token = tokens.data?.[0]?.token
+  if (!token) return null
+
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branch}&state=all&per_page=1&sort=created&direction=desc`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    },
+  )
+
+  if (!res.ok) return null
+
+  const data = (await res.json()) as Array<{
+    number: number
+    html_url: string
+    state: "open" | "closed"
+    merged_at: string | null
+  }>
+  const pr = data[0]
+  if (!pr) return null
+
+  const state: BranchPrState = pr.merged_at ? "merged" : pr.state
+  return { number: pr.number, url: pr.html_url, state }
+}
+
 export async function listRepoBranches(
   owner: string,
   repo: string,
