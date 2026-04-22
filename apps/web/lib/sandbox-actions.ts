@@ -4,6 +4,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server"
 import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
+import { signSandboxAuth } from "./sandbox-jwt"
 import type { WorkspaceData } from "./liveblocks.types"
 
 // 30 minutes — keep sandboxes alive only while actively used.
@@ -70,6 +71,65 @@ export async function getGitHubToken(): Promise<string | null> {
   const tokens = await client.users.getUserOauthAccessToken(userId, "github")
   const token = tokens.data?.[0]?.token
   return token ?? null
+}
+
+/**
+ * Base URL the in-sandbox git credential helper calls back to. Prefer the
+ * explicit SCREENPLAY_WEB_URL — `VERCEL_URL` is the per-deployment hostname,
+ * fine for preview builds but not always what you want in production.
+ */
+function getWebUrl(): string | null {
+  const explicit = process.env.SCREENPLAY_WEB_URL
+  if (explicit) return explicit.replace(/\/$/, "")
+  const vercel = process.env.VERCEL_URL
+  if (vercel) return `https://${vercel}`
+  return null
+}
+
+/**
+ * Env vars to pass into a `sandbox.runCommand` that may hit GitHub, so the
+ * in-sandbox git credential helper can mint the acting user's token. Returns
+ * undefined if either the JWT secret or callback URL isn't configured — the
+ * command will still run, git auth will fail loudly, and the caller can
+ * surface that to the user.
+ */
+function buildSandboxAuthEnv(
+  userId: string,
+  sandboxName: string,
+): Record<string, string> | undefined {
+  const webUrl = getWebUrl()
+  if (!webUrl) return undefined
+  try {
+    return {
+      SCREENPLAY_AUTH: signSandboxAuth(userId, sandboxName),
+      SCREENPLAY_WEB_URL: webUrl,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Resolve the user whose GitHub identity should be used for a given sandbox
+ * operation. Prefers the live Clerk user on the current request (so each
+ * collaborator's git actions are correctly attributed to them). Falls back to
+ * the workspace/project owner for non-interactive paths — the owner is the
+ * one constant identity tied to the project.
+ */
+export async function resolveActingUserId(
+  fallbackRoomId?: string,
+): Promise<string | null> {
+  const live = (await auth()).userId
+  if (live) return live
+  if (!fallbackRoomId) return null
+  try {
+    const { liveblocks } = await import("./liveblocks-server")
+    const room = await liveblocks.getRoom(fallbackRoomId)
+    const owner = room.metadata.ownerId
+    return typeof owner === "string" && owner ? owner : null
+  } catch {
+    return null
+  }
 }
 
 import { parseEnvVars } from "./env-utils"
@@ -258,6 +318,36 @@ export async function installClaudeCode(
         `mkdir -p "$HOME/.claude" && printf '%s' "$CLAUDE_MD" > "$HOME/.claude/CLAUDE.md"`,
       ],
       env: { CLAUDE_MD: claudeMd },
+    })
+
+    // Per-command credential helper: git invokes it whenever it needs
+    // GitHub auth, and it trades the caller-provided SCREENPLAY_AUTH JWT
+    // (set on the same runCommand that invoked git) for that user's GitHub
+    // token via a callback to the web app. No token is ever stored in the
+    // sandbox — so two users sharing this sandbox correctly push as
+    // themselves rather than riding on whoever set things up first.
+    //
+    // `exit 0` on missing env / failed mint: git then prompts, which in a
+    // non-interactive sandbox means it fails loudly with a clear error.
+    const credentialHelper = [
+      "#!/bin/sh",
+      "set -eu",
+      `[ "\${1:-}" = "get" ] || exit 0`,
+      "cat >/dev/null",
+      `[ -n "\${SCREENPLAY_AUTH:-}" ] || exit 0`,
+      `[ -n "\${SCREENPLAY_WEB_URL:-}" ] || exit 0`,
+      `token=$(curl -s -f -m 10 -H "Authorization: Bearer $SCREENPLAY_AUTH" "$SCREENPLAY_WEB_URL/api/sandbox/git-credentials") || exit 0`,
+      `[ -n "$token" ] || exit 0`,
+      `printf 'username=x-access-token\\npassword=%s\\n' "$token"`,
+      "",
+    ].join("\n")
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        `mkdir -p "$HOME/.screenplay" && printf '%s' "$HELPER" > "$HOME/.screenplay/git-credential-helper.sh" && chmod +x "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.helper "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
+      ],
+      env: { HELPER: credentialHelper },
     })
 
     return { success: true }
@@ -505,7 +595,11 @@ export async function restartSandbox(
       // Kill the old dev server + proxy first so install doesn't race the
       // running process and the relaunch below doesn't collide on the port.
       await _stopDevAndProxy(sandbox, port)
-      await runLogged(sandbox, "git", ["pull", "origin", branch])
+      const actingUserId = (await auth()).userId
+      const authEnv = actingUserId
+        ? buildSandboxAuthEnv(actingUserId, sandboxName)
+        : undefined
+      await runLogged(sandbox, "git", ["pull", "origin", branch], { env: authEnv })
     }
 
     const setup = setupScript?.trim() || "npm install"
@@ -691,7 +785,17 @@ export async function getDiffStats(
     if (sandbox.status !== "running") return null
 
     // Try fetching silently — may fail on private repos without token, that's ok
-    try { await sandbox.runCommand("git", ["fetch", "origin", defaultBranch, "--quiet"]) } catch {}
+    try {
+      const actingUserId = (await auth()).userId
+      const authEnv = actingUserId
+        ? buildSandboxAuthEnv(actingUserId, sandboxName)
+        : undefined
+      await sandbox.runCommand({
+        cmd: "git",
+        args: ["fetch", "origin", defaultBranch, "--quiet"],
+        ...(authEnv ? { env: authEnv } : {}),
+      })
+    } catch {}
 
     // Use numstat for reliable machine-parseable output
     const result = await sandbox.runCommand("git", [
@@ -723,21 +827,17 @@ function getWorkspaceEnv(envVarsText: string): Record<string, string> | undefine
 }
 
 /**
- * Step 3: Configure git auth and identity so the agent can push commits.
- * Also ensures we're on the correct branch (not detached HEAD) since
- * Sandbox.create with revision may leave HEAD detached.
+ * Step 3: Configure git identity and normalize the branch / remote state so
+ * the agent can push commits. Auth is NOT baked in here — we rely on the
+ * credential helper installed by `installClaudeCode` to mint the acting
+ * user's token per command, so each collaborator's pushes are attributed
+ * to them rather than to whoever happened to provision the sandbox.
  */
 export async function configureAgentGit(
   sandboxName: string,
   workspace: WorkspaceData,
   branch: string,
-  ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  if (!ghToken) ghToken = await getGitHubToken() ?? undefined
-  if (!ghToken) {
-    return { success: false, error: "No GitHub token available — the user may need to re-authenticate with GitHub." }
-  }
-
   const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
 
   // Ensure we're on the actual branch, not a detached HEAD.
@@ -749,7 +849,7 @@ export async function configureAgentGit(
     "remote",
     "set-url",
     "origin",
-    `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+    `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
   ])
   if (setUrl.exitCode !== 0) {
     return { success: false, error: `Failed to set git remote URL (exit ${setUrl.exitCode})` }

@@ -14,6 +14,7 @@ import type {
 } from "./types"
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
+import { signSandboxAuth } from "@/lib/sandbox-jwt"
 
 export interface ToolContext {
   sandboxName: string
@@ -45,7 +46,7 @@ export async function executeCustomTool(
           result = await editFile(sandbox, toolInput as unknown as EditFileInput)
           break
         case "run_command":
-          result = await runCommand(sandbox, toolInput as unknown as RunCommandInput)
+          result = await runCommand(sandbox, toolInput as unknown as RunCommandInput, ctx)
           break
         case "list_files":
           result = await listFiles(sandbox, toolInput as unknown as ListFilesInput)
@@ -61,6 +62,27 @@ export async function executeCustomTool(
   }
   // Anthropic API requires tool result text to be at least 1 character
   return result || "(empty)"
+}
+
+/**
+ * Build env vars that let the in-sandbox git credential helper mint the
+ * acting user's GitHub token on demand. Passed on every agent-driven
+ * runCommand — the agent can push at any time and we want each push
+ * attributed to whoever's turn triggered the command, not whoever first
+ * provisioned the (shared) sandbox.
+ */
+function buildAgentAuthEnv(ctx: ToolContext): Record<string, string> | undefined {
+  const webUrl = process.env.SCREENPLAY_WEB_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+  if (!webUrl) return undefined
+  try {
+    return {
+      SCREENPLAY_AUTH: signSandboxAuth(ctx.userId, ctx.sandboxName),
+      SCREENPLAY_WEB_URL: webUrl.replace(/\/$/, ""),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 async function createPr(
@@ -153,6 +175,7 @@ const SHELL_OPERATORS = /[&&|;><$`(){}]/
 async function runCommand(
   sandbox: Sandbox,
   input: RunCommandInput,
+  ctx: ToolContext,
 ): Promise<string> {
   let cmd: string
   let args: string[]
@@ -172,7 +195,12 @@ async function runCommand(
     args = tokens.slice(1)
   }
 
-  const result = await sandbox.runCommand(cmd, args)
+  const authEnv = buildAgentAuthEnv(ctx)
+  const result = await sandbox.runCommand({
+    cmd,
+    args,
+    ...(authEnv ? { env: authEnv } : {}),
+  })
   const parts: string[] = []
   let stdout = redactSensitiveInfo(await result.stdout())
   let stderr = redactSensitiveInfo(await result.stderr())
