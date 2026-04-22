@@ -9,6 +9,7 @@ import {
   createAgentBranch,
   cloneSandbox,
   installDependencies,
+  installClaudeCode,
   startDevServer,
   configureAgentGit,
 } from "@/lib/sandbox-actions"
@@ -196,9 +197,13 @@ async function runNewOrFromBranchPipeline(
     return
   }
 
-  // Step 3: Install dependencies
+  // Step 3: Install dependencies + Claude Code in parallel.
+  // Claude Code is best-effort — a failure there shouldn't fail the pipeline.
   await updateAgent(roomId, agentId, { statusMessage: "Installing dependencies…" })
-  const installResult = await installDependencies(cloneResult.sandboxName, workspace.setupScript)
+  const [installResult] = await Promise.all([
+    installDependencies(cloneResult.sandboxName, workspace.setupScript),
+    installClaudeCode(cloneResult.sandboxName),
+  ])
   if (!installResult.success) {
     await markError(roomId, agentId, installResult.error)
     return

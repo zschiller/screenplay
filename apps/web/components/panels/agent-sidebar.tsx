@@ -18,6 +18,7 @@ import {
   Pencil,
   Route,
   PanelLeftClose,
+  Terminal,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -75,6 +76,7 @@ import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/liveblocks.types"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
+import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
 import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
 
@@ -135,7 +137,18 @@ export function AgentSidebar({
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
+  const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
+
+  useEffect(() => {
+    let cancelled = false
+    getSandboxCliContext().then((ctx) => {
+      if (!cancelled) setSandboxCliContext(ctx)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!showPicker) return
@@ -380,6 +393,21 @@ export function AgentSidebar({
                                                         <DropdownMenuItem onClick={() => onCrawlRoutes(agent.id)}>
                                                           <Frame />
                                                           Show all routes
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.sandboxName}
+                                                          onClick={() => {
+                                                            if (!agent.sandboxName) return
+                                                            const parts = ["sandbox run"]
+                                                            if (sandboxCliContext.scope) parts.push(`--scope ${sandboxCliContext.scope}`)
+                                                            if (sandboxCliContext.project) parts.push(`--project ${sandboxCliContext.project}`)
+                                                            parts.push(`--name ${agent.sandboxName}`)
+                                                            parts.push("-i", "-t", "--", "claude")
+                                                            navigator.clipboard.writeText(parts.join(" "))
+                                                          }}
+                                                        >
+                                                          <Terminal />
+                                                          Copy connection string
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem variant="destructive" onClick={() => onRemoveAgent(agent.id)}>
