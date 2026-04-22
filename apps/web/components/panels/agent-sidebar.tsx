@@ -148,18 +148,22 @@ export function AgentSidebar({
     }
   }, [showPicker])
 
-  // Auto-select agents when they finish creating
+  // Auto-select agents when they finish creating. onSelectAgent is stored in
+  // a ref so this effect only depends on `agents` — otherwise the caller's
+  // unstable callback reference causes it to fire every render and loops.
   const prevStatusRef = useRef<Map<string, string>>(new Map())
+  const onSelectAgentRef = useRef(onSelectAgent)
+  onSelectAgentRef.current = onSelectAgent
   useEffect(() => {
     const prev = prevStatusRef.current
     for (const agent of agents) {
       const was = prev.get(agent.id)
       if ((was === "creating" || was === "starting") && agent.status === "running") {
-        onSelectAgent(agent.id)
+        onSelectAgentRef.current(agent.id)
       }
     }
     prevStatusRef.current = new Map(agents.map((a) => [a.id, a.status]))
-  }, [agents, onSelectAgent])
+  }, [agents])
 
   return (
     <SidebarProvider className="flex h-full flex-col select-none bg-sidebar text-sidebar-foreground">
