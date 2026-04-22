@@ -75,14 +75,12 @@ export async function getGitHubToken(): Promise<string | null> {
 
 /**
  * Base URL the in-sandbox git credential helper calls back to. On Vercel
- * this is available automatically: VERCEL_PROJECT_PRODUCTION_URL in prod
- * (stable aliased domain) and VERCEL_URL in previews (per-deployment
- * hostname). SCREENPLAY_WEB_URL overrides if set — useful for local dev
- * where the sandbox needs to reach the dev server via a tunnel.
+ * this is always available: VERCEL_PROJECT_PRODUCTION_URL in prod (stable
+ * aliased domain) and VERCEL_URL in previews (per-deployment hostname).
+ * Returns null in local dev — callers fall back to embedding the token
+ * in the git remote URL since localhost isn't reachable from the sandbox.
  */
 function getWebUrl(): string | null {
-  const explicit = process.env.SCREENPLAY_WEB_URL
-  if (explicit) return explicit.replace(/\/$/, "")
   if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   }
@@ -866,9 +864,7 @@ export async function configureAgentGit(
     if (!ghToken) {
       return {
         success: false,
-        error:
-          "No GitHub token available and no sandbox callback URL configured — " +
-          "set SCREENPLAY_WEB_URL (e.g. an ngrok tunnel) or re-authenticate with GitHub.",
+        error: "No GitHub token available — the user may need to re-authenticate with GitHub.",
       }
     }
     remoteUrl = `https://x-access-token:${ghToken}@github.com/${workspace.repoOwner}/${workspace.repoName}.git`

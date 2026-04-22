@@ -72,7 +72,6 @@ export async function executeCustomTool(
  * provisioned the (shared) sandbox.
  */
 function resolveWebUrl(): string | null {
-  if (process.env.SCREENPLAY_WEB_URL) return process.env.SCREENPLAY_WEB_URL.replace(/\/$/, "")
   if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   }
