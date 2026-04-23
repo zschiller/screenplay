@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { formatDistanceToNow } from "@/lib/utils"
-import { DRAFTS_FOLDER_ID } from "@/lib/organization-actions"
+import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { FileActionMenu } from "./file-action-menu"

@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { useHome } from "./home-provider"
-import type { Folder } from "@/lib/organization-actions"
+import type { Folder } from "@/lib/organization"
 
 type Props = {
   folder: Folder

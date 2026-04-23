@@ -21,7 +21,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { DRAFTS_FOLDER_ID } from "@/lib/organization-actions"
+import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { useHome } from "./home-provider"
 import type { ProjectSummary } from "@/lib/projects-actions"
 

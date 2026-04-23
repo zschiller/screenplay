@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { DRAFTS_FOLDER_ID } from "@/lib/organization-actions"
+import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import {
   ALL_VIEW_ID,
   PINNED_VIEW_ID,

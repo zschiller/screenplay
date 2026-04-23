@@ -19,15 +19,17 @@ import {
   cleanupMissingFiles,
   createFolder as createFolderAction,
   deleteFolder as deleteFolderAction,
-  DRAFTS_FOLDER_ID,
   getOrganization,
   moveFile as moveFileAction,
   renameFolder as renameFolderAction,
   setFilePinned,
   setFolderPinned,
+} from "@/lib/organization-actions"
+import {
+  DRAFTS_FOLDER_ID,
   type Folder,
   type OrganizationState,
-} from "@/lib/organization-actions"
+} from "@/lib/organization"
 
 export type View = "grid" | "table"
 export type SortKey = "updated" | "created" | "name"

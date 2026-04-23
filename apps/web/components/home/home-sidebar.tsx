@@ -51,7 +51,7 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { DRAFTS_FOLDER_ID } from "@/lib/organization-actions"
+import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { useHome, ALL_VIEW_ID } from "./home-provider"
 import { InputDialog } from "./file-dialogs"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
@@ -60,7 +60,7 @@ import { FileActionMenu } from "./file-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { WorkspaceConfigsDialog } from "./workspace-configs-dialog"
 import type { ProjectSummary } from "@/lib/projects-actions"
-import type { Folder as FolderType } from "@/lib/organization-actions"
+import type { Folder as FolderType } from "@/lib/organization"
 
 function UserHeader() {
   const { user, isLoaded } = useUser()
