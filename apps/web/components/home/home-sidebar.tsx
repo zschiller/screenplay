@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useUser, useClerk } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import {
   ChevronDown,
   ChevronsUpDown,
@@ -13,8 +13,8 @@ import {
   MoreHorizontal,
   Pin,
   Plus,
-  Settings,
 } from "lucide-react"
+import { authClient, useSession } from "@/lib/auth-client"
 import {
   Sidebar,
   SidebarContent,
@@ -63,11 +63,11 @@ import type { ProjectSummary } from "@/lib/projects-actions"
 import type { Folder as FolderType } from "@/lib/organization"
 
 function UserHeader() {
-  const { user, isLoaded } = useUser()
-  const { openUserProfile, signOut } = useClerk()
+  const router = useRouter()
+  const { data: session, isPending } = useSession()
   const [configsOpen, setConfigsOpen] = useState(false)
 
-  if (!isLoaded) {
+  if (isPending) {
     return (
       <div className="flex items-center gap-2 p-2">
         <Skeleton className="size-7 rounded-full" />
@@ -76,12 +76,16 @@ function UserHeader() {
     )
   }
 
-  const name =
-    user?.firstName && user?.lastName
-      ? `${user.firstName} ${user.lastName}`
-      : user?.username ?? user?.firstName ?? "Account"
-  const email = user?.primaryEmailAddress?.emailAddress ?? null
-  const initials = (user?.firstName?.[0] ?? name[0] ?? "?").toUpperCase()
+  const user = session?.user
+  const name = user?.name?.trim() || user?.email?.split("@")[0] || "Account"
+  const email = user?.email ?? null
+  const initials = (name[0] ?? "?").toUpperCase()
+
+  async function handleSignOut() {
+    await authClient.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <>
@@ -92,7 +96,7 @@ function UserHeader() {
             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
             <Avatar className="size-7 rounded-md">
-              <AvatarImage src={user?.imageUrl} alt={name} />
+              <AvatarImage src={user?.image ?? undefined} alt={name} />
               <AvatarFallback className="rounded-md text-xs">
                 {initials}
               </AvatarFallback>
@@ -117,16 +121,12 @@ function UserHeader() {
             Signed in as {email ?? name}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => openUserProfile()}>
-            <Settings />
-            Account settings
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfigsOpen(true)}>
             <LayoutGrid />
             Configured repositories
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => signOut()}>
+          <DropdownMenuItem onSelect={handleSignOut}>
             <LogOut />
             Sign out
           </DropdownMenuItem>

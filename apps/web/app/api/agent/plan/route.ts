@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { auth } from "@clerk/nextjs/server"
+import { getUserId } from "@/lib/auth-server"
 import { getClient } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
@@ -41,7 +41,7 @@ async function broadcastChatSignal(roomId: string, chatId: string, signal: "chat
 }
 
 export async function POST(req: Request) {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return new Response("Unauthorized", { status: 401 })
   }

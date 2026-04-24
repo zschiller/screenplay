@@ -1,7 +1,8 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
 import { nanoid } from "nanoid"
+import { pool } from "./db"
+import { requireUserId } from "./auth-server"
 import {
   DRAFTS_FOLDER_ID,
   type Folder,
@@ -13,12 +14,6 @@ const EMPTY: OrganizationState = {
   fileFolder: {},
   pinnedFiles: [],
   pinnedFolders: [],
-}
-
-async function requireUserId(): Promise<string> {
-  const { userId } = await auth()
-  if (!userId) throw new Error("Unauthorized")
-  return userId
 }
 
 function normalize(raw: unknown): OrganizationState {
@@ -53,21 +48,24 @@ function normalize(raw: unknown): OrganizationState {
 }
 
 async function readState(userId: string): Promise<OrganizationState> {
-  const client = await clerkClient()
-  const user = await client.users.getUser(userId)
-  return normalize(
-    (user.privateMetadata as Record<string, unknown>)?.organization,
+  const { rows } = await pool.query<{ data: unknown }>(
+    `SELECT data FROM user_organization WHERE user_id = $1 LIMIT 1`,
+    [userId],
   )
+  return normalize(rows[0]?.data)
 }
 
 async function writeState(
   userId: string,
   next: OrganizationState,
 ): Promise<OrganizationState> {
-  const client = await clerkClient()
-  await client.users.updateUserMetadata(userId, {
-    privateMetadata: { organization: next },
-  })
+  await pool.query(
+    `INSERT INTO user_organization (user_id, data, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (user_id)
+     DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    [userId, JSON.stringify(next)],
+  )
   return next
 }
 

@@ -1,14 +1,8 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { requireUserId } from "@/lib/auth-server"
 import { getConfigs, saveConfigs } from "./workspace-configs-store"
 import type { WorkspaceConfig } from "./workspace-configs.types"
-
-async function requireUserId(): Promise<string> {
-  const { userId } = await auth()
-  if (!userId) throw new Error("Unauthorized")
-  return userId
-}
 
 export async function listWorkspaceConfigs(): Promise<WorkspaceConfig[]> {
   const userId = await requireUserId()

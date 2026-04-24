@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server"
+import { getUserId } from "@/lib/auth-server"
 import { kv } from "@/lib/kv"
 import { getClient } from "@/lib/agent/config"
 
@@ -13,7 +13,7 @@ export interface ModelInfo {
 }
 
 export async function GET() {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return new Response("Unauthorized", { status: 401 })
   }

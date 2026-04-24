@@ -1,11 +1,11 @@
-import { auth } from "@clerk/nextjs/server"
+import { getUserId } from "@/lib/auth-server"
 import { getClient } from "@/lib/agent/config"
 import type { AgentMessage, CustomToolName } from "@/lib/agent/types"
 
 export const runtime = "nodejs"
 
 export async function GET(req: Request) {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return new Response("Unauthorized", { status: 401 })
   }
