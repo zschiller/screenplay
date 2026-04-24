@@ -12,10 +12,10 @@ export function Cursors({ viewport }: CursorsProps) {
   return (
     <>
       {others.map(({ clientId, presence }) => {
-        if (!presence.cursor) return null
+        if (!presence.pointer) return null
 
-        const screenX = presence.cursor.x * viewport.zoom + viewport.x
-        const screenY = presence.cursor.y * viewport.zoom + viewport.y
+        const screenX = presence.pointer.x * viewport.zoom + viewport.x
+        const screenY = presence.pointer.y * viewport.zoom + viewport.y
 
         return (
           <div
@@ -39,7 +39,7 @@ export function Cursors({ viewport }: CursorsProps) {
               className="ml-3 mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white"
               style={{ backgroundColor: presence.color }}
             >
-              {presence.user.name || "Anonymous"}
+              {presence.identity.name || "Anonymous"}
             </span>
           </div>
         )
