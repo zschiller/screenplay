@@ -71,7 +71,9 @@ const server = http.createServer((req, res) => {
   const headers = { ...req.headers }
   headers["host"] = `${UPSTREAM_HOST}:${UPSTREAM_PORT}`
   headers["accept-encoding"] = "identity"
-  if (headers["origin"]) headers["origin"] = `http://${UPSTREAM_HOST}:${UPSTREAM_PORT}`
+  // Drop Origin so Next.js 15+ treats the request as same-site instead of
+  // running its stricter cross-origin check against a rewritten origin.
+  delete headers["origin"]
 
   const upstreamReq = http.request(
     {
@@ -121,7 +123,7 @@ server.on("upgrade", (req, clientSocket, head) => {
   const upstream = net.connect(UPSTREAM_PORT, UPSTREAM_HOST, () => {
     const headers = { ...req.headers }
     headers["host"] = `${UPSTREAM_HOST}:${UPSTREAM_PORT}`
-    if (headers["origin"]) headers["origin"] = `http://${UPSTREAM_HOST}:${UPSTREAM_PORT}`
+    delete headers["origin"]
     const headerLines = Object.entries(headers)
       .map(([k, v]) => Array.isArray(v) ? v.map((vv) => `${k}: ${vv}`).join("\r\n") : `${k}: ${v}`)
       .join("\r\n")
