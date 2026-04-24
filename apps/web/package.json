@@ -20,7 +20,6 @@
     "@liveblocks/client": "^3.18.3",
     "@liveblocks/node": "^3.18.3",
     "@liveblocks/react": "^3.18.3",
-    "@liveblocks/react-ui": "^3.18.3",
     "@liveblocks/yjs": "^3.18.3",
     "@tiptap/core": "^3.22.4",
     "@tiptap/extension-collaboration": "^3.22.4",
@@ -44,6 +43,7 @@
     "react-resizable-panels": "^4.9.0",
     "react-zoom-pan-pinch": "^4.0.3",
     "unique-names-generator": "^4.7.1",
+    "y-protocols": "^1.0.7",
     "yjs": "^13.6.30"
   },
   "devDependencies": {

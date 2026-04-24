@@ -1,5 +1,5 @@
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { liveblocks } from "@/lib/liveblocks-server"
+import { readRoomDoc } from "@/lib/yjs/server"
 
 export interface CreateGitHubPrInput {
   userId: string
@@ -19,30 +19,20 @@ export async function createGitHubPr(
 ): Promise<CreateGitHubPrResult> {
   const { userId, roomId, sandboxName, title, body } = input
 
-  let branch: string | undefined
-  let workspaceId: string | undefined
-  let repoOwner: string | undefined
-  let repoName: string | undefined
-  let defaultBranch: string | undefined
-
-  await liveblocks.mutateStorage(roomId, ({ root }) => {
-    const sandboxes = root.get("sandboxes")
-    for (const [, ag] of sandboxes) {
-      if (ag.get("sandboxName") === sandboxName) {
-        branch = ag.get("branch")
-        workspaceId = ag.get("workspaceId")
-        break
+  const { branch, repoOwner, repoName, defaultBranch } = await readRoomDoc(
+    roomId,
+    ({ agents, workspaces }) => {
+      const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
+      if (!agent) return {}
+      const ws = workspaces.get(agent.workspaceId)
+      return {
+        branch: agent.branch,
+        repoOwner: ws?.repoOwner,
+        repoName: ws?.repoName,
+        defaultBranch: ws?.defaultBranch,
       }
-    }
-    if (workspaceId) {
-      const ws = root.get("workspaces").get(workspaceId)
-      if (ws) {
-        repoOwner = ws.get("repoOwner")
-        repoName = ws.get("repoName")
-        defaultBranch = ws.get("defaultBranch")
-      }
-    }
-  })
+    },
+  )
 
   if (!branch) throw new Error("Agent branch not found in storage")
   if (!repoOwner || !repoName || !defaultBranch) {

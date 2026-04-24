@@ -1,6 +1,9 @@
-import { RoomProviderWrapper } from "@/components/providers/liveblocks-provider"
+import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
-import { liveblocks } from "@/lib/liveblocks-server"
+import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
+import { getUserId } from "@/lib/auth-helpers"
+import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
+import { YjsRoomProvider } from "@/lib/yjs-host/client"
 
 export default async function RoomPage({
   params,
@@ -9,18 +12,20 @@ export default async function RoomPage({
 }) {
   const { roomId } = await params
 
-  let projectName = "Untitled"
-  try {
-    const room = await liveblocks.getRoom(roomId)
-    const raw = room.metadata.name
-    if (typeof raw === "string" && raw.length) projectName = raw
-  } catch {
-    // fall back to default
-  }
+  const userId = await getUserId()
+  if (!userId) redirect(`/sign-in?redirect=/${roomId}`)
+
+  const room = await getRoom(roomId)
+  if (!room) notFound()
+
+  if (!(await canAccess(roomId, userId))) notFound()
+
+  // Best-effort: don't block render if the timestamp update fails.
+  touchRoomOpened(roomId).catch(() => {})
 
   return (
-    <RoomProviderWrapper roomId={roomId}>
-      <Canvas roomId={roomId} projectName={projectName} />
-    </RoomProviderWrapper>
+    <YjsRoomProvider roomId={roomId} fallback={<CanvasSkeleton />}>
+      <Canvas roomId={roomId} projectName={room.name} />
+    </YjsRoomProvider>
   )
 }

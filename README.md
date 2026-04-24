@@ -12,8 +12,8 @@ Before deploying, create accounts and projects for each of the following:
 | --- | --- | --- |
 | **Vercel** | Hosting the Next.js app and provisioning `@vercel/sandbox` VMs for each workspace | https://vercel.com |
 | **GitHub OAuth App** | Sign-in + `repo` scope so the app can clone private repos and push commits on the user's behalf | https://github.com/settings/developers |
-| **Postgres** | Better Auth user/session storage, per-user organization state, and the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
-| **Liveblocks** | Real-time presence, cursors, comments, and shared workspace state on the canvas | https://liveblocks.io |
+| **Postgres** | Better Auth user/session storage, per-user organization state, the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks), project rooms + members (`room`, `room_member`), and comment threads (`thread`, `comment`). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
+| **Yjs host** (Liveblocks) | Durable storage and realtime sync for the per-room [Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents, artboards, text layers, chat sessions, plans), agent stream events, and Yjs awareness (cursors, viewport, selections). Currently implemented on top of Liveblocks via `lib/yjs-host/liveblocks-host.ts` + `lib/yjs-host/client.tsx`. Any Yjs-compatible host (Hocuspocus, y-websocket, Cloudflare Durable Objects, …) is a swap of those two files. | https://liveblocks.io |
 | **Anthropic API** | Powers the in-sandbox coding agent (Claude) via `@anthropic-ai/sdk` | https://console.anthropic.com |
 
 ### GitHub OAuth app setup
@@ -39,7 +39,11 @@ For local development you have two choices:
 1. Provision a Postgres database anywhere (Neon, Vercel Postgres, Supabase, a self-hosted server — anything) and copy the connection string into `DATABASE_URL`. The default build targets Neon's serverless HTTP driver; see [Using a different Postgres driver](#using-a-different-postgres-driver) if your provider doesn't speak that protocol.
 2. That's it. Checked-in SQL migrations under `apps/web/drizzle/` are applied automatically at build time — the `apps/web` `build` script is `drizzle-kit migrate && next build`, so every Vercel deploy lands any new migrations before starting the app. `drizzle-kit migrate` is idempotent (skips migrations already recorded in `__drizzle_migrations`).
 
-Schema lives in `apps/web/lib/db/schema.ts` — Better Auth's `user`/`session`/`account`/`verification` tables, a per-user `organization` JSONB column for folders/pins, and the `kv_store` table backing `lib/kv`.
+Schema lives in `apps/web/lib/db/schema.ts`:
+- Better Auth's `user` / `session` / `account` / `verification` tables, plus a per-user `organization` JSONB column for folders/pins.
+- `kv_store` — backs `lib/kv` (TTL-aware key/value with distributed locks).
+- `room` / `room_member` — project rooms and access control. Source of truth for who can open a canvas; the `/api/yjs/auth` route gates Yjs-host token issuance against `room_member`.
+- `thread` / `comment` — canvas comment threads. Realtime fanout rides a `meta.commentsRevision` counter inside the room's Y.Doc — server bumps it after any thread/comment change, clients subscribe via `useCommentsRevision` and refetch.
 
 #### Changing the schema
 
@@ -106,8 +110,10 @@ GITHUB_CLIENT_SECRET=...
 # postgres-js / node-postgres if you're pointing at something else.
 DATABASE_URL=postgres://...
 
-# --- Liveblocks ---
-# Server-side secret key from https://liveblocks.io/dashboard
+# --- Yjs host (Liveblocks) ---
+# Server-side secret key from https://liveblocks.io/dashboard. Used only by
+# lib/yjs-host/liveblocks-host.ts — swap that file out (and lib/yjs-host/
+# client.tsx) to point at a different Yjs host (Hocuspocus, y-websocket, etc).
 LIVEBLOCKS_SECRET_KEY=sk_...
 
 # --- Anthropic ---
@@ -138,7 +144,7 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
-   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY`, `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`): **Production + Preview**.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
 ### Running locally

@@ -15,6 +15,20 @@
       "when": 1777053037815,
       "tag": "0001_red_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777060678372,
+      "tag": "0002_nifty_vampiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777061787835,
+      "tag": "0003_open_warbird",
+      "breakpoints": true
     }
   ]
 }

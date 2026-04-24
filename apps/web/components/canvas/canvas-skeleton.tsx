@@ -1,32 +1,6 @@
-"use client"
-
-import { ReactNode } from "react"
-import { LiveMap, LiveObject } from "@liveblocks/client"
-import {
-  LiveblocksProvider,
-  RoomProvider,
-  ClientSideSuspense,
-} from "@liveblocks/react/suspense"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { YjsProvider } from "@/components/providers/yjs-provider"
-import "@/lib/liveblocks.types"
 
-const CURSOR_COLORS = [
-  "#E57373",
-  "#64B5F6",
-  "#81C784",
-  "#FFB74D",
-  "#BA68C8",
-  "#4DD0E1",
-  "#FF8A65",
-  "#A1887F",
-]
-
-function getRandomColor() {
-  return CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]
-}
-
-function CanvasSkeleton() {
+export function CanvasSkeleton() {
   return (
     <div className="fixed inset-0 flex bg-muted/30">
       <aside className="flex h-full w-[240px] shrink-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -89,50 +63,5 @@ function CanvasSkeleton() {
         </div>
       </div>
     </div>
-  )
-}
-
-export function RoomProviderWrapper({
-  roomId,
-  children,
-}: {
-  roomId: string
-  children: ReactNode
-}) {
-  return (
-    <LiveblocksProvider
-      authEndpoint="/api/liveblocks-auth"
-      badgeLocation="bottom-left"
-      resolveUsers={async ({ userIds }) => {
-        const params = new URLSearchParams()
-        userIds.forEach((id) => params.append("userIds", id))
-        const res = await fetch(`/api/liveblocks-users?${params}`)
-        return res.json()
-      }}
-    >
-      <RoomProvider
-        id={roomId}
-        initialPresence={{
-          cursor: null,
-          viewport: { x: 0, y: 0, zoom: 1 },
-          name: "",
-          color: getRandomColor(),
-          selectedArtboardIds: [],
-          selectedTextLayerIds: [],
-        }}
-        initialStorage={{
-          workspaces: new LiveMap(),
-          sandboxes: new LiveMap(),
-          artboards: new LiveMap(),
-          textLayers: new LiveMap(),
-          chatSessions: new LiveMap(),
-          plans: new LiveMap(),
-        }}
-      >
-        <ClientSideSuspense fallback={<CanvasSkeleton />}>
-          <YjsProvider>{children}</YjsProvider>
-        </ClientSideSuspense>
-      </RoomProvider>
-    </LiveblocksProvider>
   )
 }
