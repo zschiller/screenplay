@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-helpers"
-import { liveblocks } from "@/lib/liveblocks-server"
 import { ensureRoomBackfilled } from "@/lib/projects-actions"
 import { canAccess } from "@/lib/rooms"
+import { yjsHost } from "@/lib/yjs-host"
 
 export async function POST(req: Request) {
   const session = await getCurrentSession()
@@ -11,16 +11,15 @@ export async function POST(req: Request) {
   }
 
   // The Liveblocks client posts `{ room }` for room-scoped tokens. When
-  // present, gate on Postgres membership before issuing the token. We accept
-  // a missing room (some Liveblocks flows hit this endpoint without one) and
-  // fall back to an identity-only token, which Liveblocks itself enforces
-  // against per-room access.
+  // present, gate on Postgres membership before issuing the token. Older
+  // clients sometimes hit this without a body — fall through and let the host
+  // enforce its own per-room access at connect time.
   let roomId: string | undefined
   try {
     const body = (await req.json()) as { room?: string }
     if (typeof body.room === "string" && body.room.length) roomId = body.room
   } catch {
-    // No JSON body — older Liveblocks clients sometimes do this. Allow.
+    // No JSON body — allow.
   }
 
   if (roomId) {
@@ -35,14 +34,13 @@ export async function POST(req: Request) {
     }
   }
 
-  const { status, body } = await liveblocks.identifyUser(
-    { userId: session.user.id, groupIds: [] },
-    {
-      userInfo: {
-        name: session.user.name || "Anonymous",
-        avatar: session.user.image ?? undefined,
-      },
+  const { status, body } = await yjsHost.issueToken({
+    userId: session.user.id,
+    userInfo: {
+      name: session.user.name || "Anonymous",
+      avatar: session.user.image ?? undefined,
     },
-  )
+    roomId,
+  })
   return new Response(body, { status })
 }

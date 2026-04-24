@@ -18,7 +18,8 @@ import {
   requireMember,
   requireOwner,
 } from "@/lib/rooms"
-import { liveblocks } from "./liveblocks-server"
+import { yjsHost } from "@/lib/yjs-host"
+import { getLiveblocksHost } from "@/lib/yjs-host/liveblocks-host"
 
 export type ProjectSummary = {
   id: string
@@ -44,14 +45,7 @@ export async function createProject(name: string): Promise<ProjectSummary> {
 
   const room = await createRoom({ id, name: trimmed, ownerId: userId })
 
-  // Liveblocks still hosts the Y.Doc. Create the room there too, gated to the
-  // owner — additional members are added in shareProject. Storage init isn't
-  // needed anymore since canvas state lives in the Y.Doc.
-  await liveblocks.createRoom(id, {
-    defaultAccesses: [],
-    usersAccesses: { [userId]: ["room:write"] },
-    metadata: { name: trimmed, ownerId: userId },
-  })
+  await yjsHost.ensureRoom({ roomId: id, ownerId: userId, name: trimmed })
 
   return {
     id: room.id,
@@ -70,6 +64,10 @@ export async function createProject(name: string): Promise<ProjectSummary> {
  * removed as a metadata source.
  */
 async function backfillFromLiveblocks(userId: string): Promise<void> {
+  // Backfill is intentionally Liveblocks-specific — it's a one-shot migration
+  // from when project metadata lived in Liveblocks room metadata. Other hosts
+  // never had that state to import from.
+  const liveblocks = getLiveblocksHost().rawClient()
   for await (const room of liveblocks.iterRooms({ userId })) {
     const existing = await getRoom(room.id)
     if (existing) continue
@@ -109,6 +107,7 @@ export async function ensureRoomBackfilled(
 ): Promise<boolean> {
   if (await getRoom(roomId)) return true
 
+  const liveblocks = getLiveblocksHost().rawClient()
   let lbRoom
   try {
     lbRoom = await liveblocks.getRoom(roomId)
@@ -162,16 +161,14 @@ export async function renameProject(
   await requireOwner(roomId, userId)
   const trimmed = name.trim() || "Untitled"
   await renameRoom(roomId, trimmed)
-  // Keep Liveblocks metadata in sync so existing consumers (e.g. room page
-  // fallback) continue to work during the migration.
-  await liveblocks.updateRoom(roomId, { metadata: { name: trimmed } })
+  await yjsHost.updateRoomMetadata(roomId, { name: trimmed })
 }
 
 export async function deleteProject(roomId: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
   await deleteRoomRecord(roomId)
-  await liveblocks.deleteRoom(roomId)
+  await yjsHost.deleteRoom(roomId)
 }
 
 export async function listCollaborators(
@@ -217,9 +214,11 @@ export async function shareProject(
   }
 
   await addMember({ roomId, userId: invitee.id, role: "editor" })
-  await liveblocks.updateRoom(roomId, {
-    usersAccesses: { [invitee.id]: ["room:write"] },
-  })
+  const allMembers = await listMembers(roomId)
+  await yjsHost.syncRoomMembers(
+    roomId,
+    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+  )
 
   return listCollaborators(roomId)
 }
@@ -235,9 +234,11 @@ export async function removeCollaborator(
   }
 
   await removeMember(roomId, collaboratorId)
-  await liveblocks.updateRoom(roomId, {
-    usersAccesses: { [collaboratorId]: null },
-  })
+  const allMembers = await listMembers(roomId)
+  await yjsHost.syncRoomMembers(
+    roomId,
+    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+  )
 
   return listCollaborators(roomId)
 }
