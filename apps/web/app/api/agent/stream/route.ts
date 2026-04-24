@@ -1,6 +1,5 @@
 import { after } from "next/server"
 import { auth, clerkClient } from "@clerk/nextjs/server"
-import { Redis } from "@upstash/redis"
 import { nanoid } from "nanoid"
 import { LiveObject } from "@liveblocks/client"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
@@ -8,14 +7,10 @@ import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import type { PlanData } from "@/lib/liveblocks.types"
 import { liveblocks } from "@/lib/liveblocks-server"
+import { kv } from "@/lib/kv"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
 
 interface RequestBody {
   roomId: string
@@ -166,7 +161,7 @@ async function findPendingPlan(roomId: string, sessionId: string): Promise<PlanD
  */
 async function resolveStuckToolCalls(sessionId: string, ctx: ToolContext) {
   const lockKey = `session-recover:${sessionId}`
-  const locked = await redis.set(lockKey, "1", { nx: true, ex: 120 })
+  const locked = await kv.set(lockKey, "1", { nx: true, ex: 120 })
   if (locked !== "OK") return
 
   const client = getClient()
@@ -212,7 +207,7 @@ async function resolveStuckToolCalls(sessionId: string, ctx: ToolContext) {
       })
     }
   } finally {
-    await redis.del(lockKey)
+    await kv.del(lockKey)
   }
 }
 

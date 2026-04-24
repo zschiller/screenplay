@@ -1,10 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { Redis } from "@upstash/redis"
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+import { kv } from "@/lib/kv"
 
 let clientInstance: Anthropic | null = null
 
@@ -203,7 +198,7 @@ export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
 
 export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Promise<string> {
   const cacheKey = `${AGENT_CACHE_KEY_PREFIX}:${model}`
-  const cached = await redis.get<string>(cacheKey)
+  const cached = await kv.get<string>(cacheKey)
   if (cached) return cached
 
   const client = getClient()
@@ -214,12 +209,12 @@ export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Pro
     tools: AGENT_TOOLS,
   })
 
-  await redis.set(cacheKey, agent.id)
+  await kv.set(cacheKey, agent.id)
   return agent.id
 }
 
 export async function getOrCreateEnvironment(): Promise<string> {
-  const cached = await redis.get<string>(ENV_CACHE_KEY)
+  const cached = await kv.get<string>(ENV_CACHE_KEY)
   if (cached) return cached
 
   const client = getClient()
@@ -231,6 +226,6 @@ export async function getOrCreateEnvironment(): Promise<string> {
     },
   })
 
-  await redis.set(ENV_CACHE_KEY, environment.id)
+  await kv.set(ENV_CACHE_KEY, environment.id)
   return environment.id
 }

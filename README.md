@@ -44,6 +44,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 # --- Upstash Redis / Vercel KV ---
 # If you add the Upstash integration on Vercel these are injected for you.
 # Otherwise copy them from the Upstash Redis REST tab.
+# To use a different KV provider on a fork, swap the default export in
+# `apps/web/lib/kv/index.ts` — see `apps/web/lib/kv/types.ts` for the contract.
 KV_REST_API_URL=https://<your-db>.upstash.io
 KV_REST_API_TOKEN=...
 
