@@ -10,7 +10,7 @@ Before deploying, create accounts and projects for each of the following:
 
 | Service | Used for | Where |
 | --- | --- | --- |
-| **Vercel** | Hosting the Next.js app and provisioning `@vercel/sandbox` VMs for each workspace | https://vercel.com |
+| **Vercel** | Hosting the Next.js app. Also the default sandbox provider — each workspace gets its own `@vercel/sandbox` VM. Any sandbox backend works; see "Using a different sandbox provider" below to swap it. | https://vercel.com |
 | **GitHub OAuth App** | Sign-in + `repo` scope so the app can clone private repos and push commits on the user's behalf | https://github.com/settings/developers |
 | **Postgres** | Better Auth user/session storage, per-user organization state, the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks), project rooms + members (`room`, `room_member`), and comment threads (`thread`, `comment`). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
 | **Yjs host** | Durable storage and realtime sync for the per-room [Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents, artboards, text layers, chat sessions, plans), agent stream events, and Yjs awareness (cursors, viewport, selections). Any Yjs-compatible backend works — the default implementation targets Liveblocks via `lib/yjs-host/liveblocks-server.ts` (server) + `lib/yjs-host/liveblocks-client.tsx` (React client), each fronted by a thin re-export (`lib/yjs-host/index.ts` and `lib/yjs-host/client.tsx`) that makes the swap a one-line change. Dropping in Hocuspocus, y-websocket, Cloudflare Durable Objects, etc. means adding sibling `*-server.ts` / `*-client.tsx` files and pointing those two re-exports at them. | anywhere you like — [Liveblocks](https://liveblocks.io), [Hocuspocus](https://tiptap.dev/docs/hocuspocus), [y-websocket](https://github.com/yjs/y-websocket), Cloudflare Durable Objects, a self-hosted server, etc. |
@@ -82,6 +82,35 @@ For throwaway local experiments you can still use `pnpm db:push` to skip the mig
 
 `lib/kv` uses the same `db`, so nothing else in the app needs to change.
 
+### Sandbox provider
+
+Each workspace runs its coding agent and dev server inside a live sandbox VM. The default backend is [`@vercel/sandbox`](https://vercel.com/docs/vercel-sandbox) via `apps/web/lib/sandbox/vercel.ts`, fronted by a thin re-export in `apps/web/lib/sandbox/index.ts` that exposes a driver-agnostic `SandboxProvider` interface. Any backend that can provision a Linux VM, run commands, and read/write files can drop in — E2B, Modal, a remote Firecracker service, a local Docker daemon for development, etc.
+
+#### Using a different sandbox provider
+
+`apps/web/lib/sandbox/index.ts` picks the default provider via `getVercelSandboxProvider()` in `vercel.ts`. The exported `sandboxProvider` is typed as the backend-agnostic `SandboxProvider` interface defined in `apps/web/lib/sandbox/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
+
+1. Install whatever SDK your backend needs.
+2. Add a sibling factory — e.g. `apps/web/lib/sandbox/e2b.ts`:
+
+   ```ts
+   import "server-only"
+   import type { SandboxProvider } from "./types"
+
+   class E2BSandboxProvider implements SandboxProvider {
+     async create(opts) { /* call your SDK, return a SandboxInstance */ }
+     async get(opts)    { /* call your SDK, return a SandboxInstance */ }
+   }
+
+   export function getE2BSandboxProvider(): SandboxProvider {
+     return new E2BSandboxProvider()
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory.
+
+The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`) — see `apps/web/lib/sandbox/types.ts` for the exact shape. Everything else in the app — `lib/sandbox-actions.ts`, the agent's tool executor, the logs SSE route — is written against this interface and needs no changes when the backend swaps.
+
 ### Environment variables
 
 Set these in Vercel (Project Settings → Environment Variables) and in a local `.env.local` for development:
@@ -131,9 +160,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 ENCRYPTION_KEY=<64 hex chars>
 ```
 
-#### Vercel Sandbox
+#### Sandbox provider credentials
 
-`@vercel/sandbox` authenticates via OIDC. In production on Vercel the OIDC token is injected automatically — no extra variables required. For local development, link the project once and pull a short-lived OIDC token into your env file:
+The default sandbox provider is `@vercel/sandbox`, which authenticates via OIDC. In production on Vercel the OIDC token is injected automatically — no extra variables required. For local development, link the project once and pull a short-lived OIDC token into your env file:
 
 ```bash
 vercel link
@@ -141,6 +170,8 @@ vercel env pull .env.local
 ```
 
 This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env pull` when it expires).
+
+If you've swapped in a different provider under `apps/web/lib/sandbox/`, set whatever env vars that backend needs instead (e.g. `E2B_API_KEY`) and consume them inside the provider's factory function.
 
 ### Deploying to Vercel
 
