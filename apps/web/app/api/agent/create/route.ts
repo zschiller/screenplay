@@ -1,8 +1,6 @@
 import { NextResponse, after } from "next/server"
 import { getUserId } from "@/lib/auth-helpers"
 import { nanoid } from "nanoid"
-import { LiveObject } from "@liveblocks/client"
-import { liveblocks } from "@/lib/liveblocks-server"
 import { kv } from "@/lib/kv"
 import {
   getGitHubToken,
@@ -14,7 +12,8 @@ import {
   configureAgentGit,
 } from "@/lib/sandbox-actions"
 import { parseEnvVars } from "@/lib/env-utils"
-import type { AgentData, ArtboardData, ChatSessionData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
+import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import {
   DEFAULT_ARTBOARD_WIDTH,
   DEFAULT_ARTBOARD_HEIGHT,
@@ -44,12 +43,8 @@ async function updateAgent(
   agentId: string,
   data: Partial<AgentData>,
 ) {
-  await liveblocks.mutateStorage(roomId, ({ root }) => {
-    const agent = root.get("sandboxes").get(agentId)
-    if (!agent) return
-    for (const [key, value] of Object.entries(data)) {
-      agent.set(key as keyof AgentData, value as never)
-    }
+  await mutateRoomDoc(roomId, ({ agents }) => {
+    agents.update(agentId, data)
   })
 }
 
@@ -57,26 +52,7 @@ async function getWorkspaceFromStorage(
   roomId: string,
   workspaceId: string,
 ): Promise<WorkspaceData | null> {
-  let workspace: WorkspaceData | null = null
-  await liveblocks.mutateStorage(roomId, ({ root }) => {
-    const ws = root.get("workspaces").get(workspaceId)
-    if (!ws) return
-    workspace = {
-      id: workspaceId,
-      name: ws.get("name") ?? "",
-      repoFullName: ws.get("repoFullName"),
-      repoOwner: ws.get("repoOwner"),
-      repoName: ws.get("repoName"),
-      defaultBranch: ws.get("defaultBranch"),
-      cloneUrl: ws.get("cloneUrl"),
-      setupScript: ws.get("setupScript") ?? "",
-      devScript: ws.get("devScript") ?? "",
-      devServerPort: ws.get("devServerPort") ?? 3000,
-      envVars: ws.get("envVars") ?? "",
-      createdAt: ws.get("createdAt"),
-    }
-  })
-  return workspace
+  return readRoomDoc(roomId, ({ workspaces }) => workspaces.get(workspaceId) ?? null)
 }
 
 
@@ -85,40 +61,33 @@ async function createArtboardAndChat(
   agentId: string,
   viewportCenter?: { x: number; y: number },
 ) {
-  await liveblocks.mutateStorage(roomId, ({ root }) => {
-    // Create artboard if none exists for this agent
-    const artboardsMap = root.get("artboards")
-    let hasArtboard = false
-    artboardsMap.forEach((a) => {
-      if (a.get("sandboxId") === agentId) hasArtboard = true
-    })
-    if (!hasArtboard) {
-      const allArtboards = Array.from(artboardsMap.values())
+  await mutateRoomDoc(roomId, ({ artboards, chatSessions, transact }) => {
+    transact(() => {
+      const allArtboards = artboards.toArray()
+      const hasArtboard = allArtboards.some((a) => a.sandboxId === agentId)
+      if (!hasArtboard) {
+        let x: number
+        let y: number
 
-      let x: number
-      let y: number
-
-      if (allArtboards.length === 0) {
-        const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
-        const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
-        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
-        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
-      } else {
-        // Place to the right of the rightmost artboard, aligned to the top
-        let minY = Infinity
-        let maxRight = -Infinity
-        for (const a of allArtboards) {
-          minY = Math.min(minY, a.get("y"))
-          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+        if (allArtboards.length === 0) {
+          const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
+          const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
+          x = cx - DEFAULT_ARTBOARD_WIDTH / 2
+          y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+        } else {
+          // Place to the right of the rightmost artboard, aligned to the top
+          let minY = Infinity
+          let maxRight = -Infinity
+          for (const a of allArtboards) {
+            minY = Math.min(minY, a.y)
+            maxRight = Math.max(maxRight, a.x + a.width)
+          }
+          x = maxRight + 50
+          y = minY
         }
-        x = maxRight + 50
-        y = minY
-      }
 
-      const artboardId = nanoid()
-      artboardsMap.set(
-        artboardId,
-        new LiveObject<ArtboardData>({
+        const artboardId = nanoid()
+        artboards.set(artboardId, {
           id: artboardId,
           sandboxId: agentId,
           x,
@@ -127,30 +96,20 @@ async function createArtboardAndChat(
           height: DEFAULT_ARTBOARD_HEIGHT,
           label: "Frame 1",
           iframeState: {},
-        }),
-      )
-    }
+        })
+      }
 
-    // Create chat session if none exists for this agent
-    const chatSessionsMap = root.get("chatSessions")
-    if (chatSessionsMap) {
-      let hasChat = false
-      chatSessionsMap.forEach((cs) => {
-        if (cs.get("agentId") === agentId) hasChat = true
-      })
+      const hasChat = chatSessions.toArray().some((cs) => cs.agentId === agentId)
       if (!hasChat) {
         const chatId = nanoid()
-        chatSessionsMap.set(
-          chatId,
-          new LiveObject<ChatSessionData>({
-            id: chatId,
-            agentId,
-            label: "Untitled",
-            createdAt: Date.now(),
-          }),
-        )
+        chatSessions.set(chatId, {
+          id: chatId,
+          agentId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
       }
-    }
+    })
   })
 }
 

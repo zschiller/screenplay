@@ -1,5 +1,3 @@
-import type { LiveMap, LiveObject } from "@liveblocks/client"
-
 export type JsonValue =
   | string
   | number
@@ -99,42 +97,24 @@ export type ViewportData = {
   zoom: number
 }
 
-export type Storage = {
-  workspaces: LiveMap<string, LiveObject<WorkspaceData>>
-  sandboxes: LiveMap<string, LiveObject<AgentData>>
-  artboards: LiveMap<string, LiveObject<ArtboardData>>
-  textLayers: LiveMap<string, LiveObject<TextLayerData>>
-  chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
-  plans: LiveMap<string, LiveObject<PlanData>>
-  savedViewport?: LiveObject<ViewportData>
-}
+/**
+ * Liveblocks "Storage" is no longer used — canvas state lives in the Y.Doc.
+ * The interface stays declared so RoomProvider's `initialStorage` requirement
+ * is satisfied with an empty object.
+ */
+export type Storage = Record<string, never>
 
-export type Presence = {
-  cursor: { x: number; y: number } | null
-  viewport: { x: number; y: number; zoom: number }
-  name: string
-  color: string
-  selectedArtboardIds: string[]
-  selectedTextLayerIds: string[]
-}
-
-export type UserMeta = {
-  id: string
-  info: {
-    name: string
-    avatar?: string
-  }
-}
+/**
+ * Liveblocks Presence/UserMeta/ThreadMetadata are no longer used — presence
+ * lives in Yjs awareness, threads/comments live in Postgres. The interface is
+ * declared with empty types so RoomProvider's required props are satisfied
+ * with `{}` literals.
+ */
+export type Presence = Record<string, never>
 
 declare global {
   interface Liveblocks {
     Storage: Storage
     Presence: Presence
-    UserMeta: UserMeta
-    ThreadMetadata: {
-      x: number
-      y: number
-      artboardId?: string
-    }
   }
 }

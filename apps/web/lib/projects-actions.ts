@@ -6,7 +6,19 @@ import {
   getUsersByIds,
   requireUserId,
 } from "@/lib/auth-helpers"
-import { liveblocks } from "./liveblocks-server"
+import {
+  addMember,
+  createRoom,
+  deleteRoom as deleteRoomRecord,
+  getRoom,
+  listMembers,
+  listRoomsForUser,
+  removeMember,
+  renameRoom,
+  requireMember,
+  requireOwner,
+} from "@/lib/rooms"
+import { yjsHost } from "@/lib/yjs-host"
 
 export type ProjectSummary = {
   id: string
@@ -25,86 +37,36 @@ export type CollaboratorInfo = {
   isOwner: boolean
 }
 
-function parseName(metadata: Record<string, string | string[]>): string {
-  const raw = metadata.name
-  if (typeof raw === "string" && raw.length) return raw
-  return "Untitled"
-}
-
-function parseOwnerId(metadata: Record<string, string | string[]>): string {
-  const raw = metadata.ownerId
-  if (typeof raw === "string") return raw
-  return ""
-}
-
-export async function createProject(
-  name: string,
-): Promise<ProjectSummary> {
+export async function createProject(name: string): Promise<ProjectSummary> {
   const userId = await requireUserId()
   const trimmed = name.trim() || "Untitled"
   const id = nanoid(10)
 
-  const room = await liveblocks.createRoom(id, {
-    defaultAccesses: [],
-    usersAccesses: {
-      [userId]: ["room:write"],
-    },
-    metadata: {
-      name: trimmed,
-      ownerId: userId,
-    },
-  })
+  const room = await createRoom({ id, name: trimmed, ownerId: userId })
 
-  // Initialize storage server-side to mirror the RoomProvider's initialStorage.
-  // Without this, the first client mutation races against Liveblocks' lazy
-  // storage init and the request is rejected with 400.
-  await liveblocks.initializeStorageDocument(id, {
-    liveblocksType: "LiveObject",
-    data: {
-      workspaces: { liveblocksType: "LiveMap", data: {} },
-      sandboxes: { liveblocksType: "LiveMap", data: {} },
-      artboards: { liveblocksType: "LiveMap", data: {} },
-      chatSessions: { liveblocksType: "LiveMap", data: {} },
-      plans: { liveblocksType: "LiveMap", data: {} },
-    },
-  })
+  await yjsHost.ensureRoom({ roomId: id, ownerId: userId, name: trimmed })
 
   return {
     id: room.id,
-    name: trimmed,
-    ownerId: userId,
+    name: room.name,
+    ownerId: room.ownerId,
     isOwner: true,
-    createdAt: room.createdAt.getTime(),
-    lastConnectionAt: room.lastConnectionAt?.getTime() ?? null,
+    createdAt: room.createdAt,
+    lastConnectionAt: room.lastOpenedAt,
   }
 }
 
 export async function listProjects(): Promise<ProjectSummary[]> {
   const userId = await requireUserId()
-  const projects: ProjectSummary[] = []
-
-  for await (const room of liveblocks.iterRooms({ userId })) {
-    const ownerId = parseOwnerId(room.metadata)
-    projects.push({
-      id: room.id,
-      name: parseName(room.metadata),
-      ownerId,
-      isOwner: ownerId === userId,
-      createdAt: room.createdAt.getTime(),
-      lastConnectionAt: room.lastConnectionAt?.getTime() ?? null,
-    })
-  }
-
-  projects.sort((a, b) => b.createdAt - a.createdAt)
-  return projects
-}
-
-async function requireOwner(roomId: string, userId: string) {
-  const room = await liveblocks.getRoom(roomId)
-  if (parseOwnerId(room.metadata) !== userId) {
-    throw new Error("Only the project owner can do this")
-  }
-  return room
+  const rooms = await listRoomsForUser(userId)
+  return rooms.map((room) => ({
+    id: room.id,
+    name: room.name,
+    ownerId: room.ownerId,
+    isOwner: room.ownerId === userId,
+    createdAt: room.createdAt,
+    lastConnectionAt: room.lastOpenedAt,
+  }))
 }
 
 export async function renameProject(
@@ -114,40 +76,40 @@ export async function renameProject(
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
   const trimmed = name.trim() || "Untitled"
-  await liveblocks.updateRoom(roomId, {
-    metadata: { name: trimmed },
-  })
+  await renameRoom(roomId, trimmed)
+  await yjsHost.updateRoomMetadata(roomId, { name: trimmed })
 }
 
 export async function deleteProject(roomId: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
-  await liveblocks.deleteRoom(roomId)
+  await deleteRoomRecord(roomId)
+  await yjsHost.deleteRoom(roomId)
 }
 
 export async function listCollaborators(
   roomId: string,
 ): Promise<CollaboratorInfo[]> {
   const userId = await requireUserId()
-  const room = await liveblocks.getRoom(roomId)
-  if (!room.usersAccesses[userId]) {
-    throw new Error("You don't have access to this project")
-  }
+  await requireMember(roomId, userId)
 
-  const ownerId = parseOwnerId(room.metadata)
-  const userIds = Object.keys(room.usersAccesses)
-  if (!userIds.length) return []
+  const room = await getRoom(roomId)
+  if (!room) return []
 
+  const members = await listMembers(roomId)
+  if (!members.length) return []
+
+  const userIds = members.map((m) => m.userId)
   const users = await getUsersByIds(userIds)
 
-  return userIds.map((id) => {
-    const user = users.find((u) => u.id === id)
+  return members.map((m) => {
+    const user = users.find((u) => u.id === m.userId)
     return {
-      userId: id,
+      userId: m.userId,
       name: user?.name ?? "Unknown",
       email: user?.email ?? null,
       avatar: user?.image ?? null,
-      isOwner: id === ownerId,
+      isOwner: m.userId === room.ownerId,
     }
   })
 }
@@ -167,11 +129,12 @@ export async function shareProject(
     throw new Error(`No user found with email "${normalized}"`)
   }
 
-  await liveblocks.updateRoom(roomId, {
-    usersAccesses: {
-      [invitee.id]: ["room:write"],
-    },
-  })
+  await addMember({ roomId, userId: invitee.id, role: "editor" })
+  const allMembers = await listMembers(roomId)
+  await yjsHost.syncRoomMembers(
+    roomId,
+    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+  )
 
   return listCollaborators(roomId)
 }
@@ -182,15 +145,24 @@ export async function removeCollaborator(
 ): Promise<CollaboratorInfo[]> {
   const userId = await requireUserId()
   const room = await requireOwner(roomId, userId)
-  if (parseOwnerId(room.metadata) === collaboratorId) {
+  if (room.ownerId === collaboratorId) {
     throw new Error("Cannot remove the project owner")
   }
 
-  await liveblocks.updateRoom(roomId, {
-    usersAccesses: {
-      [collaboratorId]: null,
-    },
-  })
+  await removeMember(roomId, collaboratorId)
+  const allMembers = await listMembers(roomId)
+  await yjsHost.syncRoomMembers(
+    roomId,
+    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+  )
 
   return listCollaborators(roomId)
+}
+
+/**
+ * Used by sandbox webhooks (unauthenticated) to resolve a stable acting user.
+ */
+export async function getRoomOwnerId(roomId: string): Promise<string | null> {
+  const room = await getRoom(roomId)
+  return room?.ownerId ?? null
 }

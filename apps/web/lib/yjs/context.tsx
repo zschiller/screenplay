@@ -1,0 +1,51 @@
+"use client"
+
+import { createContext, useContext, useMemo, type ReactNode } from "react"
+import type * as Y from "yjs"
+
+/**
+ * Structural shape that any Yjs awareness implementation must satisfy.
+ * Both `y-protocols/awareness.Awareness` and `@liveblocks/yjs`'s built-in
+ * Awareness wrapper match it without explicit conformance.
+ */
+export type AwarenessLike = {
+  getLocalState(): unknown
+  setLocalState(state: unknown): void
+  getStates(): Map<number, unknown>
+  on(event: "change" | "update", handler: () => void): void
+  off(event: "change" | "update", handler: () => void): void
+  doc: Y.Doc
+}
+
+/**
+ * The host-agnostic value exposed to consumers via `useYjs()`. Hosts publish
+ * a `{ doc, awareness }` once they've connected to a room and the initial
+ * sync has completed.
+ */
+export type YjsConnection = {
+  doc: Y.Doc
+  awareness: AwarenessLike
+}
+
+const YjsContext = createContext<YjsConnection | null>(null)
+
+export function YjsConnectionProvider({
+  value,
+  children,
+}: {
+  value: YjsConnection
+  children: ReactNode
+}) {
+  return <YjsContext.Provider value={value}>{children}</YjsContext.Provider>
+}
+
+export function useYjs(): YjsConnection {
+  const ctx = useContext(YjsContext)
+  if (!ctx) throw new Error("useYjs must be used inside a YjsRoomProvider")
+  return ctx
+}
+
+export function useTextFragment(layerId: string): Y.XmlFragment {
+  const { doc } = useYjs()
+  return useMemo(() => doc.getXmlFragment(`text-${layerId}`), [doc, layerId])
+}

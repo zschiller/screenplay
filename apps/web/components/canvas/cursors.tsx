@@ -1,33 +1,27 @@
 "use client"
 
-import { useOthers } from "@liveblocks/react/suspense"
+import { useOtherPresences } from "@/lib/yjs/react"
 
 interface CursorsProps {
   viewport: { x: number; y: number; zoom: number }
 }
 
 export function Cursors({ viewport }: CursorsProps) {
-  const others = useOthers()
+  const others = useOtherPresences()
 
   return (
     <>
-      {others.map(({ connectionId, presence, info }) => {
+      {others.map(({ clientId, presence }) => {
         if (!presence.cursor) return null
 
-        // Transform other user's canvas-space cursor to our screen-space
-        const screenX =
-          presence.cursor.x * viewport.zoom + viewport.x
-        const screenY =
-          presence.cursor.y * viewport.zoom + viewport.y
+        const screenX = presence.cursor.x * viewport.zoom + viewport.x
+        const screenY = presence.cursor.y * viewport.zoom + viewport.y
 
         return (
           <div
-            key={connectionId}
+            key={clientId}
             className="pointer-events-none absolute z-[9999]"
-            style={{
-              left: screenX,
-              top: screenY,
-            }}
+            style={{ left: screenX, top: screenY }}
           >
             <svg
               width="16"
@@ -45,7 +39,7 @@ export function Cursors({ viewport }: CursorsProps) {
               className="ml-3 mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white"
               style={{ backgroundColor: presence.color }}
             >
-              {info?.name || presence.name || "Anonymous"}
+              {presence.user.name || "Anonymous"}
             </span>
           </div>
         )

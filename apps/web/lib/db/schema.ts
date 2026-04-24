@@ -1,7 +1,9 @@
 import {
   boolean,
+  index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
@@ -68,3 +70,77 @@ export const kvStore = pgTable("kv_store", {
   value: jsonb("value").notNull(),
   expiresAt: timestamp("expires_at"),
 })
+
+export const room = pgTable("room", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().default("Untitled"),
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Last time a member opened the room — surfaced in the projects list.
+  lastOpenedAt: timestamp("last_opened_at"),
+})
+
+export type RoomRole = "owner" | "editor" | "viewer"
+
+export const roomMember = pgTable(
+  "room_member",
+  {
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<RoomRole>().notNull().default("editor"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roomId, t.userId] }),
+    index("room_member_user_idx").on(t.userId),
+  ],
+)
+
+import { doublePrecision } from "drizzle-orm/pg-core"
+
+export const thread = pgTable(
+  "thread",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    // Coordinates are canvas-space (or artboard-space when artboardId is set).
+    x: doublePrecision("x").notNull(),
+    y: doublePrecision("y").notNull(),
+    artboardId: text("artboard_id"),
+    resolved: boolean("resolved").notNull().default(false),
+    resolvedAt: timestamp("resolved_at"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("thread_room_idx").on(t.roomId)],
+)
+
+export const comment = pgTable(
+  "comment",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => thread.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    editedAt: timestamp("edited_at"),
+  },
+  (t) => [index("comment_thread_idx").on(t.threadId)],
+)
+

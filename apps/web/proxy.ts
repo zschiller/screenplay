@@ -6,7 +6,7 @@ const PUBLIC_PATHS = [
   "/",
   "/sign-in",
   "/api/auth",
-  "/api/liveblocks-auth",
+  "/api/yjs/auth",
 ]
 
 function isPublic(pathname: string): boolean {
