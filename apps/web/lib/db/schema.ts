@@ -1,7 +1,9 @@
 import {
   boolean,
+  index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
@@ -68,3 +70,35 @@ export const kvStore = pgTable("kv_store", {
   value: jsonb("value").notNull(),
   expiresAt: timestamp("expires_at"),
 })
+
+export const room = pgTable("room", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().default("Untitled"),
+  ownerId: text("owner_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Last time a member opened the room — surfaced in the projects list.
+  lastOpenedAt: timestamp("last_opened_at"),
+})
+
+export type RoomRole = "owner" | "editor" | "viewer"
+
+export const roomMember = pgTable(
+  "room_member",
+  {
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").$type<RoomRole>().notNull().default("editor"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roomId, t.userId] }),
+    index("room_member_user_idx").on(t.userId),
+  ],
+)

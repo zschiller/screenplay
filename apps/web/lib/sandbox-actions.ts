@@ -95,14 +95,8 @@ export async function resolveActingUserId(
   const live = await getUserId()
   if (live) return live
   if (!fallbackRoomId) return null
-  try {
-    const { liveblocks } = await import("./liveblocks-server")
-    const room = await liveblocks.getRoom(fallbackRoomId)
-    const owner = room.metadata.ownerId
-    return typeof owner === "string" && owner ? owner : null
-  } catch {
-    return null
-  }
+  const { getRoomOwnerId } = await import("./projects-actions")
+  return getRoomOwnerId(fallbackRoomId)
 }
 
 import { parseEnvVars } from "./env-utils"
