@@ -136,3 +136,25 @@ export function useY(doc: Y.Doc) {
     return () => doc.off("update", handler)
   }, [doc])
 }
+
+/**
+ * Subscribes to the room's comments revision counter — server-bumped on any
+ * thread/comment change. Use the returned number as a refetch trigger.
+ */
+export function useCommentsRevision(): number {
+  const { doc } = useYjs()
+  const meta = useMemo(() => doc.getMap("meta"), [doc])
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const handler = () => cb()
+      meta.observe(handler)
+      return () => meta.unobserve(handler)
+    },
+    [meta],
+  )
+  const getSnapshot = useCallback(
+    () => (meta.get("commentsRevision") as number | undefined) ?? 0,
+    [meta],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}

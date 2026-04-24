@@ -2063,8 +2063,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                   ))}
 
                   <Comments
+                    roomId={roomId}
                     zoom={zoom}
-                    commentMode={commentMode}
                     newCommentPos={newCommentPos}
                     onNewCommentPlaced={() => {
                       setNewCommentPos(null)
