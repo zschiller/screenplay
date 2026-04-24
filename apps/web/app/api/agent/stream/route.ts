@@ -1,6 +1,6 @@
 import { after } from "next/server"
-import { auth, clerkClient } from "@clerk/nextjs/server"
 import { nanoid } from "nanoid"
+import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { LiveObject } from "@liveblocks/client"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
@@ -40,10 +40,7 @@ async function deduplicateBranchName(
     const workspace = storage.workspace as { repoOwner?: string; repoName?: string } | undefined
     if (!workspace?.repoOwner || !workspace?.repoName) return branchName
 
-    // Get GitHub token from Clerk
-    const client = await clerkClient()
-    const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-    const token = tokens.data?.[0]?.token
+    const token = await getGitHubTokenForUser(userId)
     if (!token) return branchName
 
     const { repoOwner, repoName } = workspace
@@ -323,7 +320,7 @@ async function broadcastChatSignal(roomId: string, chatId: string, signal: "chat
 }
 
 export async function POST(req: Request) {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return new Response("Unauthorized", { status: 401 })
   }
