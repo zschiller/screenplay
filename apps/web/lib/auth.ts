@@ -3,10 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
 import { oAuthProxy } from "better-auth/plugins"
 import { db } from "@/lib/db"
-import { getBaseURL, getProductionURL } from "@/lib/base-url"
+import { getBaseURL, getProductionURL, getTrustedOrigins } from "@/lib/base-url"
 
 export const auth = betterAuth({
   baseURL: getBaseURL(),
+  trustedOrigins: getTrustedOrigins(),
   database: drizzleAdapter(db, { provider: "pg" }),
   // GitHub-only. `repo` is needed so we can clone private repos and push
   // commits on the user's behalf; the other scopes give us identity info.

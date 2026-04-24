@@ -29,3 +29,25 @@ export function getProductionURL(): string {
   }
   return process.env.BETTER_AUTH_PRODUCTION_URL
 }
+
+/**
+ * Origins Better Auth will accept on POSTs like `/api/auth/sign-in/social`.
+ * Vercel exposes a preview deployment under both `VERCEL_URL` (per-deploy,
+ * e.g. `app-abc123-team.vercel.app`) and `VERCEL_BRANCH_URL` (per-branch
+ * alias, e.g. `app-git-feature-team.vercel.app`); whichever one the user
+ * lands on becomes the request's `Origin` header, so both must be trusted
+ * or Better Auth rejects the request with 403.
+ */
+export function getTrustedOrigins(): string[] {
+  const origins = new Set<string>([getBaseURL()])
+  if (process.env.BETTER_AUTH_PRODUCTION_URL) {
+    origins.add(process.env.BETTER_AUTH_PRODUCTION_URL)
+  }
+  if (process.env.VERCEL_URL) {
+    origins.add(`https://${process.env.VERCEL_URL}`)
+  }
+  if (process.env.VERCEL_BRANCH_URL) {
+    origins.add(`https://${process.env.VERCEL_BRANCH_URL}`)
+  }
+  return Array.from(origins)
+}
