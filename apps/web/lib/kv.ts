@@ -1,24 +1,24 @@
-import { eq, sql } from "drizzle-orm"
+import { randomUUID } from "node:crypto"
+import { and, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { kvStore } from "@/lib/db/schema"
 
 export interface KVSetOptions {
   // Expiration in seconds
   ex?: number
-  // Only set if the key does not already exist (used for distributed locks)
-  nx?: boolean
+}
+
+export interface Lock {
+  release(): Promise<boolean>
 }
 
 // Minimal KV contract used by the app. Non-string values are JSON-serialized
 // on `set` and deserialized on `get`.
 export interface KV {
   get<T = string>(key: string): Promise<T | null>
-  set(
-    key: string,
-    value: unknown,
-    options?: KVSetOptions,
-  ): Promise<"OK" | null>
+  set(key: string, value: unknown, options?: KVSetOptions): Promise<"OK">
   del(key: string): Promise<void>
+  acquireLock(key: string, ttlSec: number): Promise<Lock | null>
 }
 
 export const kv: KV = {
@@ -42,23 +42,6 @@ export const kv: KV = {
     const expiresAt = options?.ex
       ? new Date(Date.now() + options.ex * 1000)
       : null
-
-    if (options?.nx) {
-      // Atomic SET-if-absent for distributed locks. The UPDATE branch only
-      // fires when the existing row has already expired, so a live row
-      // blocks acquisition and RETURNING comes back empty.
-      const result = await db
-        .insert(kvStore)
-        .values({ key, value: value as unknown, expiresAt })
-        .onConflictDoUpdate({
-          target: kvStore.key,
-          set: { value: value as unknown, expiresAt },
-          setWhere: sql`${kvStore.expiresAt} IS NOT NULL AND ${kvStore.expiresAt} <= now()`,
-        })
-        .returning({ key: kvStore.key })
-      return result.length > 0 ? "OK" : null
-    }
-
     await db
       .insert(kvStore)
       .values({ key, value: value as unknown, expiresAt })
@@ -71,5 +54,39 @@ export const kv: KV = {
 
   async del(key) {
     await db.delete(kvStore).where(eq(kvStore.key, key))
+  },
+
+  async acquireLock(key, ttlSec) {
+    // Fencing token prevents a stale holder from releasing a lock that has
+    // since been acquired by someone else. The UPDATE branch only fires when
+    // the existing row has already expired, so a live lock blocks acquisition
+    // and RETURNING comes back empty.
+    const token = randomUUID()
+    const expiresAt = new Date(Date.now() + ttlSec * 1000)
+    const acquired = await db
+      .insert(kvStore)
+      .values({ key, value: { lockToken: token }, expiresAt })
+      .onConflictDoUpdate({
+        target: kvStore.key,
+        set: { value: { lockToken: token }, expiresAt },
+        setWhere: sql`${kvStore.expiresAt} IS NOT NULL AND ${kvStore.expiresAt} <= now()`,
+      })
+      .returning({ key: kvStore.key })
+    if (acquired.length === 0) return null
+
+    return {
+      async release() {
+        const deleted = await db
+          .delete(kvStore)
+          .where(
+            and(
+              eq(kvStore.key, key),
+              sql`${kvStore.value}->>'lockToken' = ${token}`,
+            ),
+          )
+          .returning({ key: kvStore.key })
+        return deleted.length > 0
+      },
+    }
   },
 }

@@ -157,9 +157,8 @@ async function findPendingPlan(roomId: string, sessionId: string): Promise<PlanD
  * Safety net: resolve stuck tool calls if the handler died mid-execution.
  */
 async function resolveStuckToolCalls(sessionId: string, ctx: ToolContext) {
-  const lockKey = `session-recover:${sessionId}`
-  const locked = await kv.set(lockKey, "1", { nx: true, ex: 120 })
-  if (locked !== "OK") return
+  const lock = await kv.acquireLock(`session-recover:${sessionId}`, 120)
+  if (!lock) return
 
   const client = getClient()
   try {
@@ -204,7 +203,7 @@ async function resolveStuckToolCalls(sessionId: string, ctx: ToolContext) {
       })
     }
   } finally {
-    await kv.del(lockKey)
+    await lock.release()
   }
 }
 
