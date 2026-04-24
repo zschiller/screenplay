@@ -22,9 +22,18 @@ Before deploying, create accounts and projects for each of the following:
 Auth is handled by [Better Auth](https://www.better-auth.com) with GitHub as the only provider. The sandbox clones repos and pushes commits using the OAuth access token Better Auth stores in the `account` table (keyed by `providerId = 'github'`).
 
 1. Create a new OAuth App at https://github.com/settings/developers.
-2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL/api/auth/callback/github` (e.g. `https://build.screenplay.space/api/auth/callback/github`). Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL.
+2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL/api/auth/callback/github` (e.g. `https://build.screenplay.space/api/auth/callback/github`). Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL — one OAuth app is enough for production and every preview.
 3. Copy the Client ID + Secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
 4. The app requests `repo`, `read:user`, and `user:email` on first sign-in — no extra GitHub-side config needed.
+
+#### Secret sharing across environments
+
+Because the oAuthProxy plugin signs state on production and verifies it on the preview deploy that started the sign-in, **production and every preview deployment must share the same `BETTER_AUTH_SECRET`**. Set it in Vercel with the env scope set to "Production, Preview, and Development" so the value stays in sync everywhere. The same goes for `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` and `BETTER_AUTH_PRODUCTION_URL`.
+
+For local development you have two choices:
+
+- **Option A — share the production secret** (simplest). Copy `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `BETTER_AUTH_PRODUCTION_URL` into `apps/web/.env.local`. Sign-ins locally take a detour through the production callback and bounce back to `localhost`.
+- **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/api/auth/callback/github`. In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
 
 ### Database setup
 
@@ -44,13 +53,16 @@ Set these in Vercel (Project Settings → Environment Variables) and in a local 
 
 ```bash
 # --- Better Auth ---
-# URL for the current deployment. Required locally and in production; preview
-# deploys fall back to https://$VERCEL_URL when unset.
-BETTER_AUTH_URL=http://localhost:3000
-# Stable URL registered with the GitHub OAuth app. Same value everywhere —
-# preview deploys need it to proxy OAuth through the production callback.
+# URL for the current deployment. Required in production. Optional locally —
+# we default to http://localhost:$PORT (3000 if PORT unset). On Vercel preview
+# deploys, leave unset and we fall back to https://$VERCEL_URL.
+# BETTER_AUTH_URL=http://localhost:3000
+# Stable URL registered with the GitHub OAuth app. Same value in production
+# and on every preview deploy — the oAuthProxy plugin needs it to route
+# preview sign-ins through the production callback.
 BETTER_AUTH_PRODUCTION_URL=https://build.screenplay.space
-# 32 random bytes, hex-encoded. `openssl rand -hex 32`.
+# 32 random bytes, hex-encoded. `openssl rand -hex 32`. MUST be identical
+# across production and all preview deploys (see "Secret sharing" above).
 BETTER_AUTH_SECRET=...
 
 # --- GitHub OAuth App ---
@@ -98,7 +110,10 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 
 1. Import the repo into a new Vercel project.
 2. Add the Upstash Redis integration (or set `KV_REST_API_*` manually).
-3. Add all the environment variables listed above. `BETTER_AUTH_URL` should be set on Production only (to your custom domain, e.g. `https://build.screenplay.space`). Leave it unset on Preview so the app falls back to `https://$VERCEL_URL`. `BETTER_AUTH_PRODUCTION_URL` should be set on **every** environment (Prod + Preview + Dev) to the same production URL.
+3. Add the environment variables listed above. Scope each one correctly:
+   - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
+   - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY`, `ANTHROPIC_API_KEY`, `KV_REST_API_*`, `ENCRYPTION_KEY`): **Production + Preview**.
 4. Push the Drizzle schema to Neon: `cd apps/web && pnpm db:push`.
 5. Deploy. The standard `next build` / `next start` scripts in `package.json` are all Vercel needs.
 
