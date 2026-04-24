@@ -1,13 +1,14 @@
 "use server"
 
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
-import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
+import { sandboxProvider } from "@/lib/sandbox"
+import type { SandboxInstance, SandboxNetworkPolicy } from "@/lib/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
 import type { WorkspaceData } from "./liveblocks.types"
 
 // 30 minutes — keep sandboxes alive only while actively used.
-// Sandbox.get with resume:true will reboot the VM when a user returns.
+// sandboxProvider.get with resume:true will reboot the VM when a user returns.
 const SANDBOX_TIMEOUT = 30 * 60 * 1000
 // 24 hours — snapshots preserve the full filesystem (node_modules etc.)
 const SNAPSHOT_EXPIRATION = 24 * 60 * 60 * 1000
@@ -18,7 +19,7 @@ const SANDBOX_VCPUS = 1
 // The "*": [] rule lets everything else pass through end-to-end unchanged.
 // Returns undefined if the server has no key, so sandboxes still boot on
 // `allow-all` in that case rather than failing creation.
-function buildNetworkPolicy(): NetworkPolicy | undefined {
+function buildNetworkPolicy(): SandboxNetworkPolicy | undefined {
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) return undefined
   return {
@@ -129,7 +130,7 @@ function shellQuote(s: string): string {
  * `sandbox.runCommand` directly — this helper discards buffered output.
  */
 async function runLogged(
-  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  sandbox: SandboxInstance,
   cmd: string,
   args: string[],
   options: { env?: Record<string, string>; label?: string } = {},
@@ -166,7 +167,7 @@ export async function cloneSandbox(
     const networkPolicy = buildNetworkPolicy()
     const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(env ?? {}) }
 
-    const sandbox = await Sandbox.create({
+    const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source: ghToken
         ? {
@@ -207,7 +208,7 @@ export async function installDependencies(
   setupScript?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     const setup = setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     await runLogged(sandbox, setupCmd, setupArgs)
@@ -226,7 +227,7 @@ export async function installClaudeCode(
   sandboxName: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     const result = await sandbox.runCommand({
       cmd: "npm",
       args: ["install", "-g", "@anthropic-ai/claude-code"],
@@ -328,7 +329,7 @@ export async function installBridge(
   sandboxName: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     const { PROXY_JS, BRIDGE_JS } = await import("./sandbox-bridge")
     await sandbox.writeFiles([
       { path: "/tmp/screenplay/proxy.mjs", content: PROXY_JS },
@@ -351,7 +352,7 @@ export async function getBridgeVersion(): Promise<string> {
  * nothing is running.
  */
 async function _stopDevAndProxy(
-  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  sandbox: SandboxInstance,
   port: number,
 ): Promise<void> {
   const header = shellQuote(`\n$ stopping previous dev server & proxy\n`)
@@ -386,7 +387,7 @@ async function _stopDevAndProxy(
  * URL (port + 1) rather than the devserver URL.
  */
 async function _launchDevAndProxy(
-  sandbox: Awaited<ReturnType<typeof Sandbox.get>>,
+  sandbox: SandboxInstance,
   port: number,
   devScript?: string,
   env?: Record<string, string> | null,
@@ -441,7 +442,7 @@ export async function startDevServer(
   devScript?: string,
 ): Promise<SandboxResult> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     return await _launchDevAndProxy(sandbox, port, devScript)
   } catch (e) {
     return {
@@ -485,7 +486,7 @@ export async function reconnectSandbox(
 ): Promise<SandboxResult> {
   try {
     // First check current status without resuming
-    const check = await Sandbox.get({ name: sandboxName, resume: false })
+    const check = await sandboxProvider.get({ name: sandboxName, resume: false })
     if (check.status === "running") {
       return {
         sandboxName: check.name,
@@ -495,7 +496,7 @@ export async function reconnectSandbox(
     }
 
     // Sandbox timed out — resume it and restart the dev server
-    const sandbox = await Sandbox.get({ name: sandboxName })
+    const sandbox = await sandboxProvider.get({ name: sandboxName })
     const safeEnv = await getEnvVars(sandboxName)
     return await _launchDevAndProxy(sandbox, port, devScript, safeEnv)
   } catch (e) {
@@ -524,17 +525,17 @@ export async function restartSandbox(
   try {
     const safeEnv = await getEnvVars(sandboxName)
 
-    let sandbox: Awaited<ReturnType<typeof Sandbox.get>>
+    let sandbox: SandboxInstance
     let recreated = false
     try {
-      // Sandbox.get auto-resumes stopped persistent sandboxes
-      sandbox = await Sandbox.get({ name: sandboxName })
+      // sandboxProvider.get auto-resumes stopped persistent sandboxes
+      sandbox = await sandboxProvider.get({ name: sandboxName })
     } catch {
       // Sandbox no longer exists (snapshot expired / deleted) — recreate it
       if (!ghToken) ghToken = await getGitHubToken() ?? undefined
       const networkPolicy = buildNetworkPolicy()
       const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
-      const created = await Sandbox.create({
+      const created = await sandboxProvider.create({
         name: sandboxName,
         source: ghToken
           ? { type: "git", url: gitUrl, revision: branch, username: "x-access-token", password: ghToken }
@@ -588,7 +589,7 @@ export async function getSandboxLogs(
   maxLines: number = 1000,
 ): Promise<{ success: true; content: string } | { success: false; error: string }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     if (sandbox.status !== "running") {
       return { success: true, content: "" }
     }
@@ -612,7 +613,7 @@ export async function keepAliveSandbox(
   sandboxName: string,
 ): Promise<{ success: boolean }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     if (sandbox.status !== "running") return { success: false }
     await sandbox.extendTimeout(SANDBOX_TIMEOUT)
     return { success: true }
@@ -650,7 +651,7 @@ export async function renameAgentBranch(
 ): Promise<{ success: boolean; error?: string }> {
   // Rename locally in the sandbox first — this always works
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     await sandbox.runCommand("git", ["branch", "-m", newBranch])
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) }
@@ -678,7 +679,7 @@ export async function crawlRoutes(
   sandboxName: string,
 ): Promise<{ success: true; routes: { route: string; label: string }[] } | { success: false; error: string }> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
 
     // Get a broad file listing for the LLM to analyze
     const result = await sandbox.runCommand("find", [
@@ -739,7 +740,7 @@ export async function getDiffStats(
   defaultBranch: string,
 ): Promise<{ additions: number; deletions: number } | null> {
   try {
-    const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
     if (sandbox.status !== "running") return null
 
     // Try fetching silently — may fail on private repos without token, that's ok
@@ -795,10 +796,10 @@ export async function configureAgentGit(
   workspace: WorkspaceData,
   branch: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const sandbox = await Sandbox.get({ name: sandboxName, resume: false })
+  const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
 
   // Ensure we're on the actual branch, not a detached HEAD.
-  // Sandbox.create with `revision` may check out the commit directly.
+  // sandboxProvider.create with `revision` may check out the commit directly.
   await sandbox.runCommand("git", ["checkout", "-B", branch])
   await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
 

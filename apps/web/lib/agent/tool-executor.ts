@@ -1,4 +1,5 @@
-import { Sandbox } from "@vercel/sandbox"
+import { sandboxProvider } from "@/lib/sandbox"
+import type { SandboxInstance } from "@/lib/sandbox"
 
 /** Max characters to keep from command stdout/stderr to avoid bloating session history */
 const MAX_OUTPUT_LENGTH = 20_000
@@ -34,7 +35,7 @@ export async function executeCustomTool(
     case "edit_file":
     case "run_command":
     case "list_files": {
-      const sandbox = await Sandbox.get({ name: ctx.sandboxName })
+      const sandbox = await sandboxProvider.get({ name: ctx.sandboxName })
       switch (toolName) {
         case "read_file":
           result = await readFile(sandbox, toolInput as unknown as ReadFileInput)
@@ -99,7 +100,7 @@ async function createPr(
 }
 
 async function readFile(
-  sandbox: Sandbox,
+  sandbox: SandboxInstance,
   input: ReadFileInput,
 ): Promise<string> {
   const buf = await sandbox.readFileToBuffer({ path: input.path })
@@ -108,7 +109,7 @@ async function readFile(
 }
 
 async function writeFile(
-  sandbox: Sandbox,
+  sandbox: SandboxInstance,
   input: WriteFileInput,
 ): Promise<string> {
   await sandbox.writeFiles([{ path: input.path, content: input.content }])
@@ -116,7 +117,7 @@ async function writeFile(
 }
 
 async function editFile(
-  sandbox: Sandbox,
+  sandbox: SandboxInstance,
   input: EditFileInput,
 ): Promise<string> {
   const buf = await sandbox.readFileToBuffer({ path: input.path })
@@ -168,7 +169,7 @@ function parseCommandString(command: string): string[] {
 const SHELL_OPERATORS = /[&&|;><$`(){}]/
 
 async function runCommand(
-  sandbox: Sandbox,
+  sandbox: SandboxInstance,
   input: RunCommandInput,
   ctx: ToolContext,
 ): Promise<string> {
@@ -216,7 +217,7 @@ async function runCommand(
 }
 
 async function listFiles(
-  sandbox: Sandbox,
+  sandbox: SandboxInstance,
   input: ListFilesInput,
 ): Promise<string> {
   const path = input.path || "."
