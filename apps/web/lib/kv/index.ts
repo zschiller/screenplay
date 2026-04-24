@@ -1,8 +1,8 @@
-import { createUpstashKV } from "./upstash"
+import { createPgKV } from "./pg"
 import type { KV } from "./types"
 
 export type { KV, KVSetOptions } from "./types"
 
-// Swap providers by replacing this with your own implementation of the `KV`
-// interface. See ./types.ts for the contract and ./upstash.ts for a reference.
-export const kv: KV = createUpstashKV()
+// Backed by the shared Postgres pool in lib/db.ts.
+// Schema lives in lib/migrations/0002_kv.sql.
+export const kv: KV = createPgKV()
