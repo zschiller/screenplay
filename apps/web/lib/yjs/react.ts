@@ -132,9 +132,14 @@ export function useCollectionEntry<T extends Record<string, unknown>>(
 // Awareness (presence) — replaces Liveblocks Presence/Self/Others
 // ---------------------------------------------------------------------------
 
+// `user` and `cursor` are reserved by y-prosemirror's cursor-plugin — it reads
+// `awareness[clientId].cursor.{anchor,head}` as ProseMirror RelativePositions
+// and overwrites `awareness[clientId].user` with `{ name, color }`. We publish
+// under `identity` / `pointer` so the canvas pointer and profile stay intact
+// once a TipTap text layer mounts alongside us.
 export type CanvasPresence = {
-  user: { id: string; name: string; avatar?: string }
-  cursor: { x: number; y: number } | null
+  identity: { id: string; name: string; avatar?: string }
+  pointer: { x: number; y: number } | null
   viewport: { x: number; y: number; zoom: number }
   color: string
   selectedArtboardIds: string[]
@@ -205,7 +210,7 @@ const SELECT_OTHERS = (a: AwarenessLike) => {
   a.getStates().forEach((state, clientId) => {
     if (clientId === selfId) return
     const presence = state as Partial<CanvasPresence>
-    if (!presence.user || !presence.viewport) return
+    if (!presence.identity || !presence.viewport) return
     result.push({ clientId, presence: presence as CanvasPresence })
   })
   return result
@@ -213,7 +218,7 @@ const SELECT_OTHERS = (a: AwarenessLike) => {
 
 const SELECT_SELF = (a: AwarenessLike): CanvasPresence | null => {
   const state = a.getLocalState() as Partial<CanvasPresence> | null
-  if (!state || !state.user || !state.viewport) return null
+  if (!state || !state.identity || !state.viewport) return null
   return state as CanvasPresence
 }
 
