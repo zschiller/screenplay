@@ -1,7 +1,9 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
+import { eq } from "drizzle-orm"
 import { nanoid } from "nanoid"
+import { requireUserId } from "@/lib/auth-helpers"
+import { db, schema } from "@/lib/db"
 import {
   DRAFTS_FOLDER_ID,
   type Folder,
@@ -13,12 +15,6 @@ const EMPTY: OrganizationState = {
   fileFolder: {},
   pinnedFiles: [],
   pinnedFolders: [],
-}
-
-async function requireUserId(): Promise<string> {
-  const { userId } = await auth()
-  if (!userId) throw new Error("Unauthorized")
-  return userId
 }
 
 function normalize(raw: unknown): OrganizationState {
@@ -53,21 +49,22 @@ function normalize(raw: unknown): OrganizationState {
 }
 
 async function readState(userId: string): Promise<OrganizationState> {
-  const client = await clerkClient()
-  const user = await client.users.getUser(userId)
-  return normalize(
-    (user.privateMetadata as Record<string, unknown>)?.organization,
-  )
+  const rows = await db
+    .select({ organization: schema.user.organization })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+    .limit(1)
+  return normalize(rows[0]?.organization)
 }
 
 async function writeState(
   userId: string,
   next: OrganizationState,
 ): Promise<OrganizationState> {
-  const client = await clerkClient()
-  await client.users.updateUserMetadata(userId, {
-    privateMetadata: { organization: next },
-  })
+  await db
+    .update(schema.user)
+    .set({ organization: next, updatedAt: new Date() })
+    .where(eq(schema.user.id, userId))
   return next
 }
 

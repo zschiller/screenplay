@@ -1,4 +1,4 @@
-import { clerkClient } from "@clerk/nextjs/server"
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { liveblocks } from "@/lib/liveblocks-server"
 
 export interface CreateGitHubPrInput {
@@ -12,12 +12,6 @@ export interface CreateGitHubPrInput {
 export interface CreateGitHubPrResult {
   url: string
   number: number
-}
-
-async function getUserGitHubToken(userId: string): Promise<string | null> {
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  return tokens.data?.[0]?.token ?? null
 }
 
 export async function createGitHubPr(
@@ -55,7 +49,7 @@ export async function createGitHubPr(
     throw new Error("Workspace repo info not found in storage")
   }
 
-  const token = await getUserGitHubToken(userId)
+  const token = await getGitHubTokenForUser(userId)
   if (!token) throw new Error("Not authenticated with GitHub")
 
   const res = await fetch(

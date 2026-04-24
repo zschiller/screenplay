@@ -14,7 +14,7 @@ import type {
 } from "./types"
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
-import { clerkClient } from "@clerk/nextjs/server"
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 
 export interface ToolContext {
   sandboxName: string
@@ -73,9 +73,7 @@ export async function executeCustomTool(
  */
 async function buildAgentGitEnv(ctx: ToolContext): Promise<Record<string, string> | undefined> {
   try {
-    const client = await clerkClient()
-    const tokens = await client.users.getUserOauthAccessToken(ctx.userId, "github")
-    const token = tokens.data?.[0]?.token
+    const token = await getGitHubTokenForUser(ctx.userId)
     return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
   } catch {
     return undefined

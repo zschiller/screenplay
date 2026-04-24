@@ -1,6 +1,6 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
+import { getGitHubToken } from "@/lib/auth-helpers"
 
 export interface GitHubRepo {
   id: number
@@ -15,12 +15,7 @@ export interface GitHubRepo {
 }
 
 export async function listUserRepos(): Promise<GitHubRepo[]> {
-  const { userId } = await auth()
-  if (!userId) return []
-
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+  const token = await getGitHubToken()
   if (!token) return []
 
   const repos: GitHubRepo[] = []
@@ -75,14 +70,7 @@ export async function createBranch(
   ghToken?: string,
 ): Promise<{ success: boolean; error?: string }> {
   let token = ghToken
-  if (!token) {
-    const { userId } = await auth()
-    if (!userId) return { success: false, error: "Not authenticated" }
-
-    const client = await clerkClient()
-    const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-    token = tokens.data?.[0]?.token
-  }
+  if (!token) token = (await getGitHubToken()) ?? undefined
   if (!token) return { success: false, error: "No GitHub token" }
 
   // Get the SHA of the source branch
@@ -142,12 +130,7 @@ export async function renameBranch(
   oldBranch: string,
   newBranch: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const { userId } = await auth()
-  if (!userId) return { success: false, error: "Not authenticated" }
-
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+  const token = await getGitHubToken()
   if (!token) return { success: false, error: "No GitHub token" }
 
   const res = await fetch(
@@ -180,12 +163,7 @@ export async function compareBranch(
   base: string,
   head: string,
 ): Promise<{ additions: number; deletions: number } | null> {
-  const { userId } = await auth()
-  if (!userId) return null
-
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+  const token = await getGitHubToken()
   if (!token) return null
 
   const res = await fetch(
@@ -223,12 +201,7 @@ export async function listBranchPullRequest(
   repo: string,
   branch: string,
 ): Promise<BranchPrInfo | null> {
-  const { userId } = await auth()
-  if (!userId) return null
-
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+  const token = await getGitHubToken()
   if (!token) return null
 
   const res = await fetch(
@@ -260,12 +233,7 @@ export async function listRepoBranches(
   owner: string,
   repo: string,
 ): Promise<GitHubBranch[]> {
-  const { userId } = await auth()
-  if (!userId) return []
-
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  const token = tokens.data?.[0]?.token
+  const token = await getGitHubToken()
   if (!token) return []
 
   const res = await fetch(

@@ -1,5 +1,5 @@
-import { clerkClient } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { getUsersByIds } from "@/lib/auth-helpers"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -8,17 +8,12 @@ export async function GET(req: Request) {
     return NextResponse.json([])
   }
 
-  const client = await clerkClient()
-  const users = await client.users.getUserList({ userId: userIds })
+  const users = await getUsersByIds(userIds)
 
   const result = userIds.map((id) => {
-    const user = users.data.find((u) => u.id === id)
+    const user = users.find((u) => u.id === id)
     if (!user) return undefined
-    const name =
-      user.firstName && user.lastName
-        ? `${user.firstName} ${user.lastName}`
-        : user.username ?? "Anonymous"
-    return { name, avatar: user.imageUrl }
+    return { name: user.name || "Anonymous", avatar: user.image ?? undefined }
   })
 
   return NextResponse.json(result)

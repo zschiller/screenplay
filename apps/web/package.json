@@ -5,15 +5,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "drizzle-kit migrate && next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",
-    "@clerk/nextjs": "^7.0.12",
     "@liveblocks/client": "^3.18.3",
     "@liveblocks/node": "^3.18.3",
     "@liveblocks/react": "^3.18.3",
@@ -25,10 +28,13 @@
     "@tiptap/pm": "^3.22.4",
     "@tiptap/react": "^3.22.4",
     "@tiptap/starter-kit": "^3.22.4",
+    "@neondatabase/serverless": "^1.0.3",
     "@upstash/redis": "^1.37.0",
     "@vercel/sandbox": "^2.0.0-beta.13",
     "@workspace/ui": "workspace:*",
     "anser": "^2.3.5",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.8.0",
     "nanoid": "^5.1.7",
     "next": "16.1.7",
@@ -48,6 +54,7 @@
     "@types/react-dom": "^19.2.3",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "drizzle-kit": "^0.31.5",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.1.7",
     "typescript": "^5.9.3"
