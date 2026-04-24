@@ -10,21 +10,6 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { YjsProvider } from "@/components/providers/yjs-provider"
 import "@/lib/liveblocks.types"
 
-const CURSOR_COLORS = [
-  "#E57373",
-  "#64B5F6",
-  "#81C784",
-  "#FFB74D",
-  "#BA68C8",
-  "#4DD0E1",
-  "#FF8A65",
-  "#A1887F",
-]
-
-function getRandomColor() {
-  return CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]
-}
-
 function CanvasSkeleton() {
   return (
     <div className="fixed inset-0 flex bg-muted/30">
@@ -102,23 +87,10 @@ export function RoomProviderWrapper({
     <LiveblocksProvider
       authEndpoint="/api/liveblocks-auth"
       badgeLocation="bottom-left"
-      resolveUsers={async ({ userIds }) => {
-        const params = new URLSearchParams()
-        userIds.forEach((id) => params.append("userIds", id))
-        const res = await fetch(`/api/liveblocks-users?${params}`)
-        return res.json()
-      }}
     >
       <RoomProvider
         id={roomId}
-        initialPresence={{
-          cursor: null,
-          viewport: { x: 0, y: 0, zoom: 1 },
-          name: "",
-          color: getRandomColor(),
-          selectedArtboardIds: [],
-          selectedTextLayerIds: [],
-        }}
+        initialPresence={{}}
         initialStorage={{}}
       >
         <ClientSideSuspense fallback={<CanvasSkeleton />}>

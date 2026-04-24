@@ -1,6 +1,5 @@
 "use client"
 
-import { useOthers, useSelf } from "@liveblocks/react/suspense"
 import {
   Avatar,
   AvatarImage,
@@ -12,10 +11,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useOtherPresences, useSelfPresence } from "@/lib/yjs/react"
 
 interface FollowingToolbarProps {
   followingId: number | null
-  onFollow: (connectionId: number | null) => void
+  onFollow: (clientId: number | null) => void
 }
 
 function getInitials(name: string) {
@@ -31,13 +31,12 @@ export function FollowingToolbar({
   followingId,
   onFollow,
 }: FollowingToolbarProps) {
-  const others = useOthers()
-  const self = useSelf()
+  const others = useOtherPresences()
+  const self = useSelfPresence()
 
   return (
     <TooltipProvider>
       <div className="flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
-        {/* Current user */}
         {self && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -46,31 +45,30 @@ export function FollowingToolbar({
                 onClick={() => onFollow(null)}
               >
                 <Avatar size="sm">
-                  {self.info?.avatar ? (
-                    <AvatarImage src={self.info.avatar} alt={self.info?.name ?? "You"} />
+                  {self.user.avatar ? (
+                    <AvatarImage src={self.user.avatar} alt={self.user.name} />
                   ) : null}
                   <AvatarFallback
-                    style={{ backgroundColor: self.presence.color }}
+                    style={{ backgroundColor: self.color }}
                     className="text-white text-[10px] font-medium"
                   >
-                    {getInitials(self.info?.name || self.presence.name || "?")}
+                    {getInitials(self.user.name || "?")}
                   </AvatarFallback>
                 </Avatar>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              {self.info?.name || self.presence.name || "You"} (you)
+              {self.user.name || "You"} (you)
             </TooltipContent>
           </Tooltip>
         )}
 
-        {/* Other users */}
-        {others.map(({ connectionId, presence, info }) => {
-          const isFollowing = followingId === connectionId
-          const name = info?.name || presence.name || "Anonymous"
+        {others.map(({ clientId, presence }) => {
+          const isFollowing = followingId === clientId
+          const name = presence.user.name || "Anonymous"
 
           return (
-            <Tooltip key={connectionId}>
+            <Tooltip key={clientId}>
               <TooltipTrigger asChild>
                 <button
                   className="relative rounded-full ring-2 ring-background transition-all"
@@ -79,13 +77,11 @@ export function FollowingToolbar({
                       ? `0 0 0 2px ${presence.color}`
                       : undefined,
                   }}
-                  onClick={() =>
-                    onFollow(isFollowing ? null : connectionId)
-                  }
+                  onClick={() => onFollow(isFollowing ? null : clientId)}
                 >
                   <Avatar size="sm">
-                    {info?.avatar ? (
-                      <AvatarImage src={info.avatar} alt={name} />
+                    {presence.user.avatar ? (
+                      <AvatarImage src={presence.user.avatar} alt={name} />
                     ) : null}
                     <AvatarFallback
                       style={{ backgroundColor: presence.color }}
@@ -94,7 +90,6 @@ export function FollowingToolbar({
                       {getInitials(name)}
                     </AvatarFallback>
                   </Avatar>
-                  {/* Following badge */}
                   {isFollowing && (
                     <span
                       className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] text-white"

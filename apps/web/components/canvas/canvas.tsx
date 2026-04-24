@@ -9,21 +9,20 @@ import {
 import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import {
-  useOthers,
-  useSelf,
-  useUpdateMyPresence,
-} from "@liveblocks/react/suspense"
-import {
   useAgents,
   useArtboards,
   useChatSessions,
   useChatStreamEvents,
+  useOtherPresences,
   useRoomCollections,
   useSavedViewport,
+  useSelfPresence,
+  useSetPresence,
   useTextLayers,
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
+import { useSession } from "@/lib/auth-client"
 import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
@@ -172,11 +171,31 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
-  const updateMyPresence = useUpdateMyPresence()
-  const self = useSelf()
-  const others = useOthers()
+  const setPresence = useSetPresence()
+  const self = useSelfPresence()
+  const others = useOtherPresences()
+  const { data: session } = useSession()
   const history = useYjsHistory()
   const collections = useRoomCollections()
+
+  // Publish identity + a stable color into awareness on mount and whenever the
+  // session changes. Other clients see this as our `presence.user`.
+  const colorRef = useRef<string>("")
+  useEffect(() => {
+    if (!session?.user) return
+    if (!colorRef.current) {
+      const palette = ["#E57373", "#64B5F6", "#81C784", "#FFB74D", "#BA68C8", "#4DD0E1", "#FF8A65", "#A1887F"]
+      colorRef.current = palette[Math.floor(Math.random() * palette.length)]
+    }
+    setPresence({
+      user: {
+        id: session.user.id,
+        name: session.user.name || "Anonymous",
+        avatar: session.user.image ?? undefined,
+      },
+      color: colorRef.current,
+    })
+  }, [session, setPresence])
 
   // Refs so keyboard handler stays current without re-binding
   const selectedArtboardIdsRef = useRef(selectedArtboardIds)
@@ -1436,7 +1455,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   useEffect(() => {
     if (followingConnectionId === null) return
     const followed = others.find(
-      (o) => o.connectionId === followingConnectionId,
+      (o) => o.clientId === followingConnectionId,
     )
     // If the user we're following disconnected, stop following
     if (!followed) {
@@ -1726,7 +1745,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       const relY = e.clientY - rect.top
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
-      updateMyPresence({ cursor: { x: canvasX, y: canvasY } })
+      setPresence({ cursor: { x: canvasX, y: canvasY } })
 
       // Hit-test for hover highlight
       let hovered: string | null = null
@@ -1743,13 +1762,13 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       }
       setHoveredArtboardId(hovered)
     },
-    [updateMyPresence, artboards],
+    [setPresence, artboards],
   )
 
   const handlePointerLeave = useCallback(() => {
-    updateMyPresence({ cursor: null })
+    setPresence({ cursor: null })
     setHoveredArtboardId(null)
-  }, [updateMyPresence])
+  }, [setPresence])
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
@@ -1787,18 +1806,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
   // Broadcast selection to other users via presence
   useEffect(() => {
-    updateMyPresence({
+    setPresence({
       selectedArtboardIds: Array.from(selectedArtboardIds),
       selectedTextLayerIds: Array.from(selectedTextLayerIds),
     })
-  }, [selectedArtboardIds, selectedTextLayerIds, updateMyPresence])
+  }, [selectedArtboardIds, selectedTextLayerIds, setPresence])
 
   // Collect other users' selections for the overlay
-  const othersSelections = others.map((other) => ({
-    selectedArtboardIds: other.presence.selectedArtboardIds ?? [],
-    selectedTextLayerIds: other.presence.selectedTextLayerIds ?? [],
-    color: other.presence.color,
-    name: other.info?.name || other.presence.name || "Anonymous",
+  const othersSelections = others.map(({ presence }) => ({
+    selectedArtboardIds: presence.selectedArtboardIds ?? [],
+    selectedTextLayerIds: presence.selectedTextLayerIds ?? [],
+    color: presence.color,
+    name: presence.user.name || "Anonymous",
   }))
 
   // Auto-select the first running agent when none is selected. Booting
@@ -1964,12 +1983,12 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                   ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
                   setZoom(savedViewport.zoom)
                   setViewportPos({ x: savedViewport.x, y: savedViewport.y })
-                  updateMyPresence({ viewport: savedViewport })
+                  setPresence({ viewport: savedViewport })
                 } else {
                   const { scale, positionX, positionY } = ref.state
                   setZoom(scale)
                   setViewportPos({ x: positionX, y: positionY })
-                  updateMyPresence({
+                  setPresence({
                     viewport: { x: positionX, y: positionY, zoom: scale },
                   })
                 }
@@ -1986,7 +2005,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                 }
                 setZoom(state.scale)
                 setViewportPos({ x: state.positionX, y: state.positionY })
-                updateMyPresence({ viewport: vp })
+                setPresence({ viewport: vp })
                 saveViewportDebounced(vp)
               }}
             >
@@ -2044,8 +2063,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                       editing={editingTextLayerId === layer.id}
                       spaceHeld={spaceHeld}
-                      userName={self?.presence.name || self?.info?.name || "Anonymous"}
-                      userColor={self?.presence.color || "#888"}
+                      userName={self?.user.name || "Anonymous"}
+                      userColor={self?.color || "#888"}
                       onSelect={handleTextLayerSelect}
                       onMove={moveTextLayer}
                       onMoveSelected={handleMoveSelected}

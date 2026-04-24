@@ -5,6 +5,20 @@ import * as Y from "yjs"
 import { UndoManager } from "yjs"
 import { useYjs } from "@/components/providers/yjs-provider"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
+
+/**
+ * Minimal interface satisfied by both `y-protocols/awareness.Awareness` and
+ * `@liveblocks/yjs`'s built-in Awareness wrapper. Treating the underlying type
+ * as a structural slice keeps us host-agnostic.
+ */
+type AwarenessLike = {
+  getLocalState(): unknown
+  setLocalState(state: unknown): void
+  getStates(): Map<number, unknown>
+  on(event: "change" | "update", handler: () => void): void
+  off(event: "change" | "update", handler: () => void): void
+  doc: Y.Doc
+}
 import {
   COLLECTION_KEYS,
   getRoomCollections,
@@ -126,6 +140,113 @@ export function useCollectionEntry<T extends Record<string, unknown>>(
   const [, force] = useState(0)
   useEffect(() => collection.observe(() => force((n) => n + 1)), [collection])
   return collection.get(id)
+}
+
+// ---------------------------------------------------------------------------
+// Awareness (presence) — replaces Liveblocks Presence/Self/Others
+// ---------------------------------------------------------------------------
+
+export type CanvasPresence = {
+  user: { id: string; name: string; avatar?: string }
+  cursor: { x: number; y: number } | null
+  viewport: { x: number; y: number; zoom: number }
+  color: string
+  selectedArtboardIds: string[]
+  selectedTextLayerIds: string[]
+}
+
+function useAwareness(): AwarenessLike {
+  const { provider } = useYjs()
+  return provider.awareness as unknown as AwarenessLike
+}
+
+/**
+ * Returns a setter that merges into the local awareness state. The first call
+ * with a given field also triggers an awareness broadcast to peers.
+ */
+export function useSetPresence() {
+  const awareness = useAwareness()
+  return useCallback(
+    (partial: Partial<CanvasPresence>) => {
+      const current = awareness.getLocalState() as Partial<CanvasPresence> | null
+      awareness.setLocalState({ ...(current ?? {}), ...partial })
+    },
+    [awareness],
+  )
+}
+
+/**
+ * Generic awareness snapshot hook. Caches the selected value and only rebuilds
+ * on awareness `change` — keeps `useSyncExternalStore` happy by returning a
+ * reference-stable snapshot between updates.
+ */
+function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
+  const awareness = useAwareness()
+  const cacheRef = useRef<T | typeof EMPTY>(EMPTY)
+  const versionRef = useRef(0)
+
+  // Bump version on every awareness change; getSnapshot rebuilds when the
+  // version it last saw differs from the current one.
+  const lastVersionSeenRef = useRef(-1)
+
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const handler = () => {
+        versionRef.current += 1
+        cb()
+      }
+      awareness.on("change", handler)
+      return () => awareness.off("change", handler)
+    },
+    [awareness],
+  )
+
+  const getSnapshot = useCallback(() => {
+    if (cacheRef.current === EMPTY || lastVersionSeenRef.current !== versionRef.current) {
+      cacheRef.current = select(awareness)
+      lastVersionSeenRef.current = versionRef.current
+    }
+    return cacheRef.current as T
+  }, [awareness, select])
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+const EMPTY: unique symbol = Symbol("empty")
+
+const SELECT_OTHERS = (a: AwarenessLike) => {
+  const selfId = a.doc.clientID
+  const result: Array<{ clientId: number; presence: CanvasPresence }> = []
+  a.getStates().forEach((state, clientId) => {
+    if (clientId === selfId) return
+    const presence = state as Partial<CanvasPresence>
+    if (!presence.user || !presence.viewport) return
+    result.push({ clientId, presence: presence as CanvasPresence })
+  })
+  return result
+}
+
+const SELECT_SELF = (a: AwarenessLike): CanvasPresence | null => {
+  const state = a.getLocalState() as Partial<CanvasPresence> | null
+  if (!state || !state.user || !state.viewport) return null
+  return state as CanvasPresence
+}
+
+/** Other peers' awareness states. Stable reference between awareness changes. */
+export function useOtherPresences(): Array<{
+  clientId: number
+  presence: CanvasPresence
+}> {
+  return useAwarenessSnapshot(SELECT_OTHERS)
+}
+
+export function useSelfPresence(): CanvasPresence | null {
+  return useAwarenessSnapshot(SELECT_SELF)
+}
+
+export function useSelfClientId(): number {
+  const awareness = useAwareness()
+  return awareness.doc.clientID
 }
 
 /** Force-rerender hook used internally — exported for legacy patterns. */

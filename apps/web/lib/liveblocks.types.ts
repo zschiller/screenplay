@@ -104,32 +104,17 @@ export type ViewportData = {
  */
 export type Storage = Record<string, never>
 
-export type Presence = {
-  cursor: { x: number; y: number } | null
-  viewport: { x: number; y: number; zoom: number }
-  name: string
-  color: string
-  selectedArtboardIds: string[]
-  selectedTextLayerIds: string[]
-}
-
-export type UserMeta = {
-  id: string
-  info: {
-    name: string
-    avatar?: string
-  }
-}
+/**
+ * Liveblocks Presence/UserMeta/ThreadMetadata are no longer used — presence
+ * lives in Yjs awareness, threads/comments live in Postgres. The interface is
+ * declared with empty types so RoomProvider's required props are satisfied
+ * with `{}` literals.
+ */
+export type Presence = Record<string, never>
 
 declare global {
   interface Liveblocks {
     Storage: Storage
     Presence: Presence
-    UserMeta: UserMeta
-    ThreadMetadata: {
-      x: number
-      y: number
-      artboardId?: string
-    }
   }
 }
