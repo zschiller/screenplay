@@ -3,18 +3,17 @@
  * other code that needs to build an absolute URL back to this app.
  *
  * Resolution order:
- *   1. `BETTER_AUTH_URL`     — explicit override (set in dev + production)
- *   2. `https://$VERCEL_URL` — Vercel preview deployments
+ *   1. `BETTER_AUTH_URL`          — explicit override (required in production)
+ *   2. `https://$VERCEL_URL`      — Vercel preview deployments
+ *   3. `http://localhost:$PORT`   — local dev (PORT defaults to 3000)
  *
- * No silent fallback: if neither is set we throw so misconfiguration surfaces
- * immediately instead of binding to the wrong port / domain.
+ * If you run `next dev` on a non-default port, set `PORT=3001` (or whatever)
+ * in `.env.local` alongside the `-p` flag, or set `BETTER_AUTH_URL` directly.
  */
 export function getBaseURL(): string {
   if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  throw new Error(
-    "BETTER_AUTH_URL is not set. Set it in .env.local (e.g. http://localhost:3000) or rely on VERCEL_URL on Vercel previews.",
-  )
+  return `http://localhost:${process.env.PORT ?? 3000}`
 }
 
 /**
