@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation"
-import { RoomProviderWrapper } from "@/components/providers/liveblocks-provider"
 import { Canvas } from "@/components/canvas/canvas"
+import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
-import { ensureRoomBackfilled } from "@/lib/projects-actions"
 import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
+import { YjsRoomProvider } from "@/lib/yjs-host/client"
 
 export default async function RoomPage({
   params,
@@ -15,13 +15,7 @@ export default async function RoomPage({
   const userId = await getUserId()
   if (!userId) redirect(`/sign-in?redirect=/${roomId}`)
 
-  let room = await getRoom(roomId)
-  if (!room) {
-    // Possibly a room created before the Postgres migration; try a one-shot
-    // backfill from Liveblocks before giving up.
-    await ensureRoomBackfilled(roomId, userId)
-    room = await getRoom(roomId)
-  }
+  const room = await getRoom(roomId)
   if (!room) notFound()
 
   if (!(await canAccess(roomId, userId))) notFound()
@@ -30,8 +24,8 @@ export default async function RoomPage({
   touchRoomOpened(roomId).catch(() => {})
 
   return (
-    <RoomProviderWrapper roomId={roomId}>
+    <YjsRoomProvider roomId={roomId} fallback={<CanvasSkeleton />}>
       <Canvas roomId={roomId} projectName={room.name} />
-    </RoomProviderWrapper>
+    </YjsRoomProvider>
   )
 }

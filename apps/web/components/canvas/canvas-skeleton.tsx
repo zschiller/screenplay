@@ -1,16 +1,6 @@
-"use client"
-
-import { ReactNode } from "react"
-import {
-  LiveblocksProvider,
-  RoomProvider,
-  ClientSideSuspense,
-} from "@liveblocks/react/suspense"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { YjsProvider } from "@/components/providers/yjs-provider"
-import "@/lib/liveblocks.types"
 
-function CanvasSkeleton() {
+export function CanvasSkeleton() {
   return (
     <div className="fixed inset-0 flex bg-muted/30">
       <aside className="flex h-full w-[240px] shrink-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -73,30 +63,5 @@ function CanvasSkeleton() {
         </div>
       </div>
     </div>
-  )
-}
-
-export function RoomProviderWrapper({
-  roomId,
-  children,
-}: {
-  roomId: string
-  children: ReactNode
-}) {
-  return (
-    <LiveblocksProvider
-      authEndpoint="/api/liveblocks-auth"
-      badgeLocation="bottom-left"
-    >
-      <RoomProvider
-        id={roomId}
-        initialPresence={{}}
-        initialStorage={{}}
-      >
-        <ClientSideSuspense fallback={<CanvasSkeleton />}>
-          <YjsProvider>{children}</YjsProvider>
-        </ClientSideSuspense>
-      </RoomProvider>
-    </LiveblocksProvider>
   )
 }

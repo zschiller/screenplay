@@ -3,22 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import * as Y from "yjs"
 import { UndoManager } from "yjs"
-import { useYjs } from "@/components/providers/yjs-provider"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
-
-/**
- * Minimal interface satisfied by both `y-protocols/awareness.Awareness` and
- * `@liveblocks/yjs`'s built-in Awareness wrapper. Treating the underlying type
- * as a structural slice keeps us host-agnostic.
- */
-type AwarenessLike = {
-  getLocalState(): unknown
-  setLocalState(state: unknown): void
-  getStates(): Map<number, unknown>
-  on(event: "change" | "update", handler: () => void): void
-  off(event: "change" | "update", handler: () => void): void
-  doc: Y.Doc
-}
+import { useYjs, type AwarenessLike } from "@/lib/yjs/context"
 import {
   COLLECTION_KEYS,
   getRoomCollections,
@@ -156,8 +142,7 @@ export type CanvasPresence = {
 }
 
 function useAwareness(): AwarenessLike {
-  const { provider } = useYjs()
-  return provider.awareness as unknown as AwarenessLike
+  return useYjs().awareness
 }
 
 /**

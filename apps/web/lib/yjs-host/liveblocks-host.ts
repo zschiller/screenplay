@@ -119,13 +119,6 @@ class LiveblocksYjsHost implements YjsHost {
     return { status, body }
   }
 
-  /**
-   * Liveblocks-specific escape hatch — exposed for the one-shot backfill of
-   * pre-Postgres rooms. Other consumers go through the YjsHost interface.
-   */
-  rawClient(): Liveblocks {
-    return this.client
-  }
 }
 
 let cached: LiveblocksYjsHost | null = null

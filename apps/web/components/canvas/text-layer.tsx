@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Collaboration from "@tiptap/extension-collaboration"
@@ -8,7 +8,7 @@ import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { ArrowRightFromLine, ArrowUp, ScanText } from "lucide-react"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
-import { useTextFragment, useYjs } from "@/components/providers/yjs-provider"
+import { useTextFragment, useYjs } from "@/lib/yjs/context"
 import {
   Popover,
   PopoverContent,
@@ -67,7 +67,10 @@ export function TextLayer({
   onSubmitAsPlan,
 }: TextLayerProps) {
   const [planPickerOpen, setPlanPickerOpen] = useState(false)
-  const { provider } = useYjs()
+  // CollaborationCaret only consumes `provider.awareness`, so a thin shim
+  // satisfies it without exposing host-specific provider types.
+  const { awareness } = useYjs()
+  const provider = useMemo(() => ({ awareness }), [awareness])
   const fragment = useTextFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-helpers"
-import { ensureRoomBackfilled } from "@/lib/projects-actions"
 import { canAccess } from "@/lib/rooms"
 import { yjsHost } from "@/lib/yjs-host"
 
@@ -22,16 +21,8 @@ export async function POST(req: Request) {
     // No JSON body — allow.
   }
 
-  if (roomId) {
-    let allowed = await canAccess(roomId, session.user.id)
-    if (!allowed) {
-      // Pre-migration room? Backfill once before refusing.
-      await ensureRoomBackfilled(roomId, session.user.id)
-      allowed = await canAccess(roomId, session.user.id)
-    }
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+  if (roomId && !(await canAccess(roomId, session.user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const { status, body } = await yjsHost.issueToken({

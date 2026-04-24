@@ -19,7 +19,6 @@ import {
   requireOwner,
 } from "@/lib/rooms"
 import { yjsHost } from "@/lib/yjs-host"
-import { getLiveblocksHost } from "@/lib/yjs-host/liveblocks-host"
 
 export type ProjectSummary = {
   id: string
@@ -57,91 +56,8 @@ export async function createProject(name: string): Promise<ProjectSummary> {
   }
 }
 
-/**
- * One-time backfill: import any Liveblocks rooms the user has access to that
- * don't yet have a Postgres record. Runs on listProjects so the migration is
- * transparent — once every active user lists their projects, Liveblocks can be
- * removed as a metadata source.
- */
-async function backfillFromLiveblocks(userId: string): Promise<void> {
-  // Backfill is intentionally Liveblocks-specific — it's a one-shot migration
-  // from when project metadata lived in Liveblocks room metadata. Other hosts
-  // never had that state to import from.
-  const liveblocks = getLiveblocksHost().rawClient()
-  for await (const room of liveblocks.iterRooms({ userId })) {
-    const existing = await getRoom(room.id)
-    if (existing) continue
-
-    const ownerRaw = room.metadata.ownerId
-    const ownerId = typeof ownerRaw === "string" && ownerRaw ? ownerRaw : userId
-    const nameRaw = room.metadata.name
-    const name =
-      typeof nameRaw === "string" && nameRaw.length ? nameRaw : "Untitled"
-
-    try {
-      await createRoom({ id: room.id, name, ownerId })
-    } catch {
-      // Owner user may not exist in our DB; skip silently.
-      continue
-    }
-
-    for (const memberId of Object.keys(room.usersAccesses)) {
-      if (memberId === ownerId) continue
-      try {
-        await addMember({ roomId: room.id, userId: memberId, role: "editor" })
-      } catch {
-        // Member user not in DB; skip.
-      }
-    }
-  }
-}
-
-/**
- * Per-room backfill — used when a user lands on a room URL directly without
- * going through the home page. Idempotent; no-ops if the room already exists.
- * Returns true when the user ends up with access to the room.
- */
-export async function ensureRoomBackfilled(
-  roomId: string,
-  userId: string,
-): Promise<boolean> {
-  if (await getRoom(roomId)) return true
-
-  const liveblocks = getLiveblocksHost().rawClient()
-  let lbRoom
-  try {
-    lbRoom = await liveblocks.getRoom(roomId)
-  } catch {
-    return false
-  }
-  if (!lbRoom.usersAccesses[userId]) return false
-
-  const ownerRaw = lbRoom.metadata.ownerId
-  const ownerId = typeof ownerRaw === "string" && ownerRaw ? ownerRaw : userId
-  const nameRaw = lbRoom.metadata.name
-  const name =
-    typeof nameRaw === "string" && nameRaw.length ? nameRaw : "Untitled"
-
-  try {
-    await createRoom({ id: roomId, name, ownerId })
-  } catch {
-    // Owner missing in Postgres — bail.
-    return false
-  }
-  for (const memberId of Object.keys(lbRoom.usersAccesses)) {
-    if (memberId === ownerId) continue
-    try {
-      await addMember({ roomId, userId: memberId, role: "editor" })
-    } catch {
-      // skip
-    }
-  }
-  return true
-}
-
 export async function listProjects(): Promise<ProjectSummary[]> {
   const userId = await requireUserId()
-  await backfillFromLiveblocks(userId)
   const rooms = await listRoomsForUser(userId)
   return rooms.map((room) => ({
     id: room.id,
