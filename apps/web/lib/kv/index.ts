@@ -1,8 +1,8 @@
-import { createPgKV } from "./pg"
+import { createDrizzleKV } from "./drizzle"
 import type { KV } from "./types"
 
 export type { KV, KVSetOptions } from "./types"
 
-// Backed by the shared Postgres pool in lib/db.ts.
-// Schema lives in lib/migrations/0002_kv.sql.
-export const kv: KV = createPgKV()
+// Backed by the shared Drizzle client in lib/db (hitting the `kv` table).
+// Schema lives in lib/db/schema.ts; apply with `pnpm db:push`.
+export const kv: KV = createDrizzleKV()

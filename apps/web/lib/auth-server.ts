@@ -1,8 +1,9 @@
 import "server-only"
 
 import { headers } from "next/headers"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { auth } from "./auth"
-import { ensureSchema, query } from "./db"
+import { db, schema } from "./db"
 
 export type SessionUser = {
   id: string
@@ -16,7 +17,6 @@ export type SessionUser = {
  * Replaces Clerk's `auth()` / `currentUser()`.
  */
 export async function getSession() {
-  await ensureSchema()
   return auth.api.getSession({ headers: await headers() })
 }
 
@@ -44,21 +44,31 @@ export type DbUserRow = {
 
 export async function getUsersByIds(ids: string[]): Promise<DbUserRow[]> {
   if (!ids.length) return []
-  const { rows } = await query<DbUserRow>(
-    `SELECT id, name, email, image FROM "user" WHERE id = ANY($1::text[])`,
-    [ids],
-  )
-  return rows
+  return db
+    .select({
+      id: schema.user.id,
+      name: schema.user.name,
+      email: schema.user.email,
+      image: schema.user.image,
+    })
+    .from(schema.user)
+    .where(inArray(schema.user.id, ids))
 }
 
 export async function getUserByEmail(
   email: string,
 ): Promise<DbUserRow | null> {
-  const { rows } = await query<DbUserRow>(
-    `SELECT id, name, email, image FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
-    [email],
-  )
-  return rows[0] ?? null
+  const [row] = await db
+    .select({
+      id: schema.user.id,
+      name: schema.user.name,
+      email: schema.user.email,
+      image: schema.user.image,
+    })
+    .from(schema.user)
+    .where(sql`lower(${schema.user.email}) = lower(${email})`)
+    .limit(1)
+  return row ?? null
 }
 
 /**
@@ -70,14 +80,17 @@ export async function getUserByEmail(
 export async function getGitHubAccessToken(
   userId: string,
 ): Promise<string | null> {
-  const { rows } = await query<{ access_token: string | null }>(
-    `SELECT "accessToken" AS access_token
-       FROM "account"
-      WHERE "userId" = $1 AND "providerId" = 'github'
-      LIMIT 1`,
-    [userId],
-  )
-  return rows[0]?.access_token ?? null
+  const [row] = await db
+    .select({ accessToken: schema.account.accessToken })
+    .from(schema.account)
+    .where(
+      and(
+        eq(schema.account.userId, userId),
+        eq(schema.account.providerId, "github"),
+      ),
+    )
+    .limit(1)
+  return row?.accessToken ?? null
 }
 
 /**

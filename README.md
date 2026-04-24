@@ -20,9 +20,9 @@ Before deploying, create accounts and projects for each of the following:
 
 Auth is handled by [Better Auth](https://better-auth.com) against the Postgres database pointed at by `DATABASE_URL`.
 
-1. Provision a Postgres database and set `DATABASE_URL`. The schema
-   auto-creates on first request (`apps/web/lib/db.ts` runs
-   `CREATE TABLE IF NOT EXISTS ...` idempotently) — no migration step.
+1. Provision a Postgres database, set `DATABASE_URL`, and run
+   `pnpm --filter web db:push` to sync the schema (defined in
+   `apps/web/lib/db/schema.ts`) via drizzle-kit. Re-run after schema changes.
 2. Create a GitHub OAuth App:
    - Homepage URL: your `BETTER_AUTH_URL` (e.g. `http://localhost:3000`)
    - Authorization callback URL: `<BETTER_AUTH_URL>/api/auth/callback/github`
@@ -74,7 +74,7 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 ### Deploying to Vercel
 
 1. Import the repo into a new Vercel project.
-2. Attach a Postgres database (Neon/Supabase marketplace integration, or set `DATABASE_URL` manually). The schema auto-creates on first request.
+2. Attach a Postgres database (Neon/Supabase marketplace integration, or set `DATABASE_URL` manually). Run `pnpm --filter web db:push` to sync the schema.
 3. Add all the environment variables listed above.
 4. Deploy. The standard `next build` / `next start` scripts in `package.json` are all Vercel needs.
 
@@ -83,7 +83,8 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 ```bash
 pnpm install
 cp apps/web/.env.local.example apps/web/.env.local
-# fill in the values — schema auto-creates against DATABASE_URL on first request
+# fill in the values, then sync the schema:
+pnpm --filter web db:push
 pnpm dev
 ```
 
