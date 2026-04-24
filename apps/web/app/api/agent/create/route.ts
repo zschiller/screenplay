@@ -279,9 +279,8 @@ export async function POST(request: Request) {
   const { flow, roomId, agentId, workspaceId } = body
 
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
-  const lockKey = `agent-create:${agentId}`
-  const acquired = await kv.set(lockKey, "1", { nx: true, ex: 300 })
-  if (!acquired) {
+  const lock = await kv.acquireLock(`agent-create:${agentId}`, 300)
+  if (!lock) {
     // Another instance is already handling this agent's creation
     return NextResponse.json({ ok: true })
   }
@@ -306,7 +305,7 @@ export async function POST(request: Request) {
         e instanceof Error ? e.message : "Unexpected error during sandbox creation",
       ).catch(() => {})
     } finally {
-      await kv.del(lockKey).catch(() => {})
+      await lock.release().catch(() => {})
     }
   })
 
