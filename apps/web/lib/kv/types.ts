@@ -5,9 +5,8 @@ export interface KVSetOptions {
   nx?: boolean
 }
 
-// Minimal KV contract used by the app. Non-string values are expected to be
-// JSON-serialized by the implementation on `set` and deserialized on `get`
-// (Upstash does this transparently).
+// Minimal KV contract used by the app. Non-string values are JSON-serialized
+// on `set` and deserialized on `get`.
 export interface KV {
   get<T = string>(key: string): Promise<T | null>
   set(
