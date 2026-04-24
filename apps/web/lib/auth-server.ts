@@ -2,7 +2,7 @@ import "server-only"
 
 import { headers } from "next/headers"
 import { auth } from "./auth"
-import { pool } from "./db"
+import { ensureSchema, query } from "./db"
 
 export type SessionUser = {
   id: string
@@ -16,6 +16,7 @@ export type SessionUser = {
  * Replaces Clerk's `auth()` / `currentUser()`.
  */
 export async function getSession() {
+  await ensureSchema()
   return auth.api.getSession({ headers: await headers() })
 }
 
@@ -43,7 +44,7 @@ export type DbUserRow = {
 
 export async function getUsersByIds(ids: string[]): Promise<DbUserRow[]> {
   if (!ids.length) return []
-  const { rows } = await pool.query<DbUserRow>(
+  const { rows } = await query<DbUserRow>(
     `SELECT id, name, email, image FROM "user" WHERE id = ANY($1::text[])`,
     [ids],
   )
@@ -53,7 +54,7 @@ export async function getUsersByIds(ids: string[]): Promise<DbUserRow[]> {
 export async function getUserByEmail(
   email: string,
 ): Promise<DbUserRow | null> {
-  const { rows } = await pool.query<DbUserRow>(
+  const { rows } = await query<DbUserRow>(
     `SELECT id, name, email, image FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
     [email],
   )
@@ -69,7 +70,7 @@ export async function getUserByEmail(
 export async function getGitHubAccessToken(
   userId: string,
 ): Promise<string | null> {
-  const { rows } = await pool.query<{ access_token: string | null }>(
+  const { rows } = await query<{ access_token: string | null }>(
     `SELECT "accessToken" AS access_token
        FROM "account"
       WHERE "userId" = $1 AND "providerId" = 'github'

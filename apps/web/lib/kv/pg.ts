@@ -1,10 +1,10 @@
-import { pool } from "../db"
+import { query } from "../db"
 import type { KV, KVSetOptions } from "./types"
 
 export function createPgKV(): KV {
   return {
     async get<T = string>(key: string): Promise<T | null> {
-      const { rows } = await pool.query<{ value: T }>(
+      const { rows } = await query<{ value: T }>(
         `SELECT value FROM kv
           WHERE key = $1 AND (expires_at IS NULL OR expires_at > NOW())
           LIMIT 1`,
@@ -30,7 +30,7 @@ export function createPgKV(): KV {
       if (options.nx) {
         // Claim the key if no row exists OR the existing row has expired.
         // Matches the Redis `SET key value NX EX n` contract (null = not set).
-        const { rowCount } = await pool.query(
+        const { rowCount } = await query(
           `INSERT INTO kv (key, value, expires_at, updated_at)
            VALUES ($1, $2::jsonb, ${expiresAtSql}, NOW())
            ON CONFLICT (key) DO UPDATE
@@ -43,7 +43,7 @@ export function createPgKV(): KV {
         return (rowCount ?? 0) > 0 ? "OK" : null
       }
 
-      await pool.query(
+      await query(
         `INSERT INTO kv (key, value, expires_at, updated_at)
          VALUES ($1, $2::jsonb, ${expiresAtSql}, NOW())
          ON CONFLICT (key) DO UPDATE
@@ -56,7 +56,7 @@ export function createPgKV(): KV {
     },
 
     async del(key: string): Promise<void> {
-      await pool.query(`DELETE FROM kv WHERE key = $1`, [key])
+      await query(`DELETE FROM kv WHERE key = $1`, [key])
     },
   }
 }

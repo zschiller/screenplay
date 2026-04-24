@@ -1,7 +1,7 @@
 "use server"
 
 import { nanoid } from "nanoid"
-import { pool } from "./db"
+import { query } from "./db"
 import { requireUserId } from "./auth-server"
 import {
   DRAFTS_FOLDER_ID,
@@ -48,7 +48,7 @@ function normalize(raw: unknown): OrganizationState {
 }
 
 async function readState(userId: string): Promise<OrganizationState> {
-  const { rows } = await pool.query<{ data: unknown }>(
+  const { rows } = await query<{ data: unknown }>(
     `SELECT data FROM user_organization WHERE user_id = $1 LIMIT 1`,
     [userId],
   )
@@ -59,7 +59,7 @@ async function writeState(
   userId: string,
   next: OrganizationState,
 ): Promise<OrganizationState> {
-  await pool.query(
+  await query(
     `INSERT INTO user_organization (user_id, data, updated_at)
      VALUES ($1, $2::jsonb, NOW())
      ON CONFLICT (user_id)

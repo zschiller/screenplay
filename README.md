@@ -20,17 +20,14 @@ Before deploying, create accounts and projects for each of the following:
 
 Auth is handled by [Better Auth](https://better-auth.com) against the Postgres database pointed at by `DATABASE_URL`.
 
-1. Provision a Postgres database and set `DATABASE_URL`.
-2. Apply migrations in order:
-   ```bash
-   psql "$DATABASE_URL" -f apps/web/lib/migrations/0001_init.sql
-   psql "$DATABASE_URL" -f apps/web/lib/migrations/0002_kv.sql
-   ```
-3. Create a GitHub OAuth App:
+1. Provision a Postgres database and set `DATABASE_URL`. The schema
+   auto-creates on first request (`apps/web/lib/db.ts` runs
+   `CREATE TABLE IF NOT EXISTS ...` idempotently) — no migration step.
+2. Create a GitHub OAuth App:
    - Homepage URL: your `BETTER_AUTH_URL` (e.g. `http://localhost:3000`)
    - Authorization callback URL: `<BETTER_AUTH_URL>/api/auth/callback/github`
    - The app requests the `repo` scope so sandboxes can clone private repos and push commits.
-4. Copy the client ID + secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
+3. Copy the client ID + secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
 
 ### Environment variables
 
@@ -77,7 +74,7 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 ### Deploying to Vercel
 
 1. Import the repo into a new Vercel project.
-2. Attach a Postgres database (Neon/Supabase marketplace integration, or set `DATABASE_URL` manually). Apply the migrations in `apps/web/lib/migrations/` against it.
+2. Attach a Postgres database (Neon/Supabase marketplace integration, or set `DATABASE_URL` manually). The schema auto-creates on first request.
 3. Add all the environment variables listed above.
 4. Deploy. The standard `next build` / `next start` scripts in `package.json` are all Vercel needs.
 
@@ -86,7 +83,7 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
 ```bash
 pnpm install
 cp apps/web/.env.local.example apps/web/.env.local
-# fill in the values, then apply the migrations against DATABASE_URL
+# fill in the values — schema auto-creates against DATABASE_URL on first request
 pnpm dev
 ```
 
