@@ -12,7 +12,7 @@ Before deploying, create accounts and projects for each of the following:
 | --- | --- | --- |
 | **Vercel** | Hosting the Next.js app and provisioning `@vercel/sandbox` VMs for each workspace | https://vercel.com |
 | **GitHub OAuth App** | Sign-in + `repo` scope so the app can clone private repos and push commits on the user's behalf | https://github.com/settings/developers |
-| **Postgres** | Better Auth user/session storage, per-user organization state, and the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks). Any Postgres reachable over the Neon serverless HTTP driver works — Neon, Vercel Postgres, or a self-hosted instance behind a Neon-compatible proxy. | https://console.neon.tech (or your own) |
+| **Postgres** | Better Auth user/session storage, per-user organization state, and the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
 | **Liveblocks** | Real-time presence, cursors, comments, and shared workspace state on the canvas | https://liveblocks.io |
 | **Anthropic API** | Powers the in-sandbox coding agent (Claude) via `@anthropic-ai/sdk` | https://console.anthropic.com |
 
@@ -36,7 +36,7 @@ For local development you have two choices:
 
 ### Database setup
 
-1. Provision a Postgres database (Neon, Vercel Postgres, or any Neon-compatible HTTP endpoint) and copy the connection string into `DATABASE_URL`.
+1. Provision a Postgres database anywhere (Neon, Vercel Postgres, Supabase, a self-hosted server — anything) and copy the connection string into `DATABASE_URL`. The default build targets Neon's serverless HTTP driver; see [Using a different Postgres driver](#using-a-different-postgres-driver) if your provider doesn't speak that protocol.
 2. That's it. Checked-in SQL migrations under `apps/web/drizzle/` are applied automatically at build time — the `apps/web` `build` script is `drizzle-kit migrate && next build`, so every Vercel deploy lands any new migrations before starting the app. `drizzle-kit migrate` is idempotent (skips migrations already recorded in `__drizzle_migrations`).
 
 Schema lives in `apps/web/lib/db/schema.ts` — Better Auth's `user`/`session`/`account`/`verification` tables, a per-user `organization` JSONB column for folders/pins, and the `kv_store` table backing `lib/kv`.
@@ -54,6 +54,29 @@ cd apps/web && pnpm db:generate
 For throwaway local experiments you can still use `pnpm db:push` to skip the migration file and sync the schema directly — don't commit the result.
 
 > **Note on preview deploys:** by default every preview deploy runs `drizzle-kit migrate` against whatever `DATABASE_URL` is set to in Vercel's Preview scope. If you point preview at the same DB as production, a preview build will apply pending migrations to prod before the PR merges. If you need isolation, point previews at a separate database — e.g. [Neon's Vercel integration](https://neon.tech/docs/guides/vercel) gives you a per-preview branch automatically.
+
+#### Using a different Postgres driver
+
+`apps/web/lib/db/index.ts` picks the default driver via `createNeonDb()` in `neon.ts`. The exported `db` is typed as the driver-agnostic `DB` alias (`PgDatabase<PgQueryResultHKT, typeof schema>`), so any Drizzle Postgres driver is a drop-in replacement. To switch:
+
+1. Install the driver package you want (`postgres`, `pg`, `@vercel/postgres`, …).
+2. Add a sibling factory — e.g. `apps/web/lib/db/postgres-js.ts`:
+
+   ```ts
+   import postgres from "postgres"
+   import { drizzle } from "drizzle-orm/postgres-js"
+   import * as schema from "./schema"
+   import type { DB } from "./types"
+
+   export function createPostgresJsDb(): DB {
+     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set")
+     return drizzle(postgres(process.env.DATABASE_URL), { schema })
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory.
+
+`lib/kv` uses the same `db`, so nothing else in the app needs to change.
 
 ### Environment variables
 
@@ -78,8 +101,9 @@ GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 
 # --- Postgres ---
-# Used by Better Auth, Drizzle, and lib/kv. Any Postgres reachable over the
-# Neon serverless HTTP driver works (Neon, Vercel Postgres, etc.).
+# Used by Better Auth, Drizzle, and lib/kv. Any Postgres works — the default
+# factory (lib/db/neon.ts) uses Neon's serverless HTTP driver; swap it for
+# postgres-js / node-postgres if you're pointing at something else.
 DATABASE_URL=postgres://...
 
 # --- Liveblocks ---
