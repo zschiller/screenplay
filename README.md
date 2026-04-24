@@ -38,14 +38,23 @@ For local development you have two choices:
 ### Database setup
 
 1. Create a Postgres database on Neon and copy the connection string into `DATABASE_URL`.
-2. Push the Drizzle schema from `apps/web`:
-
-```bash
-cd apps/web
-pnpm db:push
-```
+2. That's it. Checked-in SQL migrations under `apps/web/drizzle/` are applied automatically at build time — the `apps/web` `build` script is `drizzle-kit migrate && next build`, so every Vercel deploy lands any new migrations before starting the app. `drizzle-kit migrate` is idempotent (skips migrations already recorded in `__drizzle_migrations`).
 
 Schema lives in `apps/web/lib/db/schema.ts` — Better Auth's `user`/`session`/`account`/`verification` tables, plus a per-user `organization` JSONB column for folders/pins.
+
+#### Changing the schema
+
+```bash
+# 1. Edit apps/web/lib/db/schema.ts
+# 2. Generate the migration (SQL file under apps/web/drizzle/)
+cd apps/web && pnpm db:generate
+# 3. Commit the generated .sql file alongside the schema change
+# 4. The next deploy applies it via `drizzle-kit migrate`
+```
+
+For throwaway local experiments you can still use `pnpm db:push` to skip the migration file and sync the schema directly — don't commit the result.
+
+> **Note on preview deploys:** by default every preview deploy runs `drizzle-kit migrate` against whatever `DATABASE_URL` is set to in Vercel's Preview scope. If you point preview at the same DB as production, a preview build will apply pending migrations to prod before the PR merges. Use [Neon's Vercel integration](https://neon.tech/docs/guides/vercel) to get a per-preview database branch if you want isolation.
 
 ### Environment variables
 
@@ -114,15 +123,14 @@ This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env p
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
    - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY`, `ANTHROPIC_API_KEY`, `KV_REST_API_*`, `ENCRYPTION_KEY`): **Production + Preview**.
-4. Push the Drizzle schema to Neon: `cd apps/web && pnpm db:push`.
-5. Deploy. The standard `next build` / `next start` scripts in `package.json` are all Vercel needs.
+4. Deploy. The first build runs the checked-in Drizzle migrations against your Neon DB, then runs `next build`.
 
 ### Running locally
 
 ```bash
 pnpm install
 cp apps/web/.env.local.example apps/web/.env.local   # then fill in values
-cd apps/web && pnpm db:push                           # one-time: create tables in Neon
+cd apps/web && pnpm db:migrate                        # apply migrations to your Neon DB
 pnpm dev
 ```
 
@@ -132,14 +140,15 @@ The app runs on http://localhost:3000.
 
 ```bash
 pnpm dev         # start the Next.js dev server with Turbopack
-pnpm build       # production build
+pnpm build       # production build (runs drizzle-kit migrate, then next build)
 pnpm lint        # ESLint
 pnpm typecheck   # tsc --noEmit
 pnpm format      # Prettier
 
 # Database (run from apps/web)
-pnpm db:generate # generate a new migration from schema changes
-pnpm db:push     # push the schema directly (dev)
+pnpm db:generate # generate a new SQL migration from schema changes — commit the output
+pnpm db:migrate  # apply committed migrations to $DATABASE_URL
+pnpm db:push     # push the schema directly without a migration file (throwaway dev only)
 pnpm db:studio   # open Drizzle Studio
 ```
 
