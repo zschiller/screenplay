@@ -614,6 +614,13 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     [collections],
   )
 
+  const updateArtboardScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      collections.artboards.update(id, { scrollX, scrollY })
+    },
+    [collections],
+  )
+
   // --- Text layer mutations ---
 
   const addTextLayer = useCallback(
@@ -2048,6 +2055,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                         onRemove={removeArtboard}
                         onStateChanged={updateArtboardState}
                         onRouteChange={updateArtboardRoute}
+                        onScrollChange={updateArtboardScroll}
                         multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                         spaceHeld={spaceHeld}
                         pickMode={pickMode}

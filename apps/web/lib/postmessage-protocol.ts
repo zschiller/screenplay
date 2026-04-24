@@ -17,6 +17,7 @@ export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
+  | { type: "screenplay:scroll-to"; scrollX: number; scrollY: number }
   | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; handle?: string; x?: number; y?: number }
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
@@ -37,6 +38,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:space-down" }
   | { type: "screenplay:space-up" }
   | { type: "screenplay:navigation"; path: string }
+  | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
 
 export function isScreenplayMessage(

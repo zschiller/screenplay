@@ -38,6 +38,8 @@ export interface ArtboardData {
   iframeUrl?: string
   iframeState?: JsonObject
   route?: string
+  scrollX?: number
+  scrollY?: number
   branch?: string
 }
 
@@ -54,6 +56,7 @@ interface ArtboardProps {
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string) => void
+  onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   multiSelected: boolean
   spaceHeld: boolean
   pickMode: boolean
@@ -74,6 +77,7 @@ export function Artboard({
   onRemove,
   onStateChanged,
   onRouteChange,
+  onScrollChange,
   multiSelected,
   spaceHeld,
   pickMode,
@@ -171,11 +175,21 @@ export function Artboard({
     setHmrStatus(status)
   }, [])
 
+  const handleScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      onScrollChange?.(id, scrollX, scrollY)
+    },
+    [onScrollChange],
+  )
+
   const { iframeRef } = usePostMessage({
     artboardId: artboard.id,
     iframeState: artboard.iframeState ?? {},
+    iframeScrollX: artboard.scrollX,
+    iframeScrollY: artboard.scrollY,
     onStateChanged,
     onNavigation: handleNavigation,
+    onScroll: handleScroll,
     onReady: handleReady,
     onHmrStatus: handleHmrStatus,
   })
