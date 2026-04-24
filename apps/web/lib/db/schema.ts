@@ -58,3 +58,13 @@ export const verification = pgTable("verification", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 })
+
+// Generic key-value store backing lib/kv. Values are stored as JSONB so the
+// adapter can transparently round-trip strings, numbers, and JSON objects.
+// `expires_at` is NULL for persistent entries; cached/lock entries set it and
+// the adapter treats rows past their expiry as absent.
+export const kvStore = pgTable("kv_store", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  expiresAt: timestamp("expires_at"),
+})
