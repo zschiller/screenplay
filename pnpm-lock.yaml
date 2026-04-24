@@ -114,9 +114,6 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.22.4
         version: 3.22.4
-      '@upstash/redis':
-        specifier: ^1.37.0
-        version: 1.37.0
       '@vercel/sandbox':
         specifier: ^2.0.0-beta.13
         version: 2.0.0-beta.14
@@ -7753,6 +7750,7 @@ snapshots:
   '@upstash/redis@1.37.0':
     dependencies:
       uncrypto: 0.1.3
+    optional: true
 
   '@vercel/oidc@3.2.0': {}
 
@@ -10852,7 +10850,8 @@ snapshots:
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
 
-  uncrypto@0.1.3: {}
+  uncrypto@0.1.3:
+    optional: true
 
   undici-types@7.19.2: {}
 

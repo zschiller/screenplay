@@ -8,6 +8,13 @@
       "when": 1777051517630,
       "tag": "0000_far_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777053037815,
+      "tag": "0001_red_dorian_gray",
+      "breakpoints": true
     }
   ]
 }
