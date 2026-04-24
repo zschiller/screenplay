@@ -1,5 +1,6 @@
 import { getUserId } from "@/lib/auth-helpers"
-import { Sandbox } from "@vercel/sandbox"
+import { sandboxProvider } from "@/lib/sandbox"
+import type { SandboxInstance } from "@/lib/sandbox"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,9 +18,9 @@ export async function GET(
   const { name } = await params
   const followOnly = new URL(req.url).searchParams.get("followOnly") === "1"
 
-  let sandbox: Awaited<ReturnType<typeof Sandbox.get>>
+  let sandbox: SandboxInstance
   try {
-    sandbox = await Sandbox.get({ name, resume: false })
+    sandbox = await sandboxProvider.get({ name, resume: false })
   } catch {
     return new Response("Sandbox not found", { status: 404 })
   }
