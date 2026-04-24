@@ -1,25 +1,19 @@
-import { auth, currentUser } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { getCurrentSession } from "@/lib/auth-helpers"
 import { liveblocks } from "@/lib/liveblocks-server"
 
 export async function POST() {
-  const { userId } = await auth()
-  if (!userId) {
+  const session = await getCurrentSession()
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const user = await currentUser()
-  const name =
-    user?.firstName && user?.lastName
-      ? `${user.firstName} ${user.lastName}`
-      : user?.username ?? "Anonymous"
-
   const { status, body } = await liveblocks.identifyUser(
-    { userId, groupIds: [] },
+    { userId: session.user.id, groupIds: [] },
     {
       userInfo: {
-        name,
-        avatar: user?.imageUrl,
+        name: session.user.name || "Anonymous",
+        avatar: session.user.image ?? undefined,
       },
     },
   )

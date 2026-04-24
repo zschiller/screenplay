@@ -1,6 +1,6 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
+import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
@@ -63,15 +63,9 @@ export async function getSandboxCliContext(): Promise<{ scope?: string; project?
 }
 
 export async function getGitHubToken(): Promise<string | null> {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) return null
   return getGitHubTokenForUser(userId)
-}
-
-async function getGitHubTokenForUser(userId: string): Promise<string | null> {
-  const client = await clerkClient()
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github")
-  return tokens.data?.[0]?.token ?? null
 }
 
 /**
@@ -90,7 +84,7 @@ async function buildSandboxGitEnv(
 
 /**
  * Resolve the user whose GitHub identity should be used for a given sandbox
- * operation. Prefers the live Clerk user on the current request (so each
+ * operation. Prefers the live session user on the current request (so each
  * collaborator's git actions are correctly attributed to them). Falls back to
  * the workspace/project owner for non-interactive paths — the owner is the
  * one constant identity tied to the project.
@@ -98,7 +92,7 @@ async function buildSandboxGitEnv(
 export async function resolveActingUserId(
   fallbackRoomId?: string,
 ): Promise<string | null> {
-  const live = (await auth()).userId
+  const live = await getUserId()
   if (live) return live
   if (!fallbackRoomId) return null
   try {
@@ -567,7 +561,7 @@ export async function restartSandbox(
       // Kill the old dev server + proxy first so install doesn't race the
       // running process and the relaunch below doesn't collide on the port.
       await _stopDevAndProxy(sandbox, port)
-      const actingUserId = (await auth()).userId
+      const actingUserId = await getUserId()
       const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
       await runLogged(sandbox, "git", ["pull", "origin", branch], { env: gitEnv })
     }
@@ -756,7 +750,7 @@ export async function getDiffStats(
 
     // Try fetching silently — may fail on private repos without token, that's ok
     try {
-      const actingUserId = (await auth()).userId
+      const actingUserId = await getUserId()
       const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
       await sandbox.runCommand({
         cmd: "git",

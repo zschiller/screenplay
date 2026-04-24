@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server"
-import { auth } from "@clerk/nextjs/server"
+import { getUserId } from "@/lib/auth-helpers"
 import { nanoid } from "nanoid"
 import { LiveObject } from "@liveblocks/client"
 import { liveblocks } from "@/lib/liveblocks-server"
@@ -262,7 +262,7 @@ async function runDuplicateBranchPipeline(
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  const { userId } = await auth()
+  const userId = await getUserId()
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

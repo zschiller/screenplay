@@ -1,7 +1,11 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
 import { nanoid } from "nanoid"
+import {
+  getUserByEmail,
+  getUsersByIds,
+  requireUserId,
+} from "@/lib/auth-helpers"
 import { liveblocks } from "./liveblocks-server"
 
 export type ProjectSummary = {
@@ -19,12 +23,6 @@ export type CollaboratorInfo = {
   email: string | null
   avatar: string | null
   isOwner: boolean
-}
-
-async function requireUserId(): Promise<string> {
-  const { userId } = await auth()
-  if (!userId) throw new Error("Unauthorized")
-  return userId
 }
 
 function parseName(metadata: Record<string, string | string[]>): string {
@@ -140,24 +138,15 @@ export async function listCollaborators(
   const userIds = Object.keys(room.usersAccesses)
   if (!userIds.length) return []
 
-  const client = await clerkClient()
-  const users = await client.users.getUserList({ userId: userIds })
+  const users = await getUsersByIds(userIds)
 
   return userIds.map((id) => {
-    const user = users.data.find((u) => u.id === id)
-    const name =
-      user?.firstName && user?.lastName
-        ? `${user.firstName} ${user.lastName}`
-        : user?.username ?? "Unknown"
-    const email =
-      user?.primaryEmailAddress?.emailAddress ??
-      user?.emailAddresses[0]?.emailAddress ??
-      null
+    const user = users.find((u) => u.id === id)
     return {
       userId: id,
-      name,
-      email,
-      avatar: user?.imageUrl ?? null,
+      name: user?.name ?? "Unknown",
+      email: user?.email ?? null,
+      avatar: user?.image ?? null,
       isOwner: id === ownerId,
     }
   })
@@ -173,11 +162,7 @@ export async function shareProject(
   const normalized = email.trim().toLowerCase()
   if (!normalized) throw new Error("Email is required")
 
-  const client = await clerkClient()
-  const result = await client.users.getUserList({
-    emailAddress: [normalized],
-  })
-  const invitee = result.data[0]
+  const invitee = await getUserByEmail(normalized)
   if (!invitee) {
     throw new Error(`No user found with email "${normalized}"`)
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth, SignInButton } from "@clerk/nextjs"
+import Link from "next/link"
 import {
   SidebarInset,
   SidebarProvider,
@@ -9,13 +9,14 @@ import { Button } from "@workspace/ui/components/button"
 import { HomeProvider } from "@/components/home/home-provider"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { FilesView } from "@/components/home/files-view"
+import { useSession } from "@/lib/auth-client"
 
 export default function Page() {
-  const { isSignedIn, isLoaded } = useAuth()
+  const { data: session, isPending } = useSession()
 
-  if (!isLoaded) return null
+  if (isPending) return null
 
-  if (!isSignedIn) {
+  if (!session) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-6 py-10">
         <h1 className="text-2xl font-medium">Screenplay</h1>
@@ -23,9 +24,9 @@ export default function Page() {
           Design UI on an infinite canvas. Each artboard runs a live sandbox.
           Collaborate in real time.
         </p>
-        <SignInButton mode="modal">
-          <Button>Sign in to get started</Button>
-        </SignInButton>
+        <Button asChild>
+          <Link href="/sign-in">Sign in to get started</Link>
+        </Button>
       </div>
     )
   }
