@@ -45,27 +45,27 @@ export function FollowingToolbar({
                 onClick={() => onFollow(null)}
               >
                 <Avatar size="sm">
-                  {self.user.avatar ? (
-                    <AvatarImage src={self.user.avatar} alt={self.user.name} />
+                  {self.identity.avatar ? (
+                    <AvatarImage src={self.identity.avatar} alt={self.identity.name} />
                   ) : null}
                   <AvatarFallback
                     style={{ backgroundColor: self.color }}
                     className="text-white text-[10px] font-medium"
                   >
-                    {getInitials(self.user.name || "?")}
+                    {getInitials(self.identity.name || "?")}
                   </AvatarFallback>
                 </Avatar>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              {self.user.name || "You"} (you)
+              {self.identity.name || "You"} (you)
             </TooltipContent>
           </Tooltip>
         )}
 
         {others.map(({ clientId, presence }) => {
           const isFollowing = followingId === clientId
-          const name = presence.user.name || "Anonymous"
+          const name = presence.identity.name || "Anonymous"
 
           return (
             <Tooltip key={clientId}>
@@ -80,8 +80,8 @@ export function FollowingToolbar({
                   onClick={() => onFollow(isFollowing ? null : clientId)}
                 >
                   <Avatar size="sm">
-                    {presence.user.avatar ? (
-                      <AvatarImage src={presence.user.avatar} alt={name} />
+                    {presence.identity.avatar ? (
+                      <AvatarImage src={presence.identity.avatar} alt={name} />
                     ) : null}
                     <AvatarFallback
                       style={{ backgroundColor: presence.color }}

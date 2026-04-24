@@ -179,7 +179,9 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const collections = useRoomCollections()
 
   // Publish identity + a stable color into awareness on mount and whenever the
-  // session changes. Other clients see this as our `presence.user`.
+  // session changes. Seed a placeholder viewport so `useSelfPresence` returns
+  // non-null before TransformWrapper's `onInit` fires (otherwise the self
+  // avatar is missing from the pile until the first transform state ticks in).
   const colorRef = useRef<string>("")
   useEffect(() => {
     if (!session?.user) return
@@ -188,12 +190,13 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       colorRef.current = palette[Math.floor(Math.random() * palette.length)]
     }
     setPresence({
-      user: {
+      identity: {
         id: session.user.id,
         name: session.user.name || "Anonymous",
         avatar: session.user.image ?? undefined,
       },
       color: colorRef.current,
+      viewport: { x: 0, y: 0, zoom: 1 },
     })
   }, [session, setPresence])
 
@@ -1745,7 +1748,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       const relY = e.clientY - rect.top
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
-      setPresence({ cursor: { x: canvasX, y: canvasY } })
+      setPresence({ pointer: { x: canvasX, y: canvasY } })
 
       // Hit-test for hover highlight
       let hovered: string | null = null
@@ -1766,7 +1769,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   )
 
   const handlePointerLeave = useCallback(() => {
-    setPresence({ cursor: null })
+    setPresence({ pointer: null })
     setHoveredArtboardId(null)
   }, [setPresence])
 
@@ -1817,7 +1820,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     selectedArtboardIds: presence.selectedArtboardIds ?? [],
     selectedTextLayerIds: presence.selectedTextLayerIds ?? [],
     color: presence.color,
-    name: presence.user.name || "Anonymous",
+    name: presence.identity.name || "Anonymous",
   }))
 
   // Auto-select the first running agent when none is selected. Booting
@@ -2063,7 +2066,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                       editing={editingTextLayerId === layer.id}
                       spaceHeld={spaceHeld}
-                      userName={self?.user.name || "Anonymous"}
+                      userName={self?.identity.name || "Anonymous"}
                       userColor={self?.color || "#888"}
                       onSelect={handleTextLayerSelect}
                       onMove={moveTextLayer}
