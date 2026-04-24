@@ -81,6 +81,8 @@ export type ArtboardData = {
   label: string
   iframeState: JsonObject
   route?: string
+  scrollX?: number
+  scrollY?: number
 }
 
 export type TextLayerData = {
