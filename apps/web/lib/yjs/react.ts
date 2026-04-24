@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import * as Y from "yjs"
 import { UndoManager } from "yjs"
 import { useYjs } from "@/components/providers/yjs-provider"
+import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   COLLECTION_KEYS,
   getRoomCollections,
@@ -134,6 +135,59 @@ export function useY(doc: Y.Doc) {
     const handler = () => set((n) => n + 1)
     doc.on("update", handler)
     return () => doc.off("update", handler)
+  }, [doc])
+}
+
+/**
+ * Subscribe to the agent stream events written into the Y.Doc by the agent
+ * routes. Calls `onEvent` for every new event from any chat. On mount, replays
+ * events back to the most recent `chat-stream-start` for each chat so a late
+ * joiner sees the in-progress stream; older events are ignored (chat history
+ * is hydrated separately via the API).
+ */
+export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void) {
+  const { doc } = useYjs()
+  const onEventRef = useRef(onEvent)
+  onEventRef.current = onEvent
+
+  useEffect(() => {
+    const map = doc.getMap("streamEventsByChat") as Y.Map<Y.Array<ChatBroadcastEvent>>
+    const cursors = new Map<string, number>()
+
+    function findActiveStreamStart(arr: Y.Array<ChatBroadcastEvent>): number {
+      const items = arr.toArray()
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i]?.type === "chat-stream-start") return i
+      }
+      return items.length
+    }
+
+    function applyAll() {
+      map.forEach((arr, chatId) => {
+        let cursor = cursors.get(chatId)
+        if (cursor === undefined) {
+          // Initial: only replay an in-progress stream, not historical chatter.
+          cursor = findActiveStreamStart(arr)
+        } else if (arr.length < cursor) {
+          // Array was trimmed (future cleanup) — fall back to the same logic.
+          cursor = findActiveStreamStart(arr)
+        }
+        const items = arr.toArray()
+        for (let i = cursor; i < items.length; i++) {
+          const event = items[i]
+          if (event) onEventRef.current(event)
+        }
+        cursors.set(chatId, items.length)
+      })
+    }
+
+    const handler = () => applyAll()
+    map.observeDeep(handler)
+    applyAll()
+
+    return () => {
+      map.unobserveDeep(handler)
+    }
   }, [doc])
 }
 

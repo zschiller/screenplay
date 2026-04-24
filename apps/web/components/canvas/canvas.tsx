@@ -9,7 +9,6 @@ import {
 import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import {
-  useEventListener,
   useOthers,
   useSelf,
   useUpdateMyPresence,
@@ -18,6 +17,7 @@ import {
   useAgents,
   useArtboards,
   useChatSessions,
+  useChatStreamEvents,
   useRoomCollections,
   useSavedViewport,
   useTextLayers,
@@ -1309,17 +1309,14 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only on mount
 
-  // Receive server-broadcast chat events via Liveblocks and feed into chat store.
-  useEventListener(({ event }) => {
-    const e = event as ChatBroadcastEvent
-    if (e.type === "chat-stream" || e.type === "chat-stream-start" || e.type === "chat-stream-end") {
-      chatStore.handleBroadcastEvent(e)
-      // Persist streaming state to Liveblocks storage for late-joining clients
-      if (e.type === "chat-stream-start") {
-        updateChatSession(e.chatId, { isStreaming: true })
-      } else if (e.type === "chat-stream-end") {
-        updateChatSession(e.chatId, { isStreaming: false })
-      }
+  // Receive server-broadcast chat events via the room Y.Doc and feed into chat store.
+  useChatStreamEvents((e) => {
+    chatStore.handleBroadcastEvent(e)
+    // Mirror streaming state into the chat session so late joiners see it.
+    if (e.type === "chat-stream-start") {
+      updateChatSession(e.chatId, { isStreaming: true })
+    } else if (e.type === "chat-stream-end") {
+      updateChatSession(e.chatId, { isStreaming: false })
     }
   })
 

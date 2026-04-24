@@ -3,8 +3,7 @@ import { getUserId } from "@/lib/auth-helpers"
 import { getClient } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
-import { liveblocks } from "@/lib/liveblocks-server"
-import { mutateRoomDoc } from "@/lib/yjs/server"
+import { broadcastChatEventViaDoc, mutateRoomDoc } from "@/lib/yjs/server"
 import type { PlanData } from "@/lib/liveblocks.types"
 
 export const runtime = "nodejs"
@@ -20,7 +19,7 @@ interface RequestBody {
 
 async function broadcastChatEvent(roomId: string, chatId: string, event: AgentStreamEvent) {
   try {
-    await liveblocks.broadcastEvent(roomId, {
+    await broadcastChatEventViaDoc(roomId, {
       type: "chat-stream",
       chatId,
       event: JSON.parse(JSON.stringify(event)),
@@ -32,10 +31,7 @@ async function broadcastChatEvent(roomId: string, chatId: string, event: AgentSt
 
 async function broadcastChatSignal(roomId: string, chatId: string, signal: "chat-stream-start" | "chat-stream-end") {
   try {
-    await liveblocks.broadcastEvent(roomId, {
-      type: signal,
-      chatId,
-    })
+    await broadcastChatEventViaDoc(roomId, { type: signal, chatId })
   } catch (e) {
     console.error("Broadcast failed:", e)
   }

@@ -2,6 +2,7 @@ import "server-only"
 
 import * as Y from "yjs"
 import { liveblocks } from "@/lib/liveblocks-server"
+import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 
 /**
@@ -62,4 +63,28 @@ export async function readRoomDoc<T>(
   } finally {
     doc.destroy()
   }
+}
+
+const STREAM_EVENTS_KEY = "streamEventsByChat"
+
+/**
+ * Append a chat broadcast event to the room's Y.Doc, where connected clients
+ * observe and feed it into the local chat store. Replaces the prior
+ * `liveblocks.broadcastEvent` flow — keeping events in the doc means late
+ * joiners see the in-progress stream automatically.
+ */
+export async function broadcastChatEventViaDoc(
+  roomId: string,
+  event: ChatBroadcastEvent,
+): Promise<void> {
+  await mutateRoomDoc(roomId, ({ doc }) => {
+    const map = doc.getMap(STREAM_EVENTS_KEY) as Y.Map<Y.Array<unknown>>
+    let arr = map.get(event.chatId)
+    if (!arr) {
+      arr = new Y.Array<unknown>()
+      map.set(event.chatId, arr)
+    }
+    // Y.Array values must be JSON-cloneable. The event already is.
+    arr.push([JSON.parse(JSON.stringify(event)) as unknown])
+  })
 }

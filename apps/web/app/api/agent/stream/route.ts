@@ -5,8 +5,7 @@ import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import type { PlanData } from "@/lib/liveblocks.types"
-import { liveblocks } from "@/lib/liveblocks-server"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import { broadcastChatEventViaDoc, mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { kv } from "@/lib/kv"
 
 export const runtime = "nodejs"
@@ -273,12 +272,10 @@ async function waitForIdle(
   }
 }
 
-/**
- * Broadcast a chat event to all clients in the room via Liveblocks.
- */
+/** Broadcast a chat event to all clients via the room's Y.Doc. */
 async function broadcastChatEvent(roomId: string, chatId: string, event: AgentStreamEvent) {
   try {
-    await liveblocks.broadcastEvent(roomId, {
+    await broadcastChatEventViaDoc(roomId, {
       type: "chat-stream",
       chatId,
       event: JSON.parse(JSON.stringify(event)),
@@ -298,10 +295,7 @@ function deriveFallbackLabel(message: string): string {
 
 async function broadcastChatSignal(roomId: string, chatId: string, signal: "chat-stream-start" | "chat-stream-end") {
   try {
-    await liveblocks.broadcastEvent(roomId, {
-      type: signal,
-      chatId,
-    })
+    await broadcastChatEventViaDoc(roomId, { type: signal, chatId })
   } catch (e) {
     console.error("Broadcast failed:", e)
   }
