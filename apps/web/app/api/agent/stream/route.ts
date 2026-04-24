@@ -1,12 +1,12 @@
 import { after } from "next/server"
 import { nanoid } from "nanoid"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
-import { LiveObject } from "@liveblocks/client"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import type { PlanData } from "@/lib/liveblocks.types"
 import { liveblocks } from "@/lib/liveblocks-server"
+import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { kv } from "@/lib/kv"
 
 export const runtime = "nodejs"
@@ -35,15 +35,21 @@ async function deduplicateBranchName(
   userId: string,
 ): Promise<string> {
   try {
-    // Read repo info from Liveblocks room storage
-    const storage = await liveblocks.getStorageDocument(roomId, "json") as Record<string, unknown>
-    const workspace = storage.workspace as { repoOwner?: string; repoName?: string } | undefined
-    if (!workspace?.repoOwner || !workspace?.repoName) return branchName
+    // Read the first workspace's repo info from the Y.Doc — historical
+    // behavior pulled from `storage.workspace`, which never existed under
+    // this name; the original code silently no-op'd. Use the actual
+    // workspaces collection now.
+    const repo = await readRoomDoc(roomId, ({ workspaces }) => {
+      const ws = workspaces.toArray()[0]
+      if (!ws) return null
+      return { repoOwner: ws.repoOwner, repoName: ws.repoName }
+    })
+    if (!repo) return branchName
 
     const token = await getGitHubTokenForUser(userId)
     if (!token) return branchName
 
-    const { repoOwner, repoName } = workspace
+    const { repoOwner, repoName } = repo
     let candidate = branchName
     let suffix = 2
 
@@ -121,36 +127,19 @@ async function findPendingSubmitPlan(
   return null
 }
 
-/**
- * Find a pending plan for a given session in Liveblocks storage.
- */
+/** Find a pending plan for a given session in the room's Y.Doc. */
 async function findPendingPlan(roomId: string, sessionId: string): Promise<PlanData | null> {
-  const ref: { data: PlanData | null } = { data: null }
   try {
-    await liveblocks.mutateStorage(roomId, ({ root }) => {
-      const plansMap = root.get("plans")
-      if (!plansMap) return
-      plansMap.forEach((plan) => {
-        if (plan.get("sessionId") === sessionId && plan.get("status") === "pending") {
-          ref.data = {
-            id: plan.get("id"),
-            chatId: plan.get("chatId"),
-            agentId: plan.get("agentId"),
-            content: plan.get("content"),
-            status: plan.get("status"),
-            toolEventId: plan.get("toolEventId"),
-            sessionId: plan.get("sessionId"),
-            feedback: plan.get("feedback"),
-            createdAt: plan.get("createdAt"),
-            resolvedAt: plan.get("resolvedAt"),
-          }
-        }
-      })
+    return await readRoomDoc(roomId, ({ plans }) => {
+      const found = plans
+        .toArray()
+        .find((p) => p.sessionId === sessionId && p.status === "pending")
+      return found ?? null
     })
   } catch (e) {
     console.error("findPendingPlan error:", e)
+    return null
   }
-  return ref.data
 }
 
 /**
@@ -356,13 +345,12 @@ export async function POST(req: Request) {
       // Try to update plan status in Liveblocks storage
       const pendingPlan = await findPendingPlan(roomId, sessionId)
       if (pendingPlan) {
-        await liveblocks.mutateStorage(roomId, ({ root }) => {
-          const plan = root.get("plans")?.get(pendingPlan.id)
-          if (plan) {
-            plan.set("status", "rejected")
-            plan.set("resolvedAt", Date.now())
-            plan.set("feedback", message)
-          }
+        await mutateRoomDoc(roomId, ({ plans }) => {
+          plans.update(pendingPlan.id, {
+            status: "rejected",
+            resolvedAt: Date.now(),
+            feedback: message,
+          })
         })
         await broadcastChatEvent(roomId, chatId, { type: "plan_rejected", planId: pendingPlan.id, feedback: message })
       }
@@ -449,8 +437,8 @@ export async function POST(req: Request) {
                   if (planTool?.tool) {
                     const planContent = (planTool.tool.input as { plan: string }).plan
                     const newPlanId = nanoid()
-                    await liveblocks.mutateStorage(roomId, ({ root }) => {
-                      root.get("plans").set(newPlanId, new LiveObject<PlanData>({
+                    await mutateRoomDoc(roomId, ({ plans }) => {
+                      plans.set(newPlanId, {
                         id: newPlanId,
                         chatId,
                         agentId: planAgentId,
@@ -459,7 +447,7 @@ export async function POST(req: Request) {
                         toolEventId: planTool.eventId,
                         sessionId: planSessionId,
                         createdAt: Date.now(),
-                      }))
+                      })
                     })
                     await broadcastChatEvent(roomId, chatId, {
                       type: "plan_submitted", planId: newPlanId, plan: planContent, toolEventId: planTool.eventId,
@@ -563,12 +551,11 @@ export async function POST(req: Request) {
     const finalLabel =
       chatLabel.length >= 2 && chatLabel.length <= 60 ? chatLabel : deriveFallbackLabel(message)
     if (finalLabel) {
-      // Persist the label directly in Liveblocks storage so it survives
-      // even if the client-side callback is temporarily cleared during a
-      // React re-render triggered by the earlier session_id broadcast.
-      await liveblocks.mutateStorage(roomId, ({ root }) => {
-        const cs = root.get("chatSessions")?.get(chatId)
-        if (cs) cs.set("label", finalLabel)
+      // Persist the label directly in the room doc so it survives even if the
+      // client-side callback is temporarily cleared during a React re-render
+      // triggered by the earlier session_id broadcast.
+      await mutateRoomDoc(roomId, ({ chatSessions }) => {
+        chatSessions.update(chatId, { label: finalLabel })
       })
       await broadcastChatEvent(roomId, chatId, { type: "chat_rename", label: finalLabel })
     }
@@ -656,10 +643,8 @@ export async function POST(req: Request) {
                 const planContent = (planToolEntry.tool.input as { plan: string }).plan
                 const planId = nanoid()
 
-                // Persist plan in Liveblocks storage
-                await liveblocks.mutateStorage(roomId, ({ root }) => {
-                  const plansMap = root.get("plans")
-                  plansMap.set(planId, new LiveObject<PlanData>({
+                await mutateRoomDoc(roomId, ({ plans }) => {
+                  plans.set(planId, {
                     id: planId,
                     chatId,
                     agentId: sandboxName,
@@ -668,7 +653,7 @@ export async function POST(req: Request) {
                     toolEventId: planToolEntry.eventId,
                     sessionId: sessionId!,
                     createdAt: Date.now(),
-                  }))
+                  })
                 })
 
                 // Broadcast plan to all clients and stop processing — approval endpoint will resume

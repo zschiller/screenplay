@@ -1,5 +1,3 @@
-import type { LiveMap, LiveObject } from "@liveblocks/client"
-
 export type JsonValue =
   | string
   | number
@@ -99,15 +97,12 @@ export type ViewportData = {
   zoom: number
 }
 
-export type Storage = {
-  workspaces: LiveMap<string, LiveObject<WorkspaceData>>
-  sandboxes: LiveMap<string, LiveObject<AgentData>>
-  artboards: LiveMap<string, LiveObject<ArtboardData>>
-  textLayers: LiveMap<string, LiveObject<TextLayerData>>
-  chatSessions: LiveMap<string, LiveObject<ChatSessionData>>
-  plans: LiveMap<string, LiveObject<PlanData>>
-  savedViewport?: LiveObject<ViewportData>
-}
+/**
+ * Liveblocks "Storage" is no longer used — canvas state lives in the Y.Doc.
+ * The interface stays declared so RoomProvider's `initialStorage` requirement
+ * is satisfied with an empty object.
+ */
+export type Storage = Record<string, never>
 
 export type Presence = {
   cursor: { x: number; y: number } | null

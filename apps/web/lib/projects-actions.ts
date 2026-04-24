@@ -44,24 +44,13 @@ export async function createProject(name: string): Promise<ProjectSummary> {
 
   const room = await createRoom({ id, name: trimmed, ownerId: userId })
 
-  // Liveblocks still hosts the Y.Doc and storage. Create the room there too,
-  // gated to the owner — additional members are added in shareProject. Storage
-  // is initialized server-side so the first client mutation doesn't race the
-  // lazy init that otherwise rejects with 400.
+  // Liveblocks still hosts the Y.Doc. Create the room there too, gated to the
+  // owner — additional members are added in shareProject. Storage init isn't
+  // needed anymore since canvas state lives in the Y.Doc.
   await liveblocks.createRoom(id, {
     defaultAccesses: [],
     usersAccesses: { [userId]: ["room:write"] },
     metadata: { name: trimmed, ownerId: userId },
-  })
-  await liveblocks.initializeStorageDocument(id, {
-    liveblocksType: "LiveObject",
-    data: {
-      workspaces: { liveblocksType: "LiveMap", data: {} },
-      sandboxes: { liveblocksType: "LiveMap", data: {} },
-      artboards: { liveblocksType: "LiveMap", data: {} },
-      chatSessions: { liveblocksType: "LiveMap", data: {} },
-      plans: { liveblocksType: "LiveMap", data: {} },
-    },
   })
 
   return {

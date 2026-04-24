@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   TransformWrapper,
   TransformComponent,
@@ -8,16 +8,22 @@ import {
 } from "react-zoom-pan-pinch"
 import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
-import { LiveMap, LiveObject } from "@liveblocks/client"
 import {
   useEventListener,
-  useHistory,
-  useMutation,
   useOthers,
   useSelf,
-  useStorage,
   useUpdateMyPresence,
 } from "@liveblocks/react/suspense"
+import {
+  useAgents,
+  useArtboards,
+  useChatSessions,
+  useRoomCollections,
+  useSavedViewport,
+  useTextLayers,
+  useWorkspaces,
+  useYjsHistory,
+} from "@/lib/yjs/react"
 import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
@@ -169,7 +175,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const updateMyPresence = useUpdateMyPresence()
   const self = useSelf()
   const others = useOthers()
-  const history = useHistory()
+  const history = useYjsHistory()
+  const collections = useRoomCollections()
 
   // Refs so keyboard handler stays current without re-binding
   const selectedArtboardIdsRef = useRef(selectedArtboardIds)
@@ -324,133 +331,21 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     }
   }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, history])
 
-  const artboards = useStorage((root) => {
-    const result: Array<{
-      id: string
-      sandboxId: string
-      x: number
-      y: number
-      width: number
-      height: number
-      label: string
-      iframeState: JsonObject
-      route?: string
-    }> = []
-    for (const [key, artboard] of Object.entries(root.artboards)) {
-      result.push({
-        id: key,
-        sandboxId: artboard.sandboxId,
-        x: artboard.x,
-        y: artboard.y,
-        width: artboard.width,
-        height: artboard.height,
-        label: artboard.label,
-        iframeState: artboard.iframeState as JsonObject,
-        route: artboard.route,
-      })
-    }
-    return result
-  })
-
-  const textLayers = useStorage((root) => {
-    const result: TextLayerData[] = []
-    const map = root.textLayers
-    if (!map) return result
-    for (const [key, t] of Object.entries(map)) {
-      result.push({
-        id: key,
-        x: t.x,
-        y: t.y,
-        width: t.width,
-        autoWidth: t.autoWidth,
-      })
-    }
-    return result
-  })
-
-  const workspaces = useStorage((root) => {
-    const result: WorkspaceData[] = []
-    for (const [key, ws] of Object.entries(root.workspaces)) {
-      result.push({
-        id: key,
-        name: ws.name ?? "",
-        repoFullName: ws.repoFullName,
-        repoOwner: ws.repoOwner,
-        repoName: ws.repoName,
-        defaultBranch: ws.defaultBranch,
-        cloneUrl: ws.cloneUrl,
-        setupScript: ws.setupScript ?? "",
-        devScript: ws.devScript ?? "",
-        devServerPort: ws.devServerPort ?? 3000,
-        envVars: ws.envVars ?? "",
-        createdAt: ws.createdAt,
-      })
-    }
-    return result
-  })
-
-  const agents = useStorage((root) => {
-    const result: AgentData[] = []
-    for (const [key, agent] of Object.entries(root.sandboxes)) {
-      result.push({
-        id: key,
-        workspaceId: agent.workspaceId ?? "",
-        sandboxName: agent.sandboxName,
-        gitUrl: agent.gitUrl,
-        branch: agent.branch,
-        previewDomain: agent.previewDomain,
-        port: agent.port,
-        status: agent.status,
-        statusMessage: agent.statusMessage,
-        error: agent.error,
-        createdAt: agent.createdAt,
-      })
-    }
-    return result
-  })
+  const artboards = useArtboards()
+  const textLayers = useTextLayers()
+  const workspaces = useWorkspaces()
+  const agents = useAgents()
 
   const diffStats = useDiffStats(agents, workspaces)
 
-  const chatSessions = useStorage((root) => {
-    const result: ChatSessionData[] = []
-    if (!root.chatSessions) return result
-    for (const [key, cs] of Object.entries(root.chatSessions)) {
-      result.push({
-        id: key,
-        agentId: cs.agentId,
-        sessionId: cs.sessionId,
-        label: cs.label,
-        createdAt: cs.createdAt,
-        isStreaming: cs.isStreaming,
-        closedAt: cs.closedAt,
-        planMode: cs.planMode,
-        model: cs.model,
-      })
-    }
-    return result
-  })
+  const chatSessions = useChatSessions()
+  const savedViewport = useSavedViewport()
 
-  const savedViewport = useStorage((root) => {
-    if (!root.savedViewport) return null
-    return {
-      x: root.savedViewport.x,
-      y: root.savedViewport.y,
-      zoom: root.savedViewport.zoom,
-    }
-  })
-
-  const saveViewport = useMutation(
-    ({ storage }, vp: ViewportData) => {
-      const existing = storage.get("savedViewport")
-      if (existing) {
-        existing.set("x", vp.x)
-        existing.set("y", vp.y)
-        existing.set("zoom", vp.zoom)
-      } else {
-        storage.set("savedViewport", new LiveObject(vp))
-      }
+  const saveViewport = useCallback(
+    (vp: ViewportData) => {
+      collections.savedViewport.set(vp)
     },
-    [],
+    [collections],
   )
 
   const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -462,19 +357,18 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
     [saveViewport],
   )
 
-  const agentDomains = useStorage((root) => {
-    const domains: Record<string, { previewDomain: string; branch: string }> =
-      {}
-    for (const [key, agent] of Object.entries(root.sandboxes)) {
+  const agentDomains = useMemo(() => {
+    const domains: Record<string, { previewDomain: string; branch: string }> = {}
+    for (const agent of agents) {
       if (agent.previewDomain) {
-        domains[key] = {
+        domains[agent.id] = {
           previewDomain: agent.previewDomain,
           branch: agent.branch,
         }
       }
     }
     return domains
-  })
+  }, [agents])
 
   const getViewportCenter = useCallback(() => {
     const ref = transformRef.current
@@ -493,70 +387,52 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
 
   // --- Workspace mutations ---
 
-  const addWorkspaceToStorage = useMutation(
-    ({ storage }, id: string, data: WorkspaceData) => {
-      storage.get("workspaces").set(id, new LiveObject(data))
+  const addWorkspaceToStorage = useCallback(
+    (id: string, data: WorkspaceData) => {
+      collections.workspaces.set(id, data)
     },
-    [],
+    [collections],
   )
 
-  const updateWorkspaceInStorage = useMutation(
-    ({ storage }, id: string, data: Partial<WorkspaceData>) => {
-      const ws = storage.get("workspaces").get(id)
-      if (ws) {
-        for (const [key, value] of Object.entries(data)) {
-          ws.set(key as keyof WorkspaceData, value as never)
+  const updateWorkspaceInStorage = useCallback(
+    (id: string, data: Partial<WorkspaceData>) => {
+      collections.workspaces.update(id, data)
+    },
+    [collections],
+  )
+
+  const removeWorkspaceFromStorage = useCallback(
+    (id: string) => {
+      collections.transact(() => {
+        collections.workspaces.delete(id)
+        // Cascade-delete agents and their artboards/chats for this workspace.
+        const agentIds: string[] = []
+        for (const agent of collections.agents.toArray()) {
+          if (agent.workspaceId === id) agentIds.push(agent.id)
         }
-      }
-    },
-    [],
-  )
-
-  const removeWorkspaceFromStorage = useMutation(
-    ({ storage }, id: string) => {
-      storage.get("workspaces").delete(id)
-      // Remove all agents and their artboards for this workspace
-      const agentsMap = storage.get("sandboxes")
-      const artboardsMap = storage.get("artboards")
-      const agentIds: string[] = []
-      agentsMap.forEach((agent, key) => {
-        if (agent.get("workspaceId") === id) {
-          agentIds.push(key)
+        for (const agentId of agentIds) {
+          collections.agents.delete(agentId)
+          for (const a of collections.artboards.toArray()) {
+            if (a.sandboxId === agentId) collections.artboards.delete(a.id)
+          }
+          for (const cs of collections.chatSessions.toArray()) {
+            if (cs.agentId === agentId) collections.chatSessions.delete(cs.id)
+          }
         }
       })
-      const chatSessionsMap = storage.get("chatSessions")
-      for (const agentId of agentIds) {
-        agentsMap.delete(agentId)
-        const toDelete: string[] = []
-        artboardsMap.forEach((artboard, key) => {
-          if (artboard.get("sandboxId") === agentId) {
-            toDelete.push(key)
-          }
-        })
-        toDelete.forEach((key) => artboardsMap.delete(key))
-        // Cascade-delete chat sessions
-        if (chatSessionsMap) {
-          const chatToDelete: string[] = []
-          chatSessionsMap.forEach((cs, key) => {
-            if (cs.get("agentId") === agentId) chatToDelete.push(key)
-          })
-          chatToDelete.forEach((key) => chatSessionsMap.delete(key))
-        }
-      }
     },
-    [],
+    [collections],
   )
 
   // --- Artboard mutations ---
 
   /** Add an artboard — used by the manual "add screen" button. */
-  const addArtboard = useMutation(
-    ({ storage }, agentId: string, label: string): string | undefined => {
-      const agent = storage.get("sandboxes").get(agentId)
-      if (!agent || agent.get("status") !== "running") return
+  const addArtboard = useCallback(
+    (agentId: string, label: string): string | undefined => {
+      const agent = collections.agents.get(agentId)
+      if (!agent || agent.status !== "running") return
 
-      const artboardsMap = storage.get("artboards")
-      const allArtboards = Array.from(artboardsMap.values())
+      const allArtboards = collections.artboards.toArray()
 
       let x: number
       let y: number
@@ -570,45 +446,37 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         let minY = Infinity
         let maxRight = -Infinity
         for (const a of allArtboards) {
-          minY = Math.min(minY, a.get("y"))
-          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+          minY = Math.min(minY, a.y)
+          maxRight = Math.max(maxRight, a.x + a.width)
         }
         x = maxRight + 50
         y = minY
       }
 
       const id = nanoid()
-      artboardsMap.set(
+      collections.artboards.set(id, {
         id,
-        new LiveObject({
-          id,
-          sandboxId: agentId,
-          x,
-          y,
-          width: DEFAULT_ARTBOARD_WIDTH,
-          height: DEFAULT_ARTBOARD_HEIGHT,
-          label,
-          iframeState: {},
-        }),
-      )
+        sandboxId: agentId,
+        x,
+        y,
+        width: DEFAULT_ARTBOARD_WIDTH,
+        height: DEFAULT_ARTBOARD_HEIGHT,
+        label,
+        iframeState: {},
+      })
       return id
     },
-    [getViewportCenter],
+    [collections, getViewportCenter],
   )
 
-  const addArtboardsForRoutes = useMutation(
-    ({ storage }, agentId: string, routes: { route: string; label: string }[]): string[] => {
-      const agent = storage.get("sandboxes").get(agentId)
-      if (!agent || agent.get("status") !== "running") return []
+  const addArtboardsForRoutes = useCallback(
+    (agentId: string, routes: { route: string; label: string }[]): string[] => {
+      const agent = collections.agents.get(agentId)
+      if (!agent || agent.status !== "running") return []
 
-      const artboardsMap = storage.get("artboards")
-      const allArtboards = Array.from(artboardsMap.values())
-      const existing = allArtboards.filter(
-        (a) => a.get("sandboxId") === agentId,
-      )
-      const existingRoutes = new Set(
-        existing.map((a) => a.get("route") || "/"),
-      )
+      const allArtboards = collections.artboards.toArray()
+      const existing = allArtboards.filter((a) => a.sandboxId === agentId)
+      const existingRoutes = new Set(existing.map((a) => a.route || "/"))
       const newRoutes = routes.filter((r) => !existingRoutes.has(r.route))
       if (newRoutes.length === 0) return []
 
@@ -625,20 +493,19 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
         let minY = Infinity
         let maxRight = -Infinity
         for (const a of allArtboards) {
-          minY = Math.min(minY, a.get("y"))
-          maxRight = Math.max(maxRight, a.get("x") + a.get("width"))
+          minY = Math.min(minY, a.y)
+          maxRight = Math.max(maxRight, a.x + a.width)
         }
         startX = maxRight + gap
         startY = minY
       }
 
       const newIds: string[] = []
-      newRoutes.forEach(({ route, label }, i) => {
-        const id = nanoid()
-        newIds.push(id)
-        artboardsMap.set(
-          id,
-          new LiveObject({
+      collections.transact(() => {
+        newRoutes.forEach(({ route, label }, i) => {
+          const id = nanoid()
+          newIds.push(id)
+          collections.artboards.set(id, {
             id,
             sandboxId: agentId,
             x: startX + i * (DEFAULT_ARTBOARD_WIDTH + gap),
@@ -648,239 +515,200 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             label,
             route,
             iframeState: {},
-          }),
-        )
+          })
+        })
       })
       return newIds
     },
-    [getViewportCenter],
+    [collections, getViewportCenter],
   )
 
-  const moveArtboard = useMutation(
-    ({ storage }, id: string, x: number, y: number) => {
-      const artboard = storage.get("artboards").get(id)
-      if (artboard) {
-        artboard.set("x", x)
-        artboard.set("y", y)
-      }
+  const moveArtboard = useCallback(
+    (id: string, x: number, y: number) => {
+      collections.artboards.update(id, { x, y })
     },
-    [],
+    [collections],
   )
 
-  const moveArtboardsByDelta = useMutation(
-    ({ storage }, ids: string[], dx: number, dy: number) => {
-      const artboardsMap = storage.get("artboards")
-      for (const id of ids) {
-        const artboard = artboardsMap.get(id)
-        if (artboard) {
-          artboard.set("x", artboard.get("x") + dx)
-          artboard.set("y", artboard.get("y") + dy)
+  const moveArtboardsByDelta = useCallback(
+    (ids: string[], dx: number, dy: number) => {
+      collections.transact(() => {
+        for (const id of ids) {
+          const a = collections.artboards.get(id)
+          if (a) collections.artboards.update(id, { x: a.x + dx, y: a.y + dy })
         }
-      }
+      })
     },
-    [],
+    [collections],
   )
 
-  const resizeArtboard = useMutation(
-    ({ storage }, id: string, x: number, y: number, w: number, h: number) => {
-      const artboard = storage.get("artboards").get(id)
-      if (artboard) {
-        artboard.set("x", x)
-        artboard.set("y", y)
-        artboard.set("width", Math.max(320, w))
-        artboard.set("height", Math.max(200, h))
-      }
+  const resizeArtboard = useCallback(
+    (id: string, x: number, y: number, w: number, h: number) => {
+      collections.artboards.update(id, {
+        x,
+        y,
+        width: Math.max(320, w),
+        height: Math.max(200, h),
+      })
     },
-    [],
+    [collections],
   )
 
-  const renameArtboard = useMutation(
-    ({ storage }, id: string, label: string) => {
-      const artboard = storage.get("artboards").get(id)
-      if (artboard) artboard.set("label", label)
+  const renameArtboard = useCallback(
+    (id: string, label: string) => {
+      collections.artboards.update(id, { label })
     },
-    [],
+    [collections],
   )
 
-  const removeArtboard = useMutation(({ storage }, id: string) => {
-    storage.get("artboards").delete(id)
-  }, [])
+  const removeArtboard = useCallback(
+    (id: string) => {
+      collections.artboards.delete(id)
+    },
+    [collections],
+  )
 
-  const removeArtboards = useMutation(({ storage }, ids: string[]) => {
-    const artboardsMap = storage.get("artboards")
-    for (const id of ids) {
-      artboardsMap.delete(id)
-    }
-  }, [])
+  const removeArtboards = useCallback(
+    (ids: string[]) => {
+      collections.transact(() => {
+        for (const id of ids) collections.artboards.delete(id)
+      })
+    },
+    [collections],
+  )
   removeArtboardsRef.current = removeArtboards
 
-  const updateArtboardRoute = useMutation(
-    ({ storage }, id: string, route: string) => {
-      const artboard = storage.get("artboards").get(id)
-      if (artboard) artboard.set("route", route)
+  const updateArtboardRoute = useCallback(
+    (id: string, route: string) => {
+      collections.artboards.update(id, { route })
     },
-    [],
+    [collections],
   )
 
-  const updateArtboardState = useMutation(
-    ({ storage }, id: string, state: JsonObject) => {
-      const artboard = storage.get("artboards").get(id)
-      if (artboard) {
-        artboard.set("iframeState", state)
-      }
+  const updateArtboardState = useCallback(
+    (id: string, state: JsonObject) => {
+      collections.artboards.update(id, { iframeState: state })
     },
-    [],
+    [collections],
   )
 
   // --- Text layer mutations ---
 
-  const addTextLayer = useMutation(
-    ({ storage }, data: TextLayerData) => {
-      let map = storage.get("textLayers")
-      if (!map) {
-        storage.set("textLayers", new LiveMap())
-        map = storage.get("textLayers")!
-      }
-      map.set(data.id, new LiveObject(data))
+  const addTextLayer = useCallback(
+    (data: TextLayerData) => {
+      collections.textLayers.set(data.id, data)
     },
-    [],
+    [collections],
   )
 
-  const moveTextLayer = useMutation(
-    ({ storage }, id: string, x: number, y: number) => {
-      const t = storage.get("textLayers")?.get(id)
-      if (t) {
-        t.set("x", x)
-        t.set("y", y)
-      }
+  const moveTextLayer = useCallback(
+    (id: string, x: number, y: number) => {
+      collections.textLayers.update(id, { x, y })
     },
-    [],
+    [collections],
   )
 
-  const moveTextLayersByDelta = useMutation(
-    ({ storage }, ids: string[], dx: number, dy: number) => {
-      const map = storage.get("textLayers")
-      if (!map) return
-      for (const id of ids) {
-        const t = map.get(id)
-        if (t) {
-          t.set("x", t.get("x") + dx)
-          t.set("y", t.get("y") + dy)
+  const moveTextLayersByDelta = useCallback(
+    (ids: string[], dx: number, dy: number) => {
+      collections.transact(() => {
+        for (const id of ids) {
+          const t = collections.textLayers.get(id)
+          if (t) collections.textLayers.update(id, { x: t.x + dx, y: t.y + dy })
         }
-      }
+      })
     },
-    [],
+    [collections],
   )
 
-  const resizeTextLayer = useMutation(
-    ({ storage }, id: string, x: number, width: number) => {
-      const t = storage.get("textLayers")?.get(id)
-      if (t) {
-        t.set("x", x)
-        t.set("width", Math.max(40, width))
-        if (t.get("autoWidth")) t.set("autoWidth", false)
-      }
-    },
-    [],
-  )
-
-  const setTextLayerAutoWidth = useMutation(
-    ({ storage }, id: string, autoWidth: boolean, width?: number) => {
-      const t = storage.get("textLayers")?.get(id)
+  const resizeTextLayer = useCallback(
+    (id: string, x: number, width: number) => {
+      const t = collections.textLayers.get(id)
       if (!t) return
-      t.set("autoWidth", autoWidth)
-      if (!autoWidth && typeof width === "number") {
-        t.set("width", Math.max(40, width))
-      }
+      collections.textLayers.update(id, {
+        x,
+        width: Math.max(40, width),
+        ...(t.autoWidth ? { autoWidth: false } : {}),
+      })
     },
-    [],
+    [collections],
   )
 
-  const removeTextLayers = useMutation(
-    ({ storage }, ids: string[]) => {
-      const map = storage.get("textLayers")
-      if (!map) return
-      for (const id of ids) map.delete(id)
+  const setTextLayerAutoWidth = useCallback(
+    (id: string, autoWidth: boolean, width?: number) => {
+      const t = collections.textLayers.get(id)
+      if (!t) return
+      collections.textLayers.update(id, {
+        autoWidth,
+        ...(!autoWidth && typeof width === "number"
+          ? { width: Math.max(40, width) }
+          : {}),
+      })
     },
-    [],
+    [collections],
+  )
+
+  const removeTextLayers = useCallback(
+    (ids: string[]) => {
+      collections.transact(() => {
+        for (const id of ids) collections.textLayers.delete(id)
+      })
+    },
+    [collections],
   )
   removeTextLayersRef.current = removeTextLayers
 
   // --- Agent mutations ---
 
-  const updateAgentInStorage = useMutation(
-    ({ storage }, id: string, data: Partial<AgentData>) => {
-      const agent = storage.get("sandboxes").get(id)
-      if (agent) {
-        for (const [key, value] of Object.entries(data)) {
-          agent.set(key as keyof AgentData, value as never)
+  const updateAgentInStorage = useCallback(
+    (id: string, data: Partial<AgentData>) => {
+      collections.agents.update(id, data)
+    },
+    [collections],
+  )
+
+  const addAgentToStorage = useCallback(
+    (id: string, data: AgentData) => {
+      collections.agents.set(id, data)
+    },
+    [collections],
+  )
+
+  const removeAgentFromStorage = useCallback(
+    (id: string) => {
+      collections.transact(() => {
+        collections.agents.delete(id)
+        for (const a of collections.artboards.toArray()) {
+          if (a.sandboxId === id) collections.artboards.delete(a.id)
         }
-      }
-    },
-    [],
-  )
-
-  const addAgentToStorage = useMutation(
-    ({ storage }, id: string, data: AgentData) => {
-      storage.get("sandboxes").set(id, new LiveObject(data))
-    },
-    [],
-  )
-
-  const removeAgentFromStorage = useMutation(
-    ({ storage }, id: string) => {
-      storage.get("sandboxes").delete(id)
-      const artboardsMap = storage.get("artboards")
-      const toDelete: string[] = []
-      artboardsMap.forEach((artboard, key) => {
-        if (artboard.get("sandboxId") === id) {
-          toDelete.push(key)
+        for (const cs of collections.chatSessions.toArray()) {
+          if (cs.agentId === id) collections.chatSessions.delete(cs.id)
         }
       })
-      toDelete.forEach((key) => artboardsMap.delete(key))
-      // Cascade-delete chat sessions
-      const chatSessionsMap = storage.get("chatSessions")
-      if (chatSessionsMap) {
-        const chatToDelete: string[] = []
-        chatSessionsMap.forEach((cs, key) => {
-          if (cs.get("agentId") === id) chatToDelete.push(key)
-        })
-        chatToDelete.forEach((key) => chatSessionsMap.delete(key))
-      }
     },
-    [],
+    [collections],
   )
 
   // --- Chat session mutations ---
 
-  const addChatSession = useMutation(
-    ({ storage }, id: string, data: ChatSessionData) => {
-      const map = storage.get("chatSessions")
-      if (map) map.set(id, new LiveObject(data))
+  const addChatSession = useCallback(
+    (id: string, data: ChatSessionData) => {
+      collections.chatSessions.set(id, data)
     },
-    [],
+    [collections],
   )
 
-  const updateChatSession = useMutation(
-    ({ storage }, id: string, data: Partial<ChatSessionData>) => {
-      const map = storage.get("chatSessions")
-      if (!map) return
-      const cs = map.get(id)
-      if (cs) {
-        for (const [key, value] of Object.entries(data)) {
-          cs.set(key as keyof ChatSessionData, value as never)
-        }
-      }
+  const updateChatSession = useCallback(
+    (id: string, data: Partial<ChatSessionData>) => {
+      collections.chatSessions.update(id, data)
     },
-    [],
+    [collections],
   )
 
-  const removeChatSession = useMutation(
-    ({ storage }, id: string) => {
-      const map = storage.get("chatSessions")
-      if (map) map.delete(id)
+  const removeChatSession = useCallback(
+    (id: string) => {
+      collections.chatSessions.delete(id)
     },
-    [],
+    [collections],
   )
 
   // --- Handlers ---

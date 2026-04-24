@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, ReactNode, useContext, useMemo } from "react"
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react"
 import { useRoom } from "@liveblocks/react/suspense"
 import * as Y from "yjs"
 import { getYjsProviderForRoom, LiveblocksYjsProvider } from "@liveblocks/yjs"
@@ -19,6 +19,26 @@ export function YjsProvider({ children }: { children: ReactNode }) {
     const provider = getYjsProviderForRoom(room)
     return { doc: provider.getYDoc(), provider }
   }, [room])
+
+  // Wait for the initial sync from the host before rendering children. Without
+  // this gate, components mount against an empty Y.Doc and briefly show "no
+  // artboards / no agents", which the user can mistake for data loss.
+  const [synced, setSynced] = useState(() => value.provider.synced)
+  useEffect(() => {
+    if (value.provider.synced) {
+      setSynced(true)
+      return
+    }
+    const onSync = (isSynced: boolean) => {
+      if (isSynced) setSynced(true)
+    }
+    value.provider.on("sync", onSync)
+    return () => {
+      value.provider.off("sync", onSync)
+    }
+  }, [value])
+
+  if (!synced) return null
 
   return <YjsContext.Provider value={value}>{children}</YjsContext.Provider>
 }

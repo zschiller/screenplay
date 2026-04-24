@@ -4,6 +4,7 @@ import { getClient } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import { liveblocks } from "@/lib/liveblocks-server"
+import { mutateRoomDoc } from "@/lib/yjs/server"
 import type { PlanData } from "@/lib/liveblocks.types"
 
 export const runtime = "nodejs"
@@ -53,34 +54,18 @@ export async function POST(req: Request) {
     return new Response("Missing required fields", { status: 400 })
   }
 
-  // Read plan data from Liveblocks storage
-  const planRef: { data: PlanData | null } = { data: null }
-  await liveblocks.mutateStorage(roomId, ({ root }) => {
-    const plan = root.get("plans").get(planId)
-    if (!plan) return
+  const planData = await mutateRoomDoc(roomId, ({ plans }) => {
+    const existing = plans.get(planId)
+    if (!existing) return null
 
-    planRef.data = {
-      id: plan.get("id"),
-      chatId: plan.get("chatId"),
-      agentId: plan.get("agentId"),
-      content: plan.get("content"),
-      status: plan.get("status"),
-      toolEventId: plan.get("toolEventId"),
-      sessionId: plan.get("sessionId"),
-      feedback: plan.get("feedback"),
-      createdAt: plan.get("createdAt"),
-      resolvedAt: plan.get("resolvedAt"),
-    }
+    plans.update(planId, {
+      status: approved ? "approved" : "rejected",
+      resolvedAt: Date.now(),
+      ...(!approved && feedback ? { feedback } : {}),
+    })
 
-    // Update plan status
-    plan.set("status", approved ? "approved" : "rejected")
-    plan.set("resolvedAt", Date.now())
-    if (!approved && feedback) {
-      plan.set("feedback", feedback)
-    }
+    return existing
   })
-
-  const planData = planRef.data
   if (!planData) {
     return new Response("Plan not found", { status: 404 })
   }
@@ -212,24 +197,21 @@ export async function POST(req: Request) {
 
               if (planToolEntry?.tool) {
                 // Agent re-submitted a plan — handled by the stream route's normal flow
-                // We need to import and create plan data here too
                 const { nanoid } = await import("nanoid")
-                const { LiveObject } = await import("@liveblocks/client")
                 const planContent = (planToolEntry.tool.input as { plan: string }).plan
                 const newPlanId = nanoid()
 
-                await liveblocks.mutateStorage(roomId, ({ root }) => {
-                  const plansMap = root.get("plans")
-                  plansMap.set(newPlanId, new LiveObject({
+                await mutateRoomDoc(roomId, ({ plans }) => {
+                  plans.set(newPlanId, {
                     id: newPlanId,
                     chatId,
                     agentId: planData!.agentId,
                     content: planContent,
-                    status: "pending" as const,
+                    status: "pending",
                     toolEventId: planToolEntry.eventId,
                     sessionId,
                     createdAt: Date.now(),
-                  }))
+                  })
                 })
 
                 await broadcastChatEvent(roomId, chatId, {

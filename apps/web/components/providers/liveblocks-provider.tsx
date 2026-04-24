@@ -1,7 +1,6 @@
 "use client"
 
 import { ReactNode } from "react"
-import { LiveMap, LiveObject } from "@liveblocks/client"
 import {
   LiveblocksProvider,
   RoomProvider,
@@ -120,14 +119,7 @@ export function RoomProviderWrapper({
           selectedArtboardIds: [],
           selectedTextLayerIds: [],
         }}
-        initialStorage={{
-          workspaces: new LiveMap(),
-          sandboxes: new LiveMap(),
-          artboards: new LiveMap(),
-          textLayers: new LiveMap(),
-          chatSessions: new LiveMap(),
-          plans: new LiveMap(),
-        }}
+        initialStorage={{}}
       >
         <ClientSideSuspense fallback={<CanvasSkeleton />}>
           <YjsProvider>{children}</YjsProvider>
