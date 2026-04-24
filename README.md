@@ -23,11 +23,12 @@ Auth is handled by [Better Auth](https://better-auth.com) against the Postgres d
 1. Provision a Postgres database, set `DATABASE_URL`, and run
    `pnpm --filter web db:push` to sync the schema (defined in
    `apps/web/lib/db/schema.ts`) via drizzle-kit. Re-run after schema changes.
-2. Create a GitHub OAuth App:
-   - Homepage URL: your `BETTER_AUTH_URL` (e.g. `http://localhost:3000`)
-   - Authorization callback URL: `<BETTER_AUTH_URL>/api/auth/callback/github`
+2. Create a single GitHub OAuth App used by production, preview, and local dev:
+   - Homepage URL: your production URL (e.g. `https://yourapp.com`)
+   - Authorization callback URL: `<production-url>/api/auth/callback/github`
    - The app requests the `repo` scope so sandboxes can clone private repos and push commits.
-3. Copy the client ID + secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
+   - Preview deployments have dynamic per-deploy URLs — they can't be pre-registered with GitHub. The `oAuthProxy` plugin (configured in `apps/web/lib/auth.ts`) handles this by routing every preview's OAuth flow through the production callback, then bouncing a signed payload back to the originating preview so the session cookie ends up on the preview's own origin.
+3. Copy the client ID + secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`. Set these in Vercel under **all three** environment scopes (Production, Preview, Development) so every deploy uses the same app.
 
 ### Environment variables
 
@@ -35,8 +36,14 @@ Set these in Vercel (Project Settings → Environment Variables) and in a local 
 
 ```bash
 # --- Better Auth ---
+# Required. Must be the same value in Production, Preview, and Development
+# scopes on Vercel so preview deployments can decrypt the oAuthProxy payload
+# issued by production.
 BETTER_AUTH_SECRET=<openssl rand -base64 32>
-BETTER_AUTH_URL=http://localhost:3000
+# Optional. Derived automatically — localhost in dev, VERCEL_URL on preview
+# deploys, VERCEL_PROJECT_PRODUCTION_URL on prod. Only set if you host
+# somewhere exotic.
+# BETTER_AUTH_URL=
 
 # --- Postgres ---
 DATABASE_URL=postgres://...
