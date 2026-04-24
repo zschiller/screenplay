@@ -1,9 +1,9 @@
 import { NextResponse, after } from "next/server"
 import { auth } from "@clerk/nextjs/server"
-import { Redis } from "@upstash/redis"
 import { nanoid } from "nanoid"
 import { LiveObject } from "@liveblocks/client"
 import { liveblocks } from "@/lib/liveblocks-server"
+import { kv } from "@/lib/kv"
 import {
   getGitHubToken,
   createAgentBranch,
@@ -23,11 +23,6 @@ import {
 
 export const runtime = "nodejs"
 export const maxDuration = 300
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
 
 interface CreateRequest {
   flow: "new" | "from-branch" | "duplicate-branch"
@@ -285,7 +280,7 @@ export async function POST(request: Request) {
 
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
   const lockKey = `agent-create:${agentId}`
-  const acquired = await redis.set(lockKey, "1", { nx: true, ex: 300 })
+  const acquired = await kv.set(lockKey, "1", { nx: true, ex: 300 })
   if (!acquired) {
     // Another instance is already handling this agent's creation
     return NextResponse.json({ ok: true })
@@ -311,7 +306,7 @@ export async function POST(request: Request) {
         e instanceof Error ? e.message : "Unexpected error during sandbox creation",
       ).catch(() => {})
     } finally {
-      await redis.del(lockKey).catch(() => {})
+      await kv.del(lockKey).catch(() => {})
     }
   })
 
