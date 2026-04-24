@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getLiveblocksHost } from "@/lib/yjs-host/liveblocks-host"
+import { getLiveblocksHost } from "@/lib/yjs-host/liveblocks-server"
 import type { YjsHost } from "@/lib/yjs-host/types"
 
 export type { YjsHost, RoomMemberInput, IssueTokenInput, IssueTokenResult } from "@/lib/yjs-host/types"
