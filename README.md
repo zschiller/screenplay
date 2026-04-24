@@ -13,7 +13,7 @@ Before deploying, create accounts and projects for each of the following:
 | **Vercel** | Hosting the Next.js app and provisioning `@vercel/sandbox` VMs for each workspace | https://vercel.com |
 | **GitHub OAuth App** | Sign-in + `repo` scope so the app can clone private repos and push commits on the user's behalf | https://github.com/settings/developers |
 | **Postgres** | Better Auth user/session storage, per-user organization state, the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks), project rooms + members (`room`, `room_member`), and comment threads (`thread`, `comment`). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
-| **Yjs host** (Liveblocks) | Durable storage and realtime sync for the per-room [Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents, artboards, text layers, chat sessions, plans), agent stream events, and Yjs awareness (cursors, viewport, selections). Currently implemented on top of Liveblocks via `lib/yjs-host/liveblocks-host.ts` + `lib/yjs-host/client.tsx`. Any Yjs-compatible host (Hocuspocus, y-websocket, Cloudflare Durable Objects, …) is a swap of those two files. | https://liveblocks.io |
+| **Yjs host** | Durable storage and realtime sync for the per-room [Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents, artboards, text layers, chat sessions, plans), agent stream events, and Yjs awareness (cursors, viewport, selections). Any Yjs-compatible backend works — the default implementation targets Liveblocks via `lib/yjs-host/liveblocks-host.ts` (server) + `lib/yjs-host/liveblocks-client.tsx` (React client), each fronted by a thin re-export (`lib/yjs-host/index.ts` and `lib/yjs-host/client.tsx`) that makes the swap a one-line change. Dropping in Hocuspocus, y-websocket, Cloudflare Durable Objects, etc. means adding sibling `*-host.ts` / `*-client.tsx` files and pointing those two re-exports at them. | anywhere you like — [Liveblocks](https://liveblocks.io), [Hocuspocus](https://tiptap.dev/docs/hocuspocus), [y-websocket](https://github.com/yjs/y-websocket), Cloudflare Durable Objects, a self-hosted server, etc. |
 | **Anthropic API** | Powers the in-sandbox coding agent (Claude) via `@anthropic-ai/sdk` | https://console.anthropic.com |
 
 ### GitHub OAuth app setup
@@ -110,10 +110,14 @@ GITHUB_CLIENT_SECRET=...
 # postgres-js / node-postgres if you're pointing at something else.
 DATABASE_URL=postgres://...
 
-# --- Yjs host (Liveblocks) ---
-# Server-side secret key from https://liveblocks.io/dashboard. Used only by
-# lib/yjs-host/liveblocks-host.ts — swap that file out (and lib/yjs-host/
-# client.tsx) to point at a different Yjs host (Hocuspocus, y-websocket, etc).
+# --- Yjs host ---
+# Credentials for whatever Yjs host is configured. The default implementation
+# targets Liveblocks and only needs a server-side secret key from
+# https://liveblocks.io/dashboard — it's consumed by lib/yjs-host/liveblocks-host.ts
+# and never leaves the server. To point at a different host, add sibling
+# `*-host.ts` / `*-client.tsx` files under lib/yjs-host/, flip the re-exports
+# in lib/yjs-host/index.ts + lib/yjs-host/client.tsx, and set whatever env
+# vars that host needs instead of LIVEBLOCKS_SECRET_KEY.
 LIVEBLOCKS_SECRET_KEY=sk_...
 
 # --- Anthropic ---
