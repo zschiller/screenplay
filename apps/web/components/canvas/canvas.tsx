@@ -1536,7 +1536,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
       // interrupted by a page reload. reconnectSandbox probes the existing
       // sandbox first, so it won't recreate one that's already running.
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
-      reconnectSandbox(agent.sandboxName, agent.port, workspace?.devScript).then((result) => {
+      const sandboxName = agent.sandboxName
+      reconnectSandbox(sandboxName, agent.port, workspace?.devScript).then((result) => {
         if (result.status === "running") {
           updateAgentInStorage(agent.id, {
             previewDomain: result.previewDomain,
@@ -1544,13 +1545,34 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
             statusMessage: "",
             error: "",
           })
-        } else {
-          updateAgentInStorage(agent.id, {
-            status: "stopped",
-            statusMessage: "",
-            error: result.error || "Sandbox could not be resumed — click refresh to retry",
-          })
+          return
         }
+        // Resume failed — likely the snapshot has fully expired (>24h) and
+        // been deleted. Auto-recreate from git instead of stranding the user
+        // at "stopped" waiting to click refresh.
+        updateAgentInStorage(agent.id, {
+          status: "starting",
+          statusMessage: "Recreating expired sandbox…",
+          error: "",
+        })
+        restartSandbox(
+          sandboxName,
+          agent.gitUrl,
+          agent.branch,
+          agent.port,
+          workspace?.setupScript,
+          workspace?.devScript,
+        ).then((restartResult) => {
+          updateAgentInStorage(agent.id, {
+            sandboxName: restartResult.sandboxName,
+            previewDomain: restartResult.previewDomain || agent.previewDomain,
+            status: restartResult.status === "running" ? "running" : "stopped",
+            statusMessage: "",
+            error: restartResult.status === "running"
+              ? ""
+              : restartResult.error || "Sandbox could not be restarted — click refresh to retry",
+          })
+        })
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
