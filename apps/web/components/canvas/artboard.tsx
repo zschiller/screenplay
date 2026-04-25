@@ -335,17 +335,14 @@ export function Artboard({
             values={artboard.knobValues}
             onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
           />
-          <button
+          <Button
+            size="icon-xs"
+            variant={focused ? "default" : "outline"}
             onClick={() => onFocus(focused ? null : artboard.id)}
-            className={`flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
             title={focused ? "Back to canvas mode" : "Interact with app"}
           >
-            {focused ? (
-              <Move className="h-3 w-3" />
-            ) : (
-              <MousePointer className="h-3 w-3" />
-            )}
-          </button>
+            {focused ? <Move /> : <MousePointer />}
+          </Button>
         </div>
       )}
       <div
