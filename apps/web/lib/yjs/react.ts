@@ -167,15 +167,21 @@ export function useSetPresence() {
 
 /**
  * Generic awareness snapshot hook. Caches the selected value and only rebuilds
- * on awareness `change` — keeps `useSyncExternalStore` happy by returning a
+ * on awareness updates — keeps `useSyncExternalStore` happy by returning a
  * reference-stable snapshot between updates.
+ *
+ * We listen to `update` rather than `change`: `change` doesn't fire on
+ * local-only `setLocalState` calls (no remote peers means no broadcast),
+ * which kept the local user out of `useSelfPresence` until someone else
+ * joined. `update` fires on every local set as well, so the self avatar
+ * appears immediately.
  */
 function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
   const awareness = useAwareness()
   const cacheRef = useRef<T | typeof EMPTY>(EMPTY)
   const versionRef = useRef(0)
 
-  // Bump version on every awareness change; getSnapshot rebuilds when the
+  // Bump version on every awareness update; getSnapshot rebuilds when the
   // version it last saw differs from the current one.
   const lastVersionSeenRef = useRef(-1)
 
@@ -185,8 +191,8 @@ function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
         versionRef.current += 1
         cb()
       }
-      awareness.on("change", handler)
-      return () => awareness.off("change", handler)
+      awareness.on("update", handler)
+      return () => awareness.off("update", handler)
     },
     [awareness],
   )
