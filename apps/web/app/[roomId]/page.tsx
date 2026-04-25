@@ -1,9 +1,20 @@
+import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
 import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ roomId: string }>
+}): Promise<Metadata> {
+  const { roomId } = await params
+  const room = await getRoom(roomId)
+  return { title: room?.name ?? "Project" }
+}
 
 export default async function RoomPage({
   params,
