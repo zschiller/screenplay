@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ArtboardData } from "./artboard"
 import type { TextLayerData } from "@/lib/liveblocks.types"
 
@@ -72,6 +72,23 @@ export function SelectionOverlay({
   inspectRect,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Text layers stored at width: max-content grow as the user types, but the
+  // metadata in TextLayerData doesn't change — so without a separate signal
+  // the overlay's frame stays glued to the pre-edit size. Watch every text
+  // layer's DOM box and bump a counter on size changes to force a redraw.
+  const [textLayerSizeTick, setTextLayerSizeTick] = useState(0)
+  useEffect(() => {
+    if (textLayers.length === 0) return
+    const ro = new ResizeObserver(() => {
+      setTextLayerSizeTick((n) => n + 1)
+    })
+    for (const layer of textLayers) {
+      const el = document.getElementById(`text-layer-${layer.id}`)
+      if (el) ro.observe(el)
+    }
+    return () => ro.disconnect()
+  }, [textLayers])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -324,7 +341,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboards, textLayers, marquee, textDraft, othersSelections, hideResizeHandles, inspectRect])
+  }, [zoom, viewportPos, selectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboards, textLayers, marquee, textDraft, othersSelections, hideResizeHandles, inspectRect, textLayerSizeTick])
 
   // Keep canvas sized to container
   useEffect(() => {

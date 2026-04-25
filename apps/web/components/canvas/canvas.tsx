@@ -2091,7 +2091,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                       editing={editingTextLayerId === layer.id}
                       spaceHeld={spaceHeld}
                       userName={self?.identity.name || "Anonymous"}
-                      userColor={self?.color || "#888"}
+                      userColor={self?.color || "#888888"}
                       onSelect={handleTextLayerSelect}
                       onMove={moveTextLayer}
                       onMoveSelected={handleMoveSelected}
