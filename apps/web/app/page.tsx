@@ -1,15 +1,51 @@
 "use client"
 
 import Link from "next/link"
+import { useDefaultLayout } from "react-resizable-panels"
 import {
-  SidebarInset,
-  SidebarProvider,
-} from "@workspace/ui/components/sidebar"
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@workspace/ui/components/resizable"
 import { Button } from "@workspace/ui/components/button"
 import { HomeProvider } from "@/components/home/home-provider"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { FilesView } from "@/components/home/files-view"
 import { useSession } from "@/lib/auth-client"
+
+function HomeWorkspace() {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "home-layout",
+    storage: localStorage,
+  })
+
+  return (
+    <HomeProvider>
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="fixed inset-0"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+      >
+        <ResizablePanel
+          id="home-sidebar"
+          defaultSize="240px"
+          minSize="180px"
+          maxSize="480px"
+          groupResizeBehavior="preserve-pixel-size"
+        >
+          <HomeSidebar />
+        </ResizablePanel>
+        <ResizableHandle className="focus-visible:ring-0" />
+        <ResizablePanel id="home-content">
+          <main className="relative flex h-full w-full flex-col overflow-auto bg-background">
+            <FilesView />
+          </main>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </HomeProvider>
+  )
+}
 
 export default function Page() {
   const { data: session, isPending } = useSession()
@@ -31,14 +67,5 @@ export default function Page() {
     )
   }
 
-  return (
-    <HomeProvider>
-      <SidebarProvider open onOpenChange={() => {}}>
-        <HomeSidebar />
-        <SidebarInset>
-          <FilesView />
-        </SidebarInset>
-      </SidebarProvider>
-    </HomeProvider>
-  )
+  return <HomeWorkspace />
 }
