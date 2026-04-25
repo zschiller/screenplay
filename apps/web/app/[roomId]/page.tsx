@@ -1,9 +1,14 @@
 import type { Metadata } from "next"
+import { cookies } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
 import { getOrganization } from "@/lib/organization-actions"
+import {
+  panelLayoutCookieName,
+  parsePanelLayoutValue,
+} from "@/lib/panel-layout"
 import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
 
@@ -41,13 +46,22 @@ export default async function RoomPage({
     ? (org?.folders.find((f) => f.id === parentFolderId)?.name ?? "Drafts")
     : "Drafts"
 
+  const cookieStore = await cookies()
+  const initialLayout = parsePanelLayoutValue(
+    cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value,
+  )
+
   return (
-    <YjsRoomProvider roomId={roomId} fallback={<CanvasSkeleton />}>
+    <YjsRoomProvider
+      roomId={roomId}
+      fallback={<CanvasSkeleton initialLayout={initialLayout} />}
+    >
       <Canvas
         roomId={roomId}
         projectName={room.name}
         hasThumbnail={!!room.thumbnailUrl}
         parentFolderName={parentFolderName}
+        initialLayout={initialLayout}
       />
     </YjsRoomProvider>
   )
