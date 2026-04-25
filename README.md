@@ -111,6 +111,34 @@ Each workspace runs its coding agent and dev server inside a live sandbox VM. Th
 
 The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`) — see `apps/web/lib/sandbox/types.ts` for the exact shape. Everything else in the app — `lib/sandbox-actions.ts`, the agent's tool executor, the logs SSE route — is written against this interface and needs no changes when the backend swaps.
 
+### Blob store
+
+Project thumbnails are screenshotted by a headless browser, resized, and uploaded to a public-readable blob store. The default backend is [`@vercel/blob`](https://vercel.com/docs/vercel-blob) via `apps/web/lib/blob/vercel.ts`, fronted by a thin re-export in `apps/web/lib/blob/index.ts` that exposes a backend-agnostic `BlobStore` interface. Any object store with a public-URL read path works — S3, R2, GCS, Supabase Storage, a self-hosted MinIO bucket, etc.
+
+#### Using a different blob backend
+
+`apps/web/lib/blob/index.ts` picks the default store via `getVercelBlobStore()` in `vercel.ts`. The exported `blobStore` is typed as the backend-agnostic `BlobStore` interface defined in `apps/web/lib/blob/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
+
+1. Install whatever SDK your backend needs.
+2. Add a sibling factory — e.g. `apps/web/lib/blob/s3.ts`:
+
+   ```ts
+   import "server-only"
+   import type { BlobStore } from "./types"
+
+   class S3BlobStore implements BlobStore {
+     async put(key, body, opts) { /* call your SDK, return { url } */ }
+   }
+
+   export function getS3BlobStore(): BlobStore {
+     return new S3BlobStore()
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory.
+
+The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`) — see `apps/web/lib/blob/types.ts` for the exact shape. Callers (`lib/thumbnail/capture.ts`) only ever see the abstract interface and need no changes when the backend swaps.
+
 ### Environment variables
 
 Set these in Vercel (Project Settings → Environment Variables) and in a local `.env.local` for development:
@@ -158,6 +186,23 @@ ANTHROPIC_API_KEY=sk-ant-...
 # env vars before storing them in Postgres (see lib/env-store.ts).
 # Generate with: openssl rand -hex 32
 ENCRYPTION_KEY=<64 hex chars>
+
+# --- Thumbnail capture ---
+# HMAC secret for the short-lived tokens that gate /[roomId]/render. The
+# capture pipeline hits that route with a signed token because it can't carry
+# a user session. Any long random string works.
+# Generate with: openssl rand -hex 32
+THUMBNAIL_RENDER_SECRET=<64 hex chars>
+
+# --- Blob store ---
+# Credentials for whatever blob store is configured. The default
+# implementation (lib/blob/vercel.ts) wraps Vercel Blob and only needs a
+# read/write token. On Vercel, connect a Blob store to your project and
+# BLOB_READ_WRITE_TOKEN is injected automatically; locally, run
+# `vercel env pull .env.local` after connecting the store. To point at a
+# different backend, add a sibling factory under lib/blob/, flip the import
+# in lib/blob/index.ts, and set whatever env vars that backend needs.
+BLOB_READ_WRITE_TOKEN=...
 ```
 
 #### Sandbox provider credentials
@@ -179,7 +224,7 @@ If you've swapped in a different provider under `apps/web/lib/sandbox/`, set wha
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
-   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`): **Production + Preview**.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
 ### Running locally

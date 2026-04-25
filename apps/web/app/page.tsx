@@ -33,7 +33,7 @@ export default function Page() {
 
   return (
     <HomeProvider>
-      <SidebarProvider>
+      <SidebarProvider open onOpenChange={() => {}}>
         <HomeSidebar />
         <SidebarInset>
           <FilesView />
