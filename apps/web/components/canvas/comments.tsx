@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Check, MessageSquare, Trash2 } from "lucide-react"
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
@@ -142,14 +143,32 @@ export function Comments({
           style={{ left: composerCanvasPos.x, top: composerCanvasPos.y }}
         >
           <div style={pinStyle}>
-            <NewThreadComposer
-              roomId={roomId}
-              x={newCommentPos.x}
-              y={newCommentPos.y}
-              artboardId={newCommentPos.artboardId}
-              onSubmitted={onNewCommentPlaced}
-              onCancel={onCancelComment}
-            />
+            <Popover
+              open
+              onOpenChange={(open) => {
+                if (!open) onCancelComment()
+              }}
+            >
+              <PopoverAnchor asChild>
+                <div className="size-0" />
+              </PopoverAnchor>
+              <PopoverContent
+                side="top"
+                align="start"
+                sideOffset={0}
+                className="w-72"
+                onPointerDownOutside={(e) => e.preventDefault()}
+              >
+                <NewThreadComposer
+                  roomId={roomId}
+                  x={newCommentPos.x}
+                  y={newCommentPos.y}
+                  artboardId={newCommentPos.artboardId}
+                  onSubmitted={onNewCommentPlaced}
+                  onCancel={onCancelComment}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       )}
@@ -175,11 +194,7 @@ function NewThreadComposer({
   const [body, setBody] = useState("")
   const [pending, start] = useTransition()
   return (
-    <div
-      className="-translate-y-full rounded-md border border-border bg-popover p-2 shadow-md"
-      style={{ width: 288 }}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       <textarea
         autoFocus
         rows={3}
@@ -188,17 +203,13 @@ function NewThreadComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault()
-            onCancel()
-          }
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             submit()
           }
         }}
       />
-      <div className="mt-2 flex justify-end gap-2">
+      <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
@@ -206,7 +217,7 @@ function NewThreadComposer({
           Comment
         </Button>
       </div>
-    </div>
+    </>
   )
 
   function submit() {
