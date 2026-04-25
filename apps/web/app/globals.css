@@ -13,6 +13,17 @@
   pointer-events: none;
 }
 
+/* y-prosemirror always renders a caret widget at `head` even when the remote
+   user has a non-collapsed selection. Suppress the caret when it's adjacent
+   to the selection-range span (head sits at one end of the highlighted
+   range) so we don't double up with both the highlight and a duplicate
+   caret. The caret comes after the selection when anchor < head, and before
+   when anchor > head. */
+.ProseMirror-yjs-selection + .collaboration-carets__caret,
+.collaboration-carets__caret:has(+ .ProseMirror-yjs-selection) {
+  display: none;
+}
+
 .collaboration-carets__label {
   position: absolute;
   top: -1.4em;

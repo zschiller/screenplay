@@ -106,6 +106,20 @@ export function TextLayer({
     }
   }, [editing, editor])
 
+  // CollaborationCaret only writes `user: { name, color }` to awareness once,
+  // when `addProseMirrorPlugins` runs. Canvas presence color is published from
+  // a useEffect, so the editor often mounts with `userColor` still set to the
+  // fallback (no `self.color` yet) and never republishes when the real color
+  // lands — peers see the stale value forever. Push updates explicitly so
+  // remote selections/carets pick up the right color.
+  useEffect(() => {
+    if (!editor) return
+    editor.commands.updateUser({
+      name: userName || "Anonymous",
+      color: userColor,
+    })
+  }, [editor, userName, userColor])
+
   useEffect(() => {
     if (!editing) return
     const onDown = (e: PointerEvent) => {
