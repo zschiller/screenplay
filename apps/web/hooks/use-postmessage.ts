@@ -110,9 +110,6 @@ export function usePostMessage({
         if (scrollRef.current) {
           sendScrollTo(scrollRef.current.x, scrollRef.current.y)
         }
-        if (knobValuesRef.current) {
-          sendKnobValues(knobValuesRef.current)
-        }
         onReadyRef.current?.(artboardId, e.data.version)
       } else if (e.data.type === "screenplay:state-changed") {
         onStateChanged(artboardId, e.data.state)
@@ -124,6 +121,13 @@ export function usePostMessage({
       } else if (e.data.type === "screenplay:hmr-status") {
         onHmrStatusRef.current?.(artboardId, e.data.status)
       } else if (e.data.type === "screenplay:knobs-declared") {
+        // Push stored values down now that the iframe has registered the
+        // knobs. Sending earlier (e.g. on screenplay:ready) drops the values:
+        // applyValue() in screenplay-knobs ignores any id without a matching
+        // definition, and definitions aren't registered until useKnob() runs.
+        if (knobValuesRef.current) {
+          sendKnobValues(knobValuesRef.current)
+        }
         onKnobsDeclaredRef.current?.(artboardId, e.data.knobs)
       }
     }
