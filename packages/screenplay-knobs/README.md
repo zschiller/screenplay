@@ -76,6 +76,32 @@ const unsubscribe = registerKnob(
 )
 ```
 
+## Releasing
+
+Publishing is automated via the **Publish @screenplay.space/knobs** workflow in
+GitHub Actions (`.github/workflows/publish-knobs.yml`). Open the Actions tab,
+pick that workflow, and click **Run workflow**:
+
+- **bump** — `patch`, `minor`, `major`, `prerelease`, an explicit semver
+  (`0.2.0`), or `none` to publish the version already in `package.json`
+  (use `none` for the very first publish, since the file already says
+  `0.1.0`).
+- **tag** — npm dist-tag. Defaults to `latest`. Use `next` / `beta` for
+  pre-releases.
+
+The workflow runs `pnpm typecheck`, bumps + commits + tags (unless `bump=none`),
+and publishes with `--provenance` so each release carries a sigstore attestation
+tying it to the workflow run + commit.
+
+**One-time setup** before the first run:
+
+1. Create a granular **Automation** access token at npmjs.com scoped to the
+   `@screenplay.space` org with publish access for this package.
+2. Add it to the repo as a secret named `NPM_TOKEN`
+   (Settings → Secrets and variables → Actions).
+3. Settings → Actions → General → Workflow permissions: select **Read and
+   write permissions** so the bump commit can be pushed back to `main`.
+
 ## License
 
 MIT
