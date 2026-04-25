@@ -28,12 +28,29 @@ import { inputStore } from "@/lib/input-store"
 import { getModels, type ModelInfo } from "@/lib/models-store"
 
 const DEFAULT_MODEL_ID = "claude-sonnet-4-6"
+const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
 const MODEL_FAMILIES: Array<{ id: string; label: string }> = [
   { id: "opus", label: "Opus" },
   { id: "sonnet", label: "Sonnet" },
   { id: "haiku", label: "Haiku" },
 ]
+
+function readStoredModel(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeStoredModel(modelId: string) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(LAST_MODEL_STORAGE_KEY, modelId)
+  } catch {}
+}
 
 function groupModelsByFamily(models: ModelInfo[]) {
   const groups = MODEL_FAMILIES.map((f) => ({
@@ -91,8 +108,13 @@ export function AgentChat({
 
   const [input, setInput] = useState("")
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [storedModel, setStoredModel] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setStoredModel(readStoredModel())
+  }, [])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -121,7 +143,16 @@ export function AgentChat({
     })
   }, [chatId])
 
-  const effectiveModel = model ?? DEFAULT_MODEL_ID
+  const effectiveModel = model ?? storedModel ?? DEFAULT_MODEL_ID
+
+  const handleModelChange = useCallback(
+    (m: string) => {
+      writeStoredModel(m)
+      setStoredModel(m)
+      onModelChange?.(m)
+    },
+    [onModelChange],
+  )
 
   // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
   useEffect(() => {
@@ -230,7 +261,7 @@ export function AgentChat({
                         {group.models.map((m) => (
                           <DropdownMenuItem
                             key={m.id}
-                            onSelect={() => onModelChange?.(m.id)}
+                            onSelect={() => handleModelChange(m.id)}
                           >
                             <span className="flex-1">{m.label}</span>
                             {m.id === effectiveModel && <Check className="size-3.5" />}
