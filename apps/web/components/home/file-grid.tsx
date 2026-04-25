@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { MoreHorizontal, Pin } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { formatDistanceToNow } from "@/lib/utils"
@@ -24,9 +25,21 @@ function FileCard({ file }: { file: ProjectSummary }) {
         href={`/${file.id}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="block aspect-[4/3] w-full bg-gradient-to-br from-muted to-muted/40"
+        className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
         aria-label={`Open ${file.name}`}
-      />
+      >
+        {file.thumbnailUrl && (
+          <Image
+            key={file.thumbnailUpdatedAt ?? file.thumbnailUrl}
+            src={file.thumbnailUrl}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 240px, (min-width: 640px) 33vw, 50vw"
+            className="object-cover"
+            unoptimized
+          />
+        )}
+      </a>
       <div className="flex items-center gap-2 p-3">
         <div className="min-w-0 flex-1">
           <a

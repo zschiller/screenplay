@@ -10,9 +10,13 @@ const PUBLIC_PATHS = [
 ]
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  )
+  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return true
+  }
+  // Thumbnail render route: /[roomId]/render. Auth is enforced by the HMAC
+  // token check inside the page itself — Puppeteer can't carry a session.
+  if (/^\/[^/]+\/render\/?$/.test(pathname)) return true
+  return false
 }
 
 export default function middleware(request: NextRequest) {

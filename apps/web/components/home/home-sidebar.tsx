@@ -1,24 +1,22 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
-  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   File as FileIcon,
+  FileText,
   Folder as FolderIcon,
   FolderPlus,
   LayoutGrid,
   LogOut,
   MoreHorizontal,
-  Pin,
-  Plus,
 } from "lucide-react"
 import { signOut, useSession } from "@/lib/auth-client"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupAction,
   SidebarGroupContent,
@@ -49,7 +47,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@workspace/ui/components/avatar"
-import { Button } from "@workspace/ui/components/button"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { useHome, ALL_VIEW_ID } from "./home-provider"
@@ -147,22 +144,24 @@ function SidebarFileItem({ file }: { file: ProjectSummary }) {
 
   return (
     <SidebarMenuSubItem>
-      <SidebarMenuSubButton asChild>
-        <a href={`/${file.id}`} target="_blank" rel="noopener noreferrer">
-          <FileIcon />
-          <span>{file.name}</span>
-        </a>
-      </SidebarMenuSubButton>
-      <FileActionMenu
-        file={file}
-        onRename={() => setRenameOpen(true)}
-        onDelete={() => setDeleteOpen(true)}
-        onShare={() => setShareOpen(true)}
-      >
-        <SidebarMenuAction showOnHover>
-          <MoreHorizontal />
-        </SidebarMenuAction>
-      </FileActionMenu>
+      <div className="group/sub-row relative">
+        <SidebarMenuSubButton asChild>
+          <a href={`/${file.id}`} target="_blank" rel="noopener noreferrer">
+            <FileIcon />
+            <span>{file.name}</span>
+          </a>
+        </SidebarMenuSubButton>
+        <FileActionMenu
+          file={file}
+          onRename={() => setRenameOpen(true)}
+          onDelete={() => setDeleteOpen(true)}
+          onShare={() => setShareOpen(true)}
+        >
+          <SidebarMenuAction className="md:opacity-0 group-hover/sub-row:opacity-100 group-focus-within/sub-row:opacity-100 aria-expanded:opacity-100">
+            <MoreHorizontal />
+          </SidebarMenuAction>
+        </FileActionMenu>
+      </div>
       <InputDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
@@ -193,12 +192,12 @@ function SidebarFileItem({ file }: { file: ProjectSummary }) {
   )
 }
 
+const FOLDER_OPEN_STORAGE_PREFIX = "home-sidebar:folder-open:"
+
 function SidebarFolderItem({
   folder,
-  isDrafts = false,
 }: {
-  folder: FolderType | { id: string; name: string }
-  isDrafts?: boolean
+  folder: FolderType
 }) {
   const {
     filesInFolder,
@@ -207,82 +206,88 @@ function SidebarFolderItem({
     renameFolder,
     removeFolder,
   } = useHome()
-  const [open, setOpen] = useState(isDrafts)
+  const storageKey = `${FOLDER_OPEN_STORAGE_PREFIX}${folder.id}`
+  const [open, setOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const files = filesInFolder(folder.id)
   const isActive = selectedId === folder.id
 
+  useEffect(() => {
+    const stored = window.localStorage.getItem(storageKey)
+    setOpen(stored === "1")
+  }, [storageKey])
+
+  const updateOpen = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      window.localStorage.setItem(storageKey, next ? "1" : "0")
+    },
+    [storageKey],
+  )
+
   return (
-    <Collapsible open={open} onOpenChange={setOpen} asChild>
+    <Collapsible open={open} onOpenChange={updateOpen} asChild>
       <SidebarMenuItem>
-        <SidebarMenuButton
-          isActive={isActive}
-          onClick={() => {
-            setSelectedId(folder.id)
-            setOpen(true)
-          }}
-        >
-          <FolderIcon />
-          <span>{folder.name}</span>
-          <ChevronDown
-            onClick={(e) => {
-              e.stopPropagation()
-              setOpen((o) => !o)
+        <div className="group/folder-row relative">
+          <SidebarMenuButton
+            isActive={isActive}
+            onClick={() => {
+              setSelectedId(folder.id)
+              updateOpen(true)
             }}
-            className={`ml-auto size-4 shrink-0 text-muted-foreground transition-transform ${
-              open ? "" : "-rotate-90"
-            }`}
-          />
-        </SidebarMenuButton>
-        {!isDrafts && "createdAt" in folder && (
+          >
+            <span className="relative shrink-0">
+              <FolderIcon className="block group-hover/folder-row:hidden" />
+              <ChevronRight
+                onClick={(e) => {
+                  e.stopPropagation()
+                  updateOpen(!open)
+                }}
+                className={`hidden size-4 cursor-pointer text-muted-foreground transition-transform group-hover/folder-row:block ${
+                  open ? "rotate-90" : ""
+                }`}
+              />
+            </span>
+            <span>{folder.name}</span>
+          </SidebarMenuButton>
           <FolderActionMenu
-            folder={folder as FolderType}
+            folder={folder}
             onRename={() => setRenameOpen(true)}
             onDelete={() => setDeleteOpen(true)}
           >
-            <SidebarMenuAction showOnHover className="right-7">
+            <SidebarMenuAction className="md:opacity-0 group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100 aria-expanded:opacity-100">
               <MoreHorizontal />
             </SidebarMenuAction>
           </FolderActionMenu>
-        )}
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {files.length === 0 ? (
-              <SidebarMenuSubItem>
-                <span className="block px-2 py-1 text-xs text-muted-foreground">
-                  Empty
-                </span>
-              </SidebarMenuSubItem>
-            ) : (
-              files.map((file) => (
+        </div>
+        {files.length > 0 && (
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              {files.map((file) => (
                 <SidebarFileItem key={file.id} file={file} />
-              ))
-            )}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-        {!isDrafts && "createdAt" in folder && (
-          <>
-            <InputDialog
-              open={renameOpen}
-              onOpenChange={setRenameOpen}
-              title="Rename folder"
-              initialValue={folder.name}
-              submitLabel="Save"
-              submittingLabel="Saving…"
-              onSubmit={(name) => renameFolder(folder.id, name)}
-            />
-            <DeleteProjectDialog
-              open={deleteOpen}
-              onOpenChange={setDeleteOpen}
-              projectName={folder.name}
-              onConfirm={async () => {
-                await removeFolder(folder.id)
-                setDeleteOpen(false)
-              }}
-            />
-          </>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
         )}
+        <InputDialog
+          open={renameOpen}
+          onOpenChange={setRenameOpen}
+          title="Rename folder"
+          initialValue={folder.name}
+          submitLabel="Save"
+          submittingLabel="Saving…"
+          onSubmit={(name) => renameFolder(folder.id, name)}
+        />
+        <DeleteProjectDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          projectName={folder.name}
+          onConfirm={async () => {
+            await removeFolder(folder.id)
+            setDeleteOpen(false)
+          }}
+        />
       </SidebarMenuItem>
     </Collapsible>
   )
@@ -427,16 +432,22 @@ export function HomeSidebar() {
                   <span>All files</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={selectedId === DRAFTS_FOLDER_ID}
+                  onClick={() => setSelectedId(DRAFTS_FOLDER_ID)}
+                >
+                  <FileText />
+                  <span>Drafts</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         {hasPinned && (
           <SidebarGroup>
-            <SidebarGroupLabel>
-              <Pin className="mr-1.5" />
-              Pinned
-            </SidebarGroupLabel>
+            <SidebarGroupLabel>Pinned</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {pinnedFolderList.map((folder) => (
@@ -461,10 +472,6 @@ export function HomeSidebar() {
           </SidebarGroupAction>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarFolderItem
-                folder={{ id: DRAFTS_FOLDER_ID, name: "Drafts" }}
-                isDrafts
-              />
               {folders.map((folder) => (
                 <SidebarFolderItem key={folder.id} folder={folder} />
               ))}
@@ -479,18 +486,6 @@ export function HomeSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter>
-        <Button
-          variant="outline"
-          size="sm"
-          className="justify-start"
-          onClick={() => setNewFolderOpen(true)}
-        >
-          <Plus />
-          New folder
-        </Button>
-      </SidebarFooter>
 
       <InputDialog
         open={newFolderOpen}
