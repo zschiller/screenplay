@@ -39,8 +39,6 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
     return knobs.filter(isKnobDef)
   }, [knobs])
 
-  if (defs.length === 0) return null
-
   function setValue(id: string, next: KnobValue) {
     const merged: KnobValues = { [id]: next }
     if (values) {
@@ -63,14 +61,27 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={6} className="w-72 gap-3">
-        {defs.map((def) => (
-          <KnobControl
-            key={def.id}
-            def={def}
-            value={coerceKnobValue(def, values?.[def.id])}
-            onChange={(v) => setValue(def.id, v)}
-          />
-        ))}
+        {defs.length === 0 ? (
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">No knobs yet</p>
+            <p>
+              Ask the model to add a knob so you can tweak this prototype live.
+              For example:
+            </p>
+            <p className="rounded-sm border border-border bg-muted/50 p-2 italic text-foreground">
+              &ldquo;Add a slider knob to control the card padding.&rdquo;
+            </p>
+          </div>
+        ) : (
+          defs.map((def) => (
+            <KnobControl
+              key={def.id}
+              def={def}
+              value={coerceKnobValue(def, values?.[def.id])}
+              onChange={(v) => setValue(def.id, v)}
+            />
+          ))
+        )}
       </PopoverContent>
     </Popover>
   )
