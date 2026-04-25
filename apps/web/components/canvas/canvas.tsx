@@ -2184,6 +2184,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         <BreadcrumbLink
                           href="/"
                           className="px-1.5 py-1 font-medium"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            router.push("/")
+                          }}
                         >
                           {parentFolderName}
                         </BreadcrumbLink>
