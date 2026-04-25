@@ -89,12 +89,14 @@ pick that workflow, and click **Run workflow**:
 - **tag** — npm dist-tag. Defaults to `latest`. Use `next` / `beta` for
   pre-releases.
 
-The workflow runs `pnpm typecheck`, bumps + commits + tags (unless `bump=none`),
-and publishes via npm **Trusted Publishing** (OIDC). No long-lived `NPM_TOKEN`
-secret is involved — the GitHub Actions runner mints a short-lived OIDC token
-that npm verifies against a publisher rule pinned to this repo + workflow
-file. Each release also carries a sigstore provenance attestation tying it to
-the workflow run + commit.
+The workflow runs `pnpm typecheck`, publishes via npm **Trusted Publishing**
+(OIDC — no `NPM_TOKEN` secret), drops a git tag like
+`screenplay-knobs-v0.1.1`, and opens a PR to merge the version bump into
+`main`. Merging the PR is one click. Each release also carries a sigstore
+provenance attestation tying it to the workflow run.
+
+The PR-based bump works around `main` branch protection — the workflow never
+needs to push directly to a protected branch.
 
 **One-time setup** before the first run:
 
@@ -107,12 +109,11 @@ the workflow run + commit.
    - **Workflow filename**: `publish-knobs.yml`
    - **Environment name**: *(leave blank)*
 
-   You can add this rule before the package's first publish — npm allows
-   pre-registering a publisher for a not-yet-existing package name.
-
-2. **Allow Actions to push the bump commit.** GitHub repo Settings → Actions
-   → General → Workflow permissions: select **Read and write permissions**
-   so the workflow can push the version-bump commit + tag back to `main`.
+2. **Allow Actions to push branches and open PRs.** GitHub repo Settings →
+   Actions → General → Workflow permissions: select **Read and write
+   permissions**. The workflow only ever pushes to `release/*` branches +
+   tags — never directly to `main` — so this is compatible with branch
+   protection rules requiring PRs on `main`.
 
 ## License
 
