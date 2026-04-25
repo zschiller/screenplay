@@ -90,17 +90,29 @@ pick that workflow, and click **Run workflow**:
   pre-releases.
 
 The workflow runs `pnpm typecheck`, bumps + commits + tags (unless `bump=none`),
-and publishes with `--provenance` so each release carries a sigstore attestation
-tying it to the workflow run + commit.
+and publishes via npm **Trusted Publishing** (OIDC). No long-lived `NPM_TOKEN`
+secret is involved — the GitHub Actions runner mints a short-lived OIDC token
+that npm verifies against a publisher rule pinned to this repo + workflow
+file. Each release also carries a sigstore provenance attestation tying it to
+the workflow run + commit.
 
 **One-time setup** before the first run:
 
-1. Create a granular **Automation** access token at npmjs.com scoped to the
-   `@screenplay.space` org with publish access for this package.
-2. Add it to the repo as a secret named `NPM_TOKEN`
-   (Settings → Secrets and variables → Actions).
-3. Settings → Actions → General → Workflow permissions: select **Read and
-   write permissions** so the bump commit can be pushed back to `main`.
+1. **Configure Trusted Publishing on npm.** Sign in to npmjs.com → org
+   `@screenplay.space` → Trusted Publishers → **Add Trusted Publisher** with:
+   - **Package**: `@screenplay.space/knobs`
+   - **Publisher**: GitHub Actions
+   - **Repository owner**: `zschiller`
+   - **Repository**: `screenplay`
+   - **Workflow filename**: `publish-knobs.yml`
+   - **Environment name**: *(leave blank)*
+
+   You can add this rule before the package's first publish — npm allows
+   pre-registering a publisher for a not-yet-existing package name.
+
+2. **Allow Actions to push the bump commit.** GitHub repo Settings → Actions
+   → General → Workflow permissions: select **Read and write permissions**
+   so the workflow can push the version-bump commit + tag back to `main`.
 
 ## License
 

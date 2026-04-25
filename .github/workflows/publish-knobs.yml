@@ -4,12 +4,19 @@ name: Publish @screenplay.space/knobs
 # Actions UI — the workflow updates `packages/screenplay-knobs/package.json`,
 # commits + tags the bump, and publishes to npm with provenance.
 #
+# Auth: npm Trusted Publishing (OIDC). No NPM_TOKEN secret — the GitHub
+# Actions runner mints a short-lived OIDC token that npm verifies against
+# a trusted publisher rule pinned to this exact repo + workflow file.
+#
 # One-time setup:
-#  1. Create an "Automation" granular access token at npmjs.com scoped to the
-#     @screenplay.space org with publish access to @screenplay.space/knobs.
-#  2. Add it to this repo as a secret named `NPM_TOKEN`.
-#  3. (Optional) Settings → Actions → General → Workflow permissions:
-#     enable "Read and write permissions" so the bump commit can push.
+#  1. On npmjs.com → org `@screenplay.space` → Trusted Publishers → add a
+#     rule for package `@screenplay.space/knobs`:
+#       - Publisher: GitHub Actions
+#       - Repository: zschiller/screenplay
+#       - Workflow filename: publish-knobs.yml
+#       - Environment name: (leave blank)
+#  2. GitHub repo Settings → Actions → General → Workflow permissions:
+#     select "Read and write permissions" so the bump commit can push.
 
 on:
   workflow_dispatch:
@@ -61,7 +68,6 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -110,20 +116,24 @@ jobs:
           git tag "${{ steps.bump.outputs.tag }}"
           git push origin "${{ steps.bump.outputs.tag }}"
 
+      - name: Upgrade npm for Trusted Publishing
+        # Trusted Publishing (OIDC) requires npm >= 11.5.1. Node 20 still
+        # ships with npm 10.x, so install the latest stable npm explicitly
+        # before publishing.
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         working-directory: packages/screenplay-knobs
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No auth token: with Trusted Publishing, npm verifies the GitHub
+        # Actions OIDC token against the publisher rule on npmjs.com. The
+        # `id-token: write` permission above is what lets us mint that token.
+        # Provenance attestation is generated automatically when publishing
+        # via TP, but passing --provenance explicitly is harmless and makes
+        # the intent obvious.
         run: |
-          # --no-git-checks: pnpm refuses to publish from a non-clean tree by
-          #   default; the bump commit already landed, but pnpm still sees the
-          #   updated package.json as "dirty" relative to HEAD before refresh.
-          # --provenance: emits a sigstore attestation tying this publish to
-          #   this exact workflow run + commit. Requires id-token: write above.
-          pnpm publish \
+          npm publish \
             --access public \
             --tag "${{ inputs.tag }}" \
-            --no-git-checks \
             --provenance
 
       - name: Summary
