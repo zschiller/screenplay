@@ -1,8 +1,14 @@
 {
   "name": "@screenplay.space/knobs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Declare interactive knobs from a prototype that show up as live controls in the screenplay canvas.",
-  "keywords": ["screenplay", "knobs", "react", "design-tokens", "controls"],
+  "keywords": [
+    "screenplay",
+    "knobs",
+    "react",
+    "design-tokens",
+    "controls"
+  ],
   "license": "MIT",
   "homepage": "https://screenplay.space",
   "repository": {
