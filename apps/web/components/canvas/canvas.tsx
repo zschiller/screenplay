@@ -2179,8 +2179,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     </TooltipProvider>
                   )}
                   <Breadcrumb>
-                    <BreadcrumbList className="gap-1.5 text-xs sm:gap-1.5">
-                      <BreadcrumbItem>
+                    <BreadcrumbList className="gap-0 text-xs sm:gap-0">
+                      <BreadcrumbItem className="gap-0">
                         <BreadcrumbLink
                           href="/"
                           className="px-1.5 py-1 font-medium"
@@ -2192,8 +2192,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                           {parentFolderName}
                         </BreadcrumbLink>
                       </BreadcrumbItem>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
+                      <BreadcrumbSeparator className="text-muted-foreground/60">/</BreadcrumbSeparator>
+                      <BreadcrumbItem className="gap-0">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium">
