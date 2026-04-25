@@ -206,7 +206,17 @@ export function TextLayer({
       }}
     >
       <div className="relative">
-        <div style={{ pointerEvents: editing ? "auto" : "none" }}>
+        {/* react-zoom-pan-pinch's TransformComponent sets user-select: none
+            on its wrapper, which inherits down into the editor and silently
+            kills drag-selection (cursor placement still works). Re-enable
+            text selection while the layer is being edited. */}
+        <div
+          style={{
+            pointerEvents: editing ? "auto" : "none",
+            userSelect: editing ? "text" : undefined,
+            WebkitUserSelect: editing ? "text" : undefined,
+          }}
+        >
           <EditorContent editor={editor} />
         </div>
 
