@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -194,6 +194,17 @@ export function ChatPanel({
       onLogsReady?.()
     }
   }, [agent.status, onLogsReady])
+
+  // Once setup finishes (status flips from creating/starting → running), switch
+  // back from the auto-opened logs tab to the chat tab.
+  const prevStatusRef = useRef(agent.status)
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    if ((prev === "creating" || prev === "starting") && agent.status === "running") {
+      setShowLogs(false)
+    }
+    prevStatusRef.current = agent.status
+  }, [agent.status])
 
   const handleCreatePr = () => {
     if (!activeTab) return
