@@ -1,0 +1,50 @@
+{
+  "name": "@screenplay.space/knobs",
+  "version": "0.1.0",
+  "description": "Declare interactive knobs from a prototype that show up as live controls in the screenplay canvas.",
+  "keywords": ["screenplay", "knobs", "react", "design-tokens", "controls"],
+  "license": "MIT",
+  "homepage": "https://screenplay.space",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zschiller/screenplay.git",
+    "directory": "packages/screenplay-knobs"
+  },
+  "bugs": {
+    "url": "https://github.com/zschiller/screenplay/issues"
+  },
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@workspace/typescript-config": "workspace:*",
+    "react": "^19.2.4",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "tsc --noEmit"
+  }
+}

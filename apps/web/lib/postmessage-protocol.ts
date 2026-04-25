@@ -22,6 +22,7 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
+  | { type: "screenplay:knob-values"; values: JsonObject }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
@@ -40,6 +41,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:navigation"; path: string }
   | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
+  | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }
 
 export function isScreenplayMessage(
   data: unknown,
