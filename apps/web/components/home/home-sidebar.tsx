@@ -15,7 +15,6 @@ import {
 } from "lucide-react"
 import { signOut, useSession } from "@/lib/auth-client"
 import {
-  Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupAction,
@@ -29,6 +28,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarProvider,
 } from "@workspace/ui/components/sidebar"
 import {
   Collapsible,
@@ -410,7 +410,7 @@ export function HomeSidebar() {
   const hasPinned = pinnedFolderList.length + pinnedFileList.length > 0
 
   return (
-    <Sidebar collapsible="offcanvas">
+    <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -499,6 +499,6 @@ export function HomeSidebar() {
           await createFolder(name)
         }}
       />
-    </Sidebar>
+    </SidebarProvider>
   )
 }
