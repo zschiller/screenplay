@@ -6,54 +6,65 @@ description: Add interactive controls (sliders, switches, selects, color pickers
 # Skill: Adding knobs
 
 Knobs are interactive controls that show up in a popover next to the
-"interact" button at the top of an artboard. Each knob is declared from
-the prototype's own code; screenplay renders the right shadcn input for
-its declared type and syncs the value across clients via Yjs.
+"interact" button at the top of an artboard. The prototype declares
+each knob; screenplay renders the right shadcn input for its type and
+syncs the value across clients via Yjs. When the prototype runs
+outside a screenplay canvas (production builds, standalone dev, etc.)
+the knob just returns its declared default — committing knob code is
+safe.
 
 ## How to add a knob
 
-The `screenplay-knobs` package is **already installed** in this sandbox
-at `node_modules/screenplay-knobs/`. **Do not** add it to
-`package.json`, run `npm install screenplay-knobs`, or copy any helper
-file into the repo — just import it.
+1. **Make sure `@screenplay.space/knobs` is installed.** Read
+   `package.json`. If it isn't listed in `dependencies`, install it:
 
-```tsx
-import { useKnob } from "screenplay-knobs"
+   ```
+   run_command "npm" ["install", "--save", "@screenplay.space/knobs"]
+   ```
 
-export function Card() {
-  const padding = useKnob({
-    id: "card-padding",
-    type: "slider",
-    label: "Padding",
-    min: 0,
-    max: 64,
-    step: 2,
-    default: 16,
-  })
+   Skip this step if it's already there.
 
-  const showShadow = useKnob({
-    id: "card-shadow",
-    type: "boolean",
-    label: "Drop shadow",
-    default: true,
-  })
+2. **Import `useKnob` and call it.** The return value is the live value
+   of the knob.
 
-  return (
-    <div
-      style={{ padding, boxShadow: showShadow ? "0 2px 8px #0002" : "none" }}
-    >
-      …
-    </div>
-  )
-}
-```
+   ```tsx
+   import { useKnob } from "@screenplay.space/knobs"
 
-That's it. Save, commit, push. The popover picks up the new knob
-automatically — no manifest, no registration.
+   export function Card() {
+     const padding = useKnob({
+       id: "card-padding",
+       type: "slider",
+       label: "Padding",
+       min: 0,
+       max: 64,
+       step: 2,
+       default: 16,
+     })
+
+     const showShadow = useKnob({
+       id: "card-shadow",
+       type: "boolean",
+       label: "Drop shadow",
+       default: true,
+     })
+
+     return (
+       <div
+         style={{
+           padding,
+           boxShadow: showShadow ? "0 2px 8px #0002" : "none",
+         }}
+       >
+         …
+       </div>
+     )
+   }
+   ```
+
+3. **Commit and push.** The popover picks up the new knob automatically
+   — no manifest, no registration.
 
 ## Knob types
-
-Each knob declares a `type` that selects a shadcn input on the canvas:
 
 | `type`     | UI control     | Required fields                                     |
 | ---------- | -------------- | --------------------------------------------------- |
@@ -71,11 +82,10 @@ value to your component.
 
 ## Rules
 
-- **Don't add `screenplay-knobs` to `package.json`.** The package is
-  pre-installed in `node_modules/`. Adding it as a dependency would
-  break the user's repo on a clean clone.
-- **Don't write a helper file.** There is no `screenplay-knobs.ts` to
-  create or copy. Just import from `"screenplay-knobs"`.
+- **Always run `npm install --save @screenplay.space/knobs` before
+  using `useKnob` for the first time** — committing an import without
+  the dep listed in `package.json` would break the user's build on a
+  fresh clone.
 - **Stable `id`**: the canvas keys persisted values by `id`. Renaming
   an id resets the value to its `default`.
 - **Pure declarations**: `useKnob` must run on every render with the
@@ -83,5 +93,5 @@ value to your component.
 - **Functions don't cross frames**: `validator` runs only inside the
   prototype. Min/max/step/options are what the canvas's UI sees.
 - **Non-React prototype?** Use `registerKnob(def, onChange)` from the
-  same package — it runs the callback every time the value changes and
-  returns an unsubscribe function.
+  same package — it runs the callback on every value change and returns
+  an unsubscribe function.

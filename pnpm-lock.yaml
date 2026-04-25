@@ -203,6 +203,21 @@ importers:
         specifier: 16.1.7
         version: 16.1.7(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
+  packages/screenplay-knobs:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@workspace/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      react:
+        specifier: ^19.2.4
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/typescript-config: {}
 
   packages/ui:

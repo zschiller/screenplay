@@ -1,8 +1,11 @@
-// screenplay-knobs runtime helper.
+// @screenplay.space/knobs runtime helper.
 //
-// Pre-installed into the sandbox at /vercel/sandbox/node_modules/screenplay-knobs/
-// by `installKnobsRuntime` in lib/sandbox-actions.ts. Prototypes import from
-// "screenplay-knobs" directly — no copy step into the user's repo.
+// useKnob() registers a control declaration with the parent canvas (when a
+// screenplay canvas is hosting this frame) and returns the live value the
+// canvas's popover is editing. When there is no parent canvas — production
+// builds, standalone dev, anything not running inside screenplay — the hook
+// just returns the declared `default` and quietly no-ops, so prototypes
+// shipped with knobs in them keep working everywhere.
 //
 // Each useKnob() call:
 //   1. Registers the knob's definition in an in-frame map.
@@ -13,6 +16,7 @@
 import { useEffect, useSyncExternalStore } from "react"
 
 const isBrowser = typeof window !== "undefined"
+const hasParentCanvas = isBrowser && window.parent !== window
 
 const definitions = new Map()
 const values = new Map()
@@ -28,14 +32,13 @@ function stripValidator(def) {
 }
 
 function publishDeclarations() {
-  if (!isBrowser) return
+  if (!hasParentCanvas) return
   if (publishScheduled) return
   publishScheduled = true
   // Coalesce within a single tick so many useKnob calls from one render
   // post a single declaration message.
   Promise.resolve().then(() => {
     publishScheduled = false
-    if (window.parent === window) return
     const knobs = []
     for (const def of definitions.values()) knobs.push(stripValidator(def))
     window.parent.postMessage(
@@ -78,7 +81,7 @@ function applyValue(id, raw) {
   notify()
 }
 
-if (isBrowser && window.parent !== window) {
+if (hasParentCanvas) {
   window.addEventListener("message", (e) => {
     const data = e.data
     if (!data || data.type !== "screenplay:knob-values") return
@@ -117,7 +120,9 @@ const subscribe = (cb) => {
 
 export function useKnob(def) {
   // Register synchronously on first render so SSR-safe pages still work.
-  // Publication itself is gated on isBrowser inside publishDeclarations.
+  // Publication itself is gated on hasParentCanvas inside publishDeclarations,
+  // so a prototype rendered outside a screenplay frame is silent + returns the
+  // declared default forever.
   if (isBrowser) register(def)
 
   const value = useSyncExternalStore(
@@ -129,7 +134,7 @@ export function useKnob(def) {
   // Eagerly publish on mount in case the registration happened in a render
   // that bailed out before the microtask flushed.
   useEffect(() => {
-    if (isBrowser) publishDeclarations()
+    publishDeclarations()
   }, [])
 
   return value

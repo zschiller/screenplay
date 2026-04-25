@@ -347,32 +347,6 @@ export async function getBridgeVersion(): Promise<string> {
 }
 
 /**
- * Pre-install screenplay's runtime packages (currently `screenplay-knobs`)
- * into the sandbox's `node_modules/` so prototypes can `import` them by name
- * without the agent ever copying helper code into the user's repo. Idempotent
- * — runs at every dev-server start, plus on first sandbox warm-up. If
- * `npm install` later wipes `node_modules`, the next dev start re-adds them.
- */
-export async function installSandboxRuntime(
-  sandboxName: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
-    const { RUNTIME_PACKAGES } = await import("./sandbox-runtime")
-    const files = RUNTIME_PACKAGES.flatMap((pkg) =>
-      pkg.files.map((f) => ({
-        path: `node_modules/${pkg.name}/${f.path}`,
-        content: f.content,
-      })),
-    )
-    await sandbox.writeFiles(files)
-    return { success: true }
-  } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) }
-  }
-}
-
-/**
  * Kill any previously-started dev server and proxy wrapper so a relaunch
  * doesn't race the old process for the port. Idempotent — safe to call when
  * nothing is running.
@@ -422,10 +396,6 @@ async function _launchDevAndProxy(
   if (!install.success) {
     return { sandboxName: sandbox.name, previewDomain: "", status: "error", error: install.error }
   }
-  // Best-effort — a missing runtime package shouldn't block the dev server.
-  // The agent gets a clear error when it tries to import the package if this
-  // somehow fails.
-  await installSandboxRuntime(sandbox.name)
 
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
