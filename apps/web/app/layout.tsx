@@ -1,8 +1,18 @@
+import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
+
+export const metadata: Metadata = {
+  title: {
+    default: "Screenplay",
+    template: "%s · Screenplay",
+  },
+  description:
+    "Design UI on an infinite canvas. Each artboard runs a live sandbox. Collaborate in real time.",
+}
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
