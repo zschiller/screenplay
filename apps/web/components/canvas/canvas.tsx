@@ -26,6 +26,13 @@ import { useSession } from "@/lib/auth-client"
 import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@workspace/ui/components/breadcrumb"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
 import { Popover, PopoverAnchor, PopoverContent } from "@workspace/ui/components/popover"
@@ -120,7 +127,7 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; projectName: string; hasThumbnail: boolean }) {
+export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts" }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -2171,32 +2178,47 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium">
-                        {currentProjectName}
-                        <ChevronDown className="h-3 w-3 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          setRenameDraft(currentProjectName)
-                          setRenameDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => setDeleteDialogOpen(true)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Breadcrumb>
+                    <BreadcrumbList className="gap-1.5 text-xs sm:gap-1.5">
+                      <BreadcrumbItem>
+                        <BreadcrumbLink
+                          href="/"
+                          className="px-1.5 py-1 font-medium"
+                        >
+                          {parentFolderName}
+                        </BreadcrumbLink>
+                      </BreadcrumbItem>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium">
+                              {currentProjectName}
+                              <ChevronDown className="h-3 w-3 opacity-60" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setRenameDraft(currentProjectName)
+                                setRenameDialogOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() => setDeleteDialogOpen(true)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </BreadcrumbItem>
+                    </BreadcrumbList>
+                  </Breadcrumb>
                   <Dialog
                     open={renameDialogOpen}
                     onOpenChange={(next) => {
