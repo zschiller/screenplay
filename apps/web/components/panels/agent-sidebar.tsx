@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { Reorder } from "motion/react"
 import {
   FolderPlus,
   Plus,
@@ -35,9 +36,6 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
 import {
@@ -87,7 +85,7 @@ import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
-  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
+  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route" | "sidebarOrder">>
   selectedArtboardIds: Set<string>
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
@@ -108,8 +106,10 @@ interface AgentSidebarProps {
   onRenameArtboard: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
+  onReorderArtboards: (orderedIds: string[]) => void
   onCollapseSidebar?: () => void
   activeAgentIds?: Set<string>
+  chatPanelAgentId?: string | null
 }
 
 export function AgentSidebar({
@@ -136,8 +136,10 @@ export function AgentSidebar({
   onRenameArtboard,
   onRouteChange,
   onRemoveArtboard,
+  onReorderArtboards,
   onCollapseSidebar,
   activeAgentIds,
+  chatPanelAgentId,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
@@ -146,6 +148,14 @@ export function AgentSidebar({
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
   const branchPrs = useBranchPrs(agents, workspaces)
+  const sortedArtboards = useMemo(() => {
+    return [...artboards].sort((a, b) => {
+      const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
+      const bo = b.sidebarOrder ?? Number.MAX_SAFE_INTEGER
+      if (ao !== bo) return ao - bo
+      return a.id.localeCompare(b.id)
+    })
+  }, [artboards])
 
   useEffect(() => {
     let cancelled = false
@@ -326,8 +336,8 @@ export function AgentSidebar({
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
                               const isActive = activeAgentIds?.has(agent.id) ?? false
+                              const isPanelActive = chatPanelAgentId === agent.id
                               const pr = branchPrs.get(agent.id)
-                              const agentArtboards = artboards.filter((a) => a.sandboxId === agent.id)
 
                               return (
                                 <Collapsible
@@ -339,7 +349,7 @@ export function AgentSidebar({
                                   <SidebarMenuItem>
                                     <>
                                         <div
-                                          className="group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                                          className={`group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
                                           onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id, { expandPanel: false }) }}
                                           onDoubleClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                         >
@@ -348,33 +358,17 @@ export function AgentSidebar({
                                             isActive={false}
                                             title={isLoading ? (agent.statusMessage || "Starting…") : undefined}
                                           >
-                                            <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                              <span className="relative shrink-0">
-                                                {isLoading || isActive ? (
-                                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-sidebar-foreground/70" />
-                                                ) : pr?.state === "merged" ? (
-                                                  <>
-                                                    <GitMerge className="block group-hover/agent-row:hidden text-purple-600 dark:text-purple-400" />
-                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
-                                                  </>
-                                                ) : pr?.state === "open" ? (
-                                                  <>
-                                                    <GitPullRequest className="block group-hover/agent-row:hidden text-green-700 dark:text-green-300" />
-                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
-                                                  </>
-                                                ) : pr?.state === "closed" ? (
-                                                  <>
-                                                    <GitPullRequestClosed className="block group-hover/agent-row:hidden text-red-600 dark:text-red-400" />
-                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    <GitBranch className="block group-hover/agent-row:hidden text-sidebar-foreground/70" />
-                                                    <ChevronRight className="hidden group-hover/agent-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible-agent:rotate-90" />
-                                                  </>
-                                                )}
-                                              </span>
-                                            </CollapsibleTrigger>
+                                            {isLoading || isActive ? (
+                                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
+                                            ) : pr?.state === "merged" ? (
+                                              <GitMerge className="shrink-0 text-purple-600 dark:text-purple-400" />
+                                            ) : pr?.state === "open" ? (
+                                              <GitPullRequest className="shrink-0 text-green-700 dark:text-green-300" />
+                                            ) : pr?.state === "closed" ? (
+                                              <GitPullRequestClosed className="shrink-0 text-red-600 dark:text-red-400" />
+                                            ) : (
+                                              <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                                            )}
                                             {agent.branch ? (
                                               <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
                                             ) : (
@@ -460,58 +454,6 @@ export function AgentSidebar({
                                           <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
                                         )}
                                       </>
-
-                                    <CollapsibleContent>
-                                      <SidebarMenuSub>
-                                        {agentArtboards.map((ab) => (
-                                          <SidebarMenuSubItem key={ab.id}>
-                                            <div className="group/frame-row relative">
-                                              <SidebarMenuSubButton className="w-full !pr-7" isActive={selectedArtboardIds.has(ab.id)} onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }} onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}>
-                                                <Frame className="shrink-0 text-sidebar-foreground/70" />
-                                                <span className="truncate">{ab.label}</span>
-                                                <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
-                                                  <span className="truncate">{ab.route || "/"}</span>
-                                                </Badge>
-                                              </SidebarMenuSubButton>
-                                              <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                  <SidebarMenuAction
-                                                    className="!top-1 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                                                  >
-                                                    <MoreHorizontal />
-                                                  </SidebarMenuAction>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent side="right" align="start" className="w-48">
-                                                  <DropdownMenuItem onClick={() => {
-                                                    const newLabel = prompt("Rename frame", ab.label)
-                                                    if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
-                                                  }}>
-                                                    <Pencil />
-                                                    Rename
-                                                  </DropdownMenuItem>
-                                                  <DropdownMenuItem onClick={() => {
-                                                    const newRoute = prompt("Route path", ab.route || "/")
-                                                    if (newRoute != null) {
-                                                      let value = newRoute.trim() || "/"
-                                                      if (!value.startsWith("/")) value = "/" + value
-                                                      onRouteChange(ab.id, value)
-                                                    }
-                                                  }}>
-                                                    <Route />
-                                                    Change route
-                                                  </DropdownMenuItem>
-                                                  <DropdownMenuSeparator />
-                                                  <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboard(ab.id)}>
-                                                    <Trash2 />
-                                                    Delete
-                                                  </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                              </DropdownMenu>
-                                            </div>
-                                          </SidebarMenuSubItem>
-                                        ))}
-                                      </SidebarMenuSub>
-                                    </CollapsibleContent>
                                   </SidebarMenuItem>
                                 </Collapsible>
                               )
@@ -528,6 +470,88 @@ export function AgentSidebar({
             {workspaces.length === 0 && !showPicker && (
               <div className="py-8 text-center text-xs text-sidebar-foreground/50">
                 No workspaces yet
+              </div>
+            )}
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Frames</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <Reorder.Group
+              axis="y"
+              values={sortedArtboards}
+              onReorder={(items) => onReorderArtboards(items.map((a) => a.id))}
+              className="flex w-full min-w-0 flex-col gap-0"
+            >
+              {sortedArtboards.map((ab) => {
+                const frameAgent = ab.sandboxId ? agents.find((a) => a.id === ab.sandboxId) : undefined
+                return (
+                  <Reorder.Item
+                    key={ab.id}
+                    value={ab}
+                    className="group/menu-item group/frame-row relative cursor-grab active:cursor-grabbing"
+                  >
+                    <SidebarMenuButton
+                      className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
+                      isActive={selectedArtboardIds.has(ab.id)}
+                      onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}
+                      onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}
+                    >
+                      <Frame className="shrink-0 text-sidebar-foreground/70" />
+                      {frameAgent?.branch && (
+                        <BranchBadge
+                          branch={frameAgent.branch}
+                          colorKey={frameAgent.id}
+                          className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+                        />
+                      )}
+                      <span className="truncate">{ab.label}</span>
+                      <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
+                        <span className="truncate">{ab.route || "/"}</span>
+                      </Badge>
+                    </SidebarMenuButton>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuAction
+                          className="md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
+                        >
+                          <MoreHorizontal />
+                        </SidebarMenuAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="right" align="start" className="w-48">
+                        <DropdownMenuItem onClick={() => {
+                          const newLabel = prompt("Rename frame", ab.label)
+                          if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
+                        }}>
+                          <Pencil />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          const newRoute = prompt("Route path", ab.route || "/")
+                          if (newRoute != null) {
+                            let value = newRoute.trim() || "/"
+                            if (!value.startsWith("/")) value = "/" + value
+                            onRouteChange(ab.id, value)
+                          }
+                        }}>
+                          <Route />
+                          Change route
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboard(ab.id)}>
+                          <Trash2 />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </Reorder.Item>
+                )
+              })}
+            </Reorder.Group>
+            {sortedArtboards.length === 0 && (
+              <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                No frames yet
               </div>
             )}
           </SidebarGroupContent>

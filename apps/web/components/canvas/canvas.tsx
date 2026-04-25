@@ -658,6 +658,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
+  const reorderArtboards = useCallback(
+    (orderedIds: string[]) => {
+      collections.transact(() => {
+        orderedIds.forEach((id, index) => {
+          collections.artboards.update(id, { sidebarOrder: index })
+        })
+      })
+    },
+    [collections],
+  )
+
   const assignAgentToArtboard = useCallback(
     (artboardId: string, agentId: string) => {
       collections.artboards.update(artboardId, { sandboxId: agentId })
@@ -2057,8 +2068,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onRenameArtboard={renameArtboard}
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
+          onReorderArtboards={reorderArtboards}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
           activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt).map((c) => c.agentId))}
+          chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />

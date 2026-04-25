@@ -88,6 +88,8 @@ export type ArtboardData = {
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */
   knobValues?: JsonObject
+  /** Display order in the sidebar Frames list. Lower values render first. */
+  sidebarOrder?: number
 }
 
 export type TextLayerData = {
