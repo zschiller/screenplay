@@ -23,7 +23,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { useSession } from "@/lib/auth-client"
-import { ChevronDown, Crosshair, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
+import { ChevronDown, Crosshair, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
@@ -168,6 +168,9 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null)
   const [textDraft, setTextDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const textDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const [frameMode, setFrameMode] = useState(false)
+  const [frameDraft, setFrameDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -211,6 +214,8 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
   editingTextLayerIdRef.current = editingTextLayerId
   const textModeRef = useRef(textMode)
   textModeRef.current = textMode
+  const frameModeRef = useRef(frameMode)
+  frameModeRef.current = frameMode
   const removeArtboardsRef = useRef<(ids: string[]) => void>(() => {})
   const removeTextLayersRef = useRef<(ids: string[]) => void>(() => {})
 
@@ -229,6 +234,10 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         }
         if (textModeRef.current) {
           setTextMode(false)
+          return
+        }
+        if (frameModeRef.current) {
+          setFrameMode(false)
           return
         }
         if (pickMode || inspectNote) {
@@ -252,6 +261,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         setInspectNote(null)
         setInspectHover(null)
         setTextMode(false)
+        setFrameMode(false)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
@@ -260,6 +270,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         setInspectNote(null)
         setInspectHover(null)
         setTextMode(false)
+        setFrameMode(false)
       }
       if (e.key === "i" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setPickMode((m) => !m)
@@ -268,9 +279,20 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         setCommentMode(false)
         setNewCommentPos(null)
         setTextMode(false)
+        setFrameMode(false)
       }
       if (e.key === "t" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setTextMode((m) => !m)
+        setCommentMode(false)
+        setNewCommentPos(null)
+        setPickMode(false)
+        setInspectNote(null)
+        setInspectHover(null)
+        setFrameMode(false)
+      }
+      if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+        setFrameMode((m) => !m)
+        setTextMode(false)
         setCommentMode(false)
         setNewCommentPos(null)
         setPickMode(false)
@@ -361,6 +383,8 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
   const agents = useAgents()
 
   const diffStats = useDiffStats(agents, workspaces)
+
+  const runningAgents = useMemo(() => agents.filter((a) => a.status === "running"), [agents])
 
   const chatSessions = useChatSessions()
   const savedViewport = useSavedViewport()
@@ -493,6 +517,24 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
     [collections, getViewportCenter],
   )
 
+  /** Add an empty frame not associated with any agent/branch/route. */
+  const addFrame = useCallback(
+    (x: number, y: number, width: number, height: number): string => {
+      const id = nanoid()
+      collections.artboards.set(id, {
+        id,
+        x,
+        y,
+        width: Math.max(320, width),
+        height: Math.max(200, height),
+        label: "Frame",
+        iframeState: {},
+      })
+      return id
+    },
+    [collections],
+  )
+
   const addArtboardsForRoutes = useCallback(
     (agentId: string, routes: { route: string; label: string }[]): string[] => {
       const agent = collections.agents.get(agentId)
@@ -605,6 +647,13 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
   const updateArtboardRoute = useCallback(
     (id: string, route: string) => {
       collections.artboards.update(id, { route })
+    },
+    [collections],
+  )
+
+  const assignAgentToArtboard = useCallback(
+    (artboardId: string, agentId: string) => {
+      collections.artboards.update(artboardId, { sandboxId: agentId })
     },
     [collections],
   )
@@ -1576,6 +1625,16 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         return
       }
 
+      // Frame tool: start a draft rectangle (click for default size, drag for custom)
+      if (frameMode) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        frameDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
+        setFrameDraft(frameDraftRef.current)
+        e.currentTarget.setPointerCapture(e.pointerId)
+        return
+      }
+
       if (commentMode || pickMode) return
       // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
       const wrapperRect = e.currentTarget.getBoundingClientRect()
@@ -1597,7 +1656,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, pickMode, focusedArtboardId, textMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds],
+    [spaceHeld, commentMode, pickMode, focusedArtboardId, textMode, frameMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -1609,6 +1668,16 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         const next = { ...textDraftRef.current, currentX: canvas.x, currentY: canvas.y }
         textDraftRef.current = next
         setTextDraft(next)
+        return
+      }
+
+      // Frame-tool draft tracking
+      if (frameDraftRef.current) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const next = { ...frameDraftRef.current, currentX: canvas.x, currentY: canvas.y }
+        frameDraftRef.current = next
+        setFrameDraft(next)
         return
       }
 
@@ -1694,6 +1763,35 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         return
       }
 
+      // Frame-tool: release creates a new empty frame
+      if (frameDraftRef.current) {
+        const d = frameDraftRef.current
+        frameDraftRef.current = null
+        setFrameDraft(null)
+        const dx = d.currentX - d.startX
+        const dy = d.currentY - d.startY
+        let x: number
+        let y: number
+        let w: number
+        let h: number
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+          w = DEFAULT_ARTBOARD_WIDTH
+          h = DEFAULT_ARTBOARD_HEIGHT
+          x = d.startX - w / 2
+          y = d.startY - h / 2
+        } else {
+          x = Math.min(d.startX, d.currentX)
+          y = Math.min(d.startY, d.currentY)
+          w = Math.abs(dx)
+          h = Math.abs(dy)
+        }
+        const id = addFrame(x, y, w, h)
+        setFrameMode(false)
+        setSelectedTextLayerIds(new Set())
+        setSelectedArtboardIds(new Set([id]))
+        return
+      }
+
       if (!marqueeRef.current) return
       const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
@@ -1711,7 +1809,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
         }
       }
     },
-    [screenToCanvas, addTextLayer],
+    [screenToCanvas, addTextLayer, addFrame],
   )
 
   // Click on artboard to select
@@ -1964,7 +2062,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : commentMode || pickMode ? "crosshair" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode || pickMode ? "crosshair" : undefined }}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
                 handlePointerMove(e)
@@ -2051,7 +2149,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                 >
 
                   {artboards.map((artboard) => {
-                    const agentInfo = agentDomains[artboard.sandboxId]
+                    const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
                     return (
                       <Artboard
                         key={artboard.id}
@@ -2079,6 +2177,8 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                         pickMode={pickMode}
                         onPicked={handleInspectPicked}
                         onHover={handleInspectHover}
+                        assignableAgents={runningAgents}
+                        onAssignAgent={assignAgentToArtboard}
                       />
                     )
                   })}
@@ -2135,6 +2235,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                 textLayers={textLayers}
                 marquee={marquee}
                 textDraft={textDraft}
+                frameDraft={frameDraft}
                 othersSelections={othersSelections}
                 hideResizeHandles={pickMode}
                 inspectRect={(() => {
@@ -2267,7 +2368,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !pickMode && !textMode ? "default" : "ghost"}
+                          variant={!commentMode && !pickMode && !textMode && !frameMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
@@ -2276,6 +2377,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                             setInspectNote(null)
                             setInspectHover(null)
                             setTextMode(false)
+                            setFrameMode(false)
                           }}
                         >
                           <MousePointer2 className="h-3.5 w-3.5" />
@@ -2283,6 +2385,28 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         Select <Kbd>V</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={frameMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setFrameMode((m) => !m)
+                            setTextMode(false)
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                            setPickMode(false)
+                            setInspectNote(null)
+                            setInspectHover(null)
+                          }}
+                        >
+                          <Frame className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Frame <Kbd>F</Kbd>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -2297,6 +2421,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                             setPickMode(false)
                             setInspectNote(null)
                             setInspectHover(null)
+                            setFrameMode(false)
                           }}
                         >
                           <Type className="h-3.5 w-3.5" />
@@ -2318,6 +2443,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setTextMode(false)
+                            setFrameMode(false)
                           }}
                         >
                           <Crosshair className="h-3.5 w-3.5" />
@@ -2339,6 +2465,7 @@ export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; 
                             setInspectNote(null)
                             setInspectHover(null)
                             setTextMode(false)
+                            setFrameMode(false)
                           }}
                         >
                           <MessageSquare className="h-3.5 w-3.5" />

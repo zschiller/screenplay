@@ -115,7 +115,7 @@ export default async function RenderPage({
   const { artboards, textLayers } = await readRoomDoc(roomId, (c) => {
     const agents = c.agents.toMap()
     const arts: RenderArtboard[] = c.artboards.toArray().map((a) => {
-      const agent = agents.get(a.sandboxId)
+      const agent = a.sandboxId ? agents.get(a.sandboxId) : undefined
       const previewDomain = agent?.previewDomain
       return {
         id: a.id,
