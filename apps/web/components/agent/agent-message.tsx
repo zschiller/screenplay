@@ -15,6 +15,7 @@ import {
   GitPullRequest,
   ExternalLink,
   Loader2,
+  Sparkles,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -27,6 +28,7 @@ const toolIcons: Record<string, typeof FileText> = {
   run_command: Terminal,
   list_files: FolderOpen,
   create_pr: GitPullRequest,
+  read_skill: Sparkles,
 }
 
 const toolLabels: Record<string, string> = {
@@ -36,6 +38,7 @@ const toolLabels: Record<string, string> = {
   run_command: "Run command",
   list_files: "List files",
   create_pr: "Create PR",
+  read_skill: "Read skill",
 }
 
 function formatToolName(name: string): string {
@@ -129,11 +132,13 @@ function ToolIndicator({
   const input = message.input as Record<string, unknown>
   const path = input.path
   const isRunCommand = message.name === "run_command"
+  const isReadSkill = message.name === "read_skill"
   const command = isRunCommand
     ? [input.command, ...((input.args as string[] | undefined) ?? [])]
         .filter(Boolean)
         .join(" ")
     : null
+  const skillName = isReadSkill ? (input.name as string | undefined) : null
 
   return (
     <button
@@ -146,6 +151,8 @@ function ToolIndicator({
           {formatToolName(message.name)}
           {isRunCommand && command ? (
             <> <code className="font-mono text-[11px] align-baseline">{command}</code></>
+          ) : isReadSkill && skillName ? (
+            ` ${skillName}`
           ) : path ? (
             ` ${String(path)}`
           ) : null}
