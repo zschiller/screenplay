@@ -57,7 +57,7 @@ import { FollowingToolbar } from "./following-toolbar"
 import type { PickResult } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
-import type { JsonObject } from "@/lib/postmessage-protocol"
+import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import {
@@ -617,6 +617,20 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const updateArtboardScroll = useCallback(
     (id: string, scrollX: number, scrollY: number) => {
       collections.artboards.update(id, { scrollX, scrollY })
+    },
+    [collections],
+  )
+
+  const updateArtboardKnobs = useCallback(
+    (id: string, knobs: JsonValue[]) => {
+      collections.artboards.update(id, { knobs })
+    },
+    [collections],
+  )
+
+  const updateArtboardKnobValues = useCallback(
+    (id: string, knobValues: JsonObject) => {
+      collections.artboards.update(id, { knobValues })
     },
     [collections],
   )
@@ -2056,6 +2070,8 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
                         onStateChanged={updateArtboardState}
                         onRouteChange={updateArtboardRoute}
                         onScrollChange={updateArtboardScroll}
+                        onKnobsDeclared={updateArtboardKnobs}
+                        onKnobValuesChange={updateArtboardKnobValues}
                         multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                         spaceHeld={spaceHeld}
                         pickMode={pickMode}

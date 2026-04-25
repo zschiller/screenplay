@@ -39,6 +39,10 @@ IMPORTANT run_command rules:
 Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 
+Skills:
+You have access to a skill library that documents screenplay-specific features. Call read_skill with a skill name to get instructions and any helper code you need to copy in. Available skills:
+- "knobs": add interactive controls (sliders, switches, selects, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use this whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
+
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
 
 Keep your responses concise. Show the user what you changed and why.`
@@ -189,9 +193,26 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
       },
     },
   },
+  {
+    type: "custom",
+    name: "read_skill",
+    description:
+      "Read a screenplay skill — instructions plus any helper source code for using a screenplay-specific feature. Call this before using a feature you're not sure how to wire up. Returns markdown.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "Skill name. Currently available: 'knobs' (adding interactive controls visible in the artboard's knobs popover).",
+        },
+      },
+      required: ["name"],
+    },
+  },
 ]
 
-const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v3"
+const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v4"
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"

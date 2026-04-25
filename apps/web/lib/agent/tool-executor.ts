@@ -12,10 +12,12 @@ import type {
   RunCommandInput,
   ListFilesInput,
   CreatePrInput,
+  ReadSkillInput,
 } from "./types"
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import { getSkill, SKILL_NAMES } from "@/lib/skills"
 
 export interface ToolContext {
   sandboxName: string
@@ -57,6 +59,9 @@ export async function executeCustomTool(
     }
     case "create_pr":
       result = await createPr(ctx, toolInput as unknown as CreatePrInput)
+      break
+    case "read_skill":
+      result = readSkill(toolInput as unknown as ReadSkillInput)
       break
     default:
       result = `Unknown tool: ${toolName}`
@@ -214,6 +219,12 @@ async function runCommand(
   }
   parts.push(`exit code: ${result.exitCode}`)
   return parts.join("\n\n")
+}
+
+function readSkill(input: ReadSkillInput): string {
+  const content = getSkill(input.name)
+  if (content) return content
+  return `Unknown skill: "${input.name}". Available skills: ${SKILL_NAMES.join(", ")}.`
 }
 
 async function listFiles(
