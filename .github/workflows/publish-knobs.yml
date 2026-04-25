@@ -2,7 +2,9 @@ name: Publish @screenplay.space/knobs
 
 # Manual release for the knobs runtime package. Pick a bump in the GitHub
 # Actions UI — the workflow updates `packages/screenplay-knobs/package.json`,
-# commits + tags the bump, and publishes to npm with provenance.
+# publishes to npm via Trusted Publishing, drops a git tag, and opens a PR
+# to merge the version bump into `main`. You merge the PR (one click) and
+# `main` catches up.
 #
 # Auth: npm Trusted Publishing (OIDC). No NPM_TOKEN secret — the GitHub
 # Actions runner mints a short-lived OIDC token that npm verifies against
@@ -16,13 +18,14 @@ name: Publish @screenplay.space/knobs
 #       - Workflow filename: publish-knobs.yml
 #       - Environment name: (leave blank)
 #  2. GitHub repo Settings → Actions → General → Workflow permissions:
-#     select "Read and write permissions" so the bump commit can push.
+#     select "Read and write permissions" so the workflow can push the
+#     release branch and open a PR.
 
 on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Bump keyword (patch | minor | major | prerelease) or an explicit semver like 0.1.0. Use 'none' to publish the version already in package.json (e.g. for the first publish)."
+        description: "Bump keyword (patch | minor | major | prerelease) or an explicit semver like 0.2.0. Use 'none' to publish the version already in package.json (e.g. for the first publish via this workflow)."
         required: true
         default: "patch"
         type: string
@@ -37,8 +40,9 @@ on:
           - beta
 
 permissions:
-  contents: write       # for the bump commit + tag push
-  id-token: write       # for npm provenance attestation
+  contents: write        # for pushing the release branch + git tag
+  pull-requests: write   # for opening the bump PR
+  id-token: write        # for npm Trusted Publishing OIDC
 
 concurrency:
   group: publish-knobs
@@ -52,10 +56,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Need full history so the bump commit pushes cleanly.
+          # Need full history so the release branch pushes cleanly.
           fetch-depth: 0
-          # Use the workflow's own token so the bump commit + tag push are
-          # authorized; falls back to GITHUB_TOKEN by default.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
@@ -75,6 +77,21 @@ jobs:
       - name: Typecheck
         run: pnpm --filter @screenplay.space/knobs typecheck
 
+      - name: Drift check
+        # If main's package.json is behind the latest publish, the next bump
+        # would race with an existing version on npm. Refuse early with a
+        # clear message so the maintainer can merge the outstanding bump PR
+        # first.
+        working-directory: packages/screenplay-knobs
+        run: |
+          ON_DISK=$(node -p "require('./package.json').version")
+          ON_NPM=$(npm view @screenplay.space/knobs version 2>/dev/null || echo "")
+          if [ -n "$ON_NPM" ] && [ "$ON_DISK" != "$ON_NPM" ]; then
+            echo "::error::main has package.json @ $ON_DISK but npm latest is $ON_NPM."
+            echo "::error::Merge the outstanding release PR (or sync the file) before bumping again."
+            exit 1
+          fi
+
       - name: Configure git identity
         run: |
           git config user.name  "screenplay-release[bot]"
@@ -85,12 +102,13 @@ jobs:
         working-directory: packages/screenplay-knobs
         run: |
           if [ "${{ inputs.bump }}" = "none" ]; then
-            # Publish the version already on disk — first publishes, or
-            # when the version was bumped in a separate PR.
+            # Publish the version already on disk — used for the first
+            # publish via this workflow when package.json is already at
+            # the desired version.
             NEW_VERSION=$(node -p "require('./package.json').version")
           else
             # `npm version` accepts patch|minor|major|prerelease *and* an
-            # explicit semver string, so a single call covers both forms.
+            # explicit semver string, so one call covers both forms.
             # --no-git-tag-version skips npm's own tag — we tag manually
             # below using the package-name-prefixed format.
             NEW_VERSION=$(npm version "${{ inputs.bump }}" --no-git-tag-version)
@@ -98,21 +116,21 @@ jobs:
           fi
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=screenplay-knobs-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=release/screenplay-knobs-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit + tag bump
+      - name: Commit bump on a release branch
         if: inputs.bump != 'none'
         run: |
+          git checkout -b "${{ steps.bump.outputs.branch }}"
           git add packages/screenplay-knobs/package.json
           git commit -m "Release @screenplay.space/knobs ${{ steps.bump.outputs.version }}"
-          git tag "${{ steps.bump.outputs.tag }}"
-          git push origin HEAD:main
-          git push origin "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.branch }}"
 
-      - name: Tag existing version
-        if: inputs.bump == 'none'
+      - name: Tag the published commit
         run: |
-          # No bump commit, but still drop a release tag pointing at the
-          # commit that's being published.
+          # Tag whichever commit we're about to publish from — the release
+          # branch tip if we bumped, otherwise main HEAD. Tags don't go
+          # through branch protection, so this push is always allowed.
           git tag "${{ steps.bump.outputs.tag }}"
           git push origin "${{ steps.bump.outputs.tag }}"
 
@@ -125,16 +143,23 @@ jobs:
       - name: Publish to npm
         working-directory: packages/screenplay-knobs
         # No auth token: with Trusted Publishing, npm verifies the GitHub
-        # Actions OIDC token against the publisher rule on npmjs.com. The
-        # `id-token: write` permission above is what lets us mint that token.
-        # Provenance attestation is generated automatically when publishing
-        # via TP, but passing --provenance explicitly is harmless and makes
-        # the intent obvious.
+        # Actions OIDC token against the publisher rule on npmjs.com.
         run: |
           npm publish \
             --access public \
             --tag "${{ inputs.tag }}" \
             --provenance
+
+      - name: Open bump PR
+        if: inputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.bump.outputs.branch }}" \
+            --title "Release @screenplay.space/knobs ${{ steps.bump.outputs.version }}" \
+            --body "Automated bump from \`${{ github.workflow }}\`. The version is **already published to npm** ([${{ steps.bump.outputs.version }}](https://www.npmjs.com/package/@screenplay.space/knobs/v/${{ steps.bump.outputs.version }})) and tagged as \`${{ steps.bump.outputs.tag }}\` — merging this PR just brings \`main\`'s \`package.json\` in sync. Squash- or merge-commit either works."
 
       - name: Summary
         run: |
@@ -143,6 +168,9 @@ jobs:
             echo ""
             echo "- **Version**: \`${{ steps.bump.outputs.version }}\`"
             echo "- **dist-tag**: \`${{ inputs.tag }}\`"
-            echo "- **Tag**: \`${{ steps.bump.outputs.tag }}\`"
+            echo "- **Git tag**: \`${{ steps.bump.outputs.tag }}\`"
             echo "- **npm**: https://www.npmjs.com/package/@screenplay.space/knobs/v/${{ steps.bump.outputs.version }}"
+            if [ "${{ inputs.bump }}" != "none" ]; then
+              echo "- **Bump PR**: pushed to \`${{ steps.bump.outputs.branch }}\` — merge it to update \`main\`."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
