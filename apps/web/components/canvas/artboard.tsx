@@ -10,6 +10,7 @@ import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import { KnobsPopover } from "./knobs-popover"
+import type { AgentData } from "@/lib/liveblocks.types"
 import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
@@ -30,7 +31,7 @@ const reinstalledSandboxes = new Set<string>()
 
 export interface ArtboardData {
   id: string
-  sandboxId: string
+  sandboxId?: string
   x: number
   y: number
   width: number
@@ -67,6 +68,9 @@ interface ArtboardProps {
   pickMode: boolean
   onPicked: (artboardId: string, sandboxId: string, pick: PickResult) => void
   onHover: (artboardId: string, rect: DomRect | null) => void
+  /** Running agents the user can assign to an empty (unassigned) frame. */
+  assignableAgents?: AgentData[]
+  onAssignAgent?: (artboardId: string, agentId: string) => void
 }
 
 export function Artboard({
@@ -90,6 +94,8 @@ export function Artboard({
   pickMode,
   onPicked,
   onHover,
+  assignableAgents,
+  onAssignAgent,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -162,6 +168,7 @@ export function Artboard({
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
+      if (!artboard.sandboxId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
       if (reinstalledSandboxes.has(artboard.sandboxId)) return
@@ -291,38 +298,42 @@ export function Artboard({
         artboardWidth={artboard.width}
         dragHandlers={focused ? undefined : dragHandlers}
         hmrStatus={hmrStatus}
+        assignableAgents={assignableAgents}
+        onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(artboard.id, agentId) : undefined}
       />
-      <div
-        className="absolute right-0 bottom-full z-10 flex items-center gap-1"
-        style={{
-          transform: `scale(${1 / zoom})`,
-          transformOrigin: "bottom right",
-          marginBottom: 4 / zoom,
-        }}
-      >
-        {hmrStatus === "disconnected" && (
-          <Button size="xs" onClick={reloadIframe}>
-            <RotateCw />
-            Reload
-          </Button>
-        )}
-        <KnobsPopover
-          knobs={artboard.knobs}
-          values={artboard.knobValues}
-          onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
-        />
-        <button
-          onClick={() => onFocus(focused ? null : artboard.id)}
-          className={`flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
-          title={focused ? "Back to canvas mode" : "Interact with app"}
+      {artboard.sandboxId && (
+        <div
+          className="absolute right-0 bottom-full z-10 flex items-center gap-1"
+          style={{
+            transform: `scale(${1 / zoom})`,
+            transformOrigin: "bottom right",
+            marginBottom: 4 / zoom,
+          }}
         >
-          {focused ? (
-            <Move className="h-3 w-3" />
-          ) : (
-            <MousePointer className="h-3 w-3" />
+          {hmrStatus === "disconnected" && (
+            <Button size="xs" onClick={reloadIframe}>
+              <RotateCw />
+              Reload
+            </Button>
           )}
-        </button>
-      </div>
+          <KnobsPopover
+            knobs={artboard.knobs}
+            values={artboard.knobValues}
+            onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
+          />
+          <button
+            onClick={() => onFocus(focused ? null : artboard.id)}
+            className={`flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}
+            title={focused ? "Back to canvas mode" : "Interact with app"}
+          >
+            {focused ? (
+              <Move className="h-3 w-3" />
+            ) : (
+              <MousePointer className="h-3 w-3" />
+            )}
+          </button>
+        </div>
+      )}
       <div
         className="relative h-full w-full overflow-hidden"
       >
@@ -336,17 +347,13 @@ export function Artboard({
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
-            {desiredSrc ? (
+            {desiredSrc && (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
                 <span className="text-xs text-muted-foreground">
                   Waiting for dev server...
                 </span>
               </>
-            ) : (
-              <span className="text-sm text-muted-foreground">
-                {artboard.label}
-              </span>
             )}
           </div>
         )}
@@ -369,6 +376,7 @@ export function Artboard({
                   onClickCapture: async (e: React.MouseEvent) => {
                     e.preventDefault()
                     e.stopPropagation()
+                    if (!artboard.sandboxId) return
                     const result = await queryElementAtPoint(e.clientX, e.clientY)
                     if (result) onPicked(artboard.id, artboard.sandboxId, result)
                   },

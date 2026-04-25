@@ -73,7 +73,8 @@ export type PlanData = {
 
 export type ArtboardData = {
   id: string
-  sandboxId: string
+  /** Undefined for empty frames not yet associated with an agent. */
+  sandboxId?: string
   x: number
   y: number
   width: number
