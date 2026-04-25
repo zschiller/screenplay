@@ -2196,7 +2196,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                       <BreadcrumbItem className="gap-0">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium">
+                            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium text-foreground">
                               {currentProjectName}
                               <ChevronDown className="h-3 w-3 opacity-60" />
                             </Button>
