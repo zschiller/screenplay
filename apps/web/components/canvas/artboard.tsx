@@ -145,6 +145,10 @@ export function Artboard({
   // navigation and should not reload the iframe.
   const reportedPathRef = useRef<string | null>(null)
 
+  // Track the iframeUrl applied last so we can distinguish a branch switch
+  // (host change) from a route-only change.
+  const lastIframeUrlRef = useRef<string | undefined>(artboard.iframeUrl)
+
   const handleNavigation = useCallback(
     (id: string, path: string) => {
       reportedPathRef.current = path
@@ -241,9 +245,19 @@ export function Artboard({
   useEffect(() => {
     if (!artboard.iframeUrl) {
       setIframeSrc(undefined)
+      lastIframeUrlRef.current = undefined
       return
     }
     const route = artboard.route ?? ""
+    const urlChanged = lastIframeUrlRef.current !== artboard.iframeUrl
+    if (urlChanged) {
+      // Branch switch: force a reload onto the new host even if the route
+      // matches what the previous iframe last reported.
+      lastIframeUrlRef.current = artboard.iframeUrl
+      reportedPathRef.current = null
+      setIframeSrc(artboard.iframeUrl + route)
+      return
+    }
     if (route === reportedPathRef.current) return
     setIframeSrc(artboard.iframeUrl + route)
   }, [artboard.iframeUrl, artboard.route])
