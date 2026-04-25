@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { SlidersHorizontal } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
 import {
   Popover,
   PopoverContent,
@@ -53,12 +54,9 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
-          className="flex h-5 w-5 items-center justify-center rounded-sm border border-border bg-background text-muted-foreground transition-colors hover:bg-muted"
-          title="Adjust knobs"
-        >
-          <SlidersHorizontal className="h-3 w-3" />
-        </button>
+        <Button size="icon-xs" variant="outline" title="Adjust knobs">
+          <SlidersHorizontal />
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={6} className="w-72 gap-3">
         {defs.length === 0 ? (
