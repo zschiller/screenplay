@@ -2,11 +2,11 @@ import type { JsonValue } from "@/lib/postmessage-protocol"
 
 /**
  * Standard knob control types. Each maps to a shadcn component on the
- * screenplay side and to an input shape the prototype produces. The agent
- * declares knobs by writing `useKnob({...})` calls in the prototype's code;
- * the helper file (see `lib/skills/knobs/helper.tsx`) posts the declarations
- * up to the canvas via `screenplay:knobs-declared`, and value updates flow
- * back via `screenplay:knob-values`.
+ * screenplay side and to an input shape the prototype produces. Prototypes
+ * declare knobs by calling `useKnob({...})` from the pre-installed
+ * `screenplay-knobs` package (source at `lib/sandbox-runtime/knobs/`); that
+ * helper posts declarations to the canvas via `screenplay:knobs-declared`,
+ * and value updates flow back via `screenplay:knob-values`.
  */
 
 export type KnobSelectOption = { value: string; label?: string }

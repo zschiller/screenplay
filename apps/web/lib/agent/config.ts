@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { kv } from "@/lib/kv"
+import { getSkillIndex, SKILLS_HASH } from "@/lib/skills"
 
 let clientInstance: Anthropic | null = null
 
@@ -10,7 +11,7 @@ export function getClient(): Anthropic {
   return clientInstance
 }
 
-export const AGENT_SYSTEM_PROMPT = `You are a skilled UI developer working inside a live development sandbox. You can read, write, and edit files, and run shell commands in the project.
+const AGENT_SYSTEM_PROMPT_BASE = `You are a skilled UI developer working inside a live development sandbox. You can read, write, and edit files, and run shell commands in the project.
 
 When the user asks you to make changes:
 1. First read relevant files to understand the current code
@@ -37,15 +38,40 @@ IMPORTANT run_command rules:
 - For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
 Opening a pull request:
-When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
+When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.`
 
-Skills:
-You have access to a skill library that documents screenplay-specific features. Call read_skill with a skill name to get instructions and any helper code you need to copy in. Available skills:
-- "knobs": add interactive controls (sliders, switches, selects, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use this whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
+const AGENT_SYSTEM_PROMPT_TAIL = `
 
 The project is a Node.js app running on port 3000 with \`npm run dev\`. The preview updates automatically when you save files.
 
 Keep your responses concise. Show the user what you changed and why.`
+
+/**
+ * Build the agent's system prompt with the live skill index baked in.
+ * Each skill contributes its name + description so Claude can recognize when
+ * one applies and call \`read_skill(name)\` to load the full instructions —
+ * the same metadata-then-body progressive disclosure native Anthropic skills
+ * use, just routed through our custom tool. Editing or adding a SKILL.md
+ * automatically rolls the agent (see SKILLS_HASH).
+ */
+export function buildAgentSystemPrompt(): string {
+  const skills = getSkillIndex()
+  if (skills.length === 0) {
+    return AGENT_SYSTEM_PROMPT_BASE + AGENT_SYSTEM_PROMPT_TAIL
+  }
+  const lines = [
+    "",
+    "",
+    "Skills available:",
+    "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
+    "",
+    ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+  ]
+  return AGENT_SYSTEM_PROMPT_BASE + lines.join("\n") + AGENT_SYSTEM_PROMPT_TAIL
+}
+
+/** Back-compat export — callers that imported the old constant get the live build. */
+export const AGENT_SYSTEM_PROMPT: string = buildAgentSystemPrompt()
 
 export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
   {
@@ -197,14 +223,14 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
     type: "custom",
     name: "read_skill",
     description:
-      "Read a screenplay skill — instructions plus any helper source code for using a screenplay-specific feature. Call this before using a feature you're not sure how to wire up. Returns markdown.",
+      "Load the full instructions for a skill listed in your skills index. Returns markdown — read it carefully before making changes. Use this whenever a user request matches a skill's description; do not guess at the implementation.",
     input_schema: {
       type: "object" as const,
       properties: {
         name: {
           type: "string",
           description:
-            "Skill name. Currently available: 'knobs' (adding interactive controls visible in the artboard's knobs popover).",
+            "The skill's name as listed in the skills index in your system prompt.",
         },
       },
       required: ["name"],
@@ -213,12 +239,21 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
 ]
 
 const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v4"
+
+/**
+ * Cache key includes the skills hash so editing a SKILL.md auto-rolls the
+ * agent — the next request loads (or creates) an agent whose system prompt
+ * matches the on-disk skill metadata.
+ */
+function agentCacheKey(model: string): string {
+  return `${AGENT_CACHE_KEY_PREFIX}:${model}:${SKILLS_HASH}`
+}
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
 
 export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Promise<string> {
-  const cacheKey = `${AGENT_CACHE_KEY_PREFIX}:${model}`
+  const cacheKey = agentCacheKey(model)
   const cached = await kv.get<string>(cacheKey)
   if (cached) return cached
 
@@ -226,7 +261,7 @@ export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Pro
   const agent = await client.beta.agents.create({
     name: `Screenplay Editor (${model})`,
     model,
-    system: AGENT_SYSTEM_PROMPT,
+    system: buildAgentSystemPrompt(),
     tools: AGENT_TOOLS,
   })
 

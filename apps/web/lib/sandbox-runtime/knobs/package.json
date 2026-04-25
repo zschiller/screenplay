@@ -1,0 +1,18 @@
+{
+  "name": "screenplay-knobs",
+  "version": "0.0.0",
+  "description": "Runtime helper for declaring screenplay knobs from a sandboxed prototype.",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "peerDependencies": {
+    "react": ">=17"
+  }
+}

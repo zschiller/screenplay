@@ -17,7 +17,7 @@ import type {
 import { redactSensitiveInfo } from "./redact"
 import { createGitHubPr } from "@/lib/github-pr"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { getSkill, SKILL_NAMES } from "@/lib/skills"
+import { getSkill, getSkillIndex } from "@/lib/skills"
 
 export interface ToolContext {
   sandboxName: string
@@ -224,7 +224,10 @@ async function runCommand(
 function readSkill(input: ReadSkillInput): string {
   const content = getSkill(input.name)
   if (content) return content
-  return `Unknown skill: "${input.name}". Available skills: ${SKILL_NAMES.join(", ")}.`
+  const available = getSkillIndex()
+    .map((s) => `- ${s.name}: ${s.description}`)
+    .join("\n")
+  return `Unknown skill: "${input.name}". Available skills:\n${available || "(none)"}`
 }
 
 async function listFiles(

@@ -1,47 +1,143 @@
-import { readFileSync } from "node:fs"
+import { readFileSync, readdirSync, statSync } from "node:fs"
+import { createHash } from "node:crypto"
 import { join } from "node:path"
 
 /**
- * Skills are markdown files that teach the agent how to use a particular
- * screenplay-side feature. They're loaded from disk at module-init time,
- * stitched together with whatever helper-file source they reference, and
- * served to the agent via the `read_skill` tool.
+ * Skills are markdown documents that teach the agent how to use a particular
+ * screenplay-side feature. Each lives at `lib/skills/<name>/SKILL.md` and
+ * starts with YAML-style frontmatter declaring its name + description:
  *
- * To add a new skill:
- *  1. Create `lib/skills/<name>/SKILL.md`.
- *  2. (Optional) Drop helper source files alongside it; reference them
- *     from the markdown using `{{HELPER_SOURCE}}` etc. and wire up the
- *     substitution below.
- *  3. Add the name to `SKILL_NAMES` and `loadSkill`.
+ *   ---
+ *   name: knobs
+ *   description: Add interactive controls that ...
+ *   ---
+ *
+ * `getSkillIndex()` returns the metadata for every skill on disk; the agent's
+ * system prompt injects this list at create time so Claude discovers skills
+ * the same way it would with native Anthropic-managed skills. `getSkill(name)`
+ * returns the full body, served to the agent via the `read_skill` custom tool
+ * when it decides a skill is relevant.
+ *
+ * To add a skill: drop a `lib/skills/<name>/SKILL.md` with frontmatter. No
+ * registration code needed.
  */
 
 const dir = join(process.cwd(), "lib", "skills")
 
-function loadFile(name: string, file: string): string {
-  return readFileSync(join(dir, name, file), "utf8")
+export interface SkillMetadata {
+  name: string
+  description: string
 }
 
-function loadKnobsSkill(): string {
-  const md = loadFile("knobs", "SKILL.md")
-  const helper = loadFile("knobs", "helper.tsx")
-  return md.replace("{{HELPER_SOURCE}}", helper)
+interface LoadedSkill {
+  metadata: SkillMetadata
+  body: string
+  /** Raw on-disk content — used for cache-busting the agent when skills change. */
+  rawSource: string
 }
 
-const SKILLS: Record<string, () => string> = {
-  knobs: loadKnobsSkill,
+const skills = loadAllSkills()
+
+function loadAllSkills(): Map<string, LoadedSkill> {
+  const out = new Map<string, LoadedSkill>()
+  let entries: string[]
+  try {
+    entries = readdirSync(dir)
+  } catch {
+    return out
+  }
+
+  for (const entry of entries) {
+    const skillDir = join(dir, entry)
+    let stat
+    try {
+      stat = statSync(skillDir)
+    } catch {
+      continue
+    }
+    if (!stat.isDirectory()) continue
+    const skill = loadSkillFromDir(skillDir)
+    if (!skill) continue
+    if (skill.metadata.name !== entry) {
+      throw new Error(
+        `Skill at ${skillDir} declares name="${skill.metadata.name}" but lives in directory "${entry}". Names must match.`,
+      )
+    }
+    out.set(skill.metadata.name, skill)
+  }
+  return out
 }
 
-export const SKILL_NAMES = Object.keys(SKILLS)
+function loadSkillFromDir(skillDir: string): LoadedSkill | null {
+  const skillMd = join(skillDir, "SKILL.md")
+  let raw: string
+  try {
+    raw = readFileSync(skillMd, "utf8")
+  } catch {
+    return null
+  }
+  const { metadata, body } = parseFrontmatter(raw, skillMd)
+  return { metadata, body, rawSource: raw }
+}
 
-const cache = new Map<string, string>()
+function parseFrontmatter(
+  raw: string,
+  origin: string,
+): { metadata: SkillMetadata; body: string } {
+  const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
+  if (!match) {
+    throw new Error(`Skill ${origin} is missing a YAML frontmatter block.`)
+  }
+  const [, frontmatter = "", body = ""] = match
+  const fields: Record<string, string> = {}
+  for (const line of frontmatter.split("\n")) {
+    const m = line.match(/^([a-zA-Z_][\w-]*)\s*:\s*(.*)$/)
+    if (!m) continue
+    const [, key = "", value = ""] = m
+    fields[key] = value.trim().replace(/^"(.*)"$/, "$1")
+  }
+  if (!fields.name || !fields.description) {
+    throw new Error(
+      `Skill ${origin} frontmatter must declare both "name" and "description".`,
+    )
+  }
+  return {
+    metadata: { name: fields.name, description: fields.description },
+    body,
+  }
+}
+
+export function getSkillIndex(): SkillMetadata[] {
+  return Array.from(skills.values())
+    .map((s) => s.metadata)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
 
 export function getSkill(name: string): string | null {
-  if (!Object.prototype.hasOwnProperty.call(SKILLS, name)) return null
-  const cached = cache.get(name)
-  if (cached) return cached
-  const loader = SKILLS[name]
-  if (!loader) return null
-  const content = loader()
-  cache.set(name, content)
-  return content
+  const skill = skills.get(name)
+  if (!skill) return null
+  // Re-emit frontmatter alongside the body so the agent sees its own
+  // declared name/description in the tool result, not just the body.
+  return `---\nname: ${skill.metadata.name}\ndescription: ${skill.metadata.description}\n---\n\n${skill.body}`
 }
+
+export function hasSkill(name: string): boolean {
+  return skills.has(name)
+}
+
+/**
+ * Stable hash over every skill's source. Mixed into the agent cache key so
+ * editing a SKILL.md rolls a fresh agent on next deploy without needing a
+ * manual version bump.
+ */
+export const SKILLS_HASH: string = (() => {
+  const hash = createHash("sha256")
+  const names = Array.from(skills.keys()).sort()
+  for (const name of names) {
+    hash.update(name)
+    hash.update("\0")
+    const skill = skills.get(name)
+    if (skill) hash.update(skill.rawSource)
+  }
+  return hash.digest("hex").slice(0, 12)
+})()
