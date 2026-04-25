@@ -1,7 +1,7 @@
 "use client"
 
+import { useCallback, useState } from "react"
 import Link from "next/link"
-import { useDefaultLayout } from "react-resizable-panels"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -12,12 +12,19 @@ import { HomeProvider } from "@/components/home/home-provider"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { FilesView } from "@/components/home/files-view"
 import { useSession } from "@/lib/auth-client"
+import {
+  type PanelLayout,
+  readPanelLayout,
+  writePanelLayout,
+} from "@/lib/panel-layout"
 
 function HomeWorkspace() {
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "home-layout",
-    storage: localStorage,
-  })
+  const [defaultLayout] = useState<PanelLayout | undefined>(() =>
+    readPanelLayout("home-layout"),
+  )
+  const onLayoutChanged = useCallback((layout: PanelLayout) => {
+    writePanelLayout("home-layout", layout)
+  }, [])
 
   return (
     <HomeProvider>

@@ -36,7 +36,7 @@ export function FollowingToolbar({
 
   return (
     <TooltipProvider>
-      <div className="flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
+      <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
         {self && (
           <Tooltip>
             <TooltipTrigger asChild>

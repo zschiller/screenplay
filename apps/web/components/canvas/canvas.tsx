@@ -73,7 +73,11 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@workspace/ui/components/resizable"
-import { useDefaultLayout, type PanelImperativeHandle } from "react-resizable-panels"
+import { type PanelImperativeHandle } from "react-resizable-panels"
+import {
+  type PanelLayout,
+  writePanelLayout,
+} from "@/lib/panel-layout"
 import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
@@ -127,7 +131,7 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts" }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string }) {
+export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts", initialLayout }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -1983,7 +1987,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
   }, [])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({ id: "canvas-layout", storage: localStorage })
+  const onLayoutChanged = useCallback((layout: PanelLayout) => {
+    writePanelLayout("canvas-layout", layout)
+  }, [])
 
   return (
     <>
@@ -1998,7 +2004,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           />
         )
       })}
-    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
+    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={initialLayout} onLayoutChanged={onLayoutChanged}>
       {/* Sidebar */}
       <ResizablePanel
         id="sidebar"
@@ -2550,7 +2556,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       <ResizablePanel
         id="chat"
         defaultSize="0px"
-        minSize="280px"
+        minSize="360px"
         collapsible
         collapsedSize="0px"
         groupResizeBehavior="preserve-pixel-size"
