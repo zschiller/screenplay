@@ -9,7 +9,8 @@ import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
-import type { DomRect, HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
+import { KnobsPopover } from "./knobs-popover"
+import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
 const MAX_PROBES = 60 // ~2 minutes
@@ -41,6 +42,8 @@ export interface ArtboardData {
   scrollX?: number
   scrollY?: number
   branch?: string
+  knobs?: JsonValue[]
+  knobValues?: JsonObject
 }
 
 interface ArtboardProps {
@@ -57,6 +60,8 @@ interface ArtboardProps {
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string) => void
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
+  onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
+  onKnobValuesChange?: (id: string, values: JsonObject) => void
   multiSelected: boolean
   spaceHeld: boolean
   pickMode: boolean
@@ -78,6 +83,8 @@ export function Artboard({
   onStateChanged,
   onRouteChange,
   onScrollChange,
+  onKnobsDeclared,
+  onKnobValuesChange,
   multiSelected,
   spaceHeld,
   pickMode,
@@ -187,11 +194,13 @@ export function Artboard({
     iframeState: artboard.iframeState ?? {},
     iframeScrollX: artboard.scrollX,
     iframeScrollY: artboard.scrollY,
+    knobValues: artboard.knobValues,
     onStateChanged,
     onNavigation: handleNavigation,
     onScroll: handleScroll,
     onReady: handleReady,
     onHmrStatus: handleHmrStatus,
+    onKnobsDeclared,
   })
 
   const dom = useScreenplayDom(iframeRef)
@@ -297,6 +306,11 @@ export function Artboard({
             Reload
           </Button>
         )}
+        <KnobsPopover
+          knobs={artboard.knobs}
+          values={artboard.knobValues}
+          onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
+        />
         <button
           onClick={() => onFocus(focused ? null : artboard.id)}
           className={`flex h-5 w-5 items-center justify-center rounded-sm border text-muted-foreground transition-colors ${focused ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-muted"}`}

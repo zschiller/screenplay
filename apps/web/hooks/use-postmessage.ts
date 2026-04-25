@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import type { HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
+import type { HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 
 interface UsePostMessageOptions {
@@ -9,11 +9,13 @@ interface UsePostMessageOptions {
   iframeState: JsonObject
   iframeScrollX?: number
   iframeScrollY?: number
+  knobValues?: JsonObject
   onStateChanged: (artboardId: string, state: JsonObject) => void
   onNavigation?: (artboardId: string, path: string) => void
   onScroll?: (artboardId: string, scrollX: number, scrollY: number) => void
   onReady?: (artboardId: string, version: string | undefined) => void
   onHmrStatus?: (artboardId: string, status: HmrStatus) => void
+  onKnobsDeclared?: (artboardId: string, knobs: JsonValue[]) => void
 }
 
 export function usePostMessage({
@@ -21,11 +23,13 @@ export function usePostMessage({
   iframeState,
   iframeScrollX,
   iframeScrollY,
+  knobValues,
   onStateChanged,
   onNavigation,
   onScroll,
   onReady,
   onHmrStatus,
+  onKnobsDeclared,
 }: UsePostMessageOptions) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const stateRef = useRef(iframeState)
@@ -43,10 +47,14 @@ export function usePostMessage({
   // Used to avoid looping remote scrolls back to the iframe when Yjs echoes
   // them to us a moment later.
   const lastScrollRef = useRef<{ x: number; y: number } | null>(null)
+  const knobValuesRef = useRef(knobValues)
+  knobValuesRef.current = knobValues
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
   const onHmrStatusRef = useRef(onHmrStatus)
   onHmrStatusRef.current = onHmrStatus
+  const onKnobsDeclaredRef = useRef(onKnobsDeclared)
+  onKnobsDeclaredRef.current = onKnobsDeclared
 
   const sendMessage = useCallback(
     (type: "screenplay:init" | "screenplay:state-update", state: JsonObject) => {
@@ -56,6 +64,15 @@ export function usePostMessage({
     },
     [],
   )
+
+  const sendKnobValues = useCallback((values: JsonObject) => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentWindow) return
+    iframe.contentWindow.postMessage(
+      { type: "screenplay:knob-values", values },
+      "*",
+    )
+  }, [])
 
   const sendScrollTo = useCallback((x: number, y: number) => {
     const iframe = iframeRef.current
@@ -75,6 +92,12 @@ export function usePostMessage({
     sendScrollTo(iframeScrollX ?? 0, iframeScrollY ?? 0)
   }, [iframeScrollX, iframeScrollY, sendScrollTo])
 
+  // Push knob value changes from Yjs down into the iframe.
+  useEffect(() => {
+    if (!knobValues) return
+    sendKnobValues(knobValues)
+  }, [knobValues, sendKnobValues])
+
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       if (!isScreenplayMessage(e.data)) return
@@ -87,6 +110,9 @@ export function usePostMessage({
         if (scrollRef.current) {
           sendScrollTo(scrollRef.current.x, scrollRef.current.y)
         }
+        if (knobValuesRef.current) {
+          sendKnobValues(knobValuesRef.current)
+        }
         onReadyRef.current?.(artboardId, e.data.version)
       } else if (e.data.type === "screenplay:state-changed") {
         onStateChanged(artboardId, e.data.state)
@@ -97,12 +123,14 @@ export function usePostMessage({
         onScroll?.(artboardId, e.data.scrollX, e.data.scrollY)
       } else if (e.data.type === "screenplay:hmr-status") {
         onHmrStatusRef.current?.(artboardId, e.data.status)
+      } else if (e.data.type === "screenplay:knobs-declared") {
+        onKnobsDeclaredRef.current?.(artboardId, e.data.knobs)
       }
     }
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [artboardId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo])
+  }, [artboardId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
 
   return { iframeRef, sendMessage }
 }
