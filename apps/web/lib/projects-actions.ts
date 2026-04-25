@@ -27,6 +27,8 @@ export type ProjectSummary = {
   isOwner: boolean
   createdAt: number
   lastConnectionAt: number | null
+  thumbnailUrl: string | null
+  thumbnailUpdatedAt: number | null
 }
 
 export type CollaboratorInfo = {
@@ -53,6 +55,8 @@ export async function createProject(name: string): Promise<ProjectSummary> {
     isOwner: true,
     createdAt: room.createdAt,
     lastConnectionAt: room.lastOpenedAt,
+    thumbnailUrl: room.thumbnailUrl,
+    thumbnailUpdatedAt: room.thumbnailUpdatedAt,
   }
 }
 
@@ -66,6 +70,8 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     isOwner: room.ownerId === userId,
     createdAt: room.createdAt,
     lastConnectionAt: room.lastOpenedAt,
+    thumbnailUrl: room.thumbnailUrl,
+    thumbnailUpdatedAt: room.thumbnailUpdatedAt,
   }))
 }
 

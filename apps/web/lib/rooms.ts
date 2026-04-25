@@ -13,6 +13,8 @@ export type RoomRecord = {
   createdAt: number
   updatedAt: number
   lastOpenedAt: number | null
+  thumbnailUrl: string | null
+  thumbnailUpdatedAt: number | null
 }
 
 export type RoomMemberRecord = {
@@ -30,6 +32,8 @@ function toRoom(row: typeof schema.room.$inferSelect): RoomRecord {
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
     lastOpenedAt: row.lastOpenedAt?.getTime() ?? null,
+    thumbnailUrl: row.thumbnailUrl,
+    thumbnailUpdatedAt: row.thumbnailUpdatedAt?.getTime() ?? null,
   }
 }
 
@@ -68,6 +72,8 @@ export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
       createdAt: schema.room.createdAt,
       updatedAt: schema.room.updatedAt,
       lastOpenedAt: schema.room.lastOpenedAt,
+      thumbnailUrl: schema.room.thumbnailUrl,
+      thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt,
     })
     .from(schema.room)
     .innerJoin(
@@ -95,6 +101,36 @@ export async function touchRoomOpened(roomId: string): Promise<void> {
     .update(schema.room)
     .set({ lastOpenedAt: new Date() })
     .where(eq(schema.room.id, roomId))
+}
+
+export async function setRoomThumbnail(
+  roomId: string,
+  thumbnailUrl: string,
+): Promise<void> {
+  await db
+    .update(schema.room)
+    .set({ thumbnailUrl, thumbnailUpdatedAt: new Date() })
+    .where(eq(schema.room.id, roomId))
+}
+
+export async function touchRoomThumbnailUpdatedAt(
+  roomId: string,
+): Promise<void> {
+  await db
+    .update(schema.room)
+    .set({ thumbnailUpdatedAt: new Date() })
+    .where(eq(schema.room.id, roomId))
+}
+
+export async function getRoomThumbnailUpdatedAt(
+  roomId: string,
+): Promise<number | null> {
+  const rows = await db
+    .select({ thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt })
+    .from(schema.room)
+    .where(eq(schema.room.id, roomId))
+    .limit(1)
+  return rows[0]?.thumbnailUpdatedAt?.getTime() ?? null
 }
 
 export async function getMembership(

@@ -81,6 +81,8 @@ export const room = pgTable("room", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   // Last time a member opened the room — surfaced in the projects list.
   lastOpenedAt: timestamp("last_opened_at"),
+  thumbnailUrl: text("thumbnail_url"),
+  thumbnailUpdatedAt: timestamp("thumbnail_updated_at"),
 })
 
 export type RoomRole = "owner" | "editor" | "viewer"

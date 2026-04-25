@@ -10,12 +10,7 @@ import {
   Plus,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { Separator } from "@workspace/ui/components/separator"
-import { SidebarTrigger } from "@workspace/ui/components/sidebar"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,22 +59,20 @@ export function FilesView() {
       ? DRAFTS_FOLDER_ID
       : selectedId
 
-  const canCreateHere =
-    selectedId !== PINNED_VIEW_ID && selectedId !== ALL_VIEW_ID
+  const canCreateHere = selectedId !== PINNED_VIEW_ID
 
   return (
     <div className="flex h-svh min-h-0 flex-1 flex-col">
-      <header className="flex h-14 items-center gap-2 border-b border-border bg-background px-4">
-        <SidebarTrigger />
-        <Separator orientation="vertical" className="h-5" />
-        <div className="flex items-center gap-2">
-          {selectedId === PINNED_VIEW_ID && <Pin className="size-4" />}
-          <h1 className="text-base font-semibold">{selectionLabel}</h1>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+      <header className="flex h-14 items-center bg-background">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4">
+          <div className="flex items-center gap-2">
+            {selectedId === PINNED_VIEW_ID && <Pin className="size-4" />}
+            <h1 className="text-base font-semibold">{selectionLabel}</h1>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline">
                 <ArrowUpDown />
                 Sort: {SORT_LABELS[sort]}
               </Button>
@@ -104,24 +97,23 @@ export function FilesView() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <ToggleGroup
-            type="single"
+          <Tabs
             value={view}
             onValueChange={(v) => {
               if (v === "grid" || v === "table") setView(v)
             }}
-            size="sm"
           >
-            <ToggleGroupItem value="grid" aria-label="Grid view">
-              <LayoutGrid />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="table" aria-label="Table view">
-              <List />
-            </ToggleGroupItem>
-          </ToggleGroup>
+            <TabsList>
+              <TabsTrigger value="grid" aria-label="Grid view">
+                <LayoutGrid />
+              </TabsTrigger>
+              <TabsTrigger value="table" aria-label="Table view">
+                <List />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <Button
-            size="sm"
             onClick={() => setNewFileOpen(true)}
             disabled={!canCreateHere}
             title={
@@ -133,6 +125,7 @@ export function FilesView() {
             <Plus />
             New file
           </Button>
+        </div>
         </div>
       </header>
 
@@ -149,7 +142,7 @@ export function FilesView() {
             onCreate={() => setNewFileOpen(true)}
           />
         ) : (
-          <div className="p-4">
+          <div className="mx-auto max-w-6xl p-4">
             {view === "grid" ? (
               <FileGrid files={filesInSelection} />
             ) : (

@@ -36,7 +36,11 @@ export default async function RoomPage({
 
   return (
     <YjsRoomProvider roomId={roomId} fallback={<CanvasSkeleton />}>
-      <Canvas roomId={roomId} projectName={room.name} />
+      <Canvas
+        roomId={roomId}
+        projectName={room.name}
+        hasThumbnail={!!room.thumbnailUrl}
+      />
     </YjsRoomProvider>
   )
 }

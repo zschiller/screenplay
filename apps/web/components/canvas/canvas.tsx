@@ -54,6 +54,7 @@ import { Comments } from "./comments"
 import { InspectComposer } from "./inspect-composer"
 import { Cursors } from "./cursors"
 import { FollowingToolbar } from "./following-toolbar"
+import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import type { PickResult } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
@@ -119,7 +120,7 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, projectName }: { roomId: string; projectName: string }) {
+export function Canvas({ roomId, projectName, hasThumbnail }: { roomId: string; projectName: string; hasThumbnail: boolean }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -177,6 +178,7 @@ export function Canvas({ roomId, projectName }: { roomId: string; projectName: s
   const { data: session } = useSession()
   const history = useYjsHistory()
   const collections = useRoomCollections()
+  useThumbnailHeartbeat(roomId, hasThumbnail)
 
   // Publish identity + a stable color into awareness on mount and whenever the
   // session changes. Seed a placeholder viewport so `useSelfPresence` returns
