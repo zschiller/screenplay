@@ -1571,7 +1571,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // through the React tree even though the DOM target lives on document.body.
       // Ignore those so we don't capture the pointer and swallow the child's click.
       if (!e.currentTarget.contains(target)) return
-      if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button")) return
+      if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button") || target.closest("a")) return
 
       // Text tool: start a draft rectangle (click or click+drag)
       if (textMode) {
