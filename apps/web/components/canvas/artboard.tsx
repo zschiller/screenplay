@@ -71,6 +71,9 @@ interface ArtboardProps {
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableAgents?: AgentData[]
   onAssignAgent?: (artboardId: string, agentId: string) => void
+  /** Routes discovered for the agent backing this artboard. */
+  discoveredRoutes?: { route: string; label: string }[]
+  onSelectRoute?: (artboardId: string, route: string) => void
 }
 
 export function Artboard({
@@ -96,6 +99,8 @@ export function Artboard({
   onHover,
   assignableAgents,
   onAssignAgent,
+  discoveredRoutes,
+  onSelectRoute,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -314,6 +319,12 @@ export function Artboard({
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
         onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(artboard.id, agentId) : undefined}
+        discoveredRoutes={discoveredRoutes}
+        onSelectRoute={
+          onSelectRoute && artboard.sandboxId
+            ? (route) => onSelectRoute(artboard.id, route)
+            : undefined
+        }
       />
       {artboard.sandboxId && (
         <div

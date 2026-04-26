@@ -6,6 +6,7 @@ import {
   getGitHubToken,
   createAgentBranch,
   cloneSandbox,
+  crawlRoutes,
   installDependencies,
   installClaudeCode,
   startDevServer,
@@ -186,6 +187,14 @@ async function runNewOrFromBranchPipeline(
     statusMessage: undefined,
   })
   await createArtboardAndChat(roomId, agentId, req.viewportCenter)
+
+  // Best-effort: crawl routes so the artboard route picker has options without
+  // the user (or model) needing to trigger discovery.
+  crawlRoutes(cloneResult.sandboxName).then((result) => {
+    if (result.success) {
+      return updateAgent(roomId, agentId, { discoveredRoutes: result.routes })
+    }
+  }).catch(() => {})
 }
 
 

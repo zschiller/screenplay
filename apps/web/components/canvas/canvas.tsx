@@ -79,6 +79,7 @@ import {
   writePanelLayout,
 } from "@/lib/panel-layout"
 import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
+import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -87,7 +88,6 @@ import {
   restartSandbox,
   reconnectSandbox,
   keepAliveSandbox,
-  crawlRoutes,
 } from "@/lib/sandbox-actions"
 import {
   ZOOM_MIN,
@@ -417,12 +417,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   const agentDomains = useMemo(() => {
-    const domains: Record<string, { previewDomain: string; branch: string }> = {}
+    const domains: Record<string, { previewDomain: string; branch: string; discoveredRoutes?: { route: string; label: string }[] }> = {}
     for (const agent of agents) {
       if (agent.previewDomain) {
         domains[agent.id] = {
           previewDomain: agent.previewDomain,
           branch: agent.branch,
+          discoveredRoutes: agent.discoveredRoutes,
         }
       }
     }
@@ -546,60 +547,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  const addArtboardsForRoutes = useCallback(
-    (agentId: string, routes: { route: string; label: string }[]): string[] => {
-      const agent = collections.agents.get(agentId)
-      if (!agent || agent.status !== "running") return []
-
-      const allArtboards = collections.artboards.toArray()
-      const existing = allArtboards.filter((a) => a.sandboxId === agentId)
-      const existingRoutes = new Set(existing.map((a) => a.route || "/"))
-      const newRoutes = routes.filter((r) => !existingRoutes.has(r.route))
-      if (newRoutes.length === 0) return []
-
-      const gap = 50
-
-      let startX: number
-      let startY: number
-
-      if (allArtboards.length === 0) {
-        const { cx, cy } = getViewportCenter()
-        startX = cx - DEFAULT_ARTBOARD_WIDTH / 2
-        startY = cy - DEFAULT_ARTBOARD_HEIGHT / 2
-      } else {
-        let minY = Infinity
-        let maxRight = -Infinity
-        for (const a of allArtboards) {
-          minY = Math.min(minY, a.y)
-          maxRight = Math.max(maxRight, a.x + a.width)
-        }
-        startX = maxRight + gap
-        startY = minY
-      }
-
-      const newIds: string[] = []
-      collections.transact(() => {
-        newRoutes.forEach(({ route, label }, i) => {
-          const id = nanoid()
-          newIds.push(id)
-          collections.artboards.set(id, {
-            id,
-            sandboxId: agentId,
-            x: startX + i * (DEFAULT_ARTBOARD_WIDTH + gap),
-            y: startY,
-            width: DEFAULT_ARTBOARD_WIDTH,
-            height: DEFAULT_ARTBOARD_HEIGHT,
-            label,
-            route,
-            iframeState: {},
-          })
-        })
-      })
-      return newIds
-    },
-    [collections, getViewportCenter],
-  )
-
   const moveArtboard = useCallback(
     (id: string, x: number, y: number) => {
       collections.artboards.update(id, { x, y })
@@ -657,7 +604,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateArtboardRoute = useCallback(
     (id: string, route: string) => {
-      collections.artboards.update(id, { route })
+      collections.transact(() => {
+        const artboard = collections.artboards.get(id)
+        collections.artboards.update(id, { route })
+        const sandboxId = artboard?.sandboxId
+        if (!sandboxId) return
+        const agent = collections.agents.get(sandboxId)
+        if (!agent) return
+        const existing = agent.discoveredRoutes ?? []
+        if (existing.some((r) => r.route === route)) return
+        collections.agents.update(sandboxId, {
+          discoveredRoutes: [...existing, { route, label: routeToLabel(route) }],
+        })
+      })
     },
     [collections],
   )
@@ -848,52 +807,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
-  const zoomToFitArtboards = useCallback(
-    (artboardIds: string[]) => {
-      const ref = transformRef.current
-      if (!ref || artboardIds.length === 0) return
-
-      if (artboardIds.length === 1) {
-        handleSelectArtboard(artboardIds[0])
-        return
-      }
-
-      // Compute bounding box across all artboard DOM elements
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (const id of artboardIds) {
-        const el = document.getElementById(`artboard-${id}`)
-        if (!el) continue
-        const x = el.offsetLeft
-        const y = el.offsetTop
-        minX = Math.min(minX, x)
-        minY = Math.min(minY, y)
-        maxX = Math.max(maxX, x + el.offsetWidth)
-        maxY = Math.max(maxY, y + el.offsetHeight)
-      }
-      if (minX === Infinity) return
-
-      const padding = 60
-      const bboxW = maxX - minX
-      const bboxH = maxY - minY
-      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-      const scale = Math.min(
-        (wrapperW - padding * 2) / bboxW,
-        (wrapperH - padding * 2) / bboxH,
-        ZOOM_MAX,
-      )
-      const centerX = (minX + maxX) / 2
-      const centerY = (minY + maxY) / 2
-      const posX = wrapperW / 2 - centerX * scale
-      const posY = wrapperH / 2 - centerY * scale
-      ref.setTransform(posX, posY, scale, 300)
-    },
-    [handleSelectArtboard],
-  )
-
   const handleAddArtboardForAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -913,23 +826,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     },
     [agents, artboards, addArtboard, handleSelectArtboard],
-  )
-
-  const handleCrawlRoutes = useCallback(
-    async (agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent || agent.status !== "running") return
-      const result = await crawlRoutes(agent.sandboxName)
-      if (result.success) {
-        const newIds = addArtboardsForRoutes(agentId, result.routes)
-        if (newIds.length > 0) {
-          requestAnimationFrame(() => {
-            zoomToFitArtboards(newIds)
-          })
-        }
-      }
-    },
-    [agents, addArtboardsForRoutes, zoomToFitArtboards],
   )
 
   const handleSelectAgent = useCallback(
@@ -2054,7 +1950,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             removeAgentFromStorage(id)
           }}
           onAddArtboard={handleAddArtboardForAgent}
-          onCrawlRoutes={handleCrawlRoutes}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
           onSelectArtboard={(id, shiftKey) => {
@@ -2205,6 +2100,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         onHover={handleInspectHover}
                         assignableAgents={runningAgents}
                         onAssignAgent={assignAgentToArtboard}
+                        discoveredRoutes={agentInfo?.discoveredRoutes}
+                        onSelectRoute={updateArtboardRoute}
                       />
                     )
                   })}

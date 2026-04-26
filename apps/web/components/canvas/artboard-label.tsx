@@ -16,6 +16,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import type { AgentData } from "@/lib/liveblocks.types"
 import type { HmrStatus } from "@/lib/postmessage-protocol"
+import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
 
 interface ArtboardLabelProps {
@@ -30,6 +31,9 @@ interface ArtboardLabelProps {
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableAgents?: AgentData[]
   onAssignAgent?: (agentId: string) => void
+  /** Routes known for the agent backing this artboard. Drives the route picker. */
+  discoveredRoutes?: { route: string; label: string }[]
+  onSelectRoute?: (route: string) => void
 }
 
 const HMR_DOT_COLOR: Record<HmrStatus, string> = {
@@ -44,7 +48,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute }: ArtboardLabelProps) {
   return (
     <div
       className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
@@ -84,11 +88,113 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
         <span className="text-xs font-medium text-foreground/70 truncate min-w-0">
           {label}
         </span>
-        <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 shrink-0">
-          {route || "/"}
-        </Badge>
+        {onSelectRoute ? (
+          <RoutePicker
+            route={route}
+            discoveredRoutes={discoveredRoutes ?? []}
+            onSelectRoute={onSelectRoute}
+          />
+        ) : (
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 shrink-0">
+            {route || "/"}
+          </Badge>
+        )}
       </div>
     </div>
+  )
+}
+
+interface RoutePickerProps {
+  route?: string
+  discoveredRoutes: { route: string; label: string }[]
+  onSelectRoute: (route: string) => void
+}
+
+function RoutePicker({ route, discoveredRoutes, onSelectRoute }: RoutePickerProps) {
+  const [open, setOpen] = useState(false)
+  const [input, setInput] = useState("")
+
+  const currentRoute = route || "/"
+  const trimmed = input.trim()
+  const typedRoute = trimmed ? normalizeRoute(trimmed) : ""
+  const hasExactMatch = typedRoute
+    ? discoveredRoutes.some((r) => r.route === typedRoute)
+    : true
+  const filteredRoutes = trimmed
+    ? discoveredRoutes.filter((r) => r.route.toLowerCase().includes(trimmed.toLowerCase()))
+    : discoveredRoutes
+
+  const handleSelect = (next: string) => {
+    onSelectRoute(next)
+    setOpen(false)
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setInput("")
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group flex items-center gap-1 shrink-0 outline-none focus-visible:outline-none"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5">
+            {currentRoute}
+          </Badge>
+          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search or type a route..."
+            value={input}
+            onValueChange={setInput}
+          />
+          <CommandList>
+            {filteredRoutes.length === 0 && !typedRoute && (
+              <CommandEmpty>No routes yet.</CommandEmpty>
+            )}
+            {(filteredRoutes.length > 0 || (typedRoute && !hasExactMatch)) && (
+              <CommandGroup>
+                {filteredRoutes.map((r) => (
+                  <CommandItem
+                    key={r.route}
+                    value={r.route}
+                    onSelect={() => handleSelect(r.route)}
+                  >
+                    <Check className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`} />
+                    <Badge variant="outline" className="border-transparent bg-muted font-mono text-[11px] text-foreground/50 py-0 px-1.5 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen">
+                      {r.route}
+                    </Badge>
+                  </CommandItem>
+                ))}
+                {typedRoute && !hasExactMatch && (
+                  <CommandItem
+                    value={`__create__ ${typedRoute}`}
+                    onSelect={() => handleSelect(typedRoute)}
+                  >
+                    <Check className="shrink-0 opacity-0" />
+                    <span className="flex items-center gap-1">
+                      <span className="text-xs">Go to</span>
+                      <Badge variant="outline" className="border-transparent bg-muted font-mono text-[11px] text-foreground/50 py-0 px-1.5 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen">
+                        {typedRoute}
+                      </Badge>
+                    </span>
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -109,7 +215,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1"
+          className="group flex items-center gap-1 outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -120,7 +226,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
               Choose a branch
             </span>
           )}
-          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
