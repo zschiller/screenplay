@@ -44,6 +44,8 @@ export type AgentData = {
   createdAt: number
   /** False when the branch was opened from an existing remote branch — skip auto-rename on first chat. */
   autoNamedBranch?: boolean
+  /** Routes discovered for this sandbox — initially crawled at startup, appended as the user navigates. */
+  discoveredRoutes?: { route: string; label: string }[]
 }
 
 export type ChatSessionData = {
