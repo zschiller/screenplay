@@ -1,0 +1,106 @@
+import { ARTBOARD_GROUP_GAP } from "@/lib/constants"
+import type { ArtboardData, ArtboardGroupData } from "@/lib/liveblocks.types"
+
+export type ArtboardLayout = {
+  id: string
+  groupId: string
+  /** 0-based index within the group. */
+  index: number
+  /** True for the rightmost artboard in the group. */
+  isLast: boolean
+  /** World-space rect (canvas coordinates). */
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type ArtboardLayoutMap = ReadonlyMap<string, ArtboardLayout>
+
+/**
+ * Compute world-space rects for every artboard, given the parent groups.
+ * Artboards inside a group are flexed left-to-right with `ARTBOARD_GROUP_GAP`
+ * between them; the group's `(x, y)` anchors the leftmost artboard's top-left.
+ * Artboards not referenced by any group are skipped — the migration in
+ * `getRoomCollections` ensures every artboard ends up in exactly one group.
+ */
+export function computeArtboardLayouts(
+  groups: readonly ArtboardGroupData[],
+  artboards: readonly ArtboardData[],
+): ArtboardLayoutMap {
+  const byId = new Map<string, ArtboardData>()
+  for (const ab of artboards) byId.set(ab.id, ab)
+
+  const map = new Map<string, ArtboardLayout>()
+  for (const group of groups) {
+    let cursorX = group.x
+    const ids = group.artboardIds
+    const last = ids.length - 1
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!
+      const ab = byId.get(id)
+      if (!ab) continue
+      map.set(id, {
+        id,
+        groupId: group.id,
+        index: i,
+        isLast: i === last,
+        x: cursorX,
+        y: group.y,
+        width: ab.width,
+        height: ab.height,
+      })
+      cursorX += ab.width + ARTBOARD_GROUP_GAP
+    }
+  }
+  return map
+}
+
+/** Total width of a group's artboards plus inter-artboard gaps. */
+export function groupContentWidth(
+  group: ArtboardGroupData,
+  artboards: readonly ArtboardData[],
+): number {
+  const byId = new Map(artboards.map((a) => [a.id, a]))
+  let width = 0
+  let count = 0
+  for (const id of group.artboardIds) {
+    const ab = byId.get(id)
+    if (!ab) continue
+    width += ab.width
+    count += 1
+  }
+  if (count > 1) width += (count - 1) * ARTBOARD_GROUP_GAP
+  return width
+}
+
+/** Tallest artboard in the group — used for union bounds and overlay. */
+export function groupContentHeight(
+  group: ArtboardGroupData,
+  artboards: readonly ArtboardData[],
+): number {
+  const byId = new Map(artboards.map((a) => [a.id, a]))
+  let height = 0
+  for (const id of group.artboardIds) {
+    const ab = byId.get(id)
+    if (ab && ab.height > height) height = ab.height
+  }
+  return height
+}
+
+/**
+ * Next "Group N" number for a freshly-created group. Picks `max(N) + 1` over
+ * existing group names so reordering or deleting earlier groups never causes
+ * a future group to collide with an existing name.
+ */
+export function nextGroupNumber(groups: readonly ArtboardGroupData[]): number {
+  let max = 0
+  for (const g of groups) {
+    if (!g.name) continue
+    const m = /^Group (\d+)$/.exec(g.name)
+    if (!m) continue
+    const n = parseInt(m[1]!, 10)
+    if (Number.isFinite(n) && n > max) max = n
+  }
+  return max + 1
+}

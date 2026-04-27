@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { ArtboardData } from "./artboard"
 import type { TextLayerData } from "@/lib/liveblocks.types"
+import type { ArtboardLayoutMap } from "@/lib/artboard-layout"
 
 interface OtherSelection {
   selectedArtboardIds: string[]
@@ -15,10 +15,17 @@ interface SelectionOverlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
   selectedArtboardIds: Set<string>
+  /** Artboards highlighted because their parent group is selected. No resize handles. */
+  groupSelectedArtboardIds: Set<string>
   selectedTextLayerIds: Set<string>
   focusedArtboardId: string | null
   hoveredArtboardId: string | null
-  artboards: ArtboardData[]
+  artboardLayouts: ArtboardLayoutMap
+  /**
+   * World-space rects for "add frame" placeholders. Drawn here (instead of in
+   * the world transform) so the border stays 1px crisp at any zoom.
+   */
+  placeholderRects: Array<{ x: number; y: number; width: number; height: number }>
   textLayers: TextLayerData[]
   marquee: {
     startX: number
@@ -66,10 +73,12 @@ export function SelectionOverlay({
   zoom,
   viewportPos,
   selectedArtboardIds,
+  groupSelectedArtboardIds,
   selectedTextLayerIds,
   focusedArtboardId,
   hoveredArtboardId,
-  artboards,
+  artboardLayouts,
+  placeholderRects,
   textLayers,
   marquee,
   textDraft,
@@ -119,6 +128,7 @@ export function SelectionOverlay({
 
     const primaryColor = "#d946ef" // tailwind fuchsia-500
     const bgColor = resolveColor(canvas, "--background", "#fff")
+    const borderColor = resolveColor(canvas, "--border", "#a1a1aa")
     const HANDLE_SIZE = 8
 
     const toScreen = (x: number, y: number) => ({
@@ -128,11 +138,11 @@ export function SelectionOverlay({
 
     // Draw hover frame (only if not already selected/focused)
     if (hoveredArtboardId && !selectedArtboardIds.has(hoveredArtboardId) && focusedArtboardId !== hoveredArtboardId) {
-      const ab = artboards.find((a) => a.id === hoveredArtboardId)
-      if (ab) {
-        const topLeft = toScreen(ab.x, ab.y)
-        const sw = ab.width * zoom
-        const sh = ab.height * zoom
+      const layout = artboardLayouts.get(hoveredArtboardId)
+      if (layout) {
+        const topLeft = toScreen(layout.x, layout.y)
+        const sw = layout.width * zoom
+        const sh = layout.height * zoom
         ctx.globalAlpha = 0.4
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
@@ -152,10 +162,10 @@ export function SelectionOverlay({
       ctx.strokeStyle = other.color
       ctx.lineWidth = 1
       for (const id of other.selectedArtboardIds) {
-        const ab = artboards.find((a) => a.id === id)
-        if (!ab) continue
-        const tl = toScreen(ab.x, ab.y)
-        const br = toScreen(ab.x + ab.width, ab.y + ab.height)
+        const layout = artboardLayouts.get(id)
+        if (!layout) continue
+        const tl = toScreen(layout.x, layout.y)
+        const br = toScreen(layout.x + layout.width, layout.y + layout.height)
         const l = Math.round(tl.x)
         const t = Math.round(tl.y)
         const r = Math.round(br.x)
@@ -176,13 +186,15 @@ export function SelectionOverlay({
       }
     }
 
-    // Compute rounded frame edges for selected/focused artboards
+    // Compute rounded frame edges for selected/focused/group-selected artboards
     const frameEdges = new Map<string, { l: number; t: number; r: number; b: number }>()
-    for (const ab of artboards) {
-      if (!selectedArtboardIds.has(ab.id) && focusedArtboardId !== ab.id) continue
-      const tl = toScreen(ab.x, ab.y)
-      const br = toScreen(ab.x + ab.width, ab.y + ab.height)
-      frameEdges.set(ab.id, {
+    for (const layout of artboardLayouts.values()) {
+      const inDirect = selectedArtboardIds.has(layout.id)
+      const inGroup = groupSelectedArtboardIds.has(layout.id)
+      if (!inDirect && !inGroup && focusedArtboardId !== layout.id) continue
+      const tl = toScreen(layout.x, layout.y)
+      const br = toScreen(layout.x + layout.width, layout.y + layout.height)
+      frameEdges.set(layout.id, {
         l: Math.round(tl.x),
         t: Math.round(tl.y),
         r: Math.round(br.x),
@@ -264,12 +276,13 @@ export function SelectionOverlay({
     // Draw union bounding rect when multiple items are selected
     if (totalSelected > 1) {
       let uLeft = Infinity, uTop = Infinity, uRight = -Infinity, uBottom = -Infinity
-      for (const ab of artboards) {
-        if (!selectedArtboardIds.has(ab.id)) continue
-        uLeft = Math.min(uLeft, ab.x)
-        uTop = Math.min(uTop, ab.y)
-        uRight = Math.max(uRight, ab.x + ab.width)
-        uBottom = Math.max(uBottom, ab.y + ab.height)
+      for (const id of selectedArtboardIds) {
+        const layout = artboardLayouts.get(id)
+        if (!layout) continue
+        uLeft = Math.min(uLeft, layout.x)
+        uTop = Math.min(uTop, layout.y)
+        uRight = Math.max(uRight, layout.x + layout.width)
+        uBottom = Math.max(uBottom, layout.y + layout.height)
       }
       for (const layer of textLayers) {
         if (!selectedTextLayerIds.has(layer.id)) continue
@@ -289,6 +302,21 @@ export function SelectionOverlay({
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
         ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
+      }
+    }
+
+    // Draw "add frame" placeholders — solid 1px border, no fill, square corners.
+    if (placeholderRects.length > 0) {
+      ctx.strokeStyle = borderColor
+      ctx.lineWidth = 1
+      for (const rect of placeholderRects) {
+        const tl = toScreen(rect.x, rect.y)
+        const br = toScreen(rect.x + rect.width, rect.y + rect.height)
+        const l = Math.round(tl.x)
+        const t = Math.round(tl.y)
+        const r = Math.round(br.x)
+        const b = Math.round(br.y)
+        ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
       }
     }
 
@@ -365,7 +393,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboards, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, textLayerSizeTick])
+  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, textLayerSizeTick])
 
   // Keep canvas sized to container
   useEffect(() => {

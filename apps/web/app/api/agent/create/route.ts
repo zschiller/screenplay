@@ -16,10 +16,12 @@ import { parseEnvVars } from "@/lib/env-utils"
 import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import {
+  ARTBOARD_GROUP_GAP,
   DEFAULT_ARTBOARD_WIDTH,
   DEFAULT_ARTBOARD_HEIGHT,
   CANVAS_SIZE,
 } from "@/lib/constants"
+import { groupContentWidth, nextGroupNumber } from "@/lib/artboard-layout"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -62,41 +64,49 @@ async function createArtboardAndChat(
   agentId: string,
   viewportCenter?: { x: number; y: number },
 ) {
-  await mutateRoomDoc(roomId, ({ artboards, chatSessions, transact }) => {
+  await mutateRoomDoc(roomId, ({ artboards, artboardGroups, chatSessions, transact }) => {
     transact(() => {
       const allArtboards = artboards.toArray()
       const hasArtboard = allArtboards.some((a) => a.sandboxId === agentId)
       if (!hasArtboard) {
+        const allGroups = artboardGroups.toArray()
         let x: number
         let y: number
 
-        if (allArtboards.length === 0) {
+        if (allGroups.length === 0) {
           const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
           const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
           x = cx - DEFAULT_ARTBOARD_WIDTH / 2
           y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
         } else {
-          // Place to the right of the rightmost artboard, aligned to the top
+          // Place to the right of the rightmost group, aligned to the topmost group
           let minY = Infinity
           let maxRight = -Infinity
-          for (const a of allArtboards) {
-            minY = Math.min(minY, a.y)
-            maxRight = Math.max(maxRight, a.x + a.width)
+          for (const g of allGroups) {
+            minY = Math.min(minY, g.y)
+            const w = groupContentWidth(g, allArtboards)
+            if (g.x + w > maxRight) maxRight = g.x + w
           }
-          x = maxRight + 50
+          x = maxRight + ARTBOARD_GROUP_GAP
           y = minY
         }
 
         const artboardId = nanoid()
+        const groupId = nanoid()
         artboards.set(artboardId, {
           id: artboardId,
           sandboxId: agentId,
-          x,
-          y,
           width: DEFAULT_ARTBOARD_WIDTH,
           height: DEFAULT_ARTBOARD_HEIGHT,
           label: "Frame 1",
           iframeState: {},
+        })
+        artboardGroups.set(groupId, {
+          id: groupId,
+          name: `Group ${nextGroupNumber(allGroups)}`,
+          x,
+          y,
+          artboardIds: [artboardId],
         })
       }
 

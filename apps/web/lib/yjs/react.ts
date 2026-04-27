@@ -15,6 +15,7 @@ import {
 import type {
   AgentData,
   ArtboardData,
+  ArtboardGroupData,
   ChatSessionData,
   PlanData,
   TextLayerData,
@@ -51,6 +52,10 @@ function useSingleton<T extends Record<string, unknown>>(
 
 export function useArtboards(): Array<ArtboardData> {
   return useCollectionArray(useRoomCollections().artboards)
+}
+
+export function useArtboardGroups(): Array<ArtboardGroupData> {
+  return useCollectionArray(useRoomCollections().artboardGroups)
 }
 
 export function useTextLayers(): Array<TextLayerData> {
@@ -92,6 +97,7 @@ export function useYjsHistory() {
         doc.getMap(COLLECTION_KEYS.workspaces),
         doc.getMap(COLLECTION_KEYS.agents),
         doc.getMap(COLLECTION_KEYS.artboards),
+        doc.getMap(COLLECTION_KEYS.artboardGroups),
         doc.getMap(COLLECTION_KEYS.textLayers),
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
