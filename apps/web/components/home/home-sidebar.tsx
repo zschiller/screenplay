@@ -146,7 +146,7 @@ function SidebarFileItem({ file }: { file: ProjectSummary }) {
     <SidebarMenuSubItem>
       <div className="group/sub-row relative">
         <SidebarMenuSubButton asChild>
-          <a href={`/${file.id}`} target="_blank" rel="noopener noreferrer">
+          <a href={`/${file.id}`}>
             <FileIcon />
             <span>{file.name}</span>
           </a>
@@ -347,7 +347,7 @@ function PinnedFileItem({ file }: { file: ProjectSummary }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild>
-        <a href={`/${file.id}`} target="_blank" rel="noopener noreferrer">
+        <a href={`/${file.id}`}>
           <FileIcon />
           <span>{file.name}</span>
         </a>

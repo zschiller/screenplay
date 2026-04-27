@@ -81,11 +81,16 @@ export function useAgentChat({
     [chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, sessionId, planMode, onSessionId, onBranchRename, onChatRename],
   )
 
+  const stopMessage = useCallback(() => {
+    chatStore.stopMessage(roomId, chatId)
+  }, [roomId, chatId])
+
   return {
     messages: state.messages,
     isStreaming: state.isStreaming,
     isLoadingHistory: state.isLoadingHistory,
     error: state.error,
     sendMessage,
+    stopMessage,
   }
 }

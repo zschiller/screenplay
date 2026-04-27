@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { BranchBadge } from "@/components/branch-badge"
@@ -14,7 +14,7 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
-import type { AgentData } from "@/lib/liveblocks.types"
+import type { AgentData } from "@/lib/types"
 import type { HmrStatus } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
@@ -26,6 +26,8 @@ interface ArtboardLabelProps {
   route?: string
   zoom: number
   artboardWidth: number
+  /** Screen-px width to reserve on the right (e.g. for the action buttons). */
+  reservedRightPx?: number
   dragHandlers?: Record<string, unknown>
   hmrStatus?: HmrStatus | null
   /** Agents the user can pick from (typically all running agents in the room). */
@@ -44,6 +46,12 @@ interface ArtboardLabelProps {
   onSelectGroup?: (shiftKey: boolean) => void
   /** Pointer-down select for the frame name — mirrors the frame body's instant-select behavior. */
   onSelectFrame?: (shiftKey: boolean) => void
+  /**
+   * Reports the natural (unconstrained) width of the bottom row in screen px —
+   * status dot + name + route badge — so the parent can decide how much room
+   * is left for action buttons.
+   */
+  onContentWidthChange?: (width: number) => void
 }
 
 const HMR_DOT_COLOR: Record<HmrStatus, string> = {
@@ -58,14 +66,27 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, reservedRightPx = 0, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange }: ArtboardLabelProps) {
+  const measureRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!onContentWidthChange) return
+    const el = measureRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry) onContentWidthChange(entry.contentRect.width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onContentWidthChange])
+
   return (
     <div
       className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
       style={{
         transform: `scale(${1 / zoom})`,
         transformOrigin: "bottom left",
-        maxWidth: artboardWidth * zoom - 28,
+        maxWidth: artboardWidth * zoom,
         marginBottom: 4 / zoom,
       }}
       {...dragHandlers}
@@ -107,7 +128,7 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
         )
       )}
       {(branch || onAssignAgent) && (
-        <div className="mb-0.5">
+        <div className="mb-0.5 max-w-full min-w-0">
           {onAssignAgent ? (
             <BranchPicker
               branch={branch}
@@ -121,7 +142,10 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
           ) : null}
         </div>
       )}
-      <div className="flex items-center gap-1.5 max-w-full">
+      <div
+        className="flex items-center gap-1.5 max-w-full"
+        style={{ maxWidth: Math.max(0, artboardWidth * zoom - reservedRightPx) }}
+      >
         {hmrStatus && (
           <span
             title={HMR_DOT_TITLE[hmrStatus]}
@@ -133,7 +157,7 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
         )}
         <span
           className={cn(
-            "text-xs font-medium truncate min-w-0",
+            "text-xs font-medium truncate min-w-[0.75em]",
             selected ? "text-fuchsia-500" : "text-foreground/70",
           )}
           onPointerDown={onSelectFrame ? (e) => {
@@ -143,16 +167,51 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
         >
           {label}
         </span>
-        {onSelectRoute ? (
+        {branch && (onSelectRoute ? (
           <RoutePicker
             route={route}
             discoveredRoutes={discoveredRoutes ?? []}
             onSelectRoute={onSelectRoute}
           />
         ) : (
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 shrink-0">
-            {route || "/"}
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
+            <span className="truncate">{route || "/"}</span>
           </Badge>
+        ))}
+      </div>
+      {/* Hidden duplicate of the bottom row used to measure its natural
+          (unconstrained, untruncated) width. Mirrors the visible row's
+          `min-w-*` floors AND the RoutePicker's chevron-slot (opacity-0 but
+          still occupies layout) so the measurement matches what the live row
+          actually renders. Without this, labels would truncate before action
+          buttons drop out at the threshold. */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        className="invisible pointer-events-none absolute -left-[9999px] top-0 flex items-center gap-1.5 whitespace-nowrap"
+      >
+        {hmrStatus && (
+          <span
+            className={cn(
+              "inline-block h-1.5 w-1.5 shrink-0 rounded-full ring-1 ring-white",
+              HMR_DOT_COLOR[hmrStatus],
+            )}
+          />
+        )}
+        <span className="text-xs font-medium min-w-[0.75em]">{label}</span>
+        {branch && (
+          onSelectRoute ? (
+            <span className="flex items-center gap-1">
+              <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
+                {route || "/"}
+              </Badge>
+              <span className="h-3 w-3 shrink-0" />
+            </span>
+          ) : (
+            <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
+              {route || "/"}
+            </Badge>
+          )
         )}
       </div>
     </div>
@@ -195,12 +254,12 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute }: RoutePickerProp
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-1 shrink-0 outline-none focus-visible:outline-none"
+          className="group flex items-center gap-1 min-w-0 outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5">
-            {currentRoute}
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
+            <span className="truncate">{currentRoute}</span>
           </Badge>
           <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
         </button>
@@ -270,12 +329,12 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-1 outline-none focus-visible:outline-none"
+          className="group flex items-center gap-1 max-w-full min-w-0 outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           {branch ? (
-            <BranchBadge branch={branch} colorKey={colorKey} className="text-[10px] py-0 px-1.5" />
+            <BranchBadge branch={branch} colorKey={colorKey} className="min-w-0 text-[10px] py-0 px-1.5" />
           ) : (
             <span className="text-xs text-muted-foreground">
               Choose a branch

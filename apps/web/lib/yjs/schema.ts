@@ -9,7 +9,7 @@ import type {
   TextLayerData,
   ViewportData,
   WorkspaceData,
-} from "@/lib/liveblocks.types"
+} from "@/lib/types"
 
 /**
  * Y.Doc layout for a room. Each domain is a top-level Y.Map of Y.Maps; the

@@ -21,7 +21,7 @@ import type {
   TextLayerData,
   ViewportData,
   WorkspaceData,
-} from "@/lib/liveblocks.types"
+} from "@/lib/types"
 
 export function useRoomCollections(): RoomCollections {
   const { doc } = useYjs()

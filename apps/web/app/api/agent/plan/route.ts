@@ -4,7 +4,7 @@ import { getClient } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
 import { broadcastChatEventViaDoc, mutateRoomDoc } from "@/lib/yjs/server"
-import type { PlanData } from "@/lib/liveblocks.types"
+import type { PlanData } from "@/lib/types"
 
 export const runtime = "nodejs"
 export const maxDuration = 300

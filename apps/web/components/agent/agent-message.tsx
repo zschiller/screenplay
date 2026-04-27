@@ -219,7 +219,7 @@ function PlanMessage({
       </button>
       {expanded && (
         <>
-          <div className="mt-2 text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-background prose-pre:border prose-pre:border-border max-w-none">
+          <div className="mt-2 text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-code:text-foreground prose-pre:bg-background prose-pre:text-foreground prose-pre:border prose-pre:border-border max-w-none">
             <Markdown>{message.content}</Markdown>
           </div>
           {message.status === "pending" && (
@@ -257,7 +257,7 @@ export function AgentMessageItem({ message, toolResult, roomId, chatId }: { mess
 
     case "assistant":
       return (
-        <div className="text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-background prose-pre:border prose-pre:border-border max-w-none">
+        <div className="text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-code:text-foreground prose-pre:bg-background prose-pre:text-foreground prose-pre:border prose-pre:border-border max-w-none">
           <Markdown>{message.content}</Markdown>
         </div>
       )

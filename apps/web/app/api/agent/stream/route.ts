@@ -4,7 +4,7 @@ import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { getClient, getOrCreateAgent, getOrCreateEnvironment } from "@/lib/agent/config"
 import { executeCustomTool, type ToolContext } from "@/lib/agent/tool-executor"
 import type { CustomToolName, AgentStreamEvent } from "@/lib/agent/types"
-import type { PlanData } from "@/lib/liveblocks.types"
+import type { PlanData } from "@/lib/types"
 import { broadcastChatEventViaDoc, mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { kv } from "@/lib/kv"
 
