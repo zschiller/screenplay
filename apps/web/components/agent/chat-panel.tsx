@@ -292,7 +292,7 @@ export function ChatPanel({
         </div>
       </div>
       <div className="flex border-b border-border bg-background">
-        <div className="flex-1 overflow-x-auto min-w-0">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden min-w-0">
           <TabsList variant="line" className="h-9 px-2">
             <TabsTrigger
               value={LOGS_TAB_VALUE}
