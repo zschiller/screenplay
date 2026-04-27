@@ -1,7 +1,9 @@
 import * as Y from "yjs"
+import { nanoid } from "nanoid"
 import type {
   AgentData,
   ArtboardData,
+  ArtboardGroupData,
   ChatSessionData,
   PlanData,
   TextLayerData,
@@ -21,6 +23,7 @@ export const COLLECTION_KEYS = {
   workspaces: "workspaces",
   agents: "sandboxes",
   artboards: "artboards",
+  artboardGroups: "artboardGroups",
   textLayers: "textLayers",
   chatSessions: "chatSessions",
   plans: "plans",
@@ -212,6 +215,7 @@ export type RoomCollections = {
   workspaces: YjsCollection<WorkspaceData>
   agents: YjsCollection<AgentData>
   artboards: YjsCollection<ArtboardData>
+  artboardGroups: YjsCollection<ArtboardGroupData>
   textLayers: YjsCollection<TextLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
@@ -241,6 +245,10 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
       doc,
       ensureCollection(doc, COLLECTION_KEYS.artboards),
     ),
+    artboardGroups: new YjsCollection<ArtboardGroupData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.artboardGroups),
+    ),
     textLayers: new YjsCollection<TextLayerData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.textLayers),
@@ -256,6 +264,91 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),
   }
+  migrateLegacyArtboards(collections)
   COLLECTIONS_CACHE.set(doc, collections)
   return collections
+}
+
+/**
+ * Wraps any artboard that predates groups (i.e. still carries its own x/y and
+ * isn't already referenced by a group) in a fresh single-artboard group, and
+ * back-fills `name` on any group that lacks one. Runs once per Y.Doc in
+ * `getRoomCollections`. Idempotent.
+ */
+function migrateLegacyArtboards(c: RoomCollections): void {
+  const doc = c.doc
+  const artboardsMap = ensureCollection(doc, COLLECTION_KEYS.artboards)
+  const groupsMap = ensureCollection(doc, COLLECTION_KEYS.artboardGroups)
+
+  const referenced = new Set<string>()
+  groupsMap.forEach((groupMap) => {
+    const ids = groupMap.get("artboardIds") as string[] | undefined
+    if (Array.isArray(ids)) for (const id of ids) referenced.add(id)
+  })
+
+  const orphans: { id: string; x: number; y: number; sidebarOrder?: number }[] = []
+  artboardsMap.forEach((abMap, id) => {
+    if (referenced.has(id)) return
+    const x = abMap.get("x") as number | undefined
+    const y = abMap.get("y") as number | undefined
+    if (typeof x !== "number" || typeof y !== "number") return
+    const sidebarOrder = abMap.get("sidebarOrder") as number | undefined
+    orphans.push({ id, x, y, sidebarOrder })
+  })
+
+  // Collect groups that already exist but were created before names were
+  // persisted, so we can back-fill them. Iteration order is sidebarOrder
+  // first (lower = earlier), then doc order, then id — same as the sidebar.
+  const unnamed: Array<{ id: string; sidebarOrder: number; docIdx: number }> = []
+  let docIdx = 0
+  let maxNumber = 0
+  groupsMap.forEach((groupMap, id) => {
+    const name = groupMap.get("name") as string | undefined
+    if (name) {
+      const m = /^Group (\d+)$/.exec(name)
+      if (m) {
+        const n = parseInt(m[1]!, 10)
+        if (Number.isFinite(n) && n > maxNumber) maxNumber = n
+      }
+    } else {
+      const so = groupMap.get("sidebarOrder")
+      const sidebarOrder = typeof so === "number" ? so : Number.MAX_SAFE_INTEGER
+      unnamed.push({ id, sidebarOrder, docIdx })
+    }
+    docIdx++
+  })
+  unnamed.sort((a, b) => {
+    if (a.sidebarOrder !== b.sidebarOrder) return a.sidebarOrder - b.sidebarOrder
+    if (a.docIdx !== b.docIdx) return a.docIdx - b.docIdx
+    return a.id.localeCompare(b.id)
+  })
+
+  if (orphans.length === 0 && unnamed.length === 0) return
+
+  doc.transact(() => {
+    let nextNumber = maxNumber + 1
+    for (const u of unnamed) {
+      const g = groupsMap.get(u.id)
+      if (g && !g.get("name")) {
+        g.set("name", `Group ${nextNumber++}`)
+      }
+    }
+    for (const orphan of orphans) {
+      const groupId = nanoid()
+      c.artboardGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextNumber++}`,
+        x: orphan.x,
+        y: orphan.y,
+        artboardIds: [orphan.id],
+        ...(orphan.sidebarOrder !== undefined ? { sidebarOrder: orphan.sidebarOrder } : {}),
+      })
+      const ab = artboardsMap.get(orphan.id)
+      if (ab) {
+        ab.delete("x")
+        ab.delete("y")
+        ab.delete("sidebarOrder")
+      }
+    }
+  })
 }

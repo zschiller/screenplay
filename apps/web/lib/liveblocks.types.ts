@@ -77,8 +77,6 @@ export type ArtboardData = {
   id: string
   /** Undefined for empty frames not yet associated with an agent. */
   sandboxId?: string
-  x: number
-  y: number
   width: number
   height: number
   label: string
@@ -90,6 +88,25 @@ export type ArtboardData = {
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */
   knobValues?: JsonObject
+}
+
+/**
+ * Container for a row of artboards laid out via flex. Owns the world-space
+ * (x, y) origin; each artboard's position is implicit from its index in
+ * `artboardIds` and the widths of preceding artboards plus the row gap.
+ */
+export type ArtboardGroupData = {
+  id: string
+  /**
+   * Stable display name set at creation time (e.g. "Group 3"). Sidebar
+   * reordering must not renumber existing groups, so we persist the name
+   * rather than deriving it from sort position.
+   */
+  name?: string
+  x: number
+  y: number
+  /** Artboard ids in left-to-right order. */
+  artboardIds: string[]
   /** Display order in the sidebar Frames list. Lower values render first. */
   sidebarOrder?: number
 }

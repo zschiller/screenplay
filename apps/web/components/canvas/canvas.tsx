@@ -10,6 +10,7 @@ import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import {
   useAgents,
+  useArtboardGroups,
   useArtboards,
   useChatSessions,
   useChatStreamEvents,
@@ -55,6 +56,7 @@ import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { Artboard } from "./artboard"
+import { ArtboardGroup } from "./artboard-group"
 import { TextLayer } from "./text-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
@@ -95,8 +97,12 @@ import {
   ZOOM_STEP,
   DEFAULT_ARTBOARD_WIDTH,
   DEFAULT_ARTBOARD_HEIGHT,
+  MIN_ARTBOARD_WIDTH,
+  MIN_ARTBOARD_HEIGHT,
+  ARTBOARD_GROUP_GAP,
   CANVAS_SIZE,
 } from "@/lib/constants"
+import { computeArtboardLayouts, groupContentWidth, nextGroupNumber } from "@/lib/artboard-layout"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -171,6 +177,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
   const [selectedTextLayerIds, setSelectedTextLayerIds] = useState<Set<string>>(new Set())
   const [hoveredArtboardId, setHoveredArtboardId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
@@ -219,6 +226,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // Refs so keyboard handler stays current without re-binding
   const selectedArtboardIdsRef = useRef(selectedArtboardIds)
   selectedArtboardIdsRef.current = selectedArtboardIds
+  const selectedGroupIdsRef = useRef(selectedGroupIds)
+  selectedGroupIdsRef.current = selectedGroupIds
   const selectedTextLayerIdsRef = useRef(selectedTextLayerIds)
   selectedTextLayerIdsRef.current = selectedTextLayerIds
   const editingTextLayerIdRef = useRef(editingTextLayerId)
@@ -262,6 +271,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setFocusedArtboardId(null)
         } else {
           setSelectedArtboardIds(new Set())
+          setSelectedGroupIds(new Set())
           setSelectedTextLayerIds(new Set())
         }
       }
@@ -348,15 +358,39 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setSpaceHeld(true)
         }
       }
-      // Delete/Backspace removes selected artboards and text layers
+      // Delete/Backspace removes selected artboards (including all artboards
+      // belonging to selected groups) and text layers.
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
         const abIds = selectedArtboardIdsRef.current
+        const grpIds = selectedGroupIdsRef.current
         const txtIds = selectedTextLayerIdsRef.current
-        if (abIds.size > 0 || txtIds.size > 0) {
+        if (abIds.size > 0 || grpIds.size > 0 || txtIds.size > 0) {
           e.preventDefault()
-          if (abIds.size > 0) {
-            removeArtboardsRef.current(Array.from(abIds))
-            setSelectedArtboardIds(new Set())
+          const allArtboardIds = new Set<string>(abIds)
+          if (grpIds.size > 0) {
+            for (const g of collections.artboardGroups.toArray()) {
+              if (grpIds.has(g.id)) {
+                for (const aid of g.artboardIds) allArtboardIds.add(aid)
+              }
+            }
+          }
+          if (allArtboardIds.size > 0) {
+            // Single-frame delete: keep selection on the right neighbor (or
+            // left if there's nothing to the right). Multi-frame deletes
+            // clear selection — no obvious "next" candidate.
+            let nextSelected: string | null = null
+            if (allArtboardIds.size === 1) {
+              const onlyId = allArtboardIds.values().next().value as string
+              for (const g of collections.artboardGroups.toArray()) {
+                const idx = g.artboardIds.indexOf(onlyId)
+                if (idx === -1) continue
+                nextSelected = g.artboardIds[idx + 1] ?? g.artboardIds[idx - 1] ?? null
+                break
+              }
+            }
+            removeArtboardsRef.current(Array.from(allArtboardIds))
+            setSelectedArtboardIds(nextSelected ? new Set([nextSelected]) : new Set())
+            setSelectedGroupIds(new Set())
           }
           if (txtIds.size > 0) {
             removeTextLayersRef.current(Array.from(txtIds))
@@ -389,6 +423,69 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, history])
 
   const artboards = useArtboards()
+  const artboardGroups = useArtboardGroups()
+  const artboardLayouts = useMemo(
+    () => computeArtboardLayouts(artboardGroups, artboards),
+    [artboardGroups, artboards],
+  )
+  const sortedArtboardGroups = useMemo(() => {
+    return [...artboardGroups].sort((a, b) => {
+      const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
+      const bo = b.sidebarOrder ?? Number.MAX_SAFE_INTEGER
+      if (ao !== bo) return ao - bo
+      return a.id.localeCompare(b.id)
+    })
+  }, [artboardGroups])
+
+  /**
+   * Display name per group. Persisted on the group itself so reordering
+   * doesn't renumber existing groups; legacy groups without a stored name
+   * fall back to "Group" so the UI doesn't render `undefined`.
+   */
+  const groupDisplayNames = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const g of sortedArtboardGroups) {
+      names.set(g.id, g.name ?? "Group")
+    }
+    return names
+  }, [sortedArtboardGroups])
+
+  /**
+   * World-space rects for the trailing "add frame" placeholder of every group
+   * that contains a currently-selected artboard. Selecting the whole group
+   * hides it. Drawn by `SelectionOverlay` so the border stays 1px crisp
+   * regardless of zoom; the click target itself lives inside `ArtboardGroup`.
+   */
+  const placeholderRects = useMemo(() => {
+    const rects: Array<{ x: number; y: number; width: number; height: number }> = []
+    for (const g of artboardGroups) {
+      if (g.artboardIds.length === 0) continue
+      if (selectedGroupIds.has(g.id)) continue
+      const hasSelected = g.artboardIds.some((id) => selectedArtboardIds.has(id))
+      if (!hasSelected) continue
+      const lastId = g.artboardIds[g.artboardIds.length - 1]!
+      const lastLayout = artboardLayouts.get(lastId)
+      if (!lastLayout) continue
+      rects.push({
+        x: lastLayout.x + lastLayout.width + ARTBOARD_GROUP_GAP,
+        y: lastLayout.y,
+        width: lastLayout.width,
+        height: lastLayout.height,
+      })
+    }
+    return rects
+  }, [artboardGroups, artboardLayouts, selectedArtboardIds, selectedGroupIds])
+
+  /** Set of artboard ids whose parent group is currently selected. */
+  const groupSelectedArtboardIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (selectedGroupIds.size === 0) return ids
+    for (const g of artboardGroups) {
+      if (!selectedGroupIds.has(g.id)) continue
+      for (const aid of g.artboardIds) ids.add(aid)
+    }
+    return ids
+  }, [artboardGroups, selectedGroupIds])
   const textLayers = useTextLayers()
   const workspaces = useWorkspaces()
   const agents = useAgents()
@@ -470,13 +567,28 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         for (const agent of collections.agents.toArray()) {
           if (agent.workspaceId === id) agentIds.push(agent.id)
         }
+        const removedArtboardIds = new Set<string>()
         for (const agentId of agentIds) {
           collections.agents.delete(agentId)
           for (const a of collections.artboards.toArray()) {
-            if (a.sandboxId === agentId) collections.artboards.delete(a.id)
+            if (a.sandboxId === agentId) {
+              collections.artboards.delete(a.id)
+              removedArtboardIds.add(a.id)
+            }
           }
           for (const cs of collections.chatSessions.toArray()) {
             if (cs.agentId === agentId) collections.chatSessions.delete(cs.id)
+          }
+        }
+        // Drop the removed artboards from any groups that referenced them; if
+        // a group is left empty, delete it as well.
+        for (const g of collections.artboardGroups.toArray()) {
+          const remaining = g.artboardIds.filter((aid) => !removedArtboardIds.has(aid))
+          if (remaining.length === g.artboardIds.length) continue
+          if (remaining.length === 0) {
+            collections.artboardGroups.delete(g.id)
+          } else {
+            collections.artboardGroups.update(g.id, { artboardIds: remaining })
           }
         }
       })
@@ -486,93 +598,172 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   // --- Artboard mutations ---
 
-  /** Add an artboard — used by the manual "add screen" button. */
+  /** Add an artboard — used by the manual "add screen" button. Always creates a fresh group. */
   const addArtboard = useCallback(
     (agentId: string, label: string): string | undefined => {
       const agent = collections.agents.get(agentId)
       if (!agent || agent.status !== "running") return
 
+      const allGroups = collections.artboardGroups.toArray()
       const allArtboards = collections.artboards.toArray()
 
       let x: number
       let y: number
 
-      if (allArtboards.length === 0) {
+      if (allGroups.length === 0) {
         const { cx, cy } = getViewportCenter()
         x = cx - DEFAULT_ARTBOARD_WIDTH / 2
         y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
       } else {
-        // Find the top edge (min y) and rightmost edge across all artboards
         let minY = Infinity
         let maxRight = -Infinity
-        for (const a of allArtboards) {
-          minY = Math.min(minY, a.y)
-          maxRight = Math.max(maxRight, a.x + a.width)
+        for (const g of allGroups) {
+          minY = Math.min(minY, g.y)
+          const w = groupContentWidth(g, allArtboards)
+          if (g.x + w > maxRight) maxRight = g.x + w
         }
-        x = maxRight + 50
+        x = maxRight + ARTBOARD_GROUP_GAP
         y = minY
       }
 
-      const id = nanoid()
-      collections.artboards.set(id, {
-        id,
-        sandboxId: agentId,
-        x,
-        y,
-        width: DEFAULT_ARTBOARD_WIDTH,
-        height: DEFAULT_ARTBOARD_HEIGHT,
-        label,
-        iframeState: {},
+      const artboardId = nanoid()
+      const groupId = nanoid()
+      const groupName = `Group ${nextGroupNumber(allGroups)}`
+      collections.transact(() => {
+        collections.artboards.set(artboardId, {
+          id: artboardId,
+          sandboxId: agentId,
+          width: DEFAULT_ARTBOARD_WIDTH,
+          height: DEFAULT_ARTBOARD_HEIGHT,
+          label,
+          iframeState: {},
+        })
+        collections.artboardGroups.set(groupId, {
+          id: groupId,
+          name: groupName,
+          x,
+          y,
+          artboardIds: [artboardId],
+        })
       })
-      return id
+      return artboardId
     },
     [collections, getViewportCenter],
   )
 
-  /** Add an empty frame not associated with any agent/branch/route. */
+  /** Add an empty frame not associated with any agent/branch/route. Creates a new single-artboard group. */
   const addFrame = useCallback(
     (x: number, y: number, width: number, height: number): string => {
+      const artboardId = nanoid()
+      const groupId = nanoid()
+      const groupName = `Group ${nextGroupNumber(collections.artboardGroups.toArray())}`
+      collections.transact(() => {
+        collections.artboards.set(artboardId, {
+          id: artboardId,
+          width: Math.max(MIN_ARTBOARD_WIDTH, width),
+          height: Math.max(MIN_ARTBOARD_HEIGHT, height),
+          label: "Frame",
+          iframeState: {},
+        })
+        collections.artboardGroups.set(groupId, {
+          id: groupId,
+          name: groupName,
+          x,
+          y,
+          artboardIds: [artboardId],
+        })
+      })
+      return artboardId
+    },
+    [collections],
+  )
+
+  /** Append a new artboard to an existing group, mirroring the last sibling's size and agent. */
+  const addArtboardToGroup = useCallback(
+    (groupId: string): string | undefined => {
+      const group = collections.artboardGroups.get(groupId)
+      if (!group || group.artboardIds.length === 0) return
+      const lastId = group.artboardIds[group.artboardIds.length - 1]!
+      const last = collections.artboards.get(lastId)
+      if (!last) return
       const id = nanoid()
-      collections.artboards.set(id, {
-        id,
-        x,
-        y,
-        width: Math.max(320, width),
-        height: Math.max(200, height),
-        label: "Frame",
-        iframeState: {},
+      collections.transact(() => {
+        collections.artboards.set(id, {
+          id,
+          ...(last.sandboxId ? { sandboxId: last.sandboxId } : {}),
+          width: last.width,
+          height: last.height,
+          label: last.sandboxId
+            ? `Frame ${group.artboardIds.length + 1}`
+            : "Frame",
+          iframeState: {},
+          ...(last.route ? { route: last.route } : {}),
+        })
+        collections.artboardGroups.update(groupId, {
+          artboardIds: [...group.artboardIds, id],
+        })
       })
       return id
     },
     [collections],
   )
 
-  const moveArtboard = useCallback(
-    (id: string, x: number, y: number) => {
-      collections.artboards.update(id, { x, y })
-    },
-    [collections],
-  )
-
+  /** Translate the groups containing any of the given artboards by (dx, dy). */
   const moveArtboardsByDelta = useCallback(
     (ids: string[], dx: number, dy: number) => {
+      const idSet = new Set(ids)
       collections.transact(() => {
-        for (const id of ids) {
-          const a = collections.artboards.get(id)
-          if (a) collections.artboards.update(id, { x: a.x + dx, y: a.y + dy })
+        for (const g of collections.artboardGroups.toArray()) {
+          if (g.artboardIds.some((aid) => idSet.has(aid))) {
+            collections.artboardGroups.update(g.id, {
+              x: g.x + dx,
+              y: g.y + dy,
+            })
+          }
         }
       })
     },
     [collections],
   )
 
-  const resizeArtboard = useCallback(
-    (id: string, x: number, y: number, w: number, h: number) => {
-      collections.artboards.update(id, {
-        x,
-        y,
-        width: Math.max(320, w),
-        height: Math.max(200, h),
+  /**
+   * Resize handler from a single artboard's edge.
+   * - (dx, dy) shifts the artboard's parent group by that delta — non-zero
+   *   only for top (`dy`) and left (`dx`) edges, so the group anchor follows
+   *   the dragged edge while the right/bottom stays put.
+   * - (dw, dh) is applied to this artboard's own width/height (clamped to
+   *   the 320×200 minimum). Other artboards in the group keep their size.
+   */
+  const resizeArtboardEdge = useCallback(
+    (id: string, dx: number, dy: number, dw: number, dh: number) => {
+      collections.transact(() => {
+        const a = collections.artboards.get(id)
+        if (!a) return
+        const newWidth = Math.max(MIN_ARTBOARD_WIDTH, a.width + dw)
+        const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, a.height + dh)
+        const actualDw = newWidth - a.width
+        const actualDh = newHeight - a.height
+        // The resize hook only sends a non-zero `dx`/`dy` for left/top edge
+        // drags (where `dx ≈ -dw` and `dy ≈ -dh`). Once the artboard hits its
+        // minimum, `actualDw`/`actualDh` shrink toward 0 — mirror them with
+        // the opposite sign so the group anchor stays pinned to the
+        // un-dragged side instead of marching off with the cursor.
+        const shiftX = dx === 0 ? 0 : -actualDw
+        const shiftY = dy === 0 ? 0 : -actualDh
+        if (shiftX !== 0 || shiftY !== 0) {
+          for (const g of collections.artboardGroups.toArray()) {
+            if (g.artboardIds.includes(id)) {
+              collections.artboardGroups.update(g.id, {
+                x: g.x + shiftX,
+                y: g.y + shiftY,
+              })
+              break
+            }
+          }
+        }
+        if (actualDw !== 0 || actualDh !== 0) {
+          collections.artboards.update(id, { width: newWidth, height: newHeight })
+        }
       })
     },
     [collections],
@@ -585,22 +776,62 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  const removeArtboard = useCallback(
-    (id: string) => {
-      collections.artboards.delete(id)
-    },
-    [collections],
-  )
-
   const removeArtboards = useCallback(
     (ids: string[]) => {
+      if (ids.length === 0) return
+      const idSet = new Set(ids)
       collections.transact(() => {
         for (const id of ids) collections.artboards.delete(id)
+        // Iterate groups exactly once so each group's `artboardIds` stays
+        // consistent — `toArray()` returns a snapshot that doesn't refresh
+        // mid-transaction, so doing it per-id would re-add already-deleted
+        // ids on subsequent passes.
+        for (const g of collections.artboardGroups.toArray()) {
+          if (!g.artboardIds.some((aid) => idSet.has(aid))) continue
+          const remaining = g.artboardIds.filter((aid) => !idSet.has(aid))
+          if (remaining.length === 0) {
+            collections.artboardGroups.delete(g.id)
+          } else {
+            collections.artboardGroups.update(g.id, { artboardIds: remaining })
+          }
+        }
       })
     },
     [collections],
   )
   removeArtboardsRef.current = removeArtboards
+
+  /**
+   * After deleting a single artboard, prefer keeping the user near the same
+   * spot in the row: pick the right-hand neighbor, falling back to the left.
+   * Returns null if the group will be empty (or the artboard isn't in any).
+   */
+  const computeNextSelectionAfterDelete = useCallback(
+    (deletedId: string): string | null => {
+      for (const g of collections.artboardGroups.toArray()) {
+        const idx = g.artboardIds.indexOf(deletedId)
+        if (idx === -1) continue
+        return g.artboardIds[idx + 1] ?? g.artboardIds[idx - 1] ?? null
+      }
+      return null
+    },
+    [collections],
+  )
+
+  const removeArtboard = useCallback(
+    (id: string) => {
+      const next = computeNextSelectionAfterDelete(id)
+      removeArtboards([id])
+      if (next) {
+        setSelectedArtboardIds(new Set([next]))
+        setSelectedGroupIds(new Set())
+        setSelectedTextLayerIds(new Set())
+      } else {
+        setSelectedArtboardIds(new Set())
+      }
+    },
+    [computeNextSelectionAfterDelete, removeArtboards],
+  )
 
   const updateArtboardRoute = useCallback(
     (id: string, route: string) => {
@@ -621,15 +852,47 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  const reorderArtboards = useCallback(
+  /** Reorder groups in the sidebar Frames list. */
+  const reorderArtboardGroups = useCallback(
     (orderedIds: string[]) => {
       collections.transact(() => {
         orderedIds.forEach((id, index) => {
-          collections.artboards.update(id, { sidebarOrder: index })
+          collections.artboardGroups.update(id, { sidebarOrder: index })
         })
       })
     },
     [collections],
+  )
+
+  /** Reorder the artboards inside a group — also reflects on the canvas via flex order. */
+  const reorderGroupArtboards = useCallback(
+    (groupId: string, orderedArtboardIds: string[]) => {
+      collections.artboardGroups.update(groupId, { artboardIds: orderedArtboardIds })
+    },
+    [collections],
+  )
+
+  const renameArtboardGroup = useCallback(
+    (groupId: string, name: string) => {
+      collections.artboardGroups.update(groupId, { name })
+    },
+    [collections],
+  )
+
+  /** Delete an entire group + all its artboards. */
+  const removeArtboardGroup = useCallback(
+    (groupId: string) => {
+      const g = collections.artboardGroups.get(groupId)
+      if (!g) return
+      removeArtboards(g.artboardIds)
+      setSelectedGroupIds((prev) => {
+        if (!prev.has(groupId)) return prev
+        const next = new Set(prev)
+        next.delete(groupId)
+        return next
+      })
+    },
+    [collections, removeArtboards],
   )
 
   const assignAgentToArtboard = useCallback(
@@ -752,11 +1015,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (id: string) => {
       collections.transact(() => {
         collections.agents.delete(id)
+        const removedArtboardIds = new Set<string>()
         for (const a of collections.artboards.toArray()) {
-          if (a.sandboxId === id) collections.artboards.delete(a.id)
+          if (a.sandboxId === id) {
+            collections.artboards.delete(a.id)
+            removedArtboardIds.add(a.id)
+          }
         }
         for (const cs of collections.chatSessions.toArray()) {
           if (cs.agentId === id) collections.chatSessions.delete(cs.id)
+        }
+        for (const g of collections.artboardGroups.toArray()) {
+          const remaining = g.artboardIds.filter((aid) => !removedArtboardIds.has(aid))
+          if (remaining.length === g.artboardIds.length) continue
+          if (remaining.length === 0) {
+            collections.artboardGroups.delete(g.id)
+          } else {
+            collections.artboardGroups.update(g.id, { artboardIds: remaining })
+          }
         }
       })
     },
@@ -1568,6 +1844,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         baseTextLayers: new Set(selectedTextLayerIds),
       }
       setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
+      setSelectedGroupIds(new Set())
       if (!e.shiftKey) {
         setSelectedArtboardIds(new Set())
         setSelectedTextLayerIds(new Set())
@@ -1612,14 +1889,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const bottom = Math.max(start.startY, canvas.y)
 
       const abHits = new Set<string>()
-      for (const ab of artboards) {
+      for (const layout of artboardLayouts.values()) {
         if (
-          ab.x < right &&
-          ab.x + ab.width > left &&
-          ab.y < bottom &&
-          ab.y + ab.height > top
+          layout.x < right &&
+          layout.x + layout.width > left &&
+          layout.y < bottom &&
+          layout.y + layout.height > top
         ) {
-          abHits.add(ab.id)
+          abHits.add(layout.id)
         }
       }
       const txtHits = new Set<string>()
@@ -1650,7 +1927,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setSelectedTextLayerIds(txtHits)
       }
     },
-    [screenToCanvas, artboards, textLayers],
+    [screenToCanvas, artboardLayouts, textLayers],
   )
 
   const handleCanvasPointerUp = useCallback(
@@ -1730,9 +2007,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [screenToCanvas, addTextLayer, addFrame],
   )
 
-  // Click on artboard to select
+  // Click on artboard to select. The group always takes precedence: when an
+  // artboard's parent group is currently selected, the click is a no-op so we
+  // never end up with a group AND one of its children selected at once.
   const handleArtboardSelect = useCallback(
     (id: string, shiftKey: boolean) => {
+      const containingGroup = collections.artboardGroups
+        .toArray()
+        .find((g) => g.artboardIds.includes(id))
+      if (containingGroup && selectedGroupIdsRef.current.has(containingGroup.id)) {
+        return
+      }
+      setSelectedGroupIds(new Set())
       if (shiftKey) {
         setSelectedArtboardIds((prev) => {
           const next = new Set(prev)
@@ -1743,6 +2029,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         setSelectedArtboardIds(new Set([id]))
         setSelectedTextLayerIds(new Set())
+      }
+    },
+    [collections],
+  )
+
+  const handleGroupSelect = useCallback(
+    (groupId: string, shiftKey: boolean) => {
+      setSelectedArtboardIds(new Set())
+      setSelectedTextLayerIds(new Set())
+      if (shiftKey) {
+        setSelectedGroupIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(groupId)) next.delete(groupId)
+          else next.add(groupId)
+          return next
+        })
+      } else {
+        setSelectedGroupIds(new Set([groupId]))
       }
     },
     [],
@@ -1791,20 +2095,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
       // Hit-test for hover highlight
       let hovered: string | null = null
-      for (const ab of artboards) {
+      for (const layout of artboardLayouts.values()) {
         if (
-          canvasX >= ab.x &&
-          canvasX <= ab.x + ab.width &&
-          canvasY >= ab.y &&
-          canvasY <= ab.y + ab.height
+          canvasX >= layout.x &&
+          canvasX <= layout.x + layout.width &&
+          canvasY >= layout.y &&
+          canvasY <= layout.y + layout.height
         ) {
-          hovered = ab.id
+          hovered = layout.id
           break
         }
       }
       setHoveredArtboardId(hovered)
     },
-    [setPresence, artboards],
+    [setPresence, artboardLayouts],
   )
 
   const handlePointerLeave = useCallback(() => {
@@ -1825,17 +2129,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const canvasY = (relY - positionY) / scale
 
       // Hit-test against artboard bounds — store offset relative to artboard
-      for (const ab of artboards) {
+      for (const layout of artboardLayouts.values()) {
         if (
-          canvasX >= ab.x &&
-          canvasX <= ab.x + ab.width &&
-          canvasY >= ab.y &&
-          canvasY <= ab.y + ab.height
+          canvasX >= layout.x &&
+          canvasX <= layout.x + layout.width &&
+          canvasY >= layout.y &&
+          canvasY <= layout.y + layout.height
         ) {
           setNewCommentPos({
-            x: canvasX - ab.x,
-            y: canvasY - ab.y,
-            artboardId: ab.id,
+            x: canvasX - layout.x,
+            y: canvasY - layout.y,
+            artboardId: layout.id,
           })
           return
         }
@@ -1843,7 +2147,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
       setNewCommentPos({ x: canvasX, y: canvasY })
     },
-    [commentMode, artboards],
+    [commentMode, artboardLayouts],
   )
 
   // Broadcast selection to other users via presence
@@ -1928,7 +2232,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           workspaces={workspaces}
           agents={agents}
           artboards={artboards}
+          artboardGroups={sortedArtboardGroups}
           selectedArtboardIds={selectedArtboardIds}
+          selectedGroupIds={selectedGroupIds}
+          onSelectGroup={handleGroupSelect}
           onSelectAgent={handleSelectAgent}
           onCreateWorkspace={handleCreateWorkspace}
           onUpdateWorkspace={updateWorkspaceInStorage}
@@ -1952,24 +2259,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onAddArtboard={handleAddArtboardForAgent}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
-          onSelectArtboard={(id, shiftKey) => {
-            if (shiftKey) {
-              setSelectedArtboardIds((prev) => {
-                const next = new Set(prev)
-                if (next.has(id)) next.delete(id)
-                else next.add(id)
-                return next
-              })
-            } else {
-              setSelectedArtboardIds(new Set([id]))
-              setSelectedTextLayerIds(new Set())
-            }
-          }}
+          onSelectArtboard={handleArtboardSelect}
           onZoomToArtboard={handleSelectArtboard}
           onRenameArtboard={renameArtboard}
           onRouteChange={updateArtboardRoute}
           onRemoveArtboard={removeArtboard}
-          onReorderArtboards={reorderArtboards}
+          onReorderArtboardGroups={reorderArtboardGroups}
+          onReorderGroupArtboards={reorderGroupArtboards}
+          onRenameArtboardGroup={renameArtboardGroup}
+          onRemoveArtboardGroup={removeArtboardGroup}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
           activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt).map((c) => c.agentId))}
           chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
@@ -2069,40 +2367,86 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
 
-                  {artboards.map((artboard) => {
-                    const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
+                  {artboardGroups.map((group) => {
+                    const groupArtboards = group.artboardIds
+                      .map((id) => artboards.find((a) => a.id === id))
+                      .filter((a): a is NonNullable<typeof a> => a !== undefined)
+                    const groupSelected = selectedGroupIds.has(group.id)
+                    // Placeholder shows only when an artboard inside the group
+                    // is selected — selecting the whole group hides it.
+                    const hasSelectedFrame = groupArtboards.some((a) => selectedArtboardIds.has(a.id))
+                    const showGroupLabel = groupArtboards.length > 1
+                    const groupLabel = showGroupLabel
+                      ? groupDisplayNames.get(group.id)
+                      : undefined
+                    // Render artboards in a stable DOM order (sorted by id)
+                    // and use CSS `order` to place them visually. Reordering
+                    // an iframe's DOM position forces it to reload, so we
+                    // never want React to insertBefore an iframe element.
+                    const stableArtboards = [...groupArtboards].sort((a, b) =>
+                      a.id.localeCompare(b.id),
+                    )
                     return (
-                      <Artboard
-                        key={artboard.id}
-                        artboard={{
-                          ...artboard,
-                          iframeUrl: agentInfo?.previewDomain,
-                          branch: agentInfo?.branch,
+                      <ArtboardGroup
+                        key={group.id}
+                        group={group}
+                        artboards={groupArtboards}
+                        hasSelectedArtboard={hasSelectedFrame}
+                        onAddArtboard={(groupId) => {
+                          const newId = addArtboardToGroup(groupId)
+                          if (newId) {
+                            setSelectedArtboardIds(new Set([newId]))
+                            setSelectedGroupIds(new Set())
+                            setSelectedTextLayerIds(new Set())
+                          }
                         }}
-                        zoom={zoom}
-                        focused={focusedArtboardId === artboard.id}
-                        selected={selectedArtboardIds.has(artboard.id)}
-                        onFocus={setFocusedArtboardId}
-                        onSelect={handleArtboardSelect}
-                        onMove={moveArtboard}
-                        onMoveSelected={handleMoveSelected}
-                        onResize={resizeArtboard}
-                        onRemove={removeArtboard}
-                        onStateChanged={updateArtboardState}
-                        onRouteChange={updateArtboardRoute}
-                        onScrollChange={updateArtboardScroll}
-                        onKnobsDeclared={updateArtboardKnobs}
-                        onKnobValuesChange={updateArtboardKnobValues}
-                        multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
-                        spaceHeld={spaceHeld}
-                        pickMode={pickMode}
-                        onPicked={handleInspectPicked}
-                        onHover={handleInspectHover}
-                        assignableAgents={runningAgents}
-                        onAssignAgent={assignAgentToArtboard}
-                        discoveredRoutes={agentInfo?.discoveredRoutes}
-                        onSelectRoute={updateArtboardRoute}
-                      />
+                      >
+                        {stableArtboards.map((artboard) => {
+                          const flexOrder = group.artboardIds.indexOf(artboard.id)
+                          const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
+                          return (
+                            <Artboard
+                              key={artboard.id}
+                              artboard={{
+                                ...artboard,
+                                iframeUrl: agentInfo?.previewDomain,
+                                branch: agentInfo?.branch,
+                              }}
+                              zoom={zoom}
+                              focused={focusedArtboardId === artboard.id}
+                              selected={selectedArtboardIds.has(artboard.id)}
+                              onFocus={setFocusedArtboardId}
+                              onSelect={handleArtboardSelect}
+                              onMoveGroup={(dx, dy) => moveArtboardsByDelta([artboard.id], dx, dy)}
+                              onMoveSelected={handleMoveSelected}
+                              onResize={resizeArtboardEdge}
+                              onRemove={removeArtboard}
+                              onStateChanged={updateArtboardState}
+                              onRouteChange={updateArtboardRoute}
+                              onScrollChange={updateArtboardScroll}
+                              onKnobsDeclared={updateArtboardKnobs}
+                              onKnobValuesChange={updateArtboardKnobValues}
+                              multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
+                              spaceHeld={spaceHeld}
+                              pickMode={pickMode}
+                              onPicked={handleInspectPicked}
+                              onHover={handleInspectHover}
+                              assignableAgents={runningAgents}
+                              onAssignAgent={assignAgentToArtboard}
+                              discoveredRoutes={agentInfo?.discoveredRoutes}
+                              onSelectRoute={updateArtboardRoute}
+                              groupLabel={flexOrder === 0 ? groupLabel : undefined}
+                              groupSelected={groupSelected}
+                              onSelectGroup={
+                                flexOrder === 0 && showGroupLabel
+                                  ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                                  : undefined
+                              }
+                              flexOrder={flexOrder}
+                            />
+                          )
+                        })}
+                      </ArtboardGroup>
                     )
                   })}
 
@@ -2139,7 +2483,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                       setCommentMode(false)
                     }}
                     onCancelComment={() => setNewCommentPos(null)}
-                    artboards={artboards}
+                    artboards={Array.from(artboardLayouts.values())}
                   />
 
                 </div>
@@ -2151,10 +2495,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 zoom={zoom}
                 viewportPos={viewportPos}
                 selectedArtboardIds={selectedArtboardIds}
+                groupSelectedArtboardIds={groupSelectedArtboardIds}
                 selectedTextLayerIds={selectedTextLayerIds}
                 focusedArtboardId={focusedArtboardId}
                 hoveredArtboardId={hoveredArtboardId}
-                artboards={artboards}
+                artboardLayouts={artboardLayouts}
+                placeholderRects={placeholderRects}
                 textLayers={textLayers}
                 marquee={marquee}
                 textDraft={textDraft}
@@ -2164,11 +2510,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 inspectRect={(() => {
                   const source = (pickMode && inspectHover) ? inspectHover : inspectNote
                   if (!source) return null
-                  const ab = artboards.find((a) => a.id === source.artboardId)
-                  if (!ab) return null
+                  const layout = artboardLayouts.get(source.artboardId)
+                  if (!layout) return null
                   return {
-                    x: ab.x + source.rect.x,
-                    y: ab.y + source.rect.y,
+                    x: layout.x + source.rect.x,
+                    y: layout.y + source.rect.y,
                     width: source.rect.width,
                     height: source.rect.height,
                   }
@@ -2530,10 +2876,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       </ResizablePanel>
       {inspectNote && (() => {
         const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect()
-        const ab = artboards.find((a) => a.id === inspectNote.artboardId)
-        if (!wrapperRect || !ab) return null
-        const canvasX = ab.x + inspectNote.rect.x
-        const canvasY = ab.y + inspectNote.rect.y + inspectNote.rect.height
+        const layout = artboardLayouts.get(inspectNote.artboardId)
+        if (!wrapperRect || !layout) return null
+        const canvasX = layout.x + inspectNote.rect.x
+        const canvasY = layout.y + inspectNote.rect.y + inspectNote.rect.height
         const screenX = wrapperRect.left + canvasX * zoom + viewportPos.x
         const screenY = wrapperRect.top + canvasY * zoom + viewportPos.y
         return (
