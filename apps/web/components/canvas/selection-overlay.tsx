@@ -48,6 +48,27 @@ interface SelectionOverlayProps {
   othersSelections: OtherSelection[]
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
+  /**
+   * One handle per inter-artboard gap in selected groups. World-space
+   * `centerX` is the gap's midpoint; `top`/`bottom` clamp the handle to the
+   * shared height of the two adjacent artboards. Drawn at constant screen-pixel
+   * size so the grab target doesn't change with zoom.
+   */
+  gapHandles?: Array<{
+    groupId: string
+    gapIndex: number
+    centerX: number
+    top: number
+    bottom: number
+  }>
+  /**
+   * One reorder handle per artboard in a selected multi-artboard group. The
+   * world-space center is projected to screen and drawn as a small dot at
+   * constant pixel size — visual-only, drag isn't wired up yet.
+   */
+  reorderHandles?: Array<{ artboardId: string; centerX: number; centerY: number }>
+  /** When the cursor is over a reorder dot, render that one filled instead of hollow. */
+  hoveredReorderArtboardId?: string | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -86,6 +107,9 @@ export function SelectionOverlay({
   othersSelections,
   hideResizeHandles,
   inspectRect,
+  gapHandles,
+  reorderHandles,
+  hoveredReorderArtboardId,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -375,6 +399,64 @@ export function SelectionOverlay({
       ctx.setLineDash([])
     }
 
+    // Draw reorder handles — matches symaphore's CompositionHandle. Both
+    // states are 12×12 outer (1px white) with a 1px primary ring at 10×10.
+    // The 8×8 center is hollow by default (group:hover state — transparent
+    // center with 1px white inset) and filled when the cursor is over the
+    // dot (handle:hover inherits 8×8 from group:hover, only swapping the bg
+    // back to primary).
+    if (reorderHandles && reorderHandles.length > 0) {
+      for (const h of reorderHandles) {
+        const center = toScreen(h.centerX, h.centerY)
+        const cx = Math.round(center.x) + 0.5
+        const cy = Math.round(center.y) + 0.5
+        const filled = h.artboardId === hoveredReorderArtboardId
+        // 12×12 outer white
+        ctx.beginPath()
+        ctx.arc(cx, cy, 6, 0, Math.PI * 2)
+        ctx.fillStyle = bgColor
+        ctx.fill()
+        // 10×10 primary (1px ring outside the 8×8)
+        ctx.beginPath()
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2)
+        ctx.fillStyle = primaryColor
+        ctx.fill()
+        if (filled) {
+          // Hovered: leave the 8×8 center filled primary — no further draw needed.
+        } else {
+          // Default: 1px white inset around an 8×8 transparent center.
+          ctx.beginPath()
+          ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+          ctx.fillStyle = bgColor
+          ctx.fill()
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(cx, cy, 3, 0, Math.PI * 2)
+          ctx.globalCompositeOperation = "destination-out"
+          ctx.fill()
+          ctx.restore()
+        }
+      }
+    }
+
+    // Draw gap-resize handles for selected groups. Matches symaphore's
+    // GapHandle: a 1×12 primary-color line with a 1px bg-color outline.
+    // Constant screen-pixel size since it lives on the screen-space overlay.
+    if (gapHandles && gapHandles.length > 0) {
+      const HH = 12
+      for (const h of gapHandles) {
+        const center = toScreen(h.centerX, (h.top + h.bottom) / 2)
+        const cx = Math.round(center.x)
+        const cy = Math.round(center.y)
+        const halfH = Math.min(HH / 2, ((h.bottom - h.top) * zoom) / 2)
+        // 3×(HH+2) white outline rect, then 1×HH primary line on top.
+        ctx.fillStyle = bgColor
+        ctx.fillRect(cx - 1, cy - halfH - 1, 3, halfH * 2 + 2)
+        ctx.fillStyle = primaryColor
+        ctx.fillRect(cx, cy - halfH, 1, halfH * 2)
+      }
+    }
+
     // Draw frame-draft rectangle (while dragging with the frame tool)
     if (frameDraft) {
       const a = toScreen(frameDraft.startX, frameDraft.startY)
@@ -393,7 +475,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, textLayerSizeTick])
+  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, textLayerSizeTick])
 
   // Keep canvas sized to container
   useEffect(() => {

@@ -341,7 +341,15 @@ export function Artboard({
         selected={selected || groupSelected}
         groupLabel={groupLabel}
         groupSelected={groupSelected}
-        onSelectGroup={onSelectGroup}
+        onSelectGroup={onSelectGroup ? (shiftKey) => {
+          selectedOnPointerDown.current = true
+          onSelectGroup(shiftKey)
+        } : undefined}
+        onSelectFrame={(shiftKey) => {
+          if (selected && !shiftKey) return
+          selectedOnPointerDown.current = true
+          onSelect(artboard.id, shiftKey)
+        }}
       />
       {artboard.sandboxId && (
         <div

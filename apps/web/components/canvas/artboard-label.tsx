@@ -42,6 +42,8 @@ interface ArtboardLabelProps {
   groupSelected?: boolean
   /** Click handler for the group label. When provided, the label is interactive. */
   onSelectGroup?: (shiftKey: boolean) => void
+  /** Pointer-down select for the frame name — mirrors the frame body's instant-select behavior. */
+  onSelectFrame?: (shiftKey: boolean) => void
 }
 
 const HMR_DOT_COLOR: Record<HmrStatus, string> = {
@@ -56,7 +58,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame }: ArtboardLabelProps) {
   return (
     <div
       className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
@@ -70,22 +72,25 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
     >
       {groupLabel && (
         onSelectGroup ? (
-          // Let `pointerdown`/`pointerup` bubble so the parent's drag closure
-          // arms and clears properly — stopping `pointerup` would leave it
-          // stuck in dragging state and subsequent hovers would translate the
-          // group. The drag's "no-movement" path will fire artboard select on
-          // pointerup, then this button's native `click` fires and selects
-          // the group; React batches both into a single render where group is
-          // the surviving selection. On an actual drag, click is suppressed.
+          // Select on pointer-down to match the frame body's instant-select.
+          // We let the event keep bubbling so the parent drag closure still
+          // arms — when the pointer-up's no-movement path fires the artboard
+          // click, it'll be a no-op because the group is already selected
+          // (handleArtboardSelect short-circuits when the group owns it).
           <button
             type="button"
             className={cn(
               "mb-0.5 text-xs font-medium truncate min-w-0 cursor-pointer outline-none",
               groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
             )}
-            onClick={(e) => {
-              e.stopPropagation()
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
               onSelectGroup(e.shiftKey)
+            }}
+            onClick={(e) => {
+              // Keep keyboard activation working (Enter/Space on a focused button
+              // fires click but not pointerdown).
+              e.stopPropagation()
             }}
           >
             {groupLabel}
@@ -131,6 +136,10 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
             "text-xs font-medium truncate min-w-0",
             selected ? "text-fuchsia-500" : "text-foreground/70",
           )}
+          onPointerDown={onSelectFrame ? (e) => {
+            if (e.button !== 0) return
+            onSelectFrame(e.shiftKey)
+          } : undefined}
         >
           {label}
         </span>
