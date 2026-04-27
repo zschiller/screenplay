@@ -64,7 +64,8 @@ interface SelectionOverlayProps {
   /**
    * One reorder handle per artboard in a selected multi-artboard group. The
    * world-space center is projected to screen and drawn as a small dot at
-   * constant pixel size — visual-only, drag isn't wired up yet.
+   * constant pixel size. Pressing one starts a drag that reorders the
+   * artboards in the group.
    */
   reorderHandles?: Array<{ artboardId: string; centerX: number; centerY: number }>
   /** When the cursor is over a reorder dot, render that one filled instead of hollow. */

@@ -194,6 +194,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const gapDragRef = useRef<{ groupId: string; gapIndex: number; startGap: number; startCanvasX: number } | null>(null)
   const [activeGapHandle, setActiveGapHandle] = useState<{ groupId: string; gapIndex: number } | null>(null)
+  const reorderDragRef = useRef<{ groupId: string; artboardId: string } | null>(null)
+  const [reorderDraggingArtboardId, setReorderDraggingArtboardId] = useState<string | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -530,9 +532,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   gapHandlesRef.current = gapHandles
 
   /**
-   * Centers of every artboard in selected groups with 2+ artboards. Visual-
-   * only for now — drag-to-reorder isn't wired up yet, but the dot matches
-   * the symaphore CompositionHandle so it lines up with the future grab target.
+   * Centers of every artboard in selected groups with 2+ artboards. Drawn at
+   * constant pixel size by the selection overlay; pressing on one starts a
+   * drag that reorders the artboards inside the group.
    */
   const reorderHandles = useMemo(() => {
     const handles: Array<{ artboardId: string; centerX: number; centerY: number }> = []
@@ -2078,12 +2080,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
       if (commentMode || pickMode || textMode || frameMode) return
-      if (gapHandlesRef.current.length === 0) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+
+      // Reorder dots take priority — they sit over the artboard center, so the
+      // artboard's overlay would otherwise grab the pointer first.
+      if (reorderHandlesRef.current.length > 0) {
+        const reorderHit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
+        if (reorderHit) {
+          const group = artboardGroups.find((g) => g.artboardIds.includes(reorderHit.artboardId))
+          if (group) {
+            reorderDragRef.current = { groupId: group.id, artboardId: reorderHit.artboardId }
+            setReorderDraggingArtboardId(reorderHit.artboardId)
+            e.currentTarget.setPointerCapture(e.pointerId)
+            e.stopPropagation()
+            e.preventDefault()
+            return
+          }
+        }
+      }
+
+      if (gapHandlesRef.current.length === 0) return
       const hit = hitTestGapHandle(canvas.x, canvas.y, zoom)
       if (!hit) return
       const group = collections.artboardGroups.get(hit.groupId)
@@ -2099,7 +2119,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedArtboardId, commentMode, pickMode, textMode, frameMode, screenToCanvas, hitTestGapHandle, zoom, collections],
+    [spaceHeld, focusedArtboardId, commentMode, pickMode, textMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -2164,6 +2184,46 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Reorder drag: cursor X picks the destination index by walking the
+      // current sibling centers in order. Layouts get rebuilt when we update
+      // artboardIds, so subsequent ticks see the new arrangement.
+      if (reorderDragRef.current) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const drag = reorderDragRef.current
+        const group = collections.artboardGroups.get(drag.groupId)
+        if (!group) return
+        const ids = group.artboardIds
+        const currentIndex = ids.indexOf(drag.artboardId)
+        if (currentIndex < 0) return
+
+        const gap = groupGap(group)
+        let cursorX = group.x
+        const siblingCenters: { id: string; centerX: number }[] = []
+        for (const id of ids) {
+          const ab = collections.artboards.get(id)
+          if (!ab) continue
+          if (id !== drag.artboardId) {
+            siblingCenters.push({ id, centerX: cursorX + ab.width / 2 })
+          }
+          cursorX += ab.width + gap
+        }
+
+        let newIndex = siblingCenters.length
+        for (let i = 0; i < siblingCenters.length; i++) {
+          if (canvas.x < siblingCenters[i]!.centerX) {
+            newIndex = i
+            break
+          }
+        }
+        if (newIndex !== currentIndex) {
+          const without = ids.filter((id) => id !== drag.artboardId)
+          without.splice(newIndex, 0, drag.artboardId)
+          reorderGroupArtboards(drag.groupId, without)
+        }
+        return
+      }
+
       // Gap-handle drag: dragging gap j by `dx` in world space changes the
       // shared per-group gap by `dx / (j - 0.5)` so the dragged handle's
       // center tracks the cursor. Same proportional rule as in symaphore.
@@ -2248,11 +2308,26 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setSelectedTextLayerIds(txtHits)
       }
     },
-    [screenToCanvas, artboardLayouts, textLayers, setGroupGap],
+    [screenToCanvas, artboardLayouts, textLayers, setGroupGap, collections, reorderGroupArtboards],
   )
 
   const handleCanvasPointerUp = useCallback(
     (e: React.PointerEvent) => {
+      // Reorder drag: end interaction. The order has already been written to
+      // the group on every move tick, so nothing to commit here. Re-hit-test
+      // at the release point so the dot drops back to its hollow state when
+      // the cursor isn't actually over it (during the drag we locked the
+      // highlight to the dragged dot).
+      if (reorderDragRef.current) {
+        reorderDragRef.current = null
+        setReorderDraggingArtboardId(null)
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
+        setHoveredReorderArtboardId(hit?.artboardId ?? null)
+        return
+      }
+
       // Gap-handle drag: end interaction
       if (gapDragRef.current) {
         gapDragRef.current = null
@@ -2331,7 +2406,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
       }
     },
-    [screenToCanvas, addTextLayer, addFrame],
+    [screenToCanvas, addTextLayer, addFrame, hitTestReorderHandle, zoom],
   )
 
   // Click on artboard to select. Clicking a child frame whose parent group is
@@ -2447,12 +2522,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
 
       // Track which reorder handle is hovered so the overlay can swap the dot
-      // from a hollow ring to a filled circle.
-      const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
-      setHoveredReorderArtboardId((prev) => {
-        const nextId = reorderHit?.artboardId ?? null
-        return prev === nextId ? prev : nextId
-      })
+      // from a hollow ring to a filled circle. While dragging, lock the
+      // highlight to the dragged dot so the cursor can stray off-center
+      // without the dot flipping back to its hollow state.
+      if (reorderDragRef.current) {
+        setHoveredReorderArtboardId((prev) =>
+          prev === reorderDragRef.current!.artboardId ? prev : reorderDragRef.current!.artboardId,
+        )
+      } else {
+        const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
+        setHoveredReorderArtboardId((prev) => {
+          const nextId = reorderHit?.artboardId ?? null
+          return prev === nextId ? prev : nextId
+        })
+      }
     },
     [setPresence, artboardLayouts, hitTestGapHandle, hitTestReorderHandle],
   )
@@ -2630,7 +2713,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode || pickMode ? "crosshair" : activeGapHandle ? "col-resize" : hoveredReorderArtboardId ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode || pickMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
               onPointerDownCapture={handleCanvasPointerDownCapture}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
