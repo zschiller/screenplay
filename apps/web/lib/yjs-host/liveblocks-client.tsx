@@ -13,7 +13,7 @@ import {
   type AwarenessLike,
   type YjsConnection,
 } from "@/lib/yjs/context"
-import "@/lib/liveblocks.types"
+import "@/liveblocks.config"
 
 /**
  * Host-agnostic React surface. Wraps a single room: connect to the Yjs host,

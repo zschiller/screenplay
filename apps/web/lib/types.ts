@@ -126,25 +126,3 @@ export type ViewportData = {
   y: number
   zoom: number
 }
-
-/**
- * Liveblocks "Storage" is no longer used — canvas state lives in the Y.Doc.
- * The interface stays declared so RoomProvider's `initialStorage` requirement
- * is satisfied with an empty object.
- */
-export type Storage = Record<string, never>
-
-/**
- * Liveblocks Presence/UserMeta/ThreadMetadata are no longer used — presence
- * lives in Yjs awareness, threads/comments live in Postgres. The interface is
- * declared with empty types so RoomProvider's required props are satisfied
- * with `{}` literals.
- */
-export type Presence = Record<string, never>
-
-declare global {
-  interface Liveblocks {
-    Storage: Storage
-    Presence: Presence
-  }
-}

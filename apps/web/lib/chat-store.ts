@@ -184,6 +184,27 @@ class ChatStore {
     this.update(chatId, { isStreaming })
   }
 
+  // --- Stop a running stream by interrupting the underlying session ---
+
+  async stopMessage(roomId: string, chatId: string) {
+    const sessionId = this.sessionIds.get(chatId)
+    if (!sessionId) return
+    try {
+      const res = await fetch("/api/agent/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, chatId, sessionId }),
+      })
+      if (!res.ok) {
+        const errorText = await res.text()
+        throw new Error(errorText || `HTTP ${res.status}`)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      this.update(chatId, { error: msg })
+    }
+  }
+
   // --- Handle broadcast events from Liveblocks (server or other clients) ---
 
   handleBroadcastEvent(event: ChatBroadcastEvent) {
@@ -194,10 +215,15 @@ class ChatStore {
         this.update(chatId, { isStreaming: true })
         break
 
-      case "chat-stream-end":
-        this.unreadChats.add(chatId)
+      case "chat-stream-end": {
+        // Only mark unread on the streaming→not-streaming transition so
+        // duplicate end signals (e.g. stop endpoint + background stream)
+        // don't re-stick the badge after `markRead` already cleared it.
+        const wasStreaming = this.getOrCreate(chatId).isStreaming
+        if (wasStreaming) this.unreadChats.add(chatId)
         this.update(chatId, { isStreaming: false })
         break
+      }
 
       case "chat-stream":
         this.applyEvent(chatId, event.event)

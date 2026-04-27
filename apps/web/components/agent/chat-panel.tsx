@@ -30,7 +30,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ChatSessionData } from "@/lib/liveblocks.types"
+import type { AgentData, ChatSessionData } from "@/lib/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import { chatStore } from "@/lib/chat-store"
 

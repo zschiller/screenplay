@@ -23,7 +23,7 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, TextLayerData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, TextLayerData, WorkspaceData } from "@/lib/types"
 
 interface TextLayerProps {
   layer: TextLayerData

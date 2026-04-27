@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { TextLayerData } from "@/lib/liveblocks.types"
+import type { TextLayerData } from "@/lib/types"
 import type { ArtboardLayoutMap } from "@/lib/artboard-layout"
 
 interface OtherSelection {

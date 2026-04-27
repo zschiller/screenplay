@@ -1,13 +1,20 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, type RefObject } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Slider } from "@workspace/ui/components/slider"
@@ -32,13 +39,27 @@ interface KnobsPopoverProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (values: KnobValues) => void
+  /**
+   * Element to anchor the popover content against. Defaults to the trigger
+   * button — pass the frame element so the popover docks beside the artboard
+   * instead of overlapping its iframe.
+   */
+  anchorRef?: RefObject<HTMLElement | null>
 }
 
-export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
+export function KnobsPopover({ knobs, values, onChange, anchorRef }: KnobsPopoverProps) {
   const defs = useMemo<KnobDef[]>(() => {
     if (!knobs) return []
     return knobs.filter(isKnobDef)
   }, [knobs])
+
+  const hasOverrides = useMemo(() => {
+    if (!values) return false
+    for (const def of defs) {
+      if (coerceKnobValue(def, values[def.id]) !== def.default) return true
+    }
+    return false
+  }, [defs, values])
 
   function setValue(id: string, next: KnobValue) {
     const merged: KnobValues = { [id]: next }
@@ -51,14 +72,52 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
     onChange(merged)
   }
 
+  function resetAll() {
+    const next: KnobValues = {}
+    for (const def of defs) next[def.id] = def.default
+    onChange(next)
+  }
+
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button size="icon-xs" variant="outline" title="Adjust knobs">
-          <SlidersHorizontal />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} className="w-72 gap-3">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                size="icon-xxs"
+                variant="outline"
+                className="relative"
+              >
+                <SlidersHorizontal />
+                {hasOverrides ? (
+                  <span
+                    aria-hidden
+                    className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
+                  />
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Knobs</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {/* Anchor must render AFTER PopoverTrigger: on the first render the
+          trigger auto-wraps in a PopperAnchor until `hasCustomAnchor` flips,
+          and effects run in render order — so a leading PopoverAnchor sets
+          the anchor first and then the trigger's wrapper overwrites it. */}
+      {anchorRef ? (
+        <PopoverAnchor
+          virtualRef={anchorRef as RefObject<HTMLElement>}
+        />
+      ) : null}
+      <PopoverContent
+        side={anchorRef ? "right" : "bottom"}
+        align={anchorRef ? "start" : "end"}
+        sideOffset={anchorRef ? 8 : 6}
+        collisionPadding={16}
+        className="w-72 gap-3"
+      >
         {defs.length === 0 ? (
           <div className="flex flex-col gap-2 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">No knobs yet</p>
@@ -80,6 +139,15 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
             />
           ))
         )}
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={!hasOverrides}
+          onClick={resetAll}
+          className="h-6 w-full text-xs"
+        >
+          Reset to defaults
+        </Button>
       </PopoverContent>
     </Popover>
   )

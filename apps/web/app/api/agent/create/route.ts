@@ -13,7 +13,7 @@ import {
   configureAgentGit,
 } from "@/lib/sandbox-actions"
 import { parseEnvVars } from "@/lib/env-utils"
-import type { AgentData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, WorkspaceData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import {
   ARTBOARD_GROUP_GAP,

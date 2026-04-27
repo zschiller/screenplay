@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ChevronDown,
   Check,
+  Square,
 } from "lucide-react"
 import {
   InputGroup,
@@ -104,6 +105,7 @@ export function AgentChat({
     isStreaming,
     isLoadingHistory,
     sendMessage,
+    stopMessage,
   } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, autoNamedBranch, planMode, onSessionId, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
@@ -282,20 +284,28 @@ export function AgentChat({
               <ClipboardList />
               Plan
             </InputGroupButton>
-            <InputGroupButton
-              size="icon-xs"
-              variant={input.trim() && !isStreaming ? "default" : "ghost"}
-              onClick={handleSubmit}
-              disabled={!input.trim() || isStreaming}
-              title="Send"
-              className="ml-auto"
-            >
-              {isStreaming ? (
-                <Loader2 className="animate-spin" />
-              ) : (
+            {isStreaming ? (
+              <InputGroupButton
+                size="icon-xs"
+                variant="secondary"
+                onClick={stopMessage}
+                title="Stop"
+                className="ml-auto"
+              >
+                <Square fill="currentColor" />
+              </InputGroupButton>
+            ) : (
+              <InputGroupButton
+                size="icon-xs"
+                variant={input.trim() ? "default" : "ghost"}
+                onClick={handleSubmit}
+                disabled={!input.trim()}
+                title="Send"
+                className="ml-auto"
+              >
                 <ArrowUp />
-              )}
-            </InputGroupButton>
+              </InputGroupButton>
+            )}
           </InputGroupAddon>
         </InputGroup>
       </div>

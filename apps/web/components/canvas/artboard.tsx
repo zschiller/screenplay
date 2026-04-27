@@ -1,8 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { MousePointer, Move, RotateCw } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
@@ -10,7 +16,7 @@ import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import { KnobsPopover } from "./knobs-popover"
-import type { AgentData } from "@/lib/liveblocks.types"
+import type { AgentData } from "@/lib/types"
 import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
@@ -208,6 +214,78 @@ export function Artboard({
 
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
 
+  const frameRef = useRef<HTMLDivElement>(null)
+  const buttonsRef = useRef<HTMLDivElement>(null)
+
+  // Natural (unconstrained) width of the label's bottom row — reported by
+  // ArtboardLabel from a hidden measurement copy. Used to decide which action
+  // buttons fit in the remaining space.
+  const [labelContentWidth, setLabelContentWidth] = useState(0)
+
+  // Measured widths of each individual button. Wrappers around each button
+  // give us a direct ref to read offsetWidth; cached so a hidden button keeps
+  // its last-known width (we still know whether it would have fit).
+  const interactWrapperRef = useRef<HTMLDivElement>(null)
+  const knobsWrapperRef = useRef<HTMLDivElement>(null)
+  const reloadWrapperRef = useRef<HTMLDivElement>(null)
+  const [buttonNaturalWidths, setButtonNaturalWidths] = useState<{
+    interact: number
+    knobs: number
+    reload: number
+  }>({ interact: 0, knobs: 0, reload: 0 })
+  useLayoutEffect(() => {
+    setButtonNaturalWidths((prev) => {
+      const next = {
+        interact: interactWrapperRef.current?.offsetWidth ?? prev.interact,
+        knobs: knobsWrapperRef.current?.offsetWidth ?? prev.knobs,
+        reload: reloadWrapperRef.current?.offsetWidth ?? prev.reload,
+      }
+      if (
+        next.interact === prev.interact &&
+        next.knobs === prev.knobs &&
+        next.reload === prev.reload
+      ) {
+        return prev
+      }
+      return next
+    })
+  })
+
+  // Decide which action buttons fit using the actual measured widths of the
+  // label content + each button. Computed synchronously every render so the
+  // label's reservedRightPx and the visible button set stay in lockstep —
+  // using a ResizeObserver here would lag a frame and the label would briefly
+  // truncate at the threshold before the button disappears.
+  const BUTTON_GAP = 2 // gap-0.5 between buttons (must match className below)
+  const BUTTON_MARGIN = 8 // breathing room between label and the button row
+  const space = Math.max(
+    0,
+    artboard.width * zoom - labelContentWidth - BUTTON_MARGIN,
+  )
+  const interactW = buttonNaturalWidths.interact
+  const knobsW = buttonNaturalWidths.knobs
+  const reloadW = buttonNaturalWidths.reload
+  const showInteract = !interactW || space >= interactW
+  const showKnobs =
+    showInteract && (!knobsW || space >= interactW + BUTTON_GAP + knobsW)
+  const showReload =
+    showKnobs &&
+    (!reloadW ||
+      space >= interactW + BUTTON_GAP + knobsW + BUTTON_GAP + reloadW)
+  const visibleButtonsTotal = (() => {
+    const widths: number[] = []
+    if (showInteract && interactW) widths.push(interactW)
+    if (showKnobs && knobsW) widths.push(knobsW)
+    if (showReload && reloadW) widths.push(reloadW)
+    return widths.reduce(
+      (sum, w, i) => sum + w + (i > 0 ? BUTTON_GAP : 0),
+      0,
+    )
+  })()
+  const reservedRightPx = visibleButtonsTotal
+    ? visibleButtonsTotal + BUTTON_MARGIN
+    : 0
+
   const handleHmrStatus = useCallback((_id: string, status: HmrStatus) => {
     setHmrStatus(status)
   }, [])
@@ -312,6 +390,7 @@ export function Artboard({
 
   return (
     <div
+      ref={frameRef}
       id={`artboard-${artboard.id}`}
       data-artboard
       className="relative shrink-0"
@@ -328,6 +407,7 @@ export function Artboard({
         route={artboard.route}
         zoom={zoom}
         artboardWidth={artboard.width}
+        reservedRightPx={reservedRightPx}
         dragHandlers={focused ? undefined : dragHandlers}
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
@@ -347,38 +427,64 @@ export function Artboard({
         } : undefined}
         onSelectFrame={(shiftKey) => {
           if (selected && !shiftKey) return
+          if (groupSelected && !shiftKey) return
           selectedOnPointerDown.current = true
           onSelect(artboard.id, shiftKey)
         }}
+        onContentWidthChange={setLabelContentWidth}
       />
       {artboard.sandboxId && (
         <div
-          className="absolute right-0 bottom-full z-10 flex items-center gap-1"
+          ref={buttonsRef}
+          // row-reverse keeps the visual order [Reload, Knobs, Interact].
+          // clip-path lets the knob's override-dot extend ~4px above the row.
+          className="absolute right-0 bottom-full z-10 flex h-5 flex-row-reverse items-center gap-0.5"
           style={{
             transform: `scale(${1 / zoom})`,
             transformOrigin: "bottom right",
-            marginBottom: 4 / zoom,
+            marginBottom: 2 / zoom,
+            clipPath: "inset(-4px 0 0 0)",
           }}
         >
-          {hmrStatus === "disconnected" && (
-            <Button size="xs" onClick={reloadIframe}>
-              <RotateCw />
-              Reload
-            </Button>
+          {showInteract && (
+            <div ref={interactWrapperRef} className="flex">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant={focused ? "default" : "outline"}
+                      onClick={() => onFocus(focused ? null : artboard.id)}
+                    >
+                      {focused ? <Move /> : <MousePointer />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {focused ? "Back to canvas" : "Interact"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           )}
-          <KnobsPopover
-            knobs={artboard.knobs}
-            values={artboard.knobValues}
-            onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
-          />
-          <Button
-            size="icon-xs"
-            variant={focused ? "default" : "outline"}
-            onClick={() => onFocus(focused ? null : artboard.id)}
-            title={focused ? "Back to canvas mode" : "Interact with app"}
-          >
-            {focused ? <Move /> : <MousePointer />}
-          </Button>
+          {showKnobs && (
+            <div ref={knobsWrapperRef} className="flex">
+              <KnobsPopover
+                knobs={artboard.knobs}
+                values={artboard.knobValues}
+                onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
+                anchorRef={frameRef}
+              />
+            </div>
+          )}
+          {/* TODO: re-gate behind `hmrStatus === "disconnected"` */}
+          {showReload && (
+            <div ref={reloadWrapperRef} className="flex">
+              <Button size="xxs" onClick={reloadIframe}>
+                <RotateCw />
+                Reload
+              </Button>
+            </div>
+          )}
         </div>
       )}
       <div
@@ -433,6 +539,10 @@ export function Artboard({
               if (pickMode) return
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
+                // When the parent group is selected, defer selection to the
+                // click handler so a drag here moves the whole group instead
+                // of piercing to this child frame.
+                if (groupSelected && !e.shiftKey) return
                 if (!selected || e.shiftKey) {
                   selectedOnPointerDown.current = true
                   onSelect(artboard.id, e.shiftKey)

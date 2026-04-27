@@ -80,7 +80,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/liveblocks.types"
+import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/types"
 import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
@@ -2185,17 +2185,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [screenToCanvas, addTextLayer, addFrame],
   )
 
-  // Click on artboard to select. The group always takes precedence: when an
-  // artboard's parent group is currently selected, the click is a no-op so we
-  // never end up with a group AND one of its children selected at once.
+  // Click on artboard to select. Clicking a child frame whose parent group is
+  // currently selected pierces — the click moves selection to the child. To
+  // keep group drag working, callers must skip selection on pointerdown when
+  // the group is selected (see Artboard.onPointerDownCapture).
   const handleArtboardSelect = useCallback(
     (id: string, shiftKey: boolean) => {
-      const containingGroup = collections.artboardGroups
-        .toArray()
-        .find((g) => g.artboardIds.includes(id))
-      if (containingGroup && selectedGroupIdsRef.current.has(containingGroup.id)) {
-        return
-      }
       setSelectedGroupIds(new Set())
       if (shiftKey) {
         setSelectedArtboardIds((prev) => {
@@ -2209,7 +2204,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setSelectedTextLayerIds(new Set())
       }
     },
-    [collections],
+    [],
   )
 
   const handleGroupSelect = useCallback(
