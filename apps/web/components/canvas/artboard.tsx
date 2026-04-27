@@ -269,6 +269,7 @@ export function Artboard({
   const showKnobs =
     showInteract && (!knobsW || space >= interactW + BUTTON_GAP + knobsW)
   const showReload =
+    hmrStatus === "disconnected" &&
     showKnobs &&
     (!reloadW ||
       space >= interactW + BUTTON_GAP + knobsW + BUTTON_GAP + reloadW)
@@ -476,7 +477,6 @@ export function Artboard({
               />
             </div>
           )}
-          {/* TODO: re-gate behind `hmrStatus === "disconnected"` */}
           {showReload && (
             <div ref={reloadWrapperRef} className="flex">
               <Button size="xxs" onClick={reloadIframe}>
