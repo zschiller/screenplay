@@ -808,6 +808,65 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
+  /**
+   * Create a new group for an agent containing one artboard per discovered
+   * route. The group is positioned to the right of all existing groups,
+   * top-aligned with the topmost. Returns the new group's id and the id of
+   * its first artboard (handy for zooming after the DOM updates).
+   */
+  const addRoutesGroupForAgent = useCallback(
+    (agentId: string, routes: { route: string; label: string }[]):
+      | { groupId: string; firstArtboardId: string }
+      | undefined => {
+      if (routes.length === 0) return
+      const allGroups = collections.artboardGroups.toArray()
+      const allArtboards = collections.artboards.toArray()
+
+      let x: number
+      let y: number
+      if (allGroups.length === 0) {
+        const { cx, cy } = getViewportCenter()
+        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
+        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+      } else {
+        let minY = Infinity
+        let maxRight = -Infinity
+        for (const g of allGroups) {
+          minY = Math.min(minY, g.y)
+          const w = groupContentWidth(g, allArtboards)
+          if (g.x + w > maxRight) maxRight = g.x + w
+        }
+        x = maxRight + ARTBOARD_GROUP_GAP
+        y = minY
+      }
+
+      const artboardIds = routes.map(() => nanoid())
+      const groupId = nanoid()
+      collections.transact(() => {
+        routes.forEach((r, i) => {
+          collections.artboards.set(artboardIds[i]!, {
+            id: artboardIds[i]!,
+            sandboxId: agentId,
+            width: DEFAULT_ARTBOARD_WIDTH,
+            height: DEFAULT_ARTBOARD_HEIGHT,
+            label: r.label || routeToLabel(r.route),
+            iframeState: {},
+            route: r.route,
+          })
+        })
+        collections.artboardGroups.set(groupId, {
+          id: groupId,
+          name: `Routes ${nextGroupNumber(allGroups)}`,
+          x,
+          y,
+          artboardIds,
+        })
+      })
+      return { groupId, firstArtboardId: artboardIds[0]! }
+    },
+    [collections, getViewportCenter],
+  )
+
   /** Append a new artboard to an existing group, mirroring the last sibling's size and agent. */
   const addArtboardToGroup = useCallback(
     (groupId: string): string | undefined => {
@@ -1292,6 +1351,25 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     },
     [agents, artboards, addArtboard, handleSelectArtboard],
+  )
+
+  const handleShowRoutesForAgent = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent) return
+      const routes = agent.discoveredRoutes ?? []
+      if (routes.length === 0) {
+        alert("No routes have been discovered for this branch yet.")
+        return
+      }
+      const result = addRoutesGroupForAgent(agentId, routes)
+      if (result) {
+        requestAnimationFrame(() => {
+          handleSelectArtboard(result.firstArtboardId)
+        })
+      }
+    },
+    [agents, addRoutesGroupForAgent, handleSelectArtboard],
   )
 
   const handleSelectAgent = useCallback(
@@ -2527,6 +2605,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             removeAgentFromStorage(id)
           }}
           onAddArtboard={handleAddArtboardForAgent}
+          onShowRoutes={handleShowRoutesForAgent}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
           onSelectArtboard={handleArtboardSelect}
