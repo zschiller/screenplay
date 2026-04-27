@@ -626,6 +626,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [saveViewport],
   )
 
+  useEffect(() => {
+    if (viewportRestoredRef.current) return
+    if (!savedViewport) return
+    const ref = transformRef.current
+    if (!ref) return
+    viewportRestoredRef.current = true
+    ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
+    setZoom(savedViewport.zoom)
+    setViewportPos({ x: savedViewport.x, y: savedViewport.y })
+    setPresence({ viewport: savedViewport })
+  }, [savedViewport, setPresence])
+
   const agentDomains = useMemo(() => {
     const domains: Record<string, { previewDomain: string; branch: string; discoveredRoutes?: { route: string; label: string }[] }> = {}
     for (const agent of agents) {
