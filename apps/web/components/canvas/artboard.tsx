@@ -32,8 +32,6 @@ const reinstalledSandboxes = new Set<string>()
 export interface ArtboardData {
   id: string
   sandboxId?: string
-  x: number
-  y: number
   width: number
   height: number
   label: string
@@ -54,9 +52,15 @@ interface ArtboardProps {
   selected: boolean
   onFocus: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
-  onMove: (id: string, x: number, y: number) => void
+  /** Drag any artboard moves the parent group. */
+  onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
-  onResize: (id: string, x: number, y: number, w: number, h: number) => void
+  /**
+   * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
+   * edges leave the group anchor in place. The artboard's own width/height
+   * always change by (dw, dh).
+   */
+  onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string) => void
@@ -74,6 +78,18 @@ interface ArtboardProps {
   /** Routes discovered for the agent backing this artboard. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (artboardId: string, route: string) => void
+  /** Group label shown above the branch — only on the leftmost artboard of a multi-artboard group. */
+  groupLabel?: string
+  /** True when the parent group is selected. Drives label color + group-pink frame. */
+  groupSelected?: boolean
+  /** Click handler for the group label (only meaningful when `groupLabel` is set). */
+  onSelectGroup?: (shiftKey: boolean) => void
+  /**
+   * CSS `order` for the parent flex row. Lets us render artboards in a stable
+   * DOM order (so iframes don't reload) while still showing them in the
+   * group's logical left-to-right order via flex.
+   */
+  flexOrder?: number
 }
 
 export function Artboard({
@@ -83,7 +99,7 @@ export function Artboard({
   selected,
   onFocus,
   onSelect,
-  onMove,
+  onMoveGroup,
   onMoveSelected,
   onResize,
   onRemove,
@@ -101,16 +117,20 @@ export function Artboard({
   onAssignAgent,
   discoveredRoutes,
   onSelectRoute,
+  groupLabel,
+  groupSelected,
+  onSelectGroup,
+  flexOrder,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
       if (selected) {
         onMoveSelected(dx, dy)
       } else {
-        onMove(artboard.id, artboard.x + dx, artboard.y + dy)
+        onMoveGroup(dx, dy)
       }
     },
-    [artboard.id, artboard.x, artboard.y, selected, onMove, onMoveSelected],
+    [selected, onMoveGroup, onMoveSelected],
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -129,15 +149,9 @@ export function Artboard({
 
   const handleResize = useCallback(
     (dx: number, dy: number, dw: number, dh: number) => {
-      onResize(
-        artboard.id,
-        artboard.x + dx,
-        artboard.y + dy,
-        artboard.width + dw,
-        artboard.height + dh,
-      )
+      onResize(artboard.id, dx, dy, dw, dh)
     },
-    [artboard.id, artboard.x, artboard.y, artboard.width, artboard.height, onResize],
+    [artboard.id, onResize],
   )
 
   const { makeHandleProps } = useArtboardResize({
@@ -300,12 +314,11 @@ export function Artboard({
     <div
       id={`artboard-${artboard.id}`}
       data-artboard
-      className="absolute"
+      className="relative shrink-0"
       style={{
-        left: artboard.x,
-        top: artboard.y,
         width: artboard.width,
         height: artboard.height,
+        order: flexOrder,
       }}
     >
       <ArtboardLabel
@@ -325,6 +338,10 @@ export function Artboard({
             ? (route) => onSelectRoute(artboard.id, route)
             : undefined
         }
+        selected={selected || groupSelected}
+        groupLabel={groupLabel}
+        groupSelected={groupSelected}
+        onSelectGroup={onSelectGroup}
       />
       {artboard.sandboxId && (
         <div

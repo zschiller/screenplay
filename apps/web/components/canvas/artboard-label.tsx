@@ -34,6 +34,14 @@ interface ArtboardLabelProps {
   /** Routes known for the agent backing this artboard. Drives the route picker. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (route: string) => void
+  /** True when this frame is selected (directly or because its group is). */
+  selected?: boolean
+  /** Group display name — only passed for the leftmost artboard in a multi-artboard group. */
+  groupLabel?: string
+  /** True when the parent group is selected — colors the group label. */
+  groupSelected?: boolean
+  /** Click handler for the group label. When provided, the label is interactive. */
+  onSelectGroup?: (shiftKey: boolean) => void
 }
 
 const HMR_DOT_COLOR: Record<HmrStatus, string> = {
@@ -48,7 +56,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup }: ArtboardLabelProps) {
   return (
     <div
       className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
@@ -60,6 +68,39 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
       }}
       {...dragHandlers}
     >
+      {groupLabel && (
+        onSelectGroup ? (
+          // Let `pointerdown`/`pointerup` bubble so the parent's drag closure
+          // arms and clears properly — stopping `pointerup` would leave it
+          // stuck in dragging state and subsequent hovers would translate the
+          // group. The drag's "no-movement" path will fire artboard select on
+          // pointerup, then this button's native `click` fires and selects
+          // the group; React batches both into a single render where group is
+          // the surviving selection. On an actual drag, click is suppressed.
+          <button
+            type="button"
+            className={cn(
+              "mb-0.5 text-xs font-medium truncate min-w-0 cursor-pointer outline-none",
+              groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectGroup(e.shiftKey)
+            }}
+          >
+            {groupLabel}
+          </button>
+        ) : (
+          <div
+            className={cn(
+              "mb-0.5 text-xs font-medium truncate min-w-0",
+              groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
+            )}
+          >
+            {groupLabel}
+          </div>
+        )
+      )}
       {(branch || onAssignAgent) && (
         <div className="mb-0.5">
           {onAssignAgent ? (
@@ -85,7 +126,12 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
             )}
           />
         )}
-        <span className="text-xs font-medium text-foreground/70 truncate min-w-0">
+        <span
+          className={cn(
+            "text-xs font-medium truncate min-w-0",
+            selected ? "text-fuchsia-500" : "text-foreground/70",
+          )}
+        >
           {label}
         </span>
         {onSelectRoute ? (

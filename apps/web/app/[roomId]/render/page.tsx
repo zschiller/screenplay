@@ -3,6 +3,7 @@ import * as Y from "yjs"
 import { getRoom } from "@/lib/rooms"
 import { verifyRenderToken } from "@/lib/thumbnail/token"
 import { readRoomDoc } from "@/lib/yjs/server"
+import { computeArtboardLayouts } from "@/lib/artboard-layout"
 import { RenderCanvas } from "./render-canvas"
 import type { RenderArtboard } from "./render-canvas"
 
@@ -114,20 +115,25 @@ export default async function RenderPage({
 
   const { artboards, textLayers } = await readRoomDoc(roomId, (c) => {
     const agents = c.agents.toMap()
-    const arts: RenderArtboard[] = c.artboards.toArray().map((a) => {
+    const allArtboards = c.artboards.toArray()
+    const allGroups = c.artboardGroups.toArray()
+    const layouts = computeArtboardLayouts(allGroups, allArtboards)
+    const arts: RenderArtboard[] = allArtboards.flatMap((a) => {
+      const layout = layouts.get(a.id)
+      if (!layout) return []
       const agent = a.sandboxId ? agents.get(a.sandboxId) : undefined
       const previewDomain = agent?.previewDomain
-      return {
+      return [{
         id: a.id,
-        x: a.x,
-        y: a.y,
+        x: layout.x,
+        y: layout.y,
         width: a.width,
         height: a.height,
         label: a.label,
         iframeUrl: previewDomain
           ? previewDomain + (a.route ?? "")
           : null,
-      }
+      }]
     })
     const txt = c.textLayers.toArray().map((t) => {
       const fragment = c.doc.getXmlFragment(`text-${t.id}`)
