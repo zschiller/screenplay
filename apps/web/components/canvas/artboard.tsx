@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { MousePointer, Move, RotateCw } from "lucide-react"
+import { MousePointer, Move, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Tooltip,
@@ -55,8 +55,11 @@ interface ArtboardProps {
   artboard: ArtboardData
   zoom: number
   focused: boolean
+  /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
+  createFlow: boolean
   selected: boolean
   onFocus: (id: string | null) => void
+  onToggleCreateFlow: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
   /** Drag any artboard moves the parent group. */
   onMoveGroup: (dx: number, dy: number) => void
@@ -102,8 +105,10 @@ export function Artboard({
   artboard,
   zoom,
   focused,
+  createFlow,
   selected,
   onFocus,
+  onToggleCreateFlow,
   onSelect,
   onMoveGroup,
   onMoveSelected,
@@ -226,22 +231,26 @@ export function Artboard({
   // give us a direct ref to read offsetWidth; cached so a hidden button keeps
   // its last-known width (we still know whether it would have fit).
   const interactWrapperRef = useRef<HTMLDivElement>(null)
+  const createFlowWrapperRef = useRef<HTMLDivElement>(null)
   const knobsWrapperRef = useRef<HTMLDivElement>(null)
   const reloadWrapperRef = useRef<HTMLDivElement>(null)
   const [buttonNaturalWidths, setButtonNaturalWidths] = useState<{
     interact: number
+    createFlow: number
     knobs: number
     reload: number
-  }>({ interact: 0, knobs: 0, reload: 0 })
+  }>({ interact: 0, createFlow: 0, knobs: 0, reload: 0 })
   useLayoutEffect(() => {
     setButtonNaturalWidths((prev) => {
       const next = {
         interact: interactWrapperRef.current?.offsetWidth ?? prev.interact,
+        createFlow: createFlowWrapperRef.current?.offsetWidth ?? prev.createFlow,
         knobs: knobsWrapperRef.current?.offsetWidth ?? prev.knobs,
         reload: reloadWrapperRef.current?.offsetWidth ?? prev.reload,
       }
       if (
         next.interact === prev.interact &&
+        next.createFlow === prev.createFlow &&
         next.knobs === prev.knobs &&
         next.reload === prev.reload
       ) {
@@ -263,19 +272,33 @@ export function Artboard({
     artboard.width * zoom - labelContentWidth - BUTTON_MARGIN,
   )
   const interactW = buttonNaturalWidths.interact
+  const createFlowW = buttonNaturalWidths.createFlow
   const knobsW = buttonNaturalWidths.knobs
   const reloadW = buttonNaturalWidths.reload
   const showInteract = !interactW || space >= interactW
+  const showCreateFlow =
+    showInteract &&
+    (!createFlowW || space >= interactW + BUTTON_GAP + createFlowW)
   const showKnobs =
-    showInteract && (!knobsW || space >= interactW + BUTTON_GAP + knobsW)
+    showCreateFlow &&
+    (!knobsW ||
+      space >= interactW + BUTTON_GAP + createFlowW + BUTTON_GAP + knobsW)
   const showReload =
     hmrStatus === "disconnected" &&
     showKnobs &&
     (!reloadW ||
-      space >= interactW + BUTTON_GAP + knobsW + BUTTON_GAP + reloadW)
+      space >=
+        interactW +
+          BUTTON_GAP +
+          createFlowW +
+          BUTTON_GAP +
+          knobsW +
+          BUTTON_GAP +
+          reloadW)
   const visibleButtonsTotal = (() => {
     const widths: number[] = []
     if (showInteract && interactW) widths.push(interactW)
+    if (showCreateFlow && createFlowW) widths.push(createFlowW)
     if (showKnobs && knobsW) widths.push(knobsW)
     if (showReload && reloadW) widths.push(reloadW)
     return widths.reduce(
@@ -389,6 +412,11 @@ export function Artboard({
   const hHalf = h / 2
   const cornerSize = 12 / zoom
 
+  // Both interact mode and Create Flow mode forward pointer events to the
+  // iframe and hide the canvas overlay. Create Flow additionally captures
+  // navigation events into a history trail (handled in canvas.tsx).
+  const interactive = focused || createFlow
+
   return (
     <div
       ref={frameRef}
@@ -409,7 +437,7 @@ export function Artboard({
         zoom={zoom}
         artboardWidth={artboard.width}
         reservedRightPx={reservedRightPx}
-        dragHandlers={focused ? undefined : dragHandlers}
+        dragHandlers={interactive ? undefined : dragHandlers}
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
         onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(artboard.id, agentId) : undefined}
@@ -467,6 +495,28 @@ export function Artboard({
               </TooltipProvider>
             </div>
           )}
+          {showCreateFlow && (
+            <div ref={createFlowWrapperRef} className="flex">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant={createFlow ? "default" : "outline"}
+                      onClick={() =>
+                        onToggleCreateFlow(createFlow ? null : artboard.id)
+                      }
+                    >
+                      <Route />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {createFlow ? "Stop Create Flow" : "Create Flow"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
           {showKnobs && (
             <div ref={knobsWrapperRef} className="flex">
               <KnobsPopover
@@ -496,7 +546,7 @@ export function Artboard({
             src={iframeSrc}
             className="h-full w-full border-0 bg-white dark:bg-zinc-900"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            style={{ pointerEvents: focused ? "auto" : "none" }}
+            style={{ pointerEvents: interactive ? "auto" : "none" }}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
@@ -514,7 +564,7 @@ export function Artboard({
         {/* Overlay sits above the iframe (which is pointer-events:none unless
             focused). In pickMode it forwards pointer tracking to the in-iframe
             picker via postMessage; otherwise handles drag-to-move / click. */}
-        {!focused && (
+        {!interactive && (
           <div
             className="absolute inset-0 touch-none"
             style={{ cursor: "inherit" }}
