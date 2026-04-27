@@ -103,6 +103,7 @@ interface AgentSidebarProps {
   onRefreshAgent: (id: string) => void
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
+  onShowRoutes: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
   onSelectArtboard: (artboardId: string, shiftKey: boolean) => void
@@ -138,6 +139,7 @@ export function AgentSidebar({
   onRefreshAgent,
   onRemoveAgent,
   onAddArtboard,
+  onShowRoutes,
   onUpdateAgent,
   onRenameBranch,
   onSelectArtboard,
@@ -416,6 +418,13 @@ export function AgentSidebar({
                                                         <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
                                                           <RefreshCw />
                                                           Restart
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.discoveredRoutes || agent.discoveredRoutes.length === 0}
+                                                          onClick={() => onShowRoutes(agent.id)}
+                                                        >
+                                                          <Route />
+                                                          Show all routes
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                           disabled={!agent.sandboxName}
