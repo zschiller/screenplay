@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import { groupGap } from "@/lib/artboard-layout"
-import type { ArtboardData, ArtboardGroupData } from "@/lib/liveblocks.types"
+import type { ArtboardData, ArtboardGroupData } from "@/lib/types"
 
 interface ArtboardGroupProps {
   group: ArtboardGroupData

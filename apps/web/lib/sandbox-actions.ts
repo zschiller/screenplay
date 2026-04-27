@@ -5,7 +5,7 @@ import { sandboxProvider } from "@/lib/sandbox"
 import type { SandboxInstance, SandboxNetworkPolicy } from "@/lib/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
-import type { WorkspaceData } from "./liveblocks.types"
+import type { WorkspaceData } from "./types"
 
 // 30 minutes — keep sandboxes alive only while actively used.
 // sandboxProvider.get with resume:true will reboot the VM when a user returns.

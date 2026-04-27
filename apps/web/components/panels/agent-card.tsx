@@ -3,7 +3,7 @@
 import { GitFork, RefreshCw, Trash2, Loader2, Plus, Monitor } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ArtboardData } from "@/lib/liveblocks.types"
+import type { AgentData, ArtboardData } from "@/lib/types"
 
 interface AgentCardProps {
   agent: AgentData

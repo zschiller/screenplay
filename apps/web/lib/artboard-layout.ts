@@ -1,5 +1,5 @@
 import { ARTBOARD_GROUP_GAP } from "@/lib/constants"
-import type { ArtboardData, ArtboardGroupData } from "@/lib/liveblocks.types"
+import type { ArtboardData, ArtboardGroupData } from "@/lib/types"
 
 /** Effective horizontal gap for a group — its own override, or the default. */
 export function groupGap(group: ArtboardGroupData): number {
