@@ -1,6 +1,11 @@
 import { ARTBOARD_GROUP_GAP } from "@/lib/constants"
 import type { ArtboardData, ArtboardGroupData } from "@/lib/liveblocks.types"
 
+/** Effective horizontal gap for a group — its own override, or the default. */
+export function groupGap(group: ArtboardGroupData): number {
+  return group.gap ?? ARTBOARD_GROUP_GAP
+}
+
 export type ArtboardLayout = {
   id: string
   groupId: string
@@ -19,7 +24,7 @@ export type ArtboardLayoutMap = ReadonlyMap<string, ArtboardLayout>
 
 /**
  * Compute world-space rects for every artboard, given the parent groups.
- * Artboards inside a group are flexed left-to-right with `ARTBOARD_GROUP_GAP`
+ * Artboards inside a group are flexed left-to-right with the group's gap
  * between them; the group's `(x, y)` anchors the leftmost artboard's top-left.
  * Artboards not referenced by any group are skipped — the migration in
  * `getRoomCollections` ensures every artboard ends up in exactly one group.
@@ -36,6 +41,7 @@ export function computeArtboardLayouts(
     let cursorX = group.x
     const ids = group.artboardIds
     const last = ids.length - 1
+    const gap = groupGap(group)
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i]!
       const ab = byId.get(id)
@@ -50,7 +56,7 @@ export function computeArtboardLayouts(
         width: ab.width,
         height: ab.height,
       })
-      cursorX += ab.width + ARTBOARD_GROUP_GAP
+      cursorX += ab.width + gap
     }
   }
   return map
@@ -70,7 +76,7 @@ export function groupContentWidth(
     width += ab.width
     count += 1
   }
-  if (count > 1) width += (count - 1) * ARTBOARD_GROUP_GAP
+  if (count > 1) width += (count - 1) * groupGap(group)
   return width
 }
 

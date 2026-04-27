@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { ARTBOARD_GROUP_GAP } from "@/lib/constants"
+import { groupGap } from "@/lib/artboard-layout"
 import type { ArtboardData, ArtboardGroupData } from "@/lib/liveblocks.types"
 
 interface ArtboardGroupProps {
@@ -40,7 +40,7 @@ export function ArtboardGroup({
       style={{
         left: group.x,
         top: group.y,
-        gap: ARTBOARD_GROUP_GAP,
+        gap: groupGap(group),
       }}
     >
       {children}

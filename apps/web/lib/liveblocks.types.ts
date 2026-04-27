@@ -109,6 +109,8 @@ export type ArtboardGroupData = {
   artboardIds: string[]
   /** Display order in the sidebar Frames list. Lower values render first. */
   sidebarOrder?: number
+  /** Horizontal gap between artboards in this group. Falls back to ARTBOARD_GROUP_GAP. */
+  gap?: number
 }
 
 export type TextLayerData = {
