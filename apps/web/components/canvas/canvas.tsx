@@ -147,6 +147,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
+  // Artboard currently in Create Flow mode. Mutually exclusive with
+  // `focusedArtboardId` — toggling one clears the other.
+  const [createFlowArtboardId, setCreateFlowArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   // Agents created this session whose sandbox isn't streaming logs yet.
   // A LogProbe is rendered for each; on ready we flip selection and drop
@@ -271,6 +274,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setNewCommentPos(null)
         } else if (focusedArtboardId) {
           setFocusedArtboardId(null)
+        } else if (createFlowArtboardId) {
+          setCreateFlowArtboardId(null)
         } else {
           setSelectedArtboardIds(new Set())
           setSelectedGroupIds(new Set())
@@ -422,7 +427,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, history])
+  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, createFlowArtboardId, history])
 
   const artboards = useArtboards()
   const artboardGroups = useArtboardGroups()
@@ -958,10 +963,63 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [computeNextSelectionAfterDelete, removeArtboards],
   )
 
+  // Use a ref so the route handler (passed as a stable callback to many
+  // places) sees the latest Create Flow selection without forcing every
+  // consumer to re-bind on toggle.
+  const createFlowArtboardIdRef = useRef<string | null>(null)
+  createFlowArtboardIdRef.current = createFlowArtboardId
+
   const updateArtboardRoute = useCallback(
     (id: string, route: string) => {
       collections.transact(() => {
         const artboard = collections.artboards.get(id)
+        const previousRoute = artboard?.route
+        const inFlowMode = createFlowArtboardIdRef.current === id
+
+        // In Create Flow mode, every meaningful navigation drops a clone of
+        // the artboard's previous route into the same group, immediately to
+        // the left of the navigated artboard. We then nudge the group's `x`
+        // left by the clone width + gap so the navigated artboard's
+        // world-space position doesn't move — keeping it visually anchored
+        // while the trail grows leftward.
+        if (
+          inFlowMode &&
+          artboard &&
+          previousRoute !== undefined &&
+          previousRoute !== route
+        ) {
+          const group = collections.artboardGroups
+            .toArray()
+            .find((g) => g.artboardIds.includes(id))
+          if (group) {
+            const cloneId = nanoid()
+            collections.artboards.set(cloneId, {
+              id: cloneId,
+              ...(artboard.sandboxId ? { sandboxId: artboard.sandboxId } : {}),
+              width: artboard.width,
+              height: artboard.height,
+              label: artboard.label,
+              iframeState: {},
+              route: previousRoute,
+              ...(artboard.knobs ? { knobs: artboard.knobs } : {}),
+              ...(artboard.knobValues
+                ? { knobValues: artboard.knobValues }
+                : {}),
+            })
+            const idx = group.artboardIds.indexOf(id)
+            const nextIds = [
+              ...group.artboardIds.slice(0, idx),
+              cloneId,
+              ...group.artboardIds.slice(idx),
+            ]
+            const gap = group.gap ?? ARTBOARD_GROUP_GAP
+            collections.artboardGroups.update(group.id, {
+              artboardIds: nextIds,
+              x: group.x - (artboard.width + gap),
+            })
+          }
+        }
+
         collections.artboards.update(id, { route })
         const sandboxId = artboard?.sandboxId
         if (!sandboxId) return
@@ -1893,6 +1951,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
     const onWheel = (e: WheelEvent) => {
       if (focusedArtboardId !== null) return
+      if (createFlowArtboardId !== null) return
       e.preventDefault()
       const ref = transformRef.current
       if (!ref) return
@@ -1917,7 +1976,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
-  }, [focusedArtboardId, followingConnectionId])
+  }, [focusedArtboardId, createFlowArtboardId, followingConnectionId])
 
   // Convert screen coordinates to canvas coordinates
   const screenToCanvas = useCallback((clientX: number, clientY: number, rect: DOMRect) => {
@@ -2528,7 +2587,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               }}
               panning={{
                 velocityDisabled: true,
-                disabled: focusedArtboardId !== null || editingTextLayerId !== null,
+                disabled:
+                  focusedArtboardId !== null ||
+                  createFlowArtboardId !== null ||
+                  editingTextLayerId !== null,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
               }}
@@ -2626,8 +2688,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               }}
                               zoom={zoom}
                               focused={focusedArtboardId === artboard.id}
+                              createFlow={createFlowArtboardId === artboard.id}
                               selected={selectedArtboardIds.has(artboard.id)}
-                              onFocus={setFocusedArtboardId}
+                              onFocus={(id) => {
+                                setFocusedArtboardId(id)
+                                if (id !== null) setCreateFlowArtboardId(null)
+                              }}
+                              onToggleCreateFlow={(id) => {
+                                setCreateFlowArtboardId(id)
+                                if (id !== null) setFocusedArtboardId(null)
+                              }}
                               onSelect={handleArtboardSelect}
                               onMoveGroup={(dx, dy) => moveArtboardsByDelta([artboard.id], dx, dy)}
                               onMoveSelected={handleMoveSelected}
