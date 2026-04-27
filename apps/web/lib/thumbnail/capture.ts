@@ -13,13 +13,12 @@ const READY_TIMEOUT_MS = 9_000
 const THUMB_W = 640
 const THUMB_H = 480
 
-type Browser = import("puppeteer").Browser
+type Browser = import("puppeteer-core").Browser
 
 async function launchBrowser(): Promise<Browser> {
-  const puppeteer = (await import("puppeteer")).default
-  const isVercel = Boolean(process.env.VERCEL)
+  const puppeteer = (await import("puppeteer-core")).default
 
-  if (isVercel) {
+  if (process.env.VERCEL) {
     const chromium = (await import("@sparticuz/chromium")).default
     return puppeteer.launch({
       args: chromium.args,
@@ -29,9 +28,14 @@ async function launchBrowser(): Promise<Browser> {
     })
   }
 
+  const executablePath =
+    process.env.CHROMIUM_PATH ??
+    (await import("puppeteer")).default.executablePath()
+
   return puppeteer.launch({
     headless: true,
     defaultViewport: { width: VIEWPORT_W, height: VIEWPORT_H },
+    executablePath,
   })
 }
 
