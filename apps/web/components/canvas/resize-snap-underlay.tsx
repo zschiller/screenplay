@@ -24,22 +24,16 @@ interface ResizeSnapUnderlayProps {
 
 const CATEGORY_LABEL_ICON: Record<ArtboardSizeCategory, LucideIcon> = ARTBOARD_SIZE_CATEGORY_ICONS
 
-function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
-  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
-  if (!raw) return fallback
-  const temp = document.createElement("div")
-  temp.style.color = raw
-  document.body.appendChild(temp)
-  const resolved = getComputedStyle(temp).color
-  document.body.removeChild(temp)
-  return resolved
-}
-
 /**
- * Zoom-independent underlay that fades in nearby device-size frames while the
- * user is resizing an artboard. Uses the same screen-space canvas approach as
- * SelectionOverlay so the 1px outlines stay crisp at any zoom. Sits below the
- * SelectionOverlay (z-5) so the active selection frame paints over it.
+ * Zoom-independent screen-space underlay shown while the user resizes an
+ * artboard from a corner. Renders before the TransformWrapper in DOM order so
+ * the artboard iframes paint on top — only the parts of each ghost that
+ * extend past the active artboard remain visible.
+ *
+ * Outlines: 1px crisp at any zoom (drawn on a screen-space canvas using the
+ * same toScreen() trick as SelectionOverlay).
+ * Snapped target: only the locked-in candidate gets a fuchsia label at its
+ * lower-right; non-snapped candidates fade in/out as silent ghosts.
  */
 export function ResizeSnapUnderlay({
   zoom,
@@ -75,10 +69,11 @@ export function ResizeSnapUnderlay({
       return
     }
 
-    // Same gray as the "add frame" placeholder rect — keeps the visual
-    // language consistent: gray means "potential frame", fuchsia means
-    // "selected frame".
-    const borderColor = resolveColor(canvas, "--border", "#a1a1aa")
+    // Snapped: fuchsia matching SelectionOverlay primary.
+    // Non-snapped: zinc-600 — darker than --border so the fading outlines
+    // stay readable at low alpha.
+    const ghostColor = "#52525b"
+    const snappedColor = "#d946ef"
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
@@ -106,15 +101,16 @@ export function ResizeSnapUnderlay({
       const t = Math.round(tl.y)
       const r = Math.round(br.x)
       const b = Math.round(br.y)
+      const isSnapped = snappedPresetId === c.preset.id
       ctx.globalAlpha = c.alpha
-      ctx.strokeStyle = borderColor
+      ctx.strokeStyle = isSnapped ? snappedColor : ghostColor
       ctx.lineWidth = 1
       ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
     }
     ctx.globalAlpha = 1
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, artboardRect, anchor, candidates])
+  }, [zoom, viewportPos, artboardRect, anchor, candidates, snappedPresetId])
 
   // Keep canvas sized to its container.
   useEffect(() => {
@@ -134,35 +130,12 @@ export function ResizeSnapUnderlay({
     return () => observer.disconnect()
   }, [])
 
-  // The corner the user is dragging from is the opposite of the anchored
-  // corner. The label sits just outside the ghost at that dragged corner, so
-  // it appears to track the cursor.
-  const draggedCorner: AnchorCorner =
-    anchor === "tl" ? "br"
-    : anchor === "tr" ? "bl"
-    : anchor === "bl" ? "tr"
-    : "tl"
-
-  // Place the label outside the ghost so the outline remains visible behind it.
-  const labelOffsetPx = 4
-  const labelTransform = (() => {
-    switch (draggedCorner) {
-      case "br": return `translate(-100%, ${labelOffsetPx}px)`
-      case "bl": return `translate(0, ${labelOffsetPx}px)`
-      case "tr": return `translate(-100%, calc(-100% - ${labelOffsetPx}px))`
-      case "tl": return `translate(0, calc(-100% - ${labelOffsetPx}px))`
-    }
-  })()
-
-  // Label anchor position in *world space* per ghost — the dragged corner of
-  // each candidate's rect.
-  const labels: Array<{
-    key: string
-    candidate: SnapCandidate
-    screenX: number
-    screenY: number
-  }> = []
-  if (artboardRect) {
+  // Snapped-only label — non-snapped candidates show as silent outlines.
+  const snapped = snappedPresetId
+    ? candidates.find((c) => c.preset.id === snappedPresetId) ?? null
+    : null
+  let snappedLabelPos: { screenX: number; screenY: number } | null = null
+  if (snapped && artboardRect) {
     const ax =
       anchor === "tl" || anchor === "bl"
         ? artboardRect.x
@@ -171,54 +144,47 @@ export function ResizeSnapUnderlay({
       anchor === "tl" || anchor === "tr"
         ? artboardRect.y
         : artboardRect.y + artboardRect.height
-    for (const c of candidates) {
-      const { x, y } = rectFromAnchor(anchor, ax, ay, c.ghostWidth, c.ghostHeight)
-      const cornerX =
-        draggedCorner === "tr" || draggedCorner === "br" ? x + c.ghostWidth : x
-      const cornerY =
-        draggedCorner === "bl" || draggedCorner === "br" ? y + c.ghostHeight : y
-      labels.push({
-        key: `${c.preset.id}-${c.orientation}`,
-        candidate: c,
-        screenX: cornerX * zoom + viewportPos.x,
-        screenY: cornerY * zoom + viewportPos.y,
-      })
+    const { x, y } = rectFromAnchor(
+      anchor,
+      ax,
+      ay,
+      snapped.ghostWidth,
+      snapped.ghostHeight,
+    )
+    snappedLabelPos = {
+      screenX: (x + snapped.ghostWidth) * zoom + viewportPos.x,
+      screenY: (y + snapped.ghostHeight) * zoom + viewportPos.y,
     }
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[5]">
+    <div className="pointer-events-none absolute inset-0">
       <canvas ref={canvasRef} className="absolute inset-0" />
-      {labels.map(({ key, candidate, screenX, screenY }) => {
-        const Icon = CATEGORY_LABEL_ICON[candidate.preset.category] ?? Monitor
-        const isSnapped =
-          snappedPresetId === candidate.preset.id && candidate.alpha > 0.99
+      {snapped && snappedLabelPos && (() => {
+        const Icon = CATEGORY_LABEL_ICON[snapped.preset.category] ?? Monitor
         const orientationSuffix =
-          candidate.orientation === "landscape" ? " · Landscape" : ""
-        const dimensions = `${Math.round(candidate.ghostWidth)} × ${Math.round(candidate.ghostHeight)}`
+          snapped.orientation === "landscape" ? " · Landscape" : ""
+        const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
         return (
           <div
-            key={key}
-            className="absolute flex items-center gap-1 whitespace-nowrap text-[11px] leading-none"
+            className="absolute flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold leading-none"
             style={{
-              left: screenX,
-              top: screenY,
-              transform: labelTransform,
-              opacity: candidate.alpha,
-              color: "var(--border)",
-              fontWeight: isSnapped ? 600 : 400,
+              left: snappedLabelPos.screenX,
+              top: snappedLabelPos.screenY,
+              transform: "translate(-100%, 4px)",
+              color: "#d946ef",
             }}
           >
             <Icon className="h-3 w-3" />
             <span>
-              {candidate.preset.label}
+              {snapped.preset.label}
               {orientationSuffix}
               {" "}
               <span className="opacity-70">{dimensions}</span>
             </span>
           </div>
         )
-      })}
+      })()}
     </div>
   )
 }

@@ -3002,6 +3002,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               onClick={commentMode ? handleCanvasClick : undefined}
             >
 
+            {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
+                so the artboard iframes paint on top — the parts of each ghost
+                that extend past the active artboard remain visible. Same
+                screen-space canvas approach as SelectionOverlay so the 1px
+                outlines stay crisp at any zoom. */}
+            <ResizeSnapUnderlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              artboardRect={(() => {
+                if (!resizeSnap) return null
+                const layout = effectiveArtboardLayouts.get(resizeSnap.artboardId)
+                if (!layout) return null
+                return {
+                  x: layout.x,
+                  y: layout.y,
+                  width: layout.width,
+                  height: layout.height,
+                }
+              })()}
+              anchor={resizeSnap?.anchor ?? "tl"}
+              candidates={resizeSnap?.candidates ?? []}
+              snappedPresetId={resizeSnap?.snappedPresetId ?? null}
+            />
+
             <TransformWrapper
               ref={transformRef}
               initialScale={1}
@@ -3254,25 +3278,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   initialThreads={initialThreads}
                 />
               </div>
-
-              <ResizeSnapUnderlay
-                zoom={zoom}
-                viewportPos={viewportPos}
-                artboardRect={(() => {
-                  if (!resizeSnap) return null
-                  const layout = effectiveArtboardLayouts.get(resizeSnap.artboardId)
-                  if (!layout) return null
-                  return {
-                    x: layout.x,
-                    y: layout.y,
-                    width: layout.width,
-                    height: layout.height,
-                  }
-                })()}
-                anchor={resizeSnap?.anchor ?? "tl"}
-                candidates={resizeSnap?.candidates ?? []}
-                snappedPresetId={resizeSnap?.snappedPresetId ?? null}
-              />
 
               <SelectionOverlay
                 zoom={zoom}
