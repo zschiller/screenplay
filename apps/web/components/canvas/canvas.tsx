@@ -2093,10 +2093,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   }, [chatSessions])
 
   // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
+  // For each chat that's marked streaming in storage, also ask the server to
+  // verify the underlying Anthropic session is still actually running. If it's
+  // idle/terminated, the heal endpoint broadcasts chat-stream-end to unstick
+  // the spinner — handles cases where a previous stream died before signalling.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (cs.isStreaming) {
-        chatStore.setStreaming(cs.id, true)
+      if (!cs.isStreaming) continue
+      chatStore.setStreaming(cs.id, true)
+      if (cs.sessionId) {
+        fetch("/api/agent/heal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomId,
+            chatId: cs.id,
+            sessionId: cs.sessionId,
+          }),
+        }).catch((e) => console.error("Heal request failed:", e))
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

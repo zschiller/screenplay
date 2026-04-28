@@ -157,7 +157,11 @@ export async function POST(req: Request) {
       for await (const event of eventStream) {
         if (event.type === "user.message") continue
         if (event.type === "user.custom_tool_result") continue
+        // `status_running` and `status_rescheduled` are both non-terminal:
+        // the session is either actively executing or auto-retrying after a
+        // transient error. Either way, keep waiting for the next event.
         if (event.type === "session.status_running") continue
+        if ((event.type as string) === "session.status_rescheduled") continue
 
         switch (event.type) {
           case "agent.message": {
