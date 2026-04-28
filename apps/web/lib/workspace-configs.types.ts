@@ -11,6 +11,8 @@ export type WorkspaceConfig = {
   devScript: string
   devServerPort: number
   envVars: string
+  /** Preset id from `lib/artboard-sizes`. Falls back to the default preset when unset. */
+  defaultArtboardSizeId?: string
   createdAt: number
   updatedAt: number
 }
