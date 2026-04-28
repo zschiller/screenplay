@@ -64,11 +64,18 @@ interface SelectionOverlayProps {
   /**
    * One reorder handle per artboard in a selected multi-artboard group. The
    * world-space center is projected to screen and drawn as a small dot at
-   * constant pixel size — visual-only, drag isn't wired up yet.
+   * constant pixel size. Pressing one starts a drag that reorders the
+   * artboards in the group.
    */
   reorderHandles?: Array<{ artboardId: string; centerX: number; centerY: number }>
   /** When the cursor is over a reorder dot, render that one filled instead of hollow. */
   hoveredReorderArtboardId?: string | null
+  /**
+   * World-space shift applied to the lifted artboard's frame outline and its
+   * reorder dot during a reorder drag — keeps the overlay aligned with the
+   * translated artboard DOM element.
+   */
+  reorderDragShift?: { artboardId: string; dx: number; dy: number } | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -110,6 +117,7 @@ export function SelectionOverlay({
   gapHandles,
   reorderHandles,
   hoveredReorderArtboardId,
+  reorderDragShift,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -216,8 +224,12 @@ export function SelectionOverlay({
       const inDirect = selectedArtboardIds.has(layout.id)
       const inGroup = groupSelectedArtboardIds.has(layout.id)
       if (!inDirect && !inGroup && focusedArtboardId !== layout.id) continue
-      const tl = toScreen(layout.x, layout.y)
-      const br = toScreen(layout.x + layout.width, layout.y + layout.height)
+      // Lifted artboard's outline tracks its translated DOM position.
+      const shift = reorderDragShift && reorderDragShift.artboardId === layout.id ? reorderDragShift : null
+      const ox = shift ? shift.dx : 0
+      const oy = shift ? shift.dy : 0
+      const tl = toScreen(layout.x + ox, layout.y + oy)
+      const br = toScreen(layout.x + layout.width + ox, layout.y + layout.height + oy)
       frameEdges.set(layout.id, {
         l: Math.round(tl.x),
         t: Math.round(tl.y),
@@ -407,7 +419,10 @@ export function SelectionOverlay({
     // back to primary).
     if (reorderHandles && reorderHandles.length > 0) {
       for (const h of reorderHandles) {
-        const center = toScreen(h.centerX, h.centerY)
+        const shift = reorderDragShift && reorderDragShift.artboardId === h.artboardId ? reorderDragShift : null
+        const ox = shift ? shift.dx : 0
+        const oy = shift ? shift.dy : 0
+        const center = toScreen(h.centerX + ox, h.centerY + oy)
         const cx = Math.round(center.x) + 0.5
         const cy = Math.round(center.y) + 0.5
         const filled = h.artboardId === hoveredReorderArtboardId
@@ -475,7 +490,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, textLayerSizeTick])
+  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift, textLayerSizeTick])
 
   // Keep canvas sized to container
   useEffect(() => {
