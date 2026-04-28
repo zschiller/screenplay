@@ -2,20 +2,22 @@
 
 import { useCallback, useRef } from "react"
 
-type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
+export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
 
 interface UseResizeOptions {
   zoom: number
-  onResize: (dx: number, dy: number, dw: number, dh: number) => void
+  onResize: (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => void
+  onResizeStart?: (edge: ResizeEdge) => void
+  onResizeEnd?: () => void
 }
 
-export function useArtboardResize({ zoom, onResize }: UseResizeOptions) {
+export function useArtboardResize({ zoom, onResize, onResizeStart, onResizeEnd }: UseResizeOptions) {
   const dragging = useRef(false)
-  const edge = useRef<Edge | null>(null)
+  const edge = useRef<ResizeEdge | null>(null)
   const lastPos = useRef({ x: 0, y: 0 })
 
   const startResize = useCallback(
-    (e: React.PointerEvent, side: Edge) => {
+    (e: React.PointerEvent, side: ResizeEdge) => {
       if (e.button !== 0) return
       e.stopPropagation()
       e.preventDefault()
@@ -23,8 +25,9 @@ export function useArtboardResize({ zoom, onResize }: UseResizeOptions) {
       edge.current = side
       lastPos.current = { x: e.clientX, y: e.clientY }
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      onResizeStart?.(side)
     },
-    [],
+    [onResizeStart],
   )
 
   const onPointerMove = useCallback(
@@ -42,7 +45,7 @@ export function useArtboardResize({ zoom, onResize }: UseResizeOptions) {
       if (dir.includes("s")) dh = rawDy
       if (dir.includes("n")) { dy = rawDy; dh = -rawDy }
 
-      onResize(dx, dy, dw, dh)
+      onResize(dir, dx, dy, dw, dh)
     },
     [zoom, onResize],
   )
@@ -53,12 +56,13 @@ export function useArtboardResize({ zoom, onResize }: UseResizeOptions) {
       dragging.current = false
       edge.current = null
       ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      onResizeEnd?.()
     },
-    [],
+    [onResizeEnd],
   )
 
   const makeHandleProps = useCallback(
-    (side: Edge) => ({
+    (side: ResizeEdge) => ({
       onPointerDown: (e: React.PointerEvent) => startResize(e, side),
       onPointerMove,
       onPointerUp,

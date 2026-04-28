@@ -105,6 +105,14 @@ import {
 } from "@/lib/constants"
 import { computeArtboardLayouts, groupContentWidth, groupGap, nextGroupNumber } from "@/lib/artboard-layout"
 import { getArtboardSizePreset } from "@/lib/artboard-sizes"
+import {
+  anchorCornerForEdge,
+  computeDeviceSnap,
+  type AnchorCorner,
+  type ResizeEdge,
+  type SnapCandidate,
+} from "@/lib/artboard-snap"
+import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -1029,20 +1037,118 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   /**
+   * Per-gesture resize state. The hook emits raw screen-derived deltas every
+   * pointer move; we accumulate them against the artboard's size at gesture
+   * start so the snap math sees the *un-snapped* proposed size, not the
+   * already-snapped value we wrote on the previous frame. Without that, once
+   * the artboard locked onto a preset the cumulative delta would never reach
+   * the next preset.
+   */
+  const resizeRawRef = useRef<{
+    artboardId: string
+    edge: ResizeEdge
+    initialWidth: number
+    initialHeight: number
+    rawDw: number
+    rawDh: number
+  } | null>(null)
+
+  /**
+   * Holding cmd/meta (or ctrl on non-Mac) during a resize disables the
+   * device-size snap so the user can fine-tune freely past a preset.
+   * Tracked via window listeners so it stays accurate even between pointer
+   * moves (e.g. user presses cmd while idle on a preset width).
+   */
+  const resizeMetaHeldRef = useRef(false)
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      resizeMetaHeldRef.current = ev.metaKey
+    }
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [])
+
+  /** Snap underlay state — drives the device-size ghosts shown during a resize. */
+  const [resizeSnap, setResizeSnap] = useState<{
+    artboardId: string
+    edge: ResizeEdge
+    anchor: AnchorCorner
+    candidates: SnapCandidate[]
+    snappedPresetId: string | null
+  } | null>(null)
+
+  const handleResizeStart = useCallback(
+    (id: string, edge: ResizeEdge) => {
+      const a = collections.artboards.get(id)
+      if (!a) return
+      resizeRawRef.current = {
+        artboardId: id,
+        edge,
+        initialWidth: a.width,
+        initialHeight: a.height,
+        rawDw: 0,
+        rawDh: 0,
+      }
+    },
+    [collections],
+  )
+
+  const handleResizeEnd = useCallback((_id: string) => {
+    resizeRawRef.current = null
+    setResizeSnap(null)
+  }, [])
+
+  /**
    * Resize handler from a single artboard's edge.
    * - (dx, dy) shifts the artboard's parent group by that delta — non-zero
    *   only for top (`dy`) and left (`dx`) edges, so the group anchor follows
    *   the dragged edge while the right/bottom stays put.
    * - (dw, dh) is applied to this artboard's own width/height (clamped to
    *   the 320×200 minimum). Other artboards in the group keep their size.
+   * - `edge` lets us snap to nearby device-size presets and emit the
+   *   underlay state used to render their ghosts.
    */
   const resizeArtboardEdge = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) => {
+    (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
       collections.transact(() => {
         const a = collections.artboards.get(id)
         if (!a) return
-        const newWidth = Math.max(MIN_ARTBOARD_WIDTH, a.width + dw)
-        const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, a.height + dh)
+
+        // Initialize raw state lazily if startResize didn't fire — defensive
+        // against any future call sites that bypass the gesture lifecycle.
+        if (!resizeRawRef.current || resizeRawRef.current.artboardId !== id) {
+          resizeRawRef.current = {
+            artboardId: id,
+            edge,
+            initialWidth: a.width,
+            initialHeight: a.height,
+            rawDw: 0,
+            rawDh: 0,
+          }
+        }
+
+        const rs = resizeRawRef.current
+        rs.rawDw += dw
+        rs.rawDh += dh
+        const rawWidth = Math.max(MIN_ARTBOARD_WIDTH, rs.initialWidth + rs.rawDw)
+        const rawHeight = Math.max(MIN_ARTBOARD_HEIGHT, rs.initialHeight + rs.rawDh)
+
+        // Cmd/meta held → bypass snap entirely (no candidates, no lock).
+        const snap = resizeMetaHeldRef.current
+          ? {
+              candidates: [],
+              width: rawWidth,
+              height: rawHeight,
+              snappedPresetId: null,
+              snappedOrientation: null,
+            }
+          : computeDeviceSnap({ edge, rawWidth, rawHeight, zoom })
+        const newWidth = Math.max(MIN_ARTBOARD_WIDTH, snap.width)
+        const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, snap.height)
         const actualDw = newWidth - a.width
         const actualDh = newHeight - a.height
         // The resize hook only sends a non-zero `dx`/`dy` for left/top edge
@@ -1066,9 +1172,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (actualDw !== 0 || actualDh !== 0) {
           collections.artboards.update(id, { width: newWidth, height: newHeight })
         }
+
+        setResizeSnap({
+          artboardId: id,
+          edge,
+          anchor: anchorCornerForEdge(edge),
+          candidates: snap.candidates,
+          snappedPresetId: snap.snappedPresetId,
+        })
       })
     },
-    [collections],
+    [collections, zoom],
   )
 
   const renameArtboard = useCallback(
@@ -2948,6 +3062,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               onClick={commentMode ? handleCanvasClick : undefined}
             >
 
+            {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
+                so the artboard iframes paint on top — the parts of each ghost
+                that extend past the active artboard remain visible. Same
+                screen-space canvas approach as SelectionOverlay so the 1px
+                outlines stay crisp at any zoom. */}
+            <ResizeSnapUnderlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              artboardRect={(() => {
+                if (!resizeSnap) return null
+                const layout = effectiveArtboardLayouts.get(resizeSnap.artboardId)
+                if (!layout) return null
+                return {
+                  x: layout.x,
+                  y: layout.y,
+                  width: layout.width,
+                  height: layout.height,
+                }
+              })()}
+              anchor={resizeSnap?.anchor ?? "tl"}
+              candidates={resizeSnap?.candidates ?? []}
+              snappedPresetId={resizeSnap?.snappedPresetId ?? null}
+            />
+
             <TransformWrapper
               ref={transformRef}
               initialScale={1}
@@ -3109,6 +3247,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onMoveGroup={(dx, dy) => moveArtboardsByDelta([artboard.id], dx, dy)}
                               onMoveSelected={handleMoveSelected}
                               onResize={resizeArtboardEdge}
+                              onResizeStart={handleResizeStart}
+                              onResizeEnd={handleResizeEnd}
                               onRemove={removeArtboard}
                               onStateChanged={updateArtboardState}
                               onRouteChange={updateArtboardRoute}
