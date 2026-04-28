@@ -6,7 +6,7 @@ import {
   type JsonObject,
   type JsonValue,
 } from "@/lib/postmessage-protocol"
-import type { BranchCommentRecord } from "@/lib/branch-comments"
+import type { ThreadWithComments } from "@/lib/comments"
 import { PlayerHud } from "./player-hud"
 
 interface PrototypePlayerProps {
@@ -17,7 +17,7 @@ interface PrototypePlayerProps {
   previewDomain: string
   initialRoute: string
   initialKnobValues: Record<string, unknown>
-  initialComments: BranchCommentRecord[]
+  initialThreads: ThreadWithComments[]
 }
 
 export function PrototypePlayer({
@@ -28,7 +28,7 @@ export function PrototypePlayer({
   previewDomain,
   initialRoute,
   initialKnobValues,
-  initialComments,
+  initialThreads,
 }: PrototypePlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [knobs, setKnobs] = useState<JsonValue[]>([])
@@ -105,7 +105,7 @@ export function PrototypePlayer({
         knobs={knobs}
         knobValues={knobValues}
         onKnobChange={handleKnobChange}
-        initialComments={initialComments}
+        initialThreads={initialThreads}
       />
     </div>
   )

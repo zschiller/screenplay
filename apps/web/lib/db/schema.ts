@@ -116,9 +116,10 @@ export const thread = pgTable(
       .references(() => room.id, { onDelete: "cascade" }),
     // Coordinates are canvas-space (or artboard-space when artboardId is set).
     // When a selector is set, x/y is the last known resolved position used as
-    // a fallback if the selector no longer matches an element.
-    x: doublePrecision("x").notNull(),
-    y: doublePrecision("y").notNull(),
+    // a fallback if the selector no longer matches an element. Null on
+    // branch-level threads (no canvas position).
+    x: doublePrecision("x"),
+    y: doublePrecision("y"),
     artboardId: text("artboard_id"),
     // CSS path to the iframe DOM element the comment is anchored to (artboard
     // comments only). offset_x/y are stored as fractions of the element's
@@ -127,6 +128,11 @@ export const thread = pgTable(
     selector: text("selector"),
     offsetX: doublePrecision("offset_x"),
     offsetY: doublePrecision("offset_y"),
+    // Set on threads scoped to an agent branch (the prototype player's flat
+    // comment feed). Mutually exclusive with the positional fields above —
+    // canvas threads have branch null, branch threads have x/y/artboardId/
+    // selector all null.
+    branch: text("branch"),
     resolved: boolean("resolved").notNull().default(false),
     resolvedAt: timestamp("resolved_at"),
     createdBy: text("created_by")
@@ -135,7 +141,10 @@ export const thread = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("thread_room_idx").on(t.roomId)],
+  (t) => [
+    index("thread_room_idx").on(t.roomId),
+    index("thread_room_branch_idx").on(t.roomId, t.branch),
+  ],
 )
 
 export const comment = pgTable(
@@ -175,24 +184,4 @@ export const threadRead = pgTable(
   ],
 )
 
-// Flat comment feed scoped to (room, branch). Used by the prototype player —
-// the comments aren't anchored to any layer or position, just to the agent
-// branch the player is showing.
-export const branchComment = pgTable(
-  "branch_comment",
-  {
-    id: text("id").primaryKey(),
-    roomId: text("room_id")
-      .notNull()
-      .references(() => room.id, { onDelete: "cascade" }),
-    branch: text("branch").notNull(),
-    authorId: text("author_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    body: text("body").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    editedAt: timestamp("edited_at"),
-  },
-  (t) => [index("branch_comment_room_branch_idx").on(t.roomId, t.branch)],
-)
 

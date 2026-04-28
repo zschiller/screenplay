@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getUserId } from "@/lib/auth-helpers"
-import { listBranchComments } from "@/lib/branch-comments"
+import { listBranchThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import type { AgentData, ArtboardData } from "@/lib/types"
@@ -51,8 +51,8 @@ export default async function PlayPage({
 
   const initialKnobValues = decodeKnobValues(search.k) ?? artboard?.knobValues ?? {}
   const initialRoute = search.route ?? artboard?.route ?? "/"
-  const initialComments = agent.branch
-    ? await listBranchComments(roomId, agent.branch).catch(() => [])
+  const initialThreads = agent.branch
+    ? await listBranchThreads(roomId, userId, agent.branch).catch(() => [])
     : []
 
   return (
@@ -64,7 +64,7 @@ export default async function PlayPage({
       previewDomain={agent.previewDomain}
       initialRoute={initialRoute}
       initialKnobValues={initialKnobValues}
-      initialComments={initialComments}
+      initialThreads={initialThreads}
     />
   )
 }

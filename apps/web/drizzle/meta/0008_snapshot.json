@@ -1,5 +1,5 @@
 {
-  "id": "83a186b0-0e27-4c9e-8f3f-3c26b6f02b60",
+  "id": "59fe0ac6-df5d-4c48-aceb-a3cc9b7a8c3c",
   "prevId": "759ebc49-6354-4e2b-ad00-c9374af5e596",
   "version": "7",
   "dialect": "postgresql",
@@ -97,111 +97,6 @@
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.branch_comment": {
-      "name": "branch_comment",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "room_id": {
-          "name": "room_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch": {
-          "name": "branch",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "author_id": {
-          "name": "author_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "edited_at": {
-          "name": "edited_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "branch_comment_room_branch_idx": {
-          "name": "branch_comment_room_branch_idx",
-          "columns": [
-            {
-              "expression": "room_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "branch_comment_room_id_room_id_fk": {
-          "name": "branch_comment_room_id_room_id_fk",
-          "tableFrom": "branch_comment",
-          "tableTo": "room",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "branch_comment_author_id_user_id_fk": {
-          "name": "branch_comment_author_id_user_id_fk",
-          "tableFrom": "branch_comment",
-          "tableTo": "user",
-          "columnsFrom": [
-            "author_id"
           ],
           "columnsTo": [
             "id"
@@ -613,13 +508,13 @@
           "name": "x",
           "type": "double precision",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "y": {
           "name": "y",
           "type": "double precision",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "artboard_id": {
           "name": "artboard_id",
@@ -642,6 +537,12 @@
         "offset_y": {
           "name": "offset_y",
           "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch": {
+          "name": "branch",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -685,6 +586,27 @@
           "columns": [
             {
               "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "thread_room_branch_idx": {
+          "name": "thread_room_branch_idx",
+          "columns": [
+            {
+              "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

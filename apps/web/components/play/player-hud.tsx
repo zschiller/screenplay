@@ -5,7 +5,7 @@ import { animate, motion, useMotionValue } from "motion/react"
 import { ArrowLeft, GripVertical, MessageSquare, SlidersHorizontal } from "lucide-react"
 import { cn } from "@workspace/ui/lib/utils"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
-import type { BranchCommentRecord } from "@/lib/branch-comments"
+import type { ThreadWithComments } from "@/lib/comments"
 import { PlayerKnobs } from "./player-knobs"
 import { PlayerComments } from "./player-comments"
 
@@ -29,7 +29,7 @@ interface PlayerHudProps {
   knobs: JsonValue[]
   knobValues: JsonObject
   onKnobChange: (next: JsonObject) => void
-  initialComments: BranchCommentRecord[]
+  initialThreads: ThreadWithComments[]
 }
 
 export function PlayerHud({
@@ -40,7 +40,7 @@ export function PlayerHud({
   knobs,
   knobValues,
   onKnobChange,
-  initialComments,
+  initialThreads,
 }: PlayerHudProps) {
   // Read the saved corner lazily so the very first render already places the
   // HUD in the right spot. Guarded for SSR where `window` is undefined.
@@ -213,7 +213,7 @@ export function PlayerHud({
               roomId={roomId}
               branch={branch}
               agentId={agentId}
-              initialComments={initialComments}
+              initialThreads={initialThreads}
             />
           )}
         </motion.div>
