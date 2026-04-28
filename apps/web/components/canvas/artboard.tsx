@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
-import { useArtboardResize } from "@/hooks/use-artboard-resize"
+import { useArtboardResize, type ResizeEdge } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type PickResult, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
@@ -67,9 +67,14 @@ interface ArtboardProps {
   /**
    * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
    * edges leave the group anchor in place. The artboard's own width/height
-   * always change by (dw, dh).
+   * always change by (dw, dh). `edge` lets the canvas snap to device-size
+   * presets along the axes the user is actually dragging.
    */
-  onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
+  onResize: (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => void
+  /** Fired when a resize gesture begins so the canvas can render the snap underlay. */
+  onResizeStart?: (id: string, edge: ResizeEdge) => void
+  /** Fired when a resize gesture ends so the canvas can clear the snap underlay. */
+  onResizeEnd?: (id: string) => void
   onRemove: (id: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string) => void
@@ -138,6 +143,8 @@ export function Artboard({
   onMoveGroup,
   onMoveSelected,
   onResize,
+  onResizeStart,
+  onResizeEnd,
   onRemove,
   onStateChanged,
   onRouteChange,
@@ -189,15 +196,28 @@ export function Artboard({
   })
 
   const handleResize = useCallback(
-    (dx: number, dy: number, dw: number, dh: number) => {
-      onResize(artboard.id, dx, dy, dw, dh)
+    (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
+      onResize(artboard.id, edge, dx, dy, dw, dh)
     },
     [artboard.id, onResize],
   )
 
+  const handleResizeStart = useCallback(
+    (edge: ResizeEdge) => {
+      onResizeStart?.(artboard.id, edge)
+    },
+    [artboard.id, onResizeStart],
+  )
+
+  const handleResizeEnd = useCallback(() => {
+    onResizeEnd?.(artboard.id)
+  }, [artboard.id, onResizeEnd])
+
   const { makeHandleProps } = useArtboardResize({
     zoom,
     onResize: handleResize,
+    onResizeStart: handleResizeStart,
+    onResizeEnd: handleResizeEnd,
   })
 
   // Track the path last reported by the iframe itself. When artboard.route
