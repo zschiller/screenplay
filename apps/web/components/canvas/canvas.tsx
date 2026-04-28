@@ -2146,6 +2146,38 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom
   const canvasWrapperRef = useRef<HTMLDivElement>(null)
 
+  // Cross-origin iframes inside an artboard can cause the browser to walk up
+  // the ancestor chain calling `scrollIntoView` (e.g. when their content
+  // autofocuses an input). `overflow: hidden` does not block programmatic
+  // scrolling, so the canvas wrapper / transform wrapper silently drift from
+  // (0, 0) and the rendered canvas slides off-axis from the transform state.
+  // Pin both elements' scroll positions to 0 on every scroll event.
+  useEffect(() => {
+    const el = canvasWrapperRef.current
+    if (!el) return
+
+    const transformWrapper = el.querySelector<HTMLElement>(
+      ".react-transform-wrapper",
+    )
+
+    const pin = (e: Event) => {
+      const t = e.currentTarget as HTMLElement
+      if (t.scrollLeft !== 0) t.scrollLeft = 0
+      if (t.scrollTop !== 0) t.scrollTop = 0
+    }
+
+    const targets: HTMLElement[] = [el]
+    if (transformWrapper) targets.push(transformWrapper)
+    for (const t of targets) {
+      t.addEventListener("scroll", pin, { passive: true })
+    }
+    return () => {
+      for (const t of targets) {
+        t.removeEventListener("scroll", pin)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const el = canvasWrapperRef.current
     if (!el) return
