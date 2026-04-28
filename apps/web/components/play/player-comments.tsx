@@ -89,7 +89,7 @@ export function PlayerComments({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-foreground/5 px-3 py-2">
         <span className="text-xs font-medium text-foreground">Branch comments</span>
         <span className="font-mono text-[10px] text-muted-foreground">{branch || "(no branch)"}</span>
       </div>
@@ -144,7 +144,7 @@ export function PlayerComments({
         )}
       </div>
       <form
-        className="flex flex-col gap-1.5 border-t border-border/60 p-2"
+        className="flex flex-col gap-1.5 border-t border-foreground/5 p-2"
         onSubmit={(e) => {
           e.preventDefault()
           handleSubmit()

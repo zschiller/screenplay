@@ -55,7 +55,7 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-foreground/5 px-3 py-2">
         <span className="text-xs font-medium text-foreground">Knobs</span>
         <Button
           size="xxs"

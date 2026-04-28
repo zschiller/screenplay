@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { animate, motion, useMotionValue } from "motion/react"
 import { ArrowLeft, GripVertical, MessageSquare, SlidersHorizontal } from "lucide-react"
-import { cn } from "@workspace/ui/lib/utils"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
 import { PlayerKnobs } from "./player-knobs"
@@ -14,8 +20,11 @@ type Corner = "tl" | "tr" | "bl" | "br"
 type Panel = "knobs" | "comments" | null
 
 const MARGIN = 16
-const HUD_WIDTH = 132 // approximate pill width; only used for first paint
-const HUD_HEIGHT = 36
+// Approximate first-paint size — replaced by the real measured size as soon
+// as the HUD has rendered, used only so the very first frame already lands
+// near the right corner.
+const HUD_WIDTH = 132
+const HUD_HEIGHT = 32
 const PANEL_WIDTH = 320
 const PANEL_HEIGHT = 360
 const PANEL_GAP = 8
@@ -29,6 +38,14 @@ interface PlayerHudProps {
   knobs: JsonValue[]
   knobValues: JsonObject
   onKnobChange: (next: JsonObject) => void
+  /**
+   * Fires when the HUD's drag state flips. The parent uses this to disable
+   * pointer events on the underlying iframe so a fast drag can't escape into
+   * its document — pointer capture doesn't cross cross-origin iframe
+   * boundaries, so without this the drag drops the moment the cursor leaves
+   * the pill.
+   */
+  onDraggingChange?: (dragging: boolean) => void
   initialThreads: ThreadWithComments[]
 }
 
@@ -40,6 +57,7 @@ export function PlayerHud({
   knobs,
   knobValues,
   onKnobChange,
+  onDraggingChange,
   initialThreads,
 }: PlayerHudProps) {
   // Read the saved corner lazily so the very first render already places the
@@ -57,25 +75,19 @@ export function PlayerHud({
   const x = useMotionValue(0)
   const y = useMotionValue(0)
 
-  const cornerPos = useCallback(
-    (c: Corner) => {
-      // Use the actual rendered HUD size if mounted; fall back to the static
-      // estimate so the first paint already lands in the right corner instead
-      // of (0, 0).
-      const rect = hudRef.current?.getBoundingClientRect()
-      const w = rect?.width || HUD_WIDTH
-      const h = rect?.height || HUD_HEIGHT
-      const right = window.innerWidth - w - MARGIN
-      const bottom = window.innerHeight - h - MARGIN
-      switch (c) {
-        case "tl": return { x: MARGIN, y: MARGIN }
-        case "tr": return { x: right, y: MARGIN }
-        case "bl": return { x: MARGIN, y: bottom }
-        case "br": return { x: right, y: bottom }
-      }
-    },
-    [],
-  )
+  const cornerPos = useCallback((c: Corner) => {
+    const rect = hudRef.current?.getBoundingClientRect()
+    const w = rect?.width || HUD_WIDTH
+    const h = rect?.height || HUD_HEIGHT
+    const right = window.innerWidth - w - MARGIN
+    const bottom = window.innerHeight - h - MARGIN
+    switch (c) {
+      case "tl": return { x: MARGIN, y: MARGIN }
+      case "tr": return { x: right, y: MARGIN }
+      case "bl": return { x: MARGIN, y: bottom }
+      case "br": return { x: right, y: bottom }
+    }
+  }, [])
 
   // Snap to the active corner once the HUD has rendered so cornerPos can
   // measure the real pill width. useLayoutEffect avoids a one-frame flash
@@ -104,7 +116,12 @@ export function PlayerHud({
     } catch {}
   }, [])
 
+  const handleDragStart = useCallback(() => {
+    onDraggingChange?.(true)
+  }, [onDraggingChange])
+
   const handleDragEnd = useCallback(() => {
+    onDraggingChange?.(false)
     const rect = hudRef.current?.getBoundingClientRect()
     if (!rect) return
     const cx = window.innerWidth / 2
@@ -116,9 +133,11 @@ export function PlayerHud({
     const target = cornerPos(next)
     animate(x, target.x, { type: "spring", stiffness: 360, damping: 26 })
     animate(y, target.y, { type: "spring", stiffness: 360, damping: 26 })
-  }, [cornerPos, persistCorner, x, y])
+  }, [cornerPos, persistCorner, onDraggingChange, x, y])
 
   // Where to dock the expanded panel relative to the pill's anchor corner.
+  // The pill height is a stable shadcn `icon-xs` row so we use the static
+  // constant rather than reaching for the live ref during render.
   const panelStyle = useMemo<React.CSSProperties>(() => {
     const isTop = corner === "tl" || corner === "tr"
     const isLeft = corner === "tl" || corner === "bl"
@@ -143,52 +162,87 @@ export function PlayerHud({
     return () => window.removeEventListener("pointerdown", onPointerDown)
   }, [panel])
 
+  // Tooltips dock above when the HUD is anchored at the bottom of the
+  // viewport so they don't appear off-screen.
+  const tooltipSide = corner === "bl" || corner === "br" ? "top" : "bottom"
+
   return (
     <motion.div
       ref={hudRef}
       drag
       dragMomentum={false}
       dragElastic={0}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       style={{ x, y, position: "fixed", top: 0, left: 0, touchAction: "none" }}
-      className="z-50 select-none"
+      className="z-[9998] select-none"
     >
-      <div className="flex items-center gap-1 rounded-full border border-border/60 bg-background/95 px-1.5 py-1 shadow-lg backdrop-blur-sm">
-        <span
-          className="flex h-7 w-5 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
-          title="Drag to a corner"
-          aria-label="Drag to a corner"
-        >
-          <GripVertical className="size-4" />
-        </span>
-        <HudButton
-          active={panel === "knobs"}
-          onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
-          title={knobs.length > 0 ? `${knobs.length} knob${knobs.length === 1 ? "" : "s"}` : "Knobs"}
-        >
-          <SlidersHorizontal className="size-4" />
-          {knobs.length > 0 ? (
-            <span className="ml-1 text-[10px] font-medium tabular-nums text-muted-foreground">
-              {knobs.length}
-            </span>
-          ) : null}
-        </HudButton>
-        <HudButton
-          active={panel === "comments"}
-          onClick={() => setPanel(panel === "comments" ? null : "comments")}
-          title="Branch comments"
-        >
-          <MessageSquare className="size-4" />
-        </HudButton>
-        <a
-          href={`/${roomId}`}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-          title={`Back to ${projectName}`}
-        >
-          <ArrowLeft className="size-4" />
-        </a>
-      </div>
+      <TooltipProvider>
+        <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="flex h-6 w-4 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+                aria-label="Drag to a corner"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side={tooltipSide}>Drag to a corner</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={panel === "knobs" ? "default" : "ghost"}
+                size="icon-xs"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() =>
+                  setPanel(panel === "knobs" ? null : "knobs")
+                }
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={tooltipSide}>
+              {knobs.length > 0
+                ? `${knobs.length} knob${knobs.length === 1 ? "" : "s"}`
+                : "Knobs"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={panel === "comments" ? "default" : "ghost"}
+                size="icon-xs"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() =>
+                  setPanel(panel === "comments" ? null : "comments")
+                }
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={tooltipSide}>Branch comments</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon-xs"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <a href={`/${roomId}`}>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={tooltipSide}>
+              Back to {projectName}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
 
       {panel ? (
         <motion.div
@@ -200,7 +254,7 @@ export function PlayerHud({
           // Block drag from starting on the panel — clicks/inputs inside
           // shouldn't move the HUD.
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background/98 shadow-2xl backdrop-blur-sm"
+          className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-lg bg-background shadow-md outline outline-1 outline-foreground/5"
         >
           {panel === "knobs" ? (
             <PlayerKnobs
@@ -219,33 +273,5 @@ export function PlayerHud({
         </motion.div>
       ) : null}
     </motion.div>
-  )
-}
-
-interface HudButtonProps {
-  active: boolean
-  onClick: () => void
-  title: string
-  children: React.ReactNode
-}
-
-function HudButton({ active, onClick, title, children }: HudButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      // The HUD itself owns drag, so pointerdown anywhere starts a drag — even
-      // on these buttons. Stop propagation so a tap fires onClick instead.
-      onPointerDown={(e) => e.stopPropagation()}
-      className={cn(
-        "flex h-7 items-center gap-1 rounded-full px-2 text-sm transition-colors",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-      )}
-    >
-      {children}
-    </button>
   )
 }

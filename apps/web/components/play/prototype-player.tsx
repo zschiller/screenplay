@@ -35,6 +35,11 @@ export function PrototypePlayer({
   const [knobValues, setKnobValues] = useState<JsonObject>(
     initialKnobValues as JsonObject,
   )
+  // While the HUD is being dragged the iframe must not capture pointer events
+  // — pointer capture doesn't cross cross-origin iframe boundaries, so a fast
+  // drag would otherwise escape onto the iframe's document and the drag would
+  // drop. We flip pointer-events:none on the iframe for the duration.
+  const [hudDragging, setHudDragging] = useState(false)
   const knobValuesRef = useRef(knobValues)
   useEffect(() => {
     knobValuesRef.current = knobValues
@@ -96,6 +101,7 @@ export function PrototypePlayer({
         title={`${projectName} — ${branch}`}
         className="h-full w-full border-0 bg-white dark:bg-zinc-900"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        style={{ pointerEvents: hudDragging ? "none" : "auto" }}
       />
       <PlayerHud
         roomId={roomId}
@@ -105,6 +111,7 @@ export function PrototypePlayer({
         knobs={knobs}
         knobValues={knobValues}
         onKnobChange={handleKnobChange}
+        onDraggingChange={setHudDragging}
         initialThreads={initialThreads}
       />
     </div>
