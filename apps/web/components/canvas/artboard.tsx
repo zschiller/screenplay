@@ -106,6 +106,15 @@ interface ArtboardProps {
    */
   dragTranslateX?: number
   dragTranslateY?: number
+  /**
+   * When set, the artboard is "popped" out of its source group — rendered
+   * with absolute positioning relative to the parent ArtboardGroup so flex
+   * flow drops it and its siblings close the gap. Used during a reorder
+   * drag with the meta key held; on release the pop is committed by the
+   * canvas (creates a new group). `left`/`top` are relative to the parent
+   * ArtboardGroup origin.
+   */
+  dragPopped?: { left: number; top: number }
 }
 
 export function Artboard({
@@ -141,6 +150,7 @@ export function Artboard({
   flexOrder,
   dragTranslateX,
   dragTranslateY,
+  dragPopped,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -436,14 +446,20 @@ export function Artboard({
         width: artboard.width,
         height: artboard.height,
         order: flexOrder,
+        position: dragPopped ? "absolute" : undefined,
+        left: dragPopped?.left,
+        top: dragPopped?.top,
         transform:
-          dragTranslateX != null || dragTranslateY != null
-            ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
-            : undefined,
-        zIndex: dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
+          dragPopped
+            ? undefined
+            : dragTranslateX != null || dragTranslateY != null
+              ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
+              : undefined,
+        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
         // Other siblings snap to their new flex slots; the lifted artboard
         // tracks the cursor without a transition so it doesn't lag.
-        pointerEvents: dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
+        pointerEvents:
+          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
       }}
     >
       <ArtboardLabel

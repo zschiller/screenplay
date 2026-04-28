@@ -198,6 +198,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [reorderDraggingArtboardId, setReorderDraggingArtboardId] = useState<string | null>(null)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted artboard's translate. */
   const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
+  /** True while the user is holding the meta/cmd key during a reorder drag —
+   * pops the artboard out of its source group as a preview. The pop is only
+   * committed (new group created, source group updated) on pointer-up if the
+   * key is still held. */
+  const [reorderDragPopped, setReorderDragPopped] = useState(false)
+  // Track meta-key changes during a reorder drag even when the pointer isn't
+  // moving, so the popped preview kicks in the instant the user presses cmd.
+  useEffect(() => {
+    if (!reorderDraggingArtboardId) return
+    const onKey = (ev: KeyboardEvent) => setReorderDragPopped(ev.metaKey)
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [reorderDraggingArtboardId])
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -439,6 +456,51 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     () => computeArtboardLayouts(artboardGroups, artboards),
     [artboardGroups, artboards],
   )
+  /**
+   * Layouts as the user sees them right now — diverges from `artboardLayouts`
+   * only while a reorder drag has the meta key held: the dragged artboard is
+   * pulled out of its source group's flex flow and floats at the cursor, so
+   * its siblings close the gap. Used by the selection overlay, hit-tests, and
+   * everything else that draws or interacts with on-screen positions.
+   */
+  const reorderDragRef_artboardId = reorderDraggingArtboardId
+  const effectiveArtboardLayouts = useMemo(() => {
+    if (!reorderDragPopped || !reorderDragRef_artboardId || !reorderDragCursor) {
+      return artboardLayouts
+    }
+    const popped = artboardLayouts.get(reorderDragRef_artboardId)
+    if (!popped) return artboardLayouts
+    const sourceGroup = artboardGroups.find((g) => g.id === popped.groupId)
+    if (!sourceGroup) return artboardLayouts
+    const result = new Map(artboardLayouts)
+    // Override the popped artboard so it sits centered on the cursor.
+    result.set(reorderDragRef_artboardId, {
+      ...popped,
+      x: reorderDragCursor.x - popped.width / 2,
+      y: reorderDragCursor.y - popped.height / 2,
+    })
+    // Reflow the source group's remaining artboards to close the gap.
+    const remainingIds = sourceGroup.artboardIds.filter((id) => id !== reorderDragRef_artboardId)
+    const gap = groupGap(sourceGroup)
+    let cursorX = sourceGroup.x
+    for (let i = 0; i < remainingIds.length; i++) {
+      const id = remainingIds[i]!
+      const ab = artboards.find((a) => a.id === id)
+      if (!ab) continue
+      result.set(id, {
+        id,
+        groupId: sourceGroup.id,
+        index: i,
+        isLast: i === remainingIds.length - 1,
+        x: cursorX,
+        y: sourceGroup.y,
+        width: ab.width,
+        height: ab.height,
+      })
+      cursorX += ab.width + gap
+    }
+    return result
+  }, [artboardLayouts, reorderDragPopped, reorderDragRef_artboardId, reorderDragCursor, artboardGroups, artboards])
   const sortedArtboardGroups = useMemo(() => {
     return [...artboardGroups].sort((a, b) => {
       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
@@ -507,10 +569,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     if (selectedGroupIds.size === 0) return handles
     for (const g of artboardGroups) {
       if (!selectedGroupIds.has(g.id)) continue
-      if (g.artboardIds.length < 2) continue
-      for (let i = 1; i < g.artboardIds.length; i++) {
-        const prev = artboardLayouts.get(g.artboardIds[i - 1]!)
-        const next = artboardLayouts.get(g.artboardIds[i]!)
+      // While the popped preview is showing, gap handles between the popped
+      // artboard and its (former) neighbors don't make sense — skip them.
+      const visibleIds = reorderDragPopped && reorderDragRef_artboardId
+        ? g.artboardIds.filter((id) => id !== reorderDragRef_artboardId)
+        : g.artboardIds
+      if (visibleIds.length < 2) continue
+      for (let i = 1; i < visibleIds.length; i++) {
+        const prev = effectiveArtboardLayouts.get(visibleIds[i - 1]!)
+        const next = effectiveArtboardLayouts.get(visibleIds[i]!)
         if (!prev || !next) continue
         const top = Math.max(prev.y, next.y)
         const bottom = Math.min(prev.y + prev.height, next.y + next.height)
@@ -528,7 +595,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     }
     return handles
-  }, [artboardGroups, artboardLayouts, selectedGroupIds])
+  }, [artboardGroups, effectiveArtboardLayouts, selectedGroupIds, reorderDragPopped, reorderDragRef_artboardId])
 
   const gapHandlesRef = useRef(gapHandles)
   gapHandlesRef.current = gapHandles
@@ -545,7 +612,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (!selectedGroupIds.has(g.id)) continue
       if (g.artboardIds.length < 2) continue
       for (const id of g.artboardIds) {
-        const layout = artboardLayouts.get(id)
+        const layout = effectiveArtboardLayouts.get(id)
         if (!layout) continue
         handles.push({
           artboardId: id,
@@ -555,7 +622,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     }
     return handles
-  }, [artboardGroups, artboardLayouts, selectedGroupIds])
+  }, [artboardGroups, effectiveArtboardLayouts, selectedGroupIds])
 
   const reorderHandlesRef = useRef(reorderHandles)
   reorderHandlesRef.current = reorderHandles
@@ -2193,6 +2260,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         const drag = reorderDragRef.current
+        const popped = e.metaKey
+        setReorderDragPopped(popped)
+        setReorderDragCursor({ x: canvas.x, y: canvas.y })
+        // Holding meta previews popping the artboard out into a new group.
+        // The actual data update is deferred until pointer-up so releasing
+        // without meta still leaves the source group as-is.
+        if (popped) return
+
         const group = collections.artboardGroups.get(drag.groupId)
         if (!group) return
         const ids = group.artboardIds
@@ -2223,7 +2298,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           without.splice(newIndex, 0, drag.artboardId)
           reorderGroupArtboards(drag.groupId, without)
         }
-        setReorderDragCursor({ x: canvas.x, y: canvas.y })
         return
       }
 
@@ -2322,11 +2396,39 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // the cursor isn't actually over it (during the drag we locked the
       // highlight to the dragged dot).
       if (reorderDragRef.current) {
+        const drag = reorderDragRef.current
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         reorderDragRef.current = null
         setReorderDraggingArtboardId(null)
         setReorderDragCursor(null)
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        setReorderDragPopped(false)
+
+        // Meta still held at release → commit the pop: detach from the source
+        // group and create a new single-artboard group anchored at the cursor.
+        if (e.metaKey) {
+          const ab = collections.artboards.get(drag.artboardId)
+          const sourceGroup = collections.artboardGroups.get(drag.groupId)
+          if (ab && sourceGroup && sourceGroup.artboardIds.includes(drag.artboardId)) {
+            const newGroupId = nanoid()
+            const newGroupName = `Group ${nextGroupNumber(collections.artboardGroups.toArray())}`
+            const remaining = sourceGroup.artboardIds.filter((id) => id !== drag.artboardId)
+            collections.transact(() => {
+              collections.artboardGroups.update(drag.groupId, { artboardIds: remaining })
+              collections.artboardGroups.set(newGroupId, {
+                id: newGroupId,
+                name: newGroupName,
+                x: canvas.x - ab.width / 2,
+                y: canvas.y - ab.height / 2,
+                artboardIds: [drag.artboardId],
+              })
+            })
+            // Move selection to the new group so the source group's reorder
+            // dots disappear and the popped artboard is now the focus.
+            setSelectedGroupIds(new Set([newGroupId]))
+          }
+        }
+
         const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
         setHoveredReorderArtboardId(hit?.artboardId ?? null)
         return
@@ -2850,14 +2952,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                           const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
                           let dragTranslateX: number | undefined
                           let dragTranslateY: number | undefined
+                          let dragPopped: { left: number; top: number } | undefined
                           if (
                             reorderDraggingArtboardId === artboard.id &&
                             reorderDragCursor != null
                           ) {
-                            const layout = artboardLayouts.get(artboard.id)
-                            if (layout) {
-                              dragTranslateX = reorderDragCursor.x - (layout.x + layout.width / 2)
-                              dragTranslateY = reorderDragCursor.y - (layout.y + layout.height / 2)
+                            if (reorderDragPopped) {
+                              // Absolutely position the artboard inside its (still-current) group
+                              // so flex flow drops it and siblings close the gap visually.
+                              dragPopped = {
+                                left: reorderDragCursor.x - group.x - artboard.width / 2,
+                                top: reorderDragCursor.y - group.y - artboard.height / 2,
+                              }
+                            } else {
+                              const layout = artboardLayouts.get(artboard.id)
+                              if (layout) {
+                                dragTranslateX = reorderDragCursor.x - (layout.x + layout.width / 2)
+                                dragTranslateY = reorderDragCursor.y - (layout.y + layout.height / 2)
+                              }
                             }
                           }
                           return (
@@ -2909,6 +3021,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               flexOrder={flexOrder}
                               dragTranslateX={dragTranslateX}
                               dragTranslateY={dragTranslateY}
+                              dragPopped={dragPopped}
                             />
                           )
                         })}
@@ -2965,13 +3078,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 selectedTextLayerIds={selectedTextLayerIds}
                 focusedArtboardId={focusedArtboardId}
                 hoveredArtboardId={hoveredArtboardId}
-                artboardLayouts={artboardLayouts}
+                artboardLayouts={effectiveArtboardLayouts}
                 placeholderRects={placeholderRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
                 hoveredReorderArtboardId={hoveredReorderArtboardId}
                 reorderDragShift={(() => {
-                  if (!reorderDraggingArtboardId || !reorderDragCursor) return null
+                  // While popped, the dragged artboard's effective layout is
+                  // already centered on the cursor — no extra shift needed.
+                  if (!reorderDraggingArtboardId || !reorderDragCursor || reorderDragPopped) return null
                   const layout = artboardLayouts.get(reorderDraggingArtboardId)
                   if (!layout) return null
                   return {
