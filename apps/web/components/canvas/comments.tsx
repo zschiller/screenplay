@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { motion } from "motion/react"
 import { CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
 import {
   Popover,
@@ -122,6 +123,7 @@ export function Comments({
 
   const pinScale = 1 / zoom
   const pinStyle = {
+    position: "relative" as const,
     transform: `scale(${pinScale})`,
     transformOrigin: "bottom left" as const,
   }
@@ -269,73 +271,28 @@ export function Comments({
           const pos = resolvePos(thread)
           if (!pos) return null
           return (
-            <div
+            <CommentPin
               key={thread.id}
-              className="absolute z-[100] size-0"
-              style={{ left: pos.x, top: pos.y }}
-            >
-              <div style={pinStyle}>
-                <Popover
-                  open={activeThreadId === thread.id}
-                  onOpenChange={(open) => {
-                    setActiveThreadId(open ? thread.id : null)
-                    if (open && thread.unread) {
-                      setThreadUnread(thread.id, false)
-                      markThreadReadAction(thread.id).catch((e) =>
-                        console.error("markThreadRead failed:", e),
-                      )
-                    }
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={(e) => e.stopPropagation()}
-                      // Absolute positioning takes the button out of the
-                      // wrapper's layout so the wrapper stays 0×0. That keeps
-                      // the scale transform's "bottom left" origin pinned to
-                      // the anchor point instead of drifting up by the
-                      // button's height as zoom shrinks. The button hangs
-                      // above the anchor with its bottom-left tip on it.
-                      className={
-                        "absolute bottom-0 left-0 flex h-8 w-8 items-center justify-center rounded-tl-[16px] rounded-tr-[16px] rounded-br-[16px] rounded-bl-[2px] shadow-md ring-1 " +
-                        (thread.unread
-                          ? "bg-blue-400 ring-blue-500/30 hover:bg-blue-500"
-                          : "bg-white ring-black/10 hover:bg-neutral-50")
-                      }
-                      aria-label={`Open thread by ${thread.comments[0]?.authorName ?? "user"}`}
-                    >
-                      <PillAvatar
-                        name={thread.comments[0]?.authorName ?? "?"}
-                        avatar={thread.comments[0]?.authorAvatar ?? null}
-                      />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    side="right"
-                    align="start"
-                    className="w-80 p-0"
-                    onPointerDownOutside={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    // Without this the popover auto-focuses the first
-                    // focusable element (the Resolve button), which fires
-                    // the tooltip's focus handler and pops it open every
-                    // time the thread opens.
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                  >
-                    <ThreadView
-                      thread={thread}
-                      currentUserId={session?.user.id ?? null}
-                      onClose={() => setActiveThreadId(null)}
-                      onMarkUnread={() => {
-                        setThreadUnread(thread.id, true)
-                        setActiveThreadId(null)
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
+              thread={thread}
+              pos={pos}
+              pinStyle={pinStyle}
+              isOpen={activeThreadId === thread.id}
+              currentUserId={session?.user.id ?? null}
+              onOpenChange={(open) => {
+                setActiveThreadId(open ? thread.id : null)
+                if (open && thread.unread) {
+                  setThreadUnread(thread.id, false)
+                  markThreadReadAction(thread.id).catch((e) =>
+                    console.error("markThreadRead failed:", e),
+                  )
+                }
+              }}
+              onClose={() => setActiveThreadId(null)}
+              onMarkUnread={() => {
+                setThreadUnread(thread.id, true)
+                setActiveThreadId(null)
+              }}
+            />
           )
         })}
 
@@ -381,6 +338,136 @@ export function Comments({
         </div>
       )}
     </>
+  )
+}
+
+function CommentPin({
+  thread,
+  pos,
+  pinStyle,
+  isOpen,
+  currentUserId,
+  onOpenChange,
+  onClose,
+  onMarkUnread,
+}: {
+  thread: ThreadWithComments
+  pos: { x: number; y: number }
+  pinStyle: { transform: string; transformOrigin: "bottom left" }
+  isOpen: boolean
+  currentUserId: string | null
+  onOpenChange: (open: boolean) => void
+  onClose: () => void
+  onMarkUnread: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  // Pin only expands while hovered AND popover is closed. Opening the
+  // popover snaps the pin back to its 32×32 footprint so the popover
+  // visually anchors to a stable point.
+  const expanded = hovered && !isOpen
+  const firstComment = thread.comments[0]
+  return (
+    <div
+      className="absolute z-[100] size-0 hover:z-[101]"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <div style={pinStyle}>
+        <Popover open={isOpen} onOpenChange={onOpenChange}>
+          {/* Fixed-size trigger pinned to the collapsed pin footprint.
+              Radix positions the popover against this stable rect, so the
+              popover stays glued to the pin tip while the inner card
+              hover-expands. Click bubbles from the inner button to this
+              wrapper, which is what Radix wires open/close to. */}
+          <PopoverTrigger asChild>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="pointer-events-auto"
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                width: "2rem",
+                height: "2rem",
+              }}
+            >
+              <motion.button
+                type="button"
+                onHoverStart={() => setHovered(true)}
+                onHoverEnd={() => setHovered(false)}
+                animate={{
+                  width: expanded ? 320 : 32,
+                  height: expanded ? 64 : 32,
+                  paddingLeft: expanded ? 8 : 0,
+                  paddingRight: expanded ? 8 : 0,
+                  paddingTop: expanded ? 12 : 0,
+                  paddingBottom: expanded ? 12 : 0,
+                  alignItems: expanded ? "flex-start" : "center",
+                }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className={
+                  "absolute bottom-0 left-0 flex overflow-hidden rounded-tl-[20px] rounded-tr-[20px] rounded-br-[20px] rounded-bl-[2px] shadow-md ring-1 transition-colors duration-200 " +
+                  (thread.unread
+                    ? "bg-blue-400 text-white ring-blue-500/30 hover:bg-blue-500"
+                    : "bg-white text-foreground ring-black/10 hover:bg-neutral-50")
+                }
+                aria-label={`Open thread by ${firstComment?.authorName ?? "user"}`}
+              >
+                <motion.div
+                  className="flex size-8 shrink-0 justify-center"
+                  animate={{ alignItems: expanded ? "flex-start" : "center" }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <PillAvatar
+                    name={firstComment?.authorName ?? "?"}
+                    avatar={firstComment?.authorAvatar ?? null}
+                  />
+                </motion.div>
+                {firstComment && (
+                  <motion.div
+                    aria-hidden
+                    className="pointer-events-none ml-2 mr-4 flex min-w-0 flex-col gap-0 text-left leading-tight"
+                    animate={{ opacity: expanded ? 1 : 0 }}
+                    transition={{
+                      duration: 0.15,
+                      ease: "easeOut",
+                      delay: expanded ? 0.1 : 0,
+                    }}
+                  >
+                    <div className="flex items-baseline gap-1.5 text-sm">
+                      <span className="truncate font-semibold">
+                        {firstComment.authorName}
+                      </span>
+                      <span className="shrink-0 opacity-60">
+                        {formatRelative(firstComment.createdAt)}
+                      </span>
+                    </div>
+                    <div className="truncate text-sm">{firstComment.body}</div>
+                  </motion.div>
+                )}
+              </motion.button>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent
+            side="right"
+            align="start"
+            className="w-80 p-0"
+            onPointerDownOutside={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            // Without this the popover auto-focuses the first focusable
+            // element (the Resolve button), which fires the tooltip's
+            // focus handler and pops it open every time the thread opens.
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <ThreadView
+              thread={thread}
+              currentUserId={currentUserId}
+              onClose={onClose}
+              onMarkUnread={onMarkUnread}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
   )
 }
 
