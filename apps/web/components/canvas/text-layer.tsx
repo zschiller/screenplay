@@ -160,7 +160,7 @@ export function TextLayer({
   const resizeWidthRef = useRef<number | null>(null)
 
   const handleResize = useCallback(
-    (dx: number, _dy: number, dw: number, _dh: number) => {
+    (_edge: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw", dx: number, _dy: number, dw: number, _dh: number) => {
       if (resizeWidthRef.current == null) {
         const rect = rootRef.current?.getBoundingClientRect()
         resizeWidthRef.current = rect ? rect.width / zoom : layer.width
