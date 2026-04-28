@@ -115,9 +115,18 @@ export const thread = pgTable(
       .notNull()
       .references(() => room.id, { onDelete: "cascade" }),
     // Coordinates are canvas-space (or artboard-space when artboardId is set).
+    // When a selector is set, x/y is the last known resolved position used as
+    // a fallback if the selector no longer matches an element.
     x: doublePrecision("x").notNull(),
     y: doublePrecision("y").notNull(),
     artboardId: text("artboard_id"),
+    // CSS path to the iframe DOM element the comment is anchored to (artboard
+    // comments only). offset_x/y are stored as fractions of the element's
+    // width/height (0–1) at click time, so the pin tracks the same relative
+    // point on the element as the layout reflows or resizes.
+    selector: text("selector"),
+    offsetX: doublePrecision("offset_x"),
+    offsetY: doublePrecision("offset_y"),
     resolved: boolean("resolved").notNull().default(false),
     resolvedAt: timestamp("resolved_at"),
     createdBy: text("created_by")
@@ -144,5 +153,25 @@ export const comment = pgTable(
     editedAt: timestamp("edited_at"),
   },
   (t) => [index("comment_thread_idx").on(t.threadId)],
+)
+
+// Per-user thread read tracking. A thread is unread for user U when no row
+// exists for (thread, U), or when last_read_at is older than the most recent
+// comment in the thread. "Mark as unread" deletes the row.
+export const threadRead = pgTable(
+  "thread_read",
+  {
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => thread.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.userId] }),
+    index("thread_read_user_idx").on(t.userId),
+  ],
 )
 

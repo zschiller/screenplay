@@ -12,7 +12,7 @@ import {
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
-import { useScreenplayDom, type PickResult } from "@/hooks/use-screenplay-dom"
+import { useScreenplayDom, type PickResult, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import { KnobsPopover } from "./knobs-popover"
@@ -79,8 +79,17 @@ interface ArtboardProps {
   multiSelected: boolean
   spaceHeld: boolean
   pickMode: boolean
+  /** Comment mode shows the same element hover overlay as inspect, but a
+   * click falls through to the canvas-level handler that opens the composer. */
+  commentMode?: boolean
   onPicked: (artboardId: string, sandboxId: string, pick: PickResult) => void
   onHover: (artboardId: string, rect: DomRect | null) => void
+  /**
+   * Fired with the iframe DOM accessor on mount and `null` on unmount so the
+   * canvas can route selector queries (e.g. for selector-anchored comments)
+   * to the right artboard.
+   */
+  onDomReady?: (artboardId: string, dom: ScreenplayDom | null) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableAgents?: AgentData[]
   onAssignAgent?: (artboardId: string, agentId: string) => void
@@ -122,8 +131,10 @@ export function Artboard({
   multiSelected,
   spaceHeld,
   pickMode,
+  commentMode,
   onPicked,
   onHover,
+  onDomReady,
   assignableAgents,
   onAssignAgent,
   discoveredRoutes,
@@ -337,21 +348,33 @@ export function Artboard({
 
   const dom = useScreenplayDom(iframeRef)
 
+  const onDomReadyRef = useRef(onDomReady)
+  onDomReadyRef.current = onDomReady
+  useEffect(() => {
+    onDomReadyRef.current?.(artboard.id, dom)
+    return () => onDomReadyRef.current?.(artboard.id, null)
+  }, [artboard.id, dom])
+
   const queryElementAtPoint = useCallback(
     async (clientX: number, clientY: number) => {
       const iframe = iframeRef.current
       if (!iframe) return null
       const rect = iframe.getBoundingClientRect()
-      const x = clientX - rect.left
-      const y = clientY - rect.top
-      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null
+      // The iframe is rendered inside a zoom-transformed canvas, so its
+      // getBoundingClientRect is the visually scaled size. The iframe's
+      // internal viewport (and what elementFromPoint uses) is unscaled, so we
+      // divide by zoom to convert from screen pixels back to iframe-viewport
+      // pixels. Without this the hit-test drifts further off as zoom shrinks.
+      const x = (clientX - rect.left) / zoom
+      const y = (clientY - rect.top) / zoom
+      if (x < 0 || y < 0 || x > artboard.width || y > artboard.height) return null
       try {
         return await dom.elementAtPoint(x, y)
       } catch {
         return null
       }
     },
-    [dom, iframeRef],
+    [dom, iframeRef, zoom, artboard.width, artboard.height],
   )
 
   const desiredSrc = artboard.iframeUrl
@@ -584,7 +607,19 @@ export function Artboard({
                     if (result) onPicked(artboard.id, artboard.sandboxId, result)
                   },
                 }
-              : {})}
+              : commentMode && !spaceHeld
+                ? {
+                    // Hover-only: show the inspect overlay so the user can see
+                    // what element they're about to comment on. The click is
+                    // handled by the canvas-level handleCanvasClick (which
+                    // also re-runs elementAtPoint to capture the selector).
+                    onPointerMove: async (e: React.PointerEvent) => {
+                      const result = await queryElementAtPoint(e.clientX, e.clientY)
+                      onHover(artboard.id, result ? result.rect : null)
+                    },
+                    onPointerLeave: () => onHover(artboard.id, null),
+                  }
+                : {})}
             onPointerDownCapture={(e) => {
               if (pickMode) return
               if (e.button === 0 && !spaceHeld) {

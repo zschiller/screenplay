@@ -9,6 +9,8 @@ import {
   deleteThread as deleteThreadFn,
   editComment as editCommentFn,
   listThreads as listThreadsFn,
+  markThreadRead as markThreadReadFn,
+  markThreadUnread as markThreadUnreadFn,
   setThreadResolved,
   type CommentRecord,
   type ThreadWithComments,
@@ -21,7 +23,7 @@ export async function listThreadsAction(
 ): Promise<ThreadWithComments[]> {
   const userId = await requireUserId()
   await requireMember(roomId, userId)
-  return listThreadsFn(roomId)
+  return listThreadsFn(roomId, userId)
 }
 
 export async function createThreadAction(opts: {
@@ -29,6 +31,9 @@ export async function createThreadAction(opts: {
   x: number
   y: number
   artboardId?: string | null
+  selector?: string | null
+  offsetX?: number | null
+  offsetY?: number | null
   body: string
 }): Promise<ThreadWithComments> {
   const userId = await requireUserId()
@@ -40,6 +45,9 @@ export async function createThreadAction(opts: {
     x: opts.x,
     y: opts.y,
     artboardId: opts.artboardId ?? null,
+    selector: opts.selector ?? null,
+    offsetX: opts.offsetX ?? null,
+    offsetY: opts.offsetY ?? null,
     body: trimmed,
     authorId: userId,
   })
@@ -97,4 +105,16 @@ export async function deleteThreadAction(threadId: string): Promise<void> {
   const userId = await requireUserId()
   await requireMembershipForThread(threadId, userId)
   await deleteThreadFn(threadId)
+}
+
+export async function markThreadReadAction(threadId: string): Promise<void> {
+  const userId = await requireUserId()
+  await requireMembershipForThread(threadId, userId)
+  await markThreadReadFn({ threadId, userId })
+}
+
+export async function markThreadUnreadAction(threadId: string): Promise<void> {
+  const userId = await requireUserId()
+  await requireMembershipForThread(threadId, userId)
+  await markThreadUnreadFn({ threadId, userId })
 }

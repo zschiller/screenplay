@@ -60,11 +60,12 @@ import { ArtboardGroup } from "./artboard-group"
 import { TextLayer } from "./text-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
+import type { ThreadWithComments } from "@/lib/comments"
 import { InspectComposer } from "./inspect-composer"
 import { Cursors } from "./cursors"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
-import type { PickResult } from "@/hooks/use-screenplay-dom"
+import type { PickResult, ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
@@ -137,7 +138,7 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts", initialLayout }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout }) {
+export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[] }) {
   const router = useRouter()
   const [currentProjectName, setCurrentProjectName] = useState(projectName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -165,8 +166,33 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     renameChat: (chatId: string, label: string) => void
   }>({ branchRename: () => {}, renameChat: () => {} })
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
+  // Per-artboard iframe DOM accessor registry. Artboards register on mount and
+  // unregister on unmount; selector-anchored comments use it to query element
+  // rects in the right iframe.
+  const artboardDomsRef = useRef(new Map<string, ScreenplayDom>())
+  const [, setArtboardDomsVersion] = useState(0)
+  const handleArtboardDomReady = useCallback(
+    (id: string, dom: ScreenplayDom | null) => {
+      const map = artboardDomsRef.current
+      if (dom) map.set(id, dom)
+      else map.delete(id)
+      setArtboardDomsVersion((v) => v + 1)
+    },
+    [],
+  )
+  const getArtboardDom = useCallback(
+    (id: string): ScreenplayDom | undefined => artboardDomsRef.current.get(id),
+    [],
+  )
   const [commentMode, setCommentMode] = useState(false)
-  const [newCommentPos, setNewCommentPos] = useState<{ x: number; y: number; artboardId?: string } | null>(null)
+  const [newCommentPos, setNewCommentPos] = useState<{
+    x: number
+    y: number
+    artboardId?: string
+    selector?: string | null
+    offsetX?: number | null
+    offsetY?: number | null
+  } | null>(null)
   const [pickMode, setPickMode] = useState(false)
   const [inspectHover, setInspectHover] = useState<{
     artboardId: string
@@ -2476,7 +2502,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
 
-      // Hit-test against artboard bounds — store offset relative to artboard
+      // Hit-test against artboard bounds — store offset relative to artboard.
+      // The iframe fills the artboard div with no transform, so artboard-local
+      // coordinates equal iframe-viewport coordinates and can be passed
+      // directly to the bridge's elementAtPoint.
       for (const layout of artboardLayouts.values()) {
         if (
           canvasX >= layout.x &&
@@ -2484,18 +2513,44 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           canvasY >= layout.y &&
           canvasY <= layout.y + layout.height
         ) {
-          setNewCommentPos({
-            x: canvasX - layout.x,
-            y: canvasY - layout.y,
-            artboardId: layout.id,
-          })
+          const localX = canvasX - layout.x
+          const localY = canvasY - layout.y
+          // Show the composer immediately at the click point; selector
+          // resolution races the user's typing and patches the state in.
+          setNewCommentPos({ x: localX, y: localY, artboardId: layout.id })
+          const dom = getArtboardDom(layout.id)
+          if (dom) {
+            dom
+              .elementAtPoint(localX, localY)
+              .then((result) => {
+                if (!result) return
+                // Store offsets as fractions of the element's width/height so
+                // the pin tracks the same relative point as the element
+                // resizes with the artboard / page reflow. Falls back to 0
+                // for zero-sized elements (no meaningful relative position).
+                const w = result.rect.width
+                const h = result.rect.height
+                const offsetX = w > 0 ? (localX - result.rect.x) / w : 0
+                const offsetY = h > 0 ? (localY - result.rect.y) / h : 0
+                setNewCommentPos((prev) => {
+                  if (!prev || prev.artboardId !== layout.id) return prev
+                  return {
+                    ...prev,
+                    selector: result.selector || null,
+                    offsetX,
+                    offsetY,
+                  }
+                })
+              })
+              .catch(() => {})
+          }
           return
         }
       }
 
       setNewCommentPos({ x: canvasX, y: canvasY })
     },
-    [commentMode, artboardLayouts],
+    [commentMode, artboardLayouts, getArtboardDom],
   )
 
   // Broadcast selection to other users via presence
@@ -2790,8 +2845,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               pickMode={pickMode}
+                              commentMode={commentMode}
                               onPicked={handleInspectPicked}
                               onHover={handleInspectHover}
+                              onDomReady={handleArtboardDomReady}
                               assignableAgents={runningAgents}
                               onAssignAgent={assignAgentToArtboard}
                               discoveredRoutes={agentInfo?.discoveredRoutes}
@@ -2845,6 +2902,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     }}
                     onCancelComment={() => setNewCommentPos(null)}
                     artboards={Array.from(artboardLayouts.values())}
+                    getArtboardDom={getArtboardDom}
+                    initialThreads={initialThreads}
                   />
 
                 </div>
@@ -2872,7 +2931,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 othersSelections={othersSelections}
                 hideResizeHandles={pickMode}
                 inspectRect={(() => {
-                  const source = (pickMode && inspectHover) ? inspectHover : inspectNote
+                  // Show the live hover overlay in pickMode and commentMode;
+                  // otherwise pin to the chosen inspect target.
+                  const source =
+                    ((pickMode || commentMode) && inspectHover)
+                      ? inspectHover
+                      : inspectNote
                   if (!source) return null
                   const layout = artboardLayouts.get(source.artboardId)
                   if (!layout) return null
