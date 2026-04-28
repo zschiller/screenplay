@@ -213,6 +213,19 @@
         } else if (d.op === "getOuterHTML") {
           const el = d.handle ? handleToEl.get(d.handle) : null
           reply(d.id, true, el ? el.outerHTML : null)
+        } else if (d.op === "getRectsForSelectors") {
+          // Batched op: one round-trip resolves rects for many selectors at
+          // once. Used by the canvas to track selector-anchored comment pins.
+          const selectors = Array.isArray(d.selectors) ? d.selectors : []
+          const rects = selectors.map((sel) => {
+            try {
+              const el = sel ? document.querySelector(sel) : null
+              return el ? rectOf(el) : null
+            } catch {
+              return null
+            }
+          })
+          reply(d.id, true, rects)
         } else if (d.op === "elementAtPoint") {
           const x = typeof d.x === "number" ? d.x : 0
           const y = typeof d.y === "number" ? d.y : 0

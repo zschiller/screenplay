@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
+import { listThreads } from "@/lib/comments"
 import { getOrganization } from "@/lib/organization-actions"
 import {
   panelLayoutCookieName,
@@ -51,6 +52,13 @@ export default async function RoomPage({
     cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value,
   )
 
+  // Pre-fetch threads server-side so comment pins render on the very first
+  // client paint. The equivalent client-side server action gets queued behind
+  // the artboard's probeSandboxUrl polling and otherwise wouldn't resolve
+  // until the dev server's iframe URL is up — making pins look like they
+  // were waiting on the iframe.
+  const initialThreads = await listThreads(roomId, userId).catch(() => [])
+
   return (
     <YjsRoomProvider
       roomId={roomId}
@@ -62,6 +70,7 @@ export default async function RoomPage({
         hasThumbnail={!!room.thumbnailUrl}
         parentFolderName={parentFolderName}
         initialLayout={initialLayout}
+        initialThreads={initialThreads}
       />
     </YjsRoomProvider>
   )

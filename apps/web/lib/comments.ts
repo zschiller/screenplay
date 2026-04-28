@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import { db, schema } from "@/lib/db"
@@ -12,6 +12,9 @@ export type ThreadRecord = {
   x: number
   y: number
   artboardId: string | null
+  selector: string | null
+  offsetX: number | null
+  offsetY: number | null
   resolved: boolean
   resolvedAt: number | null
   createdBy: string
@@ -32,6 +35,7 @@ export type CommentRecord = {
 
 export type ThreadWithComments = ThreadRecord & {
   comments: CommentRecord[]
+  unread: boolean
 }
 
 function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
@@ -41,6 +45,9 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     x: row.x,
     y: row.y,
     artboardId: row.artboardId,
+    selector: row.selector,
+    offsetX: row.offsetX,
+    offsetY: row.offsetY,
     resolved: row.resolved,
     resolvedAt: row.resolvedAt?.getTime() ?? null,
     createdBy: row.createdBy,
@@ -78,7 +85,10 @@ async function bumpCommentsRevision(roomId: string) {
   })
 }
 
-export async function listThreads(roomId: string): Promise<ThreadWithComments[]> {
+export async function listThreads(
+  roomId: string,
+  userId: string,
+): Promise<ThreadWithComments[]> {
   const threadRows = await db
     .select()
     .from(schema.thread)
@@ -87,10 +97,21 @@ export async function listThreads(roomId: string): Promise<ThreadWithComments[]>
   if (threadRows.length === 0) return []
 
   const threadIds = threadRows.map((t) => t.id)
-  const commentRows = await db
-    .select()
-    .from(schema.comment)
-    .where(inArray(schema.comment.threadId, threadIds))
+  const [commentRows, readRows] = await Promise.all([
+    db
+      .select()
+      .from(schema.comment)
+      .where(inArray(schema.comment.threadId, threadIds)),
+    db
+      .select()
+      .from(schema.threadRead)
+      .where(
+        and(
+          eq(schema.threadRead.userId, userId),
+          inArray(schema.threadRead.threadId, threadIds),
+        ),
+      ),
+  ])
 
   const authorIds = Array.from(new Set(commentRows.map((c) => c.authorId)))
   const authors = await getUsersByIds(authorIds)
@@ -107,10 +128,24 @@ export async function listThreads(roomId: string): Promise<ThreadWithComments[]>
     arr.sort((a, b) => a.createdAt - b.createdAt)
   }
 
-  return threadRows.map((t) => ({
-    ...toThread(t),
-    comments: byThread.get(t.id) ?? [],
-  }))
+  const lastReadByThread = new Map(
+    readRows.map((r) => [r.threadId, r.lastReadAt.getTime()]),
+  )
+
+  return threadRows.map((t) => {
+    const comments = byThread.get(t.id) ?? []
+    const lastRead = lastReadByThread.get(t.id) ?? null
+    const latestComment = comments.length
+      ? comments[comments.length - 1]!.createdAt
+      : 0
+    const unread =
+      comments.length > 0 && (lastRead === null || lastRead < latestComment)
+    return {
+      ...toThread(t),
+      comments,
+      unread,
+    }
+  })
 }
 
 export async function createThreadWithFirstComment(opts: {
@@ -118,6 +153,9 @@ export async function createThreadWithFirstComment(opts: {
   x: number
   y: number
   artboardId: string | null
+  selector: string | null
+  offsetX: number | null
+  offsetY: number | null
   body: string
   authorId: string
 }): Promise<ThreadWithComments> {
@@ -133,6 +171,9 @@ export async function createThreadWithFirstComment(opts: {
       x: opts.x,
       y: opts.y,
       artboardId: opts.artboardId,
+      selector: opts.selector,
+      offsetX: opts.offsetX,
+      offsetY: opts.offsetY,
       createdBy: opts.authorId,
       createdAt: now,
       updatedAt: now,
@@ -152,12 +193,20 @@ export async function createThreadWithFirstComment(opts: {
     .returning()
   if (!commentRow) throw new Error("Failed to create comment")
 
+  // Creator has implicitly read their own thread.
+  await db.insert(schema.threadRead).values({
+    threadId,
+    userId: opts.authorId,
+    lastReadAt: now,
+  })
+
   await bumpCommentsRevision(opts.roomId)
 
   const [author] = await getUsersByIds([opts.authorId])
   return {
     ...toThread(threadRow),
     comments: [toComment(commentRow, author ? { name: author.name, image: author.image } : null)],
+    unread: false,
   }
 }
 
@@ -229,6 +278,20 @@ export async function deleteComment(opts: {
     )
     .returning({ threadId: schema.comment.threadId })
   if (!row) return
+  // If the thread is now empty, drop it so we don't leave an orphan pin.
+  const [remaining] = await db
+    .select({ id: schema.comment.id })
+    .from(schema.comment)
+    .where(eq(schema.comment.threadId, row.threadId))
+    .limit(1)
+  if (!remaining) {
+    const [threadRow] = await db
+      .delete(schema.thread)
+      .where(eq(schema.thread.id, row.threadId))
+      .returning({ roomId: schema.thread.roomId })
+    if (threadRow) await bumpCommentsRevision(threadRow.roomId)
+    return
+  }
   const [threadRow] = await db
     .select({ roomId: schema.thread.roomId })
     .from(schema.thread)
@@ -258,5 +321,44 @@ export async function deleteThread(threadId: string): Promise<void> {
     .delete(schema.thread)
     .where(eq(schema.thread.id, threadId))
     .returning({ roomId: schema.thread.roomId })
+  if (row) await bumpCommentsRevision(row.roomId)
+}
+
+export async function markThreadRead(opts: {
+  threadId: string
+  userId: string
+}): Promise<void> {
+  await db
+    .insert(schema.threadRead)
+    .values({
+      threadId: opts.threadId,
+      userId: opts.userId,
+      lastReadAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [schema.threadRead.threadId, schema.threadRead.userId],
+      set: { lastReadAt: sql`now()` },
+    })
+}
+
+export async function markThreadUnread(opts: {
+  threadId: string
+  userId: string
+}): Promise<void> {
+  await db
+    .delete(schema.threadRead)
+    .where(
+      and(
+        eq(schema.threadRead.threadId, opts.threadId),
+        eq(schema.threadRead.userId, opts.userId),
+      ),
+    )
+  // Bump revision so other tabs/clients re-fetch and refresh their unread
+  // counts (mostly relevant when the same user has the room open elsewhere).
+  const [row] = await db
+    .select({ roomId: schema.thread.roomId })
+    .from(schema.thread)
+    .where(eq(schema.thread.id, opts.threadId))
+    .limit(1)
   if (row) await bumpCommentsRevision(row.roomId)
 }
