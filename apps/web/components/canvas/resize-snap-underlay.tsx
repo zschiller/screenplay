@@ -134,10 +134,28 @@ export function ResizeSnapUnderlay({
     return () => observer.disconnect()
   }, [])
 
-  // Compute label positions for HTML overlays. Labels are zoom-independent
-  // text + icon at the bottom-right of each ghost, mirroring how the artboard
-  // frame name is anchored at the bottom-left of the live frame (but on the
-  // opposite corner so they don't overlap with the live label).
+  // The corner the user is dragging from is the opposite of the anchored
+  // corner. The label sits just outside the ghost at that dragged corner, so
+  // it appears to track the cursor.
+  const draggedCorner: AnchorCorner =
+    anchor === "tl" ? "br"
+    : anchor === "tr" ? "bl"
+    : anchor === "bl" ? "tr"
+    : "tl"
+
+  // Place the label outside the ghost so the outline remains visible behind it.
+  const labelOffsetPx = 4
+  const labelTransform = (() => {
+    switch (draggedCorner) {
+      case "br": return `translate(-100%, ${labelOffsetPx}px)`
+      case "bl": return `translate(0, ${labelOffsetPx}px)`
+      case "tr": return `translate(-100%, calc(-100% - ${labelOffsetPx}px))`
+      case "tl": return `translate(0, calc(-100% - ${labelOffsetPx}px))`
+    }
+  })()
+
+  // Label anchor position in *world space* per ghost — the dragged corner of
+  // each candidate's rect.
   const labels: Array<{
     key: string
     candidate: SnapCandidate
@@ -155,14 +173,15 @@ export function ResizeSnapUnderlay({
         : artboardRect.y + artboardRect.height
     for (const c of candidates) {
       const { x, y } = rectFromAnchor(anchor, ax, ay, c.ghostWidth, c.ghostHeight)
-      // Bottom-right corner of the ghost in world space → screen space.
-      const screenX = (x + c.ghostWidth) * zoom + viewportPos.x
-      const screenY = (y + c.ghostHeight) * zoom + viewportPos.y
+      const cornerX =
+        draggedCorner === "tr" || draggedCorner === "br" ? x + c.ghostWidth : x
+      const cornerY =
+        draggedCorner === "bl" || draggedCorner === "br" ? y + c.ghostHeight : y
       labels.push({
         key: `${c.preset.id}-${c.orientation}`,
         candidate: c,
-        screenX,
-        screenY,
+        screenX: cornerX * zoom + viewportPos.x,
+        screenY: cornerY * zoom + viewportPos.y,
       })
     }
   }
@@ -184,7 +203,7 @@ export function ResizeSnapUnderlay({
             style={{
               left: screenX,
               top: screenY,
-              transform: "translate(-100%, 4px)",
+              transform: labelTransform,
               opacity: candidate.alpha,
               color: "var(--border)",
               fontWeight: isSnapped ? 600 : 400,

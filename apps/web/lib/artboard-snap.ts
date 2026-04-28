@@ -46,8 +46,10 @@ function isVert(edge: ResizeEdge): boolean {
 /**
  * For a given edge being dragged and the current (raw, un-snapped) artboard
  * size, find every device preset within fade radius and compute the snapped
- * size. Mobile and Tablet presets are matched in both portrait and landscape
- * orientations; Desktop only in their stored orientation.
+ * size. Only fires for *corner* drags (both axes moving) — single-edge drags
+ * don't trigger device snaps. Mobile and Tablet presets are matched in both
+ * portrait and landscape orientations; Desktop only in their stored
+ * orientation.
  *
  * Distances are measured in *screen pixels* so the feel scales with zoom: at
  * high zoom snapping kicks in earlier (in world units), at low zoom it's more
@@ -60,9 +62,21 @@ export function computeDeviceSnap(opts: {
   zoom: number
   presets?: readonly ArtboardSizePreset[]
 }): SnapResult {
+  // Only corner drags get the device-size snap underlay — single-edge drags
+  // are reserved for free-form resizing without snap interference.
+  if (!isHoriz(opts.edge) || !isVert(opts.edge)) {
+    return {
+      candidates: [],
+      width: opts.rawWidth,
+      height: opts.rawHeight,
+      snappedPresetId: null,
+      snappedOrientation: null,
+    }
+  }
+
   const presets = opts.presets ?? ARTBOARD_SIZE_PRESETS
-  const horiz = isHoriz(opts.edge)
-  const vert = isVert(opts.edge)
+  const horiz = true
+  const vert = true
   const { rawWidth, rawHeight, zoom } = opts
 
   const candidates: SnapCandidate[] = []
