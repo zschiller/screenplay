@@ -82,6 +82,8 @@ import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
 import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
+import { ArtboardSizeSelect } from "@/components/artboard-size-select"
+import { DEFAULT_ARTBOARD_SIZE_ID } from "@/lib/artboard-sizes"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
@@ -752,6 +754,9 @@ function WorkspaceSettings({
     String(workspace.devServerPort ?? 3000),
   )
   const [envVars, setEnvVars] = useState(workspace.envVars)
+  const [defaultArtboardSizeId, setDefaultArtboardSizeId] = useState(
+    workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID,
+  )
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
@@ -765,6 +770,7 @@ function WorkspaceSettings({
       devScript,
       devServerPort: parsedPort,
       envVars,
+      defaultArtboardSizeId,
     })
     onClose()
   }, [
@@ -775,6 +781,7 @@ function WorkspaceSettings({
     parsedPort,
     portIsValid,
     envVars,
+    defaultArtboardSizeId,
     onUpdate,
     onClose,
   ])
@@ -784,7 +791,9 @@ function WorkspaceSettings({
     setupScript !== workspace.setupScript ||
     devScript !== workspace.devScript ||
     parsedPort !== (workspace.devServerPort ?? 3000) ||
-    envVars !== workspace.envVars
+    envVars !== workspace.envVars ||
+    defaultArtboardSizeId !==
+      (workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID)
 
   return (
     <div className="space-y-3">
@@ -856,6 +865,18 @@ function WorkspaceSettings({
           placeholder={"KEY=value\nANOTHER_KEY=value"}
           className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
           rows={3}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+          Default artboard size
+        </label>
+        <ArtboardSizeSelect
+          value={defaultArtboardSizeId}
+          onChange={setDefaultArtboardSizeId}
+          size="sm"
+          className="text-[11px]"
         />
       </div>
 

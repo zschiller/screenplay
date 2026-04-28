@@ -104,6 +104,7 @@ import {
   CANVAS_SIZE,
 } from "@/lib/constants"
 import { computeArtboardLayouts, groupContentWidth, groupGap, nextGroupNumber } from "@/lib/artboard-layout"
+import { getArtboardSizePreset } from "@/lib/artboard-sizes"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -825,6 +826,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   // --- Artboard mutations ---
 
+  /** Resolve the default artboard size for the workspace owning the given agent. */
+  const getDefaultSizeForAgent = useCallback(
+    (agentId: string): { width: number; height: number } => {
+      const agent = collections.agents.get(agentId)
+      const workspace = agent
+        ? collections.workspaces.get(agent.workspaceId)
+        : undefined
+      const preset = getArtboardSizePreset(workspace?.defaultArtboardSizeId)
+      return { width: preset.width, height: preset.height }
+    },
+    [collections],
+  )
+
   /** Add an artboard — used by the manual "add screen" button. Always creates a fresh group. */
   const addArtboard = useCallback(
     (agentId: string, label: string): string | undefined => {
@@ -833,14 +847,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
       const allGroups = collections.artboardGroups.toArray()
       const allArtboards = collections.artboards.toArray()
+      const { width, height } = getDefaultSizeForAgent(agentId)
 
       let x: number
       let y: number
 
       if (allGroups.length === 0) {
         const { cx, cy } = getViewportCenter()
-        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
-        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+        x = cx - width / 2
+        y = cy - height / 2
       } else {
         let minY = Infinity
         let maxRight = -Infinity
@@ -860,8 +875,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         collections.artboards.set(artboardId, {
           id: artboardId,
           sandboxId: agentId,
-          width: DEFAULT_ARTBOARD_WIDTH,
-          height: DEFAULT_ARTBOARD_HEIGHT,
+          width,
+          height,
           label,
           iframeState: {},
         })
@@ -875,7 +890,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
       return artboardId
     },
-    [collections, getViewportCenter],
+    [collections, getViewportCenter, getDefaultSizeForAgent],
   )
 
   /** Add an empty frame not associated with any agent/branch/route. Creates a new single-artboard group. */
@@ -918,13 +933,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (routes.length === 0) return
       const allGroups = collections.artboardGroups.toArray()
       const allArtboards = collections.artboards.toArray()
+      const { width, height } = getDefaultSizeForAgent(agentId)
 
       let x: number
       let y: number
       if (allGroups.length === 0) {
         const { cx, cy } = getViewportCenter()
-        x = cx - DEFAULT_ARTBOARD_WIDTH / 2
-        y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
+        x = cx - width / 2
+        y = cy - height / 2
       } else {
         let minY = Infinity
         let maxRight = -Infinity
@@ -944,8 +960,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           collections.artboards.set(artboardIds[i]!, {
             id: artboardIds[i]!,
             sandboxId: agentId,
-            width: DEFAULT_ARTBOARD_WIDTH,
-            height: DEFAULT_ARTBOARD_HEIGHT,
+            width,
+            height,
             label: r.label || routeToLabel(r.route),
             iframeState: {},
             route: r.route,
@@ -961,7 +977,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
       return { groupId, firstArtboardId: artboardIds[0]! }
     },
-    [collections, getViewportCenter],
+    [collections, getViewportCenter, getDefaultSizeForAgent],
   )
 
   /** Append a new artboard to an existing group, mirroring the last sibling's size and agent. */
@@ -1734,6 +1750,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               devScript: pick.config.devScript,
               devServerPort: pick.config.devServerPort,
               envVars: pick.config.envVars,
+              defaultArtboardSizeId: pick.config.defaultArtboardSizeId,
               createdAt: Date.now(),
             }
           : {
@@ -3119,24 +3136,36 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     />
                   ))}
 
-                  <Comments
-                    roomId={roomId}
-                    zoom={zoom}
-                    newCommentPos={newCommentPos}
-                    onNewCommentPlaced={() => {
-                      setNewCommentPos(null)
-                      setCommentMode(false)
-                    }}
-                    onCancelComment={() => setNewCommentPos(null)}
-                    artboards={Array.from(artboardLayouts.values())}
-                    getArtboardDom={getArtboardDom}
-                    initialThreads={initialThreads}
-                  />
-
                 </div>
               </TransformComponent>
 
             </TransformWrapper>
+
+              {/* Comment pins live in their own screen-space layer above the
+                  selection overlay so pins/popovers aren't painted over by it.
+                  The transform mirrors what TransformComponent applies, so the
+                  children still position in world coordinates. */}
+              <div
+                className="pointer-events-none absolute inset-0 z-20"
+                style={{
+                  transformOrigin: "0 0",
+                  transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+                }}
+              >
+                <Comments
+                  roomId={roomId}
+                  zoom={zoom}
+                  newCommentPos={newCommentPos}
+                  onNewCommentPlaced={() => {
+                    setNewCommentPos(null)
+                    setCommentMode(false)
+                  }}
+                  onCancelComment={() => setNewCommentPos(null)}
+                  artboards={Array.from(artboardLayouts.values())}
+                  getArtboardDom={getArtboardDom}
+                  initialThreads={initialThreads}
+                />
+              </div>
 
               <SelectionOverlay
                 zoom={zoom}

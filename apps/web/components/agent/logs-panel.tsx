@@ -1,7 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 import Anser from "anser"
+
+const MAX_TOKENS = 10_000
+const FLUSH_PENDING_MAX_BYTES = 64 * 1024
+
+type Token = Anser.AnserJsonEntry & { _id: number }
+let nextTokenId = 0
 
 const normalizeRgb = (rgb: string) => rgb.replace(/\s+/g, "")
 
@@ -38,6 +44,30 @@ const ANSI_BG_CLASS: Record<string, string> = {
   "85,255,255": "bg-cyan-500/15 dark:bg-cyan-400/15",
 }
 
+function renderToken(t: Token) {
+  const style: React.CSSProperties = {}
+  const classes: string[] = []
+  if (t.fg) {
+    const mapped = ANSI_FG_CLASS[normalizeRgb(t.fg)]
+    if (mapped) classes.push(mapped)
+    else style.color = `rgb(${t.fg})`
+  }
+  if (t.bg) {
+    const mapped = ANSI_BG_CLASS[normalizeRgb(t.bg)]
+    if (mapped) classes.push(mapped)
+    else style.backgroundColor = `rgb(${t.bg})`
+  }
+  if (t.decorations.includes("bold")) style.fontWeight = 600
+  if (t.decorations.includes("italic")) style.fontStyle = "italic"
+  if (t.decorations.includes("underline")) style.textDecoration = "underline"
+  if (t.decorations.includes("dim")) style.opacity = 0.7
+  return (
+    <span key={t._id} className={classes.join(" ") || undefined} style={style}>
+      {t.content}
+    </span>
+  )
+}
+
 export function LogsPanel({
   sandboxName,
   onConnected,
@@ -45,7 +75,10 @@ export function LogsPanel({
   sandboxName: string
   onConnected?: () => void
 }) {
-  const [content, setContent] = useState("")
+  const tokensRef = useRef<Token[]>([])
+  const pendingRef = useRef("")
+  const rafRef = useRef<number | null>(null)
+  const [renderTick, bump] = useReducer((x: number) => x + 1, 0)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -53,11 +86,42 @@ export function LogsPanel({
   const onConnectedRef = useRef(onConnected)
   onConnectedRef.current = onConnected
 
+  const flush = useCallback(() => {
+    rafRef.current = null
+    const buf = pendingRef.current
+    if (!buf) return
+    // Split at the last newline so we never parse a partial ANSI escape sequence
+    // straddling a chunk boundary. If we've buffered too much without a newline,
+    // force a flush to keep the UI responsive.
+    let splitAt = buf.lastIndexOf("\n")
+    if (splitAt === -1) {
+      if (buf.length < FLUSH_PENDING_MAX_BYTES) return
+      splitAt = buf.length - 1
+    }
+    const toParse = buf.slice(0, splitAt + 1)
+    pendingRef.current = buf.slice(splitAt + 1)
+    const parsed = Anser.ansiToJson(toParse, { remove_empty: true, json: true })
+    if (parsed.length === 0) return
+    const tagged = parsed as Token[]
+    for (const t of tagged) t._id = nextTokenId++
+    const next = tokensRef.current.concat(tagged)
+    tokensRef.current =
+      next.length > MAX_TOKENS ? next.slice(next.length - MAX_TOKENS) : next
+    bump()
+  }, [])
+
+  const schedule = useCallback(() => {
+    if (rafRef.current != null) return
+    rafRef.current = requestAnimationFrame(flush)
+  }, [flush])
+
   useEffect(() => {
     const abort = new AbortController()
-    setContent("")
+    tokensRef.current = []
+    pendingRef.current = ""
     setError(null)
     setConnected(false)
+    bump()
     let seenNonWhitespace = false
     let isReconnect = false
 
@@ -81,7 +145,8 @@ export function LogsPanel({
           if (chunk.length > 0) seenNonWhitespace = true
           else continue
         }
-        setContent((prev) => prev + chunk)
+        pendingRef.current += chunk
+        schedule()
       }
     }
 
@@ -101,8 +166,14 @@ export function LogsPanel({
     }
 
     loop()
-    return () => abort.abort()
-  }, [sandboxName])
+    return () => {
+      abort.abort()
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [sandboxName, schedule])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -110,7 +181,7 @@ export function LogsPanel({
     if (stickToBottomRef.current) {
       el.scrollTop = el.scrollHeight
     }
-  }, [content])
+  }, [renderTick])
 
   const handleScroll = () => {
     const el = scrollRef.current
@@ -119,10 +190,7 @@ export function LogsPanel({
       el.scrollHeight - el.scrollTop - el.clientHeight < 20
   }
 
-  const tokens = useMemo(
-    () => (content ? Anser.ansiToJson(content, { remove_empty: true, json: true }) : []),
-    [content],
-  )
+  const tokens = tokensRef.current
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -136,29 +204,7 @@ export function LogsPanel({
             Failed to stream logs: {error}
           </span>
         ) : tokens.length > 0 ? (
-          tokens.map((t, i) => {
-            const style: React.CSSProperties = {}
-            const classes: string[] = []
-            if (t.fg) {
-              const mapped = ANSI_FG_CLASS[normalizeRgb(t.fg)]
-              if (mapped) classes.push(mapped)
-              else style.color = `rgb(${t.fg})`
-            }
-            if (t.bg) {
-              const mapped = ANSI_BG_CLASS[normalizeRgb(t.bg)]
-              if (mapped) classes.push(mapped)
-              else style.backgroundColor = `rgb(${t.bg})`
-            }
-            if (t.decorations.includes("bold")) style.fontWeight = 600
-            if (t.decorations.includes("italic")) style.fontStyle = "italic"
-            if (t.decorations.includes("underline")) style.textDecoration = "underline"
-            if (t.decorations.includes("dim")) style.opacity = 0.7
-            return (
-              <span key={i} className={classes.join(" ") || undefined} style={style}>
-                {t.content}
-              </span>
-            )
-          })
+          tokens.map(renderToken)
         ) : (
           <span className="text-muted-foreground">
             {connected ? "No output yet." : "Connecting…"}
