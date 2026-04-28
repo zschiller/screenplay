@@ -9,6 +9,17 @@ import {
 } from "@/lib/artboard-sizes"
 import { rectFromAnchor } from "@/lib/artboard-snap"
 
+function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
+  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
+  if (!raw) return fallback
+  const temp = document.createElement("div")
+  temp.style.color = raw
+  document.body.appendChild(temp)
+  const resolved = getComputedStyle(temp).color
+  document.body.removeChild(temp)
+  return resolved
+}
+
 interface ResizeSnapUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -70,9 +81,8 @@ export function ResizeSnapUnderlay({
     }
 
     // Snapped: fuchsia matching SelectionOverlay primary.
-    // Non-snapped: zinc-600 — darker than --border so the fading outlines
-    // stay readable at low alpha.
-    const ghostColor = "#52525b"
+    // Non-snapped: --border (same gray as the placeholder rect).
+    const ghostColor = resolveColor(canvas, "--border", "#a1a1aa")
     const snappedColor = "#d946ef"
 
     const toScreen = (x: number, y: number) => ({
@@ -105,7 +115,9 @@ export function ResizeSnapUnderlay({
       ctx.globalAlpha = c.alpha
       ctx.strokeStyle = isSnapped ? snappedColor : ghostColor
       ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
+      // Match SelectionOverlay's outside-stroke convention so a snapped ghost
+      // and the live selection rect line up pixel-for-pixel.
+      ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
     }
     ctx.globalAlpha = 1
 

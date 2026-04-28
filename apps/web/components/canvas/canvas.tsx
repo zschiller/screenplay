@@ -1053,6 +1053,25 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     rawDh: number
   } | null>(null)
 
+  /**
+   * Holding cmd/meta (or ctrl on non-Mac) during a resize disables the
+   * device-size snap so the user can fine-tune freely past a preset.
+   * Tracked via window listeners so it stays accurate even between pointer
+   * moves (e.g. user presses cmd while idle on a preset width).
+   */
+  const resizeMetaHeldRef = useRef(false)
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      resizeMetaHeldRef.current = ev.metaKey
+    }
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [])
+
   /** Snap underlay state — drives the device-size ghosts shown during a resize. */
   const [resizeSnap, setResizeSnap] = useState<{
     artboardId: string
@@ -1118,7 +1137,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const rawWidth = Math.max(MIN_ARTBOARD_WIDTH, rs.initialWidth + rs.rawDw)
         const rawHeight = Math.max(MIN_ARTBOARD_HEIGHT, rs.initialHeight + rs.rawDh)
 
-        const snap = computeDeviceSnap({ edge, rawWidth, rawHeight, zoom })
+        // Cmd/meta held → bypass snap entirely (no candidates, no lock).
+        const snap = resizeMetaHeldRef.current
+          ? {
+              candidates: [],
+              width: rawWidth,
+              height: rawHeight,
+              snappedPresetId: null,
+              snappedOrientation: null,
+            }
+          : computeDeviceSnap({ edge, rawWidth, rawHeight, zoom })
         const newWidth = Math.max(MIN_ARTBOARD_WIDTH, snap.width)
         const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, snap.height)
         const actualDw = newWidth - a.width
