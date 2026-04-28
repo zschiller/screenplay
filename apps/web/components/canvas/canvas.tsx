@@ -1030,6 +1030,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateArtboardRoute = useCallback(
     (id: string, route: string) => {
+      let viewportShift = 0
       collections.transact(() => {
         const artboard = collections.artboards.get(id)
         const previousRoute = artboard?.route
@@ -1037,10 +1038,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
         // In Create Flow mode, every meaningful navigation drops a clone of
         // the artboard's previous route into the same group, immediately to
-        // the left of the navigated artboard. We then nudge the group's `x`
-        // left by the clone width + gap so the navigated artboard's
-        // world-space position doesn't move — keeping it visually anchored
-        // while the trail grows leftward.
+        // the left of the navigated artboard. The group's origin stays put;
+        // instead we pan the canvas viewport right by the clone's width so
+        // the navigated artboard appears visually anchored while the trail
+        // grows leftward.
         if (
           inFlowMode &&
           artboard &&
@@ -1074,8 +1075,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             const gap = group.gap ?? ARTBOARD_GROUP_GAP
             collections.artboardGroups.update(group.id, {
               artboardIds: nextIds,
-              x: group.x - (artboard.width + gap),
             })
+            viewportShift = artboard.width + gap
           }
         }
 
@@ -1090,6 +1091,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           discoveredRoutes: [...existing, { route, label: routeToLabel(route) }],
         })
       })
+
+      if (viewportShift > 0) {
+        const ref = transformRef.current
+        if (ref) {
+          const { positionX, positionY, scale } = ref.state
+          ref.setTransform(positionX - viewportShift * scale, positionY, scale, 0)
+        }
+      }
     },
     [collections],
   )
