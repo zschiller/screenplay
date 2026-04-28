@@ -99,6 +99,13 @@ interface ArtboardProps {
    * group's logical left-to-right order via flex.
    */
   flexOrder?: number
+  /**
+   * World-space offset to translate the artboard while it's being reorder-
+   * dragged so its center tracks the cursor. Other siblings still snap to
+   * their flex slots; only the lifted artboard floats.
+   */
+  dragTranslateX?: number
+  dragTranslateY?: number
 }
 
 export function Artboard({
@@ -132,6 +139,8 @@ export function Artboard({
   groupSelected,
   onSelectGroup,
   flexOrder,
+  dragTranslateX,
+  dragTranslateY,
 }: ArtboardProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -427,6 +436,14 @@ export function Artboard({
         width: artboard.width,
         height: artboard.height,
         order: flexOrder,
+        transform:
+          dragTranslateX != null || dragTranslateY != null
+            ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
+            : undefined,
+        zIndex: dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
+        // Other siblings snap to their new flex slots; the lifted artboard
+        // tracks the cursor without a transition so it doesn't lag.
+        pointerEvents: dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
       }}
     >
       <ArtboardLabel

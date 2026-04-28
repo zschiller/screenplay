@@ -196,6 +196,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [activeGapHandle, setActiveGapHandle] = useState<{ groupId: string; gapIndex: number } | null>(null)
   const reorderDragRef = useRef<{ groupId: string; artboardId: string } | null>(null)
   const [reorderDraggingArtboardId, setReorderDraggingArtboardId] = useState<string | null>(null)
+  /** Cursor in canvas space while a reorder drag is active — drives the lifted artboard's translate. */
+  const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -2198,15 +2200,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (currentIndex < 0) return
 
         const gap = groupGap(group)
-        let cursorX = group.x
+        let walkX = group.x
         const siblingCenters: { id: string; centerX: number }[] = []
         for (const id of ids) {
           const ab = collections.artboards.get(id)
           if (!ab) continue
           if (id !== drag.artboardId) {
-            siblingCenters.push({ id, centerX: cursorX + ab.width / 2 })
+            siblingCenters.push({ id, centerX: walkX + ab.width / 2 })
           }
-          cursorX += ab.width + gap
+          walkX += ab.width + gap
         }
 
         let newIndex = siblingCenters.length
@@ -2221,6 +2223,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           without.splice(newIndex, 0, drag.artboardId)
           reorderGroupArtboards(drag.groupId, without)
         }
+        setReorderDragCursor({ x: canvas.x, y: canvas.y })
         return
       }
 
@@ -2321,6 +2324,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (reorderDragRef.current) {
         reorderDragRef.current = null
         setReorderDraggingArtboardId(null)
+        setReorderDragCursor(null)
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
@@ -2490,17 +2494,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const canvasY = (relY - positionY) / scale
       setPresence({ pointer: { x: canvasX, y: canvasY } })
 
-      // Hit-test for hover highlight
+      // Hit-test for hover highlight. Suppressed while a reorder drag is
+      // active so the dragged artboard sweeping over its siblings doesn't
+      // paint a hover outline on each one in turn.
       let hovered: string | null = null
-      for (const layout of artboardLayouts.values()) {
-        if (
-          canvasX >= layout.x &&
-          canvasX <= layout.x + layout.width &&
-          canvasY >= layout.y &&
-          canvasY <= layout.y + layout.height
-        ) {
-          hovered = layout.id
-          break
+      if (!reorderDragRef.current) {
+        for (const layout of artboardLayouts.values()) {
+          if (
+            canvasX >= layout.x &&
+            canvasX <= layout.x + layout.width &&
+            canvasY >= layout.y &&
+            canvasY <= layout.y + layout.height
+          ) {
+            hovered = layout.id
+            break
+          }
         }
       }
       setHoveredArtboardId(hovered)
@@ -2840,6 +2848,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         {stableArtboards.map((artboard) => {
                           const flexOrder = group.artboardIds.indexOf(artboard.id)
                           const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
+                          let dragTranslateX: number | undefined
+                          let dragTranslateY: number | undefined
+                          if (
+                            reorderDraggingArtboardId === artboard.id &&
+                            reorderDragCursor != null
+                          ) {
+                            const layout = artboardLayouts.get(artboard.id)
+                            if (layout) {
+                              dragTranslateX = reorderDragCursor.x - (layout.x + layout.width / 2)
+                              dragTranslateY = reorderDragCursor.y - (layout.y + layout.height / 2)
+                            }
+                          }
                           return (
                             <Artboard
                               key={artboard.id}
@@ -2887,6 +2907,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                   : undefined
                               }
                               flexOrder={flexOrder}
+                              dragTranslateX={dragTranslateX}
+                              dragTranslateY={dragTranslateY}
                             />
                           )
                         })}
@@ -2948,6 +2970,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
                 hoveredReorderArtboardId={hoveredReorderArtboardId}
+                reorderDragShift={(() => {
+                  if (!reorderDraggingArtboardId || !reorderDragCursor) return null
+                  const layout = artboardLayouts.get(reorderDraggingArtboardId)
+                  if (!layout) return null
+                  return {
+                    artboardId: reorderDraggingArtboardId,
+                    dx: reorderDragCursor.x - (layout.x + layout.width / 2),
+                    dy: reorderDragCursor.y - (layout.y + layout.height / 2),
+                  }
+                })()}
                 textLayers={textLayers}
                 marquee={marquee}
                 textDraft={textDraft}
