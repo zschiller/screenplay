@@ -27,6 +27,11 @@ export const COLLECTION_KEYS = {
   textLayers: "textLayers",
   chatSessions: "chatSessions",
   plans: "plans",
+  // Live tracked-pin positions for selector-anchored comments. Keyed by
+  // threadId; value is the artboard-local (x, y) of the pin. Synced across
+  // clients so everyone sees the pin at the same place even before their
+  // dev server / iframe is ready.
+  commentPositions: "commentPositions",
 } as const
 
 const META_KEY = "meta"
@@ -210,6 +215,8 @@ export class YjsSingleton<T extends Record<string, unknown>> {
   }
 }
 
+export type CommentPosition = { x: number; y: number }
+
 export type RoomCollections = {
   doc: Y.Doc
   workspaces: YjsCollection<WorkspaceData>
@@ -219,6 +226,7 @@ export type RoomCollections = {
   textLayers: YjsCollection<TextLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
+  commentPositions: YjsCollection<CommentPosition>
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
   transact: (fn: () => void) => void
@@ -260,6 +268,10 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     plans: new YjsCollection<PlanData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.plans),
+    ),
+    commentPositions: new YjsCollection<CommentPosition>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.commentPositions),
     ),
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),

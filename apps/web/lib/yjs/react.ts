@@ -39,6 +39,17 @@ function useCollectionArray<T extends Record<string, unknown>>(
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
+function useCollectionMap<T extends Record<string, unknown>>(
+  collection: YjsCollection<T>,
+): ReadonlyMap<string, T> {
+  const subscribe = useCallback(
+    (cb: () => void) => collection.observe(cb),
+    [collection],
+  )
+  const getSnapshot = useCallback(() => collection.toMap(), [collection])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
 function useSingleton<T extends Record<string, unknown>>(
   singleton: YjsSingleton<T>,
 ): T | null {
@@ -312,6 +323,58 @@ export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void
       map.unobserveDeep(handler)
     }
   }, [doc])
+}
+
+/**
+ * Live tracked-pin positions for selector-anchored comments, keyed by
+ * threadId. Synced across clients in realtime via Yjs and persisted by the
+ * room's Yjs server, so a freshly-loaded canvas can render every pin at its
+ * last-seen position without waiting for the iframe / dev server / bridge.
+ */
+export function useCommentPositions(): ReadonlyMap<
+  string,
+  { x: number; y: number }
+> {
+  return useCollectionMap(useRoomCollections().commentPositions)
+}
+
+/**
+ * Setter for {@link useCommentPositions}. Call on every successful selector
+ * resolve so the cached position stays current for late-joining clients and
+ * subsequent reloads.
+ */
+export function useSetCommentPosition(): (
+  threadId: string,
+  x: number,
+  y: number,
+) => void {
+  const { commentPositions } = useRoomCollections()
+  return useCallback(
+    (threadId, x, y) => commentPositions.set(threadId, { x, y }),
+    [commentPositions],
+  )
+}
+
+/**
+ * Bulk-prune cached comment positions to the given set of live thread ids.
+ * Called when the threads list changes so deleted/resolved threads don't
+ * accumulate in the Yjs doc forever.
+ */
+export function usePruneCommentPositions(): (liveIds: Set<string>) => void {
+  const { commentPositions, transact } = useRoomCollections()
+  return useCallback(
+    (liveIds) => {
+      const stale: string[] = []
+      for (const id of commentPositions.toMap().keys()) {
+        if (!liveIds.has(id)) stale.push(id)
+      }
+      if (stale.length === 0) return
+      transact(() => {
+        for (const id of stale) commentPositions.delete(id)
+      })
+    },
+    [commentPositions, transact],
+  )
 }
 
 /**

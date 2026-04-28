@@ -42,6 +42,8 @@ interface Options {
   onSpaceUp?: () => void
 }
 
+export type ScreenplayDom = ReturnType<typeof useScreenplayDom>
+
 export function useScreenplayDom(
   iframeRef: RefObject<HTMLIFrameElement | null>,
   {
@@ -83,6 +85,7 @@ export function useScreenplayDom(
         | "screenplay:set-forward-input"
       op?: DomOp
       selector?: string
+      selectors?: string[]
       handle?: string
       enabled?: boolean
       x?: number
@@ -185,6 +188,12 @@ export function useScreenplayDom(
           op: "elementAtPoint",
           x,
           y,
+        }),
+      getRectsForSelectors: (selectors: string[]) =>
+        request<(DomRect | null)[]>({
+          type: "screenplay:dom-query",
+          op: "getRectsForSelectors",
+          selectors,
         }),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),

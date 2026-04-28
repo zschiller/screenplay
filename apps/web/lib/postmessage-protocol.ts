@@ -9,7 +9,12 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue }
 
 export type DomRect = { x: number; y: number; width: number; height: number }
-export type DomOp = "querySelector" | "getRect" | "getOuterHTML" | "elementAtPoint"
+export type DomOp =
+  | "querySelector"
+  | "getRect"
+  | "getOuterHTML"
+  | "elementAtPoint"
+  | "getRectsForSelectors"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 
@@ -18,7 +23,7 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
   | { type: "screenplay:scroll-to"; scrollX: number; scrollY: number }
-  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; handle?: string; x?: number; y?: number }
+  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; selectors?: string[]; handle?: string; x?: number; y?: number }
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
