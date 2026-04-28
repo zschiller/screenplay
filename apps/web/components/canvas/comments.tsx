@@ -408,7 +408,7 @@ function CommentPin({
                   "absolute bottom-0 left-0 flex overflow-hidden rounded-tl-[20px] rounded-tr-[20px] rounded-br-[20px] rounded-bl-[2px] shadow-md ring-1 transition-colors duration-200 " +
                   (thread.unread
                     ? "bg-blue-400 text-white ring-blue-500/30 hover:bg-blue-500"
-                    : "bg-card text-card-foreground ring-border hover:bg-accent")
+                    : "bg-white text-neutral-900 ring-black/10 hover:bg-neutral-50")
                 }
                 aria-label={`Open thread by ${firstComment?.authorName ?? "user"}`}
               >
