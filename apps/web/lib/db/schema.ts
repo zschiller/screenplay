@@ -175,3 +175,24 @@ export const threadRead = pgTable(
   ],
 )
 
+// Flat comment feed scoped to (room, branch). Used by the prototype player —
+// the comments aren't anchored to any layer or position, just to the agent
+// branch the player is showing.
+export const branchComment = pgTable(
+  "branch_comment",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    branch: text("branch").notNull(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    editedAt: timestamp("edited_at"),
+  },
+  (t) => [index("branch_comment_room_branch_idx").on(t.roomId, t.branch)],
+)
+

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { MousePointer, Move, RotateCw, Route } from "lucide-react"
+import { MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Tooltip,
@@ -76,6 +76,8 @@ interface ArtboardProps {
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
+  /** Open the prototype player route for this artboard's branch in a new tab. */
+  onPlay?: (id: string) => void
   multiSelected: boolean
   spaceHeld: boolean
   pickMode: boolean
@@ -144,6 +146,7 @@ export function Artboard({
   onScrollChange,
   onKnobsDeclared,
   onKnobValuesChange,
+  onPlay,
   multiSelected,
   spaceHeld,
   pickMode,
@@ -263,25 +266,29 @@ export function Artboard({
   const interactWrapperRef = useRef<HTMLDivElement>(null)
   const createFlowWrapperRef = useRef<HTMLDivElement>(null)
   const knobsWrapperRef = useRef<HTMLDivElement>(null)
+  const playWrapperRef = useRef<HTMLDivElement>(null)
   const reloadWrapperRef = useRef<HTMLDivElement>(null)
   const [buttonNaturalWidths, setButtonNaturalWidths] = useState<{
     interact: number
     createFlow: number
     knobs: number
+    play: number
     reload: number
-  }>({ interact: 0, createFlow: 0, knobs: 0, reload: 0 })
+  }>({ interact: 0, createFlow: 0, knobs: 0, play: 0, reload: 0 })
   useLayoutEffect(() => {
     setButtonNaturalWidths((prev) => {
       const next = {
         interact: interactWrapperRef.current?.offsetWidth ?? prev.interact,
         createFlow: createFlowWrapperRef.current?.offsetWidth ?? prev.createFlow,
         knobs: knobsWrapperRef.current?.offsetWidth ?? prev.knobs,
+        play: playWrapperRef.current?.offsetWidth ?? prev.play,
         reload: reloadWrapperRef.current?.offsetWidth ?? prev.reload,
       }
       if (
         next.interact === prev.interact &&
         next.createFlow === prev.createFlow &&
         next.knobs === prev.knobs &&
+        next.play === prev.play &&
         next.reload === prev.reload
       ) {
         return prev
@@ -304,6 +311,7 @@ export function Artboard({
   const interactW = buttonNaturalWidths.interact
   const createFlowW = buttonNaturalWidths.createFlow
   const knobsW = buttonNaturalWidths.knobs
+  const playW = buttonNaturalWidths.play
   const reloadW = buttonNaturalWidths.reload
   const showInteract = !interactW || space >= interactW
   const showCreateFlow =
@@ -313,6 +321,18 @@ export function Artboard({
     showCreateFlow &&
     (!knobsW ||
       space >= interactW + BUTTON_GAP + createFlowW + BUTTON_GAP + knobsW)
+  const showPlay =
+    !!onPlay &&
+    showKnobs &&
+    (!playW ||
+      space >=
+        interactW +
+          BUTTON_GAP +
+          createFlowW +
+          BUTTON_GAP +
+          knobsW +
+          BUTTON_GAP +
+          playW)
   const showReload =
     hmrStatus === "disconnected" &&
     showKnobs &&
@@ -324,12 +344,14 @@ export function Artboard({
           BUTTON_GAP +
           knobsW +
           BUTTON_GAP +
+          (showPlay && playW ? playW + BUTTON_GAP : 0) +
           reloadW)
   const visibleButtonsTotal = (() => {
     const widths: number[] = []
     if (showInteract && interactW) widths.push(interactW)
     if (showCreateFlow && createFlowW) widths.push(createFlowW)
     if (showKnobs && knobsW) widths.push(knobsW)
+    if (showPlay && playW) widths.push(playW)
     if (showReload && reloadW) widths.push(reloadW)
     return widths.reduce(
       (sum, w, i) => sum + w + (i > 0 ? BUTTON_GAP : 0),
@@ -581,6 +603,26 @@ export function Artboard({
                 onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
                 anchorRef={frameRef}
               />
+            </div>
+          )}
+          {showPlay && (
+            <div ref={playWrapperRef} className="flex">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant="outline"
+                      onClick={() => onPlay?.(artboard.id)}
+                    >
+                      <Play />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Open prototype player
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
           {showReload && (
