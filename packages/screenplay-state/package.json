@@ -1,6 +1,6 @@
 {
   "name": "@screenplay.space/state",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mirror a prototype's UI state up to the screenplay canvas as a read-only synced view alongside the artboard.",
   "keywords": [
     "screenplay",
