@@ -219,6 +219,7 @@ export function PlayerChatHost({
       // player there's only one agent so we hand it a single-element list.
       agents={[agent]}
       onSelectAgent={() => {}}
+      disableBranchPicker
       chatSessions={chatSessions}
       selectedChatId={selectedChatId}
       roomId={roomId}

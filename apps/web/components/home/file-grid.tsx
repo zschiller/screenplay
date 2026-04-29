@@ -23,8 +23,6 @@ function FileCard({ file }: { file: ProjectSummary }) {
     <div className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20">
       <a
         href={`/${file.id}`}
-        target="_blank"
-        rel="noopener noreferrer"
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
         aria-label={`Open ${file.name}`}
       >
@@ -44,8 +42,6 @@ function FileCard({ file }: { file: ProjectSummary }) {
         <div className="min-w-0 flex-1">
           <a
             href={`/${file.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
             className="block truncate text-sm font-medium hover:underline"
           >
             {file.name}

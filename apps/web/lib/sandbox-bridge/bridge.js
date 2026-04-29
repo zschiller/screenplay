@@ -162,6 +162,11 @@
     document.head.appendChild(style)
     touchCursorStyleEl = style
 
+    // Two-element split: outer follows the pointer via translate3d; inner
+    // owns the visual + press-scale. Combining `transform: translate3d(...)`
+    // with the individual `scale` property on a single element scales the
+    // translation too (per the CSS Transforms 2 composition order), which
+    // would yank the puck toward the viewport origin every press.
     const dot = document.createElement("div")
     dot.id = "__screenplay-touch-cursor"
     Object.assign(dot.style, {
@@ -172,34 +177,42 @@
       height: "32px",
       marginLeft: "-16px",
       marginTop: "-16px",
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      transform: "translate3d(-9999px,-9999px,0)",
+      willChange: "transform",
+    })
+    const inner = document.createElement("div")
+    Object.assign(inner.style, {
+      width: "100%",
+      height: "100%",
       borderRadius: "9999px",
       background: "rgba(15,23,42,0.18)",
       border: "2px solid rgba(255,255,255,0.95)",
       boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-      pointerEvents: "none",
-      zIndex: "2147483647",
-      transform: "translate3d(-9999px,-9999px,0)",
-      transition: "opacity 120ms ease, background 120ms ease, scale 80ms ease",
+      transition: "opacity 120ms ease, background 120ms ease, transform 80ms ease",
       opacity: "0",
+      transform: "scale(1)",
       willChange: "transform",
     })
+    dot.appendChild(inner)
     document.body.appendChild(dot)
     touchCursorEl = dot
 
     touchPointerMoveHandler = (e) => {
       dot.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`
-      dot.style.opacity = "1"
+      inner.style.opacity = "1"
     }
     touchPointerDownHandler = () => {
-      dot.style.background = "rgba(15,23,42,0.32)"
-      dot.style.scale = "0.8"
+      inner.style.background = "rgba(15,23,42,0.32)"
+      inner.style.transform = "scale(0.8)"
     }
     touchPointerUpHandler = () => {
-      dot.style.background = "rgba(15,23,42,0.18)"
-      dot.style.scale = "1"
+      inner.style.background = "rgba(15,23,42,0.18)"
+      inner.style.transform = "scale(1)"
     }
     touchPointerLeaveHandler = () => {
-      dot.style.opacity = "0"
+      inner.style.opacity = "0"
     }
     window.addEventListener("pointermove", touchPointerMoveHandler)
     window.addEventListener("pointerdown", touchPointerDownHandler)

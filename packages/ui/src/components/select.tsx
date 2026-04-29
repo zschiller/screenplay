@@ -175,6 +175,7 @@ export {
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectPrimitive,
   SelectScrollDownButton,
   SelectScrollUpButton,
   SelectSeparator,
