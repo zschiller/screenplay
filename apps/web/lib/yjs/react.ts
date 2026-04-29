@@ -161,6 +161,9 @@ export type CanvasPresence = {
   color: string
   selectedArtboardIds: string[]
   selectedTextLayerIds: string[]
+  // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
+  // an empty string while the bubble is open but nothing has been typed yet.
+  message?: string | null
 }
 
 function useAwareness(): AwarenessLike {
