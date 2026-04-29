@@ -10,7 +10,7 @@ to the screenplay canvas. The canvas persists it on the artboard via Yjs
 and pushes it back down into every connected client's iframe — so a state
 change in one viewer's prototype shows up in every other viewer's
 prototype within the same room. The canvas itself shows a tiny
-`Database` icon inside the route pill; hovering reveals the full JSON.
+`{ }` curly-brace icon inside the route pill; hovering reveals the full JSON.
 There's no editor UI on the canvas today (that may come later).
 
 When the prototype renders outside a screenplay canvas — production
@@ -76,7 +76,7 @@ they want to *control* a value from the canvas, use knobs.
 
 5. **Commit and push.** The canvas picks up the new key automatically
    — no manifest, no registration. The route pill will sprout a
-   `Database` icon as soon as the prototype publishes.
+   `{ }` curly-brace icon as soon as the prototype publishes.
 
 ## Patterns
 

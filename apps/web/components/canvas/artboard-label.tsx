@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronsUpDown, Database } from "lucide-react"
+import { Braces, Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { BranchBadge } from "@/components/branch-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@workspace/ui/components/popover"
@@ -340,9 +340,9 @@ interface SharedStateIndicatorProps {
 }
 
 /**
- * Tiny database glyph rendered inside the route pill when the prototype has
- * published any shared state via `@screenplay.space/state`. Hover to see the
- * full JSON snapshot. Collapses to nothing when the state is empty so
+ * Tiny curly-brace glyph rendered inside the route pill when the prototype
+ * has published any shared state via `@screenplay.space/state`. Hover to see
+ * the full JSON snapshot. Collapses to nothing when the state is empty so
  * unaffected artboards don't grow an extra slot.
  */
 function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
@@ -369,7 +369,7 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
             onClick={(e) => e.stopPropagation()}
             aria-label="Synced UI state"
           >
-            <Database className="h-2.5 w-2.5" />
+            <Braces className="h-2.5 w-2.5" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="end" className="max-w-[360px] p-0">
