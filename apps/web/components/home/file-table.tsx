@@ -41,8 +41,6 @@ function FileRow({ file }: { file: ProjectSummary }) {
       <TableCell className="w-full">
         <a
           href={`/${file.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
           className="flex items-center gap-2"
         >
           <FileIcon className="size-4 shrink-0 text-muted-foreground" />

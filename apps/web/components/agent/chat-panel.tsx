@@ -121,6 +121,7 @@ interface ChatPanelProps {
   diffStats?: DiffStats
   onCollapse?: () => void
   onLogsReady?: () => void
+  disableBranchPicker?: boolean
 }
 
 export function ChatPanel({
@@ -143,6 +144,7 @@ export function ChatPanel({
   diffStats,
   onCollapse,
   onLogsReady,
+  disableBranchPicker,
 }: ChatPanelProps) {
   const openChats = useMemo(
     () =>
@@ -244,13 +246,17 @@ export function ChatPanel({
             </Tooltip>
           </TooltipProvider>
         )}
-        <AgentPicker
-          agents={agents}
-          currentAgentId={agent.id}
-          currentBranch={agent.branch}
-          currentColorKey={agent.id}
-          onSelect={onSelectAgent}
-        />
+        {disableBranchPicker ? (
+          <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+        ) : (
+          <AgentPicker
+            agents={agents}
+            currentAgentId={agent.id}
+            currentBranch={agent.branch}
+            currentColorKey={agent.id}
+            onSelect={onSelectAgent}
+          />
+        )}
         <div className="ml-auto flex items-center gap-1.5">
           {diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
             <span className="flex items-center gap-1 font-mono text-[10px]">

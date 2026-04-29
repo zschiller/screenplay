@@ -8,8 +8,14 @@ import { YjsRoomProvider } from "@/lib/yjs-host/client"
 import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/types"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
-export const metadata: Metadata = {
-  title: "Prototype Player",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ roomId: string; agentId: string }>
+}): Promise<Metadata> {
+  const { roomId } = await params
+  const room = await getRoom(roomId)
+  return { title: room?.name ? `▶ ${room.name}` : "▶ Prototype Player" }
 }
 
 type SearchParams = {

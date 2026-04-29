@@ -103,6 +103,12 @@ export async function resolveActingUserId(
 import { parseEnvVars } from "./env-utils"
 
 const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
+// Pidfiles for the dev server and proxy. Both are launched under `setsid` so
+// their PID equals their PGID — the stop path uses these to SIGKILL the whole
+// process group in one shot, catching every child that a port-based kill
+// would otherwise miss (Next compile workers, esbuild, the proxy respawn loop).
+const PIDFILE_DEV = "/tmp/screenplay/dev.pid"
+const PIDFILE_PROXY = "/tmp/screenplay/proxy.pid"
 
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
@@ -357,15 +363,31 @@ async function _stopDevAndProxy(
 ): Promise<void> {
   const header = shellQuote(`\n$ stopping previous dev server & proxy\n`)
   const proxyPort = port + 1
-  // SIGKILL everything matching the proxy cmdline — this covers both the
-  // `while true; ... node proxy.mjs ...` wrapper shell (whose argv contains
-  // proxy.mjs) and the node process itself. Without -9 the wrapper can
-  // respawn proxy.mjs before the relaunch. We then retry port-based kills
-  // until both ports are actually free, since a single SIGTERM + sleep 1
-  // is not enough to guarantee the listener has released the port.
+  // Three-tier kill, in decreasing confidence:
+  //   1. Pidfiles: each process was launched under `setsid` so its PID is
+  //      also its PGID. `kill -KILL -<pid>` SIGKILLs the entire group, taking
+  //      down every descendant in one shot — this is the only path that
+  //      reliably catches Next compile workers / esbuild / the proxy respawn
+  //      loop. Port-based killing alone misses these since only the listener
+  //      shows up in lsof.
+  //   2. `pkill -9 -f "screenplay/proxy.mjs"` for orphaned proxies that
+  //      pre-date the pidfile convention (sandboxes from older deploys).
+  //   3. Port-based loop as a final fallback. We re-check after each pass
+  //      since a single SIGKILL + sleep isn't always enough — the kernel can
+  //      take a moment to release the listening socket.
   const sh =
     `mkdir -p /tmp/screenplay; ` +
     `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+    `for f in ${PIDFILE_DEV} ${PIDFILE_PROXY}; do ` +
+    `  if [ -s "$f" ]; then ` +
+    `    pid=$(cat "$f"); ` +
+    `    if [ -n "$pid" ]; then ` +
+    `      kill -KILL -$pid 2>/dev/null; ` +
+    `      kill -KILL $pid 2>/dev/null; ` +
+    `    fi; ` +
+    `    rm -f "$f"; ` +
+    `  fi; ` +
+    `done; ` +
     `pkill -9 -f "screenplay/proxy.mjs" 2>/dev/null; ` +
     `for attempt in 1 2 3 4 5 6; do ` +
     `  p1=$(lsof -ti tcp:${port} 2>/dev/null); ` +
@@ -399,25 +421,39 @@ async function _launchDevAndProxy(
 
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
+  // Launch the dev server under `setsid` so it becomes the leader of a new
+  // session and its PID equals its PGID. We capture that PID — the stop path
+  // uses `kill -KILL -<pid>` to take down the whole process group, which is
+  // the only reliable way to catch every child the dev server spawns
+  // (Next compile workers, esbuild, etc.). `& disown` returns the outer
+  // shell immediately while the dev tree keeps running.
+  const devInner = shellQuote(
+    `export ${LOG_ENV}; exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+  )
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
       `mkdir -p /tmp/screenplay; ` +
         `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-        `export ${LOG_ENV}; ` +
-        `exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+        `setsid sh -c ${devInner} </dev/null >/dev/null 2>&1 & ` +
+        `echo $! > ${PIDFILE_DEV}; ` +
+        `disown`,
     ],
     detached: true,
     ...(env ? { env } : {}),
   })
 
-  // Restart-on-crash wrapper so a proxy bug doesn't permanently dark the iframe.
+  // Restart-on-crash wrapper so a proxy bug doesn't permanently dark the
+  // iframe. Same setsid trick as above so the stop path can take down the
+  // wrapper shell and any node child it spawned by killing the group.
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
-      "while true; do node /tmp/screenplay/proxy.mjs; sleep 1; done",
+      `setsid sh -c 'while true; do node /tmp/screenplay/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
+      `echo $! > ${PIDFILE_PROXY}; ` +
+      `disown`,
     ],
     detached: true,
     env: {
