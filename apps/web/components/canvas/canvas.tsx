@@ -63,6 +63,7 @@ import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { InspectComposer } from "./inspect-composer"
 import { Cursors } from "./cursors"
+import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import type { PickResult, ScreenplayDom } from "@/hooks/use-screenplay-dom"
@@ -284,6 +285,26 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     })
   }, [session, setPresence])
 
+  // Figma-style cursor chat. `chatAnchor` snapshots the canvas-space pointer
+  // position at the moment '/' is pressed so the bubble stays put while the
+  // user types instead of jittering with every micro-mouse-move. Live message
+  // text lives in awareness so peers see each keystroke (`presence.message`).
+  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null)
+  const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
+  selfPointerRef.current = self?.pointer ?? null
+  const selfMessageRef = useRef<string | null>(null)
+  selfMessageRef.current = self?.message ?? null
+  const closeCursorChat = useCallback(() => {
+    setChatAnchor(null)
+    setPresence({ message: null })
+  }, [setPresence])
+  const openCursorChat = useCallback(() => {
+    const ptr = selfPointerRef.current
+    if (!ptr) return
+    setChatAnchor(ptr)
+    setPresence({ message: "" })
+  }, [setPresence])
+
   // Refs so keyboard handler stays current without re-binding
   const selectedArtboardIdsRef = useRef(selectedArtboardIds)
   selectedArtboardIdsRef.current = selectedArtboardIds
@@ -309,6 +330,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (selfMessageRef.current !== null) {
+          closeCursorChat()
+          return
+        }
         if (editingTextLayerIdRef.current) {
           setEditingTextLayerId(null)
           return
@@ -382,6 +407,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setPickMode(false)
         setInspectNote(null)
         setInspectHover(null)
+      }
+      // Figma-style cursor chat. Opens an inline input next to the cursor and
+      // broadcasts each keystroke through awareness so peers see the message
+      // floating beside the user's remote cursor.
+      if (
+        e.key === "/" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isEditing(e) &&
+        selfMessageRef.current === null
+      ) {
+        e.preventDefault()
+        openCursorChat()
       }
       if (e.key === "b" && e.metaKey && !e.altKey) {
         e.preventDefault()
@@ -483,7 +522,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, createFlowArtboardId, history])
+  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, createFlowArtboardId, history, openCursorChat, closeCursorChat])
 
   const artboards = useArtboards()
   const artboardGroups = useArtboardGroups()
@@ -3435,6 +3474,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 })()}
               />
               <Cursors viewport={{ ...viewportPos, zoom }} />
+              {chatAnchor && self?.message != null ? (
+                <CursorChat
+                  screenX={chatAnchor.x * zoom + viewportPos.x}
+                  screenY={chatAnchor.y * zoom + viewportPos.y}
+                  color={self.color}
+                  value={self.message}
+                  onChange={(next) => setPresence({ message: next })}
+                  onClose={closeCursorChat}
+                />
+              ) : null}
               <div className="pointer-events-none absolute left-0 top-0 z-[9998] flex h-12 items-center px-2">
                 <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
                   {sidebarCollapsed && (
