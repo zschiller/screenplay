@@ -5,7 +5,7 @@ import { listBranchThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
-import type { AgentData, ArtboardData } from "@/lib/types"
+import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/types"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
 export const metadata: Metadata = {
@@ -38,16 +38,22 @@ export default async function PlayPage({
   if (!room) notFound()
   if (!(await canAccess(roomId, userId))) notFound()
 
-  const docSnapshot = await readRoomDoc(roomId, ({ agents, artboards }) => {
-    const agent = agents.get(agentId) as AgentData | undefined
-    const artboardId = search.artboard
-    const artboard = artboardId
-      ? (artboards.get(artboardId) as ArtboardData | undefined)
-      : undefined
-    return { agent, artboard }
-  })
+  const docSnapshot = await readRoomDoc(
+    roomId,
+    ({ agents, artboards, workspaces }) => {
+      const agent = agents.get(agentId) as AgentData | undefined
+      const artboardId = search.artboard
+      const artboard = artboardId
+        ? (artboards.get(artboardId) as ArtboardData | undefined)
+        : undefined
+      const workspace = agent
+        ? (workspaces.get(agent.workspaceId) as WorkspaceData | undefined)
+        : undefined
+      return { agent, artboard, workspace }
+    },
+  )
 
-  const { agent, artboard } = docSnapshot
+  const { agent, artboard, workspace } = docSnapshot
   if (!agent) notFound()
 
   const initialKnobValues = decodeKnobValues(search.k) ?? artboard?.knobValues ?? {}
@@ -74,6 +80,7 @@ export default async function PlayPage({
         initialRoute={initialRoute}
         initialKnobValues={initialKnobValues}
         initialThreads={initialThreads}
+        initialDeviceSizeId={workspace?.defaultArtboardSizeId}
       />
     </YjsRoomProvider>
   )
