@@ -16,6 +16,8 @@ export function Cursors({ viewport }: CursorsProps) {
 
         const screenX = presence.pointer.x * viewport.zoom + viewport.x
         const screenY = presence.pointer.y * viewport.zoom + viewport.y
+        const message = presence.message ?? null
+        const name = presence.identity.name || "Anonymous"
 
         return (
           <div
@@ -35,12 +37,24 @@ export function Cursors({ viewport }: CursorsProps) {
                 fill={presence.color}
               />
             </svg>
-            <span
-              className="ml-3 mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white"
-              style={{ backgroundColor: presence.color }}
-            >
-              {presence.identity.name || "Anonymous"}
-            </span>
+            {message !== null ? (
+              <div
+                className="ml-3 mt-1 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs text-white shadow-md"
+                style={{ backgroundColor: presence.color }}
+              >
+                <div className="text-[10px] font-medium opacity-80">{name}</div>
+                <div className="whitespace-pre-wrap break-words leading-snug">
+                  {message || " "}
+                </div>
+              </div>
+            ) : (
+              <span
+                className="ml-3 mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white"
+                style={{ backgroundColor: presence.color }}
+              >
+                {name}
+              </span>
+            )}
           </div>
         )
       })}
