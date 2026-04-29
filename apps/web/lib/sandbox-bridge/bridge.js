@@ -121,6 +121,119 @@
   let pickClickHandler = null
   let lastHoverKey = ""
 
+  // --- Touch-cursor puck (mobile/tablet device preview) ---
+  // The parent toggles this with a `screenplay:cursor-mode` message. We hide
+  // the system cursor with a !important rule that wins over in-app
+  // `cursor: pointer` / `cursor: text` declarations, then track the pointer
+  // with a fixed-position div so the puck follows the cursor everywhere
+  // inside the iframe — including over interactive elements where a CSS
+  // `cursor: url(...)` on the parent <iframe> would otherwise lose.
+  let touchCursorEl = null
+  let touchCursorStyleEl = null
+  let touchPointerMoveHandler = null
+  let touchPointerDownHandler = null
+  let touchPointerUpHandler = null
+  let touchPointerLeaveHandler = null
+
+  function setCursorMode(mode) {
+    if (mode === "touch") enableTouchCursor()
+    else disableTouchCursor()
+  }
+
+  function enableTouchCursor() {
+    if (touchCursorEl) return
+    if (!document.body) {
+      // Bridge runs from <head>, before <body> exists for some HTML shapes.
+      // Defer until the document is parsed so the puck has somewhere to live.
+      document.addEventListener(
+        "DOMContentLoaded",
+        () => enableTouchCursor(),
+        { once: true },
+      )
+      return
+    }
+
+    const style = document.createElement("style")
+    style.id = "__screenplay-touch-cursor-style"
+    // Cover pseudo-elements too — some component libraries put the cursor on
+    // ::before overlays. !important is required to beat in-app rules.
+    style.textContent =
+      "html, body, *, *::before, *::after { cursor: none !important }"
+    document.head.appendChild(style)
+    touchCursorStyleEl = style
+
+    const dot = document.createElement("div")
+    dot.id = "__screenplay-touch-cursor"
+    Object.assign(dot.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "32px",
+      height: "32px",
+      marginLeft: "-16px",
+      marginTop: "-16px",
+      borderRadius: "9999px",
+      background: "rgba(15,23,42,0.18)",
+      border: "2px solid rgba(255,255,255,0.95)",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      transform: "translate3d(-9999px,-9999px,0)",
+      transition: "opacity 120ms ease, background 120ms ease, scale 80ms ease",
+      opacity: "0",
+      willChange: "transform",
+    })
+    document.body.appendChild(dot)
+    touchCursorEl = dot
+
+    touchPointerMoveHandler = (e) => {
+      dot.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`
+      dot.style.opacity = "1"
+    }
+    touchPointerDownHandler = () => {
+      dot.style.background = "rgba(15,23,42,0.32)"
+      dot.style.scale = "0.8"
+    }
+    touchPointerUpHandler = () => {
+      dot.style.background = "rgba(15,23,42,0.18)"
+      dot.style.scale = "1"
+    }
+    touchPointerLeaveHandler = () => {
+      dot.style.opacity = "0"
+    }
+    window.addEventListener("pointermove", touchPointerMoveHandler)
+    window.addEventListener("pointerdown", touchPointerDownHandler)
+    window.addEventListener("pointerup", touchPointerUpHandler)
+    document.addEventListener("pointerleave", touchPointerLeaveHandler)
+  }
+
+  function disableTouchCursor() {
+    if (touchCursorStyleEl) {
+      touchCursorStyleEl.remove()
+      touchCursorStyleEl = null
+    }
+    if (touchCursorEl) {
+      touchCursorEl.remove()
+      touchCursorEl = null
+    }
+    if (touchPointerMoveHandler) {
+      window.removeEventListener("pointermove", touchPointerMoveHandler)
+      touchPointerMoveHandler = null
+    }
+    if (touchPointerDownHandler) {
+      window.removeEventListener("pointerdown", touchPointerDownHandler)
+      touchPointerDownHandler = null
+    }
+    if (touchPointerUpHandler) {
+      window.removeEventListener("pointerup", touchPointerUpHandler)
+      touchPointerUpHandler = null
+    }
+    if (touchPointerLeaveHandler) {
+      document.removeEventListener("pointerleave", touchPointerLeaveHandler)
+      touchPointerLeaveHandler = null
+    }
+  }
+
   function ensurePickUi() {
     if (pickOverlay) return
     pickOverlay = document.createElement("div")
@@ -258,6 +371,8 @@
         lastScrollX = d.scrollX
         lastScrollY = d.scrollY
         window.scrollTo(d.scrollX, d.scrollY)
+      } else if (d.type === "screenplay:cursor-mode") {
+        setCursorMode(d.mode)
       }
     } catch (err) {
       reply(d.id, false, (err && err.message) || err)

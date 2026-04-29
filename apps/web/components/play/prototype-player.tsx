@@ -44,12 +44,6 @@ const DEVICE_RADIUS_PX: Record<ArtboardSizeCategory, number> = {
   Mobile: 44,
 }
 
-/** Cursor SVG for touch (mobile/tablet) preview — a soft circle anchored at its center. */
-const TOUCH_CURSOR_SVG = encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="14" fill="rgba(15,23,42,0.18)" stroke="white" stroke-width="2"/></svg>`,
-)
-const TOUCH_CURSOR = `url('data:image/svg+xml;utf8,${TOUCH_CURSOR_SVG}') 20 20, auto`
-
 export function PrototypePlayer({
   roomId,
   projectName,
@@ -140,6 +134,23 @@ export function PrototypePlayer({
     )
   }, [])
 
+  // The bridge owns the touch puck — we just tell it which mode to be in.
+  // Sent on every ready handshake (so a reload picks the right mode) and on
+  // every category change while a session is open.
+  const sendCursorMode = useCallback((touch: boolean) => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentWindow) return
+    iframe.contentWindow.postMessage(
+      { type: "screenplay:cursor-mode", mode: touch ? "touch" : "default" },
+      "*",
+    )
+  }, [])
+  const isTouchDeviceRef = useRef(isTouchDevice)
+  useEffect(() => {
+    isTouchDeviceRef.current = isTouchDevice
+    sendCursorMode(isTouchDevice)
+  }, [isTouchDevice, sendCursorMode])
+
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       if (!isScreenplayMessage(e.data)) return
@@ -153,6 +164,9 @@ export function PrototypePlayer({
           { type: "screenplay:init", state: {} },
           "*",
         )
+        // Resend the current cursor mode — a navigation or reload re-injects
+        // the bridge with default state, so the puck would otherwise reset.
+        sendCursorMode(isTouchDeviceRef.current)
       } else if (e.data.type === "screenplay:knobs-declared") {
         setKnobs(e.data.knobs)
         // Iframe just (re)registered; push our values down so the prototype
@@ -164,7 +178,7 @@ export function PrototypePlayer({
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [sendKnobValues])
+  }, [sendKnobValues, sendCursorMode])
 
   const handleKnobChange = useCallback(
     (next: JsonObject) => {
@@ -184,7 +198,6 @@ export function PrototypePlayer({
   const radius = DEVICE_RADIUS_PX[devicePreset.category]
   const iframeStyle: React.CSSProperties = {
     pointerEvents: hudDragging ? "none" : "auto",
-    cursor: isTouchDevice ? TOUCH_CURSOR : undefined,
   }
 
   return (
