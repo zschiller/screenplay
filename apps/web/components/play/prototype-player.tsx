@@ -1,6 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type PanelImperativeHandle } from "react-resizable-panels"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@workspace/ui/components/resizable"
 import {
   isScreenplayMessage,
   type JsonObject,
@@ -8,6 +14,7 @@ import {
 } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
 import { PlayerHud } from "./player-hud"
+import { PlayerChatHost } from "./player-chat-host"
 
 interface PrototypePlayerProps {
   roomId: string
@@ -40,6 +47,8 @@ export function PrototypePlayer({
   // drag would otherwise escape onto the iframe's document and the drag would
   // drop. We flip pointer-events:none on the iframe for the duration.
   const [hudDragging, setHudDragging] = useState(false)
+  const [chatCollapsed, setChatCollapsed] = useState(true)
+  const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const knobValuesRef = useRef(knobValues)
   useEffect(() => {
     knobValuesRef.current = knobValues
@@ -93,27 +102,63 @@ export function PrototypePlayer({
     [sendKnobValues],
   )
 
+  const handleToggleChat = useCallback(() => {
+    const panel = chatPanelRef.current
+    if (!panel) return
+    if (panel.isCollapsed()) panel.expand()
+    else panel.collapse()
+  }, [])
+
   return (
-    <div className="fixed inset-0 bg-black">
-      <iframe
-        ref={iframeRef}
-        src={initialSrc}
-        title={`${projectName} — ${branch}`}
-        className="h-full w-full border-0 bg-white dark:bg-zinc-900"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        style={{ pointerEvents: hudDragging ? "none" : "auto" }}
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="fixed inset-0 bg-black"
+    >
+      <ResizablePanel id="player-canvas" minSize="200px">
+        <div className="relative h-full w-full">
+          <iframe
+            ref={iframeRef}
+            src={initialSrc}
+            title={`${projectName} — ${branch}`}
+            className="h-full w-full border-0 bg-white dark:bg-zinc-900"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            style={{ pointerEvents: hudDragging ? "none" : "auto" }}
+          />
+          <PlayerHud
+            roomId={roomId}
+            projectName={projectName}
+            agentId={agentId}
+            branch={branch}
+            knobs={knobs}
+            knobValues={knobValues}
+            onKnobChange={handleKnobChange}
+            onDraggingChange={setHudDragging}
+            onToggleChat={handleToggleChat}
+            chatOpen={!chatCollapsed}
+            initialThreads={initialThreads}
+          />
+        </div>
+      </ResizablePanel>
+      <ResizableHandle
+        className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}
+        disabled={chatCollapsed}
       />
-      <PlayerHud
-        roomId={roomId}
-        projectName={projectName}
-        agentId={agentId}
-        branch={branch}
-        knobs={knobs}
-        knobValues={knobValues}
-        onKnobChange={handleKnobChange}
-        onDraggingChange={setHudDragging}
-        initialThreads={initialThreads}
-      />
-    </div>
+      <ResizablePanel
+        id="player-chat"
+        defaultSize="0px"
+        minSize="360px"
+        collapsible
+        collapsedSize="0px"
+        groupResizeBehavior="preserve-pixel-size"
+        panelRef={chatPanelRef}
+        onResize={(size) => setChatCollapsed(size.inPixels === 0)}
+      >
+        <PlayerChatHost
+          roomId={roomId}
+          agentId={agentId}
+          onCollapse={() => chatPanelRef.current?.collapse()}
+        />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   )
 }

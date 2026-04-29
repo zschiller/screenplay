@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { animate, motion, useMotionValue } from "motion/react"
-import { ArrowLeft, GripVertical, MessageSquare, SlidersHorizontal } from "lucide-react"
+import { ArrowLeft, GripVertical, MessageSquare, MessagesSquare, SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Tooltip,
@@ -46,6 +46,10 @@ interface PlayerHudProps {
    * the pill.
    */
   onDraggingChange?: (dragging: boolean) => void
+  /** Toggle the agent chat side panel. */
+  onToggleChat?: () => void
+  /** Reflects the chat panel's expanded state so the HUD button can flip variants. */
+  chatOpen?: boolean
   initialThreads: ThreadWithComments[]
 }
 
@@ -58,6 +62,8 @@ export function PlayerHud({
   knobValues,
   onKnobChange,
   onDraggingChange,
+  onToggleChat,
+  chatOpen,
   initialThreads,
 }: PlayerHudProps) {
   // Read the saved corner lazily so the very first render already places the
@@ -181,15 +187,27 @@ export function PlayerHud({
         <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span
-                className="flex h-6 w-4 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
-                aria-label="Drag to a corner"
+              <Button
+                asChild
+                variant="ghost"
+                size="icon-xs"
+                onPointerDown={(e) => e.stopPropagation()}
               >
-                <GripVertical className="h-3.5 w-3.5" />
-              </span>
+                <a href={`/${roomId}`}>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </a>
+              </Button>
             </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>Drag to a corner</TooltipContent>
+            <TooltipContent side={tooltipSide}>
+              Back to {projectName}
+            </TooltipContent>
           </Tooltip>
+          <span
+            className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
+            aria-label="Drag to a corner"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </span>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -222,25 +240,25 @@ export function PlayerHud({
                 <MessageSquare className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>Branch comments</TooltipContent>
+            <TooltipContent side={tooltipSide}>Comments</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="ghost"
-                size="icon-xs"
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <a href={`/${roomId}`}>
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>
-              Back to {projectName}
-            </TooltipContent>
-          </Tooltip>
+          {onToggleChat ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={chatOpen ? "default" : "ghost"}
+                  size="icon-xs"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={onToggleChat}
+                >
+                  <MessagesSquare className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={tooltipSide}>
+                {chatOpen ? "Hide agent" : "Open agent"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       </TooltipProvider>
 

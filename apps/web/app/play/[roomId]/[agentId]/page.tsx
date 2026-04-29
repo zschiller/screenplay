@@ -4,6 +4,7 @@ import { getUserId } from "@/lib/auth-helpers"
 import { listBranchThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
+import { YjsRoomProvider } from "@/lib/yjs-host/client"
 import type { AgentData, ArtboardData } from "@/lib/types"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
@@ -56,16 +57,25 @@ export default async function PlayPage({
     : []
 
   return (
-    <PrototypePlayer
+    <YjsRoomProvider
       roomId={roomId}
-      projectName={room.name}
-      agentId={agent.id}
-      branch={agent.branch}
-      previewDomain={agent.previewDomain}
-      initialRoute={initialRoute}
-      initialKnobValues={initialKnobValues}
-      initialThreads={initialThreads}
-    />
+      fallback={
+        <div className="fixed inset-0 flex items-center justify-center bg-black text-xs text-white/60">
+          Connecting…
+        </div>
+      }
+    >
+      <PrototypePlayer
+        roomId={roomId}
+        projectName={room.name}
+        agentId={agent.id}
+        branch={agent.branch}
+        previewDomain={agent.previewDomain}
+        initialRoute={initialRoute}
+        initialKnobValues={initialKnobValues}
+        initialThreads={initialThreads}
+      />
+    </YjsRoomProvider>
   )
 }
 
