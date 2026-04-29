@@ -205,7 +205,16 @@ export function Comments({
             const cached = trackedPositionsRef.current.get(t.id)
             const baseX = cached?.x ?? t.x
             const baseY = cached?.y ?? t.y
-            if (Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX) {
+            // baseX/baseY are nullable because branch-only threads have no
+            // canvas position. listThreads filters those out, so this is
+            // effectively unreachable for canvas threads — but be defensive
+            // and just write the new position without diffing if we somehow
+            // don't have a baseline.
+            if (
+              baseX === null ||
+              baseY === null ||
+              Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
+            ) {
               setCommentPosition(t.id, x, y)
             }
           }
@@ -231,8 +240,8 @@ export function Comments({
   const resolvePos = useCallback(
     (t: {
       id?: string
-      x: number
-      y: number
+      x: number | null
+      y: number | null
       artboardId?: string | null
       selector?: string | null
     }): { x: number; y: number } | null => {
@@ -244,9 +253,16 @@ export function Comments({
         // mistakenly placed in canvas space.
         if (!ab) return null
         const tracked = t.id ? trackedPositions.get(t.id) : undefined
-        const local = tracked ?? { x: t.x, y: t.y }
+        // Either we have a tracked position from selector reflow, or we fall
+        // back to the DB-stored x/y. Branch-only threads (no x/y) never reach
+        // here because listThreads filters them out, but guard regardless.
+        const local =
+          tracked ??
+          (t.x !== null && t.y !== null ? { x: t.x, y: t.y } : null)
+        if (!local) return null
         return { x: ab.x + local.x, y: ab.y + local.y }
       }
+      if (t.x === null || t.y === null) return null
       return { x: t.x, y: t.y }
     },
     [artboardById, trackedPositions],

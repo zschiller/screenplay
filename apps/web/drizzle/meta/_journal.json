@@ -57,6 +57,13 @@
       "when": 1777339118650,
       "tag": "0007_overrated_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777419238865,
+      "tag": "0008_lovely_wiccan",
+      "breakpoints": true
     }
   ]
 }

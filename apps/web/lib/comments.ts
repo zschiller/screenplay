@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import { db, schema } from "@/lib/db"
@@ -9,12 +9,15 @@ import { mutateRoomDoc } from "@/lib/yjs/server"
 export type ThreadRecord = {
   id: string
   roomId: string
-  x: number
-  y: number
+  /** Null for branch-level threads (no canvas position). */
+  x: number | null
+  y: number | null
   artboardId: string | null
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  /** Set on threads scoped to an agent branch (the player's flat feed). */
+  branch: string | null
   resolved: boolean
   resolvedAt: number | null
   createdBy: string
@@ -48,6 +51,7 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     selector: row.selector,
     offsetX: row.offsetX,
     offsetY: row.offsetY,
+    branch: row.branch,
     resolved: row.resolved,
     resolvedAt: row.resolvedAt?.getTime() ?? null,
     createdBy: row.createdBy,
@@ -85,15 +89,34 @@ async function bumpCommentsRevision(roomId: string) {
   })
 }
 
-export async function listThreads(
+/**
+ * Shared loader. Filters threads either to the canvas (positional only —
+ * `branch IS NULL`) or to a specific agent branch. Always orders threads
+ * oldest→newest of the inner comments first; outer ordering is handled by
+ * the caller via the `outerOrder` param.
+ */
+async function listThreadsScoped(
   roomId: string,
   userId: string,
+  filter: { branch: string } | { positional: true },
+  outerOrder: "asc" | "desc",
 ): Promise<ThreadWithComments[]> {
+  const where =
+    "branch" in filter
+      ? and(
+          eq(schema.thread.roomId, roomId),
+          eq(schema.thread.branch, filter.branch),
+        )
+      : and(eq(schema.thread.roomId, roomId), isNull(schema.thread.branch))
   const threadRows = await db
     .select()
     .from(schema.thread)
-    .where(eq(schema.thread.roomId, roomId))
-    .orderBy(desc(schema.thread.createdAt))
+    .where(where)
+    .orderBy(
+      outerOrder === "asc"
+        ? asc(schema.thread.createdAt)
+        : desc(schema.thread.createdAt),
+    )
   if (threadRows.length === 0) return []
 
   const threadIds = threadRows.map((t) => t.id)
@@ -148,14 +171,33 @@ export async function listThreads(
   })
 }
 
+/** Canvas threads: anchored to a position/artboard/selector, branch null. */
+export async function listThreads(
+  roomId: string,
+  userId: string,
+): Promise<ThreadWithComments[]> {
+  return listThreadsScoped(roomId, userId, { positional: true }, "desc")
+}
+
+/** Player threads: scoped to an agent branch, no canvas position. Returned
+ *  oldest→newest so the player's flat feed reads chronologically. */
+export async function listBranchThreads(
+  roomId: string,
+  userId: string,
+  branch: string,
+): Promise<ThreadWithComments[]> {
+  return listThreadsScoped(roomId, userId, { branch }, "asc")
+}
+
 export async function createThreadWithFirstComment(opts: {
   roomId: string
-  x: number
-  y: number
+  x: number | null
+  y: number | null
   artboardId: string | null
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  branch: string | null
   body: string
   authorId: string
 }): Promise<ThreadWithComments> {
@@ -174,6 +216,7 @@ export async function createThreadWithFirstComment(opts: {
       selector: opts.selector,
       offsetX: opts.offsetX,
       offsetY: opts.offsetY,
+      branch: opts.branch,
       createdBy: opts.authorId,
       createdAt: now,
       updatedAt: now,

@@ -1608,6 +1608,36 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [agents, addRoutesGroupForAgent, handleSelectArtboard],
   )
 
+  const handlePlayAgent = useCallback(
+    (agentId: string) => {
+      window.open(`/play/${roomId}/${agentId}`, "_blank", "noopener,noreferrer")
+    },
+    [roomId],
+  )
+
+  const handlePlayArtboard = useCallback(
+    (artboardId: string) => {
+      const artboard = artboards.find((a) => a.id === artboardId)
+      if (!artboard?.sandboxId) return
+      const params = new URLSearchParams()
+      params.set("artboard", artboardId)
+      if (artboard.route) params.set("route", artboard.route)
+      if (artboard.knobValues && Object.keys(artboard.knobValues).length > 0) {
+        try {
+          const json = JSON.stringify(artboard.knobValues)
+          const b64 =
+            typeof btoa === "function"
+              ? btoa(json)
+              : Buffer.from(json, "utf-8").toString("base64")
+          params.set("k", encodeURIComponent(b64))
+        } catch {}
+      }
+      const url = `/play/${roomId}/${artboard.sandboxId}?${params.toString()}`
+      window.open(url, "_blank", "noopener,noreferrer")
+    },
+    [artboards, roomId],
+  )
+
   const handleSelectAgent = useCallback(
     (agentId: string | null, options?: { expandPanel?: boolean }) => {
       if (!agentId) return
@@ -3039,6 +3069,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             removeAgentFromStorage(id)
           }}
           onAddArtboard={handleAddArtboardForAgent}
+          onPlayAgent={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
@@ -3269,6 +3300,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onScrollChange={updateArtboardScroll}
                               onKnobsDeclared={updateArtboardKnobs}
                               onKnobValuesChange={updateArtboardKnobValues}
+                              onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
                               multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               pickMode={pickMode}
