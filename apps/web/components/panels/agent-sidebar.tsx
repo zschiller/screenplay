@@ -20,6 +20,7 @@ import {
   Frame,
   MoreHorizontal,
   Pencil,
+  Play,
   Route,
   PanelLeftClose,
   Terminal,
@@ -105,6 +106,7 @@ interface AgentSidebarProps {
   onRefreshAgent: (id: string) => void
   onRemoveAgent: (id: string) => void
   onAddArtboard: (agentId: string) => void
+  onPlayAgent: (agentId: string) => void
   onShowRoutes: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
@@ -141,6 +143,7 @@ export function AgentSidebar({
   onRefreshAgent,
   onRemoveAgent,
   onAddArtboard,
+  onPlayAgent,
   onShowRoutes,
   onUpdateAgent,
   onRenameBranch,
@@ -400,9 +403,26 @@ export function AgentSidebar({
                                                       <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
                                                     </span>
                                                   )}
+                                                  {agent.previewDomain ? (
+                                                    <button
+                                                      className="hidden h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-hover/agent-row:flex group-focus-within/agent-row:flex md:group-has-data-[menu-visible]/slot:flex"
+                                                      onClick={(e) => { e.stopPropagation(); onPlayAgent(agent.id) }}
+                                                      title="Open prototype player"
+                                                    >
+                                                      <Play className="size-3.5" />
+                                                    </button>
+                                                  ) : null}
                                                   <AgentDropdownSlot
                                                     menuContent={
                                                       <DropdownMenuContent side="right" align="start" className="w-48">
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.previewDomain}
+                                                          onClick={() => onPlayAgent(agent.id)}
+                                                        >
+                                                          <Play />
+                                                          Open prototype player
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
                                                         <DropdownMenuItem onClick={() => {
                                                           const raw = prompt("Rename branch", agent.branch ?? "")
                                                           if (!raw?.trim()) return
