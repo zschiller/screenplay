@@ -5,6 +5,11 @@ import { animate, motion, useMotionValue } from "motion/react"
 import { ArrowLeft, GripVertical, MessageSquare, MessagesSquare, SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -12,6 +17,11 @@ import {
 } from "@workspace/ui/components/tooltip"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
+import {
+  ARTBOARD_SIZE_CATEGORY_ICONS,
+  GROUPED_ARTBOARD_SIZE_PRESETS,
+  getArtboardSizePreset,
+} from "@/lib/artboard-sizes"
 import { PlayerKnobs } from "./player-knobs"
 import { PlayerComments } from "./player-comments"
 
@@ -51,6 +61,9 @@ interface PlayerHudProps {
   /** Reflects the chat panel's expanded state so the HUD button can flip variants. */
   chatOpen?: boolean
   initialThreads: ThreadWithComments[]
+  /** Active device preview preset id (from `lib/artboard-sizes`). */
+  deviceSizeId: string
+  onDeviceSizeChange: (id: string) => void
 }
 
 export function PlayerHud({
@@ -65,7 +78,11 @@ export function PlayerHud({
   onToggleChat,
   chatOpen,
   initialThreads,
+  deviceSizeId,
+  onDeviceSizeChange,
 }: PlayerHudProps) {
+  const devicePreset = getArtboardSizePreset(deviceSizeId)
+  const DeviceIcon = ARTBOARD_SIZE_CATEGORY_ICONS[devicePreset.category]
   // Read the saved corner lazily so the very first render already places the
   // HUD in the right spot. Guarded for SSR where `window` is undefined.
   const [corner, setCorner] = useState<Corner>(() => {
@@ -208,6 +225,61 @@ export function PlayerHud({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </span>
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <DeviceIcon className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side={tooltipSide}>
+                {devicePreset.label}
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              side={tooltipSide}
+              align="start"
+              className="max-h-80 w-64 overflow-y-auto p-1"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {GROUPED_ARTBOARD_SIZE_PRESETS.map((group) => {
+                const Icon = ARTBOARD_SIZE_CATEGORY_ICONS[group.category]
+                return (
+                  <div key={group.category} className="py-1">
+                    <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {group.category}
+                    </div>
+                    {group.presets.map((preset) => {
+                      const active = preset.id === deviceSizeId
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => onDeviceSizeChange(preset.id)}
+                          className={
+                            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent " +
+                            (active ? "bg-accent" : "")
+                          }
+                        >
+                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="truncate">{preset.label}</span>
+                          <span className="ml-auto text-[10px] text-muted-foreground">
+                            {preset.width}×{preset.height}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </PopoverContent>
+          </Popover>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
