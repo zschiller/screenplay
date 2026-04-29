@@ -16,7 +16,6 @@ import type { ThreadWithComments } from "@/lib/comments"
 import {
   DEFAULT_ARTBOARD_SIZE_ID,
   getArtboardSizePreset,
-  type ArtboardSizeCategory,
 } from "@/lib/artboard-sizes"
 import { useCollectionEntry, useRoomCollections } from "@/lib/yjs/react"
 import type { ArtboardData } from "@/lib/types"
@@ -43,13 +42,6 @@ interface PrototypePlayerProps {
 
 const DEVICE_PADDING = 48
 const STORAGE_KEY_DEVICE = "screenplay:player-device-size"
-
-/** Per-category corner radius for the device frame. Desktop is full-bleed and unrounded. */
-const DEVICE_RADIUS_PX: Record<ArtboardSizeCategory, number> = {
-  Desktop: 0,
-  Tablet: 24,
-  Mobile: 44,
-}
 
 export function PrototypePlayer({
   roomId,
@@ -285,7 +277,6 @@ export function PrototypePlayer({
     else panel.collapse()
   }, [])
 
-  const radius = DEVICE_RADIUS_PX[devicePreset.category]
   const iframeStyle: React.CSSProperties = {
     pointerEvents: hudDragging ? "none" : "auto",
   }
@@ -316,9 +307,9 @@ export function PrototypePlayer({
                 style={{
                   width: devicePreset.width,
                   height: devicePreset.height,
-                  borderRadius: radius,
                   transform: `scale(${fitScale})`,
                   transformOrigin: "center center",
+                  borderRadius: devicePreset.cornerRadius,
                 }}
               >
                 <iframe
@@ -350,7 +341,7 @@ export function PrototypePlayer({
         </div>
       </ResizablePanel>
       <ResizableHandle
-        className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}
+        className={`${chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}${isTouchDevice ? " dark" : ""}`}
         disabled={chatCollapsed}
       />
       <ResizablePanel
@@ -363,11 +354,22 @@ export function PrototypePlayer({
         panelRef={chatPanelRef}
         onResize={(size) => setChatCollapsed(size.inPixels === 0)}
       >
-        <PlayerChatHost
-          roomId={roomId}
-          agentId={agentId}
-          onCollapse={() => chatPanelRef.current?.collapse()}
-        />
+        {/* Force dark mode when the device preview is showing a phone/tablet
+         *  frame — the surrounding bezel is black, so a light sidebar reads as
+         *  jarringly bright next to it. text-foreground re-resolves the
+         *  inherited text color against the dark token set; without it,
+         *  `color` stays the value computed at <body>. */}
+        <div
+          className={
+            isTouchDevice ? "dark h-full text-foreground" : "h-full"
+          }
+        >
+          <PlayerChatHost
+            roomId={roomId}
+            agentId={agentId}
+            onCollapse={() => chatPanelRef.current?.collapse()}
+          />
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   )

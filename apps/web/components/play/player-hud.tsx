@@ -5,10 +5,14 @@ import { animate, motion, useMotionValue } from "motion/react"
 import { ArrowLeft, GripVertical, MessageSquare, MessagesSquare, SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@workspace/ui/components/popover"
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectPrimitive,
+  SelectSeparator,
+} from "@workspace/ui/components/select"
 import {
   Tooltip,
   TooltipContent,
@@ -201,7 +205,13 @@ export function PlayerHud({
       className="z-[9998] select-none"
     >
       <TooltipProvider>
-        <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5">
+          <span
+            className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
+            aria-label="Drag to a corner"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </span>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -219,67 +229,58 @@ export function PlayerHud({
               Back to {projectName}
             </TooltipContent>
           </Tooltip>
-          <span
-            className="flex h-6 w-4 cursor-grab items-center justify-center text-border active:cursor-grabbing"
-            aria-label="Drag to a corner"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </span>
-          <Popover>
+          <Select value={deviceSizeId} onValueChange={onDeviceSizeChange}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
+                <SelectPrimitive.Trigger asChild>
                   <Button
                     variant="ghost"
                     size="icon-xs"
                     onPointerDown={(e) => e.stopPropagation()}
+                    aria-label={`Device: ${devicePreset.label}`}
                   >
                     <DeviceIcon className="h-3.5 w-3.5" />
                   </Button>
-                </PopoverTrigger>
+                </SelectPrimitive.Trigger>
               </TooltipTrigger>
               <TooltipContent side={tooltipSide}>
                 {devicePreset.label}
               </TooltipContent>
             </Tooltip>
-            <PopoverContent
+            <SelectContent
               side={tooltipSide}
               align="start"
-              className="max-h-80 w-64 overflow-y-auto p-1"
               onPointerDown={(e) => e.stopPropagation()}
+              className="max-h-80"
             >
-              {GROUPED_ARTBOARD_SIZE_PRESETS.map((group) => {
+              {GROUPED_ARTBOARD_SIZE_PRESETS.map((group, index) => {
                 const Icon = ARTBOARD_SIZE_CATEGORY_ICONS[group.category]
                 return (
-                  <div key={group.category} className="py-1">
-                    <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <SelectGroup key={group.category}>
+                    {index > 0 ? <SelectSeparator /> : null}
+                    <SelectLabel className="text-[10px] uppercase tracking-wide">
                       {group.category}
-                    </div>
-                    {group.presets.map((preset) => {
-                      const active = preset.id === deviceSizeId
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => onDeviceSizeChange(preset.id)}
-                          className={
-                            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent " +
-                            (active ? "bg-accent" : "")
-                          }
-                        >
+                    </SelectLabel>
+                    {group.presets.map((preset) => (
+                      <SelectItem
+                        key={preset.id}
+                        value={preset.id}
+                        className="text-xs"
+                      >
+                        <span className="flex w-full items-center gap-2">
                           <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="truncate">{preset.label}</span>
                           <span className="ml-auto text-[10px] text-muted-foreground">
                             {preset.width}×{preset.height}
                           </span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 )
               })}
-            </PopoverContent>
-          </Popover>
+            </SelectContent>
+          </Select>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
