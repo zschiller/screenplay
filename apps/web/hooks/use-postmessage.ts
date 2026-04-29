@@ -10,12 +10,14 @@ interface UsePostMessageOptions {
   iframeScrollX?: number
   iframeScrollY?: number
   knobValues?: JsonObject
+  sharedState?: JsonObject
   onStateChanged: (artboardId: string, state: JsonObject) => void
   onNavigation?: (artboardId: string, path: string) => void
   onScroll?: (artboardId: string, scrollX: number, scrollY: number) => void
   onReady?: (artboardId: string, version: string | undefined) => void
   onHmrStatus?: (artboardId: string, status: HmrStatus) => void
   onKnobsDeclared?: (artboardId: string, knobs: JsonValue[]) => void
+  onSharedStateChanged?: (artboardId: string, state: JsonObject) => void
 }
 
 export function usePostMessage({
@@ -24,12 +26,14 @@ export function usePostMessage({
   iframeScrollX,
   iframeScrollY,
   knobValues,
+  sharedState,
   onStateChanged,
   onNavigation,
   onScroll,
   onReady,
   onHmrStatus,
   onKnobsDeclared,
+  onSharedStateChanged,
 }: UsePostMessageOptions) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const stateRef = useRef(iframeState)
@@ -49,12 +53,17 @@ export function usePostMessage({
   const lastScrollRef = useRef<{ x: number; y: number } | null>(null)
   const knobValuesRef = useRef(knobValues)
   knobValuesRef.current = knobValues
+  // Tracks the last sharedState we either received from or pushed down to the
+  // iframe. Used to suppress echoes when Yjs sends our own update back to us.
+  const lastSharedStateRef = useRef<string | null>(null)
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
   const onHmrStatusRef = useRef(onHmrStatus)
   onHmrStatusRef.current = onHmrStatus
   const onKnobsDeclaredRef = useRef(onKnobsDeclared)
   onKnobsDeclaredRef.current = onKnobsDeclared
+  const onSharedStateChangedRef = useRef(onSharedStateChanged)
+  onSharedStateChangedRef.current = onSharedStateChanged
 
   const sendMessage = useCallback(
     (type: "screenplay:init" | "screenplay:state-update", state: JsonObject) => {
@@ -70,6 +79,15 @@ export function usePostMessage({
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage(
       { type: "screenplay:knob-values", values },
+      "*",
+    )
+  }, [])
+
+  const sendSharedState = useCallback((state: JsonObject) => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentWindow) return
+    iframe.contentWindow.postMessage(
+      { type: "screenplay:shared-state-apply", state },
       "*",
     )
   }, [])
@@ -97,6 +115,18 @@ export function usePostMessage({
     if (!knobValues) return
     sendKnobValues(knobValues)
   }, [knobValues, sendKnobValues])
+
+  // Push shared-state changes from Yjs down into the iframe — but skip our
+  // own echoes. The iframe's runtime also diffs incoming state, so an echo
+  // would no-op there too, but suppressing the postMessage entirely keeps
+  // the wire quiet.
+  useEffect(() => {
+    if (!sharedState) return
+    const serialized = JSON.stringify(sharedState)
+    if (serialized === lastSharedStateRef.current) return
+    lastSharedStateRef.current = serialized
+    sendSharedState(sharedState)
+  }, [sharedState, sendSharedState])
 
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
@@ -129,6 +159,16 @@ export function usePostMessage({
           sendKnobValues(knobValuesRef.current)
         }
         onKnobsDeclaredRef.current?.(artboardId, e.data.knobs)
+      } else if (e.data.type === "screenplay:shared-state") {
+        // Record the serialized form so the next Yjs echo down to this same
+        // iframe is suppressed (we'd otherwise apply our own update back).
+        const next = e.data.state
+        try {
+          lastSharedStateRef.current = JSON.stringify(next)
+        } catch {
+          lastSharedStateRef.current = null
+        }
+        onSharedStateChangedRef.current?.(artboardId, next)
       }
     }
 

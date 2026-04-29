@@ -49,6 +49,7 @@ export interface ArtboardData {
   branch?: string
   knobs?: JsonValue[]
   knobValues?: JsonObject
+  sharedState?: JsonObject
 }
 
 interface ArtboardProps {
@@ -81,6 +82,7 @@ interface ArtboardProps {
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
+  onSharedStateChanged?: (id: string, state: JsonObject) => void
   /** Open the prototype player route for this artboard's branch in a new tab. */
   onPlay?: (id: string) => void
   multiSelected: boolean
@@ -153,6 +155,7 @@ export function Artboard({
   onScrollChange,
   onKnobsDeclared,
   onKnobValuesChange,
+  onSharedStateChanged,
   onPlay,
   multiSelected,
   spaceHeld,
@@ -399,12 +402,14 @@ export function Artboard({
     iframeScrollX: artboard.scrollX,
     iframeScrollY: artboard.scrollY,
     knobValues: artboard.knobValues,
+    sharedState: artboard.sharedState,
     onStateChanged,
     onNavigation: handleNavigation,
     onScroll: handleScroll,
     onReady: handleReady,
     onHmrStatus: handleHmrStatus,
     onKnobsDeclared,
+    onSharedStateChanged,
   })
 
   const dom = useScreenplayDom(iframeRef)
@@ -532,6 +537,7 @@ export function Artboard({
         branch={artboard.branch}
         sandboxId={artboard.sandboxId}
         route={artboard.route}
+        sharedState={artboard.sharedState}
         zoom={zoom}
         artboardWidth={artboard.width}
         reservedRightPx={reservedRightPx}

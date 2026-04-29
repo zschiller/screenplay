@@ -1,10 +1,16 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Braces, Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { BranchBadge } from "@/components/branch-badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@workspace/ui/components/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import {
   Command,
   CommandEmpty,
@@ -15,7 +21,7 @@ import {
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
 import type { AgentData } from "@/lib/types"
-import type { HmrStatus } from "@/lib/postmessage-protocol"
+import type { HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -24,6 +30,9 @@ interface ArtboardLabelProps {
   branch?: string
   sandboxId?: string
   route?: string
+  /** Bidirectional shared state from `@screenplay.space/state`. When present
+   *  with non-empty keys, a tiny indicator renders inside the route pill. */
+  sharedState?: JsonObject
   zoom: number
   artboardWidth: number
   /** Screen-px width to reserve on the right (e.g. for the action buttons). */
@@ -66,7 +75,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardWidth, reservedRightPx = 0, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange }: ArtboardLabelProps) {
+export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zoom, artboardWidth, reservedRightPx = 0, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange }: ArtboardLabelProps) {
   const measureRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!onContentWidthChange) return
@@ -172,10 +181,12 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
             route={route}
             discoveredRoutes={discoveredRoutes ?? []}
             onSelectRoute={onSelectRoute}
+            sharedState={sharedState}
           />
         ) : (
           <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
             <span className="truncate">{route || "/"}</span>
+            <SharedStateIndicator sharedState={sharedState} />
           </Badge>
         ))}
       </div>
@@ -204,12 +215,14 @@ export function ArtboardLabel({ label, branch, sandboxId, route, zoom, artboardW
             <span className="flex items-center gap-1">
               <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
                 {route || "/"}
+                <SharedStateIndicator sharedState={sharedState} />
               </Badge>
               <span className="h-3 w-3 shrink-0" />
             </span>
           ) : (
             <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
               {route || "/"}
+              <SharedStateIndicator sharedState={sharedState} />
             </Badge>
           )
         )}
@@ -222,9 +235,10 @@ interface RoutePickerProps {
   route?: string
   discoveredRoutes: { route: string; label: string }[]
   onSelectRoute: (route: string) => void
+  sharedState?: JsonObject
 }
 
-function RoutePicker({ route, discoveredRoutes, onSelectRoute }: RoutePickerProps) {
+function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: RoutePickerProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState("")
 
@@ -260,6 +274,7 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute }: RoutePickerProp
         >
           <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
             <span className="truncate">{currentRoute}</span>
+            <SharedStateIndicator sharedState={sharedState} />
           </Badge>
           <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
         </button>
@@ -318,6 +333,53 @@ interface BranchPickerProps {
   colorKey?: string
   assignableAgents: AgentData[]
   onAssignAgent: (agentId: string) => void
+}
+
+interface SharedStateIndicatorProps {
+  sharedState?: JsonObject
+}
+
+/**
+ * Tiny curly-brace glyph rendered inside the route pill when the prototype
+ * has published any shared state via `@screenplay.space/state`. Hover to see
+ * the full JSON snapshot. Collapses to nothing when the state is empty so
+ * unaffected artboards don't grow an extra slot.
+ */
+function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
+  const json = useMemo(() => {
+    if (!sharedState) return null
+    const keys = Object.keys(sharedState)
+    if (keys.length === 0) return null
+    try {
+      return JSON.stringify(sharedState, null, 2)
+    } catch {
+      return null
+    }
+  }, [sharedState])
+  if (!json) return null
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="ml-1 inline-flex h-3 w-3 shrink-0 items-center justify-center text-foreground/60"
+            // Stop pointer events from bubbling into the route picker so a
+            // hover-to-read doesn't accidentally open the route popover.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Synced UI state"
+          >
+            <Braces className="h-2.5 w-2.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" align="end" className="max-w-[360px] p-0">
+          <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap break-words p-2 font-mono text-[10px] leading-snug">
+            {json}
+          </pre>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAssignAgent }: BranchPickerProps) {

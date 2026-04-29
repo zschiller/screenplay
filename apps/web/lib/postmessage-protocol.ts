@@ -31,6 +31,7 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
+  | { type: "screenplay:shared-state-apply"; state: JsonObject }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
@@ -50,6 +51,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
   | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }
+  | { type: "screenplay:shared-state"; state: JsonObject }
 
 export function isScreenplayMessage(
   data: unknown,
