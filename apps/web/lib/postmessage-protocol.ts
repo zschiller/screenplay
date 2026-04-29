@@ -18,6 +18,8 @@ export type DomOp =
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 
+export type CursorMode = "default" | "touch"
+
 // Canvas -> Iframe
 export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
@@ -28,6 +30,7 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:pick-stop"; id: string }
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
   | { type: "screenplay:knob-values"; values: JsonObject }
+  | { type: "screenplay:cursor-mode"; mode: CursorMode }
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
