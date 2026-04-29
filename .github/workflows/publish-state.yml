@@ -1,0 +1,151 @@
+name: Publish @screenplay.space/state
+
+# Manual release for the shared-state runtime package. Mirrors
+# `publish-knobs.yml` exactly — see that file's header comment for the
+# full setup and trust-publishing notes. The only differences are the
+# package directory, npm name, git tag prefix, and trusted-publisher
+# rule.
+#
+# One-time setup before the first run:
+#  1. On npmjs.com → org `@screenplay.space` → Trusted Publishers → add a
+#     rule for package `@screenplay.space/state`:
+#       - Publisher: GitHub Actions
+#       - Repository: zschiller/screenplay
+#       - Workflow filename: publish-state.yml
+#       - Environment name: (leave blank)
+#  2. Repo Settings → Actions → General → Workflow permissions:
+#     "Read and write permissions" (already set if knobs is publishing).
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump keyword (patch | minor | major | prerelease) or an explicit semver like 0.2.0. Use 'none' to publish the version already in package.json (e.g. for the first publish via this workflow)."
+        required: true
+        default: "patch"
+        type: string
+      tag:
+        description: "npm dist-tag to publish under"
+        required: true
+        default: "latest"
+        type: choice
+        options:
+          - latest
+          - next
+          - beta
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: publish-state
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter @screenplay.space/state typecheck
+
+      - name: Drift check
+        working-directory: packages/screenplay-state
+        run: |
+          ON_DISK=$(node -p "require('./package.json').version")
+          ON_NPM=$(npm view @screenplay.space/state version 2>/dev/null || echo "")
+          if [ -n "$ON_NPM" ] && [ "$ON_DISK" != "$ON_NPM" ]; then
+            echo "::error::main has package.json @ $ON_DISK but npm latest is $ON_NPM."
+            echo "::error::Merge the outstanding release PR (or sync the file) before bumping again."
+            exit 1
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "screenplay-release[bot]"
+          git config user.email "screenplay-release[bot]@users.noreply.github.com"
+
+      - name: Resolve target version
+        id: bump
+        working-directory: packages/screenplay-state
+        run: |
+          if [ "${{ inputs.bump }}" = "none" ]; then
+            NEW_VERSION=$(node -p "require('./package.json').version")
+          else
+            NEW_VERSION=$(npm version "${{ inputs.bump }}" --no-git-tag-version)
+            NEW_VERSION="${NEW_VERSION#v}"
+          fi
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=screenplay-state-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=release/screenplay-state-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit bump on a release branch
+        if: inputs.bump != 'none'
+        run: |
+          git checkout -b "${{ steps.bump.outputs.branch }}"
+          git add packages/screenplay-state/package.json
+          git commit -m "Release @screenplay.space/state ${{ steps.bump.outputs.version }}"
+          git push origin "${{ steps.bump.outputs.branch }}"
+
+      - name: Tag the published commit
+        run: |
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
+      - name: Publish to npm
+        working-directory: packages/screenplay-state
+        run: |
+          npm publish \
+            --access public \
+            --tag "${{ inputs.tag }}" \
+            --provenance
+
+      - name: Open bump PR
+        if: inputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.bump.outputs.branch }}" \
+            --title "Release @screenplay.space/state ${{ steps.bump.outputs.version }}" \
+            --body "Automated bump from \`${{ github.workflow }}\`. The version is **already published to npm** ([${{ steps.bump.outputs.version }}](https://www.npmjs.com/package/@screenplay.space/state/v/${{ steps.bump.outputs.version }})) and tagged as \`${{ steps.bump.outputs.tag }}\` — merging this PR just brings \`main\`'s \`package.json\` in sync. Squash- or merge-commit either works."
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published @screenplay.space/state"
+            echo ""
+            echo "- **Version**: \`${{ steps.bump.outputs.version }}\`"
+            echo "- **dist-tag**: \`${{ inputs.tag }}\`"
+            echo "- **Git tag**: \`${{ steps.bump.outputs.tag }}\`"
+            echo "- **npm**: https://www.npmjs.com/package/@screenplay.space/state/v/${{ steps.bump.outputs.version }}"
+            if [ "${{ inputs.bump }}" != "none" ]; then
+              echo "- **Bump PR**: pushed to \`${{ steps.bump.outputs.branch }}\` — merge it to update \`main\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

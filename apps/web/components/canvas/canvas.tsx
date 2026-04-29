@@ -1454,6 +1454,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
+  const updateArtboardSharedState = useCallback(
+    (id: string, sharedState: JsonObject) => {
+      collections.artboards.update(id, { sharedState })
+    },
+    [collections],
+  )
+
   // --- Text layer mutations ---
 
   const addTextLayer = useCallback(
@@ -3339,6 +3346,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onScrollChange={updateArtboardScroll}
                               onKnobsDeclared={updateArtboardKnobs}
                               onKnobValuesChange={updateArtboardKnobValues}
+                              onSharedStateChanged={updateArtboardSharedState}
                               onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
                               multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                               spaceHeld={spaceHeld}
