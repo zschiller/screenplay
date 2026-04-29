@@ -18,6 +18,8 @@ import {
   getArtboardSizePreset,
   type ArtboardSizeCategory,
 } from "@/lib/artboard-sizes"
+import { useCollectionEntry, useRoomCollections } from "@/lib/yjs/react"
+import type { ArtboardData } from "@/lib/types"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
 
@@ -29,6 +31,11 @@ interface PrototypePlayerProps {
   previewDomain: string
   initialRoute: string
   initialKnobValues: Record<string, unknown>
+  initialSharedState: Record<string, unknown>
+  /** When the player was opened from a specific artboard, route shared-state
+   *  through that artboard's Yjs entry so canvas + player + other player tabs
+   *  all converge on the same snapshot. */
+  artboardId?: string
   initialThreads: ThreadWithComments[]
   /** Workspace's default artboard size id — seeds mobile/tablet preview if it's a non-desktop preset. */
   initialDeviceSizeId?: string
@@ -52,6 +59,8 @@ export function PrototypePlayer({
   previewDomain,
   initialRoute,
   initialKnobValues,
+  initialSharedState,
+  artboardId,
   initialThreads,
   initialDeviceSizeId,
 }: PrototypePlayerProps) {
@@ -60,6 +69,28 @@ export function PrototypePlayer({
   const [knobValues, setKnobValues] = useState<JsonObject>(
     initialKnobValues as JsonObject,
   )
+
+  // Live shared state from Yjs when we have an artboard binding. Falls back
+  // to the SSR-hydrated snapshot otherwise (single-player mode — the iframe
+  // still publishes via postMessage but state doesn't survive a reload).
+  const collections = useRoomCollections()
+  const liveArtboard = useCollectionEntry<ArtboardData>(
+    collections.artboards,
+    artboardId ?? "",
+  )
+  const sharedState = useMemo<JsonObject>(() => {
+    if (artboardId && liveArtboard?.sharedState) {
+      return liveArtboard.sharedState as JsonObject
+    }
+    return initialSharedState as JsonObject
+  }, [artboardId, liveArtboard, initialSharedState])
+  const sharedStateRef = useRef(sharedState)
+  useEffect(() => {
+    sharedStateRef.current = sharedState
+  }, [sharedState])
+  // Last serialized snapshot we sent down to the iframe — used to suppress
+  // redundant applies when our own publish loops back through Yjs.
+  const lastAppliedSharedRef = useRef<string | null>(null)
   // While the HUD is being dragged the iframe must not capture pointer events
   // — pointer capture doesn't cross cross-origin iframe boundaries, so a fast
   // drag would otherwise escape onto the iframe's document and the drag would
@@ -151,6 +182,15 @@ export function PrototypePlayer({
     sendCursorMode(isTouchDevice)
   }, [isTouchDevice, sendCursorMode])
 
+  const sendSharedState = useCallback((state: JsonObject) => {
+    const iframe = iframeRef.current
+    if (!iframe?.contentWindow) return
+    iframe.contentWindow.postMessage(
+      { type: "screenplay:shared-state-apply", state },
+      "*",
+    )
+  }, [])
+
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       if (!isScreenplayMessage(e.data)) return
@@ -174,11 +214,44 @@ export function PrototypePlayer({
         if (Object.keys(knobValuesRef.current).length > 0) {
           sendKnobValues(knobValuesRef.current)
         }
+        // The iframe just (re)mounted — it may have fresh local state that's
+        // about to publish, but in case other clients have already written
+        // to Yjs we mirror that down too. The runtime diffs incoming values
+        // so this is safe to send unconditionally.
+        if (
+          sharedStateRef.current &&
+          Object.keys(sharedStateRef.current).length > 0
+        ) {
+          const serialized = JSON.stringify(sharedStateRef.current)
+          lastAppliedSharedRef.current = serialized
+          sendSharedState(sharedStateRef.current)
+        }
+      } else if (e.data.type === "screenplay:shared-state") {
+        const next = e.data.state
+        // Persist to Yjs when we have an artboard binding so other clients
+        // (canvas + sibling player tabs) catch up. Without an artboard the
+        // player still works locally — the iframe owns its in-memory state.
+        if (artboardId) {
+          let serialized: string | null = null
+          try {
+            serialized = JSON.stringify(next)
+          } catch {
+            serialized = null
+          }
+          // Mark as the last value we'd echo so the upcoming Yjs change
+          // doesn't bounce back into the iframe.
+          lastAppliedSharedRef.current = serialized
+          collections.artboards.update(artboardId, { sharedState: next })
+        } else {
+          // No persistence path — keep a local copy so the HUD/dev tools
+          // could surface it later without round-tripping through Yjs.
+          sharedStateRef.current = next
+        }
       }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [sendKnobValues, sendCursorMode])
+  }, [sendKnobValues, sendCursorMode, sendSharedState, artboardId, collections])
 
   const handleKnobChange = useCallback(
     (next: JsonObject) => {
@@ -187,6 +260,23 @@ export function PrototypePlayer({
     },
     [sendKnobValues],
   )
+
+  // Push remote shared-state changes from Yjs down into our iframe. Skip the
+  // echo when the change matches the last value we just published from this
+  // tab — the iframe's runtime would diff and ignore it anyway, but staying
+  // off the wire keeps things tidy.
+  useEffect(() => {
+    if (!artboardId) return
+    let serialized: string
+    try {
+      serialized = JSON.stringify(sharedState)
+    } catch {
+      return
+    }
+    if (serialized === lastAppliedSharedRef.current) return
+    lastAppliedSharedRef.current = serialized
+    sendSharedState(sharedState)
+  }, [artboardId, sharedState, sendSharedState])
 
   const handleToggleChat = useCallback(() => {
     const panel = chatPanelRef.current

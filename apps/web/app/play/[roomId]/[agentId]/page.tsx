@@ -58,6 +58,7 @@ export default async function PlayPage({
 
   const initialKnobValues = decodeKnobValues(search.k) ?? artboard?.knobValues ?? {}
   const initialRoute = search.route ?? artboard?.route ?? "/"
+  const initialSharedState = (artboard?.sharedState ?? {}) as Record<string, unknown>
   const initialThreads = agent.branch
     ? await listBranchThreads(roomId, userId, agent.branch).catch(() => [])
     : []
@@ -79,6 +80,8 @@ export default async function PlayPage({
         previewDomain={agent.previewDomain}
         initialRoute={initialRoute}
         initialKnobValues={initialKnobValues}
+        initialSharedState={initialSharedState}
+        artboardId={search.artboard}
         initialThreads={initialThreads}
         initialDeviceSizeId={workspace?.defaultArtboardSizeId}
       />

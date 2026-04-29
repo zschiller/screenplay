@@ -90,6 +90,13 @@ export type ArtboardData = {
   knobs?: JsonValue[]
   /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */
   knobValues?: JsonObject
+  /**
+   * Bidirectional shared state published by the prototype via
+   * `@screenplay.space/state`. The canvas persists the merged map and pushes
+   * it back down so other clients' iframes stay in sync. Read-only on the
+   * canvas surface today (no editor UI).
+   */
+  sharedState?: JsonObject
 }
 
 /**
