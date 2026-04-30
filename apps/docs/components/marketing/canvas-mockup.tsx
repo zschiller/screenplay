@@ -4,7 +4,7 @@ export function CanvasMockup() {
       <CanvasGrid />
 
       <Artboard
-        label="onboarding.tsx"
+        label="Welcome"
         route="/welcome"
         branch="feat/onboarding"
         branchClass="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
@@ -15,7 +15,7 @@ export function CanvasMockup() {
       </Artboard>
 
       <Artboard
-        label="dashboard.tsx"
+        label="Home"
         route="/"
         branch="main"
         branchClass="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
@@ -27,7 +27,7 @@ export function CanvasMockup() {
       </Artboard>
 
       <Artboard
-        label="settings.tsx"
+        label="Settings"
         route="/settings"
         branch="fix/auth"
         branchClass="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
