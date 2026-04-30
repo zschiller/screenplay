@@ -21,6 +21,9 @@
     .knob-value-fade {
       animation: knob-value-fade 4.2s ease-in-out infinite;
     }
+    .card-pad {
+      animation: card-pad-drift 4.2s ease-in-out infinite;
+    }
     .state-tick {
       animation: state-tick 4s ease-in-out infinite;
     }
@@ -86,6 +89,26 @@
     }
     100% {
       width: 14%;
+    }
+  }
+
+  @keyframes card-pad-drift {
+    0%,
+    100% {
+      padding: 8px;
+    }
+    50% {
+      padding: 32px;
+    }
+  }
+
+  @keyframes knob-value-fade {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 1;
     }
   }
 
