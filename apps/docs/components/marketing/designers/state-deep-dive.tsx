@@ -1,5 +1,3 @@
-import { CodeBlock, tok } from "../code-block"
-
 export function StateDeepDive() {
   return (
     <section id="state-sync" className="border-b border-border/60 scroll-mt-16">
@@ -13,28 +11,27 @@ export function StateDeepDive() {
               The whole room sees the same screen.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              When you click into the loading state, every viewer follows. When
-              your reviewer toggles the empty state, you see it on your end
-              too. Stop saying &ldquo;ok now go back to the error
-              screen&rdquo;— state sync is one hook.
+              When you click into the loading state, every viewer follows.
+              When your reviewer toggles the empty state, you see it on your
+              end too. No more &ldquo;ok, now go back to the error
+              screen&rdquo; — selected items, form values, current step,
+              route, modal open/closed: it all stays in lock-step.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
               <Bullet>
                 <span className="text-foreground">
-                  One hook, any state.
+                  Anything stateful, shared.
                 </span>{" "}
-                Wrap a <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">useState</code>{" "}
-                with <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">useSharedState</code>{" "}
-                and it&apos;s multiplayer. Forms, toggles, route params, selected
-                items — anything.
+                Forms, toggles, selections, route params, the active tab —
+                ask the agent to make it shared and it&apos;s multiplayer.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Yjs-backed, conflict-free.
+                  Conflict-free.
                 </span>{" "}
-                Two reviewers tweaking at once converge cleanly. No flicker, no
-                last-write-wins surprises.
+                Two reviewers tweaking at once converge cleanly, backed by
+                Yjs. No flicker, no last-write-wins surprises.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
@@ -51,10 +48,6 @@ export function StateDeepDive() {
                 can be shared.
               </Bullet>
             </ul>
-
-            <div className="mt-8">
-              <StateCode />
-            </div>
           </div>
 
           <div className="lg:order-1">
@@ -75,40 +68,6 @@ function Bullet({ children }: { children: React.ReactNode }) {
       />
       <span className="leading-relaxed">{children}</span>
     </li>
-  )
-}
-
-function StateCode() {
-  return (
-    <CodeBlock filename="checkout.tsx">
-      <span className={tok.keyword}>import</span> {"{ "}
-      <span className={tok.fn}>useSharedState</span>
-      {" } "}
-      <span className={tok.keyword}>from</span>{" "}
-      <span className={tok.string}>{`"@screenplay.space/state"`}</span>
-      {"\n\n"}
-      <span className={tok.keyword}>function</span>{" "}
-      <span className={tok.fn}>Checkout</span>
-      <span className={tok.punct}>{"() {"}</span>
-      {"\n  "}
-      <span className={tok.keyword}>const</span> [step, setStep] ={" "}
-      <span className={tok.fn}>useState</span>
-      <span className={tok.punct}>(</span>
-      <span className={tok.string}>{`"cart"`}</span>
-      <span className={tok.punct}>)</span>
-      {"\n  "}
-      <span className={tok.fn}>useSharedState</span>
-      <span className={tok.punct}>(</span>
-      <span className={tok.string}>{`"checkout-step"`}</span>, step, setStep
-      <span className={tok.punct}>)</span>
-      {"\n\n  "}
-      <span className={tok.comment}>{`// design reviewer flips the step → you see it instantly`}</span>
-      {"\n  "}
-      <span className={tok.keyword}>return</span>{" "}
-      <span className={tok.punct}>{"<Stepper value={step} onChange={setStep} />"}</span>
-      {"\n"}
-      <span className={tok.punct}>{"}"}</span>
-    </CodeBlock>
   )
 }
 
@@ -150,9 +109,7 @@ function SyncedReview() {
       </div>
 
       <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-muted/40 py-2 text-[10px] text-muted-foreground">
-        <span className="font-mono">useSharedState</span>
-        <span>·</span>
-        <span>one hook, all viewers in lock-step</span>
+        <span>State stays in lock-step across every viewer.</span>
       </div>
     </div>
   )

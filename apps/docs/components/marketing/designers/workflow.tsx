@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Prototype in code, like you already do",
-    body: "Cursor, Claude, V0, your IDE — wherever you live. Push to a branch when you have something to show.",
+    title: "Prototype in code with the agent",
+    body: "Work with Screenplay's coding agent inside the sandbox to build your routes and components. Same as Cursor or Claude in your IDE — except the canvas is right there.",
   },
   {
     num: "02",
     title: "Drop the route on a canvas",
-    body: "Each artboard boots its own sandbox VM. The actual page renders, with real data and real animations — not a flattened export.",
+    body: "Each artboard boots its own sandbox VM. The actual page renders — real data, real animations — not a flattened export.",
   },
   {
     num: "03",
-    title: "Wire up knobs and shared state",
-    body: "Two hooks: useKnob for design tweaks, useSharedState for multiplayer flows. Calls compile out of production builds.",
+    title: "Collaborate on the live UI",
+    body: "Leave notes, drop comments anchored to elements, scrub through states together, and ask the agent to expose knobs for any value you want to tune live.",
   },
   {
     num: "04",
-    title: "Share the link",
-    body: "PMs, engineers, and other designers join the same room. Cursors, comments, knob values, and state stay in lock-step.",
+    title: "Share a link with anyone",
+    body: "PMs, engineers, and other designers join the same room. Cursors, comments, knob values, and state stay in lock-step across every viewer.",
   },
 ]
 

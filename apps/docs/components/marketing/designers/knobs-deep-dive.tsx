@@ -1,5 +1,3 @@
-import { CodeBlock, tok } from "../code-block"
-
 export function KnobsDeepDive() {
   return (
     <section
@@ -13,21 +11,19 @@ export function KnobsDeepDive() {
               Knobs
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Expose every design tweak as a live control.
+              Tune the design without leaving the canvas.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              Component variants in Figma are static. Knobs aren&apos;t. Declare
-              a slider, color picker, switch, or select right inside your
-              component, and Screenplay renders it next to the artboard. Drag
-              the value, see the actual UI respond — gradients, layout shifts,
-              animations, all of it.
+              Component variants in Figma are static. Knobs aren&apos;t. Ask
+              the agent to expose any value — copy, color, spacing, a toggle,
+              a select — and a live control shows up next to the artboard.
+              Drag it and the actual component responds: gradients, layout
+              shifts, animations, all of it.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
               <Bullet>
-                <span className="text-foreground">
-                  Live, not approximated.
-                </span>{" "}
+                <span className="text-foreground">Live, not approximated.</span>{" "}
                 Every knob change re-renders the real component, with real
                 state and real data.
               </Bullet>
@@ -39,22 +35,22 @@ export function KnobsDeepDive() {
                 shows up on your screen, instantly.
               </Bullet>
               <Bullet>
-                <span className="text-foreground">Dev-only, ship-safe.</span>{" "}
-                Calls compile out of production builds. Leave them in code,
-                they&apos;re no-ops where they shouldn&apos;t fire.
+                <span className="text-foreground">
+                  Added by the agent, on demand.
+                </span>{" "}
+                &ldquo;Make the headline editable&rdquo; or &ldquo;let me try
+                different accent colors&rdquo; — the canvas&apos;s coding
+                agent wires knobs into your code for you.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Anywhere in the tree.
+                  Anywhere in the UI.
                 </span>{" "}
-                Knobs are just hooks — drop one in a button, a hero, a
-                navbar. Each one shows up grouped under its artboard.
+                A button, a hero, a nav. Each knob shows up grouped under the
+                artboard it belongs to, so reviewers can find the dial they
+                want.
               </Bullet>
             </ul>
-
-            <div className="mt-8">
-              <KnobsCode />
-            </div>
           </div>
 
           <div>
@@ -75,75 +71,6 @@ function Bullet({ children }: { children: React.ReactNode }) {
       />
       <span className="leading-relaxed">{children}</span>
     </li>
-  )
-}
-
-function KnobsCode() {
-  return (
-    <CodeBlock filename="hero.tsx">
-      <span className={tok.keyword}>import</span> {"{ "}
-      <span className={tok.fn}>useKnob</span>
-      {" } "}
-      <span className={tok.keyword}>from</span>{" "}
-      <span className={tok.string}>{`"@screenplay.space/knobs"`}</span>
-      {"\n\n"}
-      <span className={tok.keyword}>export function</span>{" "}
-      <span className={tok.fn}>Hero</span>
-      <span className={tok.punct}>{"() {"}</span>
-      {"\n  "}
-      <span className={tok.keyword}>const</span> headline ={" "}
-      <span className={tok.fn}>useKnob</span>
-      <span className={tok.punct}>{"({ "}</span>
-      <span className={tok.prop}>id</span>:{" "}
-      <span className={tok.string}>{`"headline"`}</span>,{" "}
-      <span className={tok.prop}>type</span>:{" "}
-      <span className={tok.string}>{`"text"`}</span>,{" "}
-      <span className={tok.prop}>default</span>:{" "}
-      <span className={tok.string}>{`"Ship faster."`}</span>{" "}
-      <span className={tok.punct}>{"})"}</span>
-      {"\n  "}
-      <span className={tok.keyword}>const</span> accent ={" "}
-      <span className={tok.fn}>useKnob</span>
-      <span className={tok.punct}>{"({ "}</span>
-      <span className={tok.prop}>id</span>:{" "}
-      <span className={tok.string}>{`"accent"`}</span>,{" "}
-      <span className={tok.prop}>type</span>:{" "}
-      <span className={tok.string}>{`"color"`}</span>,{" "}
-      <span className={tok.prop}>default</span>:{" "}
-      <span className={tok.string}>{`"#106BE3"`}</span>{" "}
-      <span className={tok.punct}>{"})"}</span>
-      {"\n  "}
-      <span className={tok.keyword}>const</span> radius ={" "}
-      <span className={tok.fn}>useKnob</span>
-      <span className={tok.punct}>{"({ "}</span>
-      <span className={tok.prop}>id</span>:{" "}
-      <span className={tok.string}>{`"radius"`}</span>,{" "}
-      <span className={tok.prop}>type</span>:{" "}
-      <span className={tok.string}>{`"slider"`}</span>,{" "}
-      <span className={tok.prop}>min</span>:{" "}
-      <span className={tok.number}>0</span>,{" "}
-      <span className={tok.prop}>max</span>:{" "}
-      <span className={tok.number}>32</span>{" "}
-      <span className={tok.punct}>{"})"}</span>
-      {"\n  "}
-      <span className={tok.keyword}>const</span> tone ={" "}
-      <span className={tok.fn}>useKnob</span>
-      <span className={tok.punct}>{"({ "}</span>
-      <span className={tok.prop}>id</span>:{" "}
-      <span className={tok.string}>{`"tone"`}</span>,{" "}
-      <span className={tok.prop}>type</span>:{" "}
-      <span className={tok.string}>{`"select"`}</span>,{" "}
-      <span className={tok.prop}>options</span>:{" "}
-      <span className={tok.punct}>{`["light", "dark"]`}</span>{" "}
-      <span className={tok.punct}>{"})"}</span>
-      {"\n\n  "}
-      <span className={tok.comment}>{`// real component, real state, knob-driven`}</span>
-      {"\n  "}
-      <span className={tok.keyword}>return</span>{" "}
-      <span className={tok.punct}>{"<HeroBlock {...{ headline, accent, radius, tone }} />"}</span>
-      {"\n"}
-      <span className={tok.punct}>{"}"}</span>
-    </CodeBlock>
   )
 }
 

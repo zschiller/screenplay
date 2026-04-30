@@ -13,16 +13,16 @@ export function DesignerHero() {
             <span>For designers prototyping in code</span>
           </span>
           <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Your prototype is real code.{" "}
+            Work on your code prototype{" "}
             <span className="text-[#106BE3]">
-              Show it like a design file.
+              like it&apos;s a design file.
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Screenplay is the visual canvas for designers who build in code.
-            Drop your routes onto an infinite canvas, expose live knobs for the
-            tweaks you&apos;d normally rebuild in Figma, and share a link your
-            PM, engineers, and other designers can actually click.
+            Screenplay is a collaborative canvas for designers who build in
+            code. Drop your routes onto an infinite surface, leave notes and
+            comments on the actual UI, sync state across every viewer, and
+            tune the design with fine-grained knobs — all in real time.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href={appUrl}>
@@ -37,8 +37,8 @@ export function DesignerHero() {
             </a>
           </div>
           <p className="mt-6 max-w-md text-xs text-muted-foreground/80">
-            No more screenshotting localhost. No more rebuilding the same
-            component in two tools. The thing you ship is the thing you review.
+            The thing you ship is the thing you review. No screenshots, no
+            rebuilding the component in a second tool.
           </p>
         </div>
 
