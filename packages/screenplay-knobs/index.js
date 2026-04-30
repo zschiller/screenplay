@@ -2,12 +2,18 @@
 //
 // useKnob() registers a control declaration with the parent canvas (when a
 // screenplay canvas is hosting this frame) and returns the live value the
-// canvas's popover is editing. When there is no parent canvas — production
-// builds, standalone dev, anything not running inside screenplay — the hook
-// just returns the declared `default` and quietly no-ops, so prototypes
-// shipped with knobs in them keep working everywhere.
+// canvas's popover is editing. In any build with `NODE_ENV=production`, and
+// when there is no parent canvas, the hook just returns the declared
+// `default` and quietly no-ops — so prototypes shipped with knobs in them
+// keep working everywhere.
 //
-// Each useKnob() call:
+// The package is dev-only by design: production builds dead-code-eliminate
+// the postMessage paths entirely. That means a prototype that is iframed by
+// some non-screenplay parent in production cannot have its knob values read
+// or written via this protocol, because none of the listeners are attached
+// and none of the publishers run.
+//
+// Each useKnob() call (in non-prod, when iframed):
 //   1. Registers the knob's definition in an in-frame map.
 //   2. Posts the merged set of declarations up to the parent canvas via
 //      `screenplay:knobs-declared` (microtask-debounced).
@@ -16,7 +22,15 @@
 import { useEffect, useSyncExternalStore } from "react"
 
 const isBrowser = typeof window !== "undefined"
-const hasParentCanvas = isBrowser && window.parent !== window
+// Treat anything that isn't an explicit "development" build as production —
+// fail closed for plain ESM-in-browser loads where there's no bundler to
+// inline NODE_ENV. Bundlers statically replace `process.env.NODE_ENV`, so a
+// production build dead-code-eliminates the postMessage paths entirely.
+const isDev =
+  typeof process !== "undefined" &&
+  !!process.env &&
+  process.env.NODE_ENV === "development"
+const active = isDev && isBrowser && window.parent !== window
 
 const definitions = new Map()
 const values = new Map()
@@ -32,7 +46,7 @@ function stripValidator(def) {
 }
 
 function publishDeclarations() {
-  if (!hasParentCanvas) return
+  if (!active) return
   if (publishScheduled) return
   publishScheduled = true
   // Coalesce within a single tick so many useKnob calls from one render
@@ -81,7 +95,7 @@ function applyValue(id, raw) {
   notify()
 }
 
-if (hasParentCanvas) {
+if (active) {
   window.addEventListener("message", (e) => {
     const data = e.data
     if (!data || data.type !== "screenplay:knob-values") return
@@ -120,9 +134,9 @@ const subscribe = (cb) => {
 
 export function useKnob(def) {
   // Register synchronously on first render so SSR-safe pages still work.
-  // Publication itself is gated on hasParentCanvas inside publishDeclarations,
-  // so a prototype rendered outside a screenplay frame is silent + returns the
-  // declared default forever.
+  // Publication itself is gated on `active` inside publishDeclarations, so a
+  // prototype rendered outside a screenplay frame — or in any production
+  // build — is silent and returns the declared default forever.
   if (isBrowser) register(def)
 
   const value = useSyncExternalStore(

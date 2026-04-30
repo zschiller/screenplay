@@ -10,10 +10,12 @@ The canvas itself doesn't render an editor for shared state today; it shows
 a tiny indicator on the route pill with the JSON in a tooltip. That's
 deliberate — direct editing from the canvas may come later.
 
-When the prototype runs outside a screenplay canvas — production builds,
-standalone dev, anything that isn't iframed inside screenplay — every API
-on this module is a no-op. Nothing ever leaves the page. Shipping
-`useSharedState` calls to production is safe.
+The package is dev-only by design. In any build with `NODE_ENV` set to
+anything other than `"development"`, every API on this module is a no-op
+and the postMessage paths are dead-code-eliminated by the bundler.
+Nothing ever leaves the page, no inbound listener is attached, no remote
+setter is ever invoked. Shipping `useSharedState` calls to production is
+safe.
 
 ## Install
 
@@ -92,13 +94,24 @@ published.
 
 ## Production safety
 
-The module checks `window.parent !== window` once at load time. Outside a
-screenplay frame the publish path never runs, the in-memory map is never
-written to, and the inbound message listener is never installed. There is
-no other gate — if a prototype is hosted by another iframe (e.g. embedded
-in a docs site) it will *not* leak unless that parent listens for
-`screenplay:shared-state` postMessages, and even then only the data the
-prototype voluntarily passes to `useSharedState` is exposed.
+The module gates everything on `process.env.NODE_ENV === "development"`
+plus `window.parent !== window`, evaluated once at load time. In any
+non-development build — production, test, or a no-bundler load where
+`NODE_ENV` isn't defined — the publish path never runs, the in-memory
+map is never written to, and the inbound message listener is never
+installed. Bundlers (Next, Vite, esbuild, webpack) statically inline
+`process.env.NODE_ENV`, so a production bundle dead-code-eliminates
+those branches entirely; the package contributes effectively zero
+runtime to a prod build.
+
+That's the production-safety story: a prototype that ships
+`useSharedState` calls in committed code, then gets iframed by some
+non-screenplay parent in production, cannot have its state read or
+written via this protocol — none of the protocol is wired up at all.
+
+In development, the legacy gate (`window.parent !== window`) still
+applies. A prototype rendered standalone never publishes; only when
+hosted by a real screenplay canvas does the bridge come alive.
 
 ## Releasing
 

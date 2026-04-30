@@ -7,13 +7,16 @@
 // the same room. The canvas itself doesn't render an editor — it shows a
 // tiny indicator inside the route pill with the JSON in a tooltip.
 //
-// Outside a screenplay frame — production builds, standalone dev, anything
-// that isn't iframed inside screenplay — every API on this module is a
-// no-op. Nothing ever leaves the page. That's the whole production-safety
-// story: the postMessage path is gated on `window.parent !== window`, the
-// in-memory map is never written to, and remote setters are never invoked.
+// The package is dev-only by design. In any build with `NODE_ENV` set to
+// anything other than `"development"` — production, test, no bundler at all
+// — every API on this module is a no-op. Nothing ever leaves the page, no
+// inbound listener is attached, no remote setter is ever invoked. That's
+// the production-safety story: a prototype that ships `useSharedState`
+// calls and gets iframed by some non-screenplay parent in production cannot
+// have its state read or written via this protocol, because the postMessage
+// paths are dead-code-eliminated by the bundler.
 //
-// Each useSharedState(key, value, setter?) call:
+// Each useSharedState(key, value, setter?) call (in dev, when iframed):
 //   1. Registers the (optional) setter so remote updates can write back into
 //      the prototype's local state.
 //   2. Diffs the new value against the last-seen one.
@@ -27,7 +30,15 @@
 import { useEffect, useRef } from "react"
 
 const isBrowser = typeof window !== "undefined"
-const hasParentCanvas = isBrowser && window.parent !== window
+// Treat anything that isn't an explicit "development" build as production —
+// fail closed for plain ESM-in-browser loads where there's no bundler to
+// inline NODE_ENV. Bundlers statically replace `process.env.NODE_ENV`, so a
+// production build dead-code-eliminates the postMessage paths entirely.
+const isDev =
+  typeof process !== "undefined" &&
+  !!process.env &&
+  process.env.NODE_ENV === "development"
+const active = isDev && isBrowser && window.parent !== window
 
 // Hard cap on the published payload. Anything above this gets dropped with
 // a console warning rather than being shipped over postMessage — protects
@@ -52,7 +63,7 @@ function safeStringify(value) {
 }
 
 function schedulePublish() {
-  if (!hasParentCanvas) return
+  if (!active) return
   if (publishScheduled) return
   publishScheduled = true
   // Microtask-coalesce so a render that calls useSharedState many times
@@ -100,13 +111,13 @@ function updateEntry(key, value) {
 }
 
 function setEntry(key, value) {
-  if (!hasParentCanvas) return
+  if (!active) return
   if (typeof key !== "string" || key.length === 0) return
   if (updateEntry(key, value)) schedulePublish()
 }
 
 function clearEntry(key) {
-  if (!hasParentCanvas) return
+  if (!active) return
   if (!entries.has(key)) return
   entries.delete(key)
   schedulePublish()
@@ -136,7 +147,7 @@ function removeSetter(key, setter) {
   if (set.size === 0) settersByKey.delete(key)
 }
 
-if (hasParentCanvas) {
+if (active) {
   window.addEventListener("message", (e) => {
     const data = e.data
     if (!data || data.type !== "screenplay:shared-state-apply") return
@@ -177,7 +188,7 @@ export function useSharedState(key, value, setter) {
   setterRef.current = setter
 
   useEffect(() => {
-    if (!hasParentCanvas) return
+    if (!active) return
     if (!setterRef.current) return
     const wrapped = (v) => setterRef.current?.(v)
     addSetter(key, wrapped)
@@ -208,7 +219,7 @@ export function setSharedState(key, value) {
  * invoked and the unsubscribe is a no-op.
  */
 export function subscribeSharedState(key, onChange) {
-  if (!hasParentCanvas) return () => {}
+  if (!active) return () => {}
   addSetter(key, onChange)
   return () => removeSetter(key, onChange)
 }
