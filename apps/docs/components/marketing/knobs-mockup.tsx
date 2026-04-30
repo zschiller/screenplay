@@ -12,7 +12,7 @@ export function KnobsMockup() {
 
       {/* Animated card preview that responds to the knob */}
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/30 py-6">
-        <div className="rounded-lg border border-border bg-background p-[var(--card-pad,16px)] shadow-sm transition-[padding] duration-150">
+        <div className="card-pad rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="flex w-44 flex-col gap-2">
             <div className="h-2 w-1/2 rounded bg-foreground/80" />
             <div className="h-1.5 w-3/4 rounded bg-muted-foreground/40" />
@@ -26,7 +26,7 @@ export function KnobsMockup() {
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-foreground">Padding</span>
           <span className="font-mono text-xs text-muted-foreground">
-            <span className="knob-value">●</span> px
+            <span className="knob-value-fade">●</span> px
           </span>
         </div>
         <div className="relative h-1.5 rounded-full bg-muted">
