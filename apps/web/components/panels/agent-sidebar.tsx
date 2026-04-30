@@ -85,6 +85,8 @@ import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
 import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
 import { ArtboardSizeSelect } from "@/components/artboard-size-select"
 import { DEFAULT_ARTBOARD_SIZE_ID } from "@/lib/artboard-sizes"
+import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
+import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
@@ -98,13 +100,19 @@ interface AgentSidebarProps {
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
-  onRemoveWorkspace: (id: string) => void
+  onRemoveWorkspace: (
+    id: string,
+    options: { deleteBranchesOnRemote: boolean },
+  ) => void | Promise<void>
   onCreateAgent: (workspaceId: string) => void
   onCreateAgentFromBranch: (workspaceId: string, branch: string) => void
   onDuplicateBranch: (workspaceId: string, branch: string) => void
   onForkAgent: (agentId: string) => void
   onRefreshAgent: (id: string) => void
-  onRemoveAgent: (id: string) => void
+  onRemoveAgent: (
+    id: string,
+    options: { deleteOnRemote: boolean },
+  ) => void | Promise<void>
   onAddArtboard: (agentId: string) => void
   onPlayAgent: (agentId: string) => void
   onShowRoutes: (agentId: string) => void
@@ -163,6 +171,8 @@ export function AgentSidebar({
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
+  const [pendingDeleteAgentId, setPendingDeleteAgentId] = useState<string | null>(null)
+  const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
@@ -303,7 +313,7 @@ export function AgentSidebar({
                                 onUpdate={onUpdateWorkspace}
                                 onRemove={() => {
                                   setSettingsWorkspaceId(null)
-                                  onRemoveWorkspace(workspace.id)
+                                  setPendingDeleteWorkspaceId(workspace.id)
                                 }}
                                 onClose={() => setSettingsWorkspaceId(null)}
                               />
@@ -464,7 +474,7 @@ export function AgentSidebar({
                                                           Copy connection string
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem variant="destructive" onClick={() => onRemoveAgent(agent.id)}>
+                                                        <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteAgentId(agent.id)}>
                                                           <Trash2 />
                                                           Delete
                                                         </DropdownMenuItem>
@@ -719,6 +729,50 @@ export function AgentSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </div>
+      {(() => {
+        const agent = pendingDeleteAgentId
+          ? agents.find((a) => a.id === pendingDeleteAgentId)
+          : null
+        return (
+          <DeleteBranchDialog
+            open={!!agent}
+            onOpenChange={(open) => {
+              if (!open) setPendingDeleteAgentId(null)
+            }}
+            branchName={agent?.branch ?? ""}
+            onConfirm={async ({ deleteOnRemote }) => {
+              if (!agent) return
+              await onRemoveAgent(agent.id, { deleteOnRemote })
+              setPendingDeleteAgentId(null)
+            }}
+          />
+        )
+      })()}
+      {(() => {
+        const workspace = pendingDeleteWorkspaceId
+          ? workspaces.find((w) => w.id === pendingDeleteWorkspaceId)
+          : null
+        const workspaceBranches = workspace
+          ? agents
+              .filter((a) => a.workspaceId === workspace.id && a.branch)
+              .map((a) => a.branch)
+          : []
+        return (
+          <DeleteWorkspaceDialog
+            open={!!workspace}
+            onOpenChange={(open) => {
+              if (!open) setPendingDeleteWorkspaceId(null)
+            }}
+            workspaceName={workspace?.name?.trim() || workspace?.repoFullName || ""}
+            branches={workspaceBranches}
+            onConfirm={async ({ deleteBranchesOnRemote }) => {
+              if (!workspace) return
+              await onRemoveWorkspace(workspace.id, { deleteBranchesOnRemote })
+              setPendingDeleteWorkspaceId(null)
+            }}
+          />
+        )
+      })()}
     </SidebarProvider>
   )
 }
