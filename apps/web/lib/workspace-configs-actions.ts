@@ -1,6 +1,8 @@
 "use server"
 
+import { adjectives, animals, colors, uniqueNamesGenerator } from "unique-names-generator"
 import { requireUserId } from "@/lib/auth-helpers"
+import { createBranch } from "./github-actions"
 import { getConfigs, saveConfigs } from "./workspace-configs-store"
 import type { WorkspaceConfig } from "./workspace-configs.types"
 
@@ -28,10 +30,31 @@ export async function upsertWorkspaceConfig(
   }
 
   const idx = list.findIndex((c) => c.id === config.id)
+  const isNew = idx === -1
   const next: WorkspaceConfig[] =
-    idx === -1 ? [...list, config] : list.map((c) => (c.id === config.id ? config : c))
+    isNew ? [...list, config] : list.map((c) => (c.id === config.id ? config : c))
 
   await saveConfigs(userId, next)
+
+  if (isNew) {
+    const branchName = uniqueNamesGenerator({
+      dictionaries: [adjectives, colors, animals],
+      separator: "-",
+      length: 3,
+    })
+    const result = await createBranch(
+      config.repoOwner,
+      config.repoName,
+      branchName,
+      config.defaultBranch,
+    )
+    if (!result.success) {
+      console.warn(
+        `Failed to auto-generate branch ${branchName} for ${config.repoFullName}: ${result.error}`,
+      )
+    }
+  }
+
   return next
 }
 
