@@ -69,7 +69,7 @@ function PackageRow({
 }) {
   return (
     <div
-      className={`grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-stretch ${
+      className={`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-stretch ${
         reverse ? "lg:[&>*:first-child]:order-2" : ""
       }`}
     >
