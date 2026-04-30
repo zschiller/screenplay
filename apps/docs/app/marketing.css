@@ -1,0 +1,134 @@
+@layer utilities {
+  .cursor-a,
+  .cursor-b {
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cursor-a {
+      animation: cursor-a-drift 11s ease-in-out infinite;
+    }
+    .cursor-b {
+      animation: cursor-b-drift 13s ease-in-out infinite;
+      animation-delay: -3s;
+    }
+    .knob-thumb {
+      animation: knob-drift 4.2s ease-in-out infinite;
+    }
+    .knob-fill {
+      animation: knob-fill 4.2s ease-in-out infinite;
+    }
+    .knob-value-fade {
+      animation: knob-value-fade 4.2s ease-in-out infinite;
+    }
+    .state-tick {
+      animation: state-tick 4s ease-in-out infinite;
+    }
+    .state-bump {
+      animation: state-bump 4s ease-in-out infinite;
+    }
+  }
+
+  @keyframes cursor-a-drift {
+    0% {
+      transform: translate(40px, 60px);
+    }
+    25% {
+      transform: translate(220px, 40px);
+    }
+    50% {
+      transform: translate(280px, 200px);
+    }
+    75% {
+      transform: translate(120px, 240px);
+    }
+    100% {
+      transform: translate(40px, 60px);
+    }
+  }
+
+  @keyframes cursor-b-drift {
+    0% {
+      transform: translate(360px, 220px);
+    }
+    25% {
+      transform: translate(180px, 280px);
+    }
+    50% {
+      transform: translate(80px, 140px);
+    }
+    75% {
+      transform: translate(300px, 80px);
+    }
+    100% {
+      transform: translate(360px, 220px);
+    }
+  }
+
+  @keyframes knob-drift {
+    0% {
+      left: 14%;
+    }
+    50% {
+      left: 78%;
+    }
+    100% {
+      left: 14%;
+    }
+  }
+
+  @keyframes knob-fill {
+    0% {
+      width: 14%;
+    }
+    50% {
+      width: 78%;
+    }
+    100% {
+      width: 14%;
+    }
+  }
+
+  /* Vertical translate animation that scrolls a stacked column of digits */
+  @keyframes state-tick {
+    0%,
+    18% {
+      transform: translateY(0%);
+    }
+    25%,
+    43% {
+      transform: translateY(-25%);
+    }
+    50%,
+    68% {
+      transform: translateY(-50%);
+    }
+    75%,
+    93% {
+      transform: translateY(-75%);
+    }
+    100% {
+      transform: translateY(0%);
+    }
+  }
+
+  @keyframes state-bump {
+    0%,
+    18%,
+    25%,
+    43%,
+    50%,
+    68%,
+    75%,
+    93%,
+    100% {
+      transform: scale(1);
+    }
+    20%,
+    45%,
+    70%,
+    95% {
+      transform: scale(1.15);
+    }
+  }
+}
