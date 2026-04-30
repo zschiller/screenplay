@@ -14,9 +14,10 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Screenplay — design UIs on a canvas where every artboard runs live code",
+  title:
+    "Screenplay — a collaborative canvas for designers who prototype in code",
   description:
-    "An infinite canvas for product teams. Each artboard boots its own sandbox, syncs in real time, and ships with a Claude coding agent in the loop.",
+    "Work on your code prototype like it's a design file. Drop routes onto an infinite canvas, leave notes and comments anchored to the live UI, sync state across every viewer, and tune the design with fine-grained knobs — all in real time.",
 }
 
 export default function RootLayout({

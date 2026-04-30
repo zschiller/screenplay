@@ -21,16 +21,6 @@
     .knob-value-fade {
       animation: knob-value-fade 4.2s ease-in-out infinite;
     }
-    .card-pad {
-      animation: card-pad-drift 4.2s ease-in-out infinite;
-    }
-    .state-tick {
-      animation: state-tick 4s ease-in-out infinite;
-    }
-    .state-bump {
-      animation: state-bump 4s ease-in-out infinite;
-    }
-
     /* Designer knobs deep-dive — synchronized cycle (8s) */
     .knob-headline-fade {
       animation: knob-headline-fade 8s ease-in-out infinite;
@@ -165,16 +155,6 @@
     }
   }
 
-  @keyframes card-pad-drift {
-    0%,
-    100% {
-      padding: 8px;
-    }
-    50% {
-      padding: 32px;
-    }
-  }
-
   @keyframes knob-value-fade {
     0%,
     100% {
@@ -182,49 +162,6 @@
     }
     50% {
       opacity: 1;
-    }
-  }
-
-  /* Vertical translate animation that scrolls a stacked column of digits */
-  @keyframes state-tick {
-    0%,
-    18% {
-      transform: translateY(0%);
-    }
-    25%,
-    43% {
-      transform: translateY(-25%);
-    }
-    50%,
-    68% {
-      transform: translateY(-50%);
-    }
-    75%,
-    93% {
-      transform: translateY(-75%);
-    }
-    100% {
-      transform: translateY(0%);
-    }
-  }
-
-  @keyframes state-bump {
-    0%,
-    18%,
-    25%,
-    43%,
-    50%,
-    68%,
-    75%,
-    93%,
-    100% {
-      transform: scale(1);
-    }
-    20%,
-    45%,
-    70%,
-    95% {
-      transform: scale(1.15);
     }
   }
 
