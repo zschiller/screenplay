@@ -1,23 +1,23 @@
-import { Button } from "@workspace/ui/components/button"
-
-const appUrl =
-  process.env.NODE_ENV === "production"
-    ? "https://build.screenplay.space"
-    : "http://localhost:3000"
+import { Header } from "@/components/marketing/header"
+import { Hero } from "@/components/marketing/hero"
+import { Features } from "@/components/marketing/features"
+import { Packages } from "@/components/marketing/packages"
+import { HowItWorks } from "@/components/marketing/how-it-works"
+import { CTA } from "@/components/marketing/cta"
+import { Footer } from "@/components/marketing/footer"
 
 export default function HomePage() {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-10 text-center">
-      <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-        Screenplay
-      </h1>
-      <p className="max-w-xl text-balance text-muted-foreground">
-        Build, collaborate, and ship multi-agent coding experiences — together
-        on a shared canvas.
-      </p>
-      <a href={appUrl}>
-        <Button size="lg">Get started</Button>
-      </a>
-    </main>
+    <div className="flex min-h-svh flex-col">
+      <Header />
+      <main className="flex-1">
+        <Hero />
+        <Features />
+        <Packages />
+        <HowItWorks />
+        <CTA />
+      </main>
+      <Footer />
+    </div>
   )
 }
