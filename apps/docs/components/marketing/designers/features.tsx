@@ -1,64 +1,70 @@
-type Feature = {
-  title: string
-  body: string
+type Loss = {
+  eyebrow: string
+  pain: string
+  fix: string
   icon: React.ReactNode
 }
 
-const features: Feature[] = [
+const losses: Loss[] = [
   {
-    title: "A canvas around real code",
-    body: "Lay out your routes, components, and variants on an infinite canvas. Each artboard is the actual running UI — same auth, same data, same animations.",
-    icon: <CanvasIcon />,
+    eyebrow: "Collaboration",
+    pain: "Localhost is for one. So is your agent chat.",
+    fix: "Two designers vibe coding can't see each other's screen, can't read each other's agent transcript, can't comment on a state without checking out the same branch. Screenplay drops your prototype into a shared room — same artboards, same sandbox, same agent in the loop, cursors and comments and knobs in real time.",
+    icon: <CollabIcon />,
   },
   {
-    title: "Knobs for design tweaks",
-    body: "Expose copy, colors, spacing, and toggles as live controls. Reviewers tweak the design without touching the code — and you see exactly what they tried.",
-    icon: <KnobsIcon />,
+    eyebrow: "Going broad",
+    pain: "Agents go deep. Branches don't compare.",
+    fix: "AI agents are great at sprinting one direction at a time. Going broad means juggling branches — which don't sit next to each other, don't run side by side, and don't take a comment. Each artboard on the canvas is its own branch in its own sandbox. Three takes on a screen, three artboards, one glance.",
+    icon: <BreadthIcon />,
   },
   {
-    title: "State sync across viewers",
-    body: "When you scrub a prototype to its loading state, every viewer sees it too. Multiplayer demos with no \"can you go back to the empty state?\"",
-    icon: <SyncIcon />,
-  },
-  {
-    title: "Comments anchored to UI",
-    body: "Drop a thread on the actual button — not a flattened screenshot. The pin sticks to the DOM node as the design evolves.",
-    icon: <CommentIcon />,
+    eyebrow: "Communication",
+    pain: "Loom isn't a design review.",
+    fix: "Talking through a flow without Figma means screenshots, screen recordings, or \"can you click that again?\". Screenplay lays every screen and every state out on an infinite canvas. Comments anchor to the actual button. Scrub through states and every viewer follows.",
+    icon: <CommIcon />,
   },
 ]
 
 export function DesignerFeatures() {
   return (
-    <section className="border-b border-border/60">
+    <section
+      id="what-you-lost"
+      className="border-b border-border/60 scroll-mt-16"
+    >
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-wider text-[#106BE3]">
-            Built for designers
+            What you lost when you stopped opening Figma
           </span>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            The collaboration layer your code prototype was missing.
+            Real code is awesome. The design loop got worse.
           </h2>
           <p className="mt-4 text-balance text-muted-foreground">
-            You ship in code already — Cursor, Claude, your IDE, whatever.
-            Screenplay wraps that work in a canvas so the rest of your team can
-            see it, click it, and weigh in.
+            Screenplay is built around the three things vibe coding broke —
+            and puts them back without asking you to give up real code.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((f) => (
+        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+          {losses.map((loss) => (
             <div
-              key={f.title}
-              className="flex flex-col gap-3 bg-card p-6 transition-colors hover:bg-accent/30"
+              key={loss.eyebrow}
+              className="flex flex-col gap-4 bg-card p-7 transition-colors hover:bg-accent/30"
             >
               <div className="flex size-9 items-center justify-center rounded-md bg-[#106BE3]/10 text-[#106BE3]">
-                {f.icon}
+                {loss.icon}
               </div>
-              <h3 className="text-base font-semibold tracking-tight">
-                {f.title}
-              </h3>
+              <div>
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                  {loss.eyebrow}
+                </span>
+                <h3 className="mt-1 text-lg font-semibold tracking-tight">
+                  {loss.pain}
+                </h3>
+              </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {f.body}
+                {loss.fix}
               </p>
             </div>
           ))}
@@ -68,7 +74,7 @@ export function DesignerFeatures() {
   )
 }
 
-function CanvasIcon() {
+function CollabIcon() {
   return (
     <svg
       width="18"
@@ -81,15 +87,15 @@ function CanvasIcon() {
       strokeLinejoin="round"
       aria-hidden
     >
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <circle cx="9" cy="9" r="3" />
+      <circle cx="17" cy="13" r="2.5" />
+      <path d="M3 21c.7-3 3.1-5 6-5s5.3 2 6 5" />
+      <path d="M14.5 19c.5-1.7 2-3 4-3s3.5 1.3 4 3" />
     </svg>
   )
 }
 
-function KnobsIcon() {
+function BreadthIcon() {
   return (
     <svg
       width="18"
@@ -102,17 +108,22 @@ function KnobsIcon() {
       strokeLinejoin="round"
       aria-hidden
     >
-      <line x1="4" y1="6" x2="20" y2="6" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="18" x2="20" y2="18" />
-      <circle cx="9" cy="6" r="2" fill="currentColor" />
-      <circle cx="15" cy="12" r="2" fill="currentColor" />
-      <circle cx="7" cy="18" r="2" fill="currentColor" />
+      {/* Three forking branches */}
+      <circle cx="6" cy="5" r="1.6" />
+      <path d="M6 6.6 V11" />
+      <path d="M6 11 H12" />
+      <path d="M12 11 V7" />
+      <circle cx="12" cy="5.4" r="1.6" />
+      <path d="M6 11 V17" />
+      <circle cx="6" cy="18.6" r="1.6" />
+      <path d="M6 11 H18" />
+      <path d="M18 11 V17" />
+      <circle cx="18" cy="18.6" r="1.6" />
     </svg>
   )
 }
 
-function SyncIcon() {
+function CommIcon() {
   return (
     <svg
       width="18"
@@ -125,26 +136,10 @@ function SyncIcon() {
       strokeLinejoin="round"
       aria-hidden
     >
-      <path d="M21 12a9 9 0 1 1-3.5-7.1" />
-      <polyline points="21 4 21 9 16 9" />
-    </svg>
-  )
-}
-
-function CommentIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <rect x="3" y="4" width="8" height="6" rx="1" />
+      <rect x="13" y="4" width="8" height="6" rx="1" />
+      <rect x="3" y="14" width="8" height="6" rx="1" />
+      <rect x="13" y="14" width="8" height="6" rx="1" />
     </svg>
   )
 }

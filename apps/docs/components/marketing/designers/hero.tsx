@@ -10,19 +10,18 @@ export function DesignerHero() {
         <div className="flex flex-col justify-center">
           <span className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="size-1.5 rounded-full bg-[#106BE3]" />
-            <span>For designers prototyping in code</span>
+            <span>For designers vibe coding prototypes</span>
           </span>
           <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Work on your code prototype{" "}
-            <span className="text-[#106BE3]">
-              like it&apos;s a design file.
-            </span>
+            Vibe coding prototypes is great.{" "}
+            <span className="text-[#106BE3]">Reviewing them is broken.</span>
           </h1>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Screenplay is a collaborative canvas for designers who build in
-            code. Drop your routes onto an infinite surface, leave notes and
-            comments on the actual UI, sync state across every viewer, and
-            tune the design with fine-grained knobs — all in real time.
+            Localhost is for one person. Agent chats don&apos;t share.
+            Branches don&apos;t sit next to each other. Loom isn&apos;t a
+            design review. Screenplay puts your AI-built prototypes on a
+            multiplayer canvas — every direction laid out, every screen
+            reviewable, every viewer in sync.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a href={appUrl}>
@@ -30,15 +29,15 @@ export function DesignerHero() {
                 Open Screenplay
               </Button>
             </a>
-            <a href="#knobs">
+            <a href="#what-you-lost">
               <Button size="lg" variant="outline">
-                See the designer features
+                What you lost when you stopped using Figma
               </Button>
             </a>
           </div>
           <p className="mt-6 max-w-md text-xs text-muted-foreground/80">
-            The thing you ship is the thing you review. No screenshots, no
-            rebuilding the component in a second tool.
+            For designers using Cursor, Claude Code, V0, Bolt — anywhere your
+            prototype is real running code on someone else&apos;s machine.
           </p>
         </div>
 

@@ -3,11 +3,12 @@ export function DesignerCanvasMockup() {
     <div className="relative isolate aspect-[5/4] w-full overflow-hidden rounded-2xl border border-border bg-muted/30">
       <CanvasGrid />
 
-      {/* The "design" — a real route running in a sandbox */}
+      {/* Two takes on the same screen, each on its own branch — the breadth
+          you can't get from a single localhost. */}
       <Artboard
-        label="Pricing"
+        label="Pricing — three-up"
         route="/pricing"
-        branch="design/pricing-v3"
+        branch="design/pricing-three-up"
         branchClass="bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300"
         className="absolute left-[8%] top-[14%] h-[64%] w-[52%]"
         showButtons
@@ -15,12 +16,11 @@ export function DesignerCanvasMockup() {
         <FakePricing />
       </Artboard>
 
-      {/* Side-by-side variant, driven by the same component with different knobs */}
       <Artboard
-        label="Pricing — dark"
+        label="Pricing — dense, dark"
         route="/pricing"
-        branch="design/pricing-v3"
-        branchClass="bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300"
+        branch="design/pricing-dense"
+        branchClass="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
         className="absolute right-[6%] top-[10%] h-[42%] w-[34%]"
       >
         <FakePricing dark />

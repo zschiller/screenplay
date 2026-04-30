@@ -11,14 +11,15 @@ export function KnobsDeepDive() {
               Knobs
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Tune the design without leaving the canvas.
+              Tune the design without re-prompting the agent.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              Component variants in Figma are static. Knobs aren&apos;t. Ask
-              the agent to expose any value — copy, color, spacing, a toggle,
-              a select — and a live control shows up next to the artboard.
-              Drag it and the actual component responds: gradients, layout
-              shifts, animations, all of it.
+              When the spacing&apos;s off by a hair or you want to try three
+              different headlines, you don&apos;t want to round-trip through
+              the agent for every tweak. Ask it once to expose the value as a
+              knob — copy, color, spacing, a toggle — and from then on you
+              (or your reviewer) drag the dial live. The real component
+              responds: gradients, layout shifts, animations, all of it.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
@@ -31,24 +32,23 @@ export function KnobsDeepDive() {
                 <span className="text-foreground">
                   Multiplayer by default.
                 </span>{" "}
-                Values sync to every viewer in the room — your PM&apos;s drag
-                shows up on your screen, instantly.
+                Values sync to every viewer in the room — your reviewer&apos;s
+                drag shows up on your screen, instantly.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
                   Added by the agent, on demand.
                 </span>{" "}
-                &ldquo;Make the headline editable&rdquo; or &ldquo;let me try
-                different accent colors&rdquo; — the canvas&apos;s coding
-                agent wires knobs into your code for you.
+                &ldquo;Let me try different accent colors&rdquo; — the canvas
+                agent wires the knob in for you. No round-trip for the next
+                tweak.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Anywhere in the UI.
+                  Land a value, then commit it.
                 </span>{" "}
-                A button, a hero, a nav. Each knob shows up grouped under the
-                artboard it belongs to, so reviewers can find the dial they
-                want.
+                When you find the one, ask the agent to bake the dialed-in
+                value back into the code as the new default.
               </Bullet>
             </ul>
           </div>

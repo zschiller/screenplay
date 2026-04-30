@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Prototype in code with the agent",
-    body: "Work with Screenplay's coding agent inside the sandbox to build your routes and components. Same as Cursor or Claude in your IDE — except the canvas is right there.",
+    title: "Vibe code with the agent",
+    body: "Build the prototype the way you already do — Screenplay runs a coding agent inside the sandbox attached to each artboard. Same loop as Cursor or Claude Code, with the canvas one click away.",
   },
   {
     num: "02",
-    title: "Drop the route on a canvas",
-    body: "Each artboard boots its own sandbox VM. The actual page renders — real data, real animations — not a flattened export.",
+    title: "Branch out, side by side",
+    body: "Try three takes on the screen. Each artboard is its own branch in its own sandbox. Compare directions on a canvas instead of in your head.",
   },
   {
     num: "03",
-    title: "Collaborate on the live UI",
-    body: "Leave notes, drop comments anchored to elements, scrub through states together, and ask the agent to expose knobs for any value you want to tune live.",
+    title: "Bring the team in",
+    body: "Drop the link in Slack. Reviewers see the same artboards, the same agent transcript, and your cursor. Comments anchor to elements. State syncs across the room.",
   },
   {
     num: "04",
-    title: "Share a link with anyone",
-    body: "PMs, engineers, and other designers join the same room. Cursors, comments, knob values, and state stay in lock-step across every viewer.",
+    title: "Tighten with knobs, then ship",
+    body: "Ask the agent to expose the values you want adjustable. Dial them in live with the room watching. When the look is right, commit the values back into the code.",
   },
 ]
 
@@ -33,10 +33,10 @@ export function DesignerWorkflow() {
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-wider text-[#106BE3]">
-            The designer workflow
+            The vibe-coding loop, restored
           </span>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            From a route on your machine to a room your team can review.
+            Prompt, branch, review — without leaving the canvas.
           </h2>
         </div>
 

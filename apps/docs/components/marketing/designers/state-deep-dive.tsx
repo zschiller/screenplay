@@ -8,14 +8,15 @@ export function StateDeepDive() {
               State sync
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              The whole room sees the same screen.
+              Review every state with the room in lock-step.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              When you click into the loading state, every viewer follows.
-              When your reviewer toggles the empty state, you see it on your
-              end too. No more &ldquo;ok, now go back to the error
-              screen&rdquo; — selected items, form values, current step,
-              route, modal open/closed: it all stays in lock-step.
+              The reason design reviews fall back to Loom: walking someone
+              through a flow over a screen share. With Screenplay, when you
+              click into the loading state, every viewer follows. When your
+              reviewer tries the empty state, you see it. Selected items,
+              form values, current step, route, modal open/closed — same
+              screen, same time, no narration required.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
@@ -24,25 +25,22 @@ export function StateDeepDive() {
                   Anything stateful, shared.
                 </span>{" "}
                 Forms, toggles, selections, route params, the active tab —
-                ask the agent to make it shared and it&apos;s multiplayer.
+                ask the agent to make a piece of state shared and it&apos;s
+                multiplayer.
               </Bullet>
               <Bullet>
-                <span className="text-foreground">
-                  Conflict-free.
-                </span>{" "}
+                <span className="text-foreground">Conflict-free.</span>{" "}
                 Two reviewers tweaking at once converge cleanly, backed by
                 Yjs. No flicker, no last-write-wins surprises.
               </Bullet>
               <Bullet>
-                <span className="text-foreground">
-                  Persists per artboard.
-                </span>{" "}
+                <span className="text-foreground">Persists per artboard.</span>{" "}
                 Close the tab, come back tomorrow, the prototype is exactly
-                where you left it. Great for long-running review threads.
+                where you left it — handy for async review.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Works with what you already have.
+                  Works with what the agent already wrote.
                 </span>{" "}
                 Zustand, Jotai, Redux, plain hooks — if it&apos;s a value, it
                 can be shared.
