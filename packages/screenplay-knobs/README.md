@@ -2,7 +2,7 @@
 
 Declare interactive controls (sliders, switches, selects, color pickers, text inputs) from a prototype's own code. They show up in a popover on the screenplay canvas next to the artboard's "interact" button. Knob state syncs across viewers in real time.
 
-When the prototype is rendered outside a screenplay canvas — production, standalone dev, anything that isn't an iframed sandbox — `useKnob` quietly returns the declared `default`. So shipping knobs in committed code is safe.
+The package is dev-only by design. In any build with `NODE_ENV` set to anything other than `"development"`, `useKnob` quietly returns the declared `default` and every postMessage path is dead-code-eliminated by the bundler — no listener is attached, no declaration is published, no value is ever read or written from a parent frame. So shipping knobs in committed code is safe: even if the deployed prototype is iframed by some non-screenplay parent in production, none of the knob protocol is wired up to act on.
 
 ## Install
 

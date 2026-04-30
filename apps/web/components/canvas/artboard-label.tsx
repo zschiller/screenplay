@@ -184,7 +184,7 @@ export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zo
             sharedState={sharedState}
           />
         ) : (
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] hover:max-w-full transition-[max-width] duration-200">
             <span className="truncate">{route || "/"}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
@@ -213,15 +213,15 @@ export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zo
         {branch && (
           onSelectRoute ? (
             <span className="flex items-center gap-1">
-              <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
-                {route || "/"}
+              <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem]">
+                <span className="truncate">{route || "/"}</span>
                 <SharedStateIndicator sharedState={sharedState} />
               </Badge>
               <span className="h-3 w-3 shrink-0" />
             </span>
           ) : (
-            <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px]">
-              {route || "/"}
+            <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem]">
+              <span className="truncate">{route || "/"}</span>
               <SharedStateIndicator sharedState={sharedState} />
             </Badge>
           )
@@ -248,9 +248,10 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
   const hasExactMatch = typedRoute
     ? discoveredRoutes.some((r) => r.route === typedRoute)
     : true
-  const filteredRoutes = trimmed
+  const filteredRoutes = (trimmed
     ? discoveredRoutes.filter((r) => r.route.toLowerCase().includes(trimmed.toLowerCase()))
     : discoveredRoutes
+  ).slice().sort((a, b) => a.route.localeCompare(b.route))
 
   const handleSelect = (next: string) => {
     onSelectRoute(next)
@@ -272,7 +273,7 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-full">
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] group-hover:max-w-full transition-[max-width] duration-200">
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
@@ -372,7 +373,7 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
             <Braces className="h-2.5 w-2.5" />
           </span>
         </TooltipTrigger>
-        <TooltipContent side="bottom" align="end" className="max-w-[360px] p-0">
+        <TooltipContent side="bottom" className="max-w-[360px] p-0">
           <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap break-words p-2 font-mono text-[10px] leading-snug">
             {json}
           </pre>
