@@ -25,22 +25,31 @@ export async function POST(req: Request) {
 
   const client = getClient()
 
+  let interruptError: unknown = null
   try {
     await client.beta.sessions.events.send(sessionId, {
       events: [{ type: "user.interrupt" }],
     })
   } catch (e) {
     console.error("Stop interrupt failed:", e)
-    return new Response(e instanceof Error ? e.message : String(e), { status: 500 })
+    interruptError = e
   }
 
-  // End the streaming UI state immediately for all clients. The background
-  // stream from /api/agent/stream will also drain once the session idles, but
-  // broadcasting here keeps the UI responsive even if it's mid-await.
+  // End the streaming UI state for all clients regardless of whether the
+  // upstream interrupt succeeded. The user's intent is to stop; if the
+  // interrupt API itself errors, leaving the UI wedged in "thinking" is the
+  // worst outcome.
   try {
     await broadcastChatEventViaDoc(roomId, { type: "chat-stream-end", chatId })
   } catch (e) {
     console.error("Stop broadcast failed:", e)
+  }
+
+  if (interruptError) {
+    return new Response(
+      interruptError instanceof Error ? interruptError.message : String(interruptError),
+      { status: 500 },
+    )
   }
 
   return Response.json({ success: true })
