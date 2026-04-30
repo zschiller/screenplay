@@ -1,7 +1,7 @@
 import { Button } from "@workspace/ui/components/button"
 import { appUrl, githubUrl } from "@/lib/app-url"
 
-export function CTA() {
+export function DesignerCTA() {
   return (
     <section className="border-b border-border/60">
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
@@ -16,11 +16,11 @@ export function CTA() {
           />
           <div className="relative">
             <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-              Build the next prototype on a canvas that runs.
+              Get the design loop back.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
-              Open Screenplay and connect your GitHub repo. Every artboard you
-              add is a live sandbox in seconds.
+              Open Screenplay, point it at your repo, and the next prototype
+              you vibe code is one link from a real review.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <a href={appUrl}>
@@ -30,7 +30,7 @@ export function CTA() {
               </a>
               <a href={githubUrl} target="_blank" rel="noreferrer">
                 <Button size="lg" variant="outline">
-                  Star on GitHub
+                  Read the source
                 </Button>
               </a>
             </div>

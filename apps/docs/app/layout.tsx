@@ -14,9 +14,10 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Screenplay — design UIs on a canvas where every artboard runs live code",
+  title:
+    "Screenplay — a multiplayer canvas for designers vibe coding prototypes",
   description:
-    "An infinite canvas for product teams. Each artboard boots its own sandbox, syncs in real time, and ships with a Claude coding agent in the loop.",
+    "Vibe coding prototypes is great. Reviewing them is broken. Screenplay puts your AI-built prototypes on a multiplayer canvas — every direction laid out, every screen reviewable, every viewer in sync.",
 }
 
 export default function RootLayout({
