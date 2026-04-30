@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "@workspace/ui/globals.css"
+import "./marketing.css"
 import { cn } from "@workspace/ui/lib/utils"
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -13,8 +14,9 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Screenplay",
-  description: "Screenplay docs",
+  title: "Screenplay — design UIs on a canvas where every artboard runs live code",
+  description:
+    "An infinite canvas for product teams. Each artboard boots its own sandbox, syncs in real time, and ships with a Claude coding agent in the loop.",
 }
 
 export default function RootLayout({
