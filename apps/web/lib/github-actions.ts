@@ -157,6 +157,35 @@ export async function renameBranch(
   return { success: true }
 }
 
+export async function deleteBranch(
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<{ success: boolean; error?: string }> {
+  const token = await getGitHubToken()
+  if (!token) return { success: false, error: "No GitHub token" }
+
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+    },
+  )
+
+  // 204 No Content = deleted; 422 typically means the ref doesn't exist (already gone).
+  if (res.status === 204 || res.status === 422) return { success: true }
+
+  const err = await res.json().catch(() => ({}))
+  return {
+    success: false,
+    error: err.message || `Failed to delete branch ${branch} (${res.status})`,
+  }
+}
+
 export async function compareBranch(
   owner: string,
   repo: string,

@@ -93,6 +93,7 @@ import {
   reconnectSandbox,
   keepAliveSandbox,
 } from "@/lib/sandbox-actions"
+import { deleteBranch } from "@/lib/github-actions"
 import {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -3097,13 +3098,53 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onSelectAgent={handleSelectAgent}
           onCreateWorkspace={handleCreateWorkspace}
           onUpdateWorkspace={updateWorkspaceInStorage}
-          onRemoveWorkspace={removeWorkspaceFromStorage}
+          onRemoveWorkspace={async (id, { deleteBranchesOnRemote }) => {
+            if (deleteBranchesOnRemote) {
+              const workspace = workspaces.find((w) => w.id === id)
+              if (workspace) {
+                const branches = agents
+                  .filter((a) => a.workspaceId === id && a.branch)
+                  .map((a) => a.branch)
+                const results = await Promise.all(
+                  branches.map((branch) =>
+                    deleteBranch(workspace.repoOwner, workspace.repoName, branch),
+                  ),
+                )
+                const failed = results.filter((r) => !r.success)
+                if (failed.length > 0) {
+                  throw new Error(
+                    failed[0]?.error ??
+                      `Failed to delete ${failed.length} branch${failed.length === 1 ? "" : "es"} on remote`,
+                  )
+                }
+              }
+            }
+            removeWorkspaceFromStorage(id)
+          }}
           onCreateAgent={handleCreateAgent}
           onCreateAgentFromBranch={handleCreateAgentFromBranch}
           onDuplicateBranch={handleDuplicateBranch}
           onForkAgent={handleForkAgent}
           onRefreshAgent={handleRefreshAgent}
-          onRemoveAgent={(id) => {
+          onRemoveAgent={async (id, { deleteOnRemote }) => {
+            if (deleteOnRemote) {
+              const agent = agents.find((a) => a.id === id)
+              const workspace = agent
+                ? workspaces.find((w) => w.id === agent.workspaceId)
+                : undefined
+              if (agent?.branch && workspace) {
+                const result = await deleteBranch(
+                  workspace.repoOwner,
+                  workspace.repoName,
+                  agent.branch,
+                )
+                if (!result.success) {
+                  throw new Error(
+                    result.error ?? "Failed to delete branch on remote",
+                  )
+                }
+              }
+            }
             if (selectedAgentId === id) {
               setSelectedAgentId(null)
               setSelectedChatId(null)
