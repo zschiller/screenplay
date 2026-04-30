@@ -189,6 +189,10 @@ class ChatStore {
   async stopMessage(roomId: string, chatId: string) {
     const sessionId = this.sessionIds.get(chatId)
     if (!sessionId) return
+    // Flip the UI to non-streaming immediately. The server still broadcasts
+    // chat-stream-end after the upstream interrupt resolves, but the user's
+    // intent to stop shouldn't depend on that round-trip succeeding.
+    this.update(chatId, { isStreaming: false })
     try {
       const res = await fetch("/api/agent/stop", {
         method: "POST",

@@ -587,6 +587,13 @@ export async function POST(req: Request) {
       const ourMessageId = sendResult.data?.[0]?.id
 
       const eventStream = await client.beta.sessions.events.stream(sessionId!)
+      const iterator = eventStream[Symbol.asyncIterator]()
+
+      // If the upstream session goes silent (no events, no error, no close),
+      // a plain `for await` would hang until maxDuration kills the function
+      // and no chat-stream-end ever broadcasts. Race each iterator.next()
+      // against a watchdog so we throw and the outer catch broadcasts end.
+      const STREAM_IDLE_TIMEOUT_MS = 90_000
 
       const toolEvents = new Map<
         string,
@@ -595,7 +602,28 @@ export async function POST(req: Request) {
 
       let seenOurMessage = !existingSessionId
 
-      for await (const event of eventStream) {
+      while (true) {
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+        const result = await Promise.race([
+          iterator.next(),
+          new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    `No agent event received in ${STREAM_IDLE_TIMEOUT_MS / 1000}s`,
+                  ),
+                ),
+              STREAM_IDLE_TIMEOUT_MS,
+            )
+          }),
+        ]).finally(() => {
+          if (timeoutHandle) clearTimeout(timeoutHandle)
+        })
+
+        if (result.done) break
+        const event = result.value
+
         if (!seenOurMessage) {
           if (
             event.type === "user.message" &&
