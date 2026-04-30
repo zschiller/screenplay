@@ -93,21 +93,26 @@ function KnobsBoard() {
         </div>
       </div>
 
-      {/* Live preview that responds to the knob animations */}
+      {/* Live preview — every knob below drives something here */}
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/30 p-5">
         <div className="knob-card-radius w-full max-w-xs border border-border bg-background p-4 shadow-sm">
           <div className="flex flex-col gap-2">
-            <div className="knob-headline-fade h-2.5 w-2/3 rounded bg-foreground/85" />
+            {/* Headline — width tracks the cycling headline knob */}
+            <div className="knob-headline-bar h-2.5 rounded bg-foreground/85" />
             <div className="h-1.5 w-3/4 rounded bg-muted-foreground/40" />
             <div className="h-1.5 w-2/3 rounded bg-muted-foreground/40" />
-            <div className="knob-accent-bg knob-card-radius mt-2 h-5 w-1/3 rounded-md" />
+            {/* CTA — visibility tracks the switch, color tracks the accent
+                knob, corner radius tracks the slider (same class as the card) */}
+            <div className="knob-cta-visible mt-1">
+              <div className="knob-accent-bg knob-card-radius h-5 w-1/2" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Knob panel — multiple knob types stacked */}
+      {/* Knob panel — every row drives part of the preview */}
       <div className="space-y-2.5 rounded-lg border border-border bg-background/70 p-3">
-        {/* Text knob */}
+        {/* Text knob → preview headline bar width */}
         <KnobRow label="Headline" badge="text">
           <div className="flex h-6 items-center rounded-md border border-border bg-card px-2">
             <span className="knob-headline-text font-mono text-[10px] text-foreground/80" />
@@ -115,7 +120,7 @@ function KnobsBoard() {
           </div>
         </KnobRow>
 
-        {/* Color knob */}
+        {/* Color knob → preview CTA background */}
         <KnobRow label="Accent" badge="color">
           <div className="flex items-center gap-1.5">
             <span className="knob-swatch-1 size-4 rounded border border-border bg-[#106BE3]" />
@@ -129,7 +134,7 @@ function KnobsBoard() {
           </div>
         </KnobRow>
 
-        {/* Slider knob */}
+        {/* Slider knob → card + CTA border-radius */}
         <KnobRow label="Radius" badge="slider">
           <div className="flex items-center gap-2">
             <div className="relative h-1.5 w-32 rounded-full bg-muted">
@@ -143,24 +148,17 @@ function KnobsBoard() {
               />
             </div>
             <span className="font-mono text-[10px] text-muted-foreground">
-              <span className="knob-value-fade">●</span>
+              <span className="knob-radius-value" />
+              px
             </span>
           </div>
         </KnobRow>
 
-        {/* Switch knob */}
+        {/* Switch knob → preview CTA visibility */}
         <KnobRow label="Show CTA" badge="switch">
           <span className="knob-switch relative inline-flex h-3.5 w-6 items-center rounded-full bg-[#106BE3]/30">
             <span className="knob-switch-thumb absolute left-0.5 size-2.5 rounded-full bg-background shadow" />
           </span>
-        </KnobRow>
-
-        {/* Select knob */}
-        <KnobRow label="Tone" badge="select">
-          <div className="flex h-6 items-center justify-between rounded-md border border-border bg-card px-2">
-            <span className="knob-select-value font-mono text-[10px] text-foreground/80" />
-            <ChevronIcon />
-          </div>
         </KnobRow>
       </div>
     </div>
@@ -189,20 +187,3 @@ function KnobRow({
   )
 }
 
-function ChevronIcon() {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  )
-}

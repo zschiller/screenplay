@@ -12,18 +12,24 @@
       animation: cursor-b-drift 13s ease-in-out infinite;
       animation-delay: -3s;
     }
+    /* Designer knobs deep-dive — every animation runs on the same 8s cycle
+       so each knob visibly drives the corresponding element in the preview. */
     .knob-thumb {
-      animation: knob-drift 4.2s ease-in-out infinite;
+      animation: knob-drift 8s ease-in-out infinite;
     }
     .knob-fill {
-      animation: knob-fill 4.2s ease-in-out infinite;
+      animation: knob-fill 8s ease-in-out infinite;
     }
-    .knob-value-fade {
-      animation: knob-value-fade 4.2s ease-in-out infinite;
+    .knob-radius-value {
+      position: relative;
     }
-    /* Designer knobs deep-dive — synchronized cycle (8s) */
-    .knob-headline-fade {
-      animation: knob-headline-fade 8s ease-in-out infinite;
+    .knob-radius-value::before {
+      content: "4";
+      animation: knob-radius-value 8s steps(1, end) infinite;
+    }
+    .knob-headline-bar {
+      animation: knob-headline-bar 8s steps(1, end) infinite;
+      width: 60%;
     }
     .knob-headline-text {
       position: relative;
@@ -41,7 +47,7 @@
     }
     .knob-card-radius {
       animation: knob-card-radius 8s ease-in-out infinite;
-      border-radius: 6px;
+      border-radius: 4px;
     }
     .knob-swatch-1 {
       animation: knob-swatch-active 8s steps(1, end) infinite;
@@ -64,12 +70,9 @@
     .knob-switch-thumb {
       animation: knob-switch-thumb 8s ease-in-out infinite;
     }
-    .knob-select-value {
-      position: relative;
-    }
-    .knob-select-value::before {
-      content: "light";
-      animation: knob-select-cycle 8s steps(1, end) infinite;
+    .knob-cta-visible {
+      animation: knob-cta-visible 8s ease-in-out infinite;
+      opacity: 0;
     }
 
     /* Designer state-sync deep-dive — synchronized stepper (6s) */
@@ -155,27 +158,7 @@
     }
   }
 
-  @keyframes knob-value-fade {
-    0%,
-    100% {
-      opacity: 0.45;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
   /* Designer knobs deep-dive — coordinated 8s cycle across the panel */
-  @keyframes knob-headline-fade {
-    0%,
-    100% {
-      opacity: 0.8;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
   @keyframes knob-headline-cycle {
     0%,
     32% {
@@ -284,14 +267,61 @@
     }
   }
 
-  @keyframes knob-select-cycle {
+  /* Headline knob ↔ preview headline bar width.
+     Width snaps at the same instants the headline text content cycles
+     (33% and 66%), so the bar visibly resizes when the knob value changes. */
+  @keyframes knob-headline-bar {
+    0%,
+    32% {
+      width: 60%;
+    }
+    33%,
+    65% {
+      width: 70%;
+    }
+    66%,
+    100% {
+      width: 75%;
+    }
+  }
+
+  /* Slider knob ↔ "px" readout. Snaps through values that approximate the
+     slider's ease-in-out 4px→18px→4px curve so the readout tracks the thumb. */
+  @keyframes knob-radius-value {
+    0%,
+    14% {
+      content: "4";
+    }
+    15%,
+    34% {
+      content: "8";
+    }
+    35%,
+    64% {
+      content: "16";
+    }
+    65%,
+    84% {
+      content: "8";
+    }
+    85%,
+    100% {
+      content: "4";
+    }
+  }
+
+  /* Switch knob ↔ preview CTA visibility. Snaps on at 50% (when the switch
+     thumb slides right) and back off at the loop boundary. */
+  @keyframes knob-cta-visible {
     0%,
     49% {
-      content: "light";
+      opacity: 0;
+      transform: translateY(2px) scale(0.96);
     }
     50%,
     100% {
-      content: "dark";
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   }
 
