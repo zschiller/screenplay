@@ -1,13 +1,21 @@
 export function KnobsMockup() {
   return (
     <div className="relative flex h-full flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Card preview
+      {/* Mini-artboard label — same pattern the canvas uses (branch badge,
+          HMR dot + screen name + route pill). */}
+      <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center rounded-md bg-blue-100 px-1.5 py-0 font-mono text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+          feat/card
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
-          card.tsx
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 ring-1 ring-card" />
+          <span className="text-[11px] font-medium text-foreground/70">
+            Card
+          </span>
+          <span className="rounded-md bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50">
+            /card
+          </span>
+        </div>
       </div>
 
       {/* Animated card preview that responds to the knob */}
