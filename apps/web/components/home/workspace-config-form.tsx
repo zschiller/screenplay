@@ -53,6 +53,7 @@ export function WorkspaceConfigForm({
   const [defaultArtboardSizeId, setDefaultArtboardSizeId] = useState(
     initial?.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID,
   )
+  const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -92,6 +93,7 @@ export function WorkspaceConfigForm({
       devServerPort: parsedPort,
       envVars,
       defaultArtboardSizeId,
+      systemPrompt: systemPrompt.trim() ? systemPrompt : undefined,
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
     }
@@ -231,6 +233,23 @@ export function WorkspaceConfigForm({
               id="config-default-artboard-size"
               value={defaultArtboardSizeId}
               onChange={setDefaultArtboardSizeId}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="config-system-prompt">
+              System prompt{" "}
+              <span className="font-normal text-muted-foreground/70">
+                (optional, appended to the agent&apos;s instructions — useful for monorepo context)
+              </span>
+            </Label>
+            <Textarea
+              id="config-system-prompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
+              rows={4}
+              className="max-w-full resize-y text-xs [field-sizing:fixed]"
             />
           </div>
         </div>

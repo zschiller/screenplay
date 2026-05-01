@@ -29,6 +29,8 @@ export type WorkspaceData = {
   envVars: string
   /** Preset id from `lib/artboard-sizes`. Falls back to the default preset when unset. */
   defaultArtboardSizeId?: string
+  /** Extra workspace-specific instructions appended to the agent's system prompt. */
+  systemPrompt?: string
   createdAt: number
 }
 
