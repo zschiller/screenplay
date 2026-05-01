@@ -1959,8 +1959,47 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               createdAt: Date.now(),
             }
       addWorkspaceToStorage(id, data)
+
+      const agentId = nanoid()
+      const sandboxName = `sp-${nanoid(10)}`
+      const branch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
+      const { cx, cy } = getViewportCenter()
+
+      addAgentToStorage(agentId, {
+        id: agentId,
+        workspaceId: id,
+        sandboxName,
+        gitUrl: data.cloneUrl,
+        branch,
+        previewDomain: "",
+        port: data.devServerPort ?? 3000,
+        status: "creating",
+        statusMessage: "Creating branch…",
+        createdAt: Date.now(),
+      })
+      setPendingAgentIds((prev) =>
+        prev.includes(agentId) ? prev : [...prev, agentId],
+      )
+
+      fetch("/api/agent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "new",
+          roomId,
+          agentId,
+          sandboxName,
+          branch,
+          workspaceId: id,
+          viewportCenter: { x: cx, y: cy },
+        }),
+      })
     },
-    [addWorkspaceToStorage],
+    [addWorkspaceToStorage, addAgentToStorage, getViewportCenter, roomId],
   )
 
   const handleCreateAgent = useCallback(
