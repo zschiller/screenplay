@@ -1770,7 +1770,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         autoNamedBranch: agent.autoNamedBranch,
         planMode: true,
         onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
-        onBranchRename: (branch) => updateAgentInStorage(agentId, { branch }),
+        onBranchRename: (branch) =>
+          updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
@@ -2218,7 +2219,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         newBranch,
       )
       if (result.success) {
-        updateAgentInStorage(agentId, { branch: newBranch })
+        updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
       }
     },
     [agents, workspaces, updateAgentInStorage],
