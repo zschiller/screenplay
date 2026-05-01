@@ -831,10 +831,13 @@ function WorkspaceSettings({
   const [defaultArtboardSizeId, setDefaultArtboardSizeId] = useState(
     workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID,
   )
+  const [systemPrompt, setSystemPrompt] = useState(workspace.systemPrompt ?? "")
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
     Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
+
+  const trimmedSystemPrompt = systemPrompt.trim()
 
   const handleSave = useCallback(() => {
     if (!portIsValid) return
@@ -845,6 +848,7 @@ function WorkspaceSettings({
       devServerPort: parsedPort,
       envVars,
       defaultArtboardSizeId,
+      systemPrompt: trimmedSystemPrompt || undefined,
     })
     onClose()
   }, [
@@ -856,6 +860,7 @@ function WorkspaceSettings({
     portIsValid,
     envVars,
     defaultArtboardSizeId,
+    trimmedSystemPrompt,
     onUpdate,
     onClose,
   ])
@@ -867,7 +872,8 @@ function WorkspaceSettings({
     parsedPort !== (workspace.devServerPort ?? 3000) ||
     envVars !== workspace.envVars ||
     defaultArtboardSizeId !==
-      (workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID)
+      (workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID) ||
+    trimmedSystemPrompt !== (workspace.systemPrompt ?? "")
 
   return (
     <div className="space-y-3">
@@ -951,6 +957,19 @@ function WorkspaceSettings({
           onChange={setDefaultArtboardSizeId}
           size="sm"
           className="text-[11px]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+          System prompt
+        </label>
+        <textarea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          placeholder="Optional. Extra instructions for the agent (e.g. monorepo context)."
+          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
+          rows={3}
         />
       </div>
 

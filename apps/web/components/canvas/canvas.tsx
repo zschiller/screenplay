@@ -1974,6 +1974,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               devServerPort: pick.config.devServerPort,
               envVars: pick.config.envVars,
               defaultArtboardSizeId: pick.config.defaultArtboardSizeId,
+              systemPrompt: pick.config.systemPrompt,
               createdAt: Date.now(),
             }
           : {

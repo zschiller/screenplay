@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import Anthropic from "@anthropic-ai/sdk"
 import { kv } from "@/lib/kv"
 import { getSkillIndex, SKILLS_HASH } from "@/lib/skills"
@@ -53,21 +54,33 @@ Keep your responses concise. Show the user what you changed and why.`
  * the same metadata-then-body progressive disclosure native Anthropic skills
  * use, just routed through our custom tool. Editing or adding a SKILL.md
  * automatically rolls the agent (see SKILLS_HASH).
+ *
+ * `workspaceSystemPrompt` is appended after the tail so per-workspace context
+ * (e.g. "this config targets apps/web in the monorepo") rolls a separate
+ * cached agent via the hash in `agentCacheKey`.
  */
-export function buildAgentSystemPrompt(): string {
+export function buildAgentSystemPrompt(workspaceSystemPrompt?: string): string {
   const skills = getSkillIndex()
-  if (skills.length === 0) {
-    return AGENT_SYSTEM_PROMPT_BASE + AGENT_SYSTEM_PROMPT_TAIL
-  }
-  const lines = [
-    "",
-    "",
-    "Skills available:",
-    "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
-    "",
-    ...skills.map((s) => `- **${s.name}**: ${s.description}`),
-  ]
-  return AGENT_SYSTEM_PROMPT_BASE + lines.join("\n") + AGENT_SYSTEM_PROMPT_TAIL
+  const skillsBlock =
+    skills.length === 0
+      ? ""
+      : [
+          "",
+          "",
+          "Skills available:",
+          "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
+          "",
+          ...skills.map((s) => `- **${s.name}**: ${s.description}`),
+        ].join("\n")
+  const workspaceBlock = workspaceSystemPrompt?.trim()
+    ? `\n\nWorkspace context:\n${workspaceSystemPrompt.trim()}`
+    : ""
+  return (
+    AGENT_SYSTEM_PROMPT_BASE +
+    skillsBlock +
+    AGENT_SYSTEM_PROMPT_TAIL +
+    workspaceBlock
+  )
 }
 
 /** Back-compat export — callers that imported the old constant get the live build. */
@@ -240,20 +253,33 @@ export const AGENT_TOOLS: Anthropic.Beta.Agents.AgentCreateParams["tools"] = [
 
 const AGENT_CACHE_KEY_PREFIX = "agent:screenplay:v4"
 
+const NO_WORKSPACE_PROMPT_HASH = "default"
+
+function workspacePromptHash(prompt: string | undefined): string {
+  const trimmed = prompt?.trim()
+  if (!trimmed) return NO_WORKSPACE_PROMPT_HASH
+  return createHash("sha256").update(trimmed).digest("hex").slice(0, 16)
+}
+
 /**
- * Cache key includes the skills hash so editing a SKILL.md auto-rolls the
- * agent — the next request loads (or creates) an agent whose system prompt
- * matches the on-disk skill metadata.
+ * Cache key includes the skills hash and a hash of the workspace's optional
+ * system prompt. Editing a SKILL.md or a workspace's system prompt auto-rolls
+ * the agent — the next request loads (or creates) an agent whose system
+ * prompt matches the live inputs.
  */
-function agentCacheKey(model: string): string {
-  return `${AGENT_CACHE_KEY_PREFIX}:${model}:${SKILLS_HASH}`
+function agentCacheKey(model: string, workspacePromptKey: string): string {
+  return `${AGENT_CACHE_KEY_PREFIX}:${model}:${SKILLS_HASH}:${workspacePromptKey}`
 }
 const ENV_CACHE_KEY = "agent:env:screenplay"
 
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6"
 
-export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Promise<string> {
-  const cacheKey = agentCacheKey(model)
+export async function getOrCreateAgent(
+  model: string = DEFAULT_AGENT_MODEL,
+  workspaceSystemPrompt?: string,
+): Promise<string> {
+  const promptKey = workspacePromptHash(workspaceSystemPrompt)
+  const cacheKey = agentCacheKey(model, promptKey)
   const cached = await kv.get<string>(cacheKey)
   if (cached) return cached
 
@@ -261,7 +287,7 @@ export async function getOrCreateAgent(model: string = DEFAULT_AGENT_MODEL): Pro
   const agent = await client.beta.agents.create({
     name: `Screenplay Editor (${model})`,
     model,
-    system: buildAgentSystemPrompt(),
+    system: buildAgentSystemPrompt(workspaceSystemPrompt),
     tools: AGENT_TOOLS,
   })
 
