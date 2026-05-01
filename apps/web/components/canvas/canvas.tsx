@@ -1770,7 +1770,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         autoNamedBranch: agent.autoNamedBranch,
         planMode: true,
         onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
-        onBranchRename: (branch) => updateAgentInStorage(agentId, { branch }),
+        onBranchRename: (branch) =>
+          updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
@@ -1844,29 +1845,51 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setInspectHover(null)
         return
       }
-      const chat = chatSessions.find((c) => c.id === selectedChatId)
-      const agent = chat ? agents.find((a) => a.id === chat.agentId) : null
+      const currentChat = chatSessions.find((c) => c.id === selectedChatId)
+      const agent = currentChat
+        ? agents.find((a) => a.id === currentChat.agentId)
+        : null
       const artboard = artboards.find((a) => a.id === inspectNote.artboardId)
       const route = artboard?.route || "/"
       const text = `${note}\n\nRoute: \`${route}\`\nElement: \`${inspectNote.selector}\``
-      if (chat && agent?.sandboxName && agent.branch) {
+      if (currentChat && agent?.sandboxName && agent.branch) {
+        const currentBusy =
+          chatStore.getSnapshot(currentChat.id).isStreaming ||
+          currentChat.isStreaming === true
+        let chatId = currentChat.id
+        let sessionId = currentChat.sessionId
+        let planMode = currentChat.planMode
+        let model = currentChat.model
+        if (currentBusy) {
+          chatId = nanoid()
+          sessionId = undefined
+          planMode = undefined
+          model = undefined
+          addChatSession(chatId, {
+            id: chatId,
+            agentId: currentChat.agentId,
+            label: "Untitled",
+            createdAt: Date.now(),
+          })
+          setSelectedChatId(chatId)
+        }
         const isFirstChat = !chatSessions.some(
-          (c) => c.agentId === chat.agentId && c.id !== chat.id && c.sessionId,
+          (c) => c.agentId === currentChat.agentId && c.id !== chatId && c.sessionId,
         )
         chatStore.sendMessage({
           roomId,
-          chatId: chat.id,
+          chatId,
           sandboxName: agent.sandboxName,
           branch: agent.branch,
           message: text,
           isFirstChat,
           autoNamedBranch: agent.autoNamedBranch,
-          sessionId: chat.sessionId,
-          planMode: chat.planMode,
-          model: chat.model,
-          onSessionId: (sid) => updateChatSession(chat.id, { sessionId: sid || undefined }),
+          sessionId,
+          planMode,
+          model,
+          onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
           onBranchRename: (branch) => inspectHandlersRef.current.branchRename(agent.id, branch),
-          onChatRename: (label) => inspectHandlersRef.current.renameChat(chat.id, label),
+          onChatRename: (label) => inspectHandlersRef.current.renameChat(chatId, label),
         })
       } else {
         inputStore.append(selectedChatId, text)
@@ -1881,7 +1904,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (inPixels < 480) panel.resize(480)
       }
     },
-    [inspectNote, selectedChatId, chatSessions, agents, artboards, roomId, updateChatSession],
+    [
+      inspectNote,
+      selectedChatId,
+      chatSessions,
+      agents,
+      artboards,
+      roomId,
+      addChatSession,
+      updateChatSession,
+    ],
   )
 
   const handleRemoveChat = useCallback(
@@ -1959,8 +1991,47 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               createdAt: Date.now(),
             }
       addWorkspaceToStorage(id, data)
+
+      const agentId = nanoid()
+      const sandboxName = `sp-${nanoid(10)}`
+      const branch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
+      const { cx, cy } = getViewportCenter()
+
+      addAgentToStorage(agentId, {
+        id: agentId,
+        workspaceId: id,
+        sandboxName,
+        gitUrl: data.cloneUrl,
+        branch,
+        previewDomain: "",
+        port: data.devServerPort ?? 3000,
+        status: "creating",
+        statusMessage: "Creating branch…",
+        createdAt: Date.now(),
+      })
+      setPendingAgentIds((prev) =>
+        prev.includes(agentId) ? prev : [...prev, agentId],
+      )
+
+      fetch("/api/agent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: "new",
+          roomId,
+          agentId,
+          sandboxName,
+          branch,
+          workspaceId: id,
+          viewportCenter: { x: cx, y: cy },
+        }),
+      })
     },
-    [addWorkspaceToStorage],
+    [addWorkspaceToStorage, addAgentToStorage, getViewportCenter, roomId],
   )
 
   const handleCreateAgent = useCallback(
@@ -2148,7 +2219,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         newBranch,
       )
       if (result.success) {
-        updateAgentInStorage(agentId, { branch: newBranch })
+        updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
       }
     },
     [agents, workspaces, updateAgentInStorage],
