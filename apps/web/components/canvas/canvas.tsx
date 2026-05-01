@@ -1781,6 +1781,78 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [agents, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
   )
 
+  const handleRebaseOnDefault = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent?.sandboxName || !agent.branch) return
+      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      if (!workspace) return
+
+      const message = `Rebase this branch onto the latest \`origin/${workspace.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
+
+      const existingChats = chatSessions
+        .filter((c) => c.agentId === agentId && !c.closedAt)
+        .sort((a, b) => a.createdAt - b.createdAt)
+      const remembered = selectedChatByAgentRef.current[agentId]
+      const targetChat =
+        existingChats.find((c) => c.id === remembered) ?? existingChats[0]
+
+      let chatId: string
+      let sessionId: string | undefined
+      let planMode: boolean | undefined
+      let model: string | undefined
+      const targetBusy = targetChat
+        ? chatStore.getSnapshot(targetChat.id).isStreaming || targetChat.isStreaming === true
+        : false
+
+      if (!targetChat || targetBusy) {
+        chatId = nanoid()
+        addChatSession(chatId, {
+          id: chatId,
+          agentId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+      } else {
+        chatId = targetChat.id
+        sessionId = targetChat.sessionId
+        planMode = targetChat.planMode
+        model = targetChat.model
+      }
+
+      const isFirstChat = !chatSessions.some(
+        (c) => c.agentId === agentId && c.id !== chatId && c.sessionId,
+      )
+
+      chatStore.sendMessage({
+        roomId,
+        chatId,
+        sandboxName: agent.sandboxName,
+        branch: agent.branch,
+        message,
+        isFirstChat,
+        autoNamedBranch: agent.autoNamedBranch,
+        sessionId,
+        planMode,
+        model,
+        onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
+        onBranchRename: (branch) =>
+          updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
+        onChatRename: (label) => updateChatSession(chatId, { label }),
+      })
+
+      setSelectedAgentId(agentId)
+      setSelectedChatId(chatId)
+      const panel = chatPanelRef.current
+      if (panel?.isCollapsed()) {
+        panel.expand()
+        const { inPixels } = panel.getSize()
+        if (inPixels < 480) panel.resize(480)
+      }
+    },
+    [agents, workspaces, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
+  )
+
   const handleCloseChat = useCallback(
     (chatId: string) => {
       const chat = chatSessions.find((c) => c.id === chatId)
@@ -3196,6 +3268,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onCreateAgentFromBranch={handleCreateAgentFromBranch}
           onDuplicateBranch={handleDuplicateBranch}
           onForkAgent={handleForkAgent}
+          onRebaseOnDefault={handleRebaseOnDefault}
           onRefreshAgent={handleRefreshAgent}
           onRemoveAgent={async (id, { deleteOnRemote }) => {
             if (deleteOnRemote) {
