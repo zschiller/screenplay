@@ -324,10 +324,19 @@ export async function POST(req: Request) {
 
   const client = getClient()
 
+  // Resolve the workspace's optional system prompt so each unique
+  // workspaceSystemPrompt + model + skills combo gets its own cached
+  // Anthropic agent (see `agentCacheKey`).
+  const workspaceSystemPrompt = await readRoomDoc(roomId, ({ agents, workspaces }) => {
+    const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
+    if (!agent) return undefined
+    return workspaces.get(agent.workspaceId)?.systemPrompt
+  }).catch(() => undefined)
+
   // Resolve agent + environment up front. Model only affects new sessions —
   // existing sessions stay bound to whichever agent/model they were created with.
   const [agentId, environmentId] = await Promise.all([
-    getOrCreateAgent(model),
+    getOrCreateAgent(model, workspaceSystemPrompt ?? undefined),
     getOrCreateEnvironment(),
   ])
 
