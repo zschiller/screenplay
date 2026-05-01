@@ -9,6 +9,7 @@ import {
   Loader2,
   Settings,
   ChevronRight,
+  ExternalLink,
   GitBranch,
   GitBranchPlus,
   GitFork,
@@ -108,6 +109,7 @@ interface AgentSidebarProps {
   onCreateAgentFromBranch: (workspaceId: string, branch: string) => void
   onDuplicateBranch: (workspaceId: string, branch: string) => void
   onForkAgent: (agentId: string) => void
+  onRebaseOnDefault: (agentId: string) => void
   onRefreshAgent: (id: string) => void
   onRemoveAgent: (
     id: string,
@@ -148,6 +150,7 @@ export function AgentSidebar({
   onCreateAgentFromBranch,
   onDuplicateBranch,
   onForkAgent,
+  onRebaseOnDefault,
   onRefreshAgent,
   onRemoveAgent,
   onAddArtboard,
@@ -472,6 +475,25 @@ export function AgentSidebar({
                                                         >
                                                           <Terminal />
                                                           Copy connection string
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.sandboxName || !agent.branch}
+                                                          onClick={() => onRebaseOnDefault(agent.id)}
+                                                        >
+                                                          <GitMerge />
+                                                          Rebase on {workspace.defaultBranch}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.branch}
+                                                          onClick={() => {
+                                                            if (!agent.branch) return
+                                                            const url = `https://github.com/${workspace.repoOwner}/${workspace.repoName}/tree/${encodeURI(agent.branch)}`
+                                                            window.open(url, "_blank", "noopener,noreferrer")
+                                                          }}
+                                                        >
+                                                          <ExternalLink />
+                                                          Open branch on GitHub
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteAgentId(agent.id)}>
