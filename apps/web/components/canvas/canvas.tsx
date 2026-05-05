@@ -24,7 +24,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { useSession } from "@/lib/auth-client"
-import { ChevronDown, Crosshair, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
+import { ChevronDown, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -36,7 +36,6 @@ import {
 } from "@workspace/ui/components/breadcrumb"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
-import { Popover, PopoverAnchor, PopoverContent } from "@workspace/ui/components/popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,12 +60,11 @@ import { TextLayer } from "./text-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
-import { InspectComposer } from "./inspect-composer"
 import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
-import type { PickResult, ScreenplayDom } from "@/hooks/use-screenplay-dom"
+import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
@@ -204,14 +202,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     offsetX?: number | null
     offsetY?: number | null
   } | null>(null)
-  const [pickMode, setPickMode] = useState(false)
   const [inspectHover, setInspectHover] = useState<{
     artboardId: string
-    rect: DomRect
-  } | null>(null)
-  const [inspectNote, setInspectNote] = useState<{
-    artboardId: string
-    selector: string
     rect: DomRect
   } | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
@@ -347,13 +339,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setFrameMode(false)
           return
         }
-        if (pickMode || inspectNote) {
-          setPickMode(false)
-          setInspectNote(null)
-          setInspectHover(null)
-        } else if (commentMode || newCommentPos) {
+        if (commentMode || newCommentPos) {
           setCommentMode(false)
           setNewCommentPos(null)
+          setInspectHover(null)
         } else if (focusedArtboardId) {
           setFocusedArtboardId(null)
         } else if (createFlowArtboardId) {
@@ -367,8 +356,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode(false)
         setNewCommentPos(null)
-        setPickMode(false)
-        setInspectNote(null)
         setInspectHover(null)
         setTextMode(false)
         setFrameMode(false)
@@ -376,18 +363,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
         setNewCommentPos(null)
-        setPickMode(false)
-        setInspectNote(null)
         setInspectHover(null)
-        setTextMode(false)
-        setFrameMode(false)
-      }
-      if (e.key === "i" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setPickMode((m) => !m)
-        setInspectNote(null)
-        setInspectHover(null)
-        setCommentMode(false)
-        setNewCommentPos(null)
         setTextMode(false)
         setFrameMode(false)
       }
@@ -395,8 +371,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setTextMode((m) => !m)
         setCommentMode(false)
         setNewCommentPos(null)
-        setPickMode(false)
-        setInspectNote(null)
         setInspectHover(null)
         setFrameMode(false)
       }
@@ -405,8 +379,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setTextMode(false)
         setCommentMode(false)
         setNewCommentPos(null)
-        setPickMode(false)
-        setInspectNote(null)
         setInspectHover(null)
       }
       // Figma-style cursor chat. Opens an inline input next to the cursor and
@@ -523,7 +495,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, pickMode, inspectNote, focusedArtboardId, createFlowArtboardId, history, openCursorChat, closeCursorChat])
+  }, [commentMode, newCommentPos, focusedArtboardId, createFlowArtboardId, history, openCursorChat, closeCursorChat])
 
   const artboards = useArtboards()
   const artboardGroups = useArtboardGroups()
@@ -1886,18 +1858,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [updateChatSession],
   )
 
-  const handleInspectPicked = useCallback(
-    (artboardId: string, sandboxId: string, pick: PickResult) => {
-      setInspectNote({
-        artboardId,
-        selector: pick.selector,
-        rect: pick.rect,
-      })
-      handleSelectAgent(sandboxId, { expandPanel: false })
-    },
-    [handleSelectAgent],
-  )
-
   const handleInspectHover = useCallback(
     (artboardId: string, rect: DomRect | null) => {
       if (!rect) {
@@ -1909,21 +1869,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
-  const handleInspectSubmit = useCallback(
-    (note: string) => {
-      if (!inspectNote || !selectedChatId) {
-        setInspectNote(null)
-        setPickMode(false)
-        setInspectHover(null)
-        return
-      }
+  // Hand the comment composer's text off to the agent chat instead of
+  // creating a comment thread. Mirrors what the standalone reference tool
+  // used to do: tags the message with the artboard's route and the picked
+  // element selector so the agent has the context to act on.
+  const handleCommentSendToChat = useCallback(
+    (note: string, ctx: { artboardId: string; selector: string | null }) => {
+      if (!selectedChatId) return
       const currentChat = chatSessions.find((c) => c.id === selectedChatId)
       const agent = currentChat
         ? agents.find((a) => a.id === currentChat.agentId)
         : null
-      const artboard = artboards.find((a) => a.id === inspectNote.artboardId)
+      const artboard = artboards.find((a) => a.id === ctx.artboardId)
       const route = artboard?.route || "/"
-      const text = `${note}\n\nRoute: \`${route}\`\nElement: \`${inspectNote.selector}\``
+      const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
+      const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
       if (currentChat && agent?.sandboxName && agent.branch) {
         const currentBusy =
           chatStore.getSnapshot(currentChat.id).isStreaming ||
@@ -1966,9 +1926,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         inputStore.append(selectedChatId, text)
       }
-      setInspectNote(null)
-      setPickMode(false)
-      setInspectHover(null)
       const panel = chatPanelRef.current
       if (panel?.isCollapsed()) {
         panel.expand()
@@ -1977,7 +1934,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     },
     [
-      inspectNote,
       selectedChatId,
       chatSessions,
       agents,
@@ -2581,7 +2537,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleCanvasPointerDownCapture = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
-      if (commentMode || pickMode || textMode || frameMode) return
+      if (commentMode || textMode || frameMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
 
@@ -2621,7 +2577,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedArtboardId, commentMode, pickMode, textMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
+    [spaceHeld, focusedArtboardId, commentMode, textMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -2659,7 +2615,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         return
       }
 
-      if (commentMode || pickMode) return
+      if (commentMode) return
       // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
       const wrapperRect = e.currentTarget.getBoundingClientRect()
       if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8) return
@@ -2681,7 +2637,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, pickMode, focusedArtboardId, textMode, frameMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedArtboardId, textMode, frameMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds, hitTestGapHandle, zoom, collections],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3327,7 +3283,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode || pickMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
               onPointerDownCapture={handleCanvasPointerDownCapture}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
@@ -3536,9 +3492,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
                               multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                               spaceHeld={spaceHeld}
-                              pickMode={pickMode}
                               commentMode={commentMode}
-                              onPicked={handleInspectPicked}
                               onHover={handleInspectHover}
                               onDomReady={handleArtboardDomReady}
                               assignableAgents={runningAgents}
@@ -3615,6 +3569,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   artboards={Array.from(artboardLayouts.values())}
                   getArtboardDom={getArtboardDom}
                   initialThreads={initialThreads}
+                  onSendToChat={handleCommentSendToChat}
                 />
               </div>
 
@@ -3648,14 +3603,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 textDraft={textDraft}
                 frameDraft={frameDraft}
                 othersSelections={othersSelections}
-                hideResizeHandles={pickMode}
                 inspectRect={(() => {
-                  // Show the live hover overlay in pickMode and commentMode;
-                  // otherwise pin to the chosen inspect target.
-                  const source =
-                    ((pickMode || commentMode) && inspectHover)
-                      ? inspectHover
-                      : inspectNote
+                  // Show the live hover overlay while in commentMode so the
+                  // user can see what element they're about to anchor to.
+                  const source = commentMode ? inspectHover : null
                   if (!source) return null
                   const layout = artboardLayouts.get(source.artboardId)
                   if (!layout) return null
@@ -3813,13 +3764,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !pickMode && !textMode && !frameMode ? "default" : "ghost"}
+                          variant={!commentMode && !textMode && !frameMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
                             setNewCommentPos(null)
-                            setPickMode(false)
-                            setInspectNote(null)
                             setInspectHover(null)
                             setTextMode(false)
                             setFrameMode(false)
@@ -3842,8 +3791,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setTextMode(false)
                             setCommentMode(false)
                             setNewCommentPos(null)
-                            setPickMode(false)
-                            setInspectNote(null)
                             setInspectHover(null)
                           }}
                         >
@@ -3863,8 +3810,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setTextMode((m) => !m)
                             setCommentMode(false)
                             setNewCommentPos(null)
-                            setPickMode(false)
-                            setInspectNote(null)
                             setInspectHover(null)
                             setFrameMode(false)
                           }}
@@ -3879,35 +3824,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={pickMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setPickMode((m) => !m)
-                            setInspectNote(null)
-                            setInspectHover(null)
-                            setCommentMode(false)
-                            setNewCommentPos(null)
-                            setTextMode(false)
-                            setFrameMode(false)
-                          }}
-                        >
-                          <Crosshair className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Reference <Kbd>I</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
                           variant={commentMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode((m) => !m)
                             setNewCommentPos(null)
-                            setPickMode(false)
-                            setInspectNote(null)
                             setInspectHover(null)
                             setTextMode(false)
                             setFrameMode(false)
@@ -4031,39 +3952,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           </div>
         )}
       </ResizablePanel>
-      {inspectNote && (() => {
-        const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect()
-        const layout = artboardLayouts.get(inspectNote.artboardId)
-        if (!wrapperRect || !layout) return null
-        const canvasX = layout.x + inspectNote.rect.x
-        const canvasY = layout.y + inspectNote.rect.y + inspectNote.rect.height
-        const screenX = wrapperRect.left + canvasX * zoom + viewportPos.x
-        const screenY = wrapperRect.top + canvasY * zoom + viewportPos.y
-        return (
-          <Popover open onOpenChange={(o) => { if (!o) setInspectNote(null) }}>
-            <PopoverAnchor asChild>
-              <div
-                className="pointer-events-none fixed"
-                style={{ left: screenX, top: screenY, width: 0, height: 0 }}
-              />
-            </PopoverAnchor>
-            <PopoverContent
-              side="bottom"
-              align="start"
-              sideOffset={4}
-              className="block w-64 gap-0 p-2"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <InspectComposer
-                selector={inspectNote.selector}
-                onSubmit={handleInspectSubmit}
-                onCancel={() => setInspectNote(null)}
-              />
-            </PopoverContent>
-          </Popover>
-        )
-      })()}
     </ResizablePanelGroup>
     </>
   )
