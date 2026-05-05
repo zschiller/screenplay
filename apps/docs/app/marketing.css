@@ -53,16 +53,16 @@
       animation: knob-swatch-active 8s steps(1, end) infinite;
     }
     .knob-swatch-2 {
-      animation: knob-swatch-active 8s steps(1, end) infinite -1.6s;
+      animation: knob-swatch-active 8s steps(1, end) infinite -6.4s;
     }
     .knob-swatch-3 {
-      animation: knob-swatch-active 8s steps(1, end) infinite -3.2s;
-    }
-    .knob-swatch-4 {
       animation: knob-swatch-active 8s steps(1, end) infinite -4.8s;
     }
+    .knob-swatch-4 {
+      animation: knob-swatch-active 8s steps(1, end) infinite -3.2s;
+    }
     .knob-swatch-5 {
-      animation: knob-swatch-active 8s steps(1, end) infinite -6.4s;
+      animation: knob-swatch-active 8s steps(1, end) infinite -1.6s;
     }
     .knob-switch {
       animation: knob-switch-bg 8s ease-in-out infinite;
