@@ -33,10 +33,10 @@ export function DesignerWorkflow() {
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-wider text-[#106BE3]">
-            The vibe-coding loop, restored
+            The end-to-end loop
           </span>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Prompt, branch, review — without leaving the canvas.
+            Prompt, branch, and review without leaving the canvas.
           </h2>
         </div>
 

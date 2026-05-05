@@ -16,11 +16,11 @@ export function DesignerCTA() {
           />
           <div className="relative">
             <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-              Get the design loop back.
+              Bring the design loop back.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
-              Point Screenplay at your repo, and the next prototype you vibe
-              code is one link from a real review.
+              Point Screenplay at your repo and the next prototype you build
+              is one link away from a real review.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <a href={githubUrl} target="_blank" rel="noreferrer">
