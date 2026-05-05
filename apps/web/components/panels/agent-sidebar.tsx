@@ -79,7 +79,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@works
 import { BranchBadge } from "@/components/branch-badge"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
-import { useBranchPrs } from "@/hooks/use-branch-prs"
+import type { BranchPrInfo } from "@/lib/github-actions"
 import type { AgentData, ArtboardData, ArtboardGroupData, WorkspaceData } from "@/lib/types"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
@@ -138,6 +138,10 @@ interface AgentSidebarProps {
   onCollapseSidebar?: () => void
   activeAgentIds?: Set<string>
   chatPanelAgentId?: string | null
+  /** GitHub-polled PR state per agent. Lifted to the parent so the sidebar
+   *  and chat panel share one poller and can't disagree about whether a PR
+   *  exists for a branch. */
+  branchPrs: Map<string, BranchPrInfo>
 }
 
 export function AgentSidebar({
@@ -177,6 +181,7 @@ export function AgentSidebar({
   onCollapseSidebar,
   activeAgentIds,
   chatPanelAgentId,
+  branchPrs,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
@@ -187,7 +192,6 @@ export function AgentSidebar({
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
-  const branchPrs = useBranchPrs(agents, workspaces)
   const artboardsById = useMemo(() => {
     const m = new Map<string, AgentSidebarProps["artboards"][number]>()
     for (const a of artboards) m.set(a.id, a)

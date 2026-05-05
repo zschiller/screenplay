@@ -33,6 +33,7 @@ import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
 import type { AgentData, ChatSessionData } from "@/lib/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
+import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -120,6 +121,14 @@ interface ChatPanelProps {
   onPlanModeChange: (chatId: string, planMode: boolean) => void
   onModelChange: (chatId: string, model: string) => void
   diffStats?: DiffStats
+  /**
+   * GitHub-polled PR state for this agent's branch. Used as a fallback when
+   * the current chat's history doesn't contain a `create_pr` tool result —
+   * e.g. PR was opened from a different chat tab, the gh CLI, or GitHub
+   * directly. Without this the "Create PR" button can show even when a PR
+   * is already open.
+   */
+  branchPr?: BranchPrInfo | null
   onCollapse?: () => void
   onLogsReady?: () => void
   disableBranchPicker?: boolean
@@ -143,6 +152,7 @@ export function ChatPanel({
   onPlanModeChange,
   onModelChange,
   diffStats,
+  branchPr,
   onCollapse,
   onLogsReady,
   disableBranchPicker,
@@ -171,7 +181,10 @@ export function ChatPanel({
   }, [selectedChatId, openChats, onSelectChat])
 
   const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
-  const latestPr = useLatestPr(activeTab)
+  const chatHistoryPr = useLatestPr(activeTab)
+  const displayPr: { url: string; number: string } | null =
+    chatHistoryPr ??
+    (branchPr ? { url: branchPr.url, number: String(branchPr.number) } : null)
   const isAgentBusy = agent.status === "creating" || agent.status === "starting"
   const allChatIds = useMemo(
     () => chatSessions.map((c) => c.id),
@@ -265,16 +278,16 @@ export function ChatPanel({
               <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
             </span>
           )}
-          {latestPr ? (
+          {displayPr ? (
             <Button size="xs" variant="outline" asChild>
               <a
-                href={latestPr.url}
+                href={displayPr.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group"
               >
                 <GitPullRequest />
-                #{latestPr.number}
+                #{displayPr.number}
                 <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
               </a>
             </Button>

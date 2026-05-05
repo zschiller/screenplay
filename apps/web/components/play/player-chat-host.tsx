@@ -12,6 +12,7 @@ import {
   useRoomCollections,
 } from "@/lib/yjs/react"
 import { useDiffStats } from "@/hooks/use-diff-stats"
+import { useBranchPrs } from "@/hooks/use-branch-prs"
 import type { ChatSessionData } from "@/lib/types"
 
 interface PlayerChatHostProps {
@@ -41,6 +42,7 @@ export function PlayerChatHost({
     ? collections.workspaces.toMap().get(agent.workspaceId)
     : undefined
   const diffStats = useDiffStats(agents, workspace ? [workspace] : [])
+  const branchPrs = useBranchPrs(agents, workspace ? [workspace] : [])
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
 
@@ -240,6 +242,7 @@ export function PlayerChatHost({
         updateChatSession(chatId, { model })
       }
       diffStats={diffStats.get(agent.id)}
+      branchPr={branchPrs.get(agent.id) ?? null}
       onCollapse={onCollapse}
     />
   )
