@@ -1,3 +1,15 @@
+"use client"
+
+import { useState } from "react"
+
+const ACCENTS = [
+  { color: "#106BE3", bg: "bg-[#106BE3]" },
+  { color: "#10B981", bg: "bg-emerald-500" },
+  { color: "#F59E0B", bg: "bg-amber-500" },
+  { color: "#F43F5E", bg: "bg-rose-500" },
+  { color: "#8B5CF6", bg: "bg-violet-500" },
+]
+
 export function KnobsDeepDive() {
   return (
     <section
@@ -11,44 +23,42 @@ export function KnobsDeepDive() {
               Knobs
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Tune the design without re-prompting the agent.
+              Adjust values without re-prompting the agent.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              When the spacing&apos;s off by a hair or you want to try three
-              different headlines, you don&apos;t want to round-trip through
-              the agent for every tweak. Ask it once to expose the value as a
-              knob — copy, color, spacing, a toggle — and from then on you
-              (or your reviewer) drag the dial live. The real component
-              responds: gradients, layout shifts, animations, all of it.
+              Small adjustments — spacing, copy, a color — don&apos;t need a
+              full round-trip through the agent. Ask the agent once to
+              expose a value as a knob, and you or a reviewer can change it
+              live. The real component responds, including gradients,
+              layout, and animations tied to that value.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
               <Bullet>
                 <span className="text-foreground">Live, not approximated.</span>{" "}
-                Every knob change re-renders the real component, with real
+                Every knob change re-renders the real component using real
                 state and real data.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
                   Multiplayer by default.
                 </span>{" "}
-                Values sync to every viewer in the room — your reviewer&apos;s
-                drag shows up on your screen, instantly.
+                Values sync to every viewer in the room, so a reviewer&apos;s
+                adjustment appears on your screen immediately.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Added by the agent, on demand.
+                  Added by the agent on demand.
                 </span>{" "}
-                &ldquo;Let me try different accent colors&rdquo; — the canvas
-                agent wires the knob in for you. No round-trip for the next
-                tweak.
+                Ask for a knob in plain language and the canvas agent wires
+                it in. Subsequent adjustments happen in the panel.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Land a value, then commit it.
+                  Commit a value when you&apos;re done.
                 </span>{" "}
-                When you find the one, ask the agent to bake the dialed-in
-                value back into the code as the new default.
+                Once you&apos;ve settled on a value, the agent can write it
+                back into the code as the new default.
               </Bullet>
             </ul>
           </div>
@@ -75,6 +85,8 @@ function Bullet({ children }: { children: React.ReactNode }) {
 }
 
 function KnobsBoard() {
+  const [accent, setAccent] = useState(ACCENTS[0]!)
+
   return (
     <div className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm">
       {/* Mini-artboard label */}
@@ -93,24 +105,24 @@ function KnobsBoard() {
         </div>
       </div>
 
-      {/* Live preview — every knob below drives something here */}
+      {/* Live preview */}
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/30 p-5">
         <div className="knob-card-radius w-full max-w-xs border border-border bg-background p-4 shadow-sm">
           <div className="flex flex-col gap-2">
-            {/* Headline — width tracks the cycling headline knob */}
             <div className="knob-headline-bar h-2.5 rounded bg-foreground/85" />
             <div className="h-1.5 w-3/4 rounded bg-muted-foreground/40" />
             <div className="h-1.5 w-2/3 rounded bg-muted-foreground/40" />
-            {/* CTA — visibility tracks the switch, color tracks the accent
-                knob, corner radius tracks the slider (same class as the card) */}
-            <div className="knob-cta-visible mt-1">
-              <div className="knob-accent-bg knob-card-radius h-5 w-1/2" />
+            <div className="mt-1">
+              <div
+                className="knob-card-radius h-5 w-1/2 transition-colors duration-300"
+                style={{ backgroundColor: accent.color }}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Knob panel — every row drives part of the preview */}
+      {/* Knob panel */}
       <div className="space-y-2.5 rounded-lg border border-border bg-background/70 p-3">
         {/* Text knob → preview headline bar width */}
         <KnobRow label="Headline" badge="text">
@@ -123,13 +135,19 @@ function KnobsBoard() {
         {/* Color knob → preview CTA background */}
         <KnobRow label="Accent" badge="color">
           <div className="flex items-center gap-1.5">
-            <span className="knob-swatch-1 size-4 rounded border border-border bg-[#106BE3]" />
-            <span className="knob-swatch-2 size-4 rounded border border-border bg-emerald-500" />
-            <span className="knob-swatch-3 size-4 rounded border border-border bg-amber-500" />
-            <span className="knob-swatch-4 size-4 rounded border border-border bg-rose-500" />
-            <span className="knob-swatch-5 size-4 rounded border border-border bg-violet-500" />
-            <span className="ml-1 font-mono text-[10px] text-muted-foreground">
-              <span className="knob-accent-hex">#106BE3</span>
+            {ACCENTS.map((a) => (
+              <button
+                key={a.color}
+                onClick={() => setAccent(a)}
+                className={`size-4 rounded border transition-transform ${a.bg} ${
+                  a.color === accent.color
+                    ? "scale-125 border-foreground/40 shadow-sm"
+                    : "border-border hover:scale-110"
+                }`}
+              />
+            ))}
+            <span className="ml-1 font-mono text-[10px] text-muted-foreground transition-colors duration-300">
+              {accent.color}
             </span>
           </div>
         </KnobRow>
@@ -139,12 +157,12 @@ function KnobsBoard() {
           <div className="flex items-center gap-2">
             <div className="relative h-1.5 w-32 rounded-full bg-muted">
               <div
-                className="knob-fill absolute left-0 top-0 h-1.5 rounded-full bg-[#106BE3]"
-                style={{ width: "14%" }}
+                className="knob-fill absolute left-0 top-0 h-1.5 rounded-full"
+                style={{ backgroundColor: accent.color }}
               />
               <div
-                className="knob-thumb absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#106BE3] bg-background shadow"
-                style={{ left: "14%" }}
+                className="knob-thumb absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow"
+                style={{ borderColor: accent.color }}
               />
             </div>
             <span className="font-mono text-[10px] text-muted-foreground">
@@ -152,13 +170,6 @@ function KnobsBoard() {
               px
             </span>
           </div>
-        </KnobRow>
-
-        {/* Switch knob → preview CTA visibility */}
-        <KnobRow label="Show CTA" badge="switch">
-          <span className="knob-switch relative inline-flex h-3.5 w-6 items-center rounded-full bg-[#106BE3]/30">
-            <span className="knob-switch-thumb absolute left-0.5 size-2.5 rounded-full bg-background shadow" />
-          </span>
         </KnobRow>
       </div>
     </div>

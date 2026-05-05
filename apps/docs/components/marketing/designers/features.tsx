@@ -8,20 +8,20 @@ type Loss = {
 const losses: Loss[] = [
   {
     eyebrow: "Collaboration",
-    pain: "Localhost is for one. So is your agent chat.",
-    fix: "Two designers vibe coding can't see each other's screen, can't read each other's agent transcript, can't comment on a state without checking out the same branch. Screenplay drops your prototype into a shared room — same artboards, same sandbox, same agent in the loop, cursors and comments and knobs in real time.",
+    pain: "Localhost and agent chats aren't shared by default.",
+    fix: "Two designers working on the same prototype can't see each other's screens, read each other's agent transcripts, or comment on a specific state without checking out the same branch. Screenplay puts the prototype in a shared room: the same artboards, the same sandbox, the same agent, with cursors, comments, and knobs synced in real time.",
     icon: <CollabIcon />,
   },
   {
     eyebrow: "Going broad",
-    pain: "Agents go deep. Branches don't compare.",
-    fix: "AI agents are great at sprinting one direction at a time. Going broad means juggling branches — which don't sit next to each other, don't run side by side, and don't take a comment. Each artboard on the canvas is its own branch in its own sandbox. Three takes on a screen, three artboards, one glance.",
+    pain: "Agents work one direction at a time. Branches don't sit side by side.",
+    fix: "AI agents work well exploring a single direction at a time. Comparing alternatives means juggling branches that don't sit next to each other, don't run side by side, and can't be commented on directly. In Screenplay, each artboard is its own branch in its own sandbox, so multiple approaches can be viewed together on the canvas.",
     icon: <BreadthIcon />,
   },
   {
     eyebrow: "Communication",
-    pain: "Loom isn't a design review.",
-    fix: "Talking through a flow without Figma means screenshots, screen recordings, or \"can you click that again?\". Screenplay lays every screen and every state out on an infinite canvas. Comments anchor to the actual button. Scrub through states and every viewer follows.",
+    pain: "Screen recordings aren't a substitute for design review.",
+    fix: "Walking someone through a flow without Figma usually means screenshots, screen recordings, or repeated narration over a screen share. Screenplay lays every screen and every state out on an infinite canvas. Comments anchor to specific elements, and changing state updates every viewer in the room.",
     icon: <CommIcon />,
   },
 ]
@@ -35,14 +35,16 @@ export function DesignerFeatures() {
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-wider text-[#106BE3]">
-            What you lost when you stopped opening Figma
+            What changed when prototypes moved from Figma to code
           </span>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Real code is awesome. The design loop got worse.
+            Real code adds capability. It also breaks parts of the design
+            loop.
           </h2>
           <p className="mt-4 text-balance text-muted-foreground">
-            Screenplay is built around the three things vibe coding broke —
-            and puts them back without asking you to give up real code.
+            Screenplay restores the three parts of the design loop that get
+            harder when prototypes are real code, without asking you to
+            leave the agent workflow.
           </p>
         </div>
 
