@@ -29,6 +29,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@screenplay.space/state':
+        specifier: ^0.1.2
+        version: 0.1.2(react@19.2.5)
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -2168,6 +2171,11 @@ packages:
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
+
+  '@screenplay.space/state@0.1.2':
+    resolution: {integrity: sha512-u6LSU+9qS24SfH+qUlozLaCU1RlRXKIecIAoZdCbi6hHLUcEAlDVy4n6+84l+twGX4LWEVif7dUngfkSJUtpdA==}
+    peerDependencies:
+      react: '>=17'
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -7437,6 +7445,10 @@ snapshots:
   '@radix-ui/rect@1.1.1': {}
 
   '@rtsao/scc@1.1.0': {}
+
+  '@screenplay.space/state@0.1.2(react@19.2.5)':
+    dependencies:
+      react: 19.2.5
 
   '@sec-ant/readable-stream@0.4.1': {}
 

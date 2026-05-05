@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@workspace/ui/components/button"
-import { appUrl, githubUrl } from "@/lib/app-url"
+import { githubUrl } from "@/lib/app-url"
 import { Wordmark } from "./wordmark"
 
 export function Header() {
@@ -11,16 +11,8 @@ export function Header() {
           <Wordmark />
         </Link>
         <nav className="flex items-center gap-1">
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hidden rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-block"
-          >
-            GitHub
-          </a>
-          <a href={appUrl}>
-            <Button size="sm">Open Screenplay</Button>
+          <a href={githubUrl} target="_blank" rel="noreferrer">
+            <Button size="sm">GitHub</Button>
           </a>
         </nav>
       </div>

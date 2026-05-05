@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Vibe code with the agent",
-    body: "Build the prototype the way you already do — Screenplay runs a coding agent inside the sandbox attached to each artboard. Same loop as Cursor or Claude Code, with the canvas one click away.",
+    title: "Build with the agent",
+    body: "Each artboard runs a coding agent inside its own sandbox. The loop is the same as Cursor or Claude Code, with the canvas one click away.",
   },
   {
     num: "02",
-    title: "Branch out, side by side",
-    body: "Try three takes on the screen. Each artboard is its own branch in its own sandbox. Compare directions on a canvas instead of in your head.",
+    title: "Branch side by side",
+    body: "Each artboard is its own branch in its own sandbox, so multiple directions can be compared on the canvas instead of toggled between.",
   },
   {
     num: "03",
     title: "Bring the team in",
-    body: "Drop the link in Slack. Reviewers see the same artboards, the same agent transcript, and your cursor. Comments anchor to elements. State syncs across the room.",
+    body: "Share the link. Reviewers see the same artboards, the same agent transcript, and your cursor. Comments anchor to elements, and state syncs across the room.",
   },
   {
     num: "04",
-    title: "Tighten with knobs, then ship",
-    body: "Ask the agent to expose the values you want adjustable. Dial them in live with the room watching. When the look is right, commit the values back into the code.",
+    title: "Refine with knobs and commit",
+    body: "Ask the agent to expose the values you want adjustable, then refine them live with the room watching. When the result is right, the agent writes the chosen values back into the code.",
   },
 ]
 
@@ -33,10 +33,10 @@ export function DesignerWorkflow() {
       <div className="mx-auto w-full max-w-6xl px-6 py-20 lg:py-28">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-wider text-[#106BE3]">
-            The vibe-coding loop, restored
+            The end-to-end loop
           </span>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Prompt, branch, review — without leaving the canvas.
+            Prompt, branch, and review without leaving the canvas.
           </h2>
         </div>
 
