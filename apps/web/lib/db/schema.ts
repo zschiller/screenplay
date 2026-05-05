@@ -243,8 +243,11 @@ export const agentRun = pgTable(
 )
 
 // Captures a tool call that's waiting on the user (currently only
-// submit_plan). When the user approves/rejects via /api/agent/plan, we
-// resolve the row and resume the loop with the recorded tool result.
+// submit_plan). `id` is the AI SDK tool-call id verbatim — the same value
+// flows through the `plan_submitted` broadcast and the history-route
+// reconstruction path, so the planId the client holds always resolves back
+// to this row regardless of whether it was learned from a live broadcast or
+// from a fresh page load.
 export const agentPendingToolCall = pgTable(
   "agent_pending_tool_call",
   {
@@ -255,7 +258,6 @@ export const agentPendingToolCall = pgTable(
     chatId: text("chat_id")
       .notNull()
       .references(() => agentChat.id, { onDelete: "cascade" }),
-    toolCallId: text("tool_call_id").notNull(),
     toolName: text("tool_name").notNull(),
     input: jsonb("input").$type<Record<string, unknown>>().notNull(),
     status: text("status")

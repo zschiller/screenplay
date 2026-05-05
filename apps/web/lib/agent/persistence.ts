@@ -127,6 +127,12 @@ export async function findActiveRun(
   return { id: row.id, status: row.status as "running" | "paused_for_plan" }
 }
 
+/**
+ * Persist a tool call that's waiting on a human decision. The row's primary
+ * key IS the AI SDK tool-call id — same value used for the `plan_submitted`
+ * broadcast and the history-route reconstruction, so the client's planId
+ * always resolves back to this row.
+ */
 export async function savePendingToolCall(params: {
   runId: string
   chatId: string
@@ -134,16 +140,14 @@ export async function savePendingToolCall(params: {
   toolName: string
   input: Record<string, unknown>
 }): Promise<string> {
-  const id = nanoid()
   await db.insert(agentPendingToolCall).values({
-    id,
+    id: params.toolCallId,
     runId: params.runId,
     chatId: params.chatId,
-    toolCallId: params.toolCallId,
     toolName: params.toolName,
     input: params.input,
   })
-  return id
+  return params.toolCallId
 }
 
 export async function findPendingToolCall(
@@ -152,7 +156,6 @@ export async function findPendingToolCall(
   id: string
   runId: string
   chatId: string
-  toolCallId: string
   toolName: string
   input: Record<string, unknown>
   status: "pending" | "approved" | "rejected"
@@ -167,11 +170,37 @@ export async function findPendingToolCall(
     id: row.id,
     runId: row.runId,
     chatId: row.chatId,
-    toolCallId: row.toolCallId,
     toolName: row.toolName,
     input: row.input,
     status: row.status,
   }
+}
+
+/**
+ * Find the most recent pending submit_plan for a chat. Used by the stream
+ * route to detect a follow-up message arriving while a plan is awaiting
+ * approval — the new message is treated as an implicit rejection.
+ */
+export async function findPendingPlanForChat(chatId: string): Promise<{
+  id: string
+  input: Record<string, unknown>
+} | null> {
+  const [row] = await db
+    .select({
+      id: agentPendingToolCall.id,
+      input: agentPendingToolCall.input,
+    })
+    .from(agentPendingToolCall)
+    .where(
+      and(
+        eq(agentPendingToolCall.chatId, chatId),
+        eq(agentPendingToolCall.toolName, "submit_plan"),
+        eq(agentPendingToolCall.status, "pending"),
+      ),
+    )
+    .orderBy(desc(agentPendingToolCall.createdAt))
+    .limit(1)
+  return row ?? null
 }
 
 export async function resolvePendingToolCall(

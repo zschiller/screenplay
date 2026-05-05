@@ -72,9 +72,11 @@ export async function POST(req: Request) {
   }
 
   // Append the human-side resolution as a tool message so the model sees a
-  // valid tool-call → tool-result pair for submit_plan, then resume.
+  // valid tool-call → tool-result pair for submit_plan, then resume. The
+  // row id IS the tool-call id, so `pending.id` is what the AI SDK is
+  // expecting in the tool-result.
   const toolResultMsg = buildPlanToolResultMessage({
-    toolCallId: pending.toolCallId,
+    toolCallId: pending.id,
     approved,
     feedback,
   })

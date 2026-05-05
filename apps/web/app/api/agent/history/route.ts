@@ -26,9 +26,11 @@ export async function GET(req: Request) {
 
   const [history, planRows] = await Promise.all([
     loadChatHistory(chatId),
+    // The pending-tool-call row id IS the AI SDK tool-call id, so it lines
+    // up directly with the toolCallId on the assistant's submit_plan part.
     db
       .select({
-        toolCallId: agentPendingToolCall.toolCallId,
+        id: agentPendingToolCall.id,
         status: agentPendingToolCall.status,
       })
       .from(agentPendingToolCall)
@@ -45,7 +47,7 @@ export async function GET(req: Request) {
     "pending" | "approved" | "rejected"
   >()
   for (const r of planRows) {
-    planStatusByToolCallId.set(r.toolCallId, r.status)
+    planStatusByToolCallId.set(r.id, r.status)
   }
 
   const messages: AgentMessage[] = []

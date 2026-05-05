@@ -4,11 +4,13 @@ import { getUserId } from "@/lib/auth-helpers"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
-import { runAgentLoop } from "@/lib/agent/engine"
+import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
+  findPendingPlanForChat,
   loadChatHistory,
+  resolvePendingToolCall,
   startRun,
   upsertChat,
 } from "@/lib/agent/persistence"
@@ -111,6 +113,33 @@ export async function POST(req: Request) {
         label: chatLabel,
       })
     }
+  }
+
+  // If the user sent a follow-up message while a submit_plan is still
+  // pending approval, treat the new message as the rejection feedback and
+  // resolve the plan before continuing. Without this the conversation log
+  // would have an unresolved tool-call followed by a user message, which
+  // every provider rejects with a 400 ("tool_use must have a corresponding
+  // tool_result").
+  const pendingPlan = await findPendingPlanForChat(chatId)
+  if (pendingPlan) {
+    await resolvePendingToolCall(pendingPlan.id, {
+      approved: false,
+      feedback: message,
+    })
+    await appendMessage(
+      chatId,
+      buildPlanToolResultMessage({
+        toolCallId: pendingPlan.id,
+        approved: false,
+        feedback: message,
+      }),
+    )
+    await broadcastEvent(roomId, chatId, {
+      type: "plan_rejected",
+      planId: pendingPlan.id,
+      feedback: message,
+    })
   }
 
   // Append the user message with the same plan/branch prefixes the agent's
