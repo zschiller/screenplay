@@ -17,6 +17,7 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   RefreshCw,
+  Rows3,
   Trash2,
   Frame,
   MoreHorizontal,
@@ -88,6 +89,10 @@ import { ArtboardSizeSelect } from "@/components/artboard-size-select"
 import { DEFAULT_ARTBOARD_SIZE_ID } from "@/lib/artboard-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog"
+import {
+  ParallelCreateDialog,
+  type ParallelAgentSpec,
+} from "@/components/parallel-create-dialog"
 
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
@@ -107,6 +112,7 @@ interface AgentSidebarProps {
   ) => void | Promise<void>
   onCreateAgent: (workspaceId: string) => void
   onCreateAgentFromBranch: (workspaceId: string, branch: string) => void
+  onCreateParallelAgents: (workspaceId: string, specs: ParallelAgentSpec[]) => void
   onDuplicateBranch: (workspaceId: string, branch: string) => void
   onForkAgent: (agentId: string) => void
   onRebaseOnDefault: (agentId: string) => void
@@ -148,6 +154,7 @@ export function AgentSidebar({
   onRemoveWorkspace,
   onCreateAgent,
   onCreateAgentFromBranch,
+  onCreateParallelAgents,
   onDuplicateBranch,
   onForkAgent,
   onRebaseOnDefault,
@@ -174,6 +181,7 @@ export function AgentSidebar({
   const [showPicker, setShowPicker] = useState(false)
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
   const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
+  const [parallelWorkspaceId, setParallelWorkspaceId] = useState<string | null>(null)
   const [pendingDeleteAgentId, setPendingDeleteAgentId] = useState<string | null>(null)
   const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
@@ -282,7 +290,7 @@ export function AgentSidebar({
                           className="group/workspace-row relative"
                           data-settings-open={settingsWorkspaceId === workspace.id || undefined}
                         >
-                          <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[5rem] group-focus-within/workspace-row:!pr-[5rem] group-data-[settings-open]/workspace-row:!pr-[5rem]" onClick={(e) => e.stopPropagation()}>
+                          <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[6.5rem] group-focus-within/workspace-row:!pr-[6.5rem] group-data-[settings-open]/workspace-row:!pr-[6.5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
                                 <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
@@ -303,7 +311,7 @@ export function AgentSidebar({
                           >
                             <PopoverTrigger asChild>
                               <SidebarMenuAction
-                                className="right-[3.25rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
+                                className="right-[4.75rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 aria-expanded:opacity-100"
                                 onClick={(e) => e.stopPropagation()}
                                 title="Settings"
                               >
@@ -322,6 +330,13 @@ export function AgentSidebar({
                               />
                             </PopoverContent>
                           </Popover>
+                          <SidebarMenuAction
+                            className="right-[3.25rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
+                            onClick={(e) => { e.stopPropagation(); setParallelWorkspaceId(workspace.id) }}
+                            title="Spin up parallel agents"
+                          >
+                            <Rows3 />
+                          </SidebarMenuAction>
                           <SidebarMenuAction
                             className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
                             onClick={(e) => { e.stopPropagation(); setBranchPickerWorkspaceId(workspace.id) }}
@@ -769,6 +784,23 @@ export function AgentSidebar({
             }}
           />
         )
+      })()}
+      {(() => {
+        const workspace = parallelWorkspaceId
+          ? workspaces.find((w) => w.id === parallelWorkspaceId)
+          : null
+        return workspace ? (
+          <ParallelCreateDialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setParallelWorkspaceId(null)
+            }}
+            repoOwner={workspace.repoOwner}
+            repoName={workspace.repoName}
+            defaultBranch={workspace.defaultBranch}
+            onSubmit={(specs) => onCreateParallelAgents(workspace.id, specs)}
+          />
+        ) : null
       })()}
       {(() => {
         const workspace = pendingDeleteWorkspaceId
