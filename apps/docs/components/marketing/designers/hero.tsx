@@ -7,19 +7,21 @@ export function DesignerHero() {
       <div className="mx-auto grid w-full max-w-6xl gap-12 px-6 pb-20 pt-16 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pt-24">
         <div className="flex flex-col justify-center">
           <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Vibe coding prototypes is great.{" "}
-            <span className="text-[#106BE3]">Reviewing them is broken.</span>
+            AI-built prototypes are easy to make.{" "}
+            <span className="text-[#106BE3]">
+              Reviewing them is harder than it should be.
+            </span>
           </h1>
           <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Localhost is for one person. Agent chats don&apos;t share.
-            Branches don&apos;t sit next to each other. Loom isn&apos;t a
-            design review. Screenplay puts your AI-built prototypes on a
-            multiplayer canvas — every direction laid out, every screen
-            reviewable, every viewer in sync.
+            Localhost runs on one machine. Agent chats stay private. Branches
+            can&apos;t be viewed side by side. Screen recordings aren&apos;t
+            a substitute for a design review. Screenplay places AI-built
+            prototypes on a multiplayer canvas, with every direction laid
+            out, every screen reviewable, and every viewer in sync.
           </p>
           <p className="mt-8 max-w-md text-xs text-muted-foreground/80">
-            For designers using Cursor, Claude Code, V0, Bolt — anywhere your
-            prototype is real running code on someone else&apos;s machine.
+            Built for designers using Cursor, Claude Code, V0, or Bolt —
+            anywhere a prototype runs as real code on a remote machine.
           </p>
         </div>
 

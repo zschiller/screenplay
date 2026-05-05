@@ -10,42 +10,42 @@ export function StateDeepDive() {
               State sync
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Review every state with the room in lock-step.
+              Every viewer sees the same state at the same time.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              The reason design reviews fall back to Loom: walking someone
-              through a flow over a screen share. With Screenplay, when you
-              click into the loading state, every viewer follows. When your
-              reviewer tries the empty state, you see it. Selected items,
-              form values, current step, route, modal open/closed — same
-              screen, same time, no narration required.
+              Design reviews often fall back to screen recordings because
+              walking someone through a flow over a screen share is
+              awkward. In Screenplay, when you click into the loading state,
+              every viewer follows. When a reviewer tries the empty state,
+              you see it too. Selected items, form values, the current
+              step, the route, and modal open/closed are all kept in sync.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
               <Bullet>
                 <span className="text-foreground">
-                  Anything stateful, shared.
+                  Anything stateful can be shared.
                 </span>{" "}
                 Forms, toggles, selections, route params, the active tab —
-                ask the agent to make a piece of state shared and it&apos;s
-                multiplayer.
+                ask the agent to share a value and it becomes multiplayer.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">Conflict-free.</span>{" "}
-                Two reviewers tweaking at once converge cleanly, backed by
-                Yjs. No flicker, no last-write-wins surprises.
+                Two reviewers editing at once converge cleanly, backed by
+                Yjs. No flicker and no last-write-wins surprises.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">Persists per artboard.</span>{" "}
-                Close the tab, come back tomorrow, the prototype is exactly
-                where you left it — handy for async review.
+                Close the tab and come back later — the prototype is
+                exactly where you left it, which is useful for async
+                review.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Works with what the agent already wrote.
+                  Works with existing state.
                 </span>{" "}
-                Zustand, Jotai, Redux, plain hooks — if it&apos;s a value, it
-                can be shared.
+                Zustand, Jotai, Redux, or plain hooks — any value can be
+                shared.
               </Bullet>
             </ul>
           </div>

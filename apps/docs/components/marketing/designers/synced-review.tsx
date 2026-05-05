@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { useSharedState } from "@screenplay.space/state"
 
 const STEPS = ["Cart", "Ship", "Pay", "Done"]
 
 export function SyncedReview() {
+  // Illustrative only — all three windows render off the same local state
+  // to *show* what useSharedState does, without actually calling it.
   const [activeStep, setActiveStep] = useState(0)
-  useSharedState("checkout-step", activeStep, setActiveStep)
 
   const isDone = activeStep >= STEPS.length - 1
 

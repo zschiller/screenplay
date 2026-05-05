@@ -23,44 +23,42 @@ export function KnobsDeepDive() {
               Knobs
             </span>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              Tune the design without re-prompting the agent.
+              Adjust values without re-prompting the agent.
             </h2>
             <p className="mt-4 max-w-xl text-muted-foreground">
-              When the spacing&apos;s off by a hair or you want to try three
-              different headlines, you don&apos;t want to round-trip through
-              the agent for every tweak. Ask it once to expose the value as a
-              knob — copy, color, spacing, a toggle — and from then on you
-              (or your reviewer) drag the dial live. The real component
-              responds: gradients, layout shifts, animations, all of it.
+              Small adjustments — spacing, copy, a color — don&apos;t need a
+              full round-trip through the agent. Ask the agent once to
+              expose a value as a knob, and you or a reviewer can change it
+              live. The real component responds, including gradients,
+              layout, and animations tied to that value.
             </p>
 
             <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
               <Bullet>
                 <span className="text-foreground">Live, not approximated.</span>{" "}
-                Every knob change re-renders the real component, with real
+                Every knob change re-renders the real component using real
                 state and real data.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
                   Multiplayer by default.
                 </span>{" "}
-                Values sync to every viewer in the room — your reviewer&apos;s
-                drag shows up on your screen, instantly.
+                Values sync to every viewer in the room, so a reviewer&apos;s
+                adjustment appears on your screen immediately.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Added by the agent, on demand.
+                  Added by the agent on demand.
                 </span>{" "}
-                &ldquo;Let me try different accent colors&rdquo; — the canvas
-                agent wires the knob in for you. No round-trip for the next
-                tweak.
+                Ask for a knob in plain language and the canvas agent wires
+                it in. Subsequent adjustments happen in the panel.
               </Bullet>
               <Bullet>
                 <span className="text-foreground">
-                  Land a value, then commit it.
+                  Commit a value when you&apos;re done.
                 </span>{" "}
-                When you find the one, ask the agent to bake the dialed-in
-                value back into the code as the new default.
+                Once you&apos;ve settled on a value, the agent can write it
+                back into the code as the new default.
               </Bullet>
             </ul>
           </div>
