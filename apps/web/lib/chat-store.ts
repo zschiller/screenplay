@@ -36,9 +36,29 @@ const DEFAULT_STATE: ChatState = {
   error: null,
 }
 
-async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
+/**
+ * v1 routes hit Anthropic's hosted sessions API; v2 routes use a self-hosted
+ * Postgres + Vercel AI SDK loop. Toggle per-deployment via NEXT_PUBLIC_AGENT_V2.
+ * The wire format (AgentStreamEvent / AgentMessage) is identical, so the rest
+ * of this store doesn't care which backend is responding.
+ */
+const AGENT_V2 = process.env.NEXT_PUBLIC_AGENT_V2 === "true"
+const AGENT_PREFIX = AGENT_V2 ? "/api/agent/v2" : "/api/agent"
+
+async function fetchHistory(
+  chatId: string,
+  sessionId: string | undefined,
+): Promise<AgentMessage[]> {
+  if (AGENT_V2) {
+    const res = await fetch(
+      `${AGENT_PREFIX}/history?chatId=${encodeURIComponent(chatId)}`,
+    )
+    if (!res.ok) return []
+    return res.json()
+  }
+  if (!sessionId) return []
   const res = await fetch(
-    `/api/agent/history?sessionId=${encodeURIComponent(sessionId)}`,
+    `${AGENT_PREFIX}/history?sessionId=${encodeURIComponent(sessionId)}`,
   )
   if (!res.ok) return []
   return res.json()
@@ -142,10 +162,12 @@ class ChatStore {
 
   // --- History loading (initial load only) ---
 
-  loadHistory(chatId: string, sessionId: string) {
+  loadHistory(chatId: string, sessionId?: string) {
     if (this.historyLoaded.has(chatId)) return
+    // v1 needs an Anthropic sessionId to fetch history; v2 keys by chatId.
+    if (!AGENT_V2 && !sessionId) return
     this.historyLoaded.add(chatId)
-    this.sessionIds.set(chatId, sessionId)
+    if (sessionId) this.sessionIds.set(chatId, sessionId)
 
     // Snapshot the mutation epoch so we can detect if optimistic adds or live
     // broadcast events touched messages while we were fetching. If they did,
@@ -155,7 +177,7 @@ class ChatStore {
     const epochAtStart = this.messagesEpoch.get(chatId) ?? 0
 
     this.update(chatId, { isLoadingHistory: true })
-    fetchHistory(sessionId)
+    fetchHistory(chatId, sessionId)
       .then((history) => {
         if (history.length === 0) {
           this.update(chatId, { isLoadingHistory: false })
@@ -201,7 +223,7 @@ class ChatStore {
     this.callbacks.set(chatId, { onSessionId: opts.onSessionId, onBranchRename: opts.onBranchRename, onChatRename: opts.onChatRename })
 
     try {
-      const res = await fetch("/api/agent/stream", {
+      const res = await fetch(`${AGENT_PREFIX}/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -258,17 +280,21 @@ class ChatStore {
   // --- Stop a running stream by interrupting the underlying session ---
 
   async stopMessage(roomId: string, chatId: string) {
+    // v1 needs the upstream sessionId to send a user.interrupt; v2 just
+    // flips the run's abort flag in Postgres and the loop's watchdog
+    // notices. The chatId-only signature is enough for v2.
     const sessionId = this.sessionIds.get(chatId)
-    if (!sessionId) return
-    // Flip the UI to non-streaming immediately. The server still broadcasts
-    // chat-stream-end after the upstream interrupt resolves, but the user's
-    // intent to stop shouldn't depend on that round-trip succeeding.
+    if (!AGENT_V2 && !sessionId) return
     this.update(chatId, { isStreaming: false })
     try {
-      const res = await fetch("/api/agent/stop", {
+      const res = await fetch(`${AGENT_PREFIX}/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatId, sessionId }),
+        body: JSON.stringify(
+          AGENT_V2
+            ? { roomId, chatId }
+            : { roomId, chatId, sessionId },
+        ),
       })
       if (!res.ok) {
         const errorText = await res.text()
@@ -441,7 +467,7 @@ class ChatStore {
 
   async approvePlan(roomId: string, chatId: string, planId: string) {
     try {
-      const res = await fetch("/api/agent/plan", {
+      const res = await fetch(`${AGENT_PREFIX}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId, planId, approved: true }),
@@ -464,7 +490,7 @@ class ChatStore {
 
   async rejectPlan(roomId: string, chatId: string, planId: string, feedback: string) {
     try {
-      const res = await fetch("/api/agent/plan", {
+      const res = await fetch(`${AGENT_PREFIX}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId, planId, approved: false, feedback }),

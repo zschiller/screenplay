@@ -40,11 +40,10 @@ export function useAgentChat({
     () => chatStore.getSnapshot(chatId),
   )
 
-  // Load history once if session exists
+  // Load history once. chatStore.loadHistory decides whether to actually
+  // fetch — v1 needs an Anthropic sessionId, v2 keys by chatId alone.
   useEffect(() => {
-    if (sessionId) {
-      chatStore.loadHistory(chatId, sessionId)
-    }
+    chatStore.loadHistory(chatId, sessionId)
   }, [chatId, sessionId])
 
   // Register callbacks so broadcast events can trigger Liveblocks mutations

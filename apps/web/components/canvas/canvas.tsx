@@ -2447,9 +2447,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // clients can see past messages for chats they haven't opened yet.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (cs.sessionId) {
-        chatStore.loadHistory(cs.id, cs.sessionId)
-      }
+      // chatStore.loadHistory checks AGENT_V2 internally — v2 keys by chatId,
+      // v1 only loads when an Anthropic sessionId is available.
+      chatStore.loadHistory(cs.id, cs.sessionId)
     }
   }, [chatSessions])
 

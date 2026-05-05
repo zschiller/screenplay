@@ -186,7 +186,7 @@ export const threadRead = pgTable(
 
 // v2 agent persistence — replaces Anthropic's hosted sessions.
 
-import type { UIMessage } from "ai"
+import type { ModelMessage } from "ai"
 
 // One row per chat. `chatId` is the same id the v1 routes already use (the
 // caller-supplied chatId from the room doc), so we can mount v2 onto an
@@ -214,8 +214,8 @@ export const agentMessage = pgTable(
     chatId: text("chat_id")
       .notNull()
       .references(() => agentChat.id, { onDelete: "cascade" }),
-    role: text("role").$type<UIMessage["role"]>().notNull(),
-    message: jsonb("message").$type<UIMessage>().notNull(),
+    role: text("role").$type<ModelMessage["role"]>().notNull(),
+    message: jsonb("message").$type<ModelMessage>().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)],

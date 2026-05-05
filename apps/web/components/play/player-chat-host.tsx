@@ -89,7 +89,9 @@ export function PlayerChatHost({
   // can show past messages even if the user never opened them on the canvas.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (cs.sessionId) chatStore.loadHistory(cs.id, cs.sessionId)
+      // chatStore.loadHistory itself decides whether the optional sessionId
+      // is required (v1) or whether chatId alone is enough (v2).
+      chatStore.loadHistory(cs.id, cs.sessionId)
     }
   }, [chatSessions])
 
