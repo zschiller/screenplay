@@ -110,6 +110,11 @@ const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 const PIDFILE_DEV = "/tmp/screenplay/dev.pid"
 const PIDFILE_PROXY = "/tmp/screenplay/proxy.pid"
 
+// Offset between the user's dev port and the bridge proxy's public port.
+// Far enough from typical monorepo ports (3001, 4200, 5173, 8080…) that a
+// dev script running multiple apps in-sandbox can't collide with the proxy.
+const PROXY_PORT_OFFSET = 1000
+
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
 //   progress (vs. its default silent/summary mode when not on a TTY)
@@ -188,7 +193,7 @@ export async function cloneSandbox(
             url: gitUrl,
             revision: branch,
           },
-      ports: [port, port + 1],
+      ports: [port, port + PROXY_PORT_OFFSET],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },
@@ -327,9 +332,9 @@ export async function installClaudeCode(
  * Write the in-sandbox HTML-injecting proxy and DOM bridge script to
  * /tmp/screenplay/. Idempotent — safe to call on every dev-server start.
  * Uses /tmp because commands run as the `vercel-sandbox` user, which has no
- * read access to /root. The proxy forwards the public port (port + 1) to the
- * user's devserver on `port`, injecting a <script> tag that exposes a
- * postMessage DOM bridge.
+ * read access to /root. The proxy forwards the public port (port +
+ * PROXY_PORT_OFFSET) to the user's devserver on `port`, injecting a
+ * <script> tag that exposes a postMessage DOM bridge.
  */
 export async function installBridge(
   sandboxName: string,
@@ -352,61 +357,11 @@ export async function getBridgeVersion(): Promise<string> {
   return BRIDGE_VERSION
 }
 
-/**
- * Kill any previously-started dev server and proxy wrapper so a relaunch
- * doesn't race the old process for the port. Idempotent — safe to call when
- * nothing is running.
- */
-async function _stopDevAndProxy(
-  sandbox: SandboxInstance,
-  port: number,
-): Promise<void> {
-  const header = shellQuote(`\n$ stopping previous dev server & proxy\n`)
-  const proxyPort = port + 1
-  // Three-tier kill, in decreasing confidence:
-  //   1. Pidfiles: each process was launched under `setsid` so its PID is
-  //      also its PGID. `kill -KILL -<pid>` SIGKILLs the entire group, taking
-  //      down every descendant in one shot — this is the only path that
-  //      reliably catches Next compile workers / esbuild / the proxy respawn
-  //      loop. Port-based killing alone misses these since only the listener
-  //      shows up in lsof.
-  //   2. `pkill -9 -f "screenplay/proxy.mjs"` for orphaned proxies that
-  //      pre-date the pidfile convention (sandboxes from older deploys).
-  //   3. Port-based loop as a final fallback. We re-check after each pass
-  //      since a single SIGKILL + sleep isn't always enough — the kernel can
-  //      take a moment to release the listening socket.
-  const sh =
-    `mkdir -p /tmp/screenplay; ` +
-    `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `for f in ${PIDFILE_DEV} ${PIDFILE_PROXY}; do ` +
-    `  if [ -s "$f" ]; then ` +
-    `    pid=$(cat "$f"); ` +
-    `    if [ -n "$pid" ]; then ` +
-    `      kill -KILL -$pid 2>/dev/null; ` +
-    `      kill -KILL $pid 2>/dev/null; ` +
-    `    fi; ` +
-    `    rm -f "$f"; ` +
-    `  fi; ` +
-    `done; ` +
-    `pkill -9 -f "screenplay/proxy.mjs" 2>/dev/null; ` +
-    `for attempt in 1 2 3 4 5 6; do ` +
-    `  p1=$(lsof -ti tcp:${port} 2>/dev/null); ` +
-    `  p2=$(lsof -ti tcp:${proxyPort} 2>/dev/null); ` +
-    `  if [ -z "$p1" ] && [ -z "$p2" ]; then break; fi; ` +
-    `  [ -n "$p1" ] && kill -9 $p1 2>/dev/null; ` +
-    `  [ -n "$p2" ] && kill -9 $p2 2>/dev/null; ` +
-    `  fuser -k -KILL ${port}/tcp 2>/dev/null; ` +
-    `  fuser -k -KILL ${proxyPort}/tcp 2>/dev/null; ` +
-    `  sleep 1; ` +
-    `done; ` +
-    `exit 0`
-  await sandbox.runCommand({ cmd: "sh", args: ["-c", sh] })
-}
 
 /**
  * Launch both the user's dev server and the bridge proxy. Installs the bridge
  * files first (idempotent). Returns a SandboxResult pointing at the proxy
- * URL (port + 1) rather than the devserver URL.
+ * URL (port + PROXY_PORT_OFFSET) rather than the devserver URL.
  */
 async function _launchDevAndProxy(
   sandbox: SandboxInstance,
@@ -458,13 +413,13 @@ async function _launchDevAndProxy(
     detached: true,
     env: {
       SCREENPLAY_UPSTREAM_PORT: String(port),
-      SCREENPLAY_LISTEN_PORT: String(port + 1),
+      SCREENPLAY_LISTEN_PORT: String(port + PROXY_PORT_OFFSET),
     },
   })
 
   return {
     sandboxName: sandbox.name,
-    previewDomain: sandbox.domain(port + 1),
+    previewDomain: sandbox.domain(port + PROXY_PORT_OFFSET),
     status: "running",
   }
 }
@@ -526,7 +481,7 @@ export async function reconnectSandbox(
     if (check.status === "running") {
       return {
         sandboxName: check.name,
-        previewDomain: check.domain(port + 1),
+        previewDomain: check.domain(port + PROXY_PORT_OFFSET),
         status: "running",
       }
     }
@@ -546,62 +501,72 @@ export async function reconnectSandbox(
 }
 
 /**
- * Restart a persistent sandbox. Auto-resume handles stopped sandboxes —
- * no need to recreate from scratch.
+ * Restart a sandbox by deleting and recreating it from scratch. Always
+ * starts fresh — no snapshot reuse, no `git pull` over a stale tree — so
+ * port allocations, env, and on-disk state always match the latest config.
  */
 export async function restartSandbox(
   sandboxName: string,
-  gitUrl: string,
+  workspace: WorkspaceData,
   branch: string,
-  port: number = 3000,
-  setupScript?: string,
-  devScript?: string,
   ghToken?: string,
 ): Promise<SandboxResult> {
   try {
+    if (!ghToken) ghToken = await getGitHubToken() ?? undefined
     const safeEnv = await getEnvVars(sandboxName)
+    const port = workspace.devServerPort
 
-    let sandbox: SandboxInstance
-    let recreated = false
+    // Best-effort delete of the old sandbox. If it's already gone (snapshot
+    // expired, never existed), proceed straight to create.
     try {
-      // sandboxProvider.get auto-resumes stopped persistent sandboxes
-      sandbox = await sandboxProvider.get({ name: sandboxName })
-    } catch {
-      // Sandbox no longer exists (snapshot expired / deleted) — recreate it
-      if (!ghToken) ghToken = await getGitHubToken() ?? undefined
-      const networkPolicy = buildNetworkPolicy()
-      const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
-      const created = await sandboxProvider.create({
-        name: sandboxName,
-        source: ghToken
-          ? { type: "git", url: gitUrl, revision: branch, username: "x-access-token", password: ghToken }
-          : { type: "git", url: gitUrl, revision: branch },
-        ports: [port, port + 1],
-        timeout: SANDBOX_TIMEOUT,
-        snapshotExpiration: SNAPSHOT_EXPIRATION,
-        resources: { vcpus: SANDBOX_VCPUS },
-        env: mergedEnv,
-        networkPolicy,
-      })
-      sandbox = created
-      recreated = true
-    }
+      const old = await sandboxProvider.get({ name: sandboxName, resume: false })
+      await old.delete()
+    } catch {}
 
-    // Only pull if the sandbox already existed (freshly cloned sandboxes are up to date)
-    if (!recreated) {
-      // Kill the old dev server + proxy first so install doesn't race the
-      // running process and the relaunch below doesn't collide on the port.
-      await _stopDevAndProxy(sandbox, port)
-      const actingUserId = await getUserId()
-      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
-      await runLogged(sandbox, "git", ["pull", "origin", branch], { env: gitEnv })
-    }
+    const networkPolicy = buildNetworkPolicy()
+    const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
+    const sandbox = await sandboxProvider.create({
+      name: sandboxName,
+      source: ghToken
+        ? { type: "git", url: workspace.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
+        : { type: "git", url: workspace.cloneUrl, revision: branch },
+      ports: [port, port + PROXY_PORT_OFFSET],
+      timeout: SANDBOX_TIMEOUT,
+      snapshotExpiration: SNAPSHOT_EXPIRATION,
+      resources: { vcpus: SANDBOX_VCPUS },
+      env: mergedEnv,
+      networkPolicy,
+    })
 
-    const setup = setupScript?.trim() || "npm install"
+    // Mirror the create pipeline: deps + Claude Code in parallel, then git
+    // setup, then dev launch. Claude Code is best-effort — already swallows
+    // its own errors.
+    const setup = workspace.setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
-    await runLogged(sandbox, setupCmd, setupArgs)
+    const [setupResult] = await Promise.all([
+      runLogged(sandbox, setupCmd, setupArgs),
+      installClaudeCode(sandbox.name),
+    ])
+    if (setupResult.exitCode !== 0) {
+      return {
+        sandboxName: sandbox.name,
+        previewDomain: "",
+        status: "error",
+        error: `Setup script failed (exit ${setupResult.exitCode})`,
+      }
+    }
 
-    return await _launchDevAndProxy(sandbox, port, devScript, safeEnv)
+    const gitResult = await configureAgentGit(sandbox.name, workspace, branch)
+    if (!gitResult.success) {
+      return {
+        sandboxName: sandbox.name,
+        previewDomain: "",
+        status: "error",
+        error: gitResult.error,
+      }
+    }
+
+    return await _launchDevAndProxy(sandbox, port, workspace.devScript, safeEnv)
   } catch (e) {
     return {
       sandboxName,

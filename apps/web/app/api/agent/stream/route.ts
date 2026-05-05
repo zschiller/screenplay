@@ -517,7 +517,23 @@ export async function POST(req: Request) {
       return Response.json({ sessionId })
     }
 
-    await ensureSessionReady(client, sessionId, toolCtx)
+    try {
+      await ensureSessionReady(client, sessionId, toolCtx)
+    } catch (e) {
+      // The existing session is dead, stuck, or unreachable — terminated, idle
+      // never reached after a stream watchdog fired, retrieve 404 after upstream
+      // cleanup, etc. Start a fresh session so the user's follow-up message
+      // gets through instead of failing with HTTP 500.
+      console.warn(
+        "Existing session unusable, creating fresh session:",
+        e instanceof Error ? e.message : e,
+      )
+      const session = await client.beta.sessions.create({
+        agent: agentId,
+        environment_id: environmentId,
+      })
+      sessionId = session.id
+    }
   }
 
   // Broadcast session_id to all clients immediately
@@ -768,6 +784,16 @@ export async function POST(req: Request) {
       await broadcastChatEvent(roomId, chatId, { type: "done" })
       await broadcastChatSignal(roomId, chatId, "chat-stream-end")
     } catch (e) {
+      // Best-effort: interrupt the upstream session so it doesn't keep running
+      // orphaned in the background. Without this, the next follow-up message
+      // hits an unresponsive session and fails ensureSessionReady.
+      try {
+        await client.beta.sessions.events.send(sessionId!, {
+          events: [{ type: "user.interrupt" }],
+        })
+      } catch (interruptError) {
+        console.warn("Interrupt on stream error failed:", interruptError)
+      }
       await broadcastChatEvent(roomId, chatId, {
         type: "error",
         message: e instanceof Error ? e.message : String(e),
