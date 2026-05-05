@@ -71,98 +71,139 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 function SyncedReview() {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-      {/* Sync status header */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <span className="inline-flex w-fit items-center rounded-md bg-pink-100 px-1.5 py-0 font-mono text-[10px] text-pink-700 dark:bg-pink-950 dark:text-pink-300">
-            design/checkout
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      {/* Fake browser chrome */}
+      <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-2.5">
+        <span className="size-2.5 rounded-full bg-muted-foreground/20" />
+        <span className="size-2.5 rounded-full bg-muted-foreground/20" />
+        <span className="size-2.5 rounded-full bg-muted-foreground/20" />
+        <div className="mx-auto flex items-center gap-1.5 rounded-md bg-background/70 px-3 py-1 text-[10px] text-muted-foreground/60">
+          <span>acme-store.com</span>
+          <span className="text-muted-foreground/30">/checkout</span>
+        </div>
+        {/* Presence avatars */}
+        <div className="flex items-center">
+          <div className="flex -space-x-1.5">
+            {[
+              { initials: "M", color: "#106BE3" },
+              { initials: "J", color: "#E0457B" },
+              { initials: "S", color: "#10B981" },
+            ].map(({ initials, color }) => (
+              <span
+                key={initials}
+                className="flex size-5 items-center justify-center rounded-full text-[9px] font-semibold text-white ring-2 ring-card"
+                style={{ backgroundColor: color }}
+              >
+                {initials}
+              </span>
+            ))}
+          </div>
+          <span className="ml-2 flex items-center gap-1">
+            <span className="relative flex size-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#106BE3] opacity-75" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-[#106BE3]" />
+            </span>
+            <span className="font-mono text-[9px] text-muted-foreground">synced</span>
           </span>
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 ring-1 ring-card" />
-            <span className="text-[11px] font-medium text-foreground/70">
-              Checkout
-            </span>
-            <span className="rounded-md bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50">
-              /checkout
-            </span>
+        </div>
+      </div>
+
+      {/* Checkout UI */}
+      <div className="p-5">
+        {/* Step progress */}
+        <div className="mb-5 flex items-center gap-2">
+          {["Cart", "Shipping", "Payment", "Confirm"].map((step, i) => (
+            <div key={step} className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`flex size-4 items-center justify-center rounded-full text-[9px] font-semibold ${
+                    i < 2
+                      ? "bg-[#106BE3] text-white"
+                      : i === 2
+                        ? "border-2 border-[#106BE3] text-[#106BE3]"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {i < 2 ? "✓" : i + 1}
+                </span>
+                <span
+                  className={`text-[10px] font-medium ${i <= 2 ? "text-foreground" : "text-muted-foreground"}`}
+                >
+                  {step}
+                </span>
+              </div>
+              {i < 3 && (
+                <div
+                  className={`h-px w-6 ${i < 2 ? "bg-[#106BE3]" : "bg-border"}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto] gap-4">
+          {/* Left: form */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">Payment details</p>
+            {/* Card number */}
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Card number</label>
+              <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
+                <span className="text-[11px] tracking-widest text-foreground/80">
+                  •••• •••• •••• 4242
+                </span>
+                <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+                  VISA
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground">Expiry</label>
+                <div className="rounded-md border border-border bg-background px-3 py-2 text-[11px] text-foreground/80">
+                  08 / 26
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground">CVC</label>
+                <div className="flex items-center gap-1.5 rounded-md border border-[#106BE3] bg-background px-3 py-2 ring-1 ring-[#106BE3]/30">
+                  <span className="text-[11px] text-foreground/80">•••</span>
+                  <span className="ml-auto h-3 w-px animate-pulse bg-[#106BE3]" />
+                </div>
+              </div>
+            </div>
+            <button className="w-full rounded-md bg-[#106BE3] py-2 text-[11px] font-semibold text-white shadow-sm">
+              Pay $128.00
+            </button>
+          </div>
+
+          {/* Right: order summary */}
+          <div className="w-36 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold text-foreground">Order summary</p>
+            {[
+              { name: "Merino tee", qty: 1, price: "$68" },
+              { name: "Canvas tote", qty: 2, price: "$44" },
+            ].map((item) => (
+              <div key={item.name} className="flex items-start justify-between gap-1">
+                <div>
+                  <p className="text-[10px] text-foreground/80">{item.name}</p>
+                  <p className="text-[9px] text-muted-foreground">qty {item.qty}</p>
+                </div>
+                <span className="text-[10px] font-medium text-foreground">{item.price}</span>
+              </div>
+            ))}
+            <div className="border-t border-border pt-2">
+              <div className="flex justify-between">
+                <span className="text-[10px] text-muted-foreground">Shipping</span>
+                <span className="text-[10px] text-muted-foreground">Free</span>
+              </div>
+              <div className="mt-1 flex justify-between">
+                <span className="text-[10px] font-semibold text-foreground">Total</span>
+                <span className="text-[10px] font-semibold text-foreground">$128.00</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1 rounded-full border border-border bg-background px-2 py-1 shadow-sm">
-          <span className="relative flex size-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#106BE3] opacity-75" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-[#106BE3]" />
-          </span>
-          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-            synced · 3
-          </span>
-        </div>
-      </div>
-
-      {/* Stacked synced viewers */}
-      <div className="space-y-3">
-        <SyncedViewer name="maya · design" color="#106BE3" />
-        <SyncedViewer name="jules · pm" color="#E0457B" />
-        <SyncedViewer name="sam · eng" color="#10B981" />
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-muted/40 py-2 text-[10px] text-muted-foreground">
-        <span>State stays in lock-step across every viewer.</span>
-      </div>
-    </div>
-  )
-}
-
-function SyncedViewer({ name, color }: { name: string; color: string }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-background">
-      <div className="flex items-center gap-2 border-b border-border/70 bg-muted/40 px-3 py-1.5">
-        <span className="size-2 rounded-full bg-muted-foreground/30" />
-        <span className="size-2 rounded-full bg-muted-foreground/30" />
-        <span className="size-2 rounded-full bg-muted-foreground/30" />
-        <span className="ml-1.5 flex items-center gap-1.5">
-          <span
-            className="inline-block size-1.5 rounded-full"
-            style={{ backgroundColor: color }}
-          />
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {name}
-          </span>
-        </span>
-      </div>
-      <div className="flex items-center gap-3 px-4 py-3">
-        {/* Stepper */}
-        <Stepper />
-        {/* Right-side state pill */}
-        <div className="ml-auto flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5">
-          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-            step
-          </span>
-          <span className="state-step-label font-mono text-[10px] font-medium text-foreground" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Stepper() {
-  // 4 steps; the active dot's position is animated via the .state-stepper class
-  const labels = ["cart", "address", "pay", "done"]
-  return (
-    <div className="relative flex flex-1 items-center">
-      <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border" />
-      <div className="state-stepper-fill absolute left-0 top-1/2 h-px -translate-y-1/2 bg-[#106BE3]" />
-      <div className="relative flex flex-1 items-center justify-between">
-        {labels.map((l, i) => (
-          <div key={l} className="flex flex-col items-center gap-1">
-            <span
-              className={`state-stepper-dot state-stepper-dot-${i} block size-2.5 rounded-full border border-border bg-card`}
-            />
-            <span className="font-mono text-[9px] text-muted-foreground">
-              {l}
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   )
