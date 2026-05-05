@@ -15,13 +15,6 @@ import {
 import { parseEnvVars } from "@/lib/env-utils"
 import type { AgentData, WorkspaceData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
-import {
-  ARTBOARD_GROUP_GAP,
-  DEFAULT_ARTBOARD_WIDTH,
-  DEFAULT_ARTBOARD_HEIGHT,
-  CANVAS_SIZE,
-} from "@/lib/constants"
-import { groupContentWidth, nextGroupNumber } from "@/lib/artboard-layout"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -33,7 +26,6 @@ interface CreateRequest {
   sandboxName: string
   branch: string
   workspaceId: string
-  viewportCenter?: { x: number; y: number }
   sourceBranch?: string
 }
 
@@ -59,57 +51,18 @@ async function getWorkspaceFromStorage(
 }
 
 
-async function createArtboardAndChat(
-  roomId: string,
-  agentId: string,
-  viewportCenter?: { x: number; y: number },
-) {
-  await mutateRoomDoc(roomId, ({ artboards, artboardGroups, chatSessions, transact }) => {
+/**
+ * Ensure a chat session exists for the agent. Artboards + groups are
+ * pre-created on the client at agent-creation time (see
+ * `seedArtboardForAgent` in canvas.tsx) — doing layout server-side raced
+ * across parallel pipelines because each `mutateRoomDoc` call is a
+ * snapshot-then-write rather than a serialized transaction. Chats stay
+ * server-created for single-agent flows that don't pre-seed them.
+ */
+async function ensureChatForAgent(roomId: string, agentId: string) {
+  await mutateRoomDoc(roomId, ({ agents, chatSessions, transact }) => {
+    if (!agents.get(agentId)) return
     transact(() => {
-      const allArtboards = artboards.toArray()
-      const hasArtboard = allArtboards.some((a) => a.sandboxId === agentId)
-      if (!hasArtboard) {
-        const allGroups = artboardGroups.toArray()
-        let x: number
-        let y: number
-
-        if (allGroups.length === 0) {
-          const cx = viewportCenter?.x ?? CANVAS_SIZE / 2
-          const cy = viewportCenter?.y ?? CANVAS_SIZE / 2
-          x = cx - DEFAULT_ARTBOARD_WIDTH / 2
-          y = cy - DEFAULT_ARTBOARD_HEIGHT / 2
-        } else {
-          // Place to the right of the rightmost group, aligned to the topmost group
-          let minY = Infinity
-          let maxRight = -Infinity
-          for (const g of allGroups) {
-            minY = Math.min(minY, g.y)
-            const w = groupContentWidth(g, allArtboards)
-            if (g.x + w > maxRight) maxRight = g.x + w
-          }
-          x = maxRight + ARTBOARD_GROUP_GAP
-          y = minY
-        }
-
-        const artboardId = nanoid()
-        const groupId = nanoid()
-        artboards.set(artboardId, {
-          id: artboardId,
-          sandboxId: agentId,
-          width: DEFAULT_ARTBOARD_WIDTH,
-          height: DEFAULT_ARTBOARD_HEIGHT,
-          label: "Frame 1",
-          iframeState: {},
-        })
-        artboardGroups.set(groupId, {
-          id: groupId,
-          name: `Group ${nextGroupNumber(allGroups)}`,
-          x,
-          y,
-          artboardIds: [artboardId],
-        })
-      }
-
       const hasChat = chatSessions.toArray().some((cs) => cs.agentId === agentId)
       if (!hasChat) {
         const chatId = nanoid()
@@ -196,7 +149,7 @@ async function runNewOrFromBranchPipeline(
     status: "running",
     statusMessage: undefined,
   })
-  await createArtboardAndChat(roomId, agentId, req.viewportCenter)
+  await ensureChatForAgent(roomId, agentId)
 
   // Best-effort: crawl routes so the artboard route picker has options without
   // the user (or model) needing to trigger discovery.
@@ -227,7 +180,8 @@ async function runDuplicateBranchPipeline(
     return
   }
 
-  // Step 2: Normal sandbox creation from the new branch
+  // Step 2: Normal sandbox creation from the new branch. Pass through as
+  // "from-branch" since the branch we just created already exists.
   await runNewOrFromBranchPipeline(
     { ...req, flow: "from-branch" },
     workspace,

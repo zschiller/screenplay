@@ -15,6 +15,7 @@ export type DomOp =
   | "getOuterHTML"
   | "elementAtPoint"
   | "getRectsForSelectors"
+  | "getDocumentSize"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 

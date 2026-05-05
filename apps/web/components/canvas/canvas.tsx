@@ -105,7 +105,12 @@ import {
   ARTBOARD_GROUP_GAP,
   CANVAS_SIZE,
 } from "@/lib/constants"
-import { computeArtboardLayouts, groupContentWidth, groupGap, nextGroupNumber } from "@/lib/artboard-layout"
+import {
+  computeArtboardLayouts,
+  groupGap,
+  nextGroupNumber,
+  placeNewArtboardGroup,
+} from "@/lib/artboard-layout"
 import { getArtboardSizePreset } from "@/lib/artboard-sizes"
 import {
   anchorCornerForEdge,
@@ -862,39 +867,68 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
+  /**
+   * Place a fresh single-artboard group for a newly-spawned agent. Caller
+   * must already be inside a `collections.transact()`. Layout is computed
+   * client-side (rather than at the end of the server-side provisioning
+   * pipeline) so that concurrently-created agents don't race on the Yjs doc
+   * snapshot and end up with overlapping group positions.
+   */
+  const seedArtboardForAgent = useCallback(
+    (agentId: string, viewportCenter: { x: number; y: number }, label = "Frame 1") => {
+      const allGroups = collections.artboardGroups.toArray()
+      const allArtboards = collections.artboards.toArray()
+      const { width, height } = getDefaultSizeForAgent(agentId)
+      const { x, y } = placeNewArtboardGroup(
+        allGroups,
+        allArtboards,
+        viewportCenter,
+        width,
+        height,
+      )
+      const artboardId = nanoid()
+      const groupId = nanoid()
+      collections.artboards.set(artboardId, {
+        id: artboardId,
+        sandboxId: agentId,
+        width,
+        height,
+        label,
+        iframeState: {},
+      })
+      collections.artboardGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(allGroups)}`,
+        x,
+        y,
+        artboardIds: [artboardId],
+      })
+    },
+    [collections, getDefaultSizeForAgent],
+  )
+
   /** Add an artboard — used by the manual "add screen" button. Always creates a fresh group. */
   const addArtboard = useCallback(
     (agentId: string, label: string): string | undefined => {
       const agent = collections.agents.get(agentId)
       if (!agent || agent.status !== "running") return
 
-      const allGroups = collections.artboardGroups.toArray()
-      const allArtboards = collections.artboards.toArray()
-      const { width, height } = getDefaultSizeForAgent(agentId)
-
-      let x: number
-      let y: number
-
-      if (allGroups.length === 0) {
-        const { cx, cy } = getViewportCenter()
-        x = cx - width / 2
-        y = cy - height / 2
-      } else {
-        let minY = Infinity
-        let maxRight = -Infinity
-        for (const g of allGroups) {
-          minY = Math.min(minY, g.y)
-          const w = groupContentWidth(g, allArtboards)
-          if (g.x + w > maxRight) maxRight = g.x + w
-        }
-        x = maxRight + ARTBOARD_GROUP_GAP
-        y = minY
-      }
-
-      const artboardId = nanoid()
-      const groupId = nanoid()
-      const groupName = `Group ${nextGroupNumber(allGroups)}`
+      const { cx, cy } = getViewportCenter()
+      const artboardIdRef = { current: "" }
       collections.transact(() => {
+        const allGroups = collections.artboardGroups.toArray()
+        const allArtboards = collections.artboards.toArray()
+        const { width, height } = getDefaultSizeForAgent(agentId)
+        const { x, y } = placeNewArtboardGroup(
+          allGroups,
+          allArtboards,
+          { x: cx, y: cy },
+          width,
+          height,
+        )
+        const artboardId = nanoid()
+        const groupId = nanoid()
+        artboardIdRef.current = artboardId
         collections.artboards.set(artboardId, {
           id: artboardId,
           sandboxId: agentId,
@@ -905,13 +939,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         })
         collections.artboardGroups.set(groupId, {
           id: groupId,
-          name: groupName,
+          name: `Group ${nextGroupNumber(allGroups)}`,
           x,
           y,
           artboardIds: [artboardId],
         })
       })
-      return artboardId
+      return artboardIdRef.current
     },
     [collections, getViewportCenter, getDefaultSizeForAgent],
   )
@@ -958,23 +992,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const allArtboards = collections.artboards.toArray()
       const { width, height } = getDefaultSizeForAgent(agentId)
 
-      let x: number
-      let y: number
-      if (allGroups.length === 0) {
-        const { cx, cy } = getViewportCenter()
-        x = cx - width / 2
-        y = cy - height / 2
-      } else {
-        let minY = Infinity
-        let maxRight = -Infinity
-        for (const g of allGroups) {
-          minY = Math.min(minY, g.y)
-          const w = groupContentWidth(g, allArtboards)
-          if (g.x + w > maxRight) maxRight = g.x + w
-        }
-        x = maxRight + ARTBOARD_GROUP_GAP
-        y = minY
-      }
+      const { cx, cy } = getViewportCenter()
+      const { x, y } = placeNewArtboardGroup(
+        allGroups,
+        allArtboards,
+        { x: cx, y: cy },
+        width,
+        height,
+      )
 
       const artboardIds = routes.map(() => nanoid())
       const groupId = nanoid()
@@ -1203,6 +1228,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const renameArtboard = useCallback(
     (id: string, label: string) => {
       collections.artboards.update(id, { label })
+    },
+    [collections],
+  )
+
+  const fitArtboardToContent = useCallback(
+    (id: string, width: number, height: number) => {
+      // Ceil rather than round so sub-pixel content extents never shrink the
+      // artboard below the actual content (which would creep smaller on each
+      // repeated Fit click).
+      const newWidth = Math.max(MIN_ARTBOARD_WIDTH, Math.ceil(width))
+      const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, Math.ceil(height))
+      collections.artboards.update(id, { width: newWidth, height: newHeight })
     },
     [collections],
   )
@@ -2022,8 +2059,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               envVars: "",
               createdAt: Date.now(),
             }
-      addWorkspaceToStorage(id, data)
-
       const agentId = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
       const branch = uniqueNamesGenerator({
@@ -2033,17 +2068,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
       const { cx, cy } = getViewportCenter()
 
-      addAgentToStorage(agentId, {
-        id: agentId,
-        workspaceId: id,
-        sandboxName,
-        gitUrl: data.cloneUrl,
-        branch,
-        previewDomain: "",
-        port: data.devServerPort ?? 3000,
-        status: "creating",
-        statusMessage: "Creating branch…",
-        createdAt: Date.now(),
+      collections.transact(() => {
+        addWorkspaceToStorage(id, data)
+        addAgentToStorage(agentId, {
+          id: agentId,
+          workspaceId: id,
+          sandboxName,
+          gitUrl: data.cloneUrl,
+          branch,
+          previewDomain: "",
+          port: data.devServerPort ?? 3000,
+          status: "creating",
+          statusMessage: "Creating branch…",
+          createdAt: Date.now(),
+        })
+        seedArtboardForAgent(agentId, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) =>
         prev.includes(agentId) ? prev : [...prev, agentId],
@@ -2059,11 +2098,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           sandboxName,
           branch,
           workspaceId: id,
-          viewportCenter: { x: cx, y: cy },
         }),
       })
     },
-    [addWorkspaceToStorage, addAgentToStorage, getViewportCenter, roomId],
+    [addWorkspaceToStorage, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
   )
 
   const handleCreateAgent = useCallback(
@@ -2080,17 +2118,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
       const { cx, cy } = getViewportCenter()
 
-      addAgentToStorage(id, {
-        id,
-        workspaceId,
-        sandboxName,
-        gitUrl: workspace.cloneUrl,
-        branch,
-        previewDomain: "",
-        port: workspace.devServerPort ?? 3000,
-        status: "creating",
-        statusMessage: "Creating branch…",
-        createdAt: Date.now(),
+      collections.transact(() => {
+        addAgentToStorage(id, {
+          id,
+          workspaceId,
+          sandboxName,
+          gitUrl: workspace.cloneUrl,
+          branch,
+          previewDomain: "",
+          port: workspace.devServerPort ?? 3000,
+          status: "creating",
+          statusMessage: "Creating branch…",
+          createdAt: Date.now(),
+        })
+        seedArtboardForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2104,11 +2145,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           sandboxName,
           branch,
           workspaceId,
-          viewportCenter: { x: cx, y: cy },
         }),
       })
     },
-    [workspaces, addAgentToStorage, getViewportCenter, roomId],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -2120,18 +2160,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const sandboxName = `sp-${nanoid(10)}`
       const { cx, cy } = getViewportCenter()
 
-      addAgentToStorage(id, {
-        id,
-        workspaceId,
-        sandboxName,
-        gitUrl: workspace.cloneUrl,
-        branch,
-        previewDomain: "",
-        port: workspace.devServerPort ?? 3000,
-        status: "creating",
-        statusMessage: "Cloning repository…",
-        createdAt: Date.now(),
-        autoNamedBranch: false,
+      collections.transact(() => {
+        addAgentToStorage(id, {
+          id,
+          workspaceId,
+          sandboxName,
+          gitUrl: workspace.cloneUrl,
+          branch,
+          previewDomain: "",
+          port: workspace.devServerPort ?? 3000,
+          status: "creating",
+          statusMessage: "Cloning repository…",
+          createdAt: Date.now(),
+          autoNamedBranch: false,
+        })
+        seedArtboardForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2145,11 +2188,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           sandboxName,
           branch,
           workspaceId,
-          viewportCenter: { x: cx, y: cy },
         }),
       })
     },
-    [workspaces, addAgentToStorage, getViewportCenter, roomId],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
   )
 
   const handleDuplicateBranch = useCallback(
@@ -2166,17 +2208,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
       const { cx, cy } = getViewportCenter()
 
-      addAgentToStorage(id, {
-        id,
-        workspaceId,
-        sandboxName,
-        gitUrl: workspace.cloneUrl,
-        branch: newBranch,
-        previewDomain: "",
-        port: workspace.devServerPort ?? 3000,
-        status: "creating",
-        statusMessage: "Creating branch…",
-        createdAt: Date.now(),
+      collections.transact(() => {
+        addAgentToStorage(id, {
+          id,
+          workspaceId,
+          sandboxName,
+          gitUrl: workspace.cloneUrl,
+          branch: newBranch,
+          previewDomain: "",
+          port: workspace.devServerPort ?? 3000,
+          status: "creating",
+          statusMessage: "Creating branch…",
+          createdAt: Date.now(),
+        })
+        seedArtboardForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2191,11 +2236,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           branch: newBranch,
           sourceBranch: branch,
           workspaceId,
-          viewportCenter: { x: cx, y: cy },
         }),
       })
     },
-    [workspaces, addAgentToStorage, getViewportCenter, roomId],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
   )
 
   const handleForkAgent = useCallback(
@@ -2215,28 +2259,67 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   >(new Map())
 
   const handleCreateParallelAgents = useCallback(
-    (workspaceId: string, specs: ParallelAgentSpec[]) => {
+    async (workspaceId: string, specs: ParallelAgentSpec[]) => {
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
-      const { cx, cy } = getViewportCenter()
+      const trimmedSpecs = specs
+        .map((s) => ({ ...s, prompt: s.prompt.trim() }))
+        .filter((s) => s.prompt.length > 0)
+      if (trimmedSpecs.length === 0) return
 
-      // Stagger viewport offsets so parallel agents land in distinct artboard
-      // groups instead of stacking on the same coordinates.
-      const FANOUT = 80
-
-      collections.transact(() => {
-        specs.forEach((spec, idx) => {
-          const trimmedPrompt = spec.prompt.trim()
-          if (!trimmedPrompt) return
-
-          const id = nanoid()
-          const sandboxName = `sp-${nanoid(10)}`
-          const branch = uniqueNamesGenerator({
+      // Generate branch names + chat labels from the prompts up front so each
+      // parallel agent gets a distinct, prompt-derived branch. Doing this at
+      // submit time (instead of letting each agent's first chat trigger a
+      // server-side rename) avoids the race where two agents with the same
+      // prompt independently land on the same branch and clobber each other.
+      let nameResults: Array<{ branch: string; label: string }> = []
+      try {
+        const res = await fetch("/api/agent/generate-names", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, prompts: trimmedSpecs.map((s) => s.prompt) }),
+        })
+        if (res.ok) {
+          const data = (await res.json()) as { results: Array<{ branch: string; label: string }> }
+          nameResults = data.results ?? []
+        }
+      } catch {
+        // Fall through to local fallback below.
+      }
+      if (nameResults.length !== trimmedSpecs.length) {
+        const taken = new Set<string>()
+        nameResults = trimmedSpecs.map(() => {
+          let branch = uniqueNamesGenerator({
             dictionaries: [adjectives, colors, animals],
             separator: "-",
             length: 3,
           })
+          while (taken.has(branch)) {
+            branch = uniqueNamesGenerator({
+              dictionaries: [adjectives, colors, animals],
+              separator: "-",
+              length: 3,
+            })
+          }
+          taken.add(branch)
+          return { branch, label: "Untitled" }
+        })
+      }
+
+      const dispatched: Array<{
+        id: string
+        sandboxName: string
+        branch: string
+        flow: "new" | "duplicate-branch"
+        sourceBranch: string | undefined
+      }> = []
+
+      collections.transact(() => {
+        trimmedSpecs.forEach((spec, idx) => {
+          const id = nanoid()
+          const sandboxName = `sp-${nanoid(10)}`
+          const { branch, label } = nameResults[idx]!
           const isDefault = spec.baseBranch === workspace.defaultBranch
           // The "new" flow creates a fresh branch off the workspace default.
           // For any other base, we use "duplicate-branch" so the API forks
@@ -2254,47 +2337,58 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             status: "creating",
             statusMessage: "Creating branch…",
             createdAt: Date.now(),
+            // Names are already prompt-derived and deduped — block the
+            // first-chat server rename so it can't override them.
+            autoNamedBranch: false,
           })
 
           // Pre-create the chat session so the queued prompt has a stable
           // chatId before the agent finishes provisioning. The server's
-          // createArtboardAndChat skips creation when a chat already exists
+          // ensureChatForAgent skips creation when a chat already exists
           // for the agent, so this won't double up.
           const chatId = nanoid()
           collections.chatSessions.set(chatId, {
             id: chatId,
             agentId: id,
-            label: "Untitled",
+            label,
             createdAt: Date.now(),
             model: spec.model,
           })
 
           pendingPromptsRef.current.set(id, {
             chatId,
-            prompt: trimmedPrompt,
+            prompt: spec.prompt,
             model: spec.model,
           })
 
-          fetch("/api/agent/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              flow,
-              roomId,
-              agentId: id,
-              sandboxName,
-              branch,
-              workspaceId,
-              sourceBranch: flow === "duplicate-branch" ? spec.baseBranch : undefined,
-              viewportCenter: { x: cx + idx * FANOUT, y: cy + idx * FANOUT },
-            }),
+          dispatched.push({
+            id,
+            sandboxName,
+            branch,
+            flow,
+            sourceBranch: flow === "duplicate-branch" ? spec.baseBranch : undefined,
           })
-
-          setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
         })
       })
+
+      for (const d of dispatched) {
+        fetch("/api/agent/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flow: d.flow,
+            roomId,
+            agentId: d.id,
+            sandboxName: d.sandboxName,
+            branch: d.branch,
+            workspaceId,
+            sourceBranch: d.sourceBranch,
+          }),
+        })
+        setPendingAgentIds((prev) => (prev.includes(d.id) ? prev : [...prev, d.id]))
+      }
     },
-    [workspaces, collections, getViewportCenter, roomId],
+    [workspaces, collections, roomId],
   )
 
   const handleRefreshAgent = useCallback(
@@ -2303,17 +2397,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (!agent?.sandboxName) return
 
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      if (!workspace) {
+        updateAgentInStorage(id, { status: "error", error: "Workspace not found" })
+        return
+      }
 
       updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
 
-      const result = await restartSandbox(
-        agent.sandboxName,
-        agent.gitUrl,
-        agent.branch,
-        agent.port,
-        workspace?.setupScript,
-        workspace?.devScript,
-      )
+      const result = await restartSandbox(agent.sandboxName, workspace, agent.branch)
       updateAgentInStorage(id, {
         sandboxName: result.sandboxName,
         previewDomain: result.previewDomain || agent.previewDomain,
@@ -2393,6 +2484,31 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
     }
   }, [agents, roomId, updateAgentInStorage, updateChatSession])
+
+  // Seed artboards for agents whose sandbox has finished provisioning but who
+  // don't yet have a frame on the canvas. Parallel-create defers seeding to
+  // here so frames don't appear before their previewDomain is known —
+  // otherwise the artboard renders with an undefined iframeUrl/branch until
+  // the pipeline finishes (`agentDomains` keys off `previewDomain`).
+  // Single-agent flows seed the artboard immediately at create time, so this
+  // is a no-op for them. Also recovers correctly across page reloads
+  // mid-creation.
+  useEffect(() => {
+    const pending = agents.filter(
+      (a) =>
+        a.status === "running" &&
+        a.previewDomain &&
+        !artboards.some((ab) => ab.sandboxId === a.id),
+    )
+    if (pending.length === 0) return
+    const { cx, cy } = getViewportCenter()
+    // Seed one per tick — `seedArtboardForAgent` reads the Yjs snapshot for
+    // layout, and the snapshot only refreshes after the previous mutation
+    // settles. Letting React re-render between seeds avoids stacking groups.
+    collections.transact(() => {
+      seedArtboardForAgent(pending[0]!.id, { x: cx, y: cy })
+    })
+  }, [agents, artboards, collections, getViewportCenter, seedArtboardForAgent])
 
   // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
   // For each chat that's marked streaming in storage, also ask the server to
@@ -2484,19 +2600,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         // Resume failed — likely the snapshot has fully expired (>24h) and
         // been deleted. Auto-recreate from git instead of stranding the user
         // at "stopped" waiting to click refresh.
+        if (!workspace) {
+          updateAgentInStorage(agent.id, {
+            status: "stopped",
+            statusMessage: "",
+            error: "Workspace not found — click refresh to retry",
+          })
+          return
+        }
         updateAgentInStorage(agent.id, {
           status: "starting",
           statusMessage: "Recreating expired sandbox…",
           error: "",
         })
-        restartSandbox(
-          sandboxName,
-          agent.gitUrl,
-          agent.branch,
-          agent.port,
-          workspace?.setupScript,
-          workspace?.devScript,
-        ).then((restartResult) => {
+        restartSandbox(sandboxName, workspace, agent.branch).then((restartResult) => {
           updateAgentInStorage(agent.id, {
             sandboxName: restartResult.sandboxName,
             previewDomain: restartResult.previewDomain || agent.previewDomain,
@@ -3310,7 +3427,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         collapsedSize="0px"
         groupResizeBehavior="preserve-pixel-size"
         panelRef={sidebarPanelRef}
-        onResize={(size) => setSidebarCollapsed(size.inPixels === 0)}
+        onResize={(size, _id, prev) => {
+          setSidebarCollapsed(size.inPixels === 0)
+          if (prev) {
+            const delta = size.inPixels - prev.inPixels
+            if (delta !== 0) {
+              const ref = transformRef.current
+              if (ref) {
+                const { positionX, positionY, scale } = ref.state
+                ref.setTransform(positionX - delta, positionY, scale, 0)
+              }
+            }
+          }
+        }}
       >
         <AgentSidebar
           workspaces={workspaces}
@@ -3617,6 +3746,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onKnobValuesChange={updateArtboardKnobValues}
                               onSharedStateChanged={updateArtboardSharedState}
                               onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
+                              onFitToContent={fitArtboardToContent}
                               multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               commentMode={commentMode}

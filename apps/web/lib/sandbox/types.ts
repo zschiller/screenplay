@@ -95,6 +95,8 @@ export interface SandboxInstance {
   readFileToBuffer(opts: { path: string }): Promise<Buffer | null>
   /** Extend the auto-stop timer by `ms` milliseconds. */
   extendTimeout(ms: number): Promise<void>
+  /** Delete the sandbox. After deletion the instance is inert. */
+  delete(): Promise<void>
 }
 
 /**

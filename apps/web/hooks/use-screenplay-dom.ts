@@ -195,6 +195,11 @@ export function useScreenplayDom(
           op: "getRectsForSelectors",
           selectors,
         }),
+      getDocumentSize: () =>
+        request<{ width: number; height: number } | null>({
+          type: "screenplay:dom-query",
+          op: "getDocumentSize",
+        }),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),
       setForwardInput: (enabled: boolean) =>
