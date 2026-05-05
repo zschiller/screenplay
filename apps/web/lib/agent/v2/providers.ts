@@ -32,16 +32,27 @@ export interface ModelInfo {
   label: string
 }
 
-export const DEFAULT_MODEL = "anthropic:claude-sonnet-4-6"
+/**
+ * The fallback model when a caller doesn't pass one. Override per
+ * deployment with AGENT_DEFAULT_MODEL — there's no implicit provider, the
+ * value is a fully-qualified `provider:model` id.
+ */
+export const DEFAULT_MODEL =
+  process.env.AGENT_DEFAULT_MODEL || "anthropic:claude-sonnet-4-6"
 
 /**
- * Parse a `provider:model` string. Bare ids without a colon default to
- * Anthropic so v1 callers passing `claude-sonnet-4-6` keep working without
- * a config change.
+ * Parse a `provider:model` string. Bare ids (no colon) are rejected so
+ * provider routing is always explicit — defaulting to anthropic would
+ * silently re-Anthropic-ify a deployment that's configured for a
+ * different provider.
  */
 export function parseModelId(id: string): { provider: ProviderKey; model: string } {
   const idx = id.indexOf(":")
-  if (idx === -1) return { provider: "anthropic", model: id }
+  if (idx === -1) {
+    throw new Error(
+      `Model id "${id}" is missing a provider prefix. Use "<provider>:<model>", e.g. "anthropic:claude-sonnet-4-6".`,
+    )
+  }
   const provider = id.slice(0, idx) as ProviderKey
   const model = id.slice(idx + 1)
   return { provider, model }
