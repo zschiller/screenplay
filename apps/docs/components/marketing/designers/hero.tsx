@@ -1,5 +1,3 @@
-import { Button } from "@workspace/ui/components/button"
-import { appUrl } from "@/lib/app-url"
 import { DesignerCanvasMockup } from "./canvas-mockup"
 
 export function DesignerHero() {
@@ -19,15 +17,7 @@ export function DesignerHero() {
             multiplayer canvas — every direction laid out, every screen
             reviewable, every viewer in sync.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <a href={appUrl}>
-              <Button size="lg" className="bg-[#106BE3] hover:bg-[#0d57b8]">
-                Open Screenplay
-              </Button>
-            </a>
-
-          </div>
-          <p className="mt-6 max-w-md text-xs text-muted-foreground/80">
+          <p className="mt-8 max-w-md text-xs text-muted-foreground/80">
             For designers using Cursor, Claude Code, V0, Bolt — anywhere your
             prototype is real running code on someone else&apos;s machine.
           </p>
