@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { motion } from "motion/react"
-import { CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
+import { ArrowUp, CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
 import {
   Popover,
   PopoverAnchor,
@@ -75,6 +75,16 @@ interface CommentsProps {
    * resolves once the iframe URL is up.
    */
   initialThreads?: ThreadWithComments[]
+  /**
+   * If provided, the new-thread composer shows a "Send to Claude" secondary
+   * CTA that hands the typed text + the picked element context off to the
+   * agent chat instead of creating a comment thread. Only shown when the
+   * comment was anchored to an element inside an artboard.
+   */
+  onSendToChat?: (
+    text: string,
+    ctx: { artboardId: string; selector: string | null },
+  ) => void
 }
 
 // How far the resolved position must drift from the cached value before we
@@ -90,6 +100,7 @@ export function Comments({
   artboards,
   getArtboardDom,
   initialThreads,
+  onSendToChat,
 }: CommentsProps) {
   const { data: session } = useSession()
   const [threads, setThreads] = useState<ThreadWithComments[]>(
@@ -347,6 +358,15 @@ export function Comments({
                   offsetY={newCommentPos.offsetY ?? null}
                   onSubmitted={onNewCommentPlaced}
                   onCancel={onCancelComment}
+                  onSendToChat={
+                    onSendToChat && newCommentPos.artboardId
+                      ? (text) =>
+                          onSendToChat(text, {
+                            artboardId: newCommentPos.artboardId!,
+                            selector: newCommentPos.selector ?? null,
+                          })
+                      : undefined
+                  }
                 />
               </PopoverContent>
             </Popover>
@@ -497,6 +517,7 @@ function NewThreadComposer({
   offsetY,
   onSubmitted,
   onCancel,
+  onSendToChat,
 }: {
   roomId: string
   x: number
@@ -507,6 +528,7 @@ function NewThreadComposer({
   offsetY: number | null
   onSubmitted: () => void
   onCancel: () => void
+  onSendToChat?: (text: string) => void
 }) {
   const [body, setBody] = useState("")
   const [pending, start] = useTransition()
@@ -526,13 +548,30 @@ function NewThreadComposer({
           }
         }}
       />
-      <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-        <Button size="sm" onClick={submit} disabled={pending || !body.trim()}>
-          Comment
-        </Button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center">
+          {onSendToChat && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={sendToChat}
+              disabled={pending || !body.trim()}
+              title="Send as a message to Claude"
+              className="gap-1 px-2"
+            >
+              <ArrowUp className="size-3.5" />
+              Send to Claude
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={pending || !body.trim()}>
+            Comment
+          </Button>
+        </div>
       </div>
     </>
   )
@@ -557,6 +596,13 @@ function NewThreadComposer({
         console.error("createThread failed:", e)
       }
     })
+  }
+
+  function sendToChat() {
+    const text = body.trim()
+    if (!text || !onSendToChat) return
+    onSendToChat(text)
+    onSubmitted()
   }
 }
 
