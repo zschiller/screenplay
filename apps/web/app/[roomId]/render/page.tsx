@@ -152,11 +152,7 @@ export default async function RenderPage({
   return (
     <>
       <style>{`nextjs-portal { display: none !important; }`}</style>
-      <RenderCanvas
-        projectName={room.name}
-        artboards={artboards}
-        textLayers={textLayers}
-      />
+      <RenderCanvas artboards={artboards} textLayers={textLayers} />
     </>
   )
 }

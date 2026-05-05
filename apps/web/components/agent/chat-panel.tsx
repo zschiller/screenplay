@@ -6,6 +6,7 @@ import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Button } from "@workspace/ui/components/button"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
 import {
@@ -298,7 +299,7 @@ export function ChatPanel({
         </div>
       </div>
       <div className="flex border-b border-border bg-background">
-        <div className="flex-1 overflow-x-auto overflow-y-hidden min-w-0">
+        <ScrollArea orientation="horizontal" className="flex-1 min-w-0">
           <TabsList variant="line" className="h-9 px-2">
             <TabsTrigger
               value={LOGS_TAB_VALUE}
@@ -371,7 +372,7 @@ export function ChatPanel({
               <Plus className="size-3" />
             </Button>
           </TabsList>
-        </div>
+        </ScrollArea>
         {closedChats.length > 0 && (
           <div className="flex shrink-0 items-center px-1.5">
             <DropdownMenu>
