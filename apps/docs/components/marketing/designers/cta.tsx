@@ -1,5 +1,5 @@
 import { Button } from "@workspace/ui/components/button"
-import { appUrl, githubUrl } from "@/lib/app-url"
+import { githubUrl } from "@/lib/app-url"
 
 export function DesignerCTA() {
   return (
@@ -19,18 +19,13 @@ export function DesignerCTA() {
               Get the design loop back.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
-              Open Screenplay, point it at your repo, and the next prototype
-              you vibe code is one link from a real review.
+              Point Screenplay at your repo, and the next prototype you vibe
+              code is one link from a real review.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <a href={appUrl}>
-                <Button size="lg" className="bg-[#106BE3] hover:bg-[#0d57b8]">
-                  Open Screenplay
-                </Button>
-              </a>
               <a href={githubUrl} target="_blank" rel="noreferrer">
-                <Button size="lg" variant="outline">
-                  Read the source
+                <Button size="lg" className="bg-[#106BE3] hover:bg-[#0d57b8]">
+                  View on GitHub
                 </Button>
               </a>
             </div>
