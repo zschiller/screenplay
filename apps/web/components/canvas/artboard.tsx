@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
+import { Maximize2, MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Tooltip,
@@ -85,6 +85,8 @@ interface ArtboardProps {
   onSharedStateChanged?: (id: string, state: JsonObject) => void
   /** Open the prototype player route for this artboard's branch in a new tab. */
   onPlay?: (id: string) => void
+  /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
+  onFitToContent?: (id: string, width: number, height: number) => void
   multiSelected: boolean
   spaceHeld: boolean
   /** Comment mode shows an element hover overlay so the user can see what
@@ -156,6 +158,7 @@ export function Artboard({
   onKnobValuesChange,
   onSharedStateChanged,
   onPlay,
+  onFitToContent,
   multiSelected,
   spaceHeld,
   commentMode,
@@ -286,21 +289,24 @@ export function Artboard({
   const interactWrapperRef = useRef<HTMLDivElement>(null)
   const createFlowWrapperRef = useRef<HTMLDivElement>(null)
   const knobsWrapperRef = useRef<HTMLDivElement>(null)
+  const fitWrapperRef = useRef<HTMLDivElement>(null)
   const playWrapperRef = useRef<HTMLDivElement>(null)
   const reloadWrapperRef = useRef<HTMLDivElement>(null)
   const [buttonNaturalWidths, setButtonNaturalWidths] = useState<{
     interact: number
     createFlow: number
     knobs: number
+    fit: number
     play: number
     reload: number
-  }>({ interact: 0, createFlow: 0, knobs: 0, play: 0, reload: 0 })
+  }>({ interact: 0, createFlow: 0, knobs: 0, fit: 0, play: 0, reload: 0 })
   useLayoutEffect(() => {
     setButtonNaturalWidths((prev) => {
       const next = {
         interact: interactWrapperRef.current?.offsetWidth ?? prev.interact,
         createFlow: createFlowWrapperRef.current?.offsetWidth ?? prev.createFlow,
         knobs: knobsWrapperRef.current?.offsetWidth ?? prev.knobs,
+        fit: fitWrapperRef.current?.offsetWidth ?? prev.fit,
         play: playWrapperRef.current?.offsetWidth ?? prev.play,
         reload: reloadWrapperRef.current?.offsetWidth ?? prev.reload,
       }
@@ -308,6 +314,7 @@ export function Artboard({
         next.interact === prev.interact &&
         next.createFlow === prev.createFlow &&
         next.knobs === prev.knobs &&
+        next.fit === prev.fit &&
         next.play === prev.play &&
         next.reload === prev.reload
       ) {
@@ -331,8 +338,10 @@ export function Artboard({
   const interactW = buttonNaturalWidths.interact
   const createFlowW = buttonNaturalWidths.createFlow
   const knobsW = buttonNaturalWidths.knobs
+  const fitW = buttonNaturalWidths.fit
   const playW = buttonNaturalWidths.play
   const reloadW = buttonNaturalWidths.reload
+  const canFit = !!onFitToContent && !!artboard.sandboxId
   const showInteract = !interactW || space >= interactW
   const showCreateFlow =
     showInteract &&
@@ -341,6 +350,18 @@ export function Artboard({
     showCreateFlow &&
     (!knobsW ||
       space >= interactW + BUTTON_GAP + createFlowW + BUTTON_GAP + knobsW)
+  const showFit =
+    canFit &&
+    showKnobs &&
+    (!fitW ||
+      space >=
+        interactW +
+          BUTTON_GAP +
+          createFlowW +
+          BUTTON_GAP +
+          knobsW +
+          BUTTON_GAP +
+          fitW)
   const showPlay =
     !!onPlay &&
     showKnobs &&
@@ -352,6 +373,7 @@ export function Artboard({
           BUTTON_GAP +
           knobsW +
           BUTTON_GAP +
+          (showFit && fitW ? fitW + BUTTON_GAP : 0) +
           playW)
   const showReload =
     hmrStatus === "disconnected" &&
@@ -364,6 +386,7 @@ export function Artboard({
           BUTTON_GAP +
           knobsW +
           BUTTON_GAP +
+          (showFit && fitW ? fitW + BUTTON_GAP : 0) +
           (showPlay && playW ? playW + BUTTON_GAP : 0) +
           reloadW)
   const visibleButtonsTotal = (() => {
@@ -371,6 +394,7 @@ export function Artboard({
     if (showInteract && interactW) widths.push(interactW)
     if (showCreateFlow && createFlowW) widths.push(createFlowW)
     if (showKnobs && knobsW) widths.push(knobsW)
+    if (showFit && fitW) widths.push(fitW)
     if (showPlay && playW) widths.push(playW)
     if (showReload && reloadW) widths.push(reloadW)
     return widths.reduce(
@@ -410,6 +434,16 @@ export function Artboard({
   })
 
   const dom = useScreenplayDom(iframeRef)
+
+  const handleFitToContent = useCallback(async () => {
+    try {
+      const size = await dom.getDocumentSize()
+      if (!size) return
+      onFitToContent?.(artboard.id, size.width, size.height)
+    } catch {
+      // Bridge timeout / iframe not ready — ignore.
+    }
+  }, [dom, artboard.id, onFitToContent])
 
   const onDomReadyRef = useRef(onDomReady)
   onDomReadyRef.current = onDomReady
@@ -626,6 +660,26 @@ export function Artboard({
                 onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
                 anchorRef={frameRef}
               />
+            </div>
+          )}
+          {showFit && (
+            <div ref={fitWrapperRef} className="flex">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant="outline"
+                      onClick={handleFitToContent}
+                    >
+                      <Maximize2 />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Fit to content
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
           {showPlay && (

@@ -95,6 +95,40 @@ export function groupContentHeight(
 }
 
 /**
+ * Anchor coords for a brand-new single-artboard group placed alongside any
+ * existing groups: viewport-centered when the canvas is empty, otherwise just
+ * to the right of the rightmost group, top-aligned with the topmost.
+ *
+ * Pure so callers batching multiple placements in one transaction can pass an
+ * accumulating "virtual" groups/artboards list — Yjs observers (and therefore
+ * `YjsCollection.toArray()`'s snapshot cache) don't refresh inside an
+ * outer transaction, so reading the collections back mid-loop would yield
+ * pre-batch state and every placement would land on top of the others.
+ */
+export function placeNewArtboardGroup(
+  groups: readonly ArtboardGroupData[],
+  artboards: readonly ArtboardData[],
+  viewportCenter: { x: number; y: number },
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  if (groups.length === 0) {
+    return {
+      x: viewportCenter.x - width / 2,
+      y: viewportCenter.y - height / 2,
+    }
+  }
+  let minY = Infinity
+  let maxRight = -Infinity
+  for (const g of groups) {
+    minY = Math.min(minY, g.y)
+    const w = groupContentWidth(g, artboards)
+    if (g.x + w > maxRight) maxRight = g.x + w
+  }
+  return { x: maxRight + ARTBOARD_GROUP_GAP, y: minY }
+}
+
+/**
  * Next "Group N" number for a freshly-created group. Picks `max(N) + 1` over
  * existing group names so reordering or deleting earlier groups never causes
  * a future group to collide with an existing name.

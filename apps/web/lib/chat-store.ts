@@ -44,12 +44,59 @@ async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
   return res.json()
 }
 
+/**
+ * Merge a freshly-fetched server `history` with `live` messages already in
+ * local state, when the live channel mutated state during the fetch.
+ *
+ * The Yjs replay in `useChatStreamEvents` always starts at the most recent
+ * `chat-stream-start`, so when `live` is non-empty, `live[0]` (the first user
+ * message) marks the start of the current turn. We anchor on that user message
+ * to find where the current turn begins inside `history`, then take history's
+ * past turns and live's tail (the in-flight current turn) — preserving past
+ * turns that only history knows about while keeping the live state for the
+ * in-flight turn intact.
+ */
+function mergeHistoryWithLive(
+  history: AgentMessage[],
+  live: AgentMessage[],
+): AgentMessage[] {
+  if (live.length === 0) return history
+  const anchorIdx = live.findIndex((m) => m.role === "user")
+  if (anchorIdx === -1) return history
+  const anchor = live[anchorIdx]
+  if (anchor.role !== "user") return history
+  // Walk history backwards to find the same user message — last occurrence
+  // wins so a repeated prompt aligns to the most recent turn.
+  let historyAnchorIdx = -1
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i]
+    if (h.role === "user" && h.content === anchor.content) {
+      historyAnchorIdx = i
+      break
+    }
+  }
+  if (historyAnchorIdx === -1) {
+    // Anchor not found — likely the live message hasn't been persisted yet.
+    // Append the entire live tail after history rather than dropping either
+    // side; the live channel will reconcile if anything overlaps.
+    return [...history, ...live.slice(anchorIdx)]
+  }
+  return [...history.slice(0, historyAnchorIdx), ...live.slice(anchorIdx)]
+}
+
 class ChatStore {
   private states = new Map<string, ChatState>()
   private sessionIds = new Map<string, string>()
   private historyLoaded = new Set<string>()
   private listeners = new Map<string, Set<() => void>>()
   private unreadChats = new Set<string>()
+  /**
+   * Per-chat mutation counter, bumped whenever local `messages` changes
+   * (optimistic add, live broadcast event, etc.). Used by `loadHistory` to
+   * detect that local state moved while its fetch was in flight, so the
+   * (now-stale) server snapshot doesn't clobber live state.
+   */
+  private messagesEpoch = new Map<string, number>()
 
   /** Registered per-chat callbacks for session_id and branch_rename events. */
   private callbacks = new Map<string, { onSessionId?: (sid: string) => void; onBranchRename?: (branch: string) => void; onChatRename?: (label: string) => void }>()
@@ -65,6 +112,9 @@ class ChatStore {
 
   private update(chatId: string, partial: Partial<ChatState>) {
     const current = this.getOrCreate(chatId)
+    if (partial.messages !== undefined) {
+      this.messagesEpoch.set(chatId, (this.messagesEpoch.get(chatId) ?? 0) + 1)
+    }
     this.states.set(chatId, { ...current, ...partial })
     this.notify(chatId)
   }
@@ -97,14 +147,27 @@ class ChatStore {
     this.historyLoaded.add(chatId)
     this.sessionIds.set(chatId, sessionId)
 
+    // Snapshot the mutation epoch so we can detect if optimistic adds or live
+    // broadcast events touched messages while we were fetching. If they did,
+    // the server snapshot is potentially stale relative to live state and we
+    // merge instead of overwriting, so the user's just-sent message or
+    // in-flight assistant tokens aren't clobbered.
+    const epochAtStart = this.messagesEpoch.get(chatId) ?? 0
+
     this.update(chatId, { isLoadingHistory: true })
     fetchHistory(sessionId)
       .then((history) => {
-        if (history.length > 0) {
-          this.update(chatId, { messages: history, isLoadingHistory: false })
-        } else {
+        if (history.length === 0) {
           this.update(chatId, { isLoadingHistory: false })
+          return
         }
+        const current = this.getOrCreate(chatId)
+        const currentEpoch = this.messagesEpoch.get(chatId) ?? 0
+        const stale = currentEpoch !== epochAtStart
+        const messages = stale
+          ? mergeHistoryWithLive(history, current.messages)
+          : history
+        this.update(chatId, { messages, isLoadingHistory: false })
       })
       .catch(() => {
         this.update(chatId, { isLoadingHistory: false })
@@ -156,6 +219,14 @@ class ChatStore {
       })
 
       if (!res.ok) {
+        if (res.status === 409) {
+          const body = await res.json().catch(() => null)
+          if (body?.error === "session_terminated") {
+            throw new Error(
+              "This chat's session has ended and can't be resumed. Please start a new chat to continue.",
+            )
+          }
+        }
         const errorText = await res.text()
         throw new Error(errorText || `HTTP ${res.status}`)
       }
@@ -434,6 +505,7 @@ class ChatStore {
     this.historyLoaded.delete(chatId)
     this.unreadChats.delete(chatId)
     this.callbacks.delete(chatId)
+    this.messagesEpoch.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }
