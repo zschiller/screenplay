@@ -85,7 +85,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 }
 
 function KnobsBoard() {
-  const [accent, setAccent] = useState(ACCENTS[0])
+  const [accent, setAccent] = useState(ACCENTS[0]!)
 
   return (
     <div className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm">
