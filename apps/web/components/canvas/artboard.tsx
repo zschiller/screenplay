@@ -12,7 +12,7 @@ import {
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize, type ResizeEdge } from "@/hooks/use-artboard-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
-import { useScreenplayDom, type PickResult, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
+import { useScreenplayDom, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import { KnobsPopover } from "./knobs-popover"
@@ -87,11 +87,10 @@ interface ArtboardProps {
   onPlay?: (id: string) => void
   multiSelected: boolean
   spaceHeld: boolean
-  pickMode: boolean
-  /** Comment mode shows the same element hover overlay as inspect, but a
-   * click falls through to the canvas-level handler that opens the composer. */
+  /** Comment mode shows an element hover overlay so the user can see what
+   * element they're about to anchor a comment to. The click falls through
+   * to the canvas-level handler that opens the composer. */
   commentMode?: boolean
-  onPicked: (artboardId: string, sandboxId: string, pick: PickResult) => void
   onHover: (artboardId: string, rect: DomRect | null) => void
   /**
    * Fired with the iframe DOM accessor on mount and `null` on unmount so the
@@ -159,9 +158,7 @@ export function Artboard({
   onPlay,
   multiSelected,
   spaceHeld,
-  pickMode,
   commentMode,
-  onPicked,
   onHover,
   onDomReady,
   assignableAgents,
@@ -686,43 +683,28 @@ export function Artboard({
         )}
 
         {/* Overlay sits above the iframe (which is pointer-events:none unless
-            focused). In pickMode it forwards pointer tracking to the in-iframe
-            picker via postMessage; otherwise handles drag-to-move / click. */}
+            focused). Handles drag-to-move / click; in comment mode it also
+            forwards pointer tracking to the in-iframe picker so the canvas
+            can render an element hover overlay. */}
         {!interactive && (
           <div
             className="absolute inset-0 touch-none"
             style={{ cursor: "inherit" }}
-            {...(pickMode || spaceHeld ? {} : dragHandlers)}
-            {...(pickMode && !spaceHeld
+            {...(spaceHeld ? {} : dragHandlers)}
+            {...(commentMode && !spaceHeld
               ? {
+                  // Hover-only: show the inspect overlay so the user can see
+                  // what element they're about to comment on. The click is
+                  // handled by the canvas-level handleCanvasClick (which
+                  // also re-runs elementAtPoint to capture the selector).
                   onPointerMove: async (e: React.PointerEvent) => {
                     const result = await queryElementAtPoint(e.clientX, e.clientY)
                     onHover(artboard.id, result ? result.rect : null)
                   },
                   onPointerLeave: () => onHover(artboard.id, null),
-                  onClickCapture: async (e: React.MouseEvent) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (!artboard.sandboxId) return
-                    const result = await queryElementAtPoint(e.clientX, e.clientY)
-                    if (result) onPicked(artboard.id, artboard.sandboxId, result)
-                  },
                 }
-              : commentMode && !spaceHeld
-                ? {
-                    // Hover-only: show the inspect overlay so the user can see
-                    // what element they're about to comment on. The click is
-                    // handled by the canvas-level handleCanvasClick (which
-                    // also re-runs elementAtPoint to capture the selector).
-                    onPointerMove: async (e: React.PointerEvent) => {
-                      const result = await queryElementAtPoint(e.clientX, e.clientY)
-                      onHover(artboard.id, result ? result.rect : null)
-                    },
-                    onPointerLeave: () => onHover(artboard.id, null),
-                  }
-                : {})}
+              : {})}
             onPointerDownCapture={(e) => {
-              if (pickMode) return
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
                 // When the parent group is selected, defer selection to the
@@ -739,8 +721,8 @@ export function Artboard({
         )}
       </div>
 
-      {/* Resize handles — only when singly selected and not inspecting */}
-      {selected && !multiSelected && !pickMode && (
+      {/* Resize handles — only when singly selected. */}
+      {selected && !multiSelected && (
         <>
           {/* Edges */}
           <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
