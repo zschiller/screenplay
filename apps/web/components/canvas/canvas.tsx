@@ -70,6 +70,7 @@ import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
 import { ChatPanel } from "@/components/agent/chat-panel"
+import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -728,6 +729,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const agents = useAgents()
 
   const diffStats = useDiffStats(agents, workspaces)
+  const branchPrs = useBranchPrs(agents, workspaces)
 
   const runningAgents = useMemo(() => agents.filter((a) => a.status === "running"), [agents])
 
@@ -3397,6 +3399,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
           activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt).map((c) => c.agentId))}
           chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
+          branchPrs={branchPrs}
         />
       </ResizablePanel>
       <ResizableHandle className="focus-visible:ring-0" />
@@ -4040,6 +4043,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
             onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
             diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
+            branchPr={selectedAgentId ? branchPrs.get(selectedAgentId) ?? null : null}
             onCollapse={() => chatPanelRef.current?.collapse()}
             onLogsReady={handleLogsReady}
           />
