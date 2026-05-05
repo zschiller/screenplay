@@ -86,6 +86,7 @@ import type { AgentData, ChatSessionData, TextLayerData, ViewportData, Workspace
 import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
+import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import {
   renameAgentBranch,
@@ -2248,6 +2249,96 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [agents, handleDuplicateBranch],
   )
 
+  // Prompts queued by handleCreateParallelAgents that should fire as soon as
+  // the agent's sandbox transitions to `running`. Held in a ref because the
+  // dispatch effect already re-runs on every `agents` change.
+  const pendingPromptsRef = useRef<
+    Map<string, { chatId: string; prompt: string; model: string }>
+  >(new Map())
+
+  const handleCreateParallelAgents = useCallback(
+    (workspaceId: string, specs: ParallelAgentSpec[]) => {
+      const workspace = workspaces.find((w) => w.id === workspaceId)
+      if (!workspace) return
+
+      const { cx, cy } = getViewportCenter()
+
+      // Stagger viewport offsets so parallel agents land in distinct artboard
+      // groups instead of stacking on the same coordinates.
+      const FANOUT = 80
+
+      collections.transact(() => {
+        specs.forEach((spec, idx) => {
+          const trimmedPrompt = spec.prompt.trim()
+          if (!trimmedPrompt) return
+
+          const id = nanoid()
+          const sandboxName = `sp-${nanoid(10)}`
+          const branch = uniqueNamesGenerator({
+            dictionaries: [adjectives, colors, animals],
+            separator: "-",
+            length: 3,
+          })
+          const isDefault = spec.baseBranch === workspace.defaultBranch
+          // The "new" flow creates a fresh branch off the workspace default.
+          // For any other base, we use "duplicate-branch" so the API forks
+          // the named source into our generated branch name.
+          const flow: "new" | "duplicate-branch" = isDefault ? "new" : "duplicate-branch"
+
+          collections.agents.set(id, {
+            id,
+            workspaceId,
+            sandboxName,
+            gitUrl: workspace.cloneUrl,
+            branch,
+            previewDomain: "",
+            port: workspace.devServerPort ?? 3000,
+            status: "creating",
+            statusMessage: "Creating branch…",
+            createdAt: Date.now(),
+          })
+
+          // Pre-create the chat session so the queued prompt has a stable
+          // chatId before the agent finishes provisioning. The server's
+          // createArtboardAndChat skips creation when a chat already exists
+          // for the agent, so this won't double up.
+          const chatId = nanoid()
+          collections.chatSessions.set(chatId, {
+            id: chatId,
+            agentId: id,
+            label: "Untitled",
+            createdAt: Date.now(),
+            model: spec.model,
+          })
+
+          pendingPromptsRef.current.set(id, {
+            chatId,
+            prompt: trimmedPrompt,
+            model: spec.model,
+          })
+
+          fetch("/api/agent/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              flow,
+              roomId,
+              agentId: id,
+              sandboxName,
+              branch,
+              workspaceId,
+              sourceBranch: flow === "duplicate-branch" ? spec.baseBranch : undefined,
+              viewportCenter: { x: cx + idx * FANOUT, y: cy + idx * FANOUT },
+            }),
+          })
+
+          setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        })
+      })
+    },
+    [workspaces, collections, getViewportCenter, roomId],
+  )
+
   const handleRefreshAgent = useCallback(
     async (id: string) => {
       const agent = agents.find((a) => a.id === id)
@@ -2312,6 +2403,38 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     }
   }, [chatSessions])
+
+  // Dispatch prompts that were queued by handleCreateParallelAgents once
+  // their agent's sandbox reaches `running`. Drop the queue entry if the
+  // agent errored out so failed builds don't leak forever.
+  useEffect(() => {
+    if (pendingPromptsRef.current.size === 0) return
+    for (const agent of agents) {
+      const queued = pendingPromptsRef.current.get(agent.id)
+      if (!queued) continue
+      if (agent.status === "error") {
+        pendingPromptsRef.current.delete(agent.id)
+        continue
+      }
+      if (agent.status !== "running" || !agent.sandboxName || !agent.branch) continue
+      pendingPromptsRef.current.delete(agent.id)
+      chatStore.sendMessage({
+        roomId,
+        chatId: queued.chatId,
+        sandboxName: agent.sandboxName,
+        branch: agent.branch,
+        message: queued.prompt,
+        isFirstChat: true,
+        autoNamedBranch: agent.autoNamedBranch,
+        model: queued.model,
+        onSessionId: (sid) =>
+          updateChatSession(queued.chatId, { sessionId: sid || undefined }),
+        onBranchRename: (branch) =>
+          updateAgentInStorage(agent.id, { branch, autoNamedBranch: false }),
+        onChatRename: (label) => updateChatSession(queued.chatId, { label }),
+      })
+    }
+  }, [agents, roomId, updateAgentInStorage, updateChatSession])
 
   // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
   // For each chat that's marked streaming in storage, also ask the server to
@@ -3267,6 +3390,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }}
           onCreateAgent={handleCreateAgent}
           onCreateAgentFromBranch={handleCreateAgentFromBranch}
+          onCreateParallelAgents={handleCreateParallelAgents}
           onDuplicateBranch={handleDuplicateBranch}
           onForkAgent={handleForkAgent}
           onRebaseOnDefault={handleRebaseOnDefault}
