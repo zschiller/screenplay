@@ -29,11 +29,7 @@ export function DesignerHero() {
                 Open Screenplay
               </Button>
             </a>
-            <a href="#what-you-lost">
-              <Button size="lg" variant="outline">
-                What you lost when you stopped using Figma
-              </Button>
-            </a>
+
           </div>
           <p className="mt-6 max-w-md text-xs text-muted-foreground/80">
             For designers using Cursor, Claude Code, V0, Bolt — anywhere your
