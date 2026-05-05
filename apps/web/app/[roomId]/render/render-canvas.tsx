@@ -64,11 +64,9 @@ function bbox(rects: Rect[]) {
 }
 
 export function RenderCanvas({
-  projectName,
   artboards,
   textLayers,
 }: {
-  projectName: string
   artboards: RenderArtboard[]
   textLayers: RenderTextLayer[]
 }) {
@@ -115,17 +113,9 @@ export function RenderCanvas({
           width: VIEWPORT_W,
           height: VIEWPORT_H,
           background: "linear-gradient(135deg, #f4f4f5, #e4e4e7)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 48,
-          color: "#71717a",
         }}
         data-thumbnail-root
-      >
-        {projectName}
-      </div>
+      />
     )
   }
 
