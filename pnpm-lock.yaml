@@ -81,6 +81,15 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^3.0.75
         version: 3.0.75(zod@4.3.6)
+      '@ai-sdk/google':
+        specifier: ^3.0.67
+        version: 3.0.67(zod@4.3.6)
+      '@ai-sdk/openai':
+        specifier: ^3.0.61
+        version: 3.0.61(zod@4.3.6)
+      '@ai-sdk/openai-compatible':
+        specifier: ^2.0.46
+        version: 2.0.46(zod@4.3.6)
       '@anthropic-ai/sdk':
         specifier: ^0.87.0
         version: 0.87.0(zod@4.3.6)
@@ -345,6 +354,24 @@ packages:
 
   '@ai-sdk/gateway@3.0.110':
     resolution: {integrity: sha512-sbv8+1L9/BRKydn8dMNwoMQKupA4iLJ9N+yvxgW6wMQ/94UepDf3FeYWMj/dLdzolAHZ6izRUP4s5WqQkmJ2Zg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/google@3.0.67':
+    resolution: {integrity: sha512-Qeq+SidYtzMrcf0fdw3L0QLmtXK+ErwdBzbxS4+0Q/2UP85Ges8RJJcbAj7SO8e2JbeJoM35BLqkeNy1o3wJvQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai-compatible@2.0.46':
+    resolution: {integrity: sha512-23ExGdy3p0Grfz3BAjCbIOc74TjQc5nHu72e0+kx3hshvScp32a4nnQlzzG4VT1bDZxa9yPNNUNyb5nN6vJHcQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@3.0.61':
+    resolution: {integrity: sha512-L5FdlTo+7IBOdXbnTZqVzowRdLGWnxPn01vHe4leLPp0G4ydoXhySu0tp0ttkoO0ZSzPjHo7iiAkYoT0J91Q8Q==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5825,6 +5852,24 @@ snapshots:
       '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
       '@vercel/oidc': 3.2.0
+      zod: 4.3.6
+
+  '@ai-sdk/google@3.0.67(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
+      zod: 4.3.6
+
+  '@ai-sdk/openai-compatible@2.0.46(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
+      zod: 4.3.6
+
+  '@ai-sdk/openai@3.0.61(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.10
+      '@ai-sdk/provider-utils': 4.0.26(zod@4.3.6)
       zod: 4.3.6
 
   '@ai-sdk/provider-utils@4.0.26(zod@4.3.6)':

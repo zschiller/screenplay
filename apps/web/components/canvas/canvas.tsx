@@ -2516,10 +2516,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // idle/terminated, the heal endpoint broadcasts chat-stream-end to unstick
   // the spinner — handles cases where a previous stream died before signalling.
   useEffect(() => {
+    const v2 = process.env.NEXT_PUBLIC_AGENT_V2 === "true"
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
-      if (cs.sessionId) {
+      if (v2) {
+        fetch("/api/agent/v2/heal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, chatId: cs.id }),
+        }).catch((e) => console.error("Heal request failed:", e))
+      } else if (cs.sessionId) {
         fetch("/api/agent/heal", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

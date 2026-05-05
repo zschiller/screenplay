@@ -1,12 +1,12 @@
 import "server-only"
 
-import { anthropic } from "@ai-sdk/anthropic"
 import {
   hasToolCall,
   stepCountIs,
   streamText,
   type ModelMessage,
 } from "ai"
+import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { buildAgentTools } from "./tools"
 import {
@@ -59,7 +59,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
 
   try {
     const result = streamText({
-      model: anthropic(model),
+      model: resolveLanguageModel(model),
       system: systemPrompt,
       messages,
       tools,

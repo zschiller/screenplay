@@ -1,17 +1,26 @@
 import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
-import { buildAgentSystemPrompt, DEFAULT_AGENT_MODEL } from "@/lib/agent/config"
+import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import type { ToolContext } from "@/lib/agent/tool-executor"
-import { readRoomDoc } from "@/lib/yjs/server"
+import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { runAgentLoop } from "@/lib/agent/v2/engine"
+import { DEFAULT_MODEL } from "@/lib/agent/v2/providers"
 import {
   appendMessage,
   loadChatHistory,
   startRun,
   upsertChat,
 } from "@/lib/agent/v2/persistence"
-import { broadcastSignal, StreamBroadcaster } from "@/lib/agent/v2/broadcast"
+import {
+  broadcastEvent,
+  broadcastSignal,
+  StreamBroadcaster,
+} from "@/lib/agent/v2/broadcast"
+import {
+  deduplicateBranchName,
+  generateChatNames,
+} from "@/lib/agent/v2/naming"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -22,6 +31,8 @@ interface RequestBody {
   sandboxName: string
   branch: string
   message: string
+  isFirstChat?: boolean
+  autoNamedBranch?: boolean
   planMode?: boolean
   model?: string
 }
@@ -31,12 +42,27 @@ export async function POST(req: Request) {
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
   const body: RequestBody = await req.json()
-  const { roomId, chatId, sandboxName, branch, message, planMode, model } = body
+  const {
+    roomId,
+    chatId,
+    sandboxName,
+    branch,
+    message,
+    isFirstChat,
+    autoNamedBranch,
+    planMode,
+    model,
+  } = body
   if (!roomId || !chatId || !sandboxName || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
 
-  const effectiveModel = model || DEFAULT_AGENT_MODEL
+  // First-message check: a chat is "new" to v2 if it has no prior messages.
+  // This is more reliable than the client-supplied `isFirstChat` since it
+  // also handles the case where v2 is being mounted onto an existing chat.
+  const isNewChat = (await loadChatHistory(chatId)).length === 0
+
+  const effectiveModel = model || DEFAULT_MODEL
   const toolCtx: ToolContext = { sandboxName, roomId, userId }
 
   // Resolve the workspace's optional system prompt the same way v1 does — the
@@ -57,10 +83,41 @@ export async function POST(req: Request) {
     systemPrompt,
   })
 
+  // First-message branch + chat-label naming. Mirrors v1's behavior so chats
+  // started under v2 still get auto-named without the user picking a branch.
+  let effectiveBranch = branch
+  if (isNewChat && isFirstChat !== false) {
+    const shouldNameBranch = autoNamedBranch !== false
+    const { branch: rawBranch, chatLabel } = await generateChatNames({
+      message,
+      shouldNameBranch,
+      model: effectiveModel,
+    })
+    if (shouldNameBranch && rawBranch) {
+      effectiveBranch = await deduplicateBranchName(roomId, rawBranch, userId)
+      await broadcastEvent(roomId, chatId, {
+        type: "branch_rename",
+        branch: effectiveBranch,
+      })
+    }
+    if (chatLabel) {
+      // Persist the label directly so it survives a client re-render that
+      // momentarily clears the broadcast callback (matches v1 behavior).
+      await mutateRoomDoc(roomId, ({ chatSessions }) => {
+        chatSessions.update(chatId, { label: chatLabel })
+      })
+      await broadcastEvent(roomId, chatId, {
+        type: "chat_rename",
+        label: chatLabel,
+      })
+    }
+  }
+
   // Append the user message (with optional plan/branch prefixes — kept
   // identical to v1 so the agent sees the same prompt shape).
   const planPrefix = planMode ? "[plan mode: enabled] " : ""
-  const branchPrefix = branch ? `[branch: ${branch}] ` : ""
+  const branchPrefix =
+    isNewChat && effectiveBranch ? `[branch: ${effectiveBranch}] ` : ""
   const userText = `${planPrefix}${branchPrefix}${message}`
   const userMessage: ModelMessage = { role: "user", content: userText }
   await appendMessage(chatId, userMessage)
