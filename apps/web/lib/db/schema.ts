@@ -184,13 +184,13 @@ export const threadRead = pgTable(
   ],
 )
 
-// v2 agent persistence — replaces Anthropic's hosted sessions.
+// Agent persistence — backs the streamText tool loop in lib/agent/engine.ts.
 
 import type { ModelMessage } from "ai"
 
-// One row per chat. `chatId` is the same id the v1 routes already use (the
-// caller-supplied chatId from the room doc), so we can mount v2 onto an
-// existing chat without resetting it.
+// One row per chat. `id` matches the chatId stored in the room's Y.Doc
+// (`chatSessions` collection) so the canvas/player UIs and the agent's
+// message log share the same key.
 export const agentChat = pgTable(
   "agent_chat",
   {
@@ -243,7 +243,7 @@ export const agentRun = pgTable(
 )
 
 // Captures a tool call that's waiting on the user (currently only
-// submit_plan). When the user approves/rejects via /api/agent/v2/plan, we
+// submit_plan). When the user approves/rejects via /api/agent/plan, we
 // resolve the row and resume the loop with the recorded tool result.
 export const agentPendingToolCall = pgTable(
   "agent_pending_tool_call",

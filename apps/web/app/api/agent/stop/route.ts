@@ -1,56 +1,36 @@
 import { getUserId } from "@/lib/auth-helpers"
-import { getClient } from "@/lib/agent/config"
-import { broadcastChatEventViaDoc } from "@/lib/yjs/server"
+import { abortRun, findActiveRun } from "@/lib/agent/persistence"
+import { broadcastSignal } from "@/lib/agent/broadcast"
 
 export const runtime = "nodejs"
 
 interface RequestBody {
   roomId: string
   chatId: string
-  sessionId: string
 }
 
 export async function POST(req: Request) {
   const userId = await getUserId()
-  if (!userId) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+  if (!userId) return new Response("Unauthorized", { status: 401 })
 
   const body: RequestBody = await req.json()
-  const { roomId, chatId, sessionId } = body
-
-  if (!roomId || !chatId || !sessionId) {
+  const { roomId, chatId } = body
+  if (!roomId || !chatId) {
     return new Response("Missing required fields", { status: 400 })
   }
 
-  const client = getClient()
-
-  let interruptError: unknown = null
-  try {
-    await client.beta.sessions.events.send(sessionId, {
-      events: [{ type: "user.interrupt" }],
-    })
-  } catch (e) {
-    console.error("Stop interrupt failed:", e)
-    interruptError = e
+  const active = await findActiveRun(chatId)
+  if (active) {
+    // The streamText loop polls this flag every ABORT_POLL_INTERVAL_MS and
+    // calls AbortController.abort() when it flips to true. Marking the run
+    // ended here too keeps stop idempotent — a duplicate stop is a no-op.
+    await abortRun(active.id)
   }
 
-  // End the streaming UI state for all clients regardless of whether the
-  // upstream interrupt succeeded. The user's intent is to stop; if the
-  // interrupt API itself errors, leaving the UI wedged in "thinking" is the
-  // worst outcome.
-  try {
-    await broadcastChatEventViaDoc(roomId, { type: "chat-stream-end", chatId })
-  } catch (e) {
-    console.error("Stop broadcast failed:", e)
-  }
-
-  if (interruptError) {
-    return new Response(
-      interruptError instanceof Error ? interruptError.message : String(interruptError),
-      { status: 500 },
-    )
-  }
+  // Always end the streaming UI state, mirroring v1's stop semantics: the
+  // user's intent to stop shouldn't depend on the loop's abort actually
+  // landing this tick.
+  await broadcastSignal(roomId, chatId, "chat-stream-end")
 
   return Response.json({ success: true })
 }

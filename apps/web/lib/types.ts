@@ -55,7 +55,6 @@ export type AgentData = {
 export type ChatSessionData = {
   id: string
   agentId: string
-  sessionId?: string
   label: string
   createdAt: number
   isStreaming?: boolean
@@ -71,7 +70,6 @@ export type PlanData = {
   content: string
   status: "pending" | "approved" | "rejected"
   toolEventId: string
-  sessionId: string
   feedback?: string
   createdAt: number
   resolvedAt?: number

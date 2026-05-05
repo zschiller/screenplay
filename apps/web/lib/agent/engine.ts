@@ -177,7 +177,7 @@ function findSubmitPlanCall(
 /**
  * Build a ModelMessage representing the human-side resolution of a
  * submit_plan tool call (approval or rejection with feedback). Appended to
- * the conversation before resuming the loop in /api/agent/v2/plan.
+ * the conversation before resuming the loop in /api/agent/plan.
  */
 export function buildPlanToolResultMessage(opts: {
   toolCallId: string

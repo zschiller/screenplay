@@ -116,7 +116,6 @@ interface ChatPanelProps {
   onRemoveChat: (chatId: string) => void
   onCloseChat: (chatId: string) => void
   onReopenChat: (chatId: string) => void
-  onSessionId: (chatId: string, sessionId: string) => void
   onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
   onModelChange: (chatId: string, model: string) => void
@@ -147,7 +146,6 @@ export function ChatPanel({
   onRemoveChat,
   onCloseChat,
   onReopenChat,
-  onSessionId,
   onBranchRename,
   onPlanModeChange,
   onModelChange,
@@ -424,8 +422,9 @@ export function ChatPanel({
       </TabsContent>
 
       {openChats.map((chat) => {
+        // First chat for this agent (used for the auto branch/chat naming).
         const isFirst = !chatSessions.some(
-          (c) => c.agentId === chat.agentId && c.id !== chat.id && c.sessionId,
+          (c) => c.agentId === chat.agentId && c.id !== chat.id,
         )
         return (
           <TabsContent
@@ -440,14 +439,12 @@ export function ChatPanel({
               sandboxId={agent.id}
               sandboxName={agent.sandboxName}
               branch={agent.branch}
-              sessionId={chat.sessionId}
               isFirstChat={isFirst}
               autoNamedBranch={agent.autoNamedBranch}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
               model={chat.model}
               onModelChange={(m) => onModelChange(chat.id, m)}
-              onSessionId={(sid) => onSessionId(chat.id, sid)}
               onBranchRename={onBranchRename}
               onChatRename={(label) => onRenameChat(chat.id, label)}
             />

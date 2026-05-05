@@ -8,11 +8,9 @@ interface UseAgentChatOptions {
   roomId: string
   sandboxName: string
   branch: string
-  sessionId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
-  onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
 }
@@ -26,11 +24,9 @@ export function useAgentChat({
   roomId,
   sandboxName,
   branch,
-  sessionId,
   isFirstChat,
   autoNamedBranch,
   planMode,
-  onSessionId,
   onBranchRename,
   onChatRename,
 }: UseAgentChatOptions) {
@@ -40,17 +36,17 @@ export function useAgentChat({
     () => chatStore.getSnapshot(chatId),
   )
 
-  // Load history once. chatStore.loadHistory decides whether to actually
-  // fetch — v1 needs an Anthropic sessionId, v2 keys by chatId alone.
+  // Load history once per chatId. Keyed by chatId since the agent's message
+  // log is stored under that key in Postgres.
   useEffect(() => {
-    chatStore.loadHistory(chatId, sessionId)
-  }, [chatId, sessionId])
+    chatStore.loadHistory(chatId)
+  }, [chatId])
 
   // Register callbacks so broadcast events can trigger Liveblocks mutations
   useEffect(() => {
-    chatStore.setCallbacks(chatId, { onSessionId, onBranchRename, onChatRename })
+    chatStore.setCallbacks(chatId, { onBranchRename, onChatRename })
     return () => chatStore.clearCallbacks(chatId)
-  }, [chatId, onSessionId, onBranchRename, onChatRename])
+  }, [chatId, onBranchRename, onChatRename])
 
   // Mark as read when streaming finishes while this chat is open
   useEffect(() => {
@@ -69,15 +65,23 @@ export function useAgentChat({
         message: text,
         isFirstChat,
         autoNamedBranch,
-        sessionId,
         planMode,
         model: options?.model,
-        onSessionId,
         onBranchRename,
         onChatRename,
       })
     },
-    [chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, sessionId, planMode, onSessionId, onBranchRename, onChatRename],
+    [
+      chatId,
+      roomId,
+      sandboxName,
+      branch,
+      isFirstChat,
+      autoNamedBranch,
+      planMode,
+      onBranchRename,
+      onChatRename,
+    ],
   )
 
   const stopMessage = useCallback(() => {

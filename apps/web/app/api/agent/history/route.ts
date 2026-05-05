@@ -1,119 +1,149 @@
+import type { ModelMessage } from "ai"
+import { and, eq } from "drizzle-orm"
 import { getUserId } from "@/lib/auth-helpers"
-import { getClient } from "@/lib/agent/config"
+import { db } from "@/lib/db"
+import { agentPendingToolCall } from "@/lib/db/schema"
 import type { AgentMessage, CustomToolName } from "@/lib/agent/types"
+import { loadChatHistory } from "@/lib/agent/persistence"
 
 export const runtime = "nodejs"
 
+/**
+ * Convert stored ModelMessages back to the v1 `AgentMessage[]` shape so
+ * existing chat UI renders v2 chats without changes.
+ *
+ * `submit_plan` calls are surfaced as `role: "plan"` rows so the UI can render
+ * them as plan cards. Status comes from the `agent_pending_tool_call` table
+ * (pending if no row, otherwise approved/rejected).
+ */
 export async function GET(req: Request) {
   const userId = await getUserId()
-  if (!userId) {
-    return new Response("Unauthorized", { status: 401 })
-  }
+  if (!userId) return new Response("Unauthorized", { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const sessionId = searchParams.get("sessionId")
+  const chatId = searchParams.get("chatId")
+  if (!chatId) return Response.json([])
 
-  if (!sessionId) {
-    return Response.json([])
+  const [history, planRows] = await Promise.all([
+    loadChatHistory(chatId),
+    db
+      .select({
+        toolCallId: agentPendingToolCall.toolCallId,
+        status: agentPendingToolCall.status,
+      })
+      .from(agentPendingToolCall)
+      .where(
+        and(
+          eq(agentPendingToolCall.chatId, chatId),
+          eq(agentPendingToolCall.toolName, "submit_plan"),
+        ),
+      ),
+  ])
+
+  const planStatusByToolCallId = new Map<
+    string,
+    "pending" | "approved" | "rejected"
+  >()
+  for (const r of planRows) {
+    planStatusByToolCallId.set(r.toolCallId, r.status)
   }
 
-  const client = getClient()
+  const messages: AgentMessage[] = []
+  for (const m of history) {
+    convertMessage(m, planStatusByToolCallId, messages)
+  }
 
-  try {
-    const events = await client.beta.sessions.events.list(sessionId)
+  return Response.json(messages)
+}
 
-    const messages: AgentMessage[] = []
-
-    // Track submit_plan tool use IDs so we can determine status from tool results
-    const planToolUseIds = new Set<string>()
-
-    for (const event of events.data) {
-      switch (event.type) {
-        case "user.message": {
-          for (const block of event.content) {
-            if ("text" in block) {
-              messages.push({ role: "user", content: block.text })
-            }
-          }
-          break
-        }
-        case "agent.message": {
-          let text = ""
-          for (const block of event.content) {
-            if ("text" in block) {
-              text += block.text
-            }
-          }
-          if (text) {
-            messages.push({ role: "assistant", content: text })
-          }
-          break
-        }
-        case "agent.custom_tool_use": {
-          if (event.name === "submit_plan") {
-            const input = event.input as { plan: string }
-            planToolUseIds.add(event.id)
-            // Determine plan status by looking ahead for the tool result
-            const toolResult = events.data.find(
-              (e) => e.type === "user.custom_tool_result" && e.custom_tool_use_id === event.id,
-            )
-            let status: "pending" | "approved" | "rejected" = "pending"
-            if (toolResult && toolResult.type === "user.custom_tool_result") {
-              const resultText = toolResult.content
-                ?.map((b) => ("text" in b ? b.text : ""))
-                .join("") ?? ""
-              if (resultText.includes("Plan approved")) {
-                status = "approved"
-              } else if (resultText.includes("Plan rejected")) {
-                status = "rejected"
-              }
-            }
-            messages.push({
-              role: "plan",
-              content: input.plan,
-              status,
-              planId: event.id,
-            })
-          } else {
-            messages.push({
-              role: "tool_use",
-              name: event.name as CustomToolName,
-              input: event.input as Record<string, unknown>,
-            })
-          }
-          break
-        }
-        case "user.custom_tool_result": {
-          // Skip tool results for submit_plan — already handled inline
-          if (planToolUseIds.has(event.custom_tool_use_id ?? "")) break
-
-          // Extract tool name from the corresponding tool_use if possible
-          let toolName: CustomToolName = "run_command"
-          let output = ""
-          for (const block of event.content ?? []) {
-            if ("text" in block) {
-              output += block.text
-            }
-          }
-          // Try to find the matching tool_use by ID to get the name
-          const toolUseId = event.custom_tool_use_id
-          if (toolUseId) {
-            const matchingToolUse = events.data.find(
-              (e) => e.type === "agent.custom_tool_use" && e.id === toolUseId,
-            )
-            if (matchingToolUse && matchingToolUse.type === "agent.custom_tool_use") {
-              toolName = matchingToolUse.name as CustomToolName
-            }
-          }
-          messages.push({ role: "tool_result", name: toolName, output })
-          break
-        }
-      }
+function convertMessage(
+  m: ModelMessage,
+  planStatuses: Map<string, "pending" | "approved" | "rejected">,
+  out: AgentMessage[],
+): void {
+  switch (m.role) {
+    case "user": {
+      const text = stringifyContent(m.content)
+      // Strip the [plan mode: enabled] / [branch: ...] prefixes the stream
+      // route prepends — they're routing metadata for the model, not for the
+      // UI.
+      const cleaned = text
+        .replace(/^\[plan mode: enabled\]\s*/, "")
+        .replace(/^\[branch: [^\]]+\]\s*/, "")
+      if (cleaned) out.push({ role: "user", content: cleaned })
+      break
     }
 
-    return Response.json(messages)
-  } catch {
-    // Session may not exist anymore
-    return Response.json([])
+    case "assistant": {
+      if (typeof m.content === "string") {
+        if (m.content) out.push({ role: "assistant", content: m.content })
+        return
+      }
+      // Multi-part assistant: text parts → assistant messages, tool-call parts
+      // → tool_use rows (with submit_plan special-cased to plan rows).
+      for (const part of m.content) {
+        if (part.type === "text" && part.text) {
+          out.push({ role: "assistant", content: part.text })
+        } else if (part.type === "tool-call") {
+          if (part.toolName === "submit_plan") {
+            const plan = (part.input as { plan?: string })?.plan ?? ""
+            out.push({
+              role: "plan",
+              content: plan,
+              status: planStatuses.get(part.toolCallId) ?? "pending",
+              planId: part.toolCallId,
+            })
+          } else {
+            out.push({
+              role: "tool_use",
+              name: part.toolName as CustomToolName,
+              input: (part.input as Record<string, unknown>) ?? {},
+            })
+          }
+        }
+      }
+      break
+    }
+
+    case "tool": {
+      if (typeof m.content === "string") return
+      for (const part of m.content) {
+        if (part.type !== "tool-result") continue
+        // Hide the synthetic submit_plan resolution — the plan card already
+        // shows its own approved/rejected state.
+        if (part.toolName === "submit_plan") continue
+        const output = extractToolResultText(part.output)
+        out.push({
+          role: "tool_result",
+          name: part.toolName as CustomToolName,
+          output,
+        })
+      }
+      break
+    }
+
+    case "system":
+      // System messages don't surface to the chat UI.
+      break
   }
+}
+
+function stringifyContent(content: ModelMessage["content"]): string {
+  if (typeof content === "string") return content
+  let s = ""
+  for (const part of content) {
+    if ("text" in part && typeof part.text === "string") s += part.text
+  }
+  return s
+}
+
+function extractToolResultText(output: unknown): string {
+  if (typeof output === "string") return output
+  if (output && typeof output === "object") {
+    const o = output as { type?: string; value?: unknown; text?: string }
+    if (o.type === "text" && typeof o.value === "string") return o.value
+    if (typeof o.text === "string") return o.text
+    return JSON.stringify(output)
+  }
+  return String(output)
 }

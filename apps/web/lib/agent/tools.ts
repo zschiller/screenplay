@@ -16,7 +16,7 @@ import type { CustomToolName } from "@/lib/agent/types"
  * `submit_plan` intentionally has no `execute` — it's a human-in-the-loop
  * tool. When the model emits a submit_plan call, the loop halts via
  * `stopWhen: hasToolCall("submit_plan")` and the v2 stream route persists an
- * `agent_pending_tool_call` row. /api/agent/v2/plan resumes the loop later
+ * `agent_pending_tool_call` row. /api/agent/plan resumes the loop later
  * with the user's approval/rejection as the tool result.
  */
 export function buildAgentTools(ctx: ToolContext) {
@@ -126,7 +126,7 @@ export function buildAgentTools(ctx: ToolContext) {
     }),
 
     // Human-in-the-loop: no execute. The loop halts on this tool call and
-    // /api/agent/v2/plan supplies the result after the user decides.
+    // /api/agent/plan supplies the result after the user decides.
     submit_plan: tool({
       description:
         "Submit a plan for user approval before making any file changes. The plan should be markdown describing what files will change and why. You MUST call this and wait for approval before write_file or edit_file when plan mode is enabled.",

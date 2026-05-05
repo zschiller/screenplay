@@ -1,5 +1,6 @@
+import { generateText } from "ai"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
-import { getClient } from "@/lib/agent/config"
+import { DEFAULT_MODEL, resolveLanguageModel } from "@/lib/agent/providers"
 import { readRoomDoc } from "@/lib/yjs/server"
 
 export const runtime = "nodejs"
@@ -44,21 +45,19 @@ function deriveFallbackLabel(prompt: string): string {
   return words.length > 50 ? `${words.slice(0, 50).trimEnd()}…` : words
 }
 
-async function generateOne(
-  client: ReturnType<typeof getClient>,
-  prompt: string,
-): Promise<NameResult> {
+async function generateOne(prompt: string): Promise<NameResult> {
   try {
-    const res = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 200,
+    const res = await generateText({
+      model: resolveLanguageModel(DEFAULT_MODEL),
       system: NAMING_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }],
+      prompt,
     })
-    const rawText = res.content[0]?.type === "text" ? res.content[0].text.trim() : ""
-    const lines = rawText
+    const lines = res.text
+      .trim()
       .split("\n")
-      .map((l) => l.trim().replace(/^["'`]+|["'`]+$/g, "").replace(/^[-*\d.)\s]+/, "").trim())
+      .map((l: string) =>
+        l.trim().replace(/^["'`]+|["'`]+$/g, "").replace(/^[-*\d.)\s]+/, "").trim(),
+      )
       .filter(Boolean)
     const branchRaw = sanitizeBranch(lines[0] ?? "")
     const labelRaw = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
@@ -103,8 +102,7 @@ export async function POST(req: Request) {
     return new Response("Missing required fields", { status: 400 })
   }
 
-  const client = getClient()
-  const generated = await Promise.all(prompts.map((p) => generateOne(client, p.trim())))
+  const generated = await Promise.all(prompts.map((p) => generateOne(p.trim())))
 
   const repo = await readRoomDoc(roomId, ({ workspaces }) => {
     const ws = workspaces.toArray()[0]

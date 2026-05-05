@@ -71,14 +71,12 @@ interface AgentChatProps {
   sandboxId: string
   sandboxName: string
   branch: string
-  sessionId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
   model?: string
   onModelChange?: (model: string) => void
-  onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
 }
@@ -89,14 +87,12 @@ export function AgentChat({
   sandboxId,
   sandboxName,
   branch,
-  sessionId,
   isFirstChat,
   autoNamedBranch,
   planMode,
   onPlanModeChange,
   model,
   onModelChange,
-  onSessionId,
   onBranchRename,
   onChatRename,
 }: AgentChatProps) {
@@ -106,7 +102,7 @@ export function AgentChat({
     isLoadingHistory,
     sendMessage,
     stopMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, sessionId, isFirstChat, autoNamedBranch, planMode, onSessionId, onBranchRename, onChatRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
 
   const [input, setInput] = useState("")
   const [models, setModels] = useState<ModelInfo[]>([])
@@ -169,7 +165,10 @@ export function AgentChat({
     setInput("")
   }, [input, isStreaming, sendMessage, effectiveModel])
 
-  const modelLocked = Boolean(sessionId)
+  // Once a chat has at least one message in its log, the model used for the
+  // first turn is locked — switching mid-conversation can confuse the
+  // existing tool-call/result message pairs.
+  const modelLocked = messages.length > 0
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
