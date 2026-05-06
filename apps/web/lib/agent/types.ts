@@ -53,7 +53,6 @@ export type AgentMessage =
     }
 
 export type AgentStreamEvent =
-  | { type: "session_id"; sessionId: string }
   | { type: "user_message"; text: string }
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: Record<string, unknown> }

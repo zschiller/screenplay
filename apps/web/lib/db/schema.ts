@@ -184,4 +184,94 @@ export const threadRead = pgTable(
   ],
 )
 
+// Agent persistence — backs the streamText tool loop in lib/agent/engine.ts.
+
+import type { ModelMessage } from "ai"
+
+// One row per chat. `id` matches the chatId stored in the room's Y.Doc
+// (`chatSessions` collection) so the canvas/player UIs and the agent's
+// message log share the same key.
+export const agentChat = pgTable(
+  "agent_chat",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id").notNull(),
+    sandboxName: text("sandbox_name").notNull(),
+    model: text("model").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("agent_chat_room_idx").on(t.roomId)],
+)
+
+// Append-only UIMessage log. Stored as a single JSONB blob per message so we
+// can hand it straight to/from the AI SDK without flattening parts into rows.
+export const agentMessage = pgTable(
+  "agent_message",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => agentChat.id, { onDelete: "cascade" }),
+    role: text("role").$type<ModelMessage["role"]>().notNull(),
+    message: jsonb("message").$type<ModelMessage>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)],
+)
+
+// Tracks an in-flight ToolLoopAgent invocation. The stream route inserts a row
+// at start, the stop route flips `aborted=true`, and the loop checks it
+// between steps via prepareStep. `endedAt` is set when the loop exits.
+export const agentRun = pgTable(
+  "agent_run",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => agentChat.id, { onDelete: "cascade" }),
+    status: text("status")
+      .$type<"running" | "paused_for_plan" | "ended">()
+      .notNull()
+      .default("running"),
+    aborted: boolean("aborted").notNull().default(false),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    endedAt: timestamp("ended_at"),
+  },
+  (t) => [index("agent_run_chat_idx").on(t.chatId, t.startedAt)],
+)
+
+// Captures a tool call that's waiting on the user (currently only
+// submit_plan). `id` is the AI SDK tool-call id verbatim — the same value
+// flows through the `plan_submitted` broadcast and the history-route
+// reconstruction path, so the planId the client holds always resolves back
+// to this row regardless of whether it was learned from a live broadcast or
+// from a fresh page load.
+export const agentPendingToolCall = pgTable(
+  "agent_pending_tool_call",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => agentRun.id, { onDelete: "cascade" }),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => agentChat.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
+    status: text("status")
+      .$type<"pending" | "approved" | "rejected">()
+      .notNull()
+      .default("pending"),
+    feedback: text("feedback"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at"),
+  },
+  (t) => [
+    index("agent_pending_tool_call_chat_idx").on(t.chatId, t.status),
+    index("agent_pending_tool_call_run_idx").on(t.runId, t.status),
+  ],
+)
+
 

@@ -1760,9 +1760,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (!agent?.sandboxName || !agent.branch) return
 
       const chatId = nanoid()
-      const isFirstChat = !chatSessions.some(
-        (c) => c.agentId === agentId && c.sessionId,
-      )
+      const isFirstChat = !chatSessions.some((c) => c.agentId === agentId)
 
       addChatSession(chatId, {
         id: chatId,
@@ -1781,7 +1779,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         isFirstChat,
         autoNamedBranch: agent.autoNamedBranch,
         planMode: true,
-        onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
         onBranchRename: (branch) =>
           updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
@@ -1810,7 +1807,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         existingChats.find((c) => c.id === remembered) ?? existingChats[0]
 
       let chatId: string
-      let sessionId: string | undefined
       let planMode: boolean | undefined
       let model: string | undefined
       const targetBusy = targetChat
@@ -1827,13 +1823,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         })
       } else {
         chatId = targetChat.id
-        sessionId = targetChat.sessionId
         planMode = targetChat.planMode
         model = targetChat.model
       }
 
       const isFirstChat = !chatSessions.some(
-        (c) => c.agentId === agentId && c.id !== chatId && c.sessionId,
+        (c) => c.agentId === agentId && c.id !== chatId,
       )
 
       chatStore.sendMessage({
@@ -1844,10 +1839,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         message,
         isFirstChat,
         autoNamedBranch: agent.autoNamedBranch,
-        sessionId,
         planMode,
         model,
-        onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
         onBranchRename: (branch) =>
           updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
@@ -1929,12 +1922,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           chatStore.getSnapshot(currentChat.id).isStreaming ||
           currentChat.isStreaming === true
         let chatId = currentChat.id
-        let sessionId = currentChat.sessionId
         let planMode = currentChat.planMode
         let model = currentChat.model
         if (currentBusy) {
           chatId = nanoid()
-          sessionId = undefined
           planMode = undefined
           model = undefined
           addChatSession(chatId, {
@@ -1946,7 +1937,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setSelectedChatId(chatId)
         }
         const isFirstChat = !chatSessions.some(
-          (c) => c.agentId === currentChat.agentId && c.id !== chatId && c.sessionId,
+          (c) => c.agentId === currentChat.agentId && c.id !== chatId,
         )
         chatStore.sendMessage({
           roomId,
@@ -1956,10 +1947,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           message: text,
           isFirstChat,
           autoNamedBranch: agent.autoNamedBranch,
-          sessionId,
           planMode,
           model,
-          onSessionId: (sid) => updateChatSession(chatId, { sessionId: sid || undefined }),
           onBranchRename: (branch) => inspectHandlersRef.current.branchRename(agent.id, branch),
           onChatRename: (label) => inspectHandlersRef.current.renameChat(chatId, label),
         })
@@ -2443,13 +2432,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     renameChat: handleRenameChat,
   }
 
-  // Load history for all chat sessions that have a sessionId so other
-  // clients can see past messages for chats they haven't opened yet.
+  // Load history for all chat sessions so other clients can see past
+  // messages for chats they haven't opened yet.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (cs.sessionId) {
-        chatStore.loadHistory(cs.id, cs.sessionId)
-      }
+      chatStore.loadHistory(cs.id)
     }
   }, [chatSessions])
 
@@ -2476,8 +2463,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         isFirstChat: true,
         autoNamedBranch: agent.autoNamedBranch,
         model: queued.model,
-        onSessionId: (sid) =>
-          updateChatSession(queued.chatId, { sessionId: sid || undefined }),
         onBranchRename: (branch) =>
           updateAgentInStorage(agent.id, { branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(queued.chatId, { label }),
@@ -2511,25 +2496,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   }, [agents, artboards, collections, getViewportCenter, seedArtboardForAgent])
 
   // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
-  // For each chat that's marked streaming in storage, also ask the server to
-  // verify the underlying Anthropic session is still actually running. If it's
-  // idle/terminated, the heal endpoint broadcasts chat-stream-end to unstick
-  // the spinner — handles cases where a previous stream died before signalling.
+  // For each chat that's marked streaming in storage, ask the server to verify
+  // the underlying agent run is still actually active. If it's ended, the
+  // heal endpoint broadcasts chat-stream-end to unstick the spinner.
   useEffect(() => {
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
-      if (cs.sessionId) {
-        fetch("/api/agent/heal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomId,
-            chatId: cs.id,
-            sessionId: cs.sessionId,
-          }),
-        }).catch((e) => console.error("Heal request failed:", e))
-      }
+      fetch("/api/agent/heal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, chatId: cs.id }),
+      }).catch((e) => console.error("Heal request failed:", e))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only on mount
@@ -4168,7 +4146,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             onRemoveChat={handleRemoveChat}
             onCloseChat={handleCloseChat}
             onReopenChat={handleReopenChat}
-            onSessionId={(chatId, sid) => updateChatSession(chatId, { sessionId: sid || undefined })}
             onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
             onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
             onModelChange={(chatId, model) => updateChatSession(chatId, { model })}

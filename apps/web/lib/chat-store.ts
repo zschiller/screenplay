@@ -15,10 +15,8 @@ export interface SendMessageOptions {
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
-  sessionId?: string
   planMode?: boolean
   model?: string
-  onSessionId?: (sessionId: string) => void
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
 }
@@ -36,9 +34,9 @@ const DEFAULT_STATE: ChatState = {
   error: null,
 }
 
-async function fetchHistory(sessionId: string): Promise<AgentMessage[]> {
+async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
   const res = await fetch(
-    `/api/agent/history?sessionId=${encodeURIComponent(sessionId)}`,
+    `/api/agent/history?chatId=${encodeURIComponent(chatId)}`,
   )
   if (!res.ok) return []
   return res.json()
@@ -86,7 +84,6 @@ function mergeHistoryWithLive(
 
 class ChatStore {
   private states = new Map<string, ChatState>()
-  private sessionIds = new Map<string, string>()
   private historyLoaded = new Set<string>()
   private listeners = new Map<string, Set<() => void>>()
   private unreadChats = new Set<string>()
@@ -98,8 +95,14 @@ class ChatStore {
    */
   private messagesEpoch = new Map<string, number>()
 
-  /** Registered per-chat callbacks for session_id and branch_rename events. */
-  private callbacks = new Map<string, { onSessionId?: (sid: string) => void; onBranchRename?: (branch: string) => void; onChatRename?: (label: string) => void }>()
+  /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
+  private callbacks = new Map<
+    string,
+    {
+      onBranchRename?: (branch: string) => void
+      onChatRename?: (label: string) => void
+    }
+  >()
 
   private getOrCreate(chatId: string): ChatState {
     let state = this.states.get(chatId)
@@ -142,10 +145,9 @@ class ChatStore {
 
   // --- History loading (initial load only) ---
 
-  loadHistory(chatId: string, sessionId: string) {
+  loadHistory(chatId: string) {
     if (this.historyLoaded.has(chatId)) return
     this.historyLoaded.add(chatId)
-    this.sessionIds.set(chatId, sessionId)
 
     // Snapshot the mutation epoch so we can detect if optimistic adds or live
     // broadcast events touched messages while we were fetching. If they did,
@@ -155,7 +157,7 @@ class ChatStore {
     const epochAtStart = this.messagesEpoch.get(chatId) ?? 0
 
     this.update(chatId, { isLoadingHistory: true })
-    fetchHistory(sessionId)
+    fetchHistory(chatId)
       .then((history) => {
         if (history.length === 0) {
           this.update(chatId, { isLoadingHistory: false })
@@ -176,7 +178,13 @@ class ChatStore {
 
   // --- Callbacks ---
 
-  setCallbacks(chatId: string, cbs: { onSessionId?: (sid: string) => void; onBranchRename?: (branch: string) => void; onChatRename?: (label: string) => void }) {
+  setCallbacks(
+    chatId: string,
+    cbs: {
+      onBranchRename?: (branch: string) => void
+      onChatRename?: (label: string) => void
+    },
+  ) {
     this.callbacks.set(chatId, cbs)
   }
 
@@ -197,8 +205,10 @@ class ChatStore {
       messages: [...state.messages, { role: "user", content: opts.message }],
     })
 
-    // Register callbacks for this chat so broadcast events can invoke them
-    this.callbacks.set(chatId, { onSessionId: opts.onSessionId, onBranchRename: opts.onBranchRename, onChatRename: opts.onChatRename })
+    this.callbacks.set(chatId, {
+      onBranchRename: opts.onBranchRename,
+      onChatRename: opts.onChatRename,
+    })
 
     try {
       const res = await fetch("/api/agent/stream", {
@@ -210,7 +220,6 @@ class ChatStore {
           sandboxName: opts.sandboxName,
           branch: opts.branch,
           message: opts.message,
-          sessionId: this.sessionIds.get(chatId) ?? opts.sessionId,
           isFirstChat: opts.isFirstChat,
           autoNamedBranch: opts.autoNamedBranch,
           planMode: opts.planMode,
@@ -229,12 +238,6 @@ class ChatStore {
         }
         const errorText = await res.text()
         throw new Error(errorText || `HTTP ${res.status}`)
-      }
-
-      // The server returns the sessionId — store it locally
-      const data = await res.json()
-      if (data.sessionId) {
-        this.sessionIds.set(chatId, data.sessionId)
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -255,20 +258,18 @@ class ChatStore {
     this.update(chatId, { isStreaming })
   }
 
-  // --- Stop a running stream by interrupting the underlying session ---
+  // --- Stop a running stream ---
 
   async stopMessage(roomId: string, chatId: string) {
-    const sessionId = this.sessionIds.get(chatId)
-    if (!sessionId) return
     // Flip the UI to non-streaming immediately. The server still broadcasts
-    // chat-stream-end after the upstream interrupt resolves, but the user's
+    // chat-stream-end after the run's abort flag flips, but the user's
     // intent to stop shouldn't depend on that round-trip succeeding.
     this.update(chatId, { isStreaming: false })
     try {
       const res = await fetch("/api/agent/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatId, sessionId }),
+        body: JSON.stringify({ roomId, chatId }),
       })
       if (!res.ok) {
         const errorText = await res.text()
@@ -292,8 +293,8 @@ class ChatStore {
 
       case "chat-stream-end": {
         // Only mark unread on the streaming→not-streaming transition so
-        // duplicate end signals (e.g. stop endpoint + background stream)
-        // don't re-stick the badge after `markRead` already cleared it.
+        // duplicate end signals don't re-stick the badge after `markRead`
+        // already cleared it.
         const wasStreaming = this.getOrCreate(chatId).isStreaming
         if (wasStreaming) this.unreadChats.add(chatId)
         this.update(chatId, { isStreaming: false })
@@ -311,15 +312,10 @@ class ChatStore {
     const cbs = this.callbacks.get(chatId)
 
     switch (event.type) {
-      case "session_id":
-        this.sessionIds.set(chatId, event.sessionId)
-        cbs?.onSessionId?.(event.sessionId)
-        break
-
       case "user_message": {
         const prev = this.getOrCreate(chatId).messages
-        // Avoid duplicating if the sending client already added it optimistically
         const last = prev[prev.length - 1]
+        // Avoid duplicating if the sending client already added it optimistically
         if (last?.role === "user" && last.content === event.text) break
         this.update(chatId, {
           messages: [...prev, { role: "user" as const, content: event.text }],
@@ -404,7 +400,7 @@ class ChatStore {
           messages: prev.map((m) =>
             m.role === "plan" && m.planId === event.planId
               ? { ...m, status: "approved" as const }
-              : m
+              : m,
           ),
         })
         break
@@ -416,7 +412,7 @@ class ChatStore {
           messages: prev.map((m) =>
             m.role === "plan" && m.planId === event.planId
               ? { ...m, status: "rejected" as const }
-              : m
+              : m,
           ),
         })
         break
@@ -501,7 +497,6 @@ class ChatStore {
 
   cleanup(chatId: string) {
     this.states.delete(chatId)
-    this.sessionIds.delete(chatId)
     this.historyLoaded.delete(chatId)
     this.unreadChats.delete(chatId)
     this.callbacks.delete(chatId)

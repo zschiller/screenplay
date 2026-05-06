@@ -85,11 +85,11 @@ export function PlayerChatHost({
     }
   })
 
-  // Hydrate history for any chats that already have a sessionId so the panel
-  // can show past messages even if the user never opened them on the canvas.
+  // Hydrate history for every chat so the panel can show past messages even
+  // for chats the user hasn't opened on the canvas.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (cs.sessionId) chatStore.loadHistory(cs.id, cs.sessionId)
+      chatStore.loadHistory(cs.id)
     }
   }, [chatSessions])
 
@@ -231,9 +231,6 @@ export function PlayerChatHost({
       onRemoveChat={handleRemoveChat}
       onCloseChat={handleCloseChat}
       onReopenChat={handleReopenChat}
-      onSessionId={(chatId, sid) =>
-        updateChatSession(chatId, { sessionId: sid || undefined })
-      }
       onBranchRename={handleBranchRename}
       onPlanModeChange={(chatId, planMode) =>
         updateChatSession(chatId, { planMode })

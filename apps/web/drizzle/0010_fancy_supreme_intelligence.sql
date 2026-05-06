@@ -1,0 +1,1 @@
+ALTER TABLE "agent_pending_tool_call" DROP COLUMN "tool_call_id";

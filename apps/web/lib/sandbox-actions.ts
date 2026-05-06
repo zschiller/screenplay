@@ -694,12 +694,13 @@ export async function crawlRoutes(
     const fileList = (await result.stdout()).trim()
     if (!fileList) return { success: true, routes: [{ route: "/", label: "Home" }] }
 
-    const { getClient } = await import("@/lib/agent/config")
-    const client = getClient()
+    const { generateText } = await import("ai")
+    const { resolveLanguageModel, DEFAULT_MODEL } = await import(
+      "@/lib/agent/providers"
+    )
 
-    const res = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+    const res = await generateText({
+      model: resolveLanguageModel(DEFAULT_MODEL),
       system: `You are analyzing a web project's file structure to discover its navigable routes.
 Look at the file listing and determine the framework (Next.js, SvelteKit, Nuxt, Remix, React Router, Astro, plain React, etc.) and identify all static, user-facing routes.
 
@@ -710,16 +711,14 @@ Rules:
 - "label" should be a human-readable sentence case title for the route (e.g. "Home", "About us", "Blog posts")
 - Example: [{"route": "/", "label": "Home"}, {"route": "/about", "label": "About"}, {"route": "/pricing", "label": "Pricing"}]
 - If you can't determine routes, return [{"route": "/", "label": "Home"}]`,
-      messages: [{
-        role: "user",
-        content: `Here are the project files:\n\n${fileList}`,
-      }],
+      prompt: `Here are the project files:\n\n${fileList}`,
     })
 
-    const text = res.content[0]?.type === "text" ? res.content[0].text.trim() : "[]"
     // Extract JSON array from response (handle markdown fences)
-    const match = text.match(/\[[\s\S]*\]/)
-    const parsed: { route: string; label: string }[] = match ? JSON.parse(match[0]) : [{ route: "/", label: "Home" }]
+    const match = res.text.trim().match(/\[[\s\S]*\]/)
+    const parsed: { route: string; label: string }[] = match
+      ? JSON.parse(match[0])
+      : [{ route: "/", label: "Home" }]
 
     return { success: true, routes: parsed }
   } catch (e) {
