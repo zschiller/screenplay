@@ -265,9 +265,7 @@ export function ParallelCreateDialog({
                         modelGroups.map((group, gIdx) => (
                           <SelectGroup key={group.key}>
                             {gIdx > 0 && <SelectSeparator />}
-                            <SelectLabel className="text-[10px] uppercase tracking-wide">
-                              {group.label}
-                            </SelectLabel>
+                            <SelectLabel className="text-xs">{group.label}</SelectLabel>
                             {group.models.map((m) => (
                               <SelectItem
                                 key={m.id}

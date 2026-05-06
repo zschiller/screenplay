@@ -151,23 +151,20 @@ A provider self-detects whether it's enabled by inspecting env vars in `isConfig
 
 At least one of these must be set:
 
-- **Anthropic** — `ANTHROPIC_API_KEY`. Models: `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
-- **OpenAI** — `OPENAI_API_KEY`. Models: `gpt-4o`, `gpt-4o-mini`, `o1`, `o1-mini`.
-- **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models: `gemini-2.5-pro`, `gemini-2.5-flash`.
-- **Vercel AI Gateway** — `AI_GATEWAY_API_KEY` (Vercel's standard env var; auto-injected via OIDC on Vercel deploys, no env var needed there). Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. The picker shows a curated popular subset by default — override with `VERCEL_AI_GATEWAY_MODELS` (`id` or `id|label`, comma-separated; each id is the Gateway's `<provider>/<model>` form). Example:
+Each provider's model list is populated live by hitting its discovery endpoint, filtered to chat-capable models, and cached for an hour in `lib/kv`. There's no static catalog to keep in sync — adding a model upstream surfaces in the picker on the next refresh.
 
-  ```bash
-  AI_GATEWAY_API_KEY=...   # only on non-Vercel hosts
-  VERCEL_AI_GATEWAY_MODELS=anthropic/claude-sonnet-4-6|Claude Sonnet 4.6,openai/gpt-4o|GPT-4o
-  ```
-
-- **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+ optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. `OPENAI_COMPATIBLE_MODELS` is the catalog the picker exposes (same format as above). For Vercel AI Gateway specifically, use the dedicated provider above instead — it uses Vercel's SDK and gets you the extra Gateway features. Example:
+- **Anthropic** — `ANTHROPIC_API_KEY`. Models discovered from `GET https://api.anthropic.com/v1/models`.
+- **OpenAI** — `OPENAI_API_KEY`. Models discovered from `GET https://api.openai.com/v1/models`, filtered to chat-capable ids (excludes embeddings, dall-e, tts, whisper, etc.).
+- **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models discovered from `GET https://generativelanguage.googleapis.com/v1beta/models`, filtered to those supporting `generateContent`.
+- **Vercel AI Gateway** — `AI_GATEWAY_API_KEY` (Vercel's standard; auto-injected via OIDC on Vercel deploys, no env var needed there). Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. Models discovered via `gateway.getAvailableModels()` from `@ai-sdk/gateway`, filtered to language models.
+- **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+ optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. Models discovered from `${BASE_URL}/v1/models`. For Vercel AI Gateway specifically, use the dedicated provider above instead — it uses Vercel's SDK and gets you the extra Gateway features. Example:
 
   ```bash
   OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
   OPENAI_COMPATIBLE_API_KEY=sk-or-...
-  OPENAI_COMPATIBLE_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B,deepseek/deepseek-v3|DeepSeek V3
   ```
+
+Each provider falls back to a small curated list if its discovery call fails — typically when a key is invalid, the upstream is rate-limiting, or a self-hosted server doesn't implement `/v1/models`. The fallback is negative-cached for ~1 minute so a flapping upstream doesn't get hammered while still recovering quickly when it heals.
 
 `AGENT_DEFAULT_MODEL` overrides the fallback used when a request doesn't pass a model. Default: `anthropic:claude-sonnet-4-6`. Set this to a provider you've actually configured — e.g. `openai:gpt-4o` if you're not running Anthropic at all.
 
@@ -249,10 +246,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_API_KEY=sk-...
 # GOOGLE_GENERATIVE_AI_API_KEY=...
 # AI_GATEWAY_API_KEY=...   # Vercel AI Gateway; auto-OIDC on Vercel
-# VERCEL_AI_GATEWAY_MODELS=anthropic/claude-sonnet-4-6|Claude Sonnet 4.6,openai/gpt-4o|GPT-4o
 # OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 # OPENAI_COMPATIBLE_API_KEY=...
-# OPENAI_COMPATIBLE_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B
 
 # --- Env-var encryption ---
 # 32 random bytes, hex-encoded (64 hex chars). Used to encrypt per-workspace

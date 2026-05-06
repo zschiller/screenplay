@@ -1,13 +1,49 @@
 import "server-only"
 
 import { anthropic } from "@ai-sdk/anthropic"
-import type { ModelProvider } from "./types"
+import { discover } from "./cache"
+import type { ModelInfo, ModelProvider } from "./types"
 
-/**
- * Anthropic provider. Reads `ANTHROPIC_API_KEY` from the environment via
- * the underlying SDK. Curated model list — the picker accepts whatever id
- * the user types, this is just for UI convenience.
- */
+const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
+  { id: "anthropic:claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "anthropic:claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { id: "anthropic:claude-haiku-4-5", label: "Claude Haiku 4.5" },
+]
+
+interface AnthropicListResponse {
+  data: Array<{
+    id: string
+    display_name?: string
+    type?: string
+  }>
+}
+
+async function fetchAnthropicModels(): Promise<
+  Array<Omit<ModelInfo, "provider">>
+> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return []
+  const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+  })
+  if (!res.ok) {
+    throw new Error(`Anthropic /v1/models returned ${res.status}`)
+  }
+  const data = (await res.json()) as AnthropicListResponse
+  return data.data
+    .filter((m) => m.type !== "deprecated")
+    .map((m) => ({
+      id: `anthropic:${m.id}`,
+      // The API gives a friendly display name like "Claude Sonnet 4.6"; strip
+      // the leading "Claude " so the picker doesn't read "Claude Claude …"
+      // alongside the section header.
+      label: (m.display_name ?? m.id).replace(/^Claude\s+/i, ""),
+    }))
+}
+
 class AnthropicProvider implements ModelProvider {
   key = "anthropic"
   label = "Anthropic"
@@ -16,13 +52,13 @@ class AnthropicProvider implements ModelProvider {
     return Boolean(process.env.ANTHROPIC_API_KEY)
   }
 
-  listModels() {
+  async listModels() {
     if (!this.isConfigured()) return []
-    return [
-      { id: "anthropic:claude-opus-4-7", label: "Claude Opus 4.7" },
-      { id: "anthropic:claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-      { id: "anthropic:claude-haiku-4-5", label: "Claude Haiku 4.5" },
-    ]
+    return discover({
+      cacheKey: "providers:anthropic:models",
+      fetchLive: fetchAnthropicModels,
+      fallback: FALLBACK,
+    })
   }
 
   resolve(modelId: string) {

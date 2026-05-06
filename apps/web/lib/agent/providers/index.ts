@@ -73,14 +73,22 @@ export function resolveLanguageModel(modelId: string): LanguageModel {
  * provider's metadata so the client can group by provider rather than by
  * model family — the per-provider `listModels()` implementations don't
  * need to populate this themselves.
+ *
+ * Each provider discovers live via its own API and caches; see
+ * `./cache.ts`. A provider whose upstream is unreachable falls back to a
+ * small curated list rather than blocking the whole catalog.
  */
-export function enumerateModels(): ModelInfo[] {
-  return PROVIDERS.flatMap((p) =>
-    p.listModels().map((m) => ({
-      ...m,
-      provider: { key: p.key, label: p.label },
-    })),
+export async function enumerateModels(): Promise<ModelInfo[]> {
+  const lists = await Promise.all(
+    PROVIDERS.map(async (p) => {
+      const models = await p.listModels()
+      return models.map((m) => ({
+        ...m,
+        provider: { key: p.key, label: p.label },
+      }))
+    }),
   )
+  return lists.flat()
 }
 
 /**
@@ -90,7 +98,7 @@ export function enumerateModels(): ModelInfo[] {
  * OPENAI_API_KEY set but left AGENT_DEFAULT_MODEL at its anthropic
  * default). Returns null when no providers are configured at all.
  */
-export function getDefaultModelId(): string | null {
+export async function getDefaultModelId(): Promise<string | null> {
   try {
     const { providerKey } = parseModelId(DEFAULT_MODEL)
     const provider = PROVIDERS_BY_KEY.get(providerKey)
@@ -98,5 +106,6 @@ export function getDefaultModelId(): string | null {
   } catch {
     // Malformed AGENT_DEFAULT_MODEL — fall through to picker fallback.
   }
-  return enumerateModels()[0]?.id ?? null
+  const all = await enumerateModels()
+  return all[0]?.id ?? null
 }

@@ -62,8 +62,12 @@ export interface ModelProvider {
    * configured. Returned ids are already prefixed with `key:`. The
    * `provider` field is filled in centrally by `enumerateModels`, so
    * implementations only need to return `{ id, label }`.
+   *
+   * Async because providers discover live (a `/v1/models` call or
+   * equivalent). Use the helper in `./cache.ts` to add caching + a
+   * curated fallback for when the upstream API is unreachable.
    */
-  listModels(): Array<Omit<ModelInfo, "provider">>
+  listModels(): Promise<Array<Omit<ModelInfo, "provider">>>
 
   /**
    * Resolve a provider-specific model id (the part after `key:`) into an
