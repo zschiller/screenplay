@@ -16,6 +16,8 @@ interface OpenAIListResponse {
     id: string
     object?: string
     owned_by?: string
+    /** Unix seconds — present on /v1/models. */
+    created?: number
   }>
 }
 
@@ -54,7 +56,7 @@ async function fetchOpenAIModels(): Promise<
   const data = (await res.json()) as OpenAIListResponse
   return data.data
     .filter((m) => isChatCapable(m.id))
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
     .map((m) => ({
       id: `openai:${m.id}`,
       label: m.id,

@@ -15,6 +15,8 @@ interface AnthropicListResponse {
     id: string
     display_name?: string
     type?: string
+    /** ISO 8601 — present on /v1/models. */
+    created_at?: string
   }>
 }
 
@@ -35,6 +37,14 @@ async function fetchAnthropicModels(): Promise<
   const data = (await res.json()) as AnthropicListResponse
   return data.data
     .filter((m) => m.type !== "deprecated")
+    .sort((a, b) => {
+      // Newest first by created_at — flagship/recent models float to the
+      // top of the dropdown rather than alphabetical, which would lead
+      // with whatever happens to start with the lowest letter.
+      const at = a.created_at ? Date.parse(a.created_at) : 0
+      const bt = b.created_at ? Date.parse(b.created_at) : 0
+      return bt - at
+    })
     .map((m) => ({
       id: `anthropic:${m.id}`,
       // The API gives a friendly display name like "Claude Sonnet 4.6"; strip

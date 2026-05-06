@@ -53,7 +53,32 @@ async function fetchGoogleModels(): Promise<
     if (!data.nextPageToken) break
     pageToken = data.nextPageToken
   }
+  // The list-models endpoint doesn't return a creation timestamp, so sort
+  // by major+minor version descending and break ties with a tier
+  // preference (pro > flash > flash-lite > flash-8b > everything else).
+  // Newest flagship floats to the top of the dropdown.
+  out.sort((a, b) => {
+    const av = parseVersion(a.id)
+    const bv = parseVersion(b.id)
+    if (av !== bv) return bv - av
+    return tierWeight(a.id) - tierWeight(b.id)
+  })
   return out
+}
+
+/** Parse `2.5` out of `google:gemini-2.5-pro` → 2.5. */
+function parseVersion(id: string): number {
+  const m = /gemini-(\d+(?:\.\d+)?)/.exec(id)
+  return m ? parseFloat(m[1]!) : 0
+}
+
+/** Lower number = earlier in the picker. */
+function tierWeight(id: string): number {
+  if (id.includes("-pro")) return 0
+  if (id.includes("-flash-8b")) return 3
+  if (id.includes("-flash-lite")) return 2
+  if (id.includes("-flash")) return 1
+  return 4
 }
 
 class GoogleProvider implements ModelProvider {
