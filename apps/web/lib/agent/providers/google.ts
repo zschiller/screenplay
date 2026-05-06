@@ -26,7 +26,7 @@ async function fetchGoogleModels(): Promise<
   if (!apiKey) return []
 
   // Page through the listing — Google caps at ~50/page.
-  const out: Array<Omit<ModelInfo, "provider">> = []
+  const raw: Array<{ id: string; label: string }> = []
   let pageToken: string | undefined
   for (let i = 0; i < 5; i++) {
     const url = new URL("https://generativelanguage.googleapis.com/v1beta/models")
@@ -45,40 +45,42 @@ async function fetchGoogleModels(): Promise<
       if (!m.supportedGenerationMethods?.includes("generateContent")) continue
       const id = m.name.replace(/^models\//, "")
       if (!id.startsWith("gemini-")) continue
-      out.push({
-        id: `google:${id}`,
-        label: m.displayName ?? id,
-      })
+      // Skip preview/experimental variants — they're shadowed by the
+      // stable alias for the same tier.
+      if (/-(preview|exp|experimental)/.test(id)) continue
+      raw.push({ id, label: m.displayName ?? id })
     }
     if (!data.nextPageToken) break
     pageToken = data.nextPageToken
   }
-  // The list-models endpoint doesn't return a creation timestamp, so sort
-  // by major+minor version descending and break ties with a tier
-  // preference (pro > flash > flash-lite > flash-8b > everything else).
-  // Newest flagship floats to the top of the dropdown.
-  out.sort((a, b) => {
-    const av = parseVersion(a.id)
-    const bv = parseVersion(b.id)
-    if (av !== bv) return bv - av
-    return tierWeight(a.id) - tierWeight(b.id)
+
+  // Collapse to latest version per tier (pro / flash / flash-lite /
+  // flash-8b). Order tiers by capability so the flagship lands at the top.
+  const TIERS: Array<{ key: string; match: RegExp }> = [
+    { key: "pro", match: /-pro(?:$|-)/ },
+    { key: "flash", match: /-flash(?!-lite)(?!-8b)(?:$|-)/ },
+    { key: "flash-lite", match: /-flash-lite(?:$|-)/ },
+    { key: "flash-8b", match: /-flash-8b(?:$|-)/ },
+  ]
+  const latestPerTier = new Map<string, { id: string; label: string }>()
+  for (const m of raw) {
+    const tier = TIERS.find((t) => t.match.test(m.id))?.key
+    if (!tier) continue
+    const existing = latestPerTier.get(tier)
+    if (!existing || parseVersion(m.id) > parseVersion(existing.id)) {
+      latestPerTier.set(tier, m)
+    }
+  }
+  return TIERS.flatMap((t) => {
+    const m = latestPerTier.get(t.key)
+    return m ? [{ id: `google:${m.id}`, label: m.label }] : []
   })
-  return out
 }
 
-/** Parse `2.5` out of `google:gemini-2.5-pro` → 2.5. */
+/** Parse `2.5` out of `gemini-2.5-pro` → 2.5. */
 function parseVersion(id: string): number {
   const m = /gemini-(\d+(?:\.\d+)?)/.exec(id)
   return m ? parseFloat(m[1]!) : 0
-}
-
-/** Lower number = earlier in the picker. */
-function tierWeight(id: string): number {
-  if (id.includes("-pro")) return 0
-  if (id.includes("-flash-8b")) return 3
-  if (id.includes("-flash-lite")) return 2
-  if (id.includes("-flash")) return 1
-  return 4
 }
 
 class GoogleProvider implements ModelProvider {

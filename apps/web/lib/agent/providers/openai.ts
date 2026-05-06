@@ -42,6 +42,48 @@ function isChatCapable(id: string): boolean {
   return /^(gpt-|o\d|chatgpt-)/.test(lc)
 }
 
+/**
+ * OpenAI's listing returns both unversioned aliases (`gpt-4o`, `o1`,
+ * `gpt-4-turbo`) and dated/version-pinned variants
+ * (`gpt-4o-2024-08-06`, `o1-2024-12-17`, `gpt-4-0613`). Dated variants are
+ * always shadowed by their alias, so dropping them collapses the list to
+ * "latest per family" automatically.
+ */
+function isLatestAlias(id: string): boolean {
+  // YYYY-MM-DD date suffix — the modern convention.
+  if (/-\d{4}-\d{2}-\d{2}$/.test(id)) return false
+  // MMDD pin — the legacy convention (`gpt-4-0613`, `gpt-3.5-turbo-0125`).
+  if (/-\d{4}$/.test(id)) return false
+  // Preview / staging / shadow models — keep production aliases only.
+  if (/(preview|staging)/.test(id)) return false
+  return true
+}
+
+/** Hardcoded capability rank for OpenAI families. Lower = earlier in the
+ *  picker. Anything not matched falls through to `created` desc. */
+const OPENAI_FAMILY_RANK: Array<[RegExp, number]> = [
+  [/^gpt-5(?!-mini)(?!-nano)/, 0],
+  [/^o3(?!-mini)/, 1],
+  [/^o1(?!-mini)/, 2],
+  [/^gpt-4o(?!-mini)/, 3],
+  [/^chatgpt-4o/, 4],
+  [/^gpt-4-turbo/, 5],
+  [/^gpt-4(?!-)/, 6],
+  [/^gpt-5-mini/, 7],
+  [/^o3-mini/, 8],
+  [/^o1-mini/, 9],
+  [/^gpt-4o-mini/, 10],
+  [/^gpt-5-nano/, 11],
+  [/^gpt-3\.5/, 12],
+]
+
+function familyRank(id: string): number {
+  for (const [pattern, rank] of OPENAI_FAMILY_RANK) {
+    if (pattern.test(id)) return rank
+  }
+  return 999
+}
+
 async function fetchOpenAIModels(): Promise<
   Array<Omit<ModelInfo, "provider">>
 > {
@@ -55,8 +97,14 @@ async function fetchOpenAIModels(): Promise<
   }
   const data = (await res.json()) as OpenAIListResponse
   return data.data
-    .filter((m) => isChatCapable(m.id))
-    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+    .filter((m) => isChatCapable(m.id) && isLatestAlias(m.id))
+    .sort((a, b) => {
+      const ar = familyRank(a.id)
+      const br = familyRank(b.id)
+      if (ar !== br) return ar - br
+      // Tied rank (or both unmatched) — fall back to creation desc.
+      return (b.created ?? 0) - (a.created ?? 0)
+    })
     .map((m) => ({
       id: `openai:${m.id}`,
       label: m.id,

@@ -35,23 +35,34 @@ async function fetchAnthropicModels(): Promise<
     throw new Error(`Anthropic /v1/models returned ${res.status}`)
   }
   const data = (await res.json()) as AnthropicListResponse
-  return data.data
-    .filter((m) => m.type !== "deprecated")
-    .sort((a, b) => {
-      // Newest first by created_at — flagship/recent models float to the
-      // top of the dropdown rather than alphabetical, which would lead
-      // with whatever happens to start with the lowest letter.
-      const at = a.created_at ? Date.parse(a.created_at) : 0
-      const bt = b.created_at ? Date.parse(b.created_at) : 0
-      return bt - at
-    })
-    .map((m) => ({
-      id: `anthropic:${m.id}`,
-      // The API gives a friendly display name like "Claude Sonnet 4.6"; strip
-      // the leading "Claude " so the picker doesn't read "Claude Claude …"
-      // alongside the section header.
-      label: (m.display_name ?? m.id).replace(/^Claude\s+/i, ""),
-    }))
+  // Collapse to one entry per family (opus / sonnet / haiku), keeping the
+  // newest by created_at. Order by capability: opus → sonnet → haiku.
+  const FAMILIES = ["opus", "sonnet", "haiku"] as const
+  const latestPerFamily = new Map<
+    (typeof FAMILIES)[number],
+    AnthropicListResponse["data"][number]
+  >()
+  for (const m of data.data) {
+    if (m.type === "deprecated") continue
+    const family = FAMILIES.find((f) => m.id.includes(`-${f}-`))
+    if (!family) continue
+    const existing = latestPerFamily.get(family)
+    const t = m.created_at ? Date.parse(m.created_at) : 0
+    const et = existing?.created_at ? Date.parse(existing.created_at) : -1
+    if (t > et) latestPerFamily.set(family, m)
+  }
+  return FAMILIES.flatMap((family) => {
+    const m = latestPerFamily.get(family)
+    if (!m) return []
+    return [
+      {
+        id: `anthropic:${m.id}`,
+        // Strip the leading "Claude " — the dropdown header already says
+        // "Anthropic", so "Claude Sonnet 4.6" reads better as "Sonnet 4.6".
+        label: (m.display_name ?? m.id).replace(/^Claude\s+/i, ""),
+      },
+    ]
+  })
 }
 
 class AnthropicProvider implements ModelProvider {
