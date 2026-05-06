@@ -24,16 +24,18 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
-import { getModels, type ModelInfo } from "@/lib/models-store"
+import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
 
-const DEFAULT_MODEL_ID = "claude-sonnet-4-6"
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
-const MODEL_FAMILIES: Array<{ id: string; label: string }> = [
-  { id: "opus", label: "Opus" },
-  { id: "sonnet", label: "Sonnet" },
-  { id: "haiku", label: "Haiku" },
-]
+function readStoredModel(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
 
 export interface ParallelAgentSpec {
   baseBranch: string
@@ -58,19 +60,17 @@ export function ParallelCreateDialog({
   defaultBranch,
   onSubmit,
 }: ParallelCreateDialogProps) {
-  const initialModel = useMemo(() => {
-    if (typeof window === "undefined") return DEFAULT_MODEL_ID
-    try {
-      return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY) ?? DEFAULT_MODEL_ID
-    } catch {
-      return DEFAULT_MODEL_ID
-    }
-  }, [])
-
   const [rows, setRows] = useState<ParallelAgentSpec[]>([])
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
+
+  // Stored model wins over the server default so a user who picked a model
+  // last time keeps that choice; the server default is only used the first
+  // time. Empty string until both stores have answered to avoid kicking off
+  // with a stale id.
+  const initialModel = (readStoredModel() ?? serverDefaultModel) || ""
 
   // Reset rows whenever the dialog re-opens so reopening the dialog gives a
   // fresh starting state instead of stale prompts from the previous session.
@@ -105,9 +105,11 @@ export function ParallelCreateDialog({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    getModels()
-      .then((list) => {
-        if (!cancelled) setModels(list)
+    Promise.all([getModels(), getDefaultModelId()])
+      .then(([list, def]) => {
+        if (cancelled) return
+        setModels(list)
+        setServerDefaultModel(def)
       })
       .catch(() => {})
     return () => {
@@ -116,15 +118,21 @@ export function ParallelCreateDialog({
   }, [open])
 
   const modelGroups = useMemo(() => {
-    const groups = MODEL_FAMILIES.map((f) => ({
-      ...f,
-      models: models.filter((m) => m.id.toLowerCase().includes(f.id)),
-    }))
-    const assigned = new Set(groups.flatMap((g) => g.models.map((m) => m.id)))
-    const other = models.filter((m) => !assigned.has(m.id))
-    return other.length > 0
-      ? [...groups, { id: "other", label: "Other", models: other }]
-      : groups
+    const order: string[] = []
+    const byKey = new Map<
+      string,
+      { key: string; label: string; models: ModelInfo[] }
+    >()
+    for (const m of models) {
+      let group = byKey.get(m.provider.key)
+      if (!group) {
+        group = { key: m.provider.key, label: m.provider.label, models: [] }
+        byKey.set(m.provider.key, group)
+        order.push(m.provider.key)
+      }
+      group.models.push(m)
+    }
+    return order.map((k) => byKey.get(k)!)
   }, [models])
 
   const updateRow = (idx: number, patch: Partial<ParallelAgentSpec>) => {
@@ -254,25 +262,21 @@ export function ParallelCreateDialog({
                           Loading…
                         </div>
                       ) : (
-                        modelGroups
-                          .filter((g) => g.models.length > 0)
-                          .map((group, gIdx) => (
-                            <SelectGroup key={group.id}>
-                              {gIdx > 0 && <SelectSeparator />}
-                              <SelectLabel className="text-[10px] uppercase tracking-wide">
-                                {group.label}
-                              </SelectLabel>
-                              {group.models.map((m) => (
-                                <SelectItem
-                                  key={m.id}
-                                  value={m.id}
-                                  className="text-xs"
-                                >
-                                  {m.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          ))
+                        modelGroups.map((group, gIdx) => (
+                          <SelectGroup key={group.key}>
+                            {gIdx > 0 && <SelectSeparator />}
+                            <SelectLabel className="text-xs">{group.label}</SelectLabel>
+                            {group.models.map((m) => (
+                              <SelectItem
+                                key={m.id}
+                                value={m.id}
+                                className="text-xs"
+                              >
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))
                       )}
                     </SelectContent>
                   </Select>

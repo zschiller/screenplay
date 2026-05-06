@@ -14,7 +14,7 @@ Before deploying, create accounts and projects for each of the following:
 | **GitHub OAuth App** | Sign-in + `repo` scope so the app can clone private repos and push commits on the user's behalf | https://github.com/settings/developers |
 | **Postgres** | Better Auth user/session storage, per-user organization state, the `kv_store` table used by `lib/kv` (cached agent/env IDs, encrypted workspace env vars, distributed locks), project rooms + members (`room`, `room_member`), and comment threads (`thread`, `comment`). Any Postgres works — the default factory in `lib/db/neon.ts` uses Neon's serverless HTTP driver, but you can swap in `postgres-js`, `node-postgres`, or any other Drizzle Postgres driver (see "Using a different Postgres driver" below). | anywhere you like — [Neon](https://console.neon.tech), [Vercel Postgres](https://vercel.com/postgres), [Supabase](https://supabase.com), a self-hosted server, etc. |
 | **Yjs host** | Durable storage and realtime sync for the per-room [Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents, artboards, text layers, chat sessions, plans), agent stream events, and Yjs awareness (cursors, viewport, selections). Any Yjs-compatible backend works — the default implementation targets Liveblocks via `lib/yjs-host/liveblocks-server.ts` (server) + `lib/yjs-host/liveblocks-client.tsx` (React client), each fronted by a thin re-export (`lib/yjs-host/index.ts` and `lib/yjs-host/client.tsx`) that makes the swap a one-line change. Dropping in Hocuspocus, y-websocket, Cloudflare Durable Objects, etc. means adding sibling `*-server.ts` / `*-client.tsx` files and pointing those two re-exports at them. | anywhere you like — [Liveblocks](https://liveblocks.io), [Hocuspocus](https://tiptap.dev/docs/hocuspocus), [y-websocket](https://github.com/yjs/y-websocket), Cloudflare Durable Objects, a self-hosted server, etc. |
-| **Anthropic API** | Powers the in-sandbox coding agent (Claude) via `@anthropic-ai/sdk` | https://console.anthropic.com |
+| **Model provider** | Powers the in-sandbox coding agent. The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev), so any provider with an AI-SDK adapter works — Anthropic, OpenAI, Google, or any OpenAI-compatible gateway (OpenRouter, Groq, vLLM, LM Studio, …). At least one provider must be configured; see "Model providers" below to add or swap one. | anywhere you like — [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), [Google AI Studio](https://aistudio.google.com), [OpenRouter](https://openrouter.ai), [Groq](https://console.groq.com), a self-hosted vLLM/Ollama, etc. |
 
 ### GitHub OAuth app setup
 
@@ -139,6 +139,65 @@ Project thumbnails are screenshotted by a headless browser, resized, and uploade
 
 The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`) — see `apps/web/lib/blob/types.ts` for the exact shape. Callers (`lib/thumbnail/capture.ts`) only ever see the abstract interface and need no changes when the backend swaps.
 
+### Model providers
+
+The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider is one concrete file under `apps/web/lib/agent/providers/` (anthropic, openai, google, gateway), composed into the active set in `apps/web/lib/agent/providers/index.ts`. The shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a `ModelProvider` interface in `types.ts`, one file per implementation, and an `index.ts` that picks which ones are live.
+
+Model ids are fully qualified: `<provider>:<model>` (e.g. `anthropic:claude-sonnet-4-6`, `openai:gpt-4o`, `gateway:meta-llama/llama-3.3-70b`). Bare ids are rejected — provider routing is always explicit, so a deployment configured only for OpenAI never silently routes a stray `claude-*` id to Anthropic.
+
+A provider self-detects whether it's enabled by inspecting env vars in `isConfigured()`. Providers without their key set are skipped from the picker but stay loaded in code, so chats that reference them surface a clear "API key not set" error rather than silently rerouting.
+
+#### Configuring providers
+
+At least one of these must be set:
+
+Each provider's model list is populated live by hitting its discovery endpoint, filtered to chat-capable models, and cached for an hour in `lib/kv`. There's no static catalog to keep in sync — adding a model upstream surfaces in the picker on the next refresh.
+
+- **Anthropic** — `ANTHROPIC_API_KEY`. Models discovered from `GET https://api.anthropic.com/v1/models`.
+- **OpenAI** — `OPENAI_API_KEY`. Models discovered from `GET https://api.openai.com/v1/models`, filtered to chat-capable ids (excludes embeddings, dall-e, tts, whisper, etc.).
+- **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models discovered from `GET https://generativelanguage.googleapis.com/v1beta/models`, filtered to those supporting `generateContent`.
+- **Vercel AI Gateway** — `AI_GATEWAY_API_KEY` (Vercel's standard; auto-injected via OIDC on Vercel deploys, no env var needed there). Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. Models discovered via `gateway.getAvailableModels()` from `@ai-sdk/gateway`, filtered to language models.
+- **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+ optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. Models discovered from `${BASE_URL}/v1/models`. For Vercel AI Gateway specifically, use the dedicated provider above instead — it uses Vercel's SDK and gets you the extra Gateway features. Example:
+
+  ```bash
+  OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+  OPENAI_COMPATIBLE_API_KEY=sk-or-...
+  ```
+
+Each provider falls back to a small curated list if its discovery call fails — typically when a key is invalid, the upstream is rate-limiting, or a self-hosted server doesn't implement `/v1/models`. The fallback is negative-cached for ~1 minute so a flapping upstream doesn't get hammered while still recovering quickly when it heals.
+
+`AGENT_DEFAULT_MODEL` overrides the fallback used when a request doesn't pass a model. Default: `anthropic:claude-sonnet-4-6`. Set this to a provider you've actually configured — e.g. `openai:gpt-4o` if you're not running Anthropic at all.
+
+#### Adding a new provider
+
+1. Install the AI SDK adapter for your provider (e.g. `pnpm add @ai-sdk/mistral`).
+2. Drop a sibling factory under `apps/web/lib/agent/providers/` modeled on the existing files:
+
+   ```ts
+   import "server-only"
+   import { mistral } from "@ai-sdk/mistral"
+   import type { ModelProvider } from "./types"
+
+   class MistralProvider implements ModelProvider {
+     key = "mistral"
+     label = "Mistral"
+     isConfigured() { return Boolean(process.env.MISTRAL_API_KEY) }
+     listModels() {
+       if (!this.isConfigured()) return []
+       return [{ id: "mistral:mistral-large-latest", label: "Mistral Large" }]
+     }
+     resolve(modelId: string) { return mistral(modelId) }
+   }
+
+   export function getMistralProvider(): ModelProvider {
+     return new MistralProvider()
+   }
+   ```
+
+3. Import the factory and add it to the `PROVIDERS` array in `apps/web/lib/agent/providers/index.ts`.
+
+The `ModelProvider` interface is small (`key`, `label`, `isConfigured`, `listModels`, `resolve`) — see `apps/web/lib/agent/providers/types.ts` for the exact shape. The agent engine, model picker, and `/api/agent/models` route are all written against this interface and need no changes.
+
 ### Environment variables
 
 Set these in Vercel (Project Settings → Environment Variables) and in a local `.env.local` for development:
@@ -177,9 +236,18 @@ DATABASE_URL=postgres://...
 # vars that host needs instead of LIVEBLOCKS_SECRET_KEY.
 LIVEBLOCKS_SECRET_KEY=sk_...
 
-# --- Anthropic ---
-# Read automatically by the Anthropic SDK
+# --- Model providers (agent) ---
+# At least one provider must be configured. See "Model providers" above.
+# Each provider self-detects via the env vars below; unset providers are
+# skipped from the picker. AGENT_DEFAULT_MODEL must reference a provider
+# that's actually configured.
+AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6
 ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# GOOGLE_GENERATIVE_AI_API_KEY=...
+# AI_GATEWAY_API_KEY=...   # Vercel AI Gateway; auto-OIDC on Vercel
+# OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+# OPENAI_COMPATIBLE_API_KEY=...
 
 # --- Env-var encryption ---
 # 32 random bytes, hex-encoded (64 hex chars). Used to encrypt per-workspace
@@ -224,7 +292,7 @@ If you've swapped in a different provider under `apps/web/lib/sandbox/`, set wha
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
-   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), `ANTHROPIC_API_KEY`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_API_KEY` (auto-OIDC on Vercel, so usually unset) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
 ### Running locally
