@@ -27,7 +27,7 @@ type GatewayClient = ReturnType<typeof createGateway>
  * `vercel:<provider>/<model>` — e.g. `vercel:anthropic/claude-sonnet-4-7`.
  */
 
-const CURATED_MODELS: ModelInfo[] = [
+const CURATED_MODELS: Array<Omit<ModelInfo, "provider">> = [
   { id: "vercel:anthropic/claude-opus-4-7", label: "Claude Opus 4.7" },
   { id: "vercel:anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
   { id: "vercel:anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5" },
@@ -52,7 +52,7 @@ class VercelAIGatewayProvider implements ModelProvider {
     )
   }
 
-  listModels(): ModelInfo[] {
+  listModels() {
     if (!this.isConfigured()) return []
     const raw = process.env.VERCEL_AI_GATEWAY_MODELS
     if (!raw) return CURATED_MODELS

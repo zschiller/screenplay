@@ -19,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
@@ -26,16 +27,9 @@ import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
-import { getModels, type ModelInfo } from "@/lib/models-store"
+import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
 
-const DEFAULT_MODEL_ID = "claude-sonnet-4-6"
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
-
-const MODEL_FAMILIES: Array<{ id: string; label: string }> = [
-  { id: "opus", label: "Opus" },
-  { id: "sonnet", label: "Sonnet" },
-  { id: "haiku", label: "Haiku" },
-]
 
 function readStoredModel(): string | null {
   if (typeof window === "undefined") return null
@@ -53,16 +47,28 @@ function writeStoredModel(modelId: string) {
   } catch {}
 }
 
-function groupModelsByFamily(models: ModelInfo[]) {
-  const groups = MODEL_FAMILIES.map((f) => ({
-    ...f,
-    models: models.filter((m) => m.id.toLowerCase().includes(f.id)),
-  }))
-  const assigned = new Set(groups.flatMap((g) => g.models.map((m) => m.id)))
-  const other = models.filter((m) => !assigned.has(m.id))
-  return other.length > 0
-    ? [...groups, { id: "other", label: "Other", models: other }]
-    : groups
+/**
+ * Group models by their origin provider (Anthropic, OpenAI, Vercel AI
+ * Gateway, …) so the dropdown surfaces them under headings the user can
+ * scan. Preserves the registry's order both at the group level (which
+ * provider showed up first in `enumerateModels`) and within each group.
+ */
+function groupModelsByProvider(models: ModelInfo[]) {
+  const order: string[] = []
+  const byKey = new Map<
+    string,
+    { key: string; label: string; models: ModelInfo[] }
+  >()
+  for (const m of models) {
+    let group = byKey.get(m.provider.key)
+    if (!group) {
+      group = { key: m.provider.key, label: m.provider.label, models: [] }
+      byKey.set(m.provider.key, group)
+      order.push(m.provider.key)
+    }
+    group.models.push(m)
+  }
+  return order.map((k) => byKey.get(k)!)
 }
 
 interface AgentChatProps {
@@ -106,6 +112,7 @@ export function AgentChat({
 
   const [input, setInput] = useState("")
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
   const [storedModel, setStoredModel] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -121,10 +128,16 @@ export function AgentChat({
 
   useEffect(() => {
     let cancelled = false
-    getModels().then((list) => {
-      if (!cancelled) setModels(list)
-    }).catch(() => {})
-    return () => { cancelled = true }
+    Promise.all([getModels(), getDefaultModelId()])
+      .then(([list, def]) => {
+        if (cancelled) return
+        setModels(list)
+        setServerDefaultModel(def)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Allow other parts of the app (e.g. the inspect tool) to append text to this chat's draft.
@@ -141,7 +154,12 @@ export function AgentChat({
     })
   }, [chatId])
 
-  const effectiveModel = model ?? storedModel ?? DEFAULT_MODEL_ID
+  // Precedence: per-chat override (set by `onModelChange`) → user's stored
+  // last-used model from localStorage → server-side default for the
+  // configured provider set. The string is "" while the catalog is still
+  // loading so the dropdown can render a "Loading…" placeholder rather than
+  // a stale id from a different deployment's provider.
+  const effectiveModel = model ?? storedModel ?? serverDefaultModel ?? ""
 
   const handleModelChange = useCallback(
     (m: string) => {
@@ -180,11 +198,12 @@ export function AgentChat({
     [handleSubmit],
   )
 
-  const currentModel =
-    models.find((m) => m.id === effectiveModel) ??
-    { id: effectiveModel, label: effectiveModel }
+  const currentModel = models.find((m) => m.id === effectiveModel) ?? {
+    id: effectiveModel,
+    label: effectiveModel || "Loading…",
+  }
 
-  const modelGroups = useMemo(() => groupModelsByFamily(models), [models])
+  const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -254,22 +273,23 @@ export function AgentChat({
                 {models.length === 0 ? (
                   <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
                 ) : (
-                  modelGroups
-                    .filter((g) => g.models.length > 0)
-                    .map((group, idx) => (
-                      <div key={group.id}>
-                        {idx > 0 && <DropdownMenuSeparator />}
-                        {group.models.map((m) => (
-                          <DropdownMenuItem
-                            key={m.id}
-                            onSelect={() => handleModelChange(m.id)}
-                          >
-                            <span className="flex-1">{m.label}</span>
-                            {m.id === effectiveModel && <Check className="size-3.5" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))
+                  modelGroups.map((group, idx) => (
+                    <div key={group.key}>
+                      {idx > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </DropdownMenuLabel>
+                      {group.models.map((m) => (
+                        <DropdownMenuItem
+                          key={m.id}
+                          onSelect={() => handleModelChange(m.id)}
+                        >
+                          <span className="flex-1">{m.label}</span>
+                          {m.id === effectiveModel && <Check className="size-3.5" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ))
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

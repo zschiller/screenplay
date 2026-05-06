@@ -68,9 +68,35 @@ export function resolveLanguageModel(modelId: string): LanguageModel {
 }
 
 /**
- * Flat list of every model from every configured provider, in
- * `PROVIDERS` order. Drives the model picker.
+ * Flat list of every model from every configured provider, in `PROVIDERS`
+ * order. Drives the model picker. Decorates each entry with its origin
+ * provider's metadata so the client can group by provider rather than by
+ * model family — the per-provider `listModels()` implementations don't
+ * need to populate this themselves.
  */
 export function enumerateModels(): ModelInfo[] {
-  return PROVIDERS.flatMap((p) => p.listModels())
+  return PROVIDERS.flatMap((p) =>
+    p.listModels().map((m) => ({
+      ...m,
+      provider: { key: p.key, label: p.label },
+    })),
+  )
+}
+
+/**
+ * Resolve the default model id for the currently-configured provider set.
+ * Falls back to the first enabled model if `AGENT_DEFAULT_MODEL` points at
+ * a provider that isn't configured (e.g. a deployment that has only
+ * OPENAI_API_KEY set but left AGENT_DEFAULT_MODEL at its anthropic
+ * default). Returns null when no providers are configured at all.
+ */
+export function getDefaultModelId(): string | null {
+  try {
+    const { providerKey } = parseModelId(DEFAULT_MODEL)
+    const provider = PROVIDERS_BY_KEY.get(providerKey)
+    if (provider?.isConfigured()) return DEFAULT_MODEL
+  } catch {
+    // Malformed AGENT_DEFAULT_MODEL — fall through to picker fallback.
+  }
+  return enumerateModels()[0]?.id ?? null
 }

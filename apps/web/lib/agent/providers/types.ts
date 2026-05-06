@@ -11,6 +11,16 @@ export interface ModelInfo {
   id: string
   /** Human-readable label rendered in the model picker. */
   label: string
+  /**
+   * Origin provider — used by the client to group entries in the picker
+   * by provider (Anthropic, OpenAI, Vercel AI Gateway, …) instead of by
+   * model family (Opus/Sonnet/Haiku, which only made sense when the only
+   * provider was Anthropic).
+   */
+  provider: {
+    key: string
+    label: string
+  }
 }
 
 /**
@@ -49,9 +59,11 @@ export interface ModelProvider {
 
   /**
    * Models this provider exposes in the picker. Returns `[]` when not
-   * configured. Returned ids are already prefixed with `key:`.
+   * configured. Returned ids are already prefixed with `key:`. The
+   * `provider` field is filled in centrally by `enumerateModels`, so
+   * implementations only need to return `{ id, label }`.
    */
-  listModels(): ModelInfo[]
+  listModels(): Array<Omit<ModelInfo, "provider">>
 
   /**
    * Resolve a provider-specific model id (the part after `key:`) into an

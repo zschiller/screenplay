@@ -4,7 +4,7 @@ import {
   createOpenAICompatible,
   type OpenAICompatibleProvider,
 } from "@ai-sdk/openai-compatible"
-import type { ModelInfo, ModelProvider } from "./types"
+import type { ModelProvider } from "./types"
 
 /**
  * Generic OpenAI-protocol provider. Points at any endpoint that speaks the
@@ -34,7 +34,7 @@ class OpenAICompatibleProviderImpl implements ModelProvider {
     return Boolean(process.env.OPENAI_COMPATIBLE_BASE_URL)
   }
 
-  listModels(): ModelInfo[] {
+  listModels() {
     if (!this.isConfigured()) return []
     const raw = process.env.OPENAI_COMPATIBLE_MODELS
     if (!raw) return []

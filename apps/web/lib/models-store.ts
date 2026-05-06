@@ -1,15 +1,15 @@
-import type { ModelInfo } from "@/app/api/agent/models/route"
+import type { ModelInfo, ModelsResponse } from "@/app/api/agent/models/route"
 
-let cache: ModelInfo[] | null = null
-let pending: Promise<ModelInfo[]> | null = null
+let cache: ModelsResponse | null = null
+let pending: Promise<ModelsResponse> | null = null
 
-export async function getModels(): Promise<ModelInfo[]> {
-  if (cache) return cache
+function fetchCatalog(): Promise<ModelsResponse> {
+  if (cache) return Promise.resolve(cache)
   if (pending) return pending
   pending = fetch("/api/agent/models")
     .then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json()) as ModelInfo[]
+      const data = (await res.json()) as ModelsResponse
       cache = data
       return data
     })
@@ -17,6 +17,19 @@ export async function getModels(): Promise<ModelInfo[]> {
       pending = null
     })
   return pending
+}
+
+export async function getModels(): Promise<ModelInfo[]> {
+  return (await fetchCatalog()).models
+}
+
+/**
+ * Server-suggested default model. Honors AGENT_DEFAULT_MODEL when its
+ * provider is configured, otherwise falls back to the first enabled model.
+ * Null only when no providers are configured at all.
+ */
+export async function getDefaultModelId(): Promise<string | null> {
+  return (await fetchCatalog()).defaultModelId
 }
 
 export type { ModelInfo }
