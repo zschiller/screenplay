@@ -154,12 +154,19 @@ At least one of these must be set:
 - **Anthropic** — `ANTHROPIC_API_KEY`. Models: `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
 - **OpenAI** — `OPENAI_API_KEY`. Models: `gpt-4o`, `gpt-4o-mini`, `o1`, `o1-mini`.
 - **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models: `gemini-2.5-pro`, `gemini-2.5-flash`.
-- **OpenAI-compatible gateway** — `AI_GATEWAY_BASE_URL` (+ optional `AI_GATEWAY_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. `AI_GATEWAY_MODELS` is a comma-separated catalog the picker exposes — entries are either `id` or `id|label`. Example:
+- **Vercel AI Gateway** — `AI_GATEWAY_API_KEY` (Vercel's standard env var; auto-injected via OIDC on Vercel deploys, no env var needed there). Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. The picker shows a curated popular subset by default — override with `VERCEL_AI_GATEWAY_MODELS` (`id` or `id|label`, comma-separated; each id is the Gateway's `<provider>/<model>` form). Example:
 
   ```bash
-  AI_GATEWAY_BASE_URL=https://openrouter.ai/api/v1
-  AI_GATEWAY_API_KEY=sk-or-...
-  AI_GATEWAY_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B,deepseek/deepseek-v3|DeepSeek V3
+  AI_GATEWAY_API_KEY=...   # only on non-Vercel hosts
+  VERCEL_AI_GATEWAY_MODELS=anthropic/claude-sonnet-4-6|Claude Sonnet 4.6,openai/gpt-4o|GPT-4o
+  ```
+
+- **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+ optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. `OPENAI_COMPATIBLE_MODELS` is the catalog the picker exposes (same format as above). For Vercel AI Gateway specifically, use the dedicated provider above instead — it uses Vercel's SDK and gets you the extra Gateway features. Example:
+
+  ```bash
+  OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+  OPENAI_COMPATIBLE_API_KEY=sk-or-...
+  OPENAI_COMPATIBLE_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B,deepseek/deepseek-v3|DeepSeek V3
   ```
 
 `AGENT_DEFAULT_MODEL` overrides the fallback used when a request doesn't pass a model. Default: `anthropic:claude-sonnet-4-6`. Set this to a provider you've actually configured — e.g. `openai:gpt-4o` if you're not running Anthropic at all.
@@ -241,9 +248,11 @@ AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6
 ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_API_KEY=sk-...
 # GOOGLE_GENERATIVE_AI_API_KEY=...
-# AI_GATEWAY_BASE_URL=https://openrouter.ai/api/v1
-# AI_GATEWAY_API_KEY=...
-# AI_GATEWAY_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B,deepseek/deepseek-v3|DeepSeek V3
+# AI_GATEWAY_API_KEY=...   # Vercel AI Gateway; auto-OIDC on Vercel
+# VERCEL_AI_GATEWAY_MODELS=anthropic/claude-sonnet-4-6|Claude Sonnet 4.6,openai/gpt-4o|GPT-4o
+# OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+# OPENAI_COMPATIBLE_API_KEY=...
+# OPENAI_COMPATIBLE_MODELS=meta-llama/llama-3.3-70b|Llama 3.3 70B
 
 # --- Env-var encryption ---
 # 32 random bytes, hex-encoded (64 hex chars). Used to encrypt per-workspace
@@ -288,7 +297,7 @@ If you've swapped in a different provider under `apps/web/lib/sandbox/`, set wha
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
-   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_API_KEY` (auto-OIDC on Vercel, so usually unset) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
 ### Running locally

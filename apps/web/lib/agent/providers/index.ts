@@ -2,9 +2,10 @@ import "server-only"
 
 import type { LanguageModel } from "ai"
 import { getAnthropicProvider } from "./anthropic"
-import { getGatewayProvider } from "./gateway"
 import { getGoogleProvider } from "./google"
 import { getOpenAIProvider } from "./openai"
+import { getOpenAICompatibleProvider } from "./openai-compatible"
+import { getVercelGatewayProvider } from "./vercel"
 import type { ModelInfo, ModelProvider } from "./types"
 
 export type { ModelInfo, ModelProvider } from "./types"
@@ -25,7 +26,8 @@ const PROVIDERS: ModelProvider[] = [
   getAnthropicProvider(),
   getOpenAIProvider(),
   getGoogleProvider(),
-  getGatewayProvider(),
+  getVercelGatewayProvider(),
+  getOpenAICompatibleProvider(),
 ]
 
 const PROVIDERS_BY_KEY = new Map<string, ModelProvider>(
