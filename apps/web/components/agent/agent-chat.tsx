@@ -276,7 +276,7 @@ export function AgentChat({
                   modelGroups.map((group, idx) => (
                     <div key={group.key}>
                       {idx > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
                         {group.label}
                       </DropdownMenuLabel>
                       {group.models.map((m) => (
