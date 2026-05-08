@@ -12,33 +12,21 @@ export type RenderArtboard = {
   iframeUrl: string | null
 }
 
-export type RenderTextLayer = {
+export type RenderDocument = {
   id: string
   x: number
   y: number
   width: number
+  height: number
+  title: string
   html: string
-  text: string
 }
 
 const VIEWPORT_W = 1280
 const VIEWPORT_H = 960
 const PADDING = 80
 const MAX_SCALE = 1
-// prose-sm: 14px font with ~1.71 line-height, plus paragraph spacing.
-const TEXT_FONT_SIZE = 14
-const TEXT_LINE_HEIGHT = 1.7142857
 const READY_TIMEOUT_MS = 8_000
-
-function estimateTextHeight(text: string, width: number): number {
-  if (!text) return TEXT_FONT_SIZE * TEXT_LINE_HEIGHT
-  const charsPerLine = Math.max(1, Math.floor(width / (TEXT_FONT_SIZE * 0.55)))
-  let lines = 0
-  for (const para of text.split("\n")) {
-    lines += Math.max(1, Math.ceil(para.length / charsPerLine))
-  }
-  return Math.ceil(lines * TEXT_FONT_SIZE * TEXT_LINE_HEIGHT)
-}
 
 declare global {
   interface Window {
@@ -47,6 +35,15 @@ declare global {
 }
 
 type Rect = { x: number; y: number; width: number; height: number }
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
 
 function bbox(rects: Rect[]) {
   if (rects.length === 0) return null
@@ -65,10 +62,10 @@ function bbox(rects: Rect[]) {
 
 export function RenderCanvas({
   artboards,
-  textLayers,
+  documents = [],
 }: {
   artboards: RenderArtboard[]
-  textLayers: RenderTextLayer[]
+  documents?: RenderDocument[]
 }) {
   const target = artboards.filter((a) => a.iframeUrl)
   const targetCount = target.length
@@ -98,13 +95,7 @@ export function RenderCanvas({
     })
   }
 
-  const textRects: Rect[] = textLayers.map((t) => ({
-    x: t.x,
-    y: t.y,
-    width: t.width,
-    height: estimateTextHeight(t.text, t.width),
-  }))
-  const allRects: Rect[] = [...artboards, ...textRects]
+  const allRects: Rect[] = [...artboards, ...documents]
 
   if (allRects.length === 0) {
     return (
@@ -197,20 +188,38 @@ export function RenderCanvas({
             )}
           </div>
         ))}
-        {textLayers.map((t) => (
+        {documents.map((d) => (
           <div
-            key={t.id}
-            className="tiptap prose prose-sm max-w-none"
+            key={d.id}
             style={{
               position: "absolute",
-              left: t.x - box.minX,
-              top: t.y - box.minY,
-              width: t.width,
-              color: "#18181b",
-              wordBreak: "break-word",
+              left: d.x - box.minX,
+              top: d.y - box.minY,
+              width: d.width,
+              height: d.height,
+              background: "white",
+              border: "1px solid #e4e4e7",
+              borderRadius: 6,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
             }}
-            dangerouslySetInnerHTML={{ __html: t.html }}
-          />
+          >
+            <div
+              className="tiptap tiptap-document prose prose-sm max-w-none"
+              style={{
+                padding: "20px 24px",
+                color: "#18181b",
+                wordBreak: "break-word",
+                flex: 1,
+                overflow: "hidden",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: d.html || `<h1>${escapeHtml(d.title || "Untitled")}</h1>`,
+              }}
+            />
+          </div>
         ))}
       </div>
     </div>

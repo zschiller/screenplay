@@ -12,14 +12,12 @@ import {
   ExternalLink,
   GitBranch,
   GitBranchPlus,
-  GitFork,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
   RefreshCw,
   Rows3,
   Trash2,
-  Frame,
   MoreHorizontal,
   Pencil,
   Play,
@@ -36,10 +34,8 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSubButton,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
 import {
@@ -73,14 +69,29 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { Badge } from "@workspace/ui/components/badge"
 import { Kbd } from "@workspace/ui/components/kbd"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
-import type { AgentData, ArtboardData, ArtboardGroupData, WorkspaceData } from "@/lib/types"
+import type {
+  AgentData,
+  ArtboardData,
+  ArtboardGroupData,
+  DocumentLayerData,
+  GroupMember,
+  WorkspaceData,
+} from "@/lib/types"
+import { getGroupMembers } from "@/lib/artboard-layout"
+import {
+  ArtboardRowMenu,
+  makeArtboardRow,
+} from "@/components/panels/layer-rows/artboard-row"
+import {
+  DocumentRow,
+  DocumentRowMenu,
+} from "@/components/panels/layer-rows/document-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
@@ -98,10 +109,12 @@ interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
   artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
+  documents: Array<Pick<DocumentLayerData, "id" | "title">>
   /** Already sorted by sidebarOrder. */
   artboardGroups: ArtboardGroupData[]
   selectedArtboardIds: Set<string>
   selectedGroupIds: Set<string>
+  selectedDocumentLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
@@ -131,8 +144,12 @@ interface AgentSidebarProps {
   onRenameArtboard: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
+  onSelectDocument: (id: string, shiftKey: boolean) => void
+  onZoomToDocument: (id: string) => void
+  onRenameDocument: (id: string, title: string) => void
+  onRemoveDocument: (id: string) => void
   onReorderArtboardGroups: (orderedIds: string[]) => void
-  onReorderGroupArtboards: (groupId: string, orderedArtboardIds: string[]) => void
+  onReorderGroupMembers: (groupId: string, orderedMembers: GroupMember[]) => void
   onRenameArtboardGroup: (groupId: string, name: string) => void
   onRemoveArtboardGroup: (groupId: string) => void
   onCollapseSidebar?: () => void
@@ -148,9 +165,11 @@ export function AgentSidebar({
   workspaces,
   agents,
   artboards,
+  documents,
   artboardGroups,
   selectedArtboardIds,
   selectedGroupIds,
+  selectedDocumentLayerIds,
   onSelectGroup,
   onSelectAgent,
   onCreateWorkspace,
@@ -174,8 +193,12 @@ export function AgentSidebar({
   onRenameArtboard,
   onRouteChange,
   onRemoveArtboard,
+  onSelectDocument,
+  onZoomToDocument,
+  onRenameDocument,
+  onRemoveDocument,
   onReorderArtboardGroups,
-  onReorderGroupArtboards,
+  onReorderGroupMembers,
   onRenameArtboardGroup,
   onRemoveArtboardGroup,
   onCollapseSidebar,
@@ -197,6 +220,59 @@ export function AgentSidebar({
     for (const a of artboards) m.set(a.id, a)
     return m
   }, [artboards])
+  const documentsById = useMemo(() => {
+    const m = new Map<string, AgentSidebarProps["documents"][number]>()
+    for (const d of documents) m.set(d.id, d)
+    return m
+  }, [documents])
+  const agentsById = useMemo(() => {
+    const m = new Map<string, AgentData>()
+    for (const a of agents) m.set(a.id, a)
+    return m
+  }, [agents])
+
+  /**
+   * Per-kind sidebar row + menu component lookup. Each entry binds a
+   * registered `LayerKindDescriptor` to its row + menu components plus
+   * the per-kind selection state and mutators. To wire up a new layer
+   * kind, drop another entry here keyed by `kind` — the dispatch loop
+   * below picks the right components automatically.
+   */
+  const ArtboardRow = useMemo(
+    () => makeArtboardRow({ agentsById }),
+    [agentsById],
+  )
+  type AnyRowDispatcher = {
+    Row: React.ComponentType<import("./layer-rows/types").LayerRowProps<unknown>>
+    Menu: React.ComponentType<import("./layer-rows/types").LayerRowMenuProps<unknown>>
+    isSelected: (id: string) => boolean
+    onSelect: (id: string, shiftKey: boolean) => void
+    onActivate?: (id: string) => void
+    onRename: (id: string, name: string) => void
+    onChangeRoute?: (id: string, route: string) => void
+    onRemove: (id: string) => void
+  }
+  const rowDispatchByKind: Record<string, AnyRowDispatcher | undefined> = {
+    artboard: {
+      Row: ArtboardRow as AnyRowDispatcher["Row"],
+      Menu: ArtboardRowMenu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedArtboardIds.has(id),
+      onSelect: onSelectArtboard,
+      onActivate: onZoomToArtboard,
+      onRename: onRenameArtboard,
+      onChangeRoute: onRouteChange,
+      onRemove: onRemoveArtboard,
+    },
+    document: {
+      Row: DocumentRow as AnyRowDispatcher["Row"],
+      Menu: DocumentRowMenu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedDocumentLayerIds.has(id),
+      onSelect: onSelectDocument,
+      onActivate: onZoomToDocument,
+      onRename: onRenameDocument,
+      onRemove: onRemoveDocument,
+    },
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -572,60 +648,60 @@ export function AgentSidebar({
               className="flex w-full min-w-0 flex-col gap-0"
             >
               {artboardGroups.map((group) => {
-                const groupArtboards = group.artboardIds
-                  .map((id) => artboardsById.get(id))
-                  .filter((a): a is NonNullable<typeof a> => a !== undefined)
+                // Resolve members in their stored order, dropping any that
+                // can't be found (lookup races during deletion). Each
+                // entry pairs the member kind with the underlying data so
+                // the dispatcher below can hand it straight to the right
+                // row component without a per-kind branch.
+                type ResolvedMember = { kind: string; id: string; data: unknown }
+                const groupMembers: ResolvedMember[] = []
+                for (const m of getGroupMembers(group)) {
+                  if (m.kind === "artboard") {
+                    const ab = artboardsById.get(m.id)
+                    if (ab) groupMembers.push({ kind: m.kind, id: m.id, data: ab })
+                    continue
+                  }
+                  if (m.kind === "document") {
+                    const d = documentsById.get(m.id)
+                    if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
+                  }
+                }
 
-                const renderRowMenu = (
-                  ab: typeof groupArtboards[number],
-                  isSub: boolean,
-                ) => (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction
-                        className={
-                          isSub
-                            ? "!top-1/2 -translate-y-1/2 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                            : "md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                        }
-                      >
-                        <MoreHorizontal />
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="right" align="start" className="w-48">
-                      <DropdownMenuItem onClick={() => {
-                        const newLabel = prompt("Rename frame", ab.label)
-                        if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
-                      }}>
-                        <Pencil />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        const newRoute = prompt("Route path", ab.route || "/")
-                        if (newRoute != null) {
-                          let value = newRoute.trim() || "/"
-                          if (!value.startsWith("/")) value = "/" + value
-                          onRouteChange(ab.id, value)
-                        }
-                      }}>
-                        <Route />
-                        Change route
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboard(ab.id)}>
-                        <Trash2 />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
+                /** Render `<Row />` + `<Menu />` for a single member by
+                 *  looking up the kind in `rowDispatchByKind`. New layer
+                 *  kinds plug in by adding an entry to that map up top. */
+                const renderMember = (
+                  member: { kind: string; id: string; data: unknown },
+                  variant: "flat" | "sub",
+                ) => {
+                  const dispatch = rowDispatchByKind[member.kind]
+                  if (!dispatch) return null
+                  const { Row, Menu } = dispatch
+                  return (
+                    <>
+                      <Row
+                        item={member.data}
+                        variant={variant}
+                        selected={dispatch.isSelected(member.id)}
+                        onSelect={dispatch.onSelect}
+                        onActivate={dispatch.onActivate}
+                      />
+                      <Menu
+                        item={member.data}
+                        isSub={variant === "sub"}
+                        onRename={dispatch.onRename}
+                        onChangeRoute={dispatch.onChangeRoute}
+                        onRemove={dispatch.onRemove}
+                      />
+                    </>
+                  )
+                }
 
-                // Single-artboard groups render flat — the group header would
-                // be visual noise. The Reorder.Item still wraps it so the row
-                // can be dragged to reorder the implicit group.
-                if (groupArtboards.length === 1) {
-                  const ab = groupArtboards[0]!
-                  const frameAgent = ab.sandboxId ? agents.find((a) => a.id === ab.sandboxId) : undefined
+                // Single-member groups render flat — the group header would
+                // be visual noise. The Reorder.Item still wraps it so the
+                // row can be dragged to reorder the implicit group.
+                if (groupMembers.length === 1) {
+                  const m = groupMembers[0]!
                   return (
                     <Reorder.Item
                       key={group.id}
@@ -633,26 +709,7 @@ export function AgentSidebar({
                       layout="position"
                       className="group/menu-item group/frame-row relative cursor-grab active:cursor-grabbing"
                     >
-                      <SidebarMenuButton
-                        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
-                        isActive={selectedArtboardIds.has(ab.id)}
-                        onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}
-                        onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}
-                      >
-                        <Frame className="shrink-0 text-sidebar-foreground/70" />
-                        {frameAgent?.branch && (
-                          <BranchBadge
-                            branch={frameAgent.branch}
-                            colorKey={frameAgent.id}
-                            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
-                          />
-                        )}
-                        <span className="truncate">{ab.label}</span>
-                        <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
-                          <span className="truncate">{ab.route || "/"}</span>
-                        </Badge>
-                      </SidebarMenuButton>
-                      {renderRowMenu(ab, false)}
+                      {renderMember(m, "flat")}
                     </Reorder.Item>
                   )
                 }
@@ -710,51 +767,29 @@ export function AgentSidebar({
                         <CollapsibleContent>
                           <Reorder.Group
                             axis="y"
-                            values={groupArtboards}
-                            onReorder={(items) => onReorderGroupArtboards(group.id, items.map((a) => a.id))}
+                            values={groupMembers}
+                            onReorder={(items) =>
+                              onReorderGroupMembers(
+                                group.id,
+                                items.map((m) => ({ kind: m.kind, id: m.id })) as GroupMember[],
+                              )
+                            }
                             data-slot="sidebar-menu-sub"
                             data-sidebar="menu-sub"
                             className="ml-3.5 mr-0 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border pl-1 pr-0 py-0.5"
                           >
-                            {groupArtboards.map((ab) => {
-                              const frameAgent = ab.sandboxId ? agents.find((a) => a.id === ab.sandboxId) : undefined
-                              return (
-                                <Reorder.Item
-                                  key={ab.id}
-                                  value={ab}
-                                  layout="position"
-                                  data-slot="sidebar-menu-sub-item"
-                                  data-sidebar="menu-sub-item"
-                                  className="group/menu-sub-item group/frame-row relative cursor-grab active:cursor-grabbing"
-                                >
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={selectedArtboardIds.has(ab.id)}
-                                  >
-                                    <button
-                                      type="button"
-                                      className="w-full cursor-pointer pr-7"
-                                      onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}
-                                      onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}
-                                    >
-                                      <Frame className="shrink-0 text-sidebar-foreground/70" />
-                                      {frameAgent?.branch && (
-                                        <BranchBadge
-                                          branch={frameAgent.branch}
-                                          colorKey={frameAgent.id}
-                                          className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
-                                        />
-                                      )}
-                                      <span className="truncate">{ab.label}</span>
-                                      <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
-                                        <span className="truncate">{ab.route || "/"}</span>
-                                      </Badge>
-                                    </button>
-                                  </SidebarMenuSubButton>
-                                  {renderRowMenu(ab, true)}
-                                </Reorder.Item>
-                              )
-                            })}
+                            {groupMembers.map((m) => (
+                              <Reorder.Item
+                                key={m.id}
+                                value={m}
+                                layout="position"
+                                data-slot="sidebar-menu-sub-item"
+                                data-sidebar="menu-sub-item"
+                                className="group/menu-sub-item group/frame-row relative cursor-grab active:cursor-grabbing"
+                              >
+                                {renderMember(m, "sub")}
+                              </Reorder.Item>
+                            ))}
                           </Reorder.Group>
                         </CollapsibleContent>
                     </Collapsible>

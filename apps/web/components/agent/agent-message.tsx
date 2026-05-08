@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Markdown from "react-markdown"
 import {
   ChevronDown,
@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Loader2,
   Sparkles,
+  PencilLine,
+  SquarePen,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -29,6 +31,10 @@ const toolIcons: Record<string, typeof FileText> = {
   list_files: FolderOpen,
   create_pr: GitPullRequest,
   read_skill: Sparkles,
+  read_document: FileText,
+  replace_document_body: SquarePen,
+  append_to_document_body: SquarePen,
+  set_document_title: PencilLine,
 }
 
 const toolLabels: Record<string, string> = {
@@ -39,6 +45,10 @@ const toolLabels: Record<string, string> = {
   list_files: "List files",
   create_pr: "Create PR",
   read_skill: "Read skill",
+  read_document: "Read document",
+  replace_document_body: "Rewrite document",
+  append_to_document_body: "Append to document",
+  set_document_title: "Set title",
 }
 
 function formatToolName(name: string): string {
@@ -133,12 +143,14 @@ function ToolIndicator({
   const path = input.path
   const isRunCommand = message.name === "run_command"
   const isReadSkill = message.name === "read_skill"
+  const isSetTitle = message.name === "set_document_title"
   const command = isRunCommand
     ? [input.command, ...((input.args as string[] | undefined) ?? [])]
         .filter(Boolean)
         .join(" ")
     : null
   const skillName = isReadSkill ? (input.name as string | undefined) : null
+  const newTitle = isSetTitle ? (input.title as string | undefined) : null
 
   return (
     <button
@@ -153,6 +165,8 @@ function ToolIndicator({
             <> <code className="font-mono text-[11px] align-baseline">{command}</code></>
           ) : isReadSkill && skillName ? (
             ` ${skillName}`
+          ) : isSetTitle && newTitle ? (
+            ` ${newTitle}`
           ) : path ? (
             ` ${String(path)}`
           ) : null}
@@ -245,11 +259,44 @@ function PlanMessage({
 export function AgentMessageItem({ message, toolResult, roomId, chatId }: { message: AgentMessage; toolResult?: AgentMessage & { role: "tool_result" }; roomId?: string; chatId?: string }) {
   switch (message.role) {
     case "user": {
-      const displayContent = message.content.replace(/^\[branch: [^\]]+\] /, "")
+      const displayContent = message.content
+        .replace(/^\[branch: [^\]]+\] /, "")
+        .replace(/\n\n---\n\nReferenced documents:[\s\S]*$/, "")
       return (
         <div className="flex justify-end">
           <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground prose prose-sm prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-primary-foreground/10 prose-pre:border-0 [--tw-prose-body:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)]">
-            <Markdown>{displayContent}</Markdown>
+            <Markdown
+              urlTransform={(url) => url}
+              components={{
+                a: ({ href, children, ...props }) => {
+                  if (typeof href === "string" && href.startsWith("mention:")) {
+                    // Markdown text was serialized as `@<label>`; strip the
+                    // leading `@` so the doc icon stands in for it.
+                    const stripAt = (n: ReactNode): ReactNode => {
+                      if (typeof n === "string") return n.replace(/^@/, "")
+                      if (Array.isArray(n)) {
+                        const [first, ...rest] = n
+                        return [stripAt(first), ...rest]
+                      }
+                      return n
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1 rounded bg-primary-foreground/15 px-1 py-0.5 text-[0.95em] no-underline">
+                        <FileText className="size-3.5 shrink-0" />
+                        {stripAt(children)}
+                      </span>
+                    )
+                  }
+                  return (
+                    <a href={href} {...props}>
+                      {children}
+                    </a>
+                  )
+                },
+              }}
+            >
+              {displayContent}
+            </Markdown>
           </div>
         </div>
       )

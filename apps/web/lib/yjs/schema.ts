@@ -5,8 +5,8 @@ import type {
   ArtboardData,
   ArtboardGroupData,
   ChatSessionData,
+  DocumentLayerData,
   PlanData,
-  TextLayerData,
   ViewportData,
   WorkspaceData,
 } from "@/lib/types"
@@ -24,7 +24,7 @@ export const COLLECTION_KEYS = {
   agents: "sandboxes",
   artboards: "artboards",
   artboardGroups: "artboardGroups",
-  textLayers: "textLayers",
+  documentLayers: "documentLayers",
   chatSessions: "chatSessions",
   plans: "plans",
   // Live tracked-pin positions for selector-anchored comments. Keyed by
@@ -223,7 +223,7 @@ export type RoomCollections = {
   agents: YjsCollection<AgentData>
   artboards: YjsCollection<ArtboardData>
   artboardGroups: YjsCollection<ArtboardGroupData>
-  textLayers: YjsCollection<TextLayerData>
+  documentLayers: YjsCollection<DocumentLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   commentPositions: YjsCollection<CommentPosition>
@@ -257,9 +257,9 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
       doc,
       ensureCollection(doc, COLLECTION_KEYS.artboardGroups),
     ),
-    textLayers: new YjsCollection<TextLayerData>(
+    documentLayers: new YjsCollection<DocumentLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.textLayers),
+      ensureCollection(doc, COLLECTION_KEYS.documentLayers),
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,
@@ -282,35 +282,73 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
 }
 
 /**
- * Wraps any artboard that predates groups (i.e. still carries its own x/y and
- * isn't already referenced by a group) in a fresh single-artboard group, and
- * back-fills `name` on any group that lacks one. Runs once per Y.Doc in
- * `getRoomCollections`. Idempotent.
+ * Idempotent on-load migration that:
+ *  - Converts any group still using the legacy `artboardIds` field into a
+ *    typed `members` list and clears the legacy field.
+ *  - Wraps any standalone artboard (one that predates groups, still carrying
+ *    its own x/y) in a fresh single-member group.
+ *  - Wraps any standalone document (created before docs were group members)
+ *    in a fresh single-member group, anchored at the doc's own x/y.
+ *  - Back-fills a `name` on any group that lacks one.
+ *
+ * Runs once per Y.Doc in `getRoomCollections`. Safe to re-run — every step
+ * is a no-op when the data is already in the target shape.
  */
 function migrateLegacyArtboards(c: RoomCollections): void {
   const doc = c.doc
   const artboardsMap = ensureCollection(doc, COLLECTION_KEYS.artboards)
+  const documentsMap = ensureCollection(doc, COLLECTION_KEYS.documentLayers)
   const groupsMap = ensureCollection(doc, COLLECTION_KEYS.artboardGroups)
 
+  // Detect groups still on the legacy schema, and collect every member id
+  // currently referenced (under either field) so we can identify orphans.
+  const groupsToMigrate: Array<{
+    id: string
+    map: AnyMap
+    legacyIds: string[]
+  }> = []
   const referenced = new Set<string>()
-  groupsMap.forEach((groupMap) => {
-    const ids = groupMap.get("artboardIds") as string[] | undefined
-    if (Array.isArray(ids)) for (const id of ids) referenced.add(id)
+  groupsMap.forEach((groupMap, id) => {
+    const members = groupMap.get("members") as
+      | Array<{ kind: string; id: string }>
+      | undefined
+    if (Array.isArray(members) && members.length > 0) {
+      for (const m of members) if (m && typeof m.id === "string") referenced.add(m.id)
+      return
+    }
+    const legacyIds = groupMap.get("artboardIds") as string[] | undefined
+    if (Array.isArray(legacyIds)) {
+      for (const aid of legacyIds) referenced.add(aid)
+      groupsToMigrate.push({ id, map: groupMap, legacyIds })
+    }
   })
 
-  const orphans: { id: string; x: number; y: number; sidebarOrder?: number }[] = []
+  const artboardOrphans: {
+    id: string
+    x: number
+    y: number
+    sidebarOrder?: number
+  }[] = []
   artboardsMap.forEach((abMap, id) => {
     if (referenced.has(id)) return
     const x = abMap.get("x") as number | undefined
     const y = abMap.get("y") as number | undefined
     if (typeof x !== "number" || typeof y !== "number") return
     const sidebarOrder = abMap.get("sidebarOrder") as number | undefined
-    orphans.push({ id, x, y, sidebarOrder })
+    artboardOrphans.push({ id, x, y, sidebarOrder })
   })
 
-  // Collect groups that already exist but were created before names were
-  // persisted, so we can back-fill them. Iteration order is sidebarOrder
-  // first (lower = earlier), then doc order, then id — same as the sidebar.
+  const documentOrphans: { id: string; x: number; y: number }[] = []
+  documentsMap.forEach((docMap, id) => {
+    if (referenced.has(id)) return
+    const x = docMap.get("x") as number | undefined
+    const y = docMap.get("y") as number | undefined
+    if (typeof x !== "number" || typeof y !== "number") return
+    documentOrphans.push({ id, x, y })
+  })
+
+  // Collect groups missing a name so we can back-fill. Sort by the sidebar
+  // ordering they'd render in so the auto-numbering matches the user's view.
   const unnamed: Array<{ id: string; sidebarOrder: number; docIdx: number }> = []
   let docIdx = 0
   let maxNumber = 0
@@ -335,7 +373,14 @@ function migrateLegacyArtboards(c: RoomCollections): void {
     return a.id.localeCompare(b.id)
   })
 
-  if (orphans.length === 0 && unnamed.length === 0) return
+  if (
+    groupsToMigrate.length === 0 &&
+    artboardOrphans.length === 0 &&
+    documentOrphans.length === 0 &&
+    unnamed.length === 0
+  ) {
+    return
+  }
 
   doc.transact(() => {
     let nextNumber = maxNumber + 1
@@ -345,14 +390,21 @@ function migrateLegacyArtboards(c: RoomCollections): void {
         g.set("name", `Group ${nextNumber++}`)
       }
     }
-    for (const orphan of orphans) {
+    for (const g of groupsToMigrate) {
+      g.map.set(
+        "members",
+        g.legacyIds.map((id) => ({ kind: "artboard", id })),
+      )
+      g.map.delete("artboardIds")
+    }
+    for (const orphan of artboardOrphans) {
       const groupId = nanoid()
       c.artboardGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextNumber++}`,
         x: orphan.x,
         y: orphan.y,
-        artboardIds: [orphan.id],
+        members: [{ kind: "artboard", id: orphan.id }],
         ...(orphan.sidebarOrder !== undefined ? { sidebarOrder: orphan.sidebarOrder } : {}),
       })
       const ab = artboardsMap.get(orphan.id)
@@ -360,6 +412,21 @@ function migrateLegacyArtboards(c: RoomCollections): void {
         ab.delete("x")
         ab.delete("y")
         ab.delete("sidebarOrder")
+      }
+    }
+    for (const orphan of documentOrphans) {
+      const groupId = nanoid()
+      c.artboardGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextNumber++}`,
+        x: orphan.x,
+        y: orphan.y,
+        members: [{ kind: "document", id: orphan.id }],
+      })
+      const d = documentsMap.get(orphan.id)
+      if (d) {
+        d.delete("x")
+        d.delete("y")
       }
     }
   })

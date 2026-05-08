@@ -24,6 +24,7 @@ import type { AgentData } from "@/lib/types"
 import type { HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
+import { GroupLabel } from "./group-label"
 
 interface ArtboardLabelProps {
   label: string
@@ -101,40 +102,11 @@ export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zo
       {...dragHandlers}
     >
       {groupLabel && (
-        onSelectGroup ? (
-          // Select on pointer-down to match the frame body's instant-select.
-          // We let the event keep bubbling so the parent drag closure still
-          // arms — when the pointer-up's no-movement path fires the artboard
-          // click, it'll be a no-op because the group is already selected
-          // (handleArtboardSelect short-circuits when the group owns it).
-          <button
-            type="button"
-            className={cn(
-              "mb-0.5 text-xs font-medium truncate min-w-0 cursor-pointer outline-none",
-              groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
-            )}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return
-              onSelectGroup(e.shiftKey)
-            }}
-            onClick={(e) => {
-              // Keep keyboard activation working (Enter/Space on a focused button
-              // fires click but not pointerdown).
-              e.stopPropagation()
-            }}
-          >
-            {groupLabel}
-          </button>
-        ) : (
-          <div
-            className={cn(
-              "mb-0.5 text-xs font-medium truncate min-w-0",
-              groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
-            )}
-          >
-            {groupLabel}
-          </div>
-        )
+        <GroupLabel
+          label={groupLabel}
+          groupSelected={groupSelected}
+          onSelectGroup={onSelectGroup}
+        />
       )}
       {(branch || onAssignAgent) && (
         <div className="mb-0.5 max-w-full min-w-0">
@@ -399,7 +371,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
           {branch ? (
             <BranchBadge branch={branch} colorKey={colorKey} className="min-w-0 text-[10px] py-0 px-1.5" />
           ) : (
-            <span className="text-xs text-muted-foreground">
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
               Choose a branch
             </span>
           )}

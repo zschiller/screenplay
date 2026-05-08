@@ -17,8 +17,8 @@ import type {
   ArtboardData,
   ArtboardGroupData,
   ChatSessionData,
+  DocumentLayerData,
   PlanData,
-  TextLayerData,
   ViewportData,
   WorkspaceData,
 } from "@/lib/types"
@@ -69,8 +69,8 @@ export function useArtboardGroups(): Array<ArtboardGroupData> {
   return useCollectionArray(useRoomCollections().artboardGroups)
 }
 
-export function useTextLayers(): Array<TextLayerData> {
-  return useCollectionArray(useRoomCollections().textLayers)
+export function useDocumentLayers(): Array<DocumentLayerData> {
+  return useCollectionArray(useRoomCollections().documentLayers)
 }
 
 export function useWorkspaces(): Array<WorkspaceData> {
@@ -109,7 +109,7 @@ export function useYjsHistory() {
         doc.getMap(COLLECTION_KEYS.agents),
         doc.getMap(COLLECTION_KEYS.artboards),
         doc.getMap(COLLECTION_KEYS.artboardGroups),
-        doc.getMap(COLLECTION_KEYS.textLayers),
+        doc.getMap(COLLECTION_KEYS.documentLayers),
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
       ],
@@ -160,7 +160,6 @@ export type CanvasPresence = {
   viewport: { x: number; y: number; zoom: number }
   color: string
   selectedArtboardIds: string[]
-  selectedTextLayerIds: string[]
   // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
   // an empty string while the bubble is open but nothing has been typed yet.
   message?: string | null
