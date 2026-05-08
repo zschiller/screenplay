@@ -6,8 +6,11 @@ import { chatStore, type ChatState } from "@/lib/chat-store"
 interface UseAgentChatOptions {
   chatId: string
   roomId: string
-  sandboxName: string
-  branch: string
+  /** Sandbox-backed target. Mutually exclusive with `documentId`. */
+  sandboxName?: string
+  branch?: string
+  /** Document-layer target. Mutually exclusive with `sandboxName`. */
+  documentId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
@@ -24,6 +27,7 @@ export function useAgentChat({
   roomId,
   sandboxName,
   branch,
+  documentId,
   isFirstChat,
   autoNamedBranch,
   planMode,
@@ -62,6 +66,7 @@ export function useAgentChat({
         chatId,
         sandboxName,
         branch,
+        documentId,
         message: text,
         isFirstChat,
         autoNamedBranch,
@@ -76,6 +81,7 @@ export function useAgentChat({
       roomId,
       sandboxName,
       branch,
+      documentId,
       isFirstChat,
       autoNamedBranch,
       planMode,

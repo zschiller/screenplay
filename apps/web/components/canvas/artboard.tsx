@@ -16,6 +16,7 @@ import { useScreenplayDom, type ScreenplayDom } from "@/hooks/use-screenplay-dom
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
 import { ArtboardLabel } from "./artboard-label"
 import { KnobsPopover } from "./knobs-popover"
+import { ResizeHandles } from "./resize-handles"
 import type { AgentData } from "@/lib/types"
 import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 
@@ -527,11 +528,6 @@ export function Artboard({
     return () => { cancelled = true }
   }, [desiredSrc, serverReady])
 
-  const HANDLE = 6 // base px thickness of resize handles
-  const h = HANDLE / zoom // scale inversely so handles stay usable when zoomed out
-  const hHalf = h / 2
-  const cornerSize = 12 / zoom
-
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures
   // navigation events into a history trail (handled in canvas.tsx).
@@ -777,18 +773,7 @@ export function Artboard({
 
       {/* Resize handles — only when singly selected. */}
       {selected && !multiSelected && (
-        <>
-          {/* Edges */}
-          <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("n")} style={{ top: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-          <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cornerSize, right: cornerSize, height: h }} />
-          <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("w")} style={{ left: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
-          <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("e")} style={{ right: -hHalf, top: cornerSize, bottom: cornerSize, width: h }} />
-          {/* Corners */}
-          <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("nw")} style={{ top: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("ne")} style={{ top: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("sw")} style={{ bottom: -hHalf, left: -hHalf, width: cornerSize, height: cornerSize }} />
-          <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("se")} style={{ bottom: -hHalf, right: -hHalf, width: cornerSize, height: cornerSize }} />
-        </>
+        <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
     </div>
   )

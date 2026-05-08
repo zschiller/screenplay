@@ -5,6 +5,10 @@ import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
+import {
+  documentChatTarget,
+  prepareChatTarget,
+} from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
@@ -30,8 +34,11 @@ export const maxDuration = 300
 interface RequestBody {
   roomId: string
   chatId: string
-  sandboxName: string
-  branch: string
+  /** Required when the chat targets an agent (sandbox-backed flow). */
+  sandboxName?: string
+  branch?: string
+  /** Required when the chat targets a document layer (no sandbox). */
+  documentId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -49,14 +56,74 @@ export async function POST(req: Request) {
     chatId,
     sandboxName,
     branch,
+    documentId,
     message,
     isFirstChat,
     autoNamedBranch,
     planMode,
     model,
   } = body
-  if (!roomId || !chatId || !sandboxName || !message) {
+  if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
+  }
+  if (!documentId && !sandboxName) {
+    return new Response("Missing target: documentId or sandboxName", { status: 400 })
+  }
+
+  // Layer-targeted chats (currently just documents) defer all of their
+  // kind-specific bits — system prompt, tools, message decoration — to a
+  // registered `ChatTargetSpec`. Adding a new chat-targetable kind means
+  // shipping a spec and a route branch; the surrounding agent loop is
+  // unchanged.
+  if (documentId) {
+    const prepared = await prepareChatTarget(roomId, documentChatTarget, {
+      documentId,
+    })
+    if (!prepared) return new Response("Document not found", { status: 404 })
+
+    const effectiveModel = model || DEFAULT_MODEL
+    await upsertChat({
+      chatId,
+      roomId,
+      // No sandbox — pass an empty string so the persistence layer's NOT NULL
+      // constraint is satisfied; it's never read back for doc chats.
+      sandboxName: "",
+      model: effectiveModel,
+      systemPrompt: prepared.systemPrompt,
+    })
+
+    const userText = prepared.decorateUserMessage(message, {
+      planMode,
+      isFirstMessage: false,
+    })
+    const userMessage: ModelMessage = { role: "user", content: userText }
+    await appendMessage(chatId, userMessage)
+
+    const history = await loadChatHistory(chatId)
+    const runId = await startRun(chatId)
+
+    after(async () => {
+      await broadcastSignal(roomId, chatId, "chat-stream-start")
+      const broadcaster = new StreamBroadcaster(roomId, chatId)
+      await broadcaster.onUserMessage(message)
+      await runAgentLoop({
+        chatId,
+        runId,
+        roomId,
+        systemPrompt: prepared.systemPrompt,
+        model: effectiveModel,
+        tools: prepared.tools,
+        messages: history,
+      })
+    })
+
+    return Response.json({ chatId, runId })
+  }
+
+  // Below this line: agent-targeted (sandbox) flow. `sandboxName` is
+  // guaranteed by the early-return above.
+  if (!sandboxName) {
+    return new Response("Missing sandboxName for agent-targeted chat", { status: 400 })
   }
 
   // First-message check: a chat is "new" if it has no prior messages. More

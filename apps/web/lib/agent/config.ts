@@ -1,4 +1,57 @@
 import { getSkillIndex } from "@/lib/skills"
+import type { DocumentLayerData } from "@/lib/types"
+
+/**
+ * System prompt for chat sessions that target a *document layer* on the
+ * canvas instead of an agent's sandbox. The agent's job here is editorial:
+ * it reads the doc body, edits the title, and rewrites the body using
+ * lightweight markdown. No file system, no shell, no git.
+ *
+ * `currentTitle` and `currentBody` are baked in so the model has the
+ * latest state without having to call `read_document` first; it can still
+ * read peer documents via `read_document(id)` to follow @-mentions.
+ */
+export function buildDocumentSystemPrompt(opts: {
+  currentTitle: string
+  currentBody: string
+  peers: Array<Pick<DocumentLayerData, "id" | "title">>
+}): string {
+  const peersBlock =
+    opts.peers.length === 0
+      ? ""
+      : [
+          "",
+          "Other documents in this canvas (call `read_document` with an id to read one):",
+          ...opts.peers.map(
+            (p) => `- ${p.id} — ${p.title || "Untitled"}`,
+          ),
+        ].join("\n")
+
+  return [
+    "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools. There is no sandbox, no shell, no git — only the document body.",
+    "",
+    "Formatting rules for the document body:",
+    "- Separate paragraphs with a blank line.",
+    "- Headings: prefix with `# `, `## `, `### ` (up to 6 hashes).",
+    "- Bullet lists: prefix each item with `- ` or `* `.",
+    "- Inline marks (bold/italic/code) aren't preserved on save — emit plain text.",
+    "",
+    "When the user asks for a change:",
+    "1. If you need to confirm the current text, call `read_document` first.",
+    "2. For full rewrites or restructures, call `replace_document_body` with the entire new body.",
+    "3. For incremental additions, call `append_to_document_body`.",
+    "4. To rename the doc, call `set_document_title`.",
+    "5. After editing, give the user a short summary of what you changed.",
+    "",
+    `Current title: ${opts.currentTitle || "(untitled)"}`,
+    "",
+    "Current body:",
+    "```",
+    opts.currentBody || "(empty)",
+    "```",
+    peersBlock,
+  ].join("\n")
+}
 
 const AGENT_SYSTEM_PROMPT_BASE = `You are a skilled UI developer working inside a live development sandbox. You can read, write, and edit files, and run shell commands in the project.
 

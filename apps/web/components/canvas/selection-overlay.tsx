@@ -1,12 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import type { TextLayerData } from "@/lib/types"
+import { useEffect, useRef } from "react"
 import type { ArtboardLayoutMap } from "@/lib/artboard-layout"
 
 interface OtherSelection {
   selectedArtboardIds: string[]
-  selectedTextLayerIds: string[]
   color: string
   name: string
 }
@@ -17,7 +15,6 @@ interface SelectionOverlayProps {
   selectedArtboardIds: Set<string>
   /** Artboards highlighted because their parent group is selected. No resize handles. */
   groupSelectedArtboardIds: Set<string>
-  selectedTextLayerIds: Set<string>
   focusedArtboardId: string | null
   hoveredArtboardId: string | null
   artboardLayouts: ArtboardLayoutMap
@@ -26,20 +23,19 @@ interface SelectionOverlayProps {
    * the world transform) so the border stays 1px crisp at any zoom.
    */
   placeholderRects: Array<{ x: number; y: number; width: number; height: number }>
-  textLayers: TextLayerData[]
   marquee: {
     startX: number
     startY: number
     currentX: number
     currentY: number
   } | null
-  textDraft: {
+  frameDraft: {
     startX: number
     startY: number
     currentX: number
     currentY: number
   } | null
-  frameDraft: {
+  documentDraft: {
     startX: number
     startY: number
     currentX: number
@@ -89,28 +85,18 @@ function resolveColor(el: HTMLElement, varName: string, fallback: string): strin
   return resolved
 }
 
-function measureTextLayer(layer: TextLayerData): { w: number; h: number } {
-  const el = typeof document !== "undefined" ? document.getElementById(`text-layer-${layer.id}`) : null
-  const w = layer.autoWidth ? (el?.offsetWidth ?? layer.width) : layer.width
-  const h = el?.offsetHeight ?? 24
-  return { w, h }
-}
-
-
 export function SelectionOverlay({
   zoom,
   viewportPos,
   selectedArtboardIds,
   groupSelectedArtboardIds,
-  selectedTextLayerIds,
   focusedArtboardId,
   hoveredArtboardId,
   artboardLayouts,
   placeholderRects,
-  textLayers,
   marquee,
-  textDraft,
   frameDraft,
+  documentDraft,
   othersSelections,
   hideResizeHandles,
   inspectRect,
@@ -120,23 +106,6 @@ export function SelectionOverlay({
   reorderDragShift,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  // Text layers stored at width: max-content grow as the user types, but the
-  // metadata in TextLayerData doesn't change — so without a separate signal
-  // the overlay's frame stays glued to the pre-edit size. Watch every text
-  // layer's DOM box and bump a counter on size changes to force a redraw.
-  const [textLayerSizeTick, setTextLayerSizeTick] = useState(0)
-  useEffect(() => {
-    if (textLayers.length === 0) return
-    const ro = new ResizeObserver(() => {
-      setTextLayerSizeTick((n) => n + 1)
-    })
-    for (const layer of textLayers) {
-      const el = document.getElementById(`text-layer-${layer.id}`)
-      if (el) ro.observe(el)
-    }
-    return () => ro.disconnect()
-  }, [textLayers])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -190,7 +159,7 @@ export function SelectionOverlay({
 
     // Draw other users' selections
     for (const other of othersSelections) {
-      if (other.selectedArtboardIds.length === 0 && other.selectedTextLayerIds.length === 0) continue
+      if (other.selectedArtboardIds.length === 0) continue
       ctx.strokeStyle = other.color
       ctx.lineWidth = 1
       for (const id of other.selectedArtboardIds) {
@@ -198,18 +167,6 @@ export function SelectionOverlay({
         if (!layout) continue
         const tl = toScreen(layout.x, layout.y)
         const br = toScreen(layout.x + layout.width, layout.y + layout.height)
-        const l = Math.round(tl.x)
-        const t = Math.round(tl.y)
-        const r = Math.round(br.x)
-        const b = Math.round(br.y)
-        ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
-      }
-      for (const id of other.selectedTextLayerIds) {
-        const layer = textLayers.find((l) => l.id === id)
-        if (!layer) continue
-        const { w: lw, h: lh } = measureTextLayer(layer)
-        const tl = toScreen(layer.x, layer.y)
-        const br = toScreen(layer.x + lw, layer.y + lh)
         const l = Math.round(tl.x)
         const t = Math.round(tl.y)
         const r = Math.round(br.x)
@@ -238,33 +195,15 @@ export function SelectionOverlay({
       })
     }
 
-    // Compute edges for selected text layers
-    const textFrameEdges = new Map<string, { l: number; t: number; r: number; b: number }>()
-    for (const layer of textLayers) {
-      if (!selectedTextLayerIds.has(layer.id)) continue
-      const { w: lw, h: lh } = measureTextLayer(layer)
-      const tl = toScreen(layer.x, layer.y)
-      const br = toScreen(layer.x + lw, layer.y + lh)
-      textFrameEdges.set(layer.id, {
-        l: Math.round(tl.x),
-        t: Math.round(tl.y),
-        r: Math.round(br.x),
-        b: Math.round(br.y),
-      })
-    }
-
-    // Draw selection frames (artboards + text layers)
+    // Draw selection frames for artboards
     ctx.strokeStyle = primaryColor
     ctx.lineWidth = 1
     for (const { l, t, r, b } of frameEdges.values()) {
       ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
     }
-    for (const { l, t, r, b } of textFrameEdges.values()) {
-      ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
-    }
 
     // Draw resize handles for single artboard selection
-    const totalSelected = selectedArtboardIds.size + selectedTextLayerIds.size
+    const totalSelected = selectedArtboardIds.size
     if (selectedArtboardIds.size === 1 && totalSelected === 1 && !hideResizeHandles) {
       const id = selectedArtboardIds.values().next().value as string
       const edges = frameEdges.get(id)
@@ -289,27 +228,7 @@ export function SelectionOverlay({
       }
     }
 
-    // Draw E/W resize handles for a single fixed-width text layer
-    if (selectedTextLayerIds.size === 1 && totalSelected === 1 && !hideResizeHandles) {
-      const id = selectedTextLayerIds.values().next().value as string
-      const edges = textFrameEdges.get(id)
-      const layer = textLayers.find((l) => l.id === id)
-      if (edges && layer) {
-        const { l, t, r, b } = edges
-        const my = Math.round((t + b) / 2)
-        const hs = HANDLE_SIZE
-        const hh = hs / 2
-        for (const [hx, hy] of [[l, my], [r, my]] as const) {
-          ctx.fillStyle = bgColor
-          ctx.fillRect(hx - hh, hy - hh, hs, hs)
-          ctx.strokeStyle = primaryColor
-          ctx.lineWidth = 1
-          ctx.strokeRect(hx - hh + 0.5, hy - hh + 0.5, hs - 1, hs - 1)
-        }
-      }
-    }
-
-    // Draw union bounding rect when multiple items are selected
+    // Draw union bounding rect when multiple artboards are selected
     if (totalSelected > 1) {
       let uLeft = Infinity, uTop = Infinity, uRight = -Infinity, uBottom = -Infinity
       for (const id of selectedArtboardIds) {
@@ -319,14 +238,6 @@ export function SelectionOverlay({
         uTop = Math.min(uTop, layout.y)
         uRight = Math.max(uRight, layout.x + layout.width)
         uBottom = Math.max(uBottom, layout.y + layout.height)
-      }
-      for (const layer of textLayers) {
-        if (!selectedTextLayerIds.has(layer.id)) continue
-        const { w: lw, h: lh } = measureTextLayer(layer)
-        uLeft = Math.min(uLeft, layer.x)
-        uTop = Math.min(uTop, layer.y)
-        uRight = Math.max(uRight, layer.x + lw)
-        uBottom = Math.max(uBottom, layer.y + lh)
       }
       if (uLeft < Infinity) {
         const tl = toScreen(uLeft, uTop)
@@ -392,23 +303,6 @@ export function SelectionOverlay({
       ctx.strokeStyle = primaryColor
       ctx.lineWidth = 1
       ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
-    }
-
-    // Draw text-draft rectangle (while dragging with the text tool)
-    if (textDraft) {
-      const a = toScreen(textDraft.startX, textDraft.startY)
-      const b = toScreen(textDraft.currentX, textDraft.currentY)
-      const l = Math.round(Math.min(a.x, b.x))
-      const t = Math.round(Math.min(a.y, b.y))
-      const r = Math.round(Math.max(a.x, b.x))
-      const bo = Math.round(Math.max(a.y, b.y))
-
-      ctx.globalAlpha = 1
-      ctx.setLineDash([4, 4])
-      ctx.strokeStyle = primaryColor
-      ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
-      ctx.setLineDash([])
     }
 
     // Draw reorder handles — matches symaphore's CompositionHandle. Both
@@ -489,8 +383,25 @@ export function SelectionOverlay({
       ctx.setLineDash([])
     }
 
+    // Draw document-draft rectangle (while dragging with the document tool)
+    if (documentDraft) {
+      const a = toScreen(documentDraft.startX, documentDraft.startY)
+      const b = toScreen(documentDraft.currentX, documentDraft.currentY)
+      const l = Math.round(Math.min(a.x, b.x))
+      const t = Math.round(Math.min(a.y, b.y))
+      const r = Math.round(Math.max(a.x, b.x))
+      const bo = Math.round(Math.max(a.y, b.y))
+
+      ctx.globalAlpha = 1
+      ctx.setLineDash([4, 4])
+      ctx.strokeStyle = primaryColor
+      ctx.lineWidth = 1
+      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
+      ctx.setLineDash([])
+    }
+
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift, textLayerSizeTick])
+  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift])
 
   // Keep canvas sized to container
   useEffect(() => {

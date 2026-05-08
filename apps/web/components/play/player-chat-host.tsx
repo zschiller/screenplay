@@ -216,11 +216,13 @@ export function PlayerChatHost({
 
   return (
     <ChatPanel
-      agent={agent}
+      target={{ kind: "agent", agent }}
       // The agent picker is built around switching between siblings; in the
       // player there's only one agent so we hand it a single-element list.
       agents={[agent]}
+      documents={[]}
       onSelectAgent={() => {}}
+      onSelectLayer={() => {}}
       disableBranchPicker
       chatSessions={chatSessions}
       selectedChatId={selectedChatId}

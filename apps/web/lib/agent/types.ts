@@ -7,6 +7,10 @@ export type CustomToolName =
   | "submit_plan"
   | "create_pr"
   | "read_skill"
+  | "read_document"
+  | "replace_document_body"
+  | "append_to_document_body"
+  | "set_document_title"
 
 export type ReadFileInput = { path: string }
 export type WriteFileInput = { path: string; content: string }
