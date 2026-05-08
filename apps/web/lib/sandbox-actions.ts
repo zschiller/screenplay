@@ -504,8 +504,9 @@ export async function reconnectSandbox(
  * Restart a sandbox by snapshotting the current filesystem and booting a new
  * VM from that snapshot. Preserves the working tree — including uncommitted
  * local changes — across the restart, while still cycling the VM (fresh
- * processes, fresh dev server, fresh port forwards). Falls back to a clean
- * git clone if the old sandbox is gone or snapshotting fails.
+ * processes, fresh dev server, fresh port forwards). Doesn't fetch from the
+ * remote: this is a pure restart, not a sync. Falls back to a clean git
+ * clone if the old sandbox is gone or snapshotting fails.
  */
 export async function restartSandbox(
   sandboxName: string,
@@ -555,12 +556,8 @@ export async function restartSandbox(
     if (snapshotId) {
       // Restored from snapshot — node_modules, git config, the credential
       // helper, and the working tree (uncommitted changes included) all
-      // survived. Skip the setup/install/configure pipeline; just fetch new
-      // commits so they're visible to git, then relaunch the dev server.
-      // Don't `pull --ff-only` or reset — that would clobber the local
-      // changes the snapshot exists to preserve.
-      const fetchEnv = ghToken ? { SCREENPLAY_GH_TOKEN: ghToken } : undefined
-      await runLogged(sandbox, "git", ["fetch", "--prune"], { env: fetchEnv })
+      // survived. Skip the setup/install/configure pipeline and just relaunch
+      // the dev server.
       return await _launchDevAndProxy(sandbox, port, workspace.devScript, safeEnv)
     }
 
