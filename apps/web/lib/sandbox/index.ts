@@ -14,6 +14,7 @@ export type {
   SandboxNetworkPolicyRule,
   SandboxProvider,
   SandboxRunCommandOptions,
+  SandboxSnapshotSource,
   SandboxSource,
 } from "@/lib/sandbox/types"
 

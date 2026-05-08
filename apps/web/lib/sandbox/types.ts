@@ -14,7 +14,18 @@ export type SandboxGitSource = {
   password?: string
 }
 
-export type SandboxSource = SandboxGitSource
+/**
+ * A previously-captured filesystem snapshot. Restoring from a snapshot brings
+ * back the entire working tree (including uncommitted changes) and avoids
+ * re-running setup scripts — much faster than a fresh git clone, and the only
+ * way to preserve in-sandbox state across a restart.
+ */
+export type SandboxSnapshotSource = {
+  type: "snapshot"
+  snapshotId: string
+}
+
+export type SandboxSource = SandboxGitSource | SandboxSnapshotSource
 
 /**
  * A firewall rule. Providers that support transforms rewrite outgoing requests
@@ -95,6 +106,13 @@ export interface SandboxInstance {
   readFileToBuffer(opts: { path: string }): Promise<Buffer | null>
   /** Extend the auto-stop timer by `ms` milliseconds. */
   extendTimeout(ms: number): Promise<void>
+  /**
+   * Capture a filesystem snapshot of the running sandbox. The sandbox stops as
+   * a side effect — no further commands can run on this instance afterwards.
+   * The returned `snapshotId` can be passed to {@link SandboxProvider.create}
+   * via a {@link SandboxSnapshotSource} to boot a new VM from this state.
+   */
+  snapshot(opts?: { expiration?: number }): Promise<{ snapshotId: string }>
   /** Delete the sandbox. After deletion the instance is inert. */
   delete(): Promise<void>
 }

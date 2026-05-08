@@ -85,7 +85,7 @@ export function AgentCard({
             className="h-6 w-6"
             onClick={() => onRefresh(agent.id)}
             disabled={isLoading}
-            title="Fetch latest & restart"
+            title="Restart sandbox"
           >
             {isLoading ? (
               <Loader2 className="h-3 w-3 animate-spin" />
