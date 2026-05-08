@@ -2,16 +2,59 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { EditorContent, useEditor } from "@tiptap/react"
+import { Extension } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
+import Document from "@tiptap/extension-document"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import Mention from "@tiptap/extension-mention"
+import Placeholder from "@tiptap/extension-placeholder"
 import { useArtboardDrag } from "@/hooks/use-artboard-drag"
 import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useDocumentLayers } from "@/lib/yjs/react"
 import { buildDocumentMentionSuggestion } from "@/lib/document-mention-suggestion"
 import type { DocumentLayerData } from "@/lib/types"
+
+/** Forces every doc to start with a heading — that heading is the title.
+ *  Body blocks follow. Mirrors how Notion's page model is shaped: there's
+ *  always a title slot at the top, body comes after. */
+const DocumentWithTitle = Document.extend({
+  content: "heading block*",
+})
+
+/** Enter inside the title shouldn't split it into a second heading (the
+ *  default ProseMirror behavior would leave you with two H1s, the second
+ *  empty). Match Notion: drop the cursor into a new paragraph below. */
+const TitleEnterBehavior = Extension.create({
+  name: "titleEnterBehavior",
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { state } = this.editor
+        const { $from, empty } = state.selection
+        if ($from.depth < 1) return false
+        // Only intercept when the cursor is inside the doc's first child —
+        // the title heading. Body headings keep the default split behavior.
+        if ($from.index(0) !== 0) return false
+        if (!empty) return false
+        const titleEnd = $from.after(1)
+        // Use the existing paragraph below (created on doc seed) when the
+        // title is the only block; otherwise insert one and land on it.
+        const after = state.doc.resolve(titleEnd).nodeAfter
+        if (after && after.type.name === "paragraph") {
+          return this.editor.chain().setTextSelection(titleEnd + 1).focus().run()
+        }
+        return this.editor
+          .chain()
+          .insertContentAt(titleEnd, { type: "paragraph" })
+          .setTextSelection(titleEnd + 1)
+          .focus()
+          .run()
+      },
+    }
+  },
+})
 
 interface DocumentLayerProps {
   layer: DocumentLayerData
@@ -84,10 +127,47 @@ export function DocumentLayer({
   const layerIdRef = useRef(layer.id)
   layerIdRef.current = layer.id
 
+  // Title cache lives on `DocumentLayerData.title` — sidebar rows, mentions,
+  // agent context all read it. The editor's first heading is the source of
+  // truth; this callback is what writes derived title text back to the cache.
+  // Stash on a ref so the editor closure doesn't capture a stale handler.
+  const onTitleChangeRef = useRef(onTitleChange)
+  onTitleChangeRef.current = onTitleChange
+  const titleCacheRef = useRef(layer.title)
+  titleCacheRef.current = layer.title
+
+  // Coords of the double-click that started edit mode, captured so the next
+  // focus effect can land the cursor where the user clicked instead of at
+  // the doc's end. Cleared after one consumption.
+  const pendingFocusCoordsRef = useRef<{ left: number; top: number } | null>(
+    null,
+  )
+
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({ undoRedo: false }),
+        // Disable StarterKit's TrailingNode: it auto-appends an empty node
+        // of the schema's default type at the end of the doc, and our
+        // schema (`heading block*`) makes that default a heading — leaving
+        // an invisible trailing H1 stuck at the bottom of every doc.
+        StarterKit.configure({
+          undoRedo: false,
+          document: false,
+          trailingNode: false,
+        }),
+        DocumentWithTitle,
+        TitleEnterBehavior,
+        Placeholder.configure({
+          // Only the title slot gets a placeholder — empty body blocks stay
+          // visually quiet (no "Type heading…" hint), matching Notion.
+          placeholder: ({ pos }) => (pos === 0 ? "Untitled" : ""),
+          showOnlyCurrent: false,
+          // Show "Untitled" on the canvas tile even when the editor is in
+          // read-only (non-editing) mode — without this the placeholder is
+          // suppressed unless the user has double-clicked into the doc.
+          showOnlyWhenEditable: false,
+          includeChildren: false,
+        }),
         Collaboration.configure({ fragment }),
         CollaborationCaret.configure({
           provider,
@@ -116,18 +196,53 @@ export function DocumentLayer({
       editorProps: {
         attributes: {
           class:
-            "tiptap prose prose-sm dark:prose-invert max-w-none focus:outline-none",
+            "tiptap tiptap-document prose prose-sm dark:prose-invert max-w-none focus:outline-none",
         },
       },
     },
     [fragment, provider],
   )
 
+  // Keep the cached title (sidebar/mention label) in sync with the editor's
+  // first heading. Debounced so a flurry of keystrokes only writes once;
+  // idempotent so it's safe for every connected client to run — the LWW
+  // collection skips writes that match the current value.
+  useEffect(() => {
+    if (!editor) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const sync = () => {
+      const first = editor.state.doc.firstChild
+      const headingText =
+        first && first.type.name === "heading" ? first.textContent : ""
+      if (headingText === titleCacheRef.current) return
+      onTitleChangeRef.current(layerIdRef.current, headingText)
+    }
+    const onUpdate = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(sync, 200)
+    }
+    editor.on("update", onUpdate)
+    sync()
+    return () => {
+      if (timer) clearTimeout(timer)
+      editor.off("update", onUpdate)
+    }
+  }, [editor])
+
   useEffect(() => {
     if (!editor) return
     editor.setEditable(editing)
     if (editing) {
+      const coords = pendingFocusCoordsRef.current
+      pendingFocusCoordsRef.current = null
       requestAnimationFrame(() => {
+        if (coords) {
+          const hit = editor.view.posAtCoords(coords)
+          if (hit) {
+            editor.chain().focus().setTextSelection(hit.pos).run()
+            return
+          }
+        }
         editor.commands.focus("end")
       })
     }
@@ -152,6 +267,24 @@ export function DocumentLayer({
     window.addEventListener("pointerdown", onDown, true)
     return () => window.removeEventListener("pointerdown", onDown, true)
   }, [editing, onStopEdit])
+
+  // Wheel inside a doc should scroll the doc, not pan the canvas. The canvas
+  // attaches a non-passive wheel listener on its wrapper that always
+  // preventDefaults, so we stop propagation here before the event reaches it.
+  // Cmd/Ctrl+wheel falls through so the canvas can still zoom from inside a
+  // doc. We swallow horizontal/vertical scroll regardless of whether the
+  // doc currently overflows — interactions inside a doc shouldn't move the
+  // surrounding canvas.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) return
+      e.stopPropagation()
+    }
+    root.addEventListener("wheel", onWheel)
+    return () => root.removeEventListener("wheel", onWheel)
+  }, [])
 
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
@@ -223,7 +356,7 @@ export function DocumentLayer({
       ref={rootRef}
       data-document-layer
       data-doc-id={layer.id}
-      className="flex flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm"
+      className="flex flex-col overflow-hidden rounded-md bg-background"
       style={{
         width: layer.width,
         height: layer.height,
@@ -232,36 +365,19 @@ export function DocumentLayer({
         left: dragPopped?.left,
         top: dragPopped?.top,
         transform,
-        outline: selected ? "1px solid #d946ef" : undefined,
-        outlineOffset: selected ? `${1 / zoom}px` : undefined,
         flexShrink: 0,
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
+        pendingFocusCoordsRef.current = { left: e.clientX, top: e.clientY }
         onStartEdit(layer.id)
       }}
     >
-      {/* Title */}
-      <div className="border-b border-border px-4 py-2">
-        <input
-          type="text"
-          value={layer.title}
-          onChange={(e) => onTitleChange(layer.id, e.target.value)}
-          onPointerDown={(e) => {
-            if (editing) e.stopPropagation()
-          }}
-          onFocus={() => onStartEdit(layer.id)}
-          placeholder="Untitled"
-          className="w-full bg-transparent text-base font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-default"
-          disabled={!editing}
-          readOnly={!editing}
-        />
-      </div>
-
-      {/* Body */}
-      <div className="relative flex-1 overflow-y-auto">
+      {/* Title is the editor's first heading; body follows in the same
+       *  editor surface (Notion-style — no separate title bar). */}
+      <div data-document-scroll className="relative flex-1 overflow-y-auto">
         <div
-          className="px-4 py-3"
+          className="px-6 py-5"
           style={{ pointerEvents: editing ? "auto" : "none" }}
         >
           <EditorContent editor={editor} />

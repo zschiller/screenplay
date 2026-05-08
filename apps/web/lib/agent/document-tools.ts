@@ -3,8 +3,9 @@ import "server-only"
 import { tool, jsonSchema } from "ai"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import {
-  fragmentToPlainText,
-  writeMarkdownToFragment,
+  fragmentBodyToPlainText,
+  replaceFragmentBodyPreservingTitle,
+  setFragmentTitle,
 } from "@/lib/yjs/fragment-text"
 
 /**
@@ -44,7 +45,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
           return {
             id,
             title: layer.title,
-            body: fragmentToPlainText(fragment),
+            body: fragmentBodyToPlainText(fragment),
           }
         })
         if (!result) return `Document not found: ${id}`
@@ -58,7 +59,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     replace_document_body: tool({
       description:
-        "Replace the entire body of the targeted document. The `content` should be the full new body — paragraphs separated by blank lines, headings prefixed with `#`/`##`/`###`, list items prefixed with `- `. Marks like bold/italic are not preserved; emit them as plain text. Use this when you've redrafted the document; for incremental edits prefer `append_to_document_body`.",
+        "Replace the body of the targeted document, below the title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The document title is set separately, don't repeat it as a top-level `#` heading. Use this when you've redrafted the document; for incremental edits prefer `append_to_document_body`. To change the title, use `set_document_title`.",
       inputSchema: jsonSchema<{ content: string }>({
         type: "object",
         properties: { content: { type: "string" } },
@@ -69,7 +70,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
           if (!documentLayers.get(ctx.documentId)) return
           const fragment = doc.getXmlFragment(`doc-${ctx.documentId}`)
-          writeMarkdownToFragment(fragment, content)
+          replaceFragmentBodyPreservingTitle(fragment, content)
         })
         return `Replaced document body (${content.length} characters).`
       },
@@ -88,13 +89,15 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
           if (!documentLayers.get(ctx.documentId)) return
           const fragment = doc.getXmlFragment(`doc-${ctx.documentId}`)
-          // Re-derive the existing body and concatenate. Cheap on small
-          // docs and avoids us needing a precise "insert at end" API for
-          // the parser; the round-trip loses nothing the parser can't
-          // already render.
-          const existing = fragmentToPlainText(fragment)
-          const next = existing.length > 0 ? `${existing}\n\n${content}` : content
-          writeMarkdownToFragment(fragment, next)
+          // Re-derive the existing body (excluding the title) and concatenate.
+          // Cheap on small docs and avoids us needing a precise "insert at
+          // end" API for the parser; round-trip loses inline marks but
+          // preserves the title verbatim.
+          const existingBody = fragmentBodyToPlainText(fragment)
+          const next = existingBody.length > 0
+            ? `${existingBody}\n\n${content}`
+            : content
+          replaceFragmentBodyPreservingTitle(fragment, next)
         })
         return `Appended ${content.length} characters to the document.`
       },
@@ -102,7 +105,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     set_document_title: tool({
       description:
-        "Update the targeted document's title. Use a short, descriptive heading — this is what shows up in the canvas tile, the sidebar, and the @-mention popover.",
+        "Update the targeted document's title. Use a short, descriptive heading — this is what shows up at the top of the document, in the sidebar, and the @-mention popover.",
       inputSchema: jsonSchema<{ title: string }>({
         type: "object",
         properties: { title: { type: "string" } },
@@ -110,8 +113,12 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async (input) => {
         const title = (input as { title: string }).title
-        await mutateRoomDoc(ctx.roomId, ({ documentLayers }) => {
+        await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
           if (!documentLayers.get(ctx.documentId)) return
+          // The title heading inside the body is the source of truth — write
+          // there and mirror onto the cached `title` field so non-editor
+          // consumers (sidebar labels, mention popover) update immediately.
+          setFragmentTitle(doc.getXmlFragment(`doc-${ctx.documentId}`), title)
           documentLayers.update(ctx.documentId, { title })
         })
         return `Title set to "${title}".`

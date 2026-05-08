@@ -6,7 +6,7 @@ import { buildAgentTools } from "./tools"
 import { buildDocumentTools } from "./document-tools"
 import type { ToolContext } from "./tool-executor"
 import { readRoomDoc } from "@/lib/yjs/server"
-import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
+import { fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
 
 /**
  * Server-side registry of chat target kinds. Each entry contains the
@@ -99,7 +99,7 @@ export const documentChatTarget: ChatTargetSpec<DocumentTarget, DocumentContext>
         .map((d) => ({ id: d.id, title: d.title }))
       return {
         title: layer.title,
-        body: fragmentToPlainText(fragment),
+        body: fragmentBodyToPlainText(fragment),
         peers,
       }
     })

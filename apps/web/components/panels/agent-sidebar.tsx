@@ -145,6 +145,7 @@ interface AgentSidebarProps {
   onRouteChange: (id: string, route: string) => void
   onRemoveArtboard: (id: string) => void
   onSelectDocument: (id: string, shiftKey: boolean) => void
+  onZoomToDocument: (id: string) => void
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
   onReorderArtboardGroups: (orderedIds: string[]) => void
@@ -193,6 +194,7 @@ export function AgentSidebar({
   onRouteChange,
   onRemoveArtboard,
   onSelectDocument,
+  onZoomToDocument,
   onRenameDocument,
   onRemoveDocument,
   onReorderArtboardGroups,
@@ -266,6 +268,7 @@ export function AgentSidebar({
       Menu: DocumentRowMenu as AnyRowDispatcher["Menu"],
       isSelected: (id) => selectedDocumentLayerIds.has(id),
       onSelect: onSelectDocument,
+      onActivate: onZoomToDocument,
       onRename: onRenameDocument,
       onRemove: onRemoveDocument,
     },

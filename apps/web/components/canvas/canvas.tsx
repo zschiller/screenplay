@@ -23,6 +23,7 @@ import {
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
+import { seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -775,6 +776,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
     return ids
   }, [artboardGroups, selectedGroupIds])
+  // Documents share artboard layouts and the same selection visuals (1px
+  // fuchsia ring on hover/select, resize handle dots when single-selected).
+  // The overlay treats every member id uniformly via `artboardLayouts`, so
+  // we just merge selection sets here.
+  const overlaySelectedIds = useMemo(() => {
+    const ids = new Set<string>(selectedArtboardIds)
+    for (const id of selectedDocumentLayerIds) ids.add(id)
+    return ids
+  }, [selectedArtboardIds, selectedDocumentLayerIds])
   const workspaces = useWorkspaces()
   const agents = useAgents()
 
@@ -1579,6 +1589,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           y: canvasY,
           members: [{ kind: "document", id: docId }],
         })
+        // Seed the body fragment with the schema-required title heading +
+        // empty paragraph. Without this the first client to mount the editor
+        // would fill the empty fragment locally; doing it on creation means
+        // every peer sees the same shape from the start.
+        seedDocumentFragment(collections.doc.getXmlFragment(`doc-${docId}`))
       })
       return docId
     },
@@ -1626,9 +1641,27 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  const setDocumentLayerTitle = useCallback(
+  /** Mirror the editor's first-heading text onto the cached `title` field.
+   *  Called from inside the editor's update handler so it must NOT rewrite
+   *  the heading itself — that would clobber the user's active selection
+   *  on every keystroke. Cache-only. */
+  const setDocumentLayerTitleCache = useCallback(
     (id: string, title: string) => {
       collections.documentLayers.update(id, { title })
+    },
+    [collections],
+  )
+
+  /** Rename a document from outside the editor (sidebar, agent tool). Writes
+   *  the new title text into the editor's first heading so every peer's
+   *  editor view updates, then mirrors onto the cache. */
+  const setDocumentLayerTitle = useCallback(
+    (id: string, title: string) => {
+      collections.transact(() => {
+        if (!collections.documentLayers.has(id)) return
+        setFragmentTitle(collections.doc.getXmlFragment(`doc-${id}`), title)
+        collections.documentLayers.update(id, { title })
+      })
     },
     [collections],
   )
@@ -1733,23 +1766,34 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   // --- Handlers ---
 
+  const zoomToDomElement = useCallback((el: HTMLElement) => {
+    const ref = transformRef.current
+    if (!ref) return
+    const padding = 20
+    const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+    const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+    const scale = Math.min(
+      (wrapperW - padding * 2) / el.offsetWidth,
+      (wrapperH - padding * 2) / el.offsetHeight,
+      ZOOM_MAX,
+    )
+    ref.zoomToElement(el, scale, 300)
+  }, [])
+
   const handleSelectArtboard = useCallback(
     (artboardId: string) => {
-      const ref = transformRef.current
-      if (!ref) return
       const el = document.getElementById(`artboard-${artboardId}`)
-      if (!el) return
-      const padding = 20
-      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-      const scale = Math.min(
-        (wrapperW - padding * 2) / el.offsetWidth,
-        (wrapperH - padding * 2) / el.offsetHeight,
-        ZOOM_MAX,
-      )
-      ref.zoomToElement(el, scale, 300)
+      if (el) zoomToDomElement(el)
     },
-    [],
+    [zoomToDomElement],
+  )
+
+  const handleZoomToDocument = useCallback(
+    (documentId: string) => {
+      const el = document.getElementById(`document-layer-${documentId}`)
+      if (el) zoomToDomElement(el)
+    },
+    [zoomToDomElement],
   )
 
   const handleAddArtboardForAgent = useCallback(
@@ -2008,9 +2052,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleCloseChat = useCallback(
     (chatId: string) => {
       const chat = chatSessions.find((c) => c.id === chatId)
+      // Filter siblings by the *same* target — agent chats and doc chats
+      // each form their own pool. Without the documentId branch, every
+      // doc chat would match every other doc chat (all share an undefined
+      // agentId), and replacement chats would lose their document target.
+      const sameTarget = (c: ChatSessionData) =>
+        chat?.agentId
+          ? c.agentId === chat.agentId
+          : chat?.documentId
+            ? c.documentId === chat.documentId
+            : false
       const siblings = chat
         ? chatSessions
-            .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
+            .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
         : []
       updateChatSession(chatId, { closedAt: Date.now() })
@@ -2019,10 +2073,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         addChatSession(newId, {
           id: newId,
           agentId: chat.agentId,
+          documentId: chat.documentId,
           label: "Untitled",
           createdAt: Date.now(),
         })
         setSelectedChatId(newId)
+        if (chat.documentId) {
+          selectedChatByDocumentRef.current[chat.documentId] = newId
+        }
       } else if (selectedChatId === chatId) {
         setSelectedChatId(siblings[0]?.id ?? null)
       }
@@ -2050,11 +2108,80 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   // Hand the comment composer's text off to the agent chat instead of
-  // creating a comment thread. Mirrors what the standalone reference tool
-  // used to do: tags the message with the artboard's route and the picked
-  // element selector so the agent has the context to act on.
+  // creating a comment thread. Comment-mode hit-tests against
+  // `artboardLayouts`, which includes both artboards and document layers,
+  // so `ctx.artboardId` may be either kind. For artboards we tag the
+  // message with the picked route + element so the agent has context to
+  // act on; for docs we route to the doc's own chat target and send the
+  // note as-is (no route/element to attach).
   const handleCommentSendToChat = useCallback(
     (note: string, ctx: { artboardId: string; selector: string | null }) => {
+      const expandPanel = () => {
+        const panel = chatPanelRef.current
+        if (panel?.isCollapsed()) {
+          panel.expand()
+          const { inPixels } = panel.getSize()
+          if (inPixels < 480) panel.resize(480)
+        }
+      }
+
+      // Document-layer comment: pivot the panel to that doc's chat (or
+      // create one if none exists / the remembered chat is busy) and send
+      // just the note — there's no route or DOM element involved.
+      const docLayer = documentLayers.find((d) => d.id === ctx.artboardId)
+      if (docLayer) {
+        const remembered = selectedChatByDocumentRef.current[docLayer.id]
+        const rememberedChat = remembered
+          ? chatSessions.find((c) => c.id === remembered && !c.closedAt)
+          : null
+        const fallback = chatSessions
+          .filter((c) => c.documentId === docLayer.id && !c.closedAt)
+          .sort((a, b) => a.createdAt - b.createdAt)[0]
+        const target = rememberedChat ?? fallback ?? null
+        const targetBusy = target
+          ? chatStore.getSnapshot(target.id).isStreaming ||
+            target.isStreaming === true
+          : false
+        let chatId: string
+        let planMode: boolean | undefined
+        let model: string | undefined
+        if (!target || targetBusy) {
+          chatId = nanoid()
+          planMode = undefined
+          model = undefined
+          addChatSession(chatId, {
+            id: chatId,
+            documentId: docLayer.id,
+            label: "Untitled",
+            createdAt: Date.now(),
+          })
+        } else {
+          chatId = target.id
+          planMode = target.planMode
+          model = target.model
+        }
+        setSelectedAgentId(null)
+        setSelectedDocumentChatTargetId(docLayer.id)
+        setSelectedChatId(chatId)
+        selectedChatByDocumentRef.current[docLayer.id] = chatId
+        const isFirstChat = !chatSessions.some(
+          (c) => c.documentId === docLayer.id && c.id !== chatId,
+        )
+        chatStore.sendMessage({
+          roomId,
+          chatId,
+          documentId: docLayer.id,
+          message: note,
+          isFirstChat,
+          planMode,
+          model,
+          onChatRename: (label) =>
+            inspectHandlersRef.current.renameChat(chatId, label),
+        })
+        expandPanel()
+        return
+      }
+
       if (!selectedChatId) return
       const currentChat = chatSessions.find((c) => c.id === selectedChatId)
       const agent = currentChat
@@ -2102,14 +2229,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         inputStore.append(selectedChatId, text)
       }
-      const panel = chatPanelRef.current
-      if (panel?.isCollapsed()) {
-        panel.expand()
-        const { inPixels } = panel.getSize()
-        if (inPixels < 480) panel.resize(480)
-      }
+      expandPanel()
     },
     [
+      documentLayers,
       selectedChatId,
       chatSessions,
       agents,
@@ -2125,8 +2248,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (selectedChatId === chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (chat) {
+          const sameTarget = (c: ChatSessionData) =>
+            chat.agentId
+              ? c.agentId === chat.agentId
+              : chat.documentId
+                ? c.documentId === chat.documentId
+                : false
           const siblings = chatSessions
-            .filter((c) => c.agentId === chat.agentId && c.id !== chatId && !c.closedAt)
+            .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
           setSelectedChatId(siblings[0]?.id ?? null)
         } else {
@@ -3011,7 +3140,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedArtboardId, frameMode, screenToCanvas, selectedArtboardIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedArtboardId, frameMode, documentMode, screenToCanvas, selectedArtboardIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3518,12 +3647,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [commentMode, artboardLayouts, getArtboardDom],
   )
 
-  // Broadcast selection to other users via presence
+  // Broadcast selection to other users via presence. Doc IDs ride alongside
+  // artboard IDs so remote selection rings render uniformly (the overlay
+  // looks both up against `artboardLayouts`, which already includes docs).
   useEffect(() => {
     setPresence({
-      selectedArtboardIds: Array.from(selectedArtboardIds),
+      selectedArtboardIds: Array.from(overlaySelectedIds),
     })
-  }, [selectedArtboardIds, setPresence])
+  }, [overlaySelectedIds, setPresence])
 
   // Collect other users' selections for the overlay
   const othersSelections = others.map(({ presence }) => ({
@@ -3536,11 +3667,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // agents aren't picked here — a LogProbe (rendered for each pending id)
   // promotes them once their sandbox is streaming logs, which avoids the
   // "switch to empty panel then hang on 'Connecting…'" flicker.
+  // Skipped when the user has explicitly pointed the chat panel at a
+  // document — otherwise picking a doc from the target dropdown
+  // (which sets `selectedAgentId` to null) would immediately snap
+  // selection back to a running agent and clobber the doc target.
   useEffect(() => {
+    if (selectedDocumentChatTargetId) return
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
     if (firstRunning) setSelectedAgentId(firstRunning.id)
-  }, [selectedAgentId, agents])
+  }, [selectedAgentId, agents, selectedDocumentChatTargetId])
 
   const handlePendingReady = useCallback((id: string) => {
     setSelectedAgentId(id)
@@ -3617,6 +3753,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           selectedDocumentLayerIds={selectedDocumentLayerIds}
           onSelectGroup={handleGroupSelect}
           onSelectDocument={handleDocumentLayerSelect}
+          onZoomToDocument={handleZoomToDocument}
           onRenameDocument={setDocumentLayerTitle}
           onRemoveDocument={(id) => removeDocumentLayers([id])}
           onSelectAgent={handleSelectAgent}
@@ -3921,7 +4058,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 onMoveGroup={(dx, dy) => moveArtboardsByDelta([doc.id], dx, dy)}
                                 onMoveSelected={handleMoveSelected}
                                 onResize={resizeDocumentLayer}
-                                onTitleChange={setDocumentLayerTitle}
+                                onTitleChange={setDocumentLayerTitleCache}
                                 onStartEdit={setEditingDocumentLayerId}
                                 onStopEdit={() => setEditingDocumentLayerId(null)}
                               />
@@ -4029,11 +4166,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               <SelectionOverlay
                 zoom={zoom}
                 viewportPos={viewportPos}
-                selectedArtboardIds={selectedArtboardIds}
+                selectedArtboardIds={overlaySelectedIds}
                 groupSelectedArtboardIds={groupSelectedArtboardIds}
                 focusedArtboardId={focusedArtboardId}
                 hoveredArtboardId={hoveredArtboardId}
                 artboardLayouts={effectiveArtboardLayouts}
+                hideResizeHandles={editingDocumentLayerId !== null}
                 placeholderRects={placeholderRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}

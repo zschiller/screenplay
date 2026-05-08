@@ -103,7 +103,9 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     if (node.type === "mention") {
       const id = node.attrs?.id as string | undefined
       const label = (node.attrs?.label as string | undefined) ?? id ?? ""
-      out.push(`@${label}`)
+      // Serialize as a markdown link with a `mention:` scheme so the
+      // user-message renderer can pick it out and draw it as a chip.
+      out.push(`[@${label}](mention:${id ?? ""})`)
       if (id && !seen.has(id)) {
         seen.add(id)
         ids.push(id)
@@ -192,6 +194,12 @@ export function AgentChat({
   const documentLayersRef = useRef<DocumentLayerData[]>(documentLayers)
   documentLayersRef.current = documentLayers
 
+  // Tracks whether the mention popover is currently open. ProseMirror checks
+  // direct `editorProps.handleKeyDown` before plugin props, so without this
+  // flag our submit-on-Enter handler would fire before the Mention suggestion
+  // plugin could consume the key to pick a doc.
+  const mentionOpenRef = useRef(false)
+
   useEffect(() => {
     setStoredModel(readStoredModel())
   }, [])
@@ -235,17 +243,25 @@ export function AgentChat({
       Mention.configure({
         HTMLAttributes: {
           class:
-            "inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary",
+            "mention-doc-pill inline-flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary",
         },
         renderText({ node }) {
           const label = (node.attrs.label as string | undefined) ?? node.attrs.id
           return `@${label}`
+        },
+        renderHTML({ options, node }) {
+          const label =
+            (node.attrs.label as string | undefined) ?? (node.attrs.id as string)
+          return ["span", options.HTMLAttributes, label]
         },
         deleteTriggerWithBackspace: true,
         suggestion: buildDocumentMentionSuggestion({
           getDocuments: () => documentLayersRef.current,
           getAnchorRect: () =>
             editorContainerRef.current?.getBoundingClientRect() ?? null,
+          onOpenChange: (open) => {
+            mentionOpenRef.current = open
+          },
         }),
       }),
     ],
@@ -258,9 +274,11 @@ export function AgentChat({
       },
       handleKeyDown(_view, event) {
         if (event.key !== "Enter" || event.shiftKey) return false
-        // The mention popover swallows Enter via `suggestion.onKeyDown`
-        // before this handler runs, so reaching here means the user wants
-        // to submit.
+        // ProseMirror checks direct editorProps before plugin props, so the
+        // mention suggestion plugin hasn't had a chance to consume Enter
+        // yet — bail so it can pick the highlighted doc instead of us
+        // submitting the draft with a literal `@query` token.
+        if (mentionOpenRef.current) return false
         event.preventDefault()
         submitRef.current()
         return true
@@ -508,7 +526,7 @@ function EmptyAwarePlaceholder({ editor }: { editor: Editor | null }) {
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute left-3 top-3 px-3 py-2 text-xs text-muted-foreground">
+    <div className="pointer-events-none absolute left-0 top-0 px-3 py-2 text-xs text-muted-foreground">
       Ask the agent... (@ to mention a document)
     </div>
   )

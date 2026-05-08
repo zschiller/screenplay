@@ -22,6 +22,7 @@ export function DocumentRow({
   variant,
   selected,
   onSelect,
+  onActivate,
 }: LayerRowProps<DocumentLayerData>) {
   const Icon = documentKind.Icon
   if (variant === "flat") {
@@ -32,6 +33,10 @@ export function DocumentRow({
         onClick={(e) => {
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onActivate?.(item.id)
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
@@ -47,6 +52,10 @@ export function DocumentRow({
         onClick={(e) => {
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onActivate?.(item.id)
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />

@@ -519,8 +519,8 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
   const Icon = descriptor.Icon
   const label = descriptor.getLabel(target.layer as never)
   return (
-    <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-1.5 py-0 text-[11px]">
-      <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+    <span className="inline-flex items-center gap-2 text-sm">
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate max-w-[14rem]">{label}</span>
     </span>
   )

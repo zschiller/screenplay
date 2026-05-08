@@ -18,11 +18,10 @@ const FALLBACK: Array<Omit<ModelInfo, "provider">> = [
  * Vercel-specific features on top: budgets, per-user/tag analytics,
  * automatic failover, BYOK, and zero-config OIDC auth on Vercel deploys.
  *
- * Auth:
- * - On Vercel deploys, the OIDC token is injected automatically — no env
- *   var needed.
- * - Locally, set `AI_GATEWAY_API_KEY` (Vercel's standard) — generate one
- *   from your project's AI Gateway dashboard.
+ * Auth: set `AI_GATEWAY_API_KEY` — generate one from your project's AI
+ * Gateway dashboard. The OIDC token Vercel injects on deploys is *not*
+ * accepted by the gateway in practice, so we don't treat its presence as
+ * sufficient configuration.
  *
  * Models are discovered live via `gateway.getAvailableModels()`, filtered
  * to language models. The full id stored in `agent_chat.model` is
@@ -34,9 +33,7 @@ class VercelAIGatewayProvider implements ModelProvider {
   private cached: GatewayClient | null = null
 
   isConfigured() {
-    return Boolean(
-      process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN,
-    )
+    return Boolean(process.env.AI_GATEWAY_API_KEY)
   }
 
   async listModels() {
@@ -62,9 +59,6 @@ class VercelAIGatewayProvider implements ModelProvider {
 
   private client(): GatewayClient {
     if (this.cached) return this.cached
-    // createGateway picks up AI_GATEWAY_API_KEY automatically and falls back
-    // to VERCEL_OIDC_TOKEN on Vercel deploys, so no explicit args needed in
-    // either path.
     this.cached = createGateway()
     return this.cached
   }

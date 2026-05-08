@@ -36,6 +36,15 @@ declare global {
 
 type Rect = { x: number; y: number; width: number; height: number }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
 function bbox(rects: Rect[]) {
   if (rects.length === 0) return null
   let minX = Infinity
@@ -198,27 +207,17 @@ export function RenderCanvas({
             }}
           >
             <div
+              className="tiptap tiptap-document prose prose-sm max-w-none"
               style={{
-                padding: "8px 16px",
-                borderBottom: "1px solid #e4e4e7",
-                fontFamily: "system-ui, sans-serif",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "#18181b",
-              }}
-            >
-              {d.title || "Untitled"}
-            </div>
-            <div
-              className="tiptap prose prose-sm max-w-none"
-              style={{
-                padding: "12px 16px",
+                padding: "20px 24px",
                 color: "#18181b",
                 wordBreak: "break-word",
                 flex: 1,
                 overflow: "hidden",
               }}
-              dangerouslySetInnerHTML={{ __html: d.html }}
+              dangerouslySetInnerHTML={{
+                __html: d.html || `<h1>${escapeHtml(d.title || "Untitled")}</h1>`,
+              }}
             />
           </div>
         ))}

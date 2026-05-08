@@ -1,4 +1,8 @@
 import * as Y from "yjs"
+import { getSchema } from "@tiptap/core"
+import StarterKit from "@tiptap/starter-kit"
+import { MarkdownManager } from "@tiptap/markdown"
+import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap"
 
 /**
  * Serialize a TipTap-managed Y.XmlFragment to plain text. Walks the fragment
@@ -7,12 +11,14 @@ import * as Y from "yjs"
  * for thumbnails (`fragmentToText` in `app/[roomId]/render/page.tsx`) so the
  * client and the render pipeline agree on what "the document body" is.
  *
- * The reverse direction — `writeMarkdownToFragment` — accepts the same
- * format the agent emits (plain text with `# heading` / `- list` cues),
- * parses it into TipTap-compatible XmlElement nodes, and replaces the
- * fragment's contents in a single Yjs transaction. Lossy on round-trip
- * (we don't preserve marks like bold/italic) but enough for an agent to
- * rewrite a document body via natural-language tool calls.
+ * The reverse direction — `writeMarkdownToFragment` and
+ * `replaceFragmentBodyPreservingTitle` — runs the agent's markdown through
+ * Tiptap's official `MarkdownManager` (CommonMark via marked-js), converts
+ * the resulting Tiptap JSON to ProseMirror nodes against the same schema the
+ * editor uses, and lands them as `Y.XmlElement`s via `@tiptap/y-tiptap`'s
+ * `prosemirrorJSONToYXmlFragment`. Inline marks (bold/italic/links/code) and
+ * richer blocks (blockquotes, ordered lists, code blocks) round-trip
+ * correctly — anything StarterKit's markdown handlers cover, ours covers.
  */
 export function fragmentToPlainText(node: Y.XmlFragment | Y.XmlElement): string {
   const lines: string[] = []
@@ -21,16 +27,175 @@ export function fragmentToPlainText(node: Y.XmlFragment | Y.XmlElement): string 
 }
 
 /**
- * Replace the contents of a Y.XmlFragment with TipTap-compatible XmlElement
- * nodes derived from a small flavor of markdown:
- *  - blank line → block separator
- *  - `# `..`###### ` → heading (level 1–6)
- *  - lines starting with `- ` or `* ` → bulletList (one item per line)
- *  - everything else → paragraph (multi-line joined with hardBreak)
- *
- * Designed to be fed by an agent that emits a freshly-rewritten document
- * body. The whole replacement runs inside one `doc.transact()` so peers see
- * a single update on the wire and a single undo step.
+ * Seed an empty document fragment with just the schema-required title
+ * heading. The body isn't pre-seeded — that way a fresh doc opens with the
+ * cursor in the title (focus "end" lands at the end of the heading) instead
+ * of in a stray empty paragraph below an empty title. Pressing Enter inside
+ * the title creates the body paragraph on demand.
+ */
+export function seedDocumentFragment(fragment: Y.XmlFragment): void {
+  const doc = fragment.doc
+  if (!doc) return
+  if (fragment.length > 0) return
+  doc.transact(() => {
+    if (fragment.length > 0) return
+    fragment.push([makeHeading(1)])
+  })
+}
+
+/** Read the plain-text content of the first heading (the title). Returns
+ *  the empty string when the fragment hasn't been seeded yet. */
+export function getFragmentTitle(fragment: Y.XmlFragment): string {
+  const first = fragment.length > 0 ? fragment.get(0) : undefined
+  if (!(first instanceof Y.XmlElement) || first.nodeName !== "heading") return ""
+  return xmlElementText(first)
+}
+
+/** Plain-text serialization of everything below the title heading. Used
+ *  by tools that want to operate on body content without disturbing the
+ *  title (e.g. `append_to_document_body`, agent context loaders). */
+export function fragmentBodyToPlainText(fragment: Y.XmlFragment): string {
+  const lines: string[] = []
+  const len = fragment.length
+  // Skip the title heading at index 0; collect from index 1 onward.
+  const startAt = len > 0 && isHeading(fragment.get(0)) ? 1 : 0
+  for (let i = startAt; i < len; i++) {
+    const child = fragment.get(i)
+    if (child instanceof Y.XmlText) {
+      const t = child.toString()
+      if (t.length > 0) lines.push(t)
+    } else if (child instanceof Y.XmlElement) {
+      const before = lines.length
+      collectLines(child, lines)
+      if (
+        lines.length > before &&
+        (child.nodeName === "paragraph" ||
+          child.nodeName === "heading" ||
+          child.nodeName === "blockquote" ||
+          child.nodeName === "codeBlock")
+      ) {
+        lines.push("")
+      }
+    }
+  }
+  return lines.join("\n").trim()
+}
+
+function isHeading(node: unknown): boolean {
+  return node instanceof Y.XmlElement && node.nodeName === "heading"
+}
+
+/**
+ * Replace the text of the document's title (the first heading). Prepends a
+ * new heading when the fragment is empty or doesn't start with one. Body
+ * blocks below the heading are untouched.
+ */
+export function setFragmentTitle(fragment: Y.XmlFragment, title: string): void {
+  const doc = fragment.doc
+  if (!doc) return
+  doc.transact(() => {
+    const first = fragment.length > 0 ? fragment.get(0) : undefined
+    let heading: Y.XmlElement
+    if (first instanceof Y.XmlElement && first.nodeName === "heading") {
+      heading = first
+      while (heading.length > 0) heading.delete(0, 1)
+    } else {
+      heading = makeHeading(1)
+      fragment.insert(0, [heading])
+    }
+    if (title.length > 0) {
+      const t = new Y.XmlText()
+      t.insert(0, title)
+      heading.insert(0, [t])
+    }
+  })
+}
+
+/**
+ * Replace everything below the title with new body content parsed from the
+ * agent's lightweight markdown. The title heading is preserved verbatim so
+ * the agent can rewrite the body without clobbering the page title (which
+ * has its own dedicated `set_document_title` tool).
+ */
+export function replaceFragmentBodyPreservingTitle(
+  fragment: Y.XmlFragment,
+  markdown: string,
+): void {
+  const doc = fragment.doc
+  if (!doc) return
+  doc.transact(() => {
+    // Make sure the schema's required title heading exists. If the fragment
+    // is empty or the first node isn't a heading, leave a blank one so the
+    // editor still has a valid first-child.
+    const first = fragment.length > 0 ? fragment.get(0) : undefined
+    if (!(first instanceof Y.XmlElement) || first.nodeName !== "heading") {
+      fragment.insert(0, [makeHeading(1)])
+    }
+    while (fragment.length > 1) fragment.delete(1, 1)
+
+    for (const block of parseMarkdownToBlocks(markdown)) {
+      fragment.push([block])
+    }
+    // Schema requires `heading block*` — we just guaranteed a heading at index 0,
+    // but if the markdown was empty we also need a body paragraph for the
+    // editor to land its cursor in.
+    if (fragment.length === 1) {
+      fragment.push([new Y.XmlElement("paragraph")])
+    }
+  })
+}
+
+function xmlElementText(el: Y.XmlElement): string {
+  let out = ""
+  const len = el.length
+  for (let i = 0; i < len; i++) {
+    const child = el.get(i)
+    if (child instanceof Y.XmlText) out += child.toString()
+    else if (child instanceof Y.XmlElement) out += xmlElementText(child)
+  }
+  return out
+}
+
+/**
+ * Tiptap's `MarkdownManager` parses CommonMark via marked-js into Tiptap JSON;
+ * `prosemirrorJSONToYXmlFragment` then materializes that JSON as `Y.XmlElement`
+ * nodes against the same schema the editor uses. The shared schema/manager
+ * are derived once from a vanilla StarterKit (with `undoRedo` off — the
+ * undoRedo extension hooks into the editor's history and isn't relevant for
+ * server-side parsing). Using the editor's `DocumentWithTitle` here would
+ * reject body-only markdown that doesn't lead with a heading, so we keep the
+ * permissive default `Document` with `block+`.
+ */
+const markdownExtensions = [StarterKit.configure({ undoRedo: false })]
+const markdownSchema = getSchema(markdownExtensions)
+const markdownManager = new MarkdownManager({ extensions: markdownExtensions })
+
+/**
+ * Parse a markdown string into an array of `Y.XmlElement` body blocks ready
+ * to push into a real document fragment. We route through a throwaway
+ * `Y.Doc` because `prosemirrorJSONToYXmlFragment` walks the existing fragment
+ * to diff updates — running it directly on the live fragment would clobber
+ * any concurrent edits in the title slot. Cloning each child detaches it
+ * from the temp doc so we can `push` it into the real fragment.
+ */
+function parseMarkdownToBlocks(markdown: string): Y.XmlElement[] {
+  const json = markdownManager.parse(markdown)
+  const tempDoc = new Y.Doc()
+  const tempFragment = tempDoc.getXmlFragment("temp")
+  prosemirrorJSONToYXmlFragment(markdownSchema, json, tempFragment)
+  const blocks: Y.XmlElement[] = []
+  for (let i = 0; i < tempFragment.length; i++) {
+    const child = tempFragment.get(i)
+    if (child instanceof Y.XmlElement) blocks.push(child.clone())
+  }
+  return blocks
+}
+
+/**
+ * Replace the contents of a Y.XmlFragment with Tiptap-compatible XmlElement
+ * nodes parsed from agent-emitted markdown via Tiptap's `MarkdownManager`.
+ * Runs inside one `doc.transact()` so peers see a single update on the wire
+ * and a single undo step.
  */
 export function writeMarkdownToFragment(
   fragment: Y.XmlFragment,
@@ -41,68 +206,31 @@ export function writeMarkdownToFragment(
   doc.transact(() => {
     while (fragment.length > 0) fragment.delete(0, 1)
 
-    const blocks = text.replace(/\r\n/g, "\n").split(/\n{2,}/)
-    for (const block of blocks) {
-      const trimmed = block.replace(/^\n+|\n+$/g, "")
-      if (trimmed.length === 0) continue
-
-      // Heading — single-line block prefixed with up to six `#`.
-      const headingMatch = /^(#{1,6}) +(.*)$/.exec(trimmed)
-      if (headingMatch && !trimmed.includes("\n")) {
-        const level = headingMatch[1]!.length
-        const heading = new Y.XmlElement("heading")
-        heading.setAttribute("level", String(level))
-        const t = new Y.XmlText()
-        t.insert(0, headingMatch[2]!)
-        heading.insert(0, [t])
-        fragment.push([heading])
-        continue
-      }
-
-      const lines = trimmed.split("\n")
-      // Bullet list — every line starts with `- ` or `* `.
-      if (lines.length > 0 && lines.every((l) => /^[-*] /.test(l))) {
-        const ul = new Y.XmlElement("bulletList")
-        for (const line of lines) {
-          const item = new Y.XmlElement("listItem")
-          const para = new Y.XmlElement("paragraph")
-          const inner = line.replace(/^[-*] /, "")
-          if (inner.length > 0) {
-            const t = new Y.XmlText()
-            t.insert(0, inner)
-            para.insert(0, [t])
-          }
-          item.insert(0, [para])
-          ul.insert(ul.length, [item])
-        }
-        fragment.push([ul])
-        continue
-      }
-
-      // Plain paragraph — preserve internal newlines as hardBreak so the
-      // agent can emit multi-line stanzas without forcing a paragraph break.
-      const para = new Y.XmlElement("paragraph")
-      let pos = 0
-      lines.forEach((line, i) => {
-        if (i > 0) {
-          const br = new Y.XmlElement("hardBreak")
-          para.insert(pos++, [br])
-        }
-        if (line.length > 0) {
-          const t = new Y.XmlText()
-          t.insert(0, line)
-          para.insert(pos++, [t])
-        }
-      })
-      fragment.push([para])
+    for (const block of parseMarkdownToBlocks(text)) {
+      fragment.push([block])
     }
 
-    // Always end with at least one empty paragraph so the editor has a
-    // valid cursor position when the body is "empty".
-    if (fragment.length === 0) {
+    // Schema requires `heading block*` — make sure the first node is a
+    // heading even when the agent's input didn't lead with one.
+    const first = fragment.length > 0 ? fragment.get(0) : undefined
+    if (!(first instanceof Y.XmlElement) || first.nodeName !== "heading") {
+      fragment.insert(0, [makeHeading(1)])
+    }
+    if (fragment.length === 1) {
       fragment.push([new Y.XmlElement("paragraph")])
     }
   })
+}
+
+/** Heading nodes must store `level` as a number — TipTap's heading renderer
+ *  checks `levels.includes(node.attrs.level)` against `[1..6]` (numbers), so
+ *  a string `"2"` would fail the check and silently fall back to h1. */
+function makeHeading(level: number): Y.XmlElement {
+  const heading = new Y.XmlElement("heading")
+  // setAttribute is typed as (string, string), but Yjs stores any ValueType
+  // and the heading extension needs `level` as a number — see comment above.
+  ;(heading as Y.XmlElement<{ level: number }>).setAttribute("level", level)
+  return heading
 }
 
 function collectLines(

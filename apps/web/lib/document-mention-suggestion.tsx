@@ -26,6 +26,14 @@ export function buildDocumentMentionSuggestion(opts: {
    * doesn't escape the chat panel / document tile bounds.
    */
   getAnchorRect?: () => DOMRect | null
+  /**
+   * Notified when the popover opens (true) or closes (false). Lets the host
+   * editor suppress its own Enter handler while the suggestion is active —
+   * ProseMirror checks direct `editorProps` before plugin props, so without
+   * this signal a host-level submit-on-Enter handler will fire before the
+   * suggestion plugin gets a chance to consume the key.
+   */
+  onOpenChange?: (open: boolean) => void
 }): MentionOptions["suggestion"] {
   return {
     char: "@",
@@ -68,6 +76,7 @@ export function buildDocumentMentionSuggestion(opts: {
           containerEl.appendChild(component.element)
           document.body.appendChild(containerEl)
           positionContainer(props.clientRect ? props.clientRect() : null)
+          opts.onOpenChange?.(true)
         },
         onUpdate: (props) => {
           component?.updateProps({
@@ -87,6 +96,7 @@ export function buildDocumentMentionSuggestion(opts: {
           }
           component?.destroy()
           component = null
+          opts.onOpenChange?.(false)
         },
       }
     },
