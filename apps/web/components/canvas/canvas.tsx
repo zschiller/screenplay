@@ -14,6 +14,7 @@ import {
   useArtboards,
   useChatSessions,
   useChatStreamEvents,
+  useDocumentLayers,
   useOtherPresences,
   useRoomCollections,
   useSavedViewport,
@@ -24,7 +25,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { useSession } from "@/lib/auth-client"
-import { ChevronDown, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
+import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2, Type } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -57,6 +58,7 @@ import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { Artboard } from "./artboard"
 import { ArtboardGroup } from "./artboard-group"
 import { TextLayer } from "./text-layer"
+import { DocumentLayer } from "./document-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -81,7 +83,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { AgentData, ChatSessionData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/types"
+import type { AgentData, ChatSessionData, DocumentLayerData, TextLayerData, ViewportData, WorkspaceData } from "@/lib/types"
 import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
@@ -218,13 +220,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
   const [selectedTextLayerIds, setSelectedTextLayerIds] = useState<Set<string>>(new Set())
+  const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<Set<string>>(new Set())
   const [hoveredArtboardId, setHoveredArtboardId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseArtboards: Set<string>; baseTextLayers: Set<string> } | null>(null)
+  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseArtboards: Set<string>; baseTextLayers: Set<string>; baseDocumentLayers: Set<string> } | null>(null)
   const [textMode, setTextMode] = useState(false)
   const [editingTextLayerId, setEditingTextLayerId] = useState<string | null>(null)
   const [textDraft, setTextDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const textDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const [documentMode, setDocumentMode] = useState(false)
+  const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<string | null>(null)
+  const [documentDraft, setDocumentDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const documentDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const [frameMode, setFrameMode] = useState(false)
   const [frameDraft, setFrameDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
@@ -312,14 +319,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   selectedGroupIdsRef.current = selectedGroupIds
   const selectedTextLayerIdsRef = useRef(selectedTextLayerIds)
   selectedTextLayerIdsRef.current = selectedTextLayerIds
+  const selectedDocumentLayerIdsRef = useRef(selectedDocumentLayerIds)
+  selectedDocumentLayerIdsRef.current = selectedDocumentLayerIds
   const editingTextLayerIdRef = useRef(editingTextLayerId)
   editingTextLayerIdRef.current = editingTextLayerId
+  const editingDocumentLayerIdRef = useRef(editingDocumentLayerId)
+  editingDocumentLayerIdRef.current = editingDocumentLayerId
   const textModeRef = useRef(textMode)
   textModeRef.current = textMode
+  const documentModeRef = useRef(documentMode)
+  documentModeRef.current = documentMode
   const frameModeRef = useRef(frameMode)
   frameModeRef.current = frameMode
   const removeArtboardsRef = useRef<(ids: string[]) => void>(() => {})
   const removeTextLayersRef = useRef<(ids: string[]) => void>(() => {})
+  const removeDocumentLayersRef = useRef<(ids: string[]) => void>(() => {})
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -338,8 +352,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setEditingTextLayerId(null)
           return
         }
+        if (editingDocumentLayerIdRef.current) {
+          setEditingDocumentLayerId(null)
+          return
+        }
         if (textModeRef.current) {
           setTextMode(false)
+          return
+        }
+        if (documentModeRef.current) {
+          setDocumentMode(false)
           return
         }
         if (frameModeRef.current) {
@@ -358,6 +380,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setSelectedArtboardIds(new Set())
           setSelectedGroupIds(new Set())
           setSelectedTextLayerIds(new Set())
+          setSelectedDocumentLayerIds(new Set())
         }
       }
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
@@ -365,6 +388,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setNewCommentPos(null)
         setInspectHover(null)
         setTextMode(false)
+        setDocumentMode(false)
         setFrameMode(false)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
@@ -372,10 +396,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setNewCommentPos(null)
         setInspectHover(null)
         setTextMode(false)
+        setDocumentMode(false)
         setFrameMode(false)
       }
       if (e.key === "t" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setTextMode((m) => !m)
+        setCommentMode(false)
+        setNewCommentPos(null)
+        setInspectHover(null)
+        setDocumentMode(false)
+        setFrameMode(false)
+      }
+      if (e.key === "d" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+        setDocumentMode((m) => !m)
+        setTextMode(false)
         setCommentMode(false)
         setNewCommentPos(null)
         setInspectHover(null)
@@ -384,6 +418,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setFrameMode((m) => !m)
         setTextMode(false)
+        setDocumentMode(false)
         setCommentMode(false)
         setNewCommentPos(null)
         setInspectHover(null)
@@ -441,12 +476,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
       }
       // Delete/Backspace removes selected artboards (including all artboards
-      // belonging to selected groups) and text layers.
+      // belonging to selected groups), text layers, and document layers.
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
         const abIds = selectedArtboardIdsRef.current
         const grpIds = selectedGroupIdsRef.current
         const txtIds = selectedTextLayerIdsRef.current
-        if (abIds.size > 0 || grpIds.size > 0 || txtIds.size > 0) {
+        const docIds = selectedDocumentLayerIdsRef.current
+        if (abIds.size > 0 || grpIds.size > 0 || txtIds.size > 0 || docIds.size > 0) {
           e.preventDefault()
           const allArtboardIds = new Set<string>(abIds)
           if (grpIds.size > 0) {
@@ -477,6 +513,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           if (txtIds.size > 0) {
             removeTextLayersRef.current(Array.from(txtIds))
             setSelectedTextLayerIds(new Set())
+          }
+          if (docIds.size > 0) {
+            removeDocumentLayersRef.current(Array.from(docIds))
+            setSelectedDocumentLayerIds(new Set())
           }
         }
       }
@@ -730,6 +770,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     return ids
   }, [artboardGroups, selectedGroupIds])
   const textLayers = useTextLayers()
+  const documentLayers = useDocumentLayers()
   const workspaces = useWorkspaces()
   const agents = useAgents()
 
@@ -1294,6 +1335,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setSelectedArtboardIds(new Set([next]))
         setSelectedGroupIds(new Set())
         setSelectedTextLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
       } else {
         setSelectedArtboardIds(new Set())
       }
@@ -1538,6 +1580,63 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
   removeTextLayersRef.current = removeTextLayers
+
+  // --- Document layer mutations ---
+
+  const addDocumentLayer = useCallback(
+    (data: DocumentLayerData) => {
+      collections.documentLayers.set(data.id, data)
+    },
+    [collections],
+  )
+
+  const moveDocumentLayer = useCallback(
+    (id: string, x: number, y: number) => {
+      collections.documentLayers.update(id, { x, y })
+    },
+    [collections],
+  )
+
+  const moveDocumentLayersByDelta = useCallback(
+    (ids: string[], dx: number, dy: number) => {
+      collections.transact(() => {
+        for (const id of ids) {
+          const d = collections.documentLayers.get(id)
+          if (d) collections.documentLayers.update(id, { x: d.x + dx, y: d.y + dy })
+        }
+      })
+    },
+    [collections],
+  )
+
+  const resizeDocumentLayer = useCallback(
+    (id: string, x: number, y: number, width: number, height: number) => {
+      collections.documentLayers.update(id, {
+        x,
+        y,
+        width: Math.max(200, width),
+        height: Math.max(120, height),
+      })
+    },
+    [collections],
+  )
+
+  const setDocumentLayerTitle = useCallback(
+    (id: string, title: string) => {
+      collections.documentLayers.update(id, { title })
+    },
+    [collections],
+  )
+
+  const removeDocumentLayers = useCallback(
+    (ids: string[]) => {
+      collections.transact(() => {
+        for (const id of ids) collections.documentLayers.delete(id)
+      })
+    },
+    [collections],
+  )
+  removeDocumentLayersRef.current = removeDocumentLayers
 
   // --- Agent mutations ---
 
@@ -2757,7 +2856,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleCanvasPointerDownCapture = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
-      if (commentMode || textMode || frameMode) return
+      if (commentMode || textMode || documentMode || frameMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
 
@@ -2797,7 +2896,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedArtboardId, commentMode, textMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
+    [spaceHeld, focusedArtboardId, commentMode, textMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -2813,7 +2912,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // do here — the early-return below would have skipped it anyway.
       if (gapDragRef.current) return
 
-      if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("button") || target.closest("a")) return
+      if (target.closest("[data-artboard]") || target.closest("[data-text-layer]") || target.closest("[data-document-layer]") || target.closest("button") || target.closest("a")) return
 
       // Text tool: start a draft rectangle (click or click+drag)
       if (textMode) {
@@ -2821,6 +2920,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         textDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
         setTextDraft(textDraftRef.current)
+        e.currentTarget.setPointerCapture(e.pointerId)
+        return
+      }
+
+      // Document tool: start a draft rectangle (click for default size, drag for custom bounds)
+      if (documentMode) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        documentDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
+        setDocumentDraft(documentDraftRef.current)
         e.currentTarget.setPointerCapture(e.pointerId)
         return
       }
@@ -2848,16 +2957,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         shiftKey: e.shiftKey,
         baseArtboards: new Set(selectedArtboardIds),
         baseTextLayers: new Set(selectedTextLayerIds),
+        baseDocumentLayers: new Set(selectedDocumentLayerIds),
       }
       setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
       setSelectedGroupIds(new Set())
       if (!e.shiftKey) {
         setSelectedArtboardIds(new Set())
         setSelectedTextLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedArtboardId, textMode, frameMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedArtboardId, textMode, frameMode, screenToCanvas, selectedArtboardIds, selectedTextLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -2933,6 +3044,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         return
       }
 
+      // Document-tool draft tracking
+      if (documentDraftRef.current) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const next = { ...documentDraftRef.current, currentX: canvas.x, currentY: canvas.y }
+        documentDraftRef.current = next
+        setDocumentDraft(next)
+        return
+      }
+
       // Frame-tool draft tracking
       if (frameDraftRef.current) {
         const rect = e.currentTarget.getBoundingClientRect()
@@ -2975,6 +3096,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           txtHits.add(t.id)
         }
       }
+      const docHits = new Set<string>()
+      for (const d of documentLayers) {
+        if (d.x < right && d.x + d.width > left && d.y < bottom && d.y + d.height > top) {
+          docHits.add(d.id)
+        }
+      }
 
       if (start.shiftKey) {
         const nextAb = new Set(start.baseArtboards)
@@ -2989,12 +3116,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           else nextTxt.add(id)
         }
         setSelectedTextLayerIds(nextTxt)
+        const nextDoc = new Set(start.baseDocumentLayers)
+        for (const id of docHits) {
+          if (nextDoc.has(id)) nextDoc.delete(id)
+          else nextDoc.add(id)
+        }
+        setSelectedDocumentLayerIds(nextDoc)
       } else {
         setSelectedArtboardIds(abHits)
         setSelectedTextLayerIds(txtHits)
+        setSelectedDocumentLayerIds(docHits)
       }
     },
-    [screenToCanvas, artboardLayouts, textLayers, setGroupGap, collections, reorderGroupArtboards],
+    [screenToCanvas, artboardLayouts, textLayers, documentLayers, setGroupGap, collections, reorderGroupArtboards],
   )
 
   const handleCanvasPointerUp = useCallback(
@@ -3070,8 +3204,45 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
         setTextMode(false)
         setSelectedArtboardIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
         setSelectedTextLayerIds(new Set([id]))
         setEditingTextLayerId(id)
+        return
+      }
+
+      // Document-tool: release creates a new document layer with a fixed
+      // container. Click-without-drag uses a sensible default size; drag
+      // sets explicit bounds.
+      if (documentDraftRef.current) {
+        const d = documentDraftRef.current
+        documentDraftRef.current = null
+        setDocumentDraft(null)
+        const dx = d.currentX - d.startX
+        const dy = d.currentY - d.startY
+        const id = nanoid()
+        const DEFAULT_W = 480
+        const DEFAULT_H = 640
+        let x: number
+        let y: number
+        let w: number
+        let h: number
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+          w = DEFAULT_W
+          h = DEFAULT_H
+          x = d.startX
+          y = d.startY
+        } else {
+          x = Math.min(d.startX, d.currentX)
+          y = Math.min(d.startY, d.currentY)
+          w = Math.max(200, Math.abs(dx))
+          h = Math.max(120, Math.abs(dy))
+        }
+        addDocumentLayer({ id, x, y, width: w, height: h, title: "" })
+        setDocumentMode(false)
+        setSelectedArtboardIds(new Set())
+        setSelectedTextLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set([id]))
+        setEditingDocumentLayerId(id)
         return
       }
 
@@ -3100,6 +3271,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const id = addFrame(x, y, w, h)
         setFrameMode(false)
         setSelectedTextLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
         setSelectedArtboardIds(new Set([id]))
         return
       }
@@ -3118,10 +3290,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (!e.shiftKey) {
           setSelectedArtboardIds(new Set())
           setSelectedTextLayerIds(new Set())
+          setSelectedDocumentLayerIds(new Set())
         }
       }
     },
-    [screenToCanvas, addTextLayer, addFrame, hitTestReorderHandle, zoom],
+    [screenToCanvas, addTextLayer, addDocumentLayer, addFrame, hitTestReorderHandle, zoom],
   )
 
   // Click on artboard to select. Clicking a child frame whose parent group is
@@ -3141,6 +3314,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         setSelectedArtboardIds(new Set([id]))
         setSelectedTextLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
       }
     },
     [],
@@ -3150,6 +3324,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (groupId: string, shiftKey: boolean) => {
       setSelectedArtboardIds(new Set())
       setSelectedTextLayerIds(new Set())
+      setSelectedDocumentLayerIds(new Set())
       if (shiftKey) {
         setSelectedGroupIds((prev) => {
           const next = new Set(prev)
@@ -3176,6 +3351,25 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         setSelectedTextLayerIds(new Set([id]))
         setSelectedArtboardIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
+      }
+    },
+    [],
+  )
+
+  const handleDocumentLayerSelect = useCallback(
+    (id: string, shiftKey: boolean) => {
+      if (shiftKey) {
+        setSelectedDocumentLayerIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      } else {
+        setSelectedDocumentLayerIds(new Set([id]))
+        setSelectedArtboardIds(new Set())
+        setSelectedTextLayerIds(new Set())
       }
     },
     [],
@@ -3185,10 +3379,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (dx: number, dy: number) => {
       const abIds = Array.from(selectedArtboardIdsRef.current)
       const txtIds = Array.from(selectedTextLayerIdsRef.current)
+      const docIds = Array.from(selectedDocumentLayerIdsRef.current)
       if (abIds.length > 0) moveArtboardsByDelta(abIds, dx, dy)
       if (txtIds.length > 0) moveTextLayersByDelta(txtIds, dx, dy)
+      if (docIds.length > 0) moveDocumentLayersByDelta(docIds, dx, dy)
     },
-    [moveArtboardsByDelta, moveTextLayersByDelta],
+    [moveArtboardsByDelta, moveTextLayersByDelta, moveDocumentLayersByDelta],
   )
 
   const handlePointerMove = useCallback(
@@ -3517,7 +3713,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : textMode ? "text" : documentMode || frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
               onPointerDownCapture={handleCanvasPointerDownCapture}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
@@ -3580,7 +3776,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 disabled:
                   focusedArtboardId !== null ||
                   createFlowArtboardId !== null ||
-                  editingTextLayerId !== null,
+                  editingTextLayerId !== null ||
+                  editingDocumentLayerId !== null,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
               }}
@@ -3662,6 +3859,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setSelectedArtboardIds(new Set([newId]))
                             setSelectedGroupIds(new Set())
                             setSelectedTextLayerIds(new Set())
+                            setSelectedDocumentLayerIds(new Set())
                           }
                         }}
                       >
@@ -3725,7 +3923,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onSharedStateChanged={updateArtboardSharedState}
                               onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
                               onFitToContent={fitArtboardToContent}
-                              multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
+                              multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size + selectedDocumentLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               commentMode={commentMode}
                               onHover={handleInspectHover}
@@ -3758,7 +3956,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                       layer={layer}
                       zoom={zoom}
                       selected={selectedTextLayerIds.has(layer.id)}
-                      multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size > 1}
+                      multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size + selectedDocumentLayerIds.size > 1}
                       editing={editingTextLayerId === layer.id}
                       spaceHeld={spaceHeld}
                       userName={self?.identity.name || "Anonymous"}
@@ -3773,6 +3971,27 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                       workspaces={workspaces}
                       agents={agents}
                       onSubmitAsPlan={agents.length > 0 ? handleSubmitAsPlan : undefined}
+                    />
+                  ))}
+
+                  {documentLayers.map((layer) => (
+                    <DocumentLayer
+                      key={layer.id}
+                      layer={layer}
+                      zoom={zoom}
+                      selected={selectedDocumentLayerIds.has(layer.id)}
+                      multiSelected={selectedArtboardIds.size + selectedTextLayerIds.size + selectedDocumentLayerIds.size > 1}
+                      editing={editingDocumentLayerId === layer.id}
+                      spaceHeld={spaceHeld}
+                      userName={self?.identity.name || "Anonymous"}
+                      userColor={self?.color || "#888888"}
+                      onSelect={handleDocumentLayerSelect}
+                      onMove={moveDocumentLayer}
+                      onMoveSelected={handleMoveSelected}
+                      onResize={resizeDocumentLayer}
+                      onTitleChange={setDocumentLayerTitle}
+                      onStartEdit={setEditingDocumentLayerId}
+                      onStopEdit={() => setEditingDocumentLayerId(null)}
                     />
                   ))}
 
@@ -3837,6 +4056,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 marquee={marquee}
                 textDraft={textDraft}
                 frameDraft={frameDraft}
+                documentDraft={documentDraft}
                 othersSelections={othersSelections}
                 inspectRect={(() => {
                   // Show the live hover overlay while in commentMode so the
@@ -3999,13 +4219,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !textMode && !frameMode ? "default" : "ghost"}
+                          variant={!commentMode && !textMode && !documentMode && !frameMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setInspectHover(null)
                             setTextMode(false)
+                            setDocumentMode(false)
                             setFrameMode(false)
                           }}
                         >
@@ -4024,6 +4245,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                           onClick={() => {
                             setFrameMode((m) => !m)
                             setTextMode(false)
+                            setDocumentMode(false)
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setInspectHover(null)
@@ -4046,6 +4268,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setInspectHover(null)
+                            setDocumentMode(false)
                             setFrameMode(false)
                           }}
                         >
@@ -4059,6 +4282,27 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
+                          variant={documentMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setDocumentMode((m) => !m)
+                            setTextMode(false)
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                            setInspectHover(null)
+                            setFrameMode(false)
+                          }}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Document <Kbd>D</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
                           variant={commentMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
@@ -4066,6 +4310,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setNewCommentPos(null)
                             setInspectHover(null)
                             setTextMode(false)
+                            setDocumentMode(false)
                             setFrameMode(false)
                           }}
                         >

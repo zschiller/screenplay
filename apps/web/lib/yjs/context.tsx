@@ -49,3 +49,12 @@ export function useTextFragment(layerId: string): Y.XmlFragment {
   const { doc } = useYjs()
   return useMemo(() => doc.getXmlFragment(`text-${layerId}`), [doc, layerId])
 }
+
+/**
+ * Y.XmlFragment for a document layer's body. Same pattern as text layers,
+ * keyed under `doc-${layerId}` so the two namespaces never collide.
+ */
+export function useDocumentFragment(layerId: string): Y.XmlFragment {
+  const { doc } = useYjs()
+  return useMemo(() => doc.getXmlFragment(`doc-${layerId}`), [doc, layerId])
+}

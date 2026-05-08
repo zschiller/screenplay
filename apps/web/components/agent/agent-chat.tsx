@@ -9,11 +9,15 @@ import {
   Check,
   Square,
 } from "lucide-react"
+import { EditorContent, useEditor, type Editor } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import Mention from "@tiptap/extension-mention"
+import type { JSONContent } from "@tiptap/core"
+import { buildDocumentMentionSuggestion } from "@/lib/document-mention-suggestion"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
-  InputGroupTextarea,
 } from "@workspace/ui/components/input-group"
 import {
   DropdownMenu,
@@ -28,6 +32,10 @@ import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
+import { useDocumentLayers } from "@/lib/yjs/react"
+import { useYjs } from "@/lib/yjs/context"
+import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
+import type { DocumentLayerData } from "@/lib/types"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -71,6 +79,61 @@ function groupModelsByProvider(models: ModelInfo[]) {
   return order.map((k) => byKey.get(k)!)
 }
 
+/**
+ * Walk a TipTap JSON document and return:
+ *  - `text`: plain-text rendering, with each mention serialized as `@<label>`
+ *    so the conversation log reads naturally.
+ *  - `mentionIds`: deduplicated list of doc ids the user mentioned.
+ * Block boundaries (paragraphs, headings, list items) become newlines.
+ */
+function extractTextAndMentions(json: JSONContent | undefined): {
+  text: string
+  mentionIds: string[]
+} {
+  if (!json) return { text: "", mentionIds: [] }
+  const out: string[] = []
+  const ids: string[] = []
+  const seen = new Set<string>()
+
+  const visit = (node: JSONContent, depth: number) => {
+    if (node.type === "text") {
+      if (typeof node.text === "string") out.push(node.text)
+      return
+    }
+    if (node.type === "mention") {
+      const id = node.attrs?.id as string | undefined
+      const label = (node.attrs?.label as string | undefined) ?? id ?? ""
+      out.push(`@${label}`)
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        ids.push(id)
+      }
+      return
+    }
+    if (node.type === "hardBreak") {
+      out.push("\n")
+      return
+    }
+    if (node.content) {
+      for (const child of node.content) visit(child, depth + 1)
+    }
+    // Add a newline after block-level container nodes so paragraphs don't
+    // run together. The top-level `doc` node is depth 0 so we skip it.
+    if (
+      depth > 0 &&
+      (node.type === "paragraph" ||
+        node.type === "heading" ||
+        node.type === "listItem" ||
+        node.type === "blockquote" ||
+        node.type === "codeBlock")
+    ) {
+      out.push("\n")
+    }
+  }
+  visit(json, 0)
+  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentionIds: ids }
+}
+
 interface AgentChatProps {
   chatId: string
   roomId: string
@@ -90,7 +153,6 @@ interface AgentChatProps {
 export function AgentChat({
   chatId,
   roomId,
-  sandboxId,
   sandboxName,
   branch,
   isFirstChat,
@@ -110,12 +172,21 @@ export function AgentChat({
     stopMessage,
   } = useAgentChat({ chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
 
-  const [input, setInput] = useState("")
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
   const [storedModel, setStoredModel] = useState<string | null>(null)
+  const [hasContent, setHasContent] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+
+  const documentLayers = useDocumentLayers()
+  const { doc: yjsDoc } = useYjs()
+
+  // The Mention extension's `suggestion.items` callback runs inside a closure
+  // captured at editor-construction time, so it can't read `documentLayers`
+  // directly — use a ref so the latest list is always visible to it.
+  const documentLayersRef = useRef<DocumentLayerData[]>(documentLayers)
+  documentLayersRef.current = documentLayers
 
   useEffect(() => {
     setStoredModel(readStoredModel())
@@ -140,19 +211,61 @@ export function AgentChat({
     }
   }, [])
 
-  // Allow other parts of the app (e.g. the inspect tool) to append text to this chat's draft.
-  useEffect(() => {
-    return inputStore.subscribe(chatId, (text) => {
-      setInput((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text))
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current
-        if (!ta) return
-        ta.focus()
-        const end = ta.value.length
-        ta.setSelectionRange(end, end)
-      })
-    })
-  }, [chatId])
+  // Build the editor once. The mention extension's suggestion handler reads
+  // through refs so it always sees the latest documents and submit handler.
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Disable the marks/blocks we don't want to expose in the chat draft
+        // — chat is plaintext on the wire, mentions are the only inline
+        // structure we keep.
+        heading: false,
+        blockquote: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        codeBlock: false,
+        horizontalRule: false,
+        dropcursor: false,
+      }),
+      Mention.configure({
+        HTMLAttributes: {
+          class:
+            "inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary",
+        },
+        renderText({ node }) {
+          const label = (node.attrs.label as string | undefined) ?? node.attrs.id
+          return `@${label}`
+        },
+        deleteTriggerWithBackspace: true,
+        suggestion: buildDocumentMentionSuggestion({
+          getDocuments: () => documentLayersRef.current,
+          getAnchorRect: () =>
+            editorContainerRef.current?.getBoundingClientRect() ?? null,
+        }),
+      }),
+    ],
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class:
+          "tiptap min-h-[40px] max-h-48 overflow-y-auto px-3 py-2 text-xs focus:outline-none",
+        "data-placeholder": "Ask the agent... (@ to mention a document)",
+      },
+      handleKeyDown(_view, event) {
+        if (event.key !== "Enter" || event.shiftKey) return false
+        // The mention popover swallows Enter via `suggestion.onKeyDown`
+        // before this handler runs, so reaching here means the user wants
+        // to submit.
+        event.preventDefault()
+        submitRef.current()
+        return true
+      },
+    },
+    onUpdate: ({ editor }) => {
+      setHasContent(!editor.isEmpty)
+    },
+  })
 
   // Precedence: per-chat override (set by `onModelChange`) → user's stored
   // last-used model from localStorage → server-side default for the
@@ -170,6 +283,64 @@ export function AgentChat({
     [onModelChange],
   )
 
+  /**
+   * Expand any `@`-mentioned documents into the message text. The original
+   * `@<title>` token stays where the user typed it (so the conversation log
+   * reads naturally), and we append a "Referenced documents" block with each
+   * doc's title + body so the model can read them without an extra tool call.
+   */
+  const expandMentions = useCallback(
+    (text: string, mentionIds: string[]): string => {
+      if (mentionIds.length === 0) return text
+      const blocks: string[] = []
+      for (const id of mentionIds) {
+        const layer = documentLayers.find((d) => d.id === id)
+        if (!layer) continue
+        const title = layer.title || "Untitled"
+        const fragment = yjsDoc.getXmlFragment(`doc-${id}`)
+        const body = fragmentToPlainText(fragment)
+        blocks.push(`### ${title}\n\n${body || "(empty)"}`)
+      }
+      if (blocks.length === 0) return text
+      return `${text}\n\n---\n\nReferenced documents:\n\n${blocks.join("\n\n")}`
+    },
+    [documentLayers, yjsDoc],
+  )
+
+  const handleSubmit = useCallback(() => {
+    if (!editor || isStreaming) return
+    if (editor.isEmpty) return
+    const json = editor.getJSON()
+    const { text, mentionIds } = extractTextAndMentions(json)
+    if (!text.trim()) return
+    const expanded = expandMentions(text.trim(), mentionIds)
+    sendMessage(expanded, { model: effectiveModel })
+    editor.commands.clearContent()
+    setHasContent(false)
+  }, [editor, isStreaming, sendMessage, effectiveModel, expandMentions])
+
+  // Stash the latest submit handler in a ref so the editor's
+  // `handleKeyDown` (registered once at construction) always calls the
+  // current closure.
+  const submitRef = useRef(handleSubmit)
+  useEffect(() => {
+    submitRef.current = handleSubmit
+  }, [handleSubmit])
+
+  // Allow other parts of the app (e.g. the inspect tool) to append text
+  // snippets to this chat's draft.
+  useEffect(() => {
+    if (!editor) return undefined
+    return inputStore.subscribe(chatId, (text) => {
+      const prefix = editor.isEmpty ? "" : "\n\n"
+      editor
+        .chain()
+        .focus("end")
+        .insertContent(`${prefix}${text}`)
+        .run()
+    })
+  }, [chatId, editor])
+
   // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
   useEffect(() => {
     return inputStore.subscribeSend(chatId, (text) => {
@@ -177,26 +348,10 @@ export function AgentChat({
     })
   }, [chatId, sendMessage, effectiveModel])
 
-  const handleSubmit = useCallback(() => {
-    if (!input.trim() || isStreaming) return
-    sendMessage(input.trim(), { model: effectiveModel })
-    setInput("")
-  }, [input, isStreaming, sendMessage, effectiveModel])
-
   // Once a chat has at least one message in its log, the model used for the
   // first turn is locked — switching mid-conversation can confuse the
   // existing tool-call/result message pairs.
   const modelLocked = messages.length > 0
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault()
-        handleSubmit()
-      }
-    },
-    [handleSubmit],
-  )
 
   const currentModel = models.find((m) => m.id === effectiveModel) ?? {
     id: effectiveModel,
@@ -245,17 +400,10 @@ export function AgentChat({
       </div>
 
       {/* Input */}
-      <div className="border-t border-border p-3">
+      <div ref={editorContainerRef} className="relative border-t border-border p-3">
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
-          <InputGroupTextarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask the agent..."
-            rows={2}
-            className="max-h-48 text-xs"
-          />
+          <EmptyAwarePlaceholder editor={editor} />
+          <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -316,9 +464,9 @@ export function AgentChat({
             ) : (
               <InputGroupButton
                 size="icon-xs"
-                variant={input.trim() ? "default" : "ghost"}
+                variant={hasContent ? "default" : "ghost"}
                 onClick={handleSubmit}
-                disabled={!input.trim()}
+                disabled={!hasContent}
                 title="Send"
                 className="ml-auto"
               >
@@ -328,6 +476,36 @@ export function AgentChat({
           </InputGroupAddon>
         </InputGroup>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Show the textarea-style placeholder when the TipTap editor is empty.
+ * Rendered as a sibling so it can sit absolutely on top of the empty
+ * editor without interfering with caret positioning. We attach our own
+ * subscription to the editor's `update` event since the placeholder
+ * extension's CSS approach doesn't compose with the prose styles.
+ */
+function EmptyAwarePlaceholder({ editor }: { editor: Editor | null }) {
+  const [empty, setEmpty] = useState(true)
+
+  useEffect(() => {
+    if (!editor) return undefined
+    setEmpty(editor.isEmpty)
+    const update = () => setEmpty(editor.isEmpty)
+    editor.on("update", update)
+    editor.on("create", update)
+    return () => {
+      editor.off("update", update)
+      editor.off("create", update)
+    }
+  }, [editor])
+
+  if (!empty) return null
+  return (
+    <div className="pointer-events-none absolute left-3 top-3 px-3 py-2 text-xs text-muted-foreground">
+      Ask the agent... (@ to mention a document)
     </div>
   )
 }

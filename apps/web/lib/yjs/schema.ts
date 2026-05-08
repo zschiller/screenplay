@@ -5,6 +5,7 @@ import type {
   ArtboardData,
   ArtboardGroupData,
   ChatSessionData,
+  DocumentLayerData,
   PlanData,
   TextLayerData,
   ViewportData,
@@ -25,6 +26,7 @@ export const COLLECTION_KEYS = {
   artboards: "artboards",
   artboardGroups: "artboardGroups",
   textLayers: "textLayers",
+  documentLayers: "documentLayers",
   chatSessions: "chatSessions",
   plans: "plans",
   // Live tracked-pin positions for selector-anchored comments. Keyed by
@@ -224,6 +226,7 @@ export type RoomCollections = {
   artboards: YjsCollection<ArtboardData>
   artboardGroups: YjsCollection<ArtboardGroupData>
   textLayers: YjsCollection<TextLayerData>
+  documentLayers: YjsCollection<DocumentLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   commentPositions: YjsCollection<CommentPosition>
@@ -260,6 +263,10 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     textLayers: new YjsCollection<TextLayerData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.textLayers),
+    ),
+    documentLayers: new YjsCollection<DocumentLayerData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.documentLayers),
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,

@@ -17,6 +17,7 @@ import type {
   ArtboardData,
   ArtboardGroupData,
   ChatSessionData,
+  DocumentLayerData,
   PlanData,
   TextLayerData,
   ViewportData,
@@ -73,6 +74,10 @@ export function useTextLayers(): Array<TextLayerData> {
   return useCollectionArray(useRoomCollections().textLayers)
 }
 
+export function useDocumentLayers(): Array<DocumentLayerData> {
+  return useCollectionArray(useRoomCollections().documentLayers)
+}
+
 export function useWorkspaces(): Array<WorkspaceData> {
   return useCollectionArray(useRoomCollections().workspaces)
 }
@@ -110,6 +115,7 @@ export function useYjsHistory() {
         doc.getMap(COLLECTION_KEYS.artboards),
         doc.getMap(COLLECTION_KEYS.artboardGroups),
         doc.getMap(COLLECTION_KEYS.textLayers),
+        doc.getMap(COLLECTION_KEYS.documentLayers),
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
       ],

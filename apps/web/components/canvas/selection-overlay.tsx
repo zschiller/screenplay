@@ -45,6 +45,12 @@ interface SelectionOverlayProps {
     currentX: number
     currentY: number
   } | null
+  documentDraft: {
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null
   othersSelections: OtherSelection[]
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
@@ -111,6 +117,7 @@ export function SelectionOverlay({
   marquee,
   textDraft,
   frameDraft,
+  documentDraft,
   othersSelections,
   hideResizeHandles,
   inspectRect,
@@ -489,8 +496,25 @@ export function SelectionOverlay({
       ctx.setLineDash([])
     }
 
+    // Draw document-draft rectangle (while dragging with the document tool)
+    if (documentDraft) {
+      const a = toScreen(documentDraft.startX, documentDraft.startY)
+      const b = toScreen(documentDraft.currentX, documentDraft.currentY)
+      const l = Math.round(Math.min(a.x, b.x))
+      const t = Math.round(Math.min(a.y, b.y))
+      const r = Math.round(Math.max(a.x, b.x))
+      const bo = Math.round(Math.max(a.y, b.y))
+
+      ctx.globalAlpha = 1
+      ctx.setLineDash([4, 4])
+      ctx.strokeStyle = primaryColor
+      ctx.lineWidth = 1
+      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
+      ctx.setLineDash([])
+    }
+
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift, textLayerSizeTick])
+  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, selectedTextLayerIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, textLayers, marquee, textDraft, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift, textLayerSizeTick])
 
   // Keep canvas sized to container
   useEffect(() => {

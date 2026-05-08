@@ -130,6 +130,21 @@ export type TextLayerData = {
   autoWidth: boolean
 }
 
+/**
+ * A free-floating document tile on the canvas — like a Notion doc, with a
+ * fixed container, title, and a body styled with Tailwind's `prose` classes.
+ * Body content lives in a Yjs XmlFragment keyed by `doc-${id}` (owned by
+ * TipTap, same shape as text layers' `text-${id}` fragments).
+ */
+export type DocumentLayerData = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  title: string
+}
+
 export type ViewportData = {
   x: number
   y: number
