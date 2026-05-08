@@ -50,6 +50,9 @@ export type AgentData = {
   autoNamedBranch?: boolean
   /** Routes discovered for this sandbox — initially crawled at startup, appended as the user navigates. */
   discoveredRoutes?: { route: string; label: string }[]
+  /** Set true by the parallel-create flow, which defers artboard seeding until `previewDomain` is known.
+   *  The deferred-seed effect seeds once and clears the flag, so deleting the last frame never re-seeds. */
+  pendingArtboardSeed?: boolean
 }
 
 /**

@@ -71,6 +71,8 @@ body {
   display: inline-block;
   width: 0.85em;
   height: 0.85em;
+  margin-right: 0.2em;
+  vertical-align: -0.1em;
   background-color: currentColor;
   -webkit-mask: var(--mention-doc-icon) no-repeat center / contain;
   mask: var(--mention-doc-icon) no-repeat center / contain;

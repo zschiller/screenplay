@@ -597,6 +597,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     })
   }, [artboardGroups])
 
+  // Canvas z-order matches the sidebar list: first row in the sidebar paints
+  // on top. We can't reorder the DOM (would reload iframes / re-mount TipTap),
+  // so the React iteration stays stable and we project sidebar position onto
+  // a per-group `z-index` instead.
+  const groupZIndex = useMemo(() => {
+    const m = new Map<string, number>()
+    sortedArtboardGroups.forEach((g, i) => {
+      m.set(g.id, sortedArtboardGroups.length - i)
+    })
+    return m
+  }, [sortedArtboardGroups])
+
   /**
    * Display name per group. Persisted on the group itself so reordering
    * doesn't renumber existing groups; legacy groups without a stored name
@@ -622,11 +634,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const members = getGroupMembers(g)
       if (members.length === 0) continue
       if (selectedGroupIds.has(g.id)) continue
-      // Placeholder appears when an *artboard* in the group is selected — the
-      // affordance is "add another frame next to this one". Document-only
-      // selections don't need it.
-      const hasSelected = members.some(
-        (m) => m.kind === "artboard" && selectedArtboardIds.has(m.id),
+      // Placeholder appears when any member (artboard or document) in the group
+      // is selected — the affordance is "add another frame next to this one".
+      const hasSelected = members.some((m) =>
+        m.kind === "artboard"
+          ? selectedArtboardIds.has(m.id)
+          : selectedDocumentLayerIds.has(m.id),
       )
       if (!hasSelected) continue
       const lastMember = members[members.length - 1]!
@@ -640,7 +653,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       })
     }
     return rects
-  }, [artboardGroups, artboardLayouts, selectedArtboardIds, selectedGroupIds])
+  }, [
+    artboardGroups,
+    artboardLayouts,
+    selectedArtboardIds,
+    selectedDocumentLayerIds,
+    selectedGroupIds,
+  ])
 
   /**
    * One handle per inter-artboard gap in every selected group. Stored in
@@ -704,19 +723,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     if (selectedGroupIds.size === 0) return handles
     for (const g of artboardGroups) {
       if (!selectedGroupIds.has(g.id)) continue
-      // Reorder dots only target artboards — the existing reorder UI is wired
-      // to artboard rects. Mixed groups still allow reordering via the sidebar
-      // drag handles. Skip groups that don't have at least 2 members of any
-      // kind, since reorder is meaningless for a single-member group.
+      // Reorder dots target every member (artboard or document). The drag
+      // logic looks up by id in `effectiveArtboardLayouts`, which already
+      // holds both kinds, so the handle is kind-agnostic.
       const members = getGroupMembers(g)
       if (members.length < 2) continue
       for (const m of members) {
-        if (m.kind !== "artboard") continue
-        const id = m.id
-        const layout = effectiveArtboardLayouts.get(id)
+        const layout = effectiveArtboardLayouts.get(m.id)
         if (!layout) continue
         handles.push({
-          artboardId: id,
+          artboardId: m.id,
           centerX: layout.x + layout.width / 2,
           centerY: layout.y + layout.height / 2,
         })
@@ -772,7 +788,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     if (selectedGroupIds.size === 0) return ids
     for (const g of artboardGroups) {
       if (!selectedGroupIds.has(g.id)) continue
-      for (const aid of getGroupMemberIds(g, "artboard")) ids.add(aid)
+      // Highlight every member of the selected group — artboards *and*
+      // documents — so docs visually participate in group selection the
+      // same way frames do.
+      for (const m of getGroupMembers(g)) ids.add(m.id)
     }
     return ids
   }, [artboardGroups, selectedGroupIds])
@@ -1094,25 +1113,41 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (!group) return
       const members = getGroupMembers(group)
       if (members.length === 0) return
-      // Mirror the last *artboard* sibling for size/agent/route — picking the
-      // last member would copy a document's size when the group ends in a doc.
+      // Mirror the last *artboard* sibling for size/agent/route when one
+      // exists. For doc-only groups, fall back to the last member's bounds
+      // so the new frame visually replaces the placeholder rect the user
+      // just clicked.
       const artboardIds = getGroupMemberIds(group, "artboard")
       const lastArtboardId = artboardIds[artboardIds.length - 1]
-      if (!lastArtboardId) return
-      const last = collections.artboards.get(lastArtboardId)
-      if (!last) return
+      const lastArtboard = lastArtboardId
+        ? collections.artboards.get(lastArtboardId)
+        : undefined
+      let width: number
+      let height: number
+      let sandboxId: string | undefined
+      let route: string | undefined
+      if (lastArtboard) {
+        width = lastArtboard.width
+        height = lastArtboard.height
+        sandboxId = lastArtboard.sandboxId
+        route = lastArtboard.route
+      } else {
+        const lastMember = members[members.length - 1]!
+        const lastDoc = collections.documentLayers.get(lastMember.id)
+        if (!lastDoc) return
+        width = lastDoc.width
+        height = lastDoc.height
+      }
       const id = nanoid()
       collections.transact(() => {
         collections.artboards.set(id, {
           id,
-          ...(last.sandboxId ? { sandboxId: last.sandboxId } : {}),
-          width: last.width,
-          height: last.height,
-          label: last.sandboxId
-            ? `Frame ${artboardIds.length + 1}`
-            : "Frame",
+          ...(sandboxId ? { sandboxId } : {}),
+          width,
+          height,
+          label: sandboxId ? `Frame ${artboardIds.length + 1}` : "Frame",
           iframeState: {},
-          ...(last.route ? { route: last.route } : {}),
+          ...(route ? { route } : {}),
         })
         collections.artboardGroups.update(groupId, {
           members: [...members, { kind: "artboard", id }],
@@ -2610,6 +2645,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             // Names are already prompt-derived and deduped — block the
             // first-chat server rename so it can't override them.
             autoNamedBranch: false,
+            // The deferred-seed effect creates the artboard once `previewDomain`
+            // is known and clears this flag, so deleting the frame later never
+            // re-seeds.
+            pendingArtboardSeed: true,
           })
 
           // Pre-create the chat session so the queued prompt has a stable
@@ -2751,28 +2790,28 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
   }, [agents, roomId, updateAgentInStorage, updateChatSession])
 
-  // Seed artboards for agents whose sandbox has finished provisioning but who
-  // don't yet have a frame on the canvas. Parallel-create defers seeding to
-  // here so frames don't appear before their previewDomain is known —
-  // otherwise the artboard renders with an undefined iframeUrl/branch until
-  // the pipeline finishes (`agentDomains` keys off `previewDomain`).
-  // Single-agent flows seed the artboard immediately at create time, so this
-  // is a no-op for them. Also recovers correctly across page reloads
-  // mid-creation.
+  // Seed artboards for parallel-create agents whose sandbox has finished
+  // provisioning. The flag is set at create time and cleared here after the
+  // first seed, so deleting the last frame for a branch later does not
+  // re-spawn one. Single-agent flows seed immediately at create time and
+  // never set the flag.
   useEffect(() => {
     const pending = agents.filter(
       (a) =>
+        a.pendingArtboardSeed === true &&
         a.status === "running" &&
         a.previewDomain &&
         !artboards.some((ab) => ab.sandboxId === a.id),
     )
     if (pending.length === 0) return
     const { cx, cy } = getViewportCenter()
+    const target = pending[0]!
     // Seed one per tick — `seedArtboardForAgent` reads the Yjs snapshot for
     // layout, and the snapshot only refreshes after the previous mutation
     // settles. Letting React re-render between seeds avoids stacking groups.
     collections.transact(() => {
-      seedArtboardForAgent(pending[0]!.id, { x: cx, y: cy })
+      seedArtboardForAgent(target.id, { x: cx, y: cy })
+      collections.agents.update(target.id, { pendingArtboardSeed: false })
     })
   }, [agents, artboards, collections, getViewportCenter, seedArtboardForAgent])
 
@@ -3481,6 +3520,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleDocumentLayerSelect = useCallback(
     (id: string, shiftKey: boolean) => {
+      // Mirrors handleArtboardSelect: clear group selection so the doc owns
+      // the selection from here on (the click-guard upstream prevents this
+      // path from running while a parent group is selected without shift).
+      setSelectedGroupIds(new Set())
       if (shiftKey) {
         setSelectedDocumentLayerIds((prev) => {
           const next = new Set(prev)
@@ -3963,12 +4006,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   {artboardGroups.map((group) => {
                     const members = getGroupMembers(group)
                     const groupSelected = selectedGroupIds.has(group.id)
-                    // Placeholder shows only when an *artboard* inside the
-                    // group is selected — the affordance is "add another
-                    // frame next to this one". Document-only selections
-                    // don't get it.
-                    const hasSelectedFrame = members.some(
-                      (m) => m.kind === "artboard" && selectedArtboardIds.has(m.id),
+                    // Placeholder shows when any member (artboard or document)
+                    // inside the group is selected — the affordance is "add
+                    // another frame next to this one".
+                    const hasSelectedFrame = members.some((m) =>
+                      m.kind === "artboard"
+                        ? selectedArtboardIds.has(m.id)
+                        : selectedDocumentLayerIds.has(m.id),
                     )
                     const showGroupLabel = members.length > 1
                     const groupLabel = showGroupLabel
@@ -4000,6 +4044,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         members={members}
                         artboards={artboardsById}
                         documents={documentsById}
+                        zIndex={groupZIndex.get(group.id)}
                         hasSelectedArtboard={hasSelectedFrame}
                         onAddArtboard={(groupId) => {
                           const newId = addArtboardToGroup(groupId)
@@ -4054,6 +4099,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 dragTranslateX={dragTranslateX}
                                 dragTranslateY={dragTranslateY}
                                 dragPopped={dragPopped}
+                                groupLabel={flexOrder === 0 ? groupLabel : undefined}
+                                groupSelected={groupSelected}
+                                onSelectGroup={
+                                  flexOrder === 0 && showGroupLabel
+                                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                                    : undefined
+                                }
                                 onSelect={handleDocumentLayerSelect}
                                 onMoveGroup={(dx, dy) => moveArtboardsByDelta([doc.id], dx, dy)}
                                 onMoveSelected={handleMoveSelected}

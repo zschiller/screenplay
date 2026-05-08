@@ -26,6 +26,13 @@ interface ArtboardGroupProps {
   /** Optional helpers used to size the trailing placeholder when present. */
   artboards?: ReadonlyMap<string, ArtboardData>
   documents?: ReadonlyMap<string, DocumentLayerData>
+  /**
+   * Stacking position derived from the group's row in the sidebar — higher
+   * value paints on top. Set on the wrapper so each group becomes its own
+   * stacking context, scoping any inner z-index (drag-pop, overlays) to its
+   * own subtree.
+   */
+  zIndex?: number
 }
 
 /**
@@ -44,6 +51,7 @@ export function ArtboardGroup({
   children,
   artboards,
   documents,
+  zIndex,
 }: ArtboardGroupProps) {
   // Size the placeholder by the last member's bounds — could be an artboard
   // or a document, both have width/height. If the underlying data isn't in
@@ -75,6 +83,7 @@ export function ArtboardGroup({
         left: group.x,
         top: group.y,
         gap: groupGap(group),
+        zIndex,
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import { EditorContent, useEditor } from "@tiptap/react"
+import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
 import { Extension } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 import Document from "@tiptap/extension-document"
@@ -14,6 +14,9 @@ import { useArtboardResize } from "@/hooks/use-artboard-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useDocumentLayers } from "@/lib/yjs/react"
 import { buildDocumentMentionSuggestion } from "@/lib/document-mention-suggestion"
+import { DocumentMentionNodeView } from "@/components/canvas/document-mention-node"
+import { GroupLabel } from "@/components/canvas/group-label"
+import { ResizeHandles } from "@/components/canvas/resize-handles"
 import type { DocumentLayerData } from "@/lib/types"
 
 /** Forces every doc to start with a heading — that heading is the title.
@@ -73,6 +76,14 @@ interface DocumentLayerProps {
   /** When the user holds meta to "pop" this doc out of its group, the
    *  ArtboardGroup parent feeds back a position so it floats at the cursor. */
   dragPopped?: { left: number; top: number }
+  /** Group display name — only set on the leftmost member of a multi-member group. */
+  groupLabel?: string
+  /** True when the parent group is selected. Drives label color, frame
+   *  highlight, and click behavior (clicks are a no-op while the group owns
+   *  the selection — same as Artboard). */
+  groupSelected?: boolean
+  /** Click handler for the group label. */
+  onSelectGroup?: (shiftKey: boolean) => void
   onSelect: (id: string, shiftKey: boolean) => void
   /** Move the parent group by (dx, dy) — same contract as Artboard.onMoveGroup. */
   onMoveGroup: (dx: number, dy: number) => void
@@ -105,6 +116,9 @@ export function DocumentLayer({
   dragTranslateX,
   dragTranslateY,
   dragPopped,
+  groupLabel,
+  groupSelected,
+  onSelectGroup,
   onSelect,
   onMoveGroup,
   onMoveSelected,
@@ -173,14 +187,25 @@ export function DocumentLayer({
           provider,
           user: { name: userName || "Anonymous", color: userColor },
         }),
-        Mention.configure({
+        Mention.extend({
+          addNodeView() {
+            return ReactNodeViewRenderer(DocumentMentionNodeView, {
+              as: "span",
+            })
+          },
+        }).configure({
           HTMLAttributes: {
             class:
-              "inline-flex items-center rounded bg-primary/10 px-1 py-0.5 text-primary no-underline",
+              "mention-doc-pill inline-block rounded bg-primary/10 px-1 py-0.5 text-[0.95em] leading-none text-primary no-underline",
           },
           renderText({ node }) {
             const label = (node.attrs.label as string | undefined) ?? node.attrs.id
             return `@${label}`
+          },
+          renderHTML({ options, node }) {
+            const label =
+              (node.attrs.label as string | undefined) ?? (node.attrs.id as string)
+            return ["span", options.HTMLAttributes, label]
           },
           deleteTriggerWithBackspace: true,
           suggestion: buildDocumentMentionSuggestion({
@@ -338,9 +363,6 @@ export function DocumentLayer({
     },
   })
 
-  const HANDLE = 6 / zoom
-  const hHalf = HANDLE / 2
-
   // When the user holds meta to pop the doc out of its group, the parent
   // ArtboardGroup absolutely-positions us at the cursor; otherwise we sit
   // in the flex flow and `dragTranslate{X,Y}` is layered on as a transform
@@ -356,7 +378,12 @@ export function DocumentLayer({
       ref={rootRef}
       data-document-layer
       data-doc-id={layer.id}
-      className="flex flex-col overflow-hidden rounded-md bg-background"
+      // No overflow-hidden on the root — the group label sits above the tile
+      // via `bottom-full` and would be clipped. Match Artboard, which keeps
+      // its outer root open and pushes overflow clipping to the inner body.
+      // Inner clipping happens on `data-document-scroll` (overflow-y-auto)
+      // and the body padding constrains horizontal layout.
+      className="relative flex flex-col rounded-md bg-background"
       style={{
         width: layer.width,
         height: layer.height,
@@ -373,6 +400,28 @@ export function DocumentLayer({
         onStartEdit(layer.id)
       }}
     >
+      {groupLabel && (
+        // Mirror Artboard's label placement: anchored above the tile, scaled
+        // to stay constant in screen pixels regardless of zoom. The drag
+        // handlers are spread here so dragging the label moves the parent
+        // group — same affordance as Artboard's label region.
+        <div
+          className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
+          style={{
+            transform: `scale(${1 / zoom})`,
+            transformOrigin: "bottom left",
+            maxWidth: layer.width * zoom,
+            marginBottom: 4 / zoom,
+          }}
+          {...(spaceHeld ? {} : dragHandlers)}
+        >
+          <GroupLabel
+            label={groupLabel}
+            groupSelected={groupSelected}
+            onSelectGroup={onSelectGroup}
+          />
+        </div>
+      )}
       {/* Title is the editor's first heading; body follows in the same
        *  editor surface (Notion-style — no separate title bar). */}
       <div data-document-scroll className="relative flex-1 overflow-y-auto">
@@ -390,6 +439,10 @@ export function DocumentLayer({
             onPointerDownCapture={(e) => {
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
+                // While the parent group owns the selection, plain clicks on
+                // the doc are a no-op (matches Artboard). Shift still drills
+                // through so the user can additively pick this member.
+                if (groupSelected && !e.shiftKey) return
                 if (!selected || e.shiftKey) {
                   selectedOnPointerDown.current = true
                   onSelect(layer.id, e.shiftKey)
@@ -402,49 +455,7 @@ export function DocumentLayer({
       </div>
 
       {selected && !multiSelected && !editing && (
-        <>
-          {/* Edge handles */}
-          <div
-            className="absolute cursor-ns-resize touch-none"
-            {...makeHandleProps("n")}
-            style={{ top: -hHalf, left: 0, right: 0, height: HANDLE }}
-          />
-          <div
-            className="absolute cursor-ns-resize touch-none"
-            {...makeHandleProps("s")}
-            style={{ bottom: -hHalf, left: 0, right: 0, height: HANDLE }}
-          />
-          <div
-            className="absolute cursor-ew-resize touch-none"
-            {...makeHandleProps("w")}
-            style={{ left: -hHalf, top: 0, bottom: 0, width: HANDLE }}
-          />
-          <div
-            className="absolute cursor-ew-resize touch-none"
-            {...makeHandleProps("e")}
-            style={{ right: -hHalf, top: 0, bottom: 0, width: HANDLE }}
-          />
-          <div
-            className="absolute cursor-nwse-resize touch-none"
-            {...makeHandleProps("nw")}
-            style={{ top: -hHalf, left: -hHalf, width: HANDLE, height: HANDLE }}
-          />
-          <div
-            className="absolute cursor-nesw-resize touch-none"
-            {...makeHandleProps("ne")}
-            style={{ top: -hHalf, right: -hHalf, width: HANDLE, height: HANDLE }}
-          />
-          <div
-            className="absolute cursor-nesw-resize touch-none"
-            {...makeHandleProps("sw")}
-            style={{ bottom: -hHalf, left: -hHalf, width: HANDLE, height: HANDLE }}
-          />
-          <div
-            className="absolute cursor-nwse-resize touch-none"
-            {...makeHandleProps("se")}
-            style={{ bottom: -hHalf, right: -hHalf, width: HANDLE, height: HANDLE }}
-          />
-        </>
+        <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
     </div>
   )
