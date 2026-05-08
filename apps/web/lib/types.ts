@@ -155,14 +155,6 @@ export type ArtboardGroupData = {
   gap?: number
 }
 
-export type TextLayerData = {
-  id: string
-  x: number
-  y: number
-  width: number
-  autoWidth: boolean
-}
-
 /**
  * A Notion-style document tile on the canvas. Lives inside an
  * `ArtboardGroup` exactly like artboards do — the group anchors world-space

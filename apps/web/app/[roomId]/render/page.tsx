@@ -82,20 +82,6 @@ function fragmentToHtml(fragment: Y.XmlFragment): string {
   return renderXmlChildren(fragment)
 }
 
-function fragmentToText(node: Y.XmlFragment | Y.XmlElement): string {
-  const parts: string[] = []
-  const len = node.length
-  for (let i = 0; i < len; i++) {
-    const child = node.get(i)
-    if (child instanceof Y.XmlText) {
-      parts.push(child.toString())
-    } else if (child instanceof Y.XmlElement) {
-      parts.push(fragmentToText(child))
-    }
-  }
-  return parts.join("\n").trim()
-}
-
 export const dynamic = "force-dynamic"
 
 export default async function RenderPage({
@@ -113,7 +99,7 @@ export default async function RenderPage({
   const room = await getRoom(roomId)
   if (!room) notFound()
 
-  const { artboards, textLayers, documents } = await readRoomDoc(roomId, (c) => {
+  const { artboards, documents } = await readRoomDoc(roomId, (c) => {
     const agents = c.agents.toMap()
     const allArtboards = c.artboards.toArray()
     const allDocuments = c.documentLayers.toArray()
@@ -136,17 +122,6 @@ export default async function RenderPage({
           : null,
       }]
     })
-    const txt = c.textLayers.toArray().map((t) => {
-      const fragment = c.doc.getXmlFragment(`text-${t.id}`)
-      return {
-        id: t.id,
-        x: t.x,
-        y: t.y,
-        width: t.width,
-        html: fragmentToHtml(fragment),
-        text: fragmentToText(fragment),
-      }
-    })
     const docs = allDocuments.flatMap((d) => {
       const layout = layouts.get(d.id)
       if (!layout) return []
@@ -161,13 +136,13 @@ export default async function RenderPage({
         html: fragmentToHtml(fragment),
       }]
     })
-    return { artboards: arts, textLayers: txt, documents: docs }
+    return { artboards: arts, documents: docs }
   })
 
   return (
     <>
       <style>{`nextjs-portal { display: none !important; }`}</style>
-      <RenderCanvas artboards={artboards} textLayers={textLayers} documents={documents} />
+      <RenderCanvas artboards={artboards} documents={documents} />
     </>
   )
 }

@@ -12,15 +12,6 @@ export type RenderArtboard = {
   iframeUrl: string | null
 }
 
-export type RenderTextLayer = {
-  id: string
-  x: number
-  y: number
-  width: number
-  html: string
-  text: string
-}
-
 export type RenderDocument = {
   id: string
   x: number
@@ -35,20 +26,7 @@ const VIEWPORT_W = 1280
 const VIEWPORT_H = 960
 const PADDING = 80
 const MAX_SCALE = 1
-// prose-sm: 14px font with ~1.71 line-height, plus paragraph spacing.
-const TEXT_FONT_SIZE = 14
-const TEXT_LINE_HEIGHT = 1.7142857
 const READY_TIMEOUT_MS = 8_000
-
-function estimateTextHeight(text: string, width: number): number {
-  if (!text) return TEXT_FONT_SIZE * TEXT_LINE_HEIGHT
-  const charsPerLine = Math.max(1, Math.floor(width / (TEXT_FONT_SIZE * 0.55)))
-  let lines = 0
-  for (const para of text.split("\n")) {
-    lines += Math.max(1, Math.ceil(para.length / charsPerLine))
-  }
-  return Math.ceil(lines * TEXT_FONT_SIZE * TEXT_LINE_HEIGHT)
-}
 
 declare global {
   interface Window {
@@ -75,11 +53,9 @@ function bbox(rects: Rect[]) {
 
 export function RenderCanvas({
   artboards,
-  textLayers,
   documents = [],
 }: {
   artboards: RenderArtboard[]
-  textLayers: RenderTextLayer[]
   documents?: RenderDocument[]
 }) {
   const target = artboards.filter((a) => a.iframeUrl)
@@ -110,13 +86,7 @@ export function RenderCanvas({
     })
   }
 
-  const textRects: Rect[] = textLayers.map((t) => ({
-    x: t.x,
-    y: t.y,
-    width: t.width,
-    height: estimateTextHeight(t.text, t.width),
-  }))
-  const allRects: Rect[] = [...artboards, ...textRects, ...documents]
+  const allRects: Rect[] = [...artboards, ...documents]
 
   if (allRects.length === 0) {
     return (
@@ -208,21 +178,6 @@ export function RenderCanvas({
               </div>
             )}
           </div>
-        ))}
-        {textLayers.map((t) => (
-          <div
-            key={t.id}
-            className="tiptap prose prose-sm max-w-none"
-            style={{
-              position: "absolute",
-              left: t.x - box.minX,
-              top: t.y - box.minY,
-              width: t.width,
-              color: "#18181b",
-              wordBreak: "break-word",
-            }}
-            dangerouslySetInnerHTML={{ __html: t.html }}
-          />
         ))}
         {documents.map((d) => (
           <div

@@ -45,14 +45,9 @@ export function useYjs(): YjsConnection {
   return ctx
 }
 
-export function useTextFragment(layerId: string): Y.XmlFragment {
-  const { doc } = useYjs()
-  return useMemo(() => doc.getXmlFragment(`text-${layerId}`), [doc, layerId])
-}
-
 /**
- * Y.XmlFragment for a document layer's body. Same pattern as text layers,
- * keyed under `doc-${layerId}` so the two namespaces never collide.
+ * Y.XmlFragment for a document layer's body. Owned by the TipTap editor
+ * inside `DocumentLayer` and synced via the room's Yjs doc.
  */
 export function useDocumentFragment(layerId: string): Y.XmlFragment {
   const { doc } = useYjs()

@@ -7,7 +7,6 @@ import type {
   ChatSessionData,
   DocumentLayerData,
   PlanData,
-  TextLayerData,
   ViewportData,
   WorkspaceData,
 } from "@/lib/types"
@@ -25,7 +24,6 @@ export const COLLECTION_KEYS = {
   agents: "sandboxes",
   artboards: "artboards",
   artboardGroups: "artboardGroups",
-  textLayers: "textLayers",
   documentLayers: "documentLayers",
   chatSessions: "chatSessions",
   plans: "plans",
@@ -225,7 +223,6 @@ export type RoomCollections = {
   agents: YjsCollection<AgentData>
   artboards: YjsCollection<ArtboardData>
   artboardGroups: YjsCollection<ArtboardGroupData>
-  textLayers: YjsCollection<TextLayerData>
   documentLayers: YjsCollection<DocumentLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
@@ -259,10 +256,6 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     artboardGroups: new YjsCollection<ArtboardGroupData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.artboardGroups),
-    ),
-    textLayers: new YjsCollection<TextLayerData>(
-      doc,
-      ensureCollection(doc, COLLECTION_KEYS.textLayers),
     ),
     documentLayers: new YjsCollection<DocumentLayerData>(
       doc,
