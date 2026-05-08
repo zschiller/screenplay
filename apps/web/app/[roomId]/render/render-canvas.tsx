@@ -21,6 +21,16 @@ export type RenderTextLayer = {
   text: string
 }
 
+export type RenderDocument = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  title: string
+  html: string
+}
+
 const VIEWPORT_W = 1280
 const VIEWPORT_H = 960
 const PADDING = 80
@@ -66,9 +76,11 @@ function bbox(rects: Rect[]) {
 export function RenderCanvas({
   artboards,
   textLayers,
+  documents = [],
 }: {
   artboards: RenderArtboard[]
   textLayers: RenderTextLayer[]
+  documents?: RenderDocument[]
 }) {
   const target = artboards.filter((a) => a.iframeUrl)
   const targetCount = target.length
@@ -104,7 +116,7 @@ export function RenderCanvas({
     width: t.width,
     height: estimateTextHeight(t.text, t.width),
   }))
-  const allRects: Rect[] = [...artboards, ...textRects]
+  const allRects: Rect[] = [...artboards, ...textRects, ...documents]
 
   if (allRects.length === 0) {
     return (
@@ -211,6 +223,49 @@ export function RenderCanvas({
             }}
             dangerouslySetInnerHTML={{ __html: t.html }}
           />
+        ))}
+        {documents.map((d) => (
+          <div
+            key={d.id}
+            style={{
+              position: "absolute",
+              left: d.x - box.minX,
+              top: d.y - box.minY,
+              width: d.width,
+              height: d.height,
+              background: "white",
+              border: "1px solid #e4e4e7",
+              borderRadius: 6,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                padding: "8px 16px",
+                borderBottom: "1px solid #e4e4e7",
+                fontFamily: "system-ui, sans-serif",
+                fontSize: 16,
+                fontWeight: 600,
+                color: "#18181b",
+              }}
+            >
+              {d.title || "Untitled"}
+            </div>
+            <div
+              className="tiptap prose prose-sm max-w-none"
+              style={{
+                padding: "12px 16px",
+                color: "#18181b",
+                wordBreak: "break-word",
+                flex: 1,
+                overflow: "hidden",
+              }}
+              dangerouslySetInnerHTML={{ __html: d.html }}
+            />
+          </div>
         ))}
       </div>
     </div>

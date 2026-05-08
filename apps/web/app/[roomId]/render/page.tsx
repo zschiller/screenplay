@@ -113,11 +113,12 @@ export default async function RenderPage({
   const room = await getRoom(roomId)
   if (!room) notFound()
 
-  const { artboards, textLayers } = await readRoomDoc(roomId, (c) => {
+  const { artboards, textLayers, documents } = await readRoomDoc(roomId, (c) => {
     const agents = c.agents.toMap()
     const allArtboards = c.artboards.toArray()
+    const allDocuments = c.documentLayers.toArray()
     const allGroups = c.artboardGroups.toArray()
-    const layouts = computeArtboardLayouts(allGroups, allArtboards)
+    const layouts = computeArtboardLayouts(allGroups, allArtboards, allDocuments)
     const arts: RenderArtboard[] = allArtboards.flatMap((a) => {
       const layout = layouts.get(a.id)
       if (!layout) return []
@@ -146,13 +147,27 @@ export default async function RenderPage({
         text: fragmentToText(fragment),
       }
     })
-    return { artboards: arts, textLayers: txt }
+    const docs = allDocuments.flatMap((d) => {
+      const layout = layouts.get(d.id)
+      if (!layout) return []
+      const fragment = c.doc.getXmlFragment(`doc-${d.id}`)
+      return [{
+        id: d.id,
+        x: layout.x,
+        y: layout.y,
+        width: d.width,
+        height: d.height,
+        title: d.title || "",
+        html: fragmentToHtml(fragment),
+      }]
+    })
+    return { artboards: arts, textLayers: txt, documents: docs }
   })
 
   return (
     <>
       <style>{`nextjs-portal { display: none !important; }`}</style>
-      <RenderCanvas artboards={artboards} textLayers={textLayers} />
+      <RenderCanvas artboards={artboards} textLayers={textLayers} documents={documents} />
     </>
   )
 }

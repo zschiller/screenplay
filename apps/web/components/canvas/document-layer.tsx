@@ -22,15 +22,33 @@ interface DocumentLayerProps {
   spaceHeld: boolean
   userName: string
   userColor: string
+  /** Visual order within the parent ArtboardGroup's flex flow. */
+  flexOrder?: number
+  /** Reorder-drag translate, applied when this doc is being dragged in-flow. */
+  dragTranslateX?: number
+  dragTranslateY?: number
+  /** When the user holds meta to "pop" this doc out of its group, the
+   *  ArtboardGroup parent feeds back a position so it floats at the cursor. */
+  dragPopped?: { left: number; top: number }
   onSelect: (id: string, shiftKey: boolean) => void
-  onMove: (id: string, x: number, y: number) => void
+  /** Move the parent group by (dx, dy) — same contract as Artboard.onMoveGroup. */
+  onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
-  onResize: (id: string, x: number, y: number, width: number, height: number) => void
+  /** Adjust this doc's own width/height; the group anchor (x/y) shifts in the
+   *  parent when the drag came from the left/top edge. */
+  onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onTitleChange: (id: string, title: string) => void
   onStartEdit: (id: string) => void
   onStopEdit: () => void
 }
 
+/**
+ * A Notion-style document tile rendered as a flex child of its parent
+ * ArtboardGroup — exactly the same positioning model as Artboard, so docs
+ * and frames mix seamlessly inside a group's row. Body content is a TipTap
+ * editor bound to a Yjs XmlFragment (`doc-${id}`), so editing is
+ * collaborative with live remote cursors.
+ */
 export function DocumentLayer({
   layer,
   zoom,
@@ -40,8 +58,12 @@ export function DocumentLayer({
   spaceHeld,
   userName,
   userColor,
+  flexOrder,
+  dragTranslateX,
+  dragTranslateY,
+  dragPopped,
   onSelect,
-  onMove,
+  onMoveGroup,
   onMoveSelected,
   onResize,
   onTitleChange,
@@ -53,9 +75,9 @@ export function DocumentLayer({
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // The Mention extension's suggestion callback closes over its initial value,
-  // so route the live document list through a ref to get fresh titles every
-  // keystroke. Excludes this document so it can't @-mention itself.
+  // Mention suggestion needs the live document list every keystroke, but the
+  // editor closes over its initial config. Funnel through refs so the
+  // popover always reflects the current titles and excludes self-references.
   const documentLayers = useDocumentLayers()
   const documentLayersRef = useRef<DocumentLayerData[]>(documentLayers)
   documentLayersRef.current = documentLayers
@@ -133,13 +155,10 @@ export function DocumentLayer({
 
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
-      if (selected) {
-        onMoveSelected(dx, dy)
-      } else {
-        onMove(layer.id, layer.x + dx, layer.y + dy)
-      }
+      if (selected) onMoveSelected(dx, dy)
+      else onMoveGroup(dx, dy)
     },
-    [layer.id, layer.x, layer.y, selected, onMove, onMoveSelected],
+    [selected, onMoveGroup, onMoveSelected],
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -156,13 +175,11 @@ export function DocumentLayer({
     },
   })
 
-  // Track committed dimensions across resize handle pointer events. Reset on
-  // every pointerdown so a follow-up resize starts from the current layout
-  // rather than the stale value from the previous drag. Lazily initialized
-  // from `layer.*` on the first move tick — same pattern as text-layer's
-  // `resizeWidthRef`, which keeps the inline pointer handlers free of
-  // prop reads during render.
-  const resizeStateRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  // Each gesture's deltas need to operate on the doc's size at the start of
+  // the drag, not the live (already-shrunk) size — otherwise hitting the
+  // minimum makes subsequent moves act on the clamped value. Same pattern
+  // as Artboard's resize accumulator.
+  const resizeStartRef = useRef<{ w: number; h: number } | null>(null)
 
   const handleResize = useCallback(
     (
@@ -172,57 +189,33 @@ export function DocumentLayer({
       dw: number,
       dh: number,
     ) => {
-      if (resizeStateRef.current == null) {
-        resizeStateRef.current = {
-          x: layer.x,
-          y: layer.y,
-          w: layer.width,
-          h: layer.height,
-        }
-      }
-      const start = resizeStateRef.current
-      const minW = 200
-      const minH = 120
-      let nextW = start.w + dw
-      let nextH = start.h + dh
-      let nextX = start.x + dx
-      let nextY = start.y + dy
-      if (nextW < minW) {
-        if (dx !== 0) nextX = start.x + (start.w - minW)
-        nextW = minW
-      }
-      if (nextH < minH) {
-        if (dy !== 0) nextY = start.y + (start.h - minH)
-        nextH = minH
-      }
-      resizeStateRef.current = { x: nextX, y: nextY, w: nextW, h: nextH }
-      onResize(layer.id, Math.round(nextX), Math.round(nextY), Math.round(nextW), Math.round(nextH))
+      onResize(layer.id, dx, dy, dw, dh)
     },
-    [layer.id, layer.x, layer.y, layer.width, layer.height, onResize],
+    [layer.id, onResize],
   )
 
   const { makeHandleProps } = useArtboardResize({
     zoom,
     onResize: handleResize,
+    onResizeStart: () => {
+      resizeStartRef.current = { w: layer.width, h: layer.height }
+    },
+    onResizeEnd: () => {
+      resizeStartRef.current = null
+    },
   })
-
-  const wrapHandleProps = (side: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw") => {
-    const props = makeHandleProps(side)
-    return {
-      ...props,
-      onPointerDown: (e: React.PointerEvent) => {
-        resizeStateRef.current = null
-        props.onPointerDown(e)
-      },
-      onPointerUp: (e: React.PointerEvent) => {
-        resizeStateRef.current = null
-        props.onPointerUp(e)
-      },
-    }
-  }
 
   const HANDLE = 6 / zoom
   const hHalf = HANDLE / 2
+
+  // When the user holds meta to pop the doc out of its group, the parent
+  // ArtboardGroup absolutely-positions us at the cursor; otherwise we sit
+  // in the flex flow and `dragTranslate{X,Y}` is layered on as a transform
+  // during a non-popped reorder drag.
+  const transform =
+    dragTranslateX || dragTranslateY
+      ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
+      : undefined
 
   return (
     <div
@@ -230,14 +223,18 @@ export function DocumentLayer({
       ref={rootRef}
       data-document-layer
       data-doc-id={layer.id}
-      className="absolute flex flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm"
+      className="flex flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm"
       style={{
-        left: layer.x,
-        top: layer.y,
         width: layer.width,
         height: layer.height,
+        order: flexOrder,
+        position: dragPopped ? "absolute" : undefined,
+        left: dragPopped?.left,
+        top: dragPopped?.top,
+        transform,
         outline: selected ? "1px solid #d946ef" : undefined,
         outlineOffset: selected ? `${1 / zoom}px` : undefined,
+        flexShrink: 0,
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
@@ -293,43 +290,42 @@ export function DocumentLayer({
           {/* Edge handles */}
           <div
             className="absolute cursor-ns-resize touch-none"
-            {...wrapHandleProps("n")}
+            {...makeHandleProps("n")}
             style={{ top: -hHalf, left: 0, right: 0, height: HANDLE }}
           />
           <div
             className="absolute cursor-ns-resize touch-none"
-            {...wrapHandleProps("s")}
+            {...makeHandleProps("s")}
             style={{ bottom: -hHalf, left: 0, right: 0, height: HANDLE }}
           />
           <div
             className="absolute cursor-ew-resize touch-none"
-            {...wrapHandleProps("w")}
+            {...makeHandleProps("w")}
             style={{ left: -hHalf, top: 0, bottom: 0, width: HANDLE }}
           />
           <div
             className="absolute cursor-ew-resize touch-none"
-            {...wrapHandleProps("e")}
+            {...makeHandleProps("e")}
             style={{ right: -hHalf, top: 0, bottom: 0, width: HANDLE }}
           />
-          {/* Corner handles */}
           <div
             className="absolute cursor-nwse-resize touch-none"
-            {...wrapHandleProps("nw")}
+            {...makeHandleProps("nw")}
             style={{ top: -hHalf, left: -hHalf, width: HANDLE, height: HANDLE }}
           />
           <div
             className="absolute cursor-nesw-resize touch-none"
-            {...wrapHandleProps("ne")}
+            {...makeHandleProps("ne")}
             style={{ top: -hHalf, right: -hHalf, width: HANDLE, height: HANDLE }}
           />
           <div
             className="absolute cursor-nesw-resize touch-none"
-            {...wrapHandleProps("sw")}
+            {...makeHandleProps("sw")}
             style={{ bottom: -hHalf, left: -hHalf, width: HANDLE, height: HANDLE }}
           />
           <div
             className="absolute cursor-nwse-resize touch-none"
-            {...wrapHandleProps("se")}
+            {...makeHandleProps("se")}
             style={{ bottom: -hHalf, right: -hHalf, width: HANDLE, height: HANDLE }}
           />
         </>
