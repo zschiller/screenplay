@@ -31,7 +31,8 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ChatSessionData } from "@/lib/types"
+import { FileText } from "lucide-react"
+import type { AgentData, ChatSessionData, DocumentLayerData } from "@/lib/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
@@ -103,10 +104,23 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
   )
 }
 
+/**
+ * The chat panel can target one of:
+ *  - an agent (sandbox-backed flow): file editing, git, PR creation, logs.
+ *  - a document layer: doc-body editing, no sandbox / no logs.
+ * Tagged so callers can keep the picker uniform (same dropdown lists both
+ * kinds) but the panel internals can fork on `target.kind`.
+ */
+export type ChatPanelTarget =
+  | { kind: "agent"; agent: AgentData }
+  | { kind: "document"; document: DocumentLayerData }
+
 interface ChatPanelProps {
-  agent: AgentData
+  target: ChatPanelTarget
   agents: AgentData[]
+  documents: DocumentLayerData[]
   onSelectAgent: (id: string) => void
+  onSelectDocument: (id: string) => void
   chatSessions: ChatSessionData[]
   selectedChatId: string | null
   roomId: string
@@ -134,9 +148,11 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({
-  agent,
+  target,
   agents,
+  documents,
   onSelectAgent,
+  onSelectDocument,
   chatSessions,
   selectedChatId,
   roomId,
@@ -155,6 +171,9 @@ export function ChatPanel({
   onLogsReady,
   disableBranchPicker,
 }: ChatPanelProps) {
+  const isAgentTarget = target.kind === "agent"
+  const agent = target.kind === "agent" ? target.agent : null
+  const document = target.kind === "document" ? target.document : null
   const openChats = useMemo(
     () =>
       [...chatSessions]
@@ -183,7 +202,7 @@ export function ChatPanel({
   const displayPr: { url: string; number: string } | null =
     chatHistoryPr ??
     (branchPr ? { url: branchPr.url, number: String(branchPr.number) } : null)
-  const isAgentBusy = agent.status === "creating" || agent.status === "starting"
+  const isAgentBusy = agent ? (agent.status === "creating" || agent.status === "starting") : false
   const allChatIds = useMemo(
     () => chatSessions.map((c) => c.id),
     [chatSessions],
@@ -192,33 +211,35 @@ export function ChatPanel({
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Reset the logs-visible flag whenever we switch to a different agent so
-  // a freshly-selected agent (whose LogsPanel is still fetching) doesn't
-  // inherit the previous agent's "logs tab open" state.
+  // Reset the logs-visible flag whenever the chat target changes so a
+  // freshly-selected target (whose LogsPanel is still fetching, if any)
+  // doesn't inherit the previous target's "logs tab open" state.
+  const targetKey = agent?.id ?? document?.id ?? ""
   useEffect(() => {
     setShowLogs(false)
-  }, [agent.id])
+  }, [targetKey])
 
   // Fired by LogsPanel the first time it successfully connects to the stream.
   // We only auto-open logs at this point (not on agent.status === "starting")
   // so the panel doesn't flash before there's anything to show.
   const handleLogsConnected = useCallback(() => {
-    if (agent.status === "creating" || agent.status === "starting") {
+    if (agent && (agent.status === "creating" || agent.status === "starting")) {
       setShowLogs(true)
       onLogsReady?.()
     }
-  }, [agent.status, onLogsReady])
+  }, [agent, onLogsReady])
 
   // Once setup finishes (status flips from creating/starting → running), switch
-  // back from the auto-opened logs tab to the chat tab.
-  const prevStatusRef = useRef(agent.status)
+  // back from the auto-opened logs tab to the chat tab. Only relevant for
+  // agent targets — doc targets have no setup phase.
+  const prevStatusRef = useRef(agent?.status)
   useEffect(() => {
     const prev = prevStatusRef.current
-    if ((prev === "creating" || prev === "starting") && agent.status === "running") {
+    if (agent && (prev === "creating" || prev === "starting") && agent.status === "running") {
       setShowLogs(false)
     }
-    prevStatusRef.current = agent.status
-  }, [agent.status])
+    prevStatusRef.current = agent?.status
+  }, [agent])
 
   const handleCreatePr = () => {
     if (!activeTab) return
@@ -259,24 +280,33 @@ export function ChatPanel({
           </TooltipProvider>
         )}
         {disableBranchPicker ? (
-          <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+          agent ? (
+            <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+          ) : document ? (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-1.5 py-0 text-[11px]">
+              <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="truncate max-w-[14rem]">{document.title || "Untitled"}</span>
+            </span>
+          ) : null
         ) : (
-          <AgentPicker
+          <TargetPicker
             agents={agents}
-            currentAgentId={agent.id}
-            currentBranch={agent.branch}
-            currentColorKey={agent.id}
-            onSelect={onSelectAgent}
+            documents={documents}
+            target={target}
+            onSelectAgent={onSelectAgent}
+            onSelectDocument={onSelectDocument}
           />
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          {diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
+          {/* Diff stats and the PR button are agent-only — there's no
+              git/branch concept for a doc target. */}
+          {isAgentTarget && diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
             <span className="flex items-center gap-1 font-mono text-[10px]">
               <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
               <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
             </span>
           )}
-          {displayPr ? (
+          {isAgentTarget && (displayPr ? (
             <Button size="xs" variant="outline" asChild>
               <a
                 href={displayPr.url}
@@ -306,20 +336,22 @@ export function ChatPanel({
               <GitPullRequest />
               Create PR
             </Button>
-          )}
+          ))}
         </div>
       </div>
       <div className="flex border-b border-border bg-background">
         <ScrollArea orientation="horizontal" className="flex-1 min-w-0">
           <TabsList variant="line" className="h-9 px-2">
-            <TabsTrigger
-              value={LOGS_TAB_VALUE}
-              className="shrink-0 px-1.5"
-              aria-label="Sandbox logs"
-              title="Sandbox logs"
-            >
-              <Logs className="size-3.5" />
-            </TabsTrigger>
+            {isAgentTarget && (
+              <TabsTrigger
+                value={LOGS_TAB_VALUE}
+                className="shrink-0 px-1.5"
+                aria-label="Sandbox logs"
+                title="Sandbox logs"
+              >
+                <Logs className="size-3.5" />
+              </TabsTrigger>
+            )}
             {openChats.map((chat) => (
               <TabsTrigger
                 key={chat.id}
@@ -413,18 +445,24 @@ export function ChatPanel({
         )}
       </div>
 
-      <TabsContent
-        value={LOGS_TAB_VALUE}
-        className="flex-1 overflow-hidden data-[state=inactive]:hidden"
-        forceMount
-      >
-        <LogsPanel sandboxName={agent.sandboxName} onConnected={handleLogsConnected} />
-      </TabsContent>
+      {agent && (
+        <TabsContent
+          value={LOGS_TAB_VALUE}
+          className="flex-1 overflow-hidden data-[state=inactive]:hidden"
+          forceMount
+        >
+          <LogsPanel sandboxName={agent.sandboxName} onConnected={handleLogsConnected} />
+        </TabsContent>
+      )}
 
       {openChats.map((chat) => {
-        // First chat for this agent (used for the auto branch/chat naming).
+        // First chat for this target — drives auto branch/chat naming on the
+        // agent flow; for doc chats it's just used to skip naming logic.
         const isFirst = !chatSessions.some(
-          (c) => c.agentId === chat.agentId && c.id !== chat.id,
+          (c) =>
+            c.id !== chat.id &&
+            ((chat.agentId && c.agentId === chat.agentId) ||
+              (chat.documentId && c.documentId === chat.documentId)),
         )
         return (
           <TabsContent
@@ -436,11 +474,12 @@ export function ChatPanel({
             <AgentChat
               chatId={chat.id}
               roomId={roomId}
-              sandboxId={agent.id}
-              sandboxName={agent.sandboxName}
-              branch={agent.branch}
+              sandboxId={agent?.id}
+              sandboxName={agent?.sandboxName}
+              branch={agent?.branch}
+              documentId={document?.id}
               isFirstChat={isFirst}
-              autoNamedBranch={agent.autoNamedBranch}
+              autoNamedBranch={agent?.autoNamedBranch}
               planMode={chat.planMode}
               onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
               model={chat.model}
@@ -452,6 +491,103 @@ export function ChatPanel({
         )
       })}
     </Tabs>
+  )
+}
+
+/**
+ * Unified picker for the chat panel's target. Lists every available agent
+ * branch *and* every document layer, so a user can pivot the panel from
+ * "edit code on branch X" to "edit document Y" in one menu. The current
+ * pill renders as a branch badge or a document tile depending on the
+ * current target's kind.
+ */
+function TargetPicker({
+  agents,
+  documents,
+  target,
+  onSelectAgent,
+  onSelectDocument,
+}: {
+  agents: AgentData[]
+  documents: DocumentLayerData[]
+  target: ChatPanelTarget
+  onSelectAgent: (id: string) => void
+  onSelectDocument: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-0.5">
+          {target.kind === "agent" ? (
+            <BranchBadge
+              branch={target.agent.branch}
+              colorKey={target.agent.id}
+              className="text-[11px] py-0 px-1.5"
+            />
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-1.5 py-0 text-[11px]">
+              <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="truncate max-w-[14rem]">{target.document.title || "Untitled"}</span>
+            </span>
+          )}
+          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-0" side="bottom" align="start">
+        <Command>
+          <CommandInput placeholder="Search branches and documents..." />
+          <CommandList>
+            <CommandEmpty>No matches.</CommandEmpty>
+            {pickableAgents.length > 0 && (
+              <CommandGroup heading="Branches">
+                {pickableAgents.map((a) => {
+                  const isBusy = a.status === "creating" || a.status === "starting"
+                  const isCurrent = target.kind === "agent" && a.id === target.agent.id
+                  return (
+                    <CommandItem
+                      key={a.id}
+                      value={`branch ${a.branch}`}
+                      onSelect={() => {
+                        onSelectAgent(a.id)
+                        setOpen(false)
+                      }}
+                    >
+                      <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
+                      <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                      {isBusy && <Spinner className="ml-auto size-3" />}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
+            {documents.length > 0 && (
+              <CommandGroup heading="Documents">
+                {documents.map((d) => {
+                  const isCurrent = target.kind === "document" && d.id === target.document.id
+                  return (
+                    <CommandItem
+                      key={d.id}
+                      value={`doc ${d.title || "untitled"}`}
+                      onSelect={() => {
+                        onSelectDocument(d.id)
+                        setOpen(false)
+                      }}
+                    >
+                      <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
+                      <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{d.title || "Untitled"}</span>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 

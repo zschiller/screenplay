@@ -52,9 +52,22 @@ export type AgentData = {
   discoveredRoutes?: { route: string; label: string }[]
 }
 
+/**
+ * A chat session targets exactly one of:
+ *  - an *agent* (the existing flow): edits files in the agent's sandbox,
+ *    drives a branch, etc. — `agentId` is set.
+ *  - a *document* layer: edits the document body / title via doc-mutation
+ *    tools — `documentId` is set, `agentId` is undefined.
+ *
+ * Multiple chat tabs can target the same doc (or agent), so a user can
+ * keep parallel conversations going against the same document.
+ */
 export type ChatSessionData = {
   id: string
-  agentId: string
+  /** Set when the chat targets an agent. Mutually exclusive with `documentId`. */
+  agentId?: string
+  /** Set when the chat targets a document layer. */
+  documentId?: string
   label: string
   createdAt: number
   isStreaming?: boolean

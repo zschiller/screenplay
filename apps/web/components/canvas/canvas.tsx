@@ -71,7 +71,7 @@ import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { AgentSidebar } from "@/components/panels/agent-sidebar"
-import { ChatPanel } from "@/components/agent/chat-panel"
+import { ChatPanel, type ChatPanelTarget } from "@/components/agent/chat-panel"
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
   ResizablePanelGroup,
@@ -172,6 +172,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // `focusedArtboardId` — toggling one clears the other.
   const [createFlowArtboardId, setCreateFlowArtboardId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  /**
+   * When a chat tab is targeting a document layer (instead of an agent's
+   * branch), the panel pivots into "doc mode" — the picker shows a doc
+   * pill, the tools are doc-mutation tools, etc. Mutually exclusive with
+   * `selectedAgentId` from the panel's POV.
+   */
+  const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] = useState<string | null>(null)
   // Agents created this session whose sandbox isn't streaming logs yet.
   // A LogProbe is rendered for each; on ready we flip selection and drop
   // the id. No cleanup effect — filtering in render handles deletions,
@@ -181,6 +188,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // Per-workspace / per-agent memory so switching back restores prior selection
   const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
+  /** Per-document memory: switching back to a doc target restores the last open chat tab. */
+  const selectedChatByDocumentRef = useRef<Record<string, string>>({})
   const inspectHandlersRef = useRef<{
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
@@ -1962,7 +1971,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleCreateChat = useCallback(
     (agentId: string) => {
-      const existing = chatSessions.filter((c) => c.agentId === agentId)
       const id = nanoid()
       const data: ChatSessionData = {
         id,
@@ -1974,7 +1982,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       setSelectedAgentId(agentId)
       setSelectedChatId(id)
     },
-    [chatSessions, addChatSession],
+    [addChatSession],
+  )
+
+  /**
+   * Create a new chat tab targeting a document layer. Mirrors
+   * `handleCreateChat` but stamps `documentId` instead of `agentId` so the
+   * server picks the doc-targeted flow when this chat first sends a
+   * message.
+   */
+  const handleCreateDocumentChat = useCallback(
+    (documentId: string) => {
+      const id = nanoid()
+      addChatSession(id, {
+        id,
+        documentId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      })
+      setSelectedAgentId(null)
+      setSelectedDocumentChatTargetId(documentId)
+      setSelectedChatId(id)
+      selectedChatByDocumentRef.current[documentId] = id
+    },
+    [addChatSession],
   )
 
   const handleSubmitAsPlan = useCallback(
@@ -2227,9 +2258,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       setSelectedChatId(chatId)
       if (chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) {
+        if (!chat) return
+        if (chat.agentId) {
           setSelectedAgentId(chat.agentId)
           selectedChatByAgentRef.current[chat.agentId] = chatId
+        }
+        if (chat.documentId) {
+          setSelectedDocumentChatTargetId(chat.documentId)
+          selectedChatByDocumentRef.current[chat.documentId] = chatId
         }
       }
     },
@@ -3859,7 +3895,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onRenameArtboardGroup={renameArtboardGroup}
           onRemoveArtboardGroup={removeArtboardGroup}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-          activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt).map((c) => c.agentId))}
+          activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt && c.agentId).map((c) => c.agentId as string))}
           chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
           branchPrs={branchPrs}
         />
@@ -4564,29 +4600,64 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         panelRef={chatPanelRef}
         onResize={(size) => setChatCollapsed(size.inPixels === 0)}
       >
-        {selectedAgent?.sandboxName ? (
-          <ChatPanel
-            agent={selectedAgent}
-            agents={agents}
-            onSelectAgent={handleSelectAgent}
-            chatSessions={chatSessions.filter((c) => c.agentId === selectedAgentId)}
-            selectedChatId={selectedChatId}
-            roomId={roomId}
-            onSelectChat={handleSelectChat}
-            onCreateChat={() => handleCreateChat(selectedAgent.id)}
-            onRenameChat={handleRenameChat}
-            onRemoveChat={handleRemoveChat}
-            onCloseChat={handleCloseChat}
-            onReopenChat={handleReopenChat}
-            onBranchRename={(branch) => handleBranchRename(selectedAgent.id, branch)}
-            onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
-            onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
-            diffStats={selectedAgentId ? diffStats.get(selectedAgentId) : undefined}
-            branchPr={selectedAgentId ? branchPrs.get(selectedAgentId) ?? null : null}
-            onCollapse={() => chatPanelRef.current?.collapse()}
-            onLogsReady={handleLogsReady}
-          />
-        ) : (
+        {(() => {
+          // Resolve the panel's current target: an agent (sandbox-backed)
+          // when one is selected and ready, otherwise the doc-chat target
+          // when one was picked from the dropdown. Falls through to the
+          // empty-state below when neither is set.
+          const docTarget = selectedDocumentChatTargetId
+            ? documentLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
+            : null
+          const target: ChatPanelTarget | null =
+            selectedAgent?.sandboxName
+              ? { kind: "agent", agent: selectedAgent }
+              : docTarget
+                ? { kind: "document", document: docTarget }
+                : null
+          if (!target) return null
+          const filteredSessions = chatSessions.filter((c) => {
+            if (target.kind === "agent") return c.agentId === target.agent.id
+            return c.documentId === target.document.id
+          })
+          return (
+            <ChatPanel
+              target={target}
+              agents={agents}
+              documents={documentLayers}
+              onSelectAgent={(id) => {
+                setSelectedDocumentChatTargetId(null)
+                handleSelectAgent(id)
+              }}
+              onSelectDocument={(id) => {
+                setSelectedAgentId(null)
+                setSelectedDocumentChatTargetId(id)
+                const lastChat = selectedChatByDocumentRef.current[id]
+                setSelectedChatId(lastChat ?? null)
+              }}
+              chatSessions={filteredSessions}
+              selectedChatId={selectedChatId}
+              roomId={roomId}
+              onSelectChat={handleSelectChat}
+              onCreateChat={() => {
+                if (target.kind === "agent") handleCreateChat(target.agent.id)
+                else handleCreateDocumentChat(target.document.id)
+              }}
+              onRenameChat={handleRenameChat}
+              onRemoveChat={handleRemoveChat}
+              onCloseChat={handleCloseChat}
+              onReopenChat={handleReopenChat}
+              onBranchRename={(branch) => {
+                if (target.kind === "agent") handleBranchRename(target.agent.id, branch)
+              }}
+              onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
+              onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
+              diffStats={target.kind === "agent" ? diffStats.get(target.agent.id) : undefined}
+              branchPr={target.kind === "agent" ? branchPrs.get(target.agent.id) ?? null : null}
+              onCollapse={() => chatPanelRef.current?.collapse()}
+              onLogsReady={handleLogsReady}
+            />
+          )
+        })() || (
           <div className="flex h-full flex-col bg-background">
             <div className="flex h-12 items-center bg-background px-3">
               <TooltipProvider>

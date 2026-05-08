@@ -8,7 +8,8 @@ import {
 } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "@/lib/agent/tool-executor"
-import { buildAgentTools } from "./tools"
+import { buildAgentTools, type AgentTools } from "./tools"
+import type { DocumentTools } from "./document-tools"
 import {
   appendMessages,
   endRun,
@@ -26,7 +27,17 @@ export interface RunAgentLoopOptions {
   roomId: string
   systemPrompt: string
   model: string
-  toolCtx: ToolContext
+  /**
+   * Tool context for the default sandbox-backed toolset. Required when
+   * `tools` is omitted; ignored when callers supply their own tools (e.g.
+   * the document-targeted flow).
+   */
+  toolCtx?: ToolContext
+  /**
+   * Pre-built tools object. Defaults to `buildAgentTools(toolCtx)`. Pass an
+   * alternate set (e.g. document-mutation tools) to retarget the loop.
+   */
+  tools?: AgentTools | DocumentTools
   /** Full conversation, including the just-appended user message or tool result. */
   messages: ModelMessage[]
 }
@@ -43,7 +54,13 @@ export interface RunAgentLoopOptions {
 export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   const { chatId, runId, roomId, systemPrompt, model, toolCtx, messages } = opts
   const broadcaster = new StreamBroadcaster(roomId, chatId)
-  const tools = buildAgentTools(toolCtx)
+  const tools =
+    opts.tools ??
+    (toolCtx
+      ? buildAgentTools(toolCtx)
+      : (() => {
+          throw new Error("runAgentLoop: either `tools` or `toolCtx` must be provided")
+        })())
 
   // Watchdog: poll the abort flag and trigger AbortController if /stop has
   // flipped it since we started. Cleared in the finally block.

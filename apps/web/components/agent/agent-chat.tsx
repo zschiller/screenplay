@@ -137,9 +137,12 @@ function extractTextAndMentions(json: JSONContent | undefined): {
 interface AgentChatProps {
   chatId: string
   roomId: string
-  sandboxId: string
-  sandboxName: string
-  branch: string
+  /** Sandbox-backed target. Either this or `documentId` is set. */
+  sandboxId?: string
+  sandboxName?: string
+  branch?: string
+  /** Document-layer target. */
+  documentId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
@@ -155,6 +158,7 @@ export function AgentChat({
   roomId,
   sandboxName,
   branch,
+  documentId,
   isFirstChat,
   autoNamedBranch,
   planMode,
@@ -170,7 +174,7 @@ export function AgentChat({
     isLoadingHistory,
     sendMessage,
     stopMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, documentId, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)

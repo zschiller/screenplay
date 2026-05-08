@@ -1,10 +1,12 @@
 import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
-import { buildAgentSystemPrompt } from "@/lib/agent/config"
+import { buildAgentSystemPrompt, buildDocumentSystemPrompt } from "@/lib/agent/config"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
+import { buildDocumentTools } from "@/lib/agent/document-tools"
+import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
@@ -30,8 +32,11 @@ export const maxDuration = 300
 interface RequestBody {
   roomId: string
   chatId: string
-  sandboxName: string
-  branch: string
+  /** Required when the chat targets an agent (sandbox-backed flow). */
+  sandboxName?: string
+  branch?: string
+  /** Required when the chat targets a document layer (no sandbox). */
+  documentId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -49,14 +54,88 @@ export async function POST(req: Request) {
     chatId,
     sandboxName,
     branch,
+    documentId,
     message,
     isFirstChat,
     autoNamedBranch,
     planMode,
     model,
   } = body
-  if (!roomId || !chatId || !sandboxName || !message) {
+  if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
+  }
+  if (!documentId && !sandboxName) {
+    return new Response("Missing target: documentId or sandboxName", { status: 400 })
+  }
+
+  // Doc-targeted chats run a separate, smaller flow — no sandbox, no
+  // branch naming, no plan mode. Tools mutate the document body via Yjs
+  // directly. Branch in early so the agent-flow code below stays focused
+  // on the sandbox case.
+  if (documentId) {
+    const target = await readRoomDoc(roomId, ({ documentLayers, doc }) => {
+      const layer = documentLayers.get(documentId)
+      if (!layer) return null
+      const fragment = doc.getXmlFragment(`doc-${documentId}`)
+      const peers = documentLayers
+        .toArray()
+        .filter((d) => d.id !== documentId)
+        .map((d) => ({ id: d.id, title: d.title }))
+      return {
+        title: layer.title,
+        body: fragmentToPlainText(fragment),
+        peers,
+      }
+    })
+    if (!target) return new Response("Document not found", { status: 404 })
+
+    const effectiveModel = model || DEFAULT_MODEL
+    const systemPrompt = buildDocumentSystemPrompt({
+      currentTitle: target.title,
+      currentBody: target.body,
+      peers: target.peers,
+    })
+
+    await upsertChat({
+      chatId,
+      roomId,
+      // No sandbox — pass an empty string so the persistence layer's NOT NULL
+      // constraint is satisfied; it's never read back for doc chats.
+      sandboxName: "",
+      model: effectiveModel,
+      systemPrompt,
+    })
+
+    const userText = planMode ? `[plan mode: enabled] ${message}` : message
+    const userMessage: ModelMessage = { role: "user", content: userText }
+    await appendMessage(chatId, userMessage)
+
+    const history = await loadChatHistory(chatId)
+    const runId = await startRun(chatId)
+    const tools = buildDocumentTools({ roomId, documentId })
+
+    after(async () => {
+      await broadcastSignal(roomId, chatId, "chat-stream-start")
+      const broadcaster = new StreamBroadcaster(roomId, chatId)
+      await broadcaster.onUserMessage(message)
+      await runAgentLoop({
+        chatId,
+        runId,
+        roomId,
+        systemPrompt,
+        model: effectiveModel,
+        tools,
+        messages: history,
+      })
+    })
+
+    return Response.json({ chatId, runId })
+  }
+
+  // Below this line: agent-targeted (sandbox) flow. `sandboxName` is
+  // guaranteed by the early-return above.
+  if (!sandboxName) {
+    return new Response("Missing sandboxName for agent-targeted chat", { status: 400 })
   }
 
   // First-message check: a chat is "new" if it has no prior messages. More

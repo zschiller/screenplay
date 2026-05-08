@@ -10,8 +10,11 @@ export type ChatState = {
 export interface SendMessageOptions {
   roomId: string
   chatId: string
-  sandboxName: string
-  branch: string
+  /** Sandbox-backed chat target. */
+  sandboxName?: string
+  branch?: string
+  /** Document-layer chat target — mutually exclusive with sandboxName. */
+  documentId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -219,6 +222,7 @@ class ChatStore {
           chatId: opts.chatId,
           sandboxName: opts.sandboxName,
           branch: opts.branch,
+          documentId: opts.documentId,
           message: opts.message,
           isFirstChat: opts.isFirstChat,
           autoNamedBranch: opts.autoNamedBranch,
