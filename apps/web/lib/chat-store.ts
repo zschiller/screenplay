@@ -24,11 +24,15 @@ export interface SendMessageOptions {
   onChatRename?: (label: string) => void
 }
 
-/** Envelope broadcast via Liveblocks to all clients in the room. */
+/**
+ * Envelope broadcast via the room Y.Doc to all clients. `id` is generated at
+ * the broadcast boundary (`broadcastChatEventViaDoc`) and lets clients dedup
+ * the same event when multiple subscribers feed it into the same store.
+ */
 export type ChatBroadcastEvent =
-  | { type: "chat-stream"; chatId: string; event: AgentStreamEvent }
-  | { type: "chat-stream-start"; chatId: string }
-  | { type: "chat-stream-end"; chatId: string }
+  | { type: "chat-stream"; chatId: string; id: string; event: AgentStreamEvent }
+  | { type: "chat-stream-start"; chatId: string; id: string }
+  | { type: "chat-stream-end"; chatId: string; id: string }
 
 const DEFAULT_STATE: ChatState = {
   messages: [],
@@ -49,13 +53,13 @@ async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
  * Merge a freshly-fetched server `history` with `live` messages already in
  * local state, when the live channel mutated state during the fetch.
  *
- * The Yjs replay in `useChatStreamEvents` always starts at the most recent
- * `chat-stream-start`, so when `live` is non-empty, `live[0]` (the first user
- * message) marks the start of the current turn. We anchor on that user message
- * to find where the current turn begins inside `history`, then take history's
- * past turns and live's tail (the in-flight current turn) — preserving past
- * turns that only history knows about while keeping the live state for the
- * in-flight turn intact.
+ * `useChatStreamEvents` only replays events from an in-progress stream
+ * (completed streams are skipped), so when `live` is non-empty, `live[0]`
+ * (the first user message) marks the start of the current turn. We anchor
+ * on that user message to find where the current turn begins inside
+ * `history`, then take history's past turns and live's tail (the in-flight
+ * current turn) — preserving past turns that only history knows about while
+ * keeping the live state for the in-flight turn intact.
  */
 function mergeHistoryWithLive(
   history: AgentMessage[],
@@ -97,6 +101,16 @@ class ChatStore {
    * (now-stale) server snapshot doesn't clobber live state.
    */
   private messagesEpoch = new Map<string, number>()
+
+  /**
+   * Set of broadcast-event ids already applied per chat. Both
+   * `components/canvas/canvas.tsx` and `components/play/player-chat-host.tsx`
+   * call `useChatStreamEvents` and route every event through this store, so
+   * we'd otherwise apply each event twice (and `tool_use`/`tool_result` have
+   * no per-event dedup of their own). React Strict Mode's double-invoked
+   * effects produce the same hazard. Trim entries on cleanup.
+   */
+  private appliedEventIds = new Map<string, Set<string>>()
 
   /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
   private callbacks = new Map<
@@ -289,6 +303,16 @@ class ChatStore {
 
   handleBroadcastEvent(event: ChatBroadcastEvent) {
     const chatId = event.chatId
+
+    if (event.id) {
+      let applied = this.appliedEventIds.get(chatId)
+      if (!applied) {
+        applied = new Set<string>()
+        this.appliedEventIds.set(chatId, applied)
+      }
+      if (applied.has(event.id)) return
+      applied.add(event.id)
+    }
 
     switch (event.type) {
       case "chat-stream-start":
@@ -505,6 +529,7 @@ class ChatStore {
     this.unreadChats.delete(chatId)
     this.callbacks.delete(chatId)
     this.messagesEpoch.delete(chatId)
+    this.appliedEventIds.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }

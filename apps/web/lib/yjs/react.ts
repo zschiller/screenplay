@@ -290,10 +290,20 @@ export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void
     const map = doc.getMap("streamEventsByChat") as Y.Map<Y.Array<ChatBroadcastEvent>>
     const cursors = new Map<string, number>()
 
+    /**
+     * Find the index to start replaying from for an in-progress stream. If
+     * the most recent stream signal is `chat-stream-end`, the stream is over
+     * and we skip the whole array — replaying a completed turn would
+     * duplicate messages that `/api/agent/history` already returns. If a
+     * `chat-stream-start` is the most recent signal, return its index so
+     * late joiners catch up on the events emitted so far.
+     */
     function findActiveStreamStart(arr: Y.Array<ChatBroadcastEvent>): number {
       const items = arr.toArray()
       for (let i = items.length - 1; i >= 0; i--) {
-        if (items[i]?.type === "chat-stream-start") return i
+        const t = items[i]?.type
+        if (t === "chat-stream-end") return items.length
+        if (t === "chat-stream-start") return i
       }
       return items.length
     }
