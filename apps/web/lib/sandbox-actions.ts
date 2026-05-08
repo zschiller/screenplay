@@ -2,7 +2,7 @@
 
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { sandboxProvider } from "@/lib/sandbox"
-import type { SandboxInstance, SandboxNetworkPolicy } from "@/lib/sandbox"
+import type { SandboxInstance, SandboxNetworkPolicy, SandboxSource } from "@/lib/sandbox"
 import { storeEnvVars, getEnvVars, deleteEnvVars } from "./env-store"
 import { createBranch, renameBranch } from "./github-actions"
 import type { WorkspaceData } from "./types"
@@ -501,9 +501,11 @@ export async function reconnectSandbox(
 }
 
 /**
- * Restart a sandbox by deleting and recreating it from scratch. Always
- * starts fresh — no snapshot reuse, no `git pull` over a stale tree — so
- * port allocations, env, and on-disk state always match the latest config.
+ * Restart a sandbox by snapshotting the current filesystem and booting a new
+ * VM from that snapshot. Preserves the working tree — including uncommitted
+ * local changes — across the restart, while still cycling the VM (fresh
+ * processes, fresh dev server, fresh port forwards). Falls back to a clean
+ * git clone if the old sandbox is gone or snapshotting fails.
  */
 export async function restartSandbox(
   sandboxName: string,
@@ -516,20 +518,32 @@ export async function restartSandbox(
     const safeEnv = await getEnvVars(sandboxName)
     const port = workspace.devServerPort
 
-    // Best-effort delete of the old sandbox. If it's already gone (snapshot
-    // expired, never existed), proceed straight to create.
+    // Force a snapshot of the existing sandbox before deleting it so the new
+    // VM can boot from the same filesystem state. snapshot() stops the VM as
+    // a side effect — we still delete() afterwards so the name is free for
+    // the new sandbox to claim. Either step may fail (sandbox missing,
+    // snapshot expired, provider hiccup); the create below falls back to a
+    // git source when no snapshotId is captured.
+    let snapshotId: string | undefined
     try {
       const old = await sandboxProvider.get({ name: sandboxName, resume: false })
-      await old.delete()
+      try {
+        const snap = await old.snapshot({ expiration: SNAPSHOT_EXPIRATION })
+        snapshotId = snap.snapshotId
+      } catch {}
+      try { await old.delete() } catch {}
     } catch {}
 
     const networkPolicy = buildNetworkPolicy()
     const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
+    const source: SandboxSource = snapshotId
+      ? { type: "snapshot", snapshotId }
+      : ghToken
+        ? { type: "git", url: workspace.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
+        : { type: "git", url: workspace.cloneUrl, revision: branch }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      source: ghToken
-        ? { type: "git", url: workspace.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
-        : { type: "git", url: workspace.cloneUrl, revision: branch },
+      source,
       ports: [port, port + PROXY_PORT_OFFSET],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
@@ -538,9 +552,21 @@ export async function restartSandbox(
       networkPolicy,
     })
 
-    // Mirror the create pipeline: deps + Claude Code in parallel, then git
-    // setup, then dev launch. Claude Code is best-effort — already swallows
-    // its own errors.
+    if (snapshotId) {
+      // Restored from snapshot — node_modules, git config, the credential
+      // helper, and the working tree (uncommitted changes included) all
+      // survived. Skip the setup/install/configure pipeline; just fetch new
+      // commits so they're visible to git, then relaunch the dev server.
+      // Don't `pull --ff-only` or reset — that would clobber the local
+      // changes the snapshot exists to preserve.
+      const fetchEnv = ghToken ? { SCREENPLAY_GH_TOKEN: ghToken } : undefined
+      await runLogged(sandbox, "git", ["fetch", "--prune"], { env: fetchEnv })
+      return await _launchDevAndProxy(sandbox, port, workspace.devScript, safeEnv)
+    }
+
+    // No snapshot available — fresh provision. Mirror the create pipeline:
+    // deps + Claude Code in parallel, then git setup, then dev launch.
+    // Claude Code is best-effort — already swallows its own errors.
     const setup = workspace.setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     const [setupResult] = await Promise.all([
