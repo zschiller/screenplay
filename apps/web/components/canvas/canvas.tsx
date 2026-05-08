@@ -4608,16 +4608,27 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const docTarget = selectedDocumentChatTargetId
             ? documentLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
             : null
+          // Resolve the target. For layer-kind targets we pack the layer
+          // into the generic `{ kind: "layer", layerKind, layer }` shape
+          // — that's what the chat panel expects so it can dispatch
+          // through the layer-kinds registry.
           const target: ChatPanelTarget | null =
             selectedAgent?.sandboxName
               ? { kind: "agent", agent: selectedAgent }
               : docTarget
-                ? { kind: "document", document: docTarget }
+                ? {
+                    kind: "layer",
+                    layerKind: "document",
+                    layer: docTarget as unknown as { id: string } & Record<string, unknown>,
+                  }
                 : null
           if (!target) return null
           const filteredSessions = chatSessions.filter((c) => {
             if (target.kind === "agent") return c.agentId === target.agent.id
-            return c.documentId === target.document.id
+            // Layer targets: per-kind state lives on the chat session
+            // under different fields. Only `documentId` is wired today.
+            if (target.layerKind === "document") return c.documentId === target.layer.id
+            return false
           })
           return (
             <ChatPanel
@@ -4628,7 +4639,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 setSelectedDocumentChatTargetId(null)
                 handleSelectAgent(id)
               }}
-              onSelectDocument={(id) => {
+              onSelectLayer={(layerKind, id) => {
+                if (layerKind !== "document") return
                 setSelectedAgentId(null)
                 setSelectedDocumentChatTargetId(id)
                 const lastChat = selectedChatByDocumentRef.current[id]
@@ -4640,7 +4652,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               onSelectChat={handleSelectChat}
               onCreateChat={() => {
                 if (target.kind === "agent") handleCreateChat(target.agent.id)
-                else handleCreateDocumentChat(target.document.id)
+                else if (target.layerKind === "document")
+                  handleCreateDocumentChat(target.layer.id)
               }}
               onRenameChat={handleRenameChat}
               onRemoveChat={handleRemoveChat}

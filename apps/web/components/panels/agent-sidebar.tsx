@@ -12,15 +12,12 @@ import {
   ExternalLink,
   GitBranch,
   GitBranchPlus,
-  GitFork,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
   RefreshCw,
   Rows3,
   Trash2,
-  FileText,
-  Frame,
   MoreHorizontal,
   Pencil,
   Play,
@@ -37,10 +34,8 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSubButton,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
 import {
@@ -74,7 +69,6 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { Badge } from "@workspace/ui/components/badge"
 import { Kbd } from "@workspace/ui/components/kbd"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
@@ -90,6 +84,14 @@ import type {
   WorkspaceData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/artboard-layout"
+import {
+  ArtboardRowMenu,
+  makeArtboardRow,
+} from "@/components/panels/layer-rows/artboard-row"
+import {
+  DocumentRow,
+  DocumentRowMenu,
+} from "@/components/panels/layer-rows/document-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
@@ -221,6 +223,53 @@ export function AgentSidebar({
     for (const d of documents) m.set(d.id, d)
     return m
   }, [documents])
+  const agentsById = useMemo(() => {
+    const m = new Map<string, AgentData>()
+    for (const a of agents) m.set(a.id, a)
+    return m
+  }, [agents])
+
+  /**
+   * Per-kind sidebar row + menu component lookup. Each entry binds a
+   * registered `LayerKindDescriptor` to its row + menu components plus
+   * the per-kind selection state and mutators. To wire up a new layer
+   * kind, drop another entry here keyed by `kind` — the dispatch loop
+   * below picks the right components automatically.
+   */
+  const ArtboardRow = useMemo(
+    () => makeArtboardRow({ agentsById }),
+    [agentsById],
+  )
+  type AnyRowDispatcher = {
+    Row: React.ComponentType<import("./layer-rows/types").LayerRowProps<unknown>>
+    Menu: React.ComponentType<import("./layer-rows/types").LayerRowMenuProps<unknown>>
+    isSelected: (id: string) => boolean
+    onSelect: (id: string, shiftKey: boolean) => void
+    onActivate?: (id: string) => void
+    onRename: (id: string, name: string) => void
+    onChangeRoute?: (id: string, route: string) => void
+    onRemove: (id: string) => void
+  }
+  const rowDispatchByKind: Record<string, AnyRowDispatcher | undefined> = {
+    artboard: {
+      Row: ArtboardRow as AnyRowDispatcher["Row"],
+      Menu: ArtboardRowMenu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedArtboardIds.has(id),
+      onSelect: onSelectArtboard,
+      onActivate: onZoomToArtboard,
+      onRename: onRenameArtboard,
+      onChangeRoute: onRouteChange,
+      onRemove: onRemoveArtboard,
+    },
+    document: {
+      Row: DocumentRow as AnyRowDispatcher["Row"],
+      Menu: DocumentRowMenu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedDocumentLayerIds.has(id),
+      onSelect: onSelectDocument,
+      onRename: onRenameDocument,
+      onRemove: onRemoveDocument,
+    },
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -597,188 +646,51 @@ export function AgentSidebar({
             >
               {artboardGroups.map((group) => {
                 // Resolve members in their stored order, dropping any that
-                // can't be found (lookup races during deletion).
-                const groupMembers = getGroupMembers(group)
-                  .map((m) => {
-                    if (m.kind === "artboard") {
-                      const ab = artboardsById.get(m.id)
-                      return ab ? { kind: "artboard" as const, id: m.id, data: ab } : null
-                    }
-                    const d = documentsById.get(m.id)
-                    return d ? { kind: "document" as const, id: m.id, data: d } : null
-                  })
-                  .filter(
-                    (
-                      m,
-                    ): m is
-                      | { kind: "artboard"; id: string; data: AgentSidebarProps["artboards"][number] }
-                      | { kind: "document"; id: string; data: AgentSidebarProps["documents"][number] } =>
-                      m !== null,
-                  )
-
-                const renderArtboardMenu = (
-                  ab: AgentSidebarProps["artboards"][number],
-                  isSub: boolean,
-                ) => (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction
-                        className={
-                          isSub
-                            ? "!top-1/2 -translate-y-1/2 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                            : "md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                        }
-                      >
-                        <MoreHorizontal />
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="right" align="start" className="w-48">
-                      <DropdownMenuItem onClick={() => {
-                        const newLabel = prompt("Rename frame", ab.label)
-                        if (newLabel?.trim()) onRenameArtboard(ab.id, newLabel.trim())
-                      }}>
-                        <Pencil />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        const newRoute = prompt("Route path", ab.route || "/")
-                        if (newRoute != null) {
-                          let value = newRoute.trim() || "/"
-                          if (!value.startsWith("/")) value = "/" + value
-                          onRouteChange(ab.id, value)
-                        }
-                      }}>
-                        <Route />
-                        Change route
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboard(ab.id)}>
-                        <Trash2 />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
-
-                const renderDocumentMenu = (
-                  doc: AgentSidebarProps["documents"][number],
-                  isSub: boolean,
-                ) => (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction
-                        className={
-                          isSub
-                            ? "!top-1/2 -translate-y-1/2 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                            : "md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-                        }
-                      >
-                        <MoreHorizontal />
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="right" align="start" className="w-48">
-                      <DropdownMenuItem onClick={() => {
-                        const newTitle = prompt("Rename document", doc.title || "Untitled")
-                        if (newTitle != null) onRenameDocument(doc.id, newTitle.trim())
-                      }}>
-                        <Pencil />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onClick={() => onRemoveDocument(doc.id)}>
-                        <Trash2 />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
-
-                const renderArtboardRow = (
-                  ab: AgentSidebarProps["artboards"][number],
-                  variant: "flat" | "sub",
-                ) => {
-                  const frameAgent = ab.sandboxId ? agents.find((a) => a.id === ab.sandboxId) : undefined
-                  if (variant === "flat") {
-                    return (
-                      <SidebarMenuButton
-                        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
-                        isActive={selectedArtboardIds.has(ab.id)}
-                        onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}
-                        onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}
-                      >
-                        <Frame className="shrink-0 text-sidebar-foreground/70" />
-                        {frameAgent?.branch && (
-                          <BranchBadge
-                            branch={frameAgent.branch}
-                            colorKey={frameAgent.id}
-                            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
-                          />
-                        )}
-                        <span className="truncate">{ab.label}</span>
-                        <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
-                          <span className="truncate">{ab.route || "/"}</span>
-                        </Badge>
-                      </SidebarMenuButton>
-                    )
+                // can't be found (lookup races during deletion). Each
+                // entry pairs the member kind with the underlying data so
+                // the dispatcher below can hand it straight to the right
+                // row component without a per-kind branch.
+                type ResolvedMember = { kind: string; id: string; data: unknown }
+                const groupMembers: ResolvedMember[] = []
+                for (const m of getGroupMembers(group)) {
+                  if (m.kind === "artboard") {
+                    const ab = artboardsById.get(m.id)
+                    if (ab) groupMembers.push({ kind: m.kind, id: m.id, data: ab })
+                    continue
                   }
-                  return (
-                    <SidebarMenuSubButton
-                      asChild
-                      isActive={selectedArtboardIds.has(ab.id)}
-                    >
-                      <button
-                        type="button"
-                        className="w-full cursor-pointer pr-7"
-                        onClick={(e) => { e.stopPropagation(); onSelectArtboard(ab.id, e.shiftKey) }}
-                        onDoubleClick={(e) => { e.stopPropagation(); onZoomToArtboard(ab.id) }}
-                      >
-                        <Frame className="shrink-0 text-sidebar-foreground/70" />
-                        {frameAgent?.branch && (
-                          <BranchBadge
-                            branch={frameAgent.branch}
-                            colorKey={frameAgent.id}
-                            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
-                          />
-                        )}
-                        <span className="truncate">{ab.label}</span>
-                        <Badge variant="outline" className="max-w-[6rem] shrink-0 border-transparent bg-sidebar-accent font-mono text-[10px] text-sidebar-foreground/60 py-0 px-1.5">
-                          <span className="truncate">{ab.route || "/"}</span>
-                        </Badge>
-                      </button>
-                    </SidebarMenuSubButton>
-                  )
+                  if (m.kind === "document") {
+                    const d = documentsById.get(m.id)
+                    if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
+                  }
                 }
 
-                const renderDocumentRow = (
-                  doc: AgentSidebarProps["documents"][number],
+                /** Render `<Row />` + `<Menu />` for a single member by
+                 *  looking up the kind in `rowDispatchByKind`. New layer
+                 *  kinds plug in by adding an entry to that map up top. */
+                const renderMember = (
+                  member: { kind: string; id: string; data: unknown },
                   variant: "flat" | "sub",
                 ) => {
-                  if (variant === "flat") {
-                    return (
-                      <SidebarMenuButton
-                        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
-                        isActive={selectedDocumentLayerIds.has(doc.id)}
-                        onClick={(e) => { e.stopPropagation(); onSelectDocument(doc.id, e.shiftKey) }}
-                      >
-                        <FileText className="shrink-0 text-sidebar-foreground/70" />
-                        <span className="truncate">{doc.title || "Untitled"}</span>
-                      </SidebarMenuButton>
-                    )
-                  }
+                  const dispatch = rowDispatchByKind[member.kind]
+                  if (!dispatch) return null
+                  const { Row, Menu } = dispatch
                   return (
-                    <SidebarMenuSubButton
-                      asChild
-                      isActive={selectedDocumentLayerIds.has(doc.id)}
-                    >
-                      <button
-                        type="button"
-                        className="w-full cursor-pointer pr-7"
-                        onClick={(e) => { e.stopPropagation(); onSelectDocument(doc.id, e.shiftKey) }}
-                      >
-                        <FileText className="shrink-0 text-sidebar-foreground/70" />
-                        <span className="truncate">{doc.title || "Untitled"}</span>
-                      </button>
-                    </SidebarMenuSubButton>
+                    <>
+                      <Row
+                        item={member.data}
+                        variant={variant}
+                        selected={dispatch.isSelected(member.id)}
+                        onSelect={dispatch.onSelect}
+                        onActivate={dispatch.onActivate}
+                      />
+                      <Menu
+                        item={member.data}
+                        isSub={variant === "sub"}
+                        onRename={dispatch.onRename}
+                        onChangeRoute={dispatch.onChangeRoute}
+                        onRemove={dispatch.onRemove}
+                      />
+                    </>
                   )
                 }
 
@@ -794,12 +706,7 @@ export function AgentSidebar({
                       layout="position"
                       className="group/menu-item group/frame-row relative cursor-grab active:cursor-grabbing"
                     >
-                      {m.kind === "artboard"
-                        ? renderArtboardRow(m.data, "flat")
-                        : renderDocumentRow(m.data, "flat")}
-                      {m.kind === "artboard"
-                        ? renderArtboardMenu(m.data, false)
-                        : renderDocumentMenu(m.data, false)}
+                      {renderMember(m, "flat")}
                     </Reorder.Item>
                   )
                 }
@@ -861,7 +768,7 @@ export function AgentSidebar({
                             onReorder={(items) =>
                               onReorderGroupMembers(
                                 group.id,
-                                items.map((m) => ({ kind: m.kind, id: m.id })),
+                                items.map((m) => ({ kind: m.kind, id: m.id })) as GroupMember[],
                               )
                             }
                             data-slot="sidebar-menu-sub"
@@ -877,12 +784,7 @@ export function AgentSidebar({
                                 data-sidebar="menu-sub-item"
                                 className="group/menu-sub-item group/frame-row relative cursor-grab active:cursor-grabbing"
                               >
-                                {m.kind === "artboard"
-                                  ? renderArtboardRow(m.data, "sub")
-                                  : renderDocumentRow(m.data, "sub")}
-                                {m.kind === "artboard"
-                                  ? renderArtboardMenu(m.data, true)
-                                  : renderDocumentMenu(m.data, true)}
+                                {renderMember(m, "sub")}
                               </Reorder.Item>
                             ))}
                           </Reorder.Group>

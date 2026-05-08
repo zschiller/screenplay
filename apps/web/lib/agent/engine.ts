@@ -6,10 +6,10 @@ import {
   streamText,
   type ModelMessage,
 } from "ai"
+import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "@/lib/agent/tool-executor"
-import { buildAgentTools, type AgentTools } from "./tools"
-import type { DocumentTools } from "./document-tools"
+import { buildAgentTools } from "./tools"
 import {
   appendMessages,
   endRun,
@@ -34,10 +34,11 @@ export interface RunAgentLoopOptions {
    */
   toolCtx?: ToolContext
   /**
-   * Pre-built tools object. Defaults to `buildAgentTools(toolCtx)`. Pass an
-   * alternate set (e.g. document-mutation tools) to retarget the loop.
+   * Pre-built tools object — typed loosely so per-target toolsets (agent
+   * sandbox tools, document-mutation tools, future kinds) all fit. Defaults
+   * to `buildAgentTools(toolCtx)` when omitted.
    */
-  tools?: AgentTools | DocumentTools
+  tools?: Record<string, Tool>
   /** Full conversation, including the just-appended user message or tool result. */
   messages: ModelMessage[]
 }

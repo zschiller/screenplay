@@ -222,7 +222,7 @@ export function PlayerChatHost({
       agents={[agent]}
       documents={[]}
       onSelectAgent={() => {}}
-      onSelectDocument={() => {}}
+      onSelectLayer={() => {}}
       disableBranchPicker
       chatSessions={chatSessions}
       selectedChatId={selectedChatId}

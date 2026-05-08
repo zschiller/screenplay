@@ -1,12 +1,14 @@
 import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
-import { buildAgentSystemPrompt, buildDocumentSystemPrompt } from "@/lib/agent/config"
+import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
-import { buildDocumentTools } from "@/lib/agent/document-tools"
-import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
+import {
+  documentChatTarget,
+  prepareChatTarget,
+} from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
@@ -68,34 +70,18 @@ export async function POST(req: Request) {
     return new Response("Missing target: documentId or sandboxName", { status: 400 })
   }
 
-  // Doc-targeted chats run a separate, smaller flow — no sandbox, no
-  // branch naming, no plan mode. Tools mutate the document body via Yjs
-  // directly. Branch in early so the agent-flow code below stays focused
-  // on the sandbox case.
+  // Layer-targeted chats (currently just documents) defer all of their
+  // kind-specific bits — system prompt, tools, message decoration — to a
+  // registered `ChatTargetSpec`. Adding a new chat-targetable kind means
+  // shipping a spec and a route branch; the surrounding agent loop is
+  // unchanged.
   if (documentId) {
-    const target = await readRoomDoc(roomId, ({ documentLayers, doc }) => {
-      const layer = documentLayers.get(documentId)
-      if (!layer) return null
-      const fragment = doc.getXmlFragment(`doc-${documentId}`)
-      const peers = documentLayers
-        .toArray()
-        .filter((d) => d.id !== documentId)
-        .map((d) => ({ id: d.id, title: d.title }))
-      return {
-        title: layer.title,
-        body: fragmentToPlainText(fragment),
-        peers,
-      }
+    const prepared = await prepareChatTarget(roomId, documentChatTarget, {
+      documentId,
     })
-    if (!target) return new Response("Document not found", { status: 404 })
+    if (!prepared) return new Response("Document not found", { status: 404 })
 
     const effectiveModel = model || DEFAULT_MODEL
-    const systemPrompt = buildDocumentSystemPrompt({
-      currentTitle: target.title,
-      currentBody: target.body,
-      peers: target.peers,
-    })
-
     await upsertChat({
       chatId,
       roomId,
@@ -103,16 +89,18 @@ export async function POST(req: Request) {
       // constraint is satisfied; it's never read back for doc chats.
       sandboxName: "",
       model: effectiveModel,
-      systemPrompt,
+      systemPrompt: prepared.systemPrompt,
     })
 
-    const userText = planMode ? `[plan mode: enabled] ${message}` : message
+    const userText = prepared.decorateUserMessage(message, {
+      planMode,
+      isFirstMessage: false,
+    })
     const userMessage: ModelMessage = { role: "user", content: userText }
     await appendMessage(chatId, userMessage)
 
     const history = await loadChatHistory(chatId)
     const runId = await startRun(chatId)
-    const tools = buildDocumentTools({ roomId, documentId })
 
     after(async () => {
       await broadcastSignal(roomId, chatId, "chat-stream-start")
@@ -122,9 +110,9 @@ export async function POST(req: Request) {
         chatId,
         runId,
         roomId,
-        systemPrompt,
+        systemPrompt: prepared.systemPrompt,
         model: effectiveModel,
-        tools,
+        tools: prepared.tools,
         messages: history,
       })
     })
