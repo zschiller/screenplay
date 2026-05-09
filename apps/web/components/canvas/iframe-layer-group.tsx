@@ -6,6 +6,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  SketchLayerData,
   GroupMember,
 } from "@/lib/types"
 
@@ -26,6 +27,7 @@ interface IframeLayerGroupProps {
   /** Optional helpers used to size the trailing placeholder when present. */
   iframeLayers?: ReadonlyMap<string, IframeLayerData>
   markdownLayers?: ReadonlyMap<string, MarkdownLayerData>
+  sketchLayers?: ReadonlyMap<string, SketchLayerData>
   /**
    * Stacking position derived from the group's row in the sidebar — higher
    * value paints on top. Set on the wrapper so each group becomes its own
@@ -51,6 +53,7 @@ export function IframeLayerGroup({
   children,
   iframeLayers,
   markdownLayers,
+  sketchLayers,
   zIndex,
 }: IframeLayerGroupProps) {
   // Size the placeholder by the last member's bounds — could be an iframeLayer
@@ -71,6 +74,12 @@ export function IframeLayerGroup({
       if (d) {
         placeholderWidth = d.width
         placeholderHeight = d.height
+      }
+    } else if (lastMember.kind === "sketch-layer") {
+      const s = sketchLayers?.get(lastMember.id)
+      if (s) {
+        placeholderWidth = s.width
+        placeholderHeight = s.height
       }
     }
   }

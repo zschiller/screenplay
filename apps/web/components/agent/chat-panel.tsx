@@ -31,7 +31,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
+import type { AgentData, ChatSessionData, MarkdownLayerData, SketchLayerData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -124,9 +124,10 @@ interface ChatPanelProps {
   target: ChatPanelTarget
   agents: AgentData[]
   markdownLayers: MarkdownLayerData[]
+  sketchLayers: SketchLayerData[]
   onSelectAgent: (id: string) => void
   /** Generalised "pick a layer-kind target" callback — receives the kind
-   *  ("markdown-layer", future kinds, …) and the layer id. */
+   *  ("markdown-layer", "sketch-layer", future kinds, …) and the layer id. */
   onSelectLayer: (layerKind: string, layerId: string) => void
   chatSessions: ChatSessionData[]
   selectedChatId: string | null
@@ -158,6 +159,7 @@ export function ChatPanel({
   target,
   agents,
   markdownLayers,
+  sketchLayers,
   onSelectAgent,
   onSelectLayer,
   chatSessions,
@@ -296,6 +298,7 @@ export function ChatPanel({
           <TargetPicker
             agents={agents}
             markdownLayers={markdownLayers}
+            sketchLayers={sketchLayers}
             target={target}
             onSelectAgent={onSelectAgent}
             onSelectLayer={onSelectLayer}
@@ -466,7 +469,8 @@ export function ChatPanel({
           (c) =>
             c.id !== chat.id &&
             ((chat.agentId && c.agentId === chat.agentId) ||
-              (chat.markdownLayerId && c.markdownLayerId === chat.markdownLayerId)),
+              (chat.markdownLayerId && c.markdownLayerId === chat.markdownLayerId) ||
+              (chat.sketchLayerId && c.sketchLayerId === chat.sketchLayerId)),
         )
         return (
           <TabsContent
@@ -482,6 +486,7 @@ export function ChatPanel({
               sandboxName={agent?.sandboxName}
               branch={agent?.branch}
               markdownLayerId={layerTarget?.layerKind === "markdown-layer" ? layerTarget.layer.id : undefined}
+              sketchLayerId={layerTarget?.layerKind === "sketch-layer" ? layerTarget.layer.id : undefined}
               isFirstChat={isFirst}
               autoNamedBranch={agent?.autoNamedBranch}
               planMode={chat.planMode}
@@ -536,6 +541,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
 function TargetPicker({
   agents,
   markdownLayers,
+  sketchLayers,
   target,
   onSelectAgent,
   onSelectLayer,
@@ -544,6 +550,7 @@ function TargetPicker({
   /** All chat-targetable layers, keyed by kind. The picker renders one
    *  CommandGroup per kind in registry order. */
   markdownLayers: MarkdownLayerData[]
+  sketchLayers: SketchLayerData[]
   target: ChatPanelTarget
   onSelectAgent: (id: string) => void
   onSelectLayer: (layerKind: string, layerId: string) => void
@@ -551,10 +558,11 @@ function TargetPicker({
   const [open, setOpen] = useState(false)
   const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
 
-  // For now there's only one layer kind that's chat-targetable
-  // (markdownLayers). Future kinds add their lookup here next to `markdownLayers`.
+  // Keyed by `descriptor.kind` so the picker loop below can look up each
+  // chat-targetable kind without a per-kind branch.
   const layersByKind: Record<string, Array<{ id: string } & Record<string, unknown>>> = {
-    document: markdownLayers,
+    "markdown-layer": markdownLayers,
+    "sketch-layer": sketchLayers,
   }
 
   return (

@@ -12,12 +12,12 @@ import Placeholder from "@tiptap/extension-placeholder"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
 import { useIframeLayerResize } from "@/hooks/use-iframe-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
-import { useMarkdownLayers } from "@/lib/yjs/react"
-import { buildMarkdownLayerMentionSuggestion } from "@/lib/markdown-layer-mention-suggestion"
+import { useMarkdownLayers, useSketchLayers } from "@/lib/yjs/react"
+import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { GroupLabel } from "@/components/canvas/group-label"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
-import type { MarkdownLayerData } from "@/lib/types"
+import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
 
 /** Forces every doc to start with a heading — that heading is the title.
  *  Body blocks follow. Mirrors how Notion's page model is shaped: there's
@@ -132,12 +132,15 @@ export function MarkdownLayer({
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  // Mention suggestion needs the live document list every keystroke, but the
+  // Mention suggestion needs the live layer lists every keystroke, but the
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
   const markdownLayers = useMarkdownLayers()
+  const sketchLayers = useSketchLayers()
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
   markdownLayersRef.current = markdownLayers
+  const sketchLayersRef = useRef<SketchLayerData[]>(sketchLayers)
+  sketchLayersRef.current = sketchLayers
   const layerIdRef = useRef(layer.id)
   layerIdRef.current = layer.id
 
@@ -193,6 +196,17 @@ export function MarkdownLayer({
               as: "span",
             })
           },
+          addAttributes() {
+            return {
+              ...this.parent?.(),
+              kind: {
+                default: "markdown-layer",
+                parseHTML: (el) => el.getAttribute("data-kind") ?? "markdown-layer",
+                renderHTML: (attrs) =>
+                  attrs.kind ? { "data-kind": attrs.kind as string } : {},
+              },
+            }
+          },
         }).configure({
           HTMLAttributes: {
             class:
@@ -208,8 +222,9 @@ export function MarkdownLayer({
             return ["span", options.HTMLAttributes, label]
           },
           deleteTriggerWithBackspace: true,
-          suggestion: buildMarkdownLayerMentionSuggestion({
+          suggestion: buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
+            getSketchLayers: () => sketchLayersRef.current,
             getExcludeId: () => layerIdRef.current,
             getAnchorRect: () =>
               rootRef.current?.getBoundingClientRect() ?? null,

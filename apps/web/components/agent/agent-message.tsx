@@ -18,6 +18,7 @@ import {
   Sparkles,
   PencilLine,
   SquarePen,
+  Frame,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -35,6 +36,9 @@ const toolIcons: Record<string, typeof FileText> = {
   replace_document_body: SquarePen,
   append_to_document_body: SquarePen,
   set_document_title: PencilLine,
+  read_sketch: Frame,
+  replace_sketch_html: SquarePen,
+  set_sketch_title: PencilLine,
 }
 
 const toolLabels: Record<string, string> = {
@@ -49,6 +53,9 @@ const toolLabels: Record<string, string> = {
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
   set_document_title: "Set title",
+  read_sketch: "Read sketch",
+  replace_sketch_html: "Rewrite sketch",
+  set_sketch_title: "Set sketch title",
 }
 
 function formatToolName(name: string): string {

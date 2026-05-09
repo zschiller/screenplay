@@ -3,6 +3,8 @@ import { getUserId } from "@/lib/auth-helpers"
 import { db } from "@/lib/db"
 import { agentChat } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
+import { buildAgentTools } from "@/lib/agent/tools"
+import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import {
   buildPlanToolResultMessage,
@@ -104,7 +106,10 @@ export async function POST(req: Request) {
       roomId,
       systemPrompt: chat.systemPrompt,
       model: chat.model,
-      toolCtx,
+      tools: {
+        ...buildAgentTools(toolCtx),
+        ...buildLayerReadTools({ roomId }),
+      },
       messages: history,
     })
   })

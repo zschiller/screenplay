@@ -3,22 +3,35 @@
 import { ReactRenderer } from "@tiptap/react"
 import type { MentionOptions } from "@tiptap/extension-mention"
 import { MentionList, type MentionListHandle } from "@/components/agent/mention-list"
-import type { MarkdownLayerData } from "@/lib/types"
+import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
 
 /**
- * Build a TipTap Mention `suggestion` config that filters the live document
- * list and renders a Tailwind-styled popover anchored to the editor caret.
- *
- * Both the agent chat input and document body editors use this so a `@`
- * means the same thing everywhere — pick a document, attach its id, and let
- * `Mention.renderText` display it as `@<title>` in serialized output.
+ * Item shape passed into the suggestion popover. `kind` lets the popover
+ * group documents and sketches under separate headings, and is preserved on
+ * the resulting Mention node so the agent's message-extraction code can tell
+ * which `read_*` tool the model should call to follow the reference.
  */
-export function buildMarkdownLayerMentionSuggestion(opts: {
-  /** Always returns the latest markdownLayers so the popover sees fresh titles. */
+export interface LayerMentionItem {
+  kind: "markdown-layer" | "sketch-layer"
+  id: string
+  label: string
+}
+
+/**
+ * Build a TipTap Mention `suggestion` config that mixes documents and
+ * sketches in one popover. Both the agent chat input and the markdown body
+ * editor wire `@` to this so a single picker covers every chat-targetable
+ * layer kind on the canvas.
+ *
+ * Picker order: documents first, sketches second — alphabetical inside each
+ * section, matching the chat target picker's layout.
+ */
+export function buildLayerMentionSuggestion(opts: {
   getMarkdownLayers: () => MarkdownLayerData[]
+  getSketchLayers: () => SketchLayerData[]
   /**
-   * Optional: a doc id to exclude from the candidate list — the document
-   * doing the mentioning shouldn't be able to mention itself.
+   * Optional: a layer id (any kind) to exclude from the candidate list — a
+   * doc or sketch shouldn't be able to @-mention itself.
    */
   getExcludeId?: () => string | undefined
   /**
@@ -40,12 +53,25 @@ export function buildMarkdownLayerMentionSuggestion(opts: {
     items: ({ query }) => {
       const q = query.toLowerCase()
       const exclude = opts.getExcludeId?.()
-      return opts
+      const docs: LayerMentionItem[] = opts
         .getMarkdownLayers()
         .filter((d) => d.id !== exclude)
-        .map((d) => ({ id: d.id, label: d.title || "Untitled" }))
-        .filter((d) => d.label.toLowerCase().includes(q))
-        .slice(0, 8)
+        .map((d) => ({
+          kind: "markdown-layer" as const,
+          id: d.id,
+          label: d.title || "Untitled",
+        }))
+      const sketches: LayerMentionItem[] = opts
+        .getSketchLayers()
+        .filter((s) => s.id !== exclude)
+        .map((s) => ({
+          kind: "sketch-layer" as const,
+          id: s.id,
+          label: s.title || "Untitled",
+        }))
+      return [...docs, ...sketches]
+        .filter((item) => item.label.toLowerCase().includes(q))
+        .slice(0, 12)
     },
     render: () => {
       let component: ReactRenderer<MentionListHandle> | null = null
