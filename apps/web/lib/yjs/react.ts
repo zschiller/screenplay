@@ -14,10 +14,10 @@ import {
 } from "@/lib/yjs/schema"
 import type {
   AgentData,
-  ArtboardData,
-  ArtboardGroupData,
+  IframeLayerData,
+  IframeLayerGroupData,
   ChatSessionData,
-  DocumentLayerData,
+  MarkdownLayerData,
   PlanData,
   ViewportData,
   WorkspaceData,
@@ -61,16 +61,16 @@ function useSingleton<T extends Record<string, unknown>>(
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-export function useArtboards(): Array<ArtboardData> {
-  return useCollectionArray(useRoomCollections().artboards)
+export function useIframeLayers(): Array<IframeLayerData> {
+  return useCollectionArray(useRoomCollections().iframeLayers)
 }
 
-export function useArtboardGroups(): Array<ArtboardGroupData> {
-  return useCollectionArray(useRoomCollections().artboardGroups)
+export function useIframeLayerGroups(): Array<IframeLayerGroupData> {
+  return useCollectionArray(useRoomCollections().iframeLayerGroups)
 }
 
-export function useDocumentLayers(): Array<DocumentLayerData> {
-  return useCollectionArray(useRoomCollections().documentLayers)
+export function useMarkdownLayers(): Array<MarkdownLayerData> {
+  return useCollectionArray(useRoomCollections().markdownLayers)
 }
 
 export function useWorkspaces(): Array<WorkspaceData> {
@@ -107,9 +107,9 @@ export function useYjsHistory() {
       [
         doc.getMap(COLLECTION_KEYS.workspaces),
         doc.getMap(COLLECTION_KEYS.agents),
-        doc.getMap(COLLECTION_KEYS.artboards),
-        doc.getMap(COLLECTION_KEYS.artboardGroups),
-        doc.getMap(COLLECTION_KEYS.documentLayers),
+        doc.getMap(COLLECTION_KEYS.iframeLayers),
+        doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
+        doc.getMap(COLLECTION_KEYS.markdownLayers),
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
       ],
@@ -159,7 +159,7 @@ export type CanvasPresence = {
   pointer: { x: number; y: number } | null
   viewport: { x: number; y: number; zoom: number }
   color: string
-  selectedArtboardIds: string[]
+  selectedIframeLayerIds: string[]
   // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
   // an empty string while the bubble is open but nothing has been typed yet.
   message?: string | null

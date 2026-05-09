@@ -6,7 +6,7 @@ import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
-  documentChatTarget,
+  markdownLayerChatTarget,
   prepareChatTarget,
 } from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
@@ -38,7 +38,7 @@ interface RequestBody {
   sandboxName?: string
   branch?: string
   /** Required when the chat targets a document layer (no sandbox). */
-  documentId?: string
+  markdownLayerId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     chatId,
     sandboxName,
     branch,
-    documentId,
+    markdownLayerId,
     message,
     isFirstChat,
     autoNamedBranch,
@@ -66,18 +66,18 @@ export async function POST(req: Request) {
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
-  if (!documentId && !sandboxName) {
-    return new Response("Missing target: documentId or sandboxName", { status: 400 })
+  if (!markdownLayerId && !sandboxName) {
+    return new Response("Missing target: markdownLayerId or sandboxName", { status: 400 })
   }
 
-  // Layer-targeted chats (currently just documents) defer all of their
+  // Layer-targeted chats (currently just markdownLayers) defer all of their
   // kind-specific bits — system prompt, tools, message decoration — to a
   // registered `ChatTargetSpec`. Adding a new chat-targetable kind means
   // shipping a spec and a route branch; the surrounding agent loop is
   // unchanged.
-  if (documentId) {
-    const prepared = await prepareChatTarget(roomId, documentChatTarget, {
-      documentId,
+  if (markdownLayerId) {
+    const prepared = await prepareChatTarget(roomId, markdownLayerChatTarget, {
+      markdownLayerId,
     })
     if (!prepared) return new Response("Document not found", { status: 404 })
 

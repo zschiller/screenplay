@@ -11,12 +11,12 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import {
-  ARTBOARD_SIZE_CATEGORY_ICONS,
-  GROUPED_ARTBOARD_SIZE_PRESETS,
-  getArtboardSizePreset,
-} from "@/lib/artboard-sizes"
+  IFRAME_LAYER_SIZE_CATEGORY_ICONS,
+  GROUPED_IFRAME_LAYER_SIZE_PRESETS,
+  getIframeLayerSizePreset,
+} from "@/lib/iframe-layer-sizes"
 
-interface ArtboardSizeSelectProps {
+interface IframeLayerSizeSelectProps {
   id?: string
   value: string
   onChange: (value: string) => void
@@ -24,15 +24,15 @@ interface ArtboardSizeSelectProps {
   className?: string
 }
 
-export function ArtboardSizeSelect({
+export function IframeLayerSizeSelect({
   id,
   value,
   onChange,
   size = "default",
   className,
-}: ArtboardSizeSelectProps) {
-  const selected = getArtboardSizePreset(value)
-  const SelectedIcon = ARTBOARD_SIZE_CATEGORY_ICONS[selected.category]
+}: IframeLayerSizeSelectProps) {
+  const selected = getIframeLayerSizePreset(value)
+  const SelectedIcon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[selected.category]
 
   return (
     <Select value={value} onValueChange={onChange}>
@@ -45,8 +45,8 @@ export function ArtboardSizeSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {GROUPED_ARTBOARD_SIZE_PRESETS.map((group, index) => {
-          const Icon = ARTBOARD_SIZE_CATEGORY_ICONS[group.category]
+        {GROUPED_IFRAME_LAYER_SIZE_PRESETS.map((group, index) => {
+          const Icon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[group.category]
           return (
             <SelectGroup key={group.category}>
               {index > 0 && <SelectSeparator />}

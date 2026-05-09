@@ -26,7 +26,7 @@ import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
 import { GroupLabel } from "./group-label"
 
-interface ArtboardLabelProps {
+interface IframeLayerLabelProps {
   label: string
   branch?: string
   sandboxId?: string
@@ -35,7 +35,7 @@ interface ArtboardLabelProps {
    *  with non-empty keys, a tiny indicator renders inside the route pill. */
   sharedState?: JsonObject
   zoom: number
-  artboardWidth: number
+  iframeLayerWidth: number
   /** Screen-px width to reserve on the right (e.g. for the action buttons). */
   reservedRightPx?: number
   dragHandlers?: Record<string, unknown>
@@ -43,12 +43,12 @@ interface ArtboardLabelProps {
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableAgents?: AgentData[]
   onAssignAgent?: (agentId: string) => void
-  /** Routes known for the agent backing this artboard. Drives the route picker. */
+  /** Routes known for the agent backing this iframeLayer. Drives the route picker. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (route: string) => void
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
-  /** Group display name — only passed for the leftmost artboard in a multi-artboard group. */
+  /** Group display name — only passed for the leftmost iframeLayer in a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected — colors the group label. */
   groupSelected?: boolean
@@ -76,7 +76,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zoom, artboardWidth, reservedRightPx = 0, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange }: ArtboardLabelProps) {
+export function IframeLayerLabel({ label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange }: IframeLayerLabelProps) {
   const measureRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!onContentWidthChange) return
@@ -96,7 +96,7 @@ export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zo
       style={{
         transform: `scale(${1 / zoom})`,
         transformOrigin: "bottom left",
-        maxWidth: artboardWidth * zoom,
+        maxWidth: iframeLayerWidth * zoom,
         marginBottom: 4 / zoom,
       }}
       {...dragHandlers}
@@ -125,7 +125,7 @@ export function ArtboardLabel({ label, branch, sandboxId, route, sharedState, zo
       )}
       <div
         className="flex items-center gap-1.5 max-w-full"
-        style={{ maxWidth: Math.max(0, artboardWidth * zoom - reservedRightPx) }}
+        style={{ maxWidth: Math.max(0, iframeLayerWidth * zoom - reservedRightPx) }}
       >
         {hmrStatus && (
           <span
@@ -316,7 +316,7 @@ interface SharedStateIndicatorProps {
  * Tiny curly-brace glyph rendered inside the route pill when the prototype
  * has published any shared state via `@screenplay.space/state`. Hover to see
  * the full JSON snapshot. Collapses to nothing when the state is empty so
- * unaffected artboards don't grow an extra slot.
+ * unaffected iframeLayers don't grow an extra slot.
  */
 function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
   const json = useMemo(() => {

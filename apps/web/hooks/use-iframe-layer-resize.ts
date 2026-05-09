@@ -11,7 +11,7 @@ interface UseResizeOptions {
   onResizeEnd?: () => void
 }
 
-export function useArtboardResize({ zoom, onResize, onResizeStart, onResizeEnd }: UseResizeOptions) {
+export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEnd }: UseResizeOptions) {
   const dragging = useRef(false)
   const edge = useRef<ResizeEdge | null>(null)
   const lastPos = useRef({ x: 0, y: 0 })

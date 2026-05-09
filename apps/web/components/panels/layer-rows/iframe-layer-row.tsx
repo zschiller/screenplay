@@ -14,28 +14,28 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { BranchBadge } from "@/components/branch-badge"
-import { artboardKind } from "@/lib/layer-kinds/artboard"
-import type { AgentData, ArtboardData } from "@/lib/types"
+import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
+import type { AgentData, IframeLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
-/** Per-row props the artboard renderer needs that the generic
+/** Per-row props the iframeLayer renderer needs that the generic
  *  contract doesn't carry — used to look up the agent for the branch
  *  badge. The sidebar passes them in through a closure. */
-export interface ArtboardRowExtraProps {
+export interface IframeLayerRowExtraProps {
   /** Agents indexed by id, for fast branch-badge lookup. */
   agentsById: ReadonlyMap<string, AgentData>
 }
 
-export function makeArtboardRow(extras: ArtboardRowExtraProps) {
-  function ArtboardRow({
+export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
+  function IframeLayerRow({
     item,
     variant,
     selected,
     onSelect,
     onActivate,
-  }: LayerRowProps<ArtboardData>) {
+  }: LayerRowProps<IframeLayerData>) {
     const agent = item.sandboxId ? extras.agentsById.get(item.sandboxId) : undefined
-    const Icon = artboardKind.Icon
+    const Icon = iframeLayerKind.Icon
 
     if (variant === "flat") {
       return (
@@ -59,8 +59,8 @@ export function makeArtboardRow(extras: ArtboardRowExtraProps) {
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}
-          <span className="truncate">{artboardKind.getLabel(item)}</span>
-          {artboardKind.renderRowAccessory?.(item)}
+          <span className="truncate">{iframeLayerKind.getLabel(item)}</span>
+          {iframeLayerKind.renderRowAccessory?.(item)}
         </SidebarMenuButton>
       )
     }
@@ -86,23 +86,23 @@ export function makeArtboardRow(extras: ArtboardRowExtraProps) {
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}
-          <span className="truncate">{artboardKind.getLabel(item)}</span>
-          {artboardKind.renderRowAccessory?.(item)}
+          <span className="truncate">{iframeLayerKind.getLabel(item)}</span>
+          {iframeLayerKind.renderRowAccessory?.(item)}
         </button>
       </SidebarMenuSubButton>
     )
   }
-  ArtboardRow.displayName = "ArtboardRow"
-  return ArtboardRow
+  IframeLayerRow.displayName = "IframeLayerRow"
+  return IframeLayerRow
 }
 
-export function ArtboardRowMenu({
+export function IframeLayerRowMenu({
   item,
   isSub,
   onRename,
   onChangeRoute,
   onRemove,
-}: LayerRowMenuProps<ArtboardData>) {
+}: LayerRowMenuProps<IframeLayerData>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

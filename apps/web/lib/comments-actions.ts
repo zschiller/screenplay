@@ -40,7 +40,7 @@ export async function createThreadAction(opts: {
   roomId: string
   x: number
   y: number
-  artboardId?: string | null
+  iframeLayerId?: string | null
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
@@ -54,7 +54,7 @@ export async function createThreadAction(opts: {
     roomId: opts.roomId,
     x: opts.x,
     y: opts.y,
-    artboardId: opts.artboardId ?? null,
+    iframeLayerId: opts.iframeLayerId ?? null,
     selector: opts.selector ?? null,
     offsetX: opts.offsetX ?? null,
     offsetY: opts.offsetY ?? null,
@@ -77,7 +77,7 @@ export async function createBranchThreadAction(opts: {
     roomId: opts.roomId,
     x: null,
     y: null,
-    artboardId: null,
+    iframeLayerId: null,
     selector: null,
     offsetX: null,
     offsetY: null,

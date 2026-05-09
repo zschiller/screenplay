@@ -14,11 +14,11 @@ import {
 } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
 import {
-  DEFAULT_ARTBOARD_SIZE_ID,
-  getArtboardSizePreset,
-} from "@/lib/artboard-sizes"
+  DEFAULT_IFRAME_LAYER_SIZE_ID,
+  getIframeLayerSizePreset,
+} from "@/lib/iframe-layer-sizes"
 import { useCollectionEntry, useRoomCollections } from "@/lib/yjs/react"
-import type { ArtboardData } from "@/lib/types"
+import type { IframeLayerData } from "@/lib/types"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
 
@@ -31,12 +31,12 @@ interface PrototypePlayerProps {
   initialRoute: string
   initialKnobValues: Record<string, unknown>
   initialSharedState: Record<string, unknown>
-  /** When the player was opened from a specific artboard, route shared-state
-   *  through that artboard's Yjs entry so canvas + player + other player tabs
+  /** When the player was opened from a specific iframeLayer, route shared-state
+   *  through that iframeLayer's Yjs entry so canvas + player + other player tabs
    *  all converge on the same snapshot. */
-  artboardId?: string
+  iframeLayerId?: string
   initialThreads: ThreadWithComments[]
-  /** Workspace's default artboard size id — seeds mobile/tablet preview if it's a non-desktop preset. */
+  /** Workspace's default iframeLayer size id — seeds mobile/tablet preview if it's a non-desktop preset. */
   initialDeviceSizeId?: string
 }
 
@@ -52,7 +52,7 @@ export function PrototypePlayer({
   initialRoute,
   initialKnobValues,
   initialSharedState,
-  artboardId,
+  iframeLayerId,
   initialThreads,
   initialDeviceSizeId,
 }: PrototypePlayerProps) {
@@ -62,20 +62,20 @@ export function PrototypePlayer({
     initialKnobValues as JsonObject,
   )
 
-  // Live shared state from Yjs when we have an artboard binding. Falls back
+  // Live shared state from Yjs when we have an iframeLayer binding. Falls back
   // to the SSR-hydrated snapshot otherwise (single-player mode — the iframe
   // still publishes via postMessage but state doesn't survive a reload).
   const collections = useRoomCollections()
-  const liveArtboard = useCollectionEntry<ArtboardData>(
-    collections.artboards,
-    artboardId ?? "",
+  const liveIframeLayer = useCollectionEntry<IframeLayerData>(
+    collections.iframeLayers,
+    iframeLayerId ?? "",
   )
   const sharedState = useMemo<JsonObject>(() => {
-    if (artboardId && liveArtboard?.sharedState) {
-      return liveArtboard.sharedState as JsonObject
+    if (iframeLayerId && liveIframeLayer?.sharedState) {
+      return liveIframeLayer.sharedState as JsonObject
     }
     return initialSharedState as JsonObject
-  }, [artboardId, liveArtboard, initialSharedState])
+  }, [iframeLayerId, liveIframeLayer, initialSharedState])
   const sharedStateRef = useRef(sharedState)
   useEffect(() => {
     sharedStateRef.current = sharedState
@@ -102,7 +102,7 @@ export function PrototypePlayer({
       const saved = window.localStorage.getItem(STORAGE_KEY_DEVICE)
       if (saved) return saved
     }
-    return initialDeviceSizeId ?? DEFAULT_ARTBOARD_SIZE_ID
+    return initialDeviceSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   })
   const handleDeviceSizeChange = useCallback((id: string) => {
     setDeviceSizeId(id)
@@ -110,7 +110,7 @@ export function PrototypePlayer({
       window.localStorage.setItem(STORAGE_KEY_DEVICE, id)
     } catch {}
   }, [])
-  const devicePreset = getArtboardSizePreset(deviceSizeId)
+  const devicePreset = getIframeLayerSizePreset(deviceSizeId)
   const isTouchDevice =
     devicePreset.category === "Mobile" || devicePreset.category === "Tablet"
 
@@ -220,10 +220,10 @@ export function PrototypePlayer({
         }
       } else if (e.data.type === "screenplay:shared-state") {
         const next = e.data.state
-        // Persist to Yjs when we have an artboard binding so other clients
-        // (canvas + sibling player tabs) catch up. Without an artboard the
+        // Persist to Yjs when we have an iframeLayer binding so other clients
+        // (canvas + sibling player tabs) catch up. Without an iframeLayer the
         // player still works locally — the iframe owns its in-memory state.
-        if (artboardId) {
+        if (iframeLayerId) {
           let serialized: string | null = null
           try {
             serialized = JSON.stringify(next)
@@ -233,7 +233,7 @@ export function PrototypePlayer({
           // Mark as the last value we'd echo so the upcoming Yjs change
           // doesn't bounce back into the iframe.
           lastAppliedSharedRef.current = serialized
-          collections.artboards.update(artboardId, { sharedState: next })
+          collections.iframeLayers.update(iframeLayerId, { sharedState: next })
         } else {
           // No persistence path — keep a local copy so the HUD/dev tools
           // could surface it later without round-tripping through Yjs.
@@ -243,7 +243,7 @@ export function PrototypePlayer({
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [sendKnobValues, sendCursorMode, sendSharedState, artboardId, collections])
+  }, [sendKnobValues, sendCursorMode, sendSharedState, iframeLayerId, collections])
 
   const handleKnobChange = useCallback(
     (next: JsonObject) => {
@@ -258,7 +258,7 @@ export function PrototypePlayer({
   // tab — the iframe's runtime would diff and ignore it anyway, but staying
   // off the wire keeps things tidy.
   useEffect(() => {
-    if (!artboardId) return
+    if (!iframeLayerId) return
     let serialized: string
     try {
       serialized = JSON.stringify(sharedState)
@@ -268,7 +268,7 @@ export function PrototypePlayer({
     if (serialized === lastAppliedSharedRef.current) return
     lastAppliedSharedRef.current = serialized
     sendSharedState(sharedState)
-  }, [artboardId, sharedState, sendSharedState])
+  }, [iframeLayerId, sharedState, sendSharedState])
 
   const handleToggleChat = useCallback(() => {
     const panel = chatPanelRef.current

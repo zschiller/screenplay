@@ -1,13 +1,13 @@
 import { Monitor, Smartphone, Tablet, type LucideIcon } from "lucide-react"
 
-export type ArtboardSizeCategory = "Desktop" | "Tablet" | "Mobile"
+export type IframeLayerSizeCategory = "Desktop" | "Tablet" | "Mobile"
 
-export type ArtboardSizePreset = {
+export type IframeLayerSizePreset = {
   id: string
   label: string
   width: number
   height: number
-  category: ArtboardSizeCategory
+  category: IframeLayerSizeCategory
   /** Display corner radius in CSS px, matching the device's screen.
    *  iPhone values come from Apple's private `_displayCornerRadius` (via the
    *  ScreenCorners library). iPad / Android values are the published or
@@ -15,7 +15,7 @@ export type ArtboardSizePreset = {
   cornerRadius?: number
 }
 
-export const ARTBOARD_SIZE_PRESETS: ArtboardSizePreset[] = [
+export const IFRAME_LAYER_SIZE_PRESETS: IframeLayerSizePreset[] = [
   // Desktop
   { id: "desktop-4k", label: "Desktop · 4K", width: 3840, height: 2160, category: "Desktop" },
   { id: "desktop-fullhd", label: "Desktop · 1920 × 1080", width: 1920, height: 1080, category: "Desktop" },
@@ -45,27 +45,27 @@ export const ARTBOARD_SIZE_PRESETS: ArtboardSizePreset[] = [
   { id: "galaxy-z-fold", label: "Galaxy Z Fold (unfolded)", width: 884, height: 1104, category: "Mobile", cornerRadius: 12 },
 ]
 
-export const DEFAULT_ARTBOARD_SIZE_ID = "desktop-default"
+export const DEFAULT_IFRAME_LAYER_SIZE_ID = "desktop-default"
 
-export const ARTBOARD_SIZE_CATEGORY_ICONS: Record<ArtboardSizeCategory, LucideIcon> = {
+export const IFRAME_LAYER_SIZE_CATEGORY_ICONS: Record<IframeLayerSizeCategory, LucideIcon> = {
   Desktop: Monitor,
   Tablet: Tablet,
   Mobile: Smartphone,
 }
 
-const CATEGORY_ORDER: ArtboardSizeCategory[] = ["Desktop", "Tablet", "Mobile"]
+const CATEGORY_ORDER: IframeLayerSizeCategory[] = ["Desktop", "Tablet", "Mobile"]
 
-export const GROUPED_ARTBOARD_SIZE_PRESETS: Array<{
-  category: ArtboardSizeCategory
-  presets: ArtboardSizePreset[]
+export const GROUPED_IFRAME_LAYER_SIZE_PRESETS: Array<{
+  category: IframeLayerSizeCategory
+  presets: IframeLayerSizePreset[]
 }> = CATEGORY_ORDER.map((category) => ({
   category,
-  presets: ARTBOARD_SIZE_PRESETS.filter((p) => p.category === category),
+  presets: IFRAME_LAYER_SIZE_PRESETS.filter((p) => p.category === category),
 }))
 
 /** Look up a preset by id, falling back to the default preset if missing. */
-export function getArtboardSizePreset(id: string | undefined): ArtboardSizePreset {
-  const fallback = ARTBOARD_SIZE_PRESETS.find((p) => p.id === DEFAULT_ARTBOARD_SIZE_ID)!
+export function getIframeLayerSizePreset(id: string | undefined): IframeLayerSizePreset {
+  const fallback = IFRAME_LAYER_SIZE_PRESETS.find((p) => p.id === DEFAULT_IFRAME_LAYER_SIZE_ID)!
   if (!id) return fallback
-  return ARTBOARD_SIZE_PRESETS.find((p) => p.id === id) ?? fallback
+  return IFRAME_LAYER_SIZE_PRESETS.find((p) => p.id === id) ?? fallback
 }

@@ -114,14 +114,14 @@ export const thread = pgTable(
     roomId: text("room_id")
       .notNull()
       .references(() => room.id, { onDelete: "cascade" }),
-    // Coordinates are canvas-space (or artboard-space when artboardId is set).
+    // Coordinates are canvas-space (or iframeLayer-space when iframeLayerId is set).
     // When a selector is set, x/y is the last known resolved position used as
     // a fallback if the selector no longer matches an element. Null on
     // branch-level threads (no canvas position).
     x: doublePrecision("x"),
     y: doublePrecision("y"),
-    artboardId: text("artboard_id"),
-    // CSS path to the iframe DOM element the comment is anchored to (artboard
+    iframeLayerId: text("iframe_layer_id"),
+    // CSS path to the iframe DOM element the comment is anchored to (iframeLayer
     // comments only). offset_x/y are stored as fractions of the element's
     // width/height (0–1) at click time, so the pin tracks the same relative
     // point on the element as the layout reflows or resizes.
@@ -130,7 +130,7 @@ export const thread = pgTable(
     offsetY: doublePrecision("offset_y"),
     // Set on threads scoped to an agent branch (the prototype player's flat
     // comment feed). Mutually exclusive with the positional fields above —
-    // canvas threads have branch null, branch threads have x/y/artboardId/
+    // canvas threads have branch null, branch threads have x/y/iframeLayerId/
     // selector all null.
     branch: text("branch"),
     resolved: boolean("resolved").notNull().default(false),

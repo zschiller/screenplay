@@ -5,7 +5,7 @@ import { listBranchThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
-import type { AgentData, ArtboardData, WorkspaceData } from "@/lib/types"
+import type { AgentData, IframeLayerData, WorkspaceData } from "@/lib/types"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
 export async function generateMetadata({
@@ -21,7 +21,7 @@ export async function generateMetadata({
 type SearchParams = {
   route?: string
   k?: string
-  artboard?: string
+  "iframe-layer"?: string
 }
 
 export default async function PlayPage({
@@ -46,25 +46,25 @@ export default async function PlayPage({
 
   const docSnapshot = await readRoomDoc(
     roomId,
-    ({ agents, artboards, workspaces }) => {
+    ({ agents, iframeLayers, workspaces }) => {
       const agent = agents.get(agentId) as AgentData | undefined
-      const artboardId = search.artboard
-      const artboard = artboardId
-        ? (artboards.get(artboardId) as ArtboardData | undefined)
+      const iframeLayerId = search["iframe-layer"]
+      const iframeLayer = iframeLayerId
+        ? (iframeLayers.get(iframeLayerId) as IframeLayerData | undefined)
         : undefined
       const workspace = agent
         ? (workspaces.get(agent.workspaceId) as WorkspaceData | undefined)
         : undefined
-      return { agent, artboard, workspace }
+      return { agent, iframeLayer, workspace }
     },
   )
 
-  const { agent, artboard, workspace } = docSnapshot
+  const { agent, iframeLayer, workspace } = docSnapshot
   if (!agent) notFound()
 
-  const initialKnobValues = decodeKnobValues(search.k) ?? artboard?.knobValues ?? {}
-  const initialRoute = search.route ?? artboard?.route ?? "/"
-  const initialSharedState = (artboard?.sharedState ?? {}) as Record<string, unknown>
+  const initialKnobValues = decodeKnobValues(search.k) ?? iframeLayer?.knobValues ?? {}
+  const initialRoute = search.route ?? iframeLayer?.route ?? "/"
+  const initialSharedState = (iframeLayer?.sharedState ?? {}) as Record<string, unknown>
   const initialThreads = agent.branch
     ? await listBranchThreads(roomId, userId, agent.branch).catch(() => [])
     : []
@@ -87,9 +87,9 @@ export default async function PlayPage({
         initialRoute={initialRoute}
         initialKnobValues={initialKnobValues}
         initialSharedState={initialSharedState}
-        artboardId={search.artboard}
+        iframeLayerId={search["iframe-layer"]}
         initialThreads={initialThreads}
-        initialDeviceSizeId={workspace?.defaultArtboardSizeId}
+        initialDeviceSizeId={workspace?.defaultIframeLayerSizeId}
       />
     </YjsRoomProvider>
   )

@@ -9,12 +9,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import { useArtboardDrag } from "@/hooks/use-artboard-drag"
-import { useArtboardResize, type ResizeEdge } from "@/hooks/use-artboard-resize"
+import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
+import { useIframeLayerResize, type ResizeEdge } from "@/hooks/use-iframe-layer-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
-import { ArtboardLabel } from "./artboard-label"
+import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { ResizeHandles } from "./resize-handles"
 import type { AgentData } from "@/lib/types"
@@ -36,7 +36,7 @@ function fetchExpectedBridgeVersion(): Promise<string> {
 // cycle — avoids a loop if a sandbox somehow can't serve the fresh file.
 const reinstalledSandboxes = new Set<string>()
 
-export interface ArtboardData {
+export interface IframeLayerData {
   id: string
   sandboxId?: string
   width: number
@@ -53,8 +53,8 @@ export interface ArtboardData {
   sharedState?: JsonObject
 }
 
-interface ArtboardProps {
-  artboard: ArtboardData
+interface IframeLayerProps {
+  iframeLayer: IframeLayerData
   zoom: number
   focused: boolean
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
@@ -63,12 +63,12 @@ interface ArtboardProps {
   onFocus: (id: string | null) => void
   onToggleCreateFlow: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
-  /** Drag any artboard moves the parent group. */
+  /** Drag any iframeLayer moves the parent group. */
   onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
   /**
    * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
-   * edges leave the group anchor in place. The artboard's own width/height
+   * edges leave the group anchor in place. The iframeLayer's own width/height
    * always change by (dw, dh). `edge` lets the canvas snap to device-size
    * presets along the axes the user is actually dragging.
    */
@@ -84,7 +84,7 @@ interface ArtboardProps {
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
   onSharedStateChanged?: (id: string, state: JsonObject) => void
-  /** Open the prototype player route for this artboard's branch in a new tab. */
+  /** Open the prototype player route for this iframeLayer's branch in a new tab. */
   onPlay?: (id: string) => void
   /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
   onFitToContent?: (id: string, width: number, height: number) => void
@@ -94,51 +94,51 @@ interface ArtboardProps {
    * element they're about to anchor a comment to. The click falls through
    * to the canvas-level handler that opens the composer. */
   commentMode?: boolean
-  onHover: (artboardId: string, rect: DomRect | null) => void
+  onHover: (iframeLayerId: string, rect: DomRect | null) => void
   /**
    * Fired with the iframe DOM accessor on mount and `null` on unmount so the
    * canvas can route selector queries (e.g. for selector-anchored comments)
-   * to the right artboard.
+   * to the right iframeLayer.
    */
-  onDomReady?: (artboardId: string, dom: ScreenplayDom | null) => void
+  onDomReady?: (iframeLayerId: string, dom: ScreenplayDom | null) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableAgents?: AgentData[]
-  onAssignAgent?: (artboardId: string, agentId: string) => void
-  /** Routes discovered for the agent backing this artboard. */
+  onAssignAgent?: (iframeLayerId: string, agentId: string) => void
+  /** Routes discovered for the agent backing this iframeLayer. */
   discoveredRoutes?: { route: string; label: string }[]
-  onSelectRoute?: (artboardId: string, route: string) => void
-  /** Group label shown above the branch — only on the leftmost artboard of a multi-artboard group. */
+  onSelectRoute?: (iframeLayerId: string, route: string) => void
+  /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected. Drives label color + group-pink frame. */
   groupSelected?: boolean
   /** Click handler for the group label (only meaningful when `groupLabel` is set). */
   onSelectGroup?: (shiftKey: boolean) => void
   /**
-   * CSS `order` for the parent flex row. Lets us render artboards in a stable
+   * CSS `order` for the parent flex row. Lets us render iframeLayers in a stable
    * DOM order (so iframes don't reload) while still showing them in the
    * group's logical left-to-right order via flex.
    */
   flexOrder?: number
   /**
-   * World-space offset to translate the artboard while it's being reorder-
+   * World-space offset to translate the iframeLayer while it's being reorder-
    * dragged so its center tracks the cursor. Other siblings still snap to
-   * their flex slots; only the lifted artboard floats.
+   * their flex slots; only the lifted iframeLayer floats.
    */
   dragTranslateX?: number
   dragTranslateY?: number
   /**
-   * When set, the artboard is "popped" out of its source group — rendered
-   * with absolute positioning relative to the parent ArtboardGroup so flex
+   * When set, the iframeLayer is "popped" out of its source group — rendered
+   * with absolute positioning relative to the parent IframeLayerGroup so flex
    * flow drops it and its siblings close the gap. Used during a reorder
    * drag with the meta key held; on release the pop is committed by the
    * canvas (creates a new group). `left`/`top` are relative to the parent
-   * ArtboardGroup origin.
+   * IframeLayerGroup origin.
    */
   dragPopped?: { left: number; top: number }
 }
 
-export function Artboard({
-  artboard,
+export function IframeLayer({
+  iframeLayer,
   zoom,
   focused,
   createFlow,
@@ -176,7 +176,7 @@ export function Artboard({
   dragTranslateX,
   dragTranslateY,
   dragPopped,
-}: ArtboardProps) {
+}: IframeLayerProps) {
   const handleDrag = useCallback(
     (dx: number, dy: number) => {
       if (selected) {
@@ -190,7 +190,7 @@ export function Artboard({
 
   const selectedOnPointerDown = useRef(false)
 
-  const dragHandlers = useArtboardDrag({
+  const dragHandlers = useIframeLayerDrag({
     zoom,
     onDrag: handleDrag,
     onClick: (e) => {
@@ -198,43 +198,43 @@ export function Artboard({
         selectedOnPointerDown.current = false
         return
       }
-      onSelect(artboard.id, e.shiftKey)
+      onSelect(iframeLayer.id, e.shiftKey)
     },
   })
 
   const handleResize = useCallback(
     (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
-      onResize(artboard.id, edge, dx, dy, dw, dh)
+      onResize(iframeLayer.id, edge, dx, dy, dw, dh)
     },
-    [artboard.id, onResize],
+    [iframeLayer.id, onResize],
   )
 
   const handleResizeStart = useCallback(
     (edge: ResizeEdge) => {
-      onResizeStart?.(artboard.id, edge)
+      onResizeStart?.(iframeLayer.id, edge)
     },
-    [artboard.id, onResizeStart],
+    [iframeLayer.id, onResizeStart],
   )
 
   const handleResizeEnd = useCallback(() => {
-    onResizeEnd?.(artboard.id)
-  }, [artboard.id, onResizeEnd])
+    onResizeEnd?.(iframeLayer.id)
+  }, [iframeLayer.id, onResizeEnd])
 
-  const { makeHandleProps } = useArtboardResize({
+  const { makeHandleProps } = useIframeLayerResize({
     zoom,
     onResize: handleResize,
     onResizeStart: handleResizeStart,
     onResizeEnd: handleResizeEnd,
   })
 
-  // Track the path last reported by the iframe itself. When artboard.route
+  // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
   // navigation and should not reload the iframe.
   const reportedPathRef = useRef<string | null>(null)
 
   // Track the iframeUrl applied last so we can distinguish a branch switch
   // (host change) from a route-only change.
-  const lastIframeUrlRef = useRef<string | undefined>(artboard.iframeUrl)
+  const lastIframeUrlRef = useRef<string | undefined>(iframeLayer.iframeUrl)
 
   const handleNavigation = useCallback(
     (id: string, path: string) => {
@@ -259,19 +259,19 @@ export function Artboard({
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
-      if (!artboard.sandboxId) return
+      if (!iframeLayer.sandboxId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
-      if (reinstalledSandboxes.has(artboard.sandboxId)) return
-      reinstalledSandboxes.add(artboard.sandboxId)
-      const result = await installBridge(artboard.sandboxId)
+      if (reinstalledSandboxes.has(iframeLayer.sandboxId)) return
+      reinstalledSandboxes.add(iframeLayer.sandboxId)
+      const result = await installBridge(iframeLayer.sandboxId)
       if (!result.success) {
-        reinstalledSandboxes.delete(artboard.sandboxId)
+        reinstalledSandboxes.delete(iframeLayer.sandboxId)
         return
       }
       reloadIframe()
     },
-    [artboard.sandboxId, reloadIframe],
+    [iframeLayer.sandboxId, reloadIframe],
   )
 
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
@@ -280,7 +280,7 @@ export function Artboard({
   const buttonsRef = useRef<HTMLDivElement>(null)
 
   // Natural (unconstrained) width of the label's bottom row — reported by
-  // ArtboardLabel from a hidden measurement copy. Used to decide which action
+  // IframeLayerLabel from a hidden measurement copy. Used to decide which action
   // buttons fit in the remaining space.
   const [labelContentWidth, setLabelContentWidth] = useState(0)
 
@@ -334,7 +334,7 @@ export function Artboard({
   const BUTTON_MARGIN = 8 // breathing room between label and the button row
   const space = Math.max(
     0,
-    artboard.width * zoom - labelContentWidth - BUTTON_MARGIN,
+    iframeLayer.width * zoom - labelContentWidth - BUTTON_MARGIN,
   )
   const interactW = buttonNaturalWidths.interact
   const createFlowW = buttonNaturalWidths.createFlow
@@ -342,7 +342,7 @@ export function Artboard({
   const fitW = buttonNaturalWidths.fit
   const playW = buttonNaturalWidths.play
   const reloadW = buttonNaturalWidths.reload
-  const canFit = !!onFitToContent && !!artboard.sandboxId
+  const canFit = !!onFitToContent && !!iframeLayer.sandboxId
   const showInteract = !interactW || space >= interactW
   const showCreateFlow =
     showInteract &&
@@ -419,12 +419,12 @@ export function Artboard({
   )
 
   const { iframeRef } = usePostMessage({
-    artboardId: artboard.id,
-    iframeState: artboard.iframeState ?? {},
-    iframeScrollX: artboard.scrollX,
-    iframeScrollY: artboard.scrollY,
-    knobValues: artboard.knobValues,
-    sharedState: artboard.sharedState,
+    iframeLayerId: iframeLayer.id,
+    iframeState: iframeLayer.iframeState ?? {},
+    iframeScrollX: iframeLayer.scrollX,
+    iframeScrollY: iframeLayer.scrollY,
+    knobValues: iframeLayer.knobValues,
+    sharedState: iframeLayer.sharedState,
     onStateChanged,
     onNavigation: handleNavigation,
     onScroll: handleScroll,
@@ -440,18 +440,18 @@ export function Artboard({
     try {
       const size = await dom.getDocumentSize()
       if (!size) return
-      onFitToContent?.(artboard.id, size.width, size.height)
+      onFitToContent?.(iframeLayer.id, size.width, size.height)
     } catch {
       // Bridge timeout / iframe not ready — ignore.
     }
-  }, [dom, artboard.id, onFitToContent])
+  }, [dom, iframeLayer.id, onFitToContent])
 
   const onDomReadyRef = useRef(onDomReady)
   onDomReadyRef.current = onDomReady
   useEffect(() => {
-    onDomReadyRef.current?.(artboard.id, dom)
-    return () => onDomReadyRef.current?.(artboard.id, null)
-  }, [artboard.id, dom])
+    onDomReadyRef.current?.(iframeLayer.id, dom)
+    return () => onDomReadyRef.current?.(iframeLayer.id, null)
+  }, [iframeLayer.id, dom])
 
   const queryElementAtPoint = useCallback(
     async (clientX: number, clientY: number) => {
@@ -465,18 +465,18 @@ export function Artboard({
       // pixels. Without this the hit-test drifts further off as zoom shrinks.
       const x = (clientX - rect.left) / zoom
       const y = (clientY - rect.top) / zoom
-      if (x < 0 || y < 0 || x > artboard.width || y > artboard.height) return null
+      if (x < 0 || y < 0 || x > iframeLayer.width || y > iframeLayer.height) return null
       try {
         return await dom.elementAtPoint(x, y)
       } catch {
         return null
       }
     },
-    [dom, iframeRef, zoom, artboard.width, artboard.height],
+    [dom, iframeRef, zoom, iframeLayer.width, iframeLayer.height],
   )
 
-  const desiredSrc = artboard.iframeUrl
-    ? artboard.iframeUrl + (artboard.route ?? "")
+  const desiredSrc = iframeLayer.iframeUrl
+    ? iframeLayer.iframeUrl + (iframeLayer.route ?? "")
     : undefined
 
   // The `src` actually applied to the iframe. We avoid changing it when the
@@ -485,24 +485,24 @@ export function Artboard({
   const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
 
   useEffect(() => {
-    if (!artboard.iframeUrl) {
+    if (!iframeLayer.iframeUrl) {
       setIframeSrc(undefined)
       lastIframeUrlRef.current = undefined
       return
     }
-    const route = artboard.route ?? ""
-    const urlChanged = lastIframeUrlRef.current !== artboard.iframeUrl
+    const route = iframeLayer.route ?? ""
+    const urlChanged = lastIframeUrlRef.current !== iframeLayer.iframeUrl
     if (urlChanged) {
       // Branch switch: force a reload onto the new host even if the route
       // matches what the previous iframe last reported.
-      lastIframeUrlRef.current = artboard.iframeUrl
+      lastIframeUrlRef.current = iframeLayer.iframeUrl
       reportedPathRef.current = null
-      setIframeSrc(artboard.iframeUrl + route)
+      setIframeSrc(iframeLayer.iframeUrl + route)
       return
     }
     if (route === reportedPathRef.current) return
-    setIframeSrc(artboard.iframeUrl + route)
-  }, [artboard.iframeUrl, artboard.route])
+    setIframeSrc(iframeLayer.iframeUrl + route)
+  }, [iframeLayer.iframeUrl, iframeLayer.route])
 
   const [serverReady, setServerReady] = useState(false)
 
@@ -536,12 +536,12 @@ export function Artboard({
   return (
     <div
       ref={frameRef}
-      id={`artboard-${artboard.id}`}
-      data-artboard
+      id={`iframe-layer-${iframeLayer.id}`}
+      data-iframe-layer
       className="relative shrink-0"
       style={{
-        width: artboard.width,
-        height: artboard.height,
+        width: iframeLayer.width,
+        height: iframeLayer.height,
         order: flexOrder,
         position: dragPopped ? "absolute" : undefined,
         left: dragPopped?.left,
@@ -553,29 +553,29 @@ export function Artboard({
               ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
               : undefined,
         zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
-        // Other siblings snap to their new flex slots; the lifted artboard
+        // Other siblings snap to their new flex slots; the lifted iframeLayer
         // tracks the cursor without a transition so it doesn't lag.
         pointerEvents:
           dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
       }}
     >
-      <ArtboardLabel
-        label={artboard.label}
-        branch={artboard.branch}
-        sandboxId={artboard.sandboxId}
-        route={artboard.route}
-        sharedState={artboard.sharedState}
+      <IframeLayerLabel
+        label={iframeLayer.label}
+        branch={iframeLayer.branch}
+        sandboxId={iframeLayer.sandboxId}
+        route={iframeLayer.route}
+        sharedState={iframeLayer.sharedState}
         zoom={zoom}
-        artboardWidth={artboard.width}
+        iframeLayerWidth={iframeLayer.width}
         reservedRightPx={reservedRightPx}
         dragHandlers={interactive ? undefined : dragHandlers}
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
-        onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(artboard.id, agentId) : undefined}
+        onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(iframeLayer.id, agentId) : undefined}
         discoveredRoutes={discoveredRoutes}
         onSelectRoute={
-          onSelectRoute && artboard.sandboxId
-            ? (route) => onSelectRoute(artboard.id, route)
+          onSelectRoute && iframeLayer.sandboxId
+            ? (route) => onSelectRoute(iframeLayer.id, route)
             : undefined
         }
         selected={selected || groupSelected}
@@ -589,11 +589,11 @@ export function Artboard({
           if (selected && !shiftKey) return
           if (groupSelected && !shiftKey) return
           selectedOnPointerDown.current = true
-          onSelect(artboard.id, shiftKey)
+          onSelect(iframeLayer.id, shiftKey)
         }}
         onContentWidthChange={setLabelContentWidth}
       />
-      {artboard.sandboxId && (
+      {iframeLayer.sandboxId && (
         <div
           ref={buttonsRef}
           // row-reverse keeps the visual order [Reload, Knobs, Interact].
@@ -614,7 +614,7 @@ export function Artboard({
                     <Button
                       size="icon-xxs"
                       variant={focused ? "default" : "outline"}
-                      onClick={() => onFocus(focused ? null : artboard.id)}
+                      onClick={() => onFocus(focused ? null : iframeLayer.id)}
                     >
                       {focused ? <Move /> : <MousePointer />}
                     </Button>
@@ -635,7 +635,7 @@ export function Artboard({
                       size="icon-xxs"
                       variant={createFlow ? "default" : "outline"}
                       onClick={() =>
-                        onToggleCreateFlow(createFlow ? null : artboard.id)
+                        onToggleCreateFlow(createFlow ? null : iframeLayer.id)
                       }
                     >
                       <Route />
@@ -651,9 +651,9 @@ export function Artboard({
           {showKnobs && (
             <div ref={knobsWrapperRef} className="flex">
               <KnobsPopover
-                knobs={artboard.knobs}
-                values={artboard.knobValues}
-                onChange={(values) => onKnobValuesChange?.(artboard.id, values)}
+                knobs={iframeLayer.knobs}
+                values={iframeLayer.knobValues}
+                onChange={(values) => onKnobValuesChange?.(iframeLayer.id, values)}
                 anchorRef={frameRef}
               />
             </div>
@@ -686,7 +686,7 @@ export function Artboard({
                     <Button
                       size="icon-xxs"
                       variant="outline"
-                      onClick={() => onPlay?.(artboard.id)}
+                      onClick={() => onPlay?.(iframeLayer.id)}
                     >
                       <Play />
                     </Button>
@@ -749,9 +749,9 @@ export function Artboard({
                   // also re-runs elementAtPoint to capture the selector).
                   onPointerMove: async (e: React.PointerEvent) => {
                     const result = await queryElementAtPoint(e.clientX, e.clientY)
-                    onHover(artboard.id, result ? result.rect : null)
+                    onHover(iframeLayer.id, result ? result.rect : null)
                   },
-                  onPointerLeave: () => onHover(artboard.id, null),
+                  onPointerLeave: () => onHover(iframeLayer.id, null),
                 }
               : {})}
             onPointerDownCapture={(e) => {
@@ -763,7 +763,7 @@ export function Artboard({
                 if (groupSelected && !e.shiftKey) return
                 if (!selected || e.shiftKey) {
                   selectedOnPointerDown.current = true
-                  onSelect(artboard.id, e.shiftKey)
+                  onSelect(iframeLayer.id, e.shiftKey)
                 }
               }
             }}

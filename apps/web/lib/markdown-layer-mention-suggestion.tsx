@@ -3,7 +3,7 @@
 import { ReactRenderer } from "@tiptap/react"
 import type { MentionOptions } from "@tiptap/extension-mention"
 import { MentionList, type MentionListHandle } from "@/components/agent/mention-list"
-import type { DocumentLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 /**
  * Build a TipTap Mention `suggestion` config that filters the live document
@@ -13,9 +13,9 @@ import type { DocumentLayerData } from "@/lib/types"
  * means the same thing everywhere — pick a document, attach its id, and let
  * `Mention.renderText` display it as `@<title>` in serialized output.
  */
-export function buildDocumentMentionSuggestion(opts: {
-  /** Always returns the latest documents so the popover sees fresh titles. */
-  getDocuments: () => DocumentLayerData[]
+export function buildMarkdownLayerMentionSuggestion(opts: {
+  /** Always returns the latest markdownLayers so the popover sees fresh titles. */
+  getMarkdownLayers: () => MarkdownLayerData[]
   /**
    * Optional: a doc id to exclude from the candidate list — the document
    * doing the mentioning shouldn't be able to mention itself.
@@ -41,7 +41,7 @@ export function buildDocumentMentionSuggestion(opts: {
       const q = query.toLowerCase()
       const exclude = opts.getExcludeId?.()
       return opts
-        .getDocuments()
+        .getMarkdownLayers()
         .filter((d) => d.id !== exclude)
         .map((d) => ({ id: d.id, label: d.title || "Untitled" }))
         .filter((d) => d.label.toLowerCase().includes(q))

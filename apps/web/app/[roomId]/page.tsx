@@ -54,7 +54,7 @@ export default async function RoomPage({
 
   // Pre-fetch threads server-side so comment pins render on the very first
   // client paint. The equivalent client-side server action gets queued behind
-  // the artboard's probeSandboxUrl polling and otherwise wouldn't resolve
+  // the iframeLayer's probeSandboxUrl polling and otherwise wouldn't resolve
   // until the dev server's iframe URL is up — making pins look like they
   // were waiting on the iframe.
   const initialThreads = await listThreads(roomId, userId).catch(() => [])

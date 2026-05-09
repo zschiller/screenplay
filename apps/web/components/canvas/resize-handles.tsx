@@ -1,6 +1,6 @@
 "use client"
 
-import type { ResizeEdge } from "@/hooks/use-artboard-resize"
+import type { ResizeEdge } from "@/hooks/use-iframe-layer-resize"
 
 interface ResizeHandlesProps {
   zoom: number
@@ -9,7 +9,7 @@ interface ResizeHandlesProps {
 
 /**
  * The 8 resize handles (4 edges + 4 corners) that wrap a singly-selected
- * canvas tile (artboard or document). Sized in screen-pixel units so the
+ * canvas tile (iframeLayer or document). Sized in screen-pixel units so the
  * grab targets stay usable at any zoom; corners are oversized so they win
  * over the adjacent edge regions, which inset by `cornerSize` to avoid
  * overlap. Parent must be `position: relative`.

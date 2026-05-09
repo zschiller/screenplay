@@ -12,7 +12,7 @@ export type ThreadRecord = {
   /** Null for branch-level threads (no canvas position). */
   x: number | null
   y: number | null
-  artboardId: string | null
+  iframeLayerId: string | null
   selector: string | null
   offsetX: number | null
   offsetY: number | null
@@ -47,7 +47,7 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     roomId: row.roomId,
     x: row.x,
     y: row.y,
-    artboardId: row.artboardId,
+    iframeLayerId: row.iframeLayerId,
     selector: row.selector,
     offsetX: row.offsetX,
     offsetY: row.offsetY,
@@ -171,7 +171,7 @@ async function listThreadsScoped(
   })
 }
 
-/** Canvas threads: anchored to a position/artboard/selector, branch null. */
+/** Canvas threads: anchored to a position/iframeLayer/selector, branch null. */
 export async function listThreads(
   roomId: string,
   userId: string,
@@ -193,7 +193,7 @@ export async function createThreadWithFirstComment(opts: {
   roomId: string
   x: number | null
   y: number | null
-  artboardId: string | null
+  iframeLayerId: string | null
   selector: string | null
   offsetX: number | null
   offsetY: number | null
@@ -212,7 +212,7 @@ export async function createThreadWithFirstComment(opts: {
       roomId: opts.roomId,
       x: opts.x,
       y: opts.y,
-      artboardId: opts.artboardId,
+      iframeLayerId: opts.iframeLayerId,
       selector: opts.selector,
       offsetX: opts.offsetX,
       offsetY: opts.offsetY,

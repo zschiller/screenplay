@@ -1,36 +1,36 @@
-import { ARTBOARD_GROUP_GAP } from "@/lib/constants"
+import { IFRAME_LAYER_GROUP_GAP } from "@/lib/constants"
 import type {
-  ArtboardData,
-  ArtboardGroupData,
-  DocumentLayerData,
+  IframeLayerData,
+  IframeLayerGroupData,
+  MarkdownLayerData,
   GroupMember,
   GroupMemberKind,
 } from "@/lib/types"
 
 /** Effective horizontal gap for a group — its own override, or the default. */
-export function groupGap(group: ArtboardGroupData): number {
-  return group.gap ?? ARTBOARD_GROUP_GAP
+export function groupGap(group: IframeLayerGroupData): number {
+  return group.gap ?? IFRAME_LAYER_GROUP_GAP
 }
 
 /**
  * Canonical member list for a group. Returns `group.members` if present;
- * falls back to deriving from the legacy `artboardIds` field so call sites
+ * falls back to deriving from the legacy `iframeLayerIds` field so call sites
  * don't have to special-case unmigrated data. The migration in
- * `getRoomCollections` writes `members` and clears `artboardIds` on first
+ * `getRoomCollections` writes `members` and clears `iframeLayerIds` on first
  * read, but we still defensive-default here so utilities are safe to call
  * before the migration has flushed.
  */
-export function getGroupMembers(group: ArtboardGroupData): GroupMember[] {
+export function getGroupMembers(group: IframeLayerGroupData): GroupMember[] {
   if (group.members && group.members.length > 0) return group.members
-  if (group.artboardIds && group.artboardIds.length > 0) {
-    return group.artboardIds.map((id) => ({ kind: "artboard" as const, id }))
+  if (group.iframeLayerIds && group.iframeLayerIds.length > 0) {
+    return group.iframeLayerIds.map((id) => ({ kind: "iframe-layer" as const, id }))
   }
   return []
 }
 
 /** Helper to filter to a single kind — handy for sandbox-only operations. */
 export function getGroupMemberIds(
-  group: ArtboardGroupData,
+  group: IframeLayerGroupData,
   kind: GroupMemberKind,
 ): string[] {
   return getGroupMembers(group)
@@ -45,15 +45,15 @@ export function getGroupMemberIds(
  */
 export function getMemberSize(
   member: GroupMember,
-  artboards: ReadonlyMap<string, ArtboardData>,
-  documents: ReadonlyMap<string, DocumentLayerData>,
+  iframeLayers: ReadonlyMap<string, IframeLayerData>,
+  markdownLayers: ReadonlyMap<string, MarkdownLayerData>,
 ): { width: number; height: number } | null {
-  if (member.kind === "artboard") {
-    const ab = artboards.get(member.id)
+  if (member.kind === "iframe-layer") {
+    const ab = iframeLayers.get(member.id)
     return ab ? { width: ab.width, height: ab.height } : null
   }
-  if (member.kind === "document") {
-    const d = documents.get(member.id)
+  if (member.kind === "markdown-layer") {
+    const d = markdownLayers.get(member.id)
     return d ? { width: d.width, height: d.height } : null
   }
   return null
@@ -74,30 +74,30 @@ export type GroupMemberLayout = {
   height: number
 }
 
-/** Backwards-compatible alias — most callers only consume artboard layouts. */
-export type ArtboardLayout = GroupMemberLayout
-export type ArtboardLayoutMap = ReadonlyMap<string, GroupMemberLayout>
+/** Backwards-compatible alias — most callers only consume iframeLayer layouts. */
+export type IframeLayerLayout = GroupMemberLayout
+export type IframeLayerLayoutMap = ReadonlyMap<string, GroupMemberLayout>
 
 /**
  * Compute world-space rects for every group member, given the parent groups
- * and the underlying artboard / document collections. Members inside a group
+ * and the underlying iframeLayer / document collections. Members inside a group
  * are flexed left-to-right with the group's gap between them; the group's
  * `(x, y)` anchors the leftmost member's top-left. Members not referenced by
  * any group are skipped — the migration in `getRoomCollections` ensures
- * every artboard/document ends up in exactly one group.
+ * every iframeLayer/document ends up in exactly one group.
  *
  * Both arguments accept readonly arrays so the caller can pass freshly
  * computed snapshots from a Yjs transaction without copying.
  */
-export function computeArtboardLayouts(
-  groups: readonly ArtboardGroupData[],
-  artboards: readonly ArtboardData[],
-  documents: readonly DocumentLayerData[] = [],
-): ArtboardLayoutMap {
-  const abById = new Map<string, ArtboardData>()
-  for (const ab of artboards) abById.set(ab.id, ab)
-  const docById = new Map<string, DocumentLayerData>()
-  for (const d of documents) docById.set(d.id, d)
+export function computeIframeLayerLayouts(
+  groups: readonly IframeLayerGroupData[],
+  iframeLayers: readonly IframeLayerData[],
+  markdownLayers: readonly MarkdownLayerData[] = [],
+): IframeLayerLayoutMap {
+  const abById = new Map<string, IframeLayerData>()
+  for (const ab of iframeLayers) abById.set(ab.id, ab)
+  const docById = new Map<string, MarkdownLayerData>()
+  for (const d of markdownLayers) docById.set(d.id, d)
 
   const map = new Map<string, GroupMemberLayout>()
   for (const group of groups) {
@@ -128,12 +128,12 @@ export function computeArtboardLayouts(
 
 /** Total width of a group's members plus inter-member gaps. */
 export function groupContentWidth(
-  group: ArtboardGroupData,
-  artboards: readonly ArtboardData[],
-  documents: readonly DocumentLayerData[] = [],
+  group: IframeLayerGroupData,
+  iframeLayers: readonly IframeLayerData[],
+  markdownLayers: readonly MarkdownLayerData[] = [],
 ): number {
-  const abById = new Map(artboards.map((a) => [a.id, a]))
-  const docById = new Map(documents.map((d) => [d.id, d]))
+  const abById = new Map(iframeLayers.map((a) => [a.id, a]))
+  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
   let width = 0
   let count = 0
   for (const m of getGroupMembers(group)) {
@@ -148,12 +148,12 @@ export function groupContentWidth(
 
 /** Tallest member in the group — used for union bounds and overlay. */
 export function groupContentHeight(
-  group: ArtboardGroupData,
-  artboards: readonly ArtboardData[],
-  documents: readonly DocumentLayerData[] = [],
+  group: IframeLayerGroupData,
+  iframeLayers: readonly IframeLayerData[],
+  markdownLayers: readonly MarkdownLayerData[] = [],
 ): number {
-  const abById = new Map(artboards.map((a) => [a.id, a]))
-  const docById = new Map(documents.map((d) => [d.id, d]))
+  const abById = new Map(iframeLayers.map((a) => [a.id, a]))
+  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
   let height = 0
   for (const m of getGroupMembers(group)) {
     const size = getMemberSize(m, abById, docById)
@@ -170,13 +170,13 @@ export function groupContentHeight(
  * Pure so callers batching multiple placements in one transaction can pass an
  * accumulating "virtual" groups list.
  */
-export function placeNewArtboardGroup(
-  groups: readonly ArtboardGroupData[],
-  artboards: readonly ArtboardData[],
+export function placeNewIframeLayerGroup(
+  groups: readonly IframeLayerGroupData[],
+  iframeLayers: readonly IframeLayerData[],
   viewportCenter: { x: number; y: number },
   width: number,
   height: number,
-  documents: readonly DocumentLayerData[] = [],
+  markdownLayers: readonly MarkdownLayerData[] = [],
 ): { x: number; y: number } {
   if (groups.length === 0) {
     return {
@@ -188,10 +188,10 @@ export function placeNewArtboardGroup(
   let maxRight = -Infinity
   for (const g of groups) {
     minY = Math.min(minY, g.y)
-    const w = groupContentWidth(g, artboards, documents)
+    const w = groupContentWidth(g, iframeLayers, markdownLayers)
     if (g.x + w > maxRight) maxRight = g.x + w
   }
-  return { x: maxRight + ARTBOARD_GROUP_GAP, y: minY }
+  return { x: maxRight + IFRAME_LAYER_GROUP_GAP, y: minY }
 }
 
 /**
@@ -199,7 +199,7 @@ export function placeNewArtboardGroup(
  * existing group names so reordering or deleting earlier groups never causes
  * a future group to collide with an existing name.
  */
-export function nextGroupNumber(groups: readonly ArtboardGroupData[]): number {
+export function nextGroupNumber(groups: readonly IframeLayerGroupData[]): number {
   let max = 0
   for (const g of groups) {
     if (!g.name) continue

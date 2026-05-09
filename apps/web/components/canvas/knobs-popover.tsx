@@ -41,7 +41,7 @@ interface KnobsPopoverProps {
   onChange: (values: KnobValues) => void
   /**
    * Element to anchor the popover content against. Defaults to the trigger
-   * button — pass the frame element so the popover docks beside the artboard
+   * button — pass the frame element so the popover docks beside the iframeLayer
    * instead of overlapping its iframe.
    */
   anchorRef?: RefObject<HTMLElement | null>

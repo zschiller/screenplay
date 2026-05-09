@@ -9,15 +9,15 @@ import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
-import { useArtboardDrag } from "@/hooks/use-artboard-drag"
-import { useArtboardResize } from "@/hooks/use-artboard-resize"
+import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
+import { useIframeLayerResize } from "@/hooks/use-iframe-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
-import { useDocumentLayers } from "@/lib/yjs/react"
-import { buildDocumentMentionSuggestion } from "@/lib/document-mention-suggestion"
-import { DocumentMentionNodeView } from "@/components/canvas/document-mention-node"
+import { useMarkdownLayers } from "@/lib/yjs/react"
+import { buildMarkdownLayerMentionSuggestion } from "@/lib/markdown-layer-mention-suggestion"
+import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { GroupLabel } from "@/components/canvas/group-label"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
-import type { DocumentLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 /** Forces every doc to start with a heading — that heading is the title.
  *  Body blocks follow. Mirrors how Notion's page model is shaped: there's
@@ -60,7 +60,7 @@ const TitleEnterBehavior = Extension.create({
 })
 
 interface DocumentLayerProps {
-  layer: DocumentLayerData
+  layer: MarkdownLayerData
   zoom: number
   selected: boolean
   multiSelected: boolean
@@ -68,24 +68,24 @@ interface DocumentLayerProps {
   spaceHeld: boolean
   userName: string
   userColor: string
-  /** Visual order within the parent ArtboardGroup's flex flow. */
+  /** Visual order within the parent IframeLayerGroup's flex flow. */
   flexOrder?: number
   /** Reorder-drag translate, applied when this doc is being dragged in-flow. */
   dragTranslateX?: number
   dragTranslateY?: number
   /** When the user holds meta to "pop" this doc out of its group, the
-   *  ArtboardGroup parent feeds back a position so it floats at the cursor. */
+   *  IframeLayerGroup parent feeds back a position so it floats at the cursor. */
   dragPopped?: { left: number; top: number }
   /** Group display name — only set on the leftmost member of a multi-member group. */
   groupLabel?: string
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
-   *  the selection — same as Artboard). */
+   *  the selection — same as IframeLayer). */
   groupSelected?: boolean
   /** Click handler for the group label. */
   onSelectGroup?: (shiftKey: boolean) => void
   onSelect: (id: string, shiftKey: boolean) => void
-  /** Move the parent group by (dx, dy) — same contract as Artboard.onMoveGroup. */
+  /** Move the parent group by (dx, dy) — same contract as IframeLayer.onMoveGroup. */
   onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
   /** Adjust this doc's own width/height; the group anchor (x/y) shifts in the
@@ -98,12 +98,12 @@ interface DocumentLayerProps {
 
 /**
  * A Notion-style document tile rendered as a flex child of its parent
- * ArtboardGroup — exactly the same positioning model as Artboard, so docs
+ * IframeLayerGroup — exactly the same positioning model as IframeLayer, so docs
  * and frames mix seamlessly inside a group's row. Body content is a TipTap
- * editor bound to a Yjs XmlFragment (`doc-${id}`), so editing is
+ * editor bound to a Yjs XmlFragment (`markdown-layer-${id}`), so editing is
  * collaborative with live remote cursors.
  */
-export function DocumentLayer({
+export function MarkdownLayer({
   layer,
   zoom,
   selected,
@@ -135,13 +135,13 @@ export function DocumentLayer({
   // Mention suggestion needs the live document list every keystroke, but the
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
-  const documentLayers = useDocumentLayers()
-  const documentLayersRef = useRef<DocumentLayerData[]>(documentLayers)
-  documentLayersRef.current = documentLayers
+  const markdownLayers = useMarkdownLayers()
+  const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
+  markdownLayersRef.current = markdownLayers
   const layerIdRef = useRef(layer.id)
   layerIdRef.current = layer.id
 
-  // Title cache lives on `DocumentLayerData.title` — sidebar rows, mentions,
+  // Title cache lives on `MarkdownLayerData.title` — sidebar rows, mentions,
   // agent context all read it. The editor's first heading is the source of
   // truth; this callback is what writes derived title text back to the cache.
   // Stash on a ref so the editor closure doesn't capture a stale handler.
@@ -189,7 +189,7 @@ export function DocumentLayer({
         }),
         Mention.extend({
           addNodeView() {
-            return ReactNodeViewRenderer(DocumentMentionNodeView, {
+            return ReactNodeViewRenderer(MarkdownLayerMentionNodeView, {
               as: "span",
             })
           },
@@ -208,8 +208,8 @@ export function DocumentLayer({
             return ["span", options.HTMLAttributes, label]
           },
           deleteTriggerWithBackspace: true,
-          suggestion: buildDocumentMentionSuggestion({
-            getDocuments: () => documentLayersRef.current,
+          suggestion: buildMarkdownLayerMentionSuggestion({
+            getMarkdownLayers: () => markdownLayersRef.current,
             getExcludeId: () => layerIdRef.current,
             getAnchorRect: () =>
               rootRef.current?.getBoundingClientRect() ?? null,
@@ -321,7 +321,7 @@ export function DocumentLayer({
 
   const selectedOnPointerDown = useRef(false)
 
-  const dragHandlers = useArtboardDrag({
+  const dragHandlers = useIframeLayerDrag({
     zoom,
     onDrag: handleDrag,
     onClick: (e) => {
@@ -336,7 +336,7 @@ export function DocumentLayer({
   // Each gesture's deltas need to operate on the doc's size at the start of
   // the drag, not the live (already-shrunk) size — otherwise hitting the
   // minimum makes subsequent moves act on the clamped value. Same pattern
-  // as Artboard's resize accumulator.
+  // as IframeLayer's resize accumulator.
   const resizeStartRef = useRef<{ w: number; h: number } | null>(null)
 
   const handleResize = useCallback(
@@ -352,7 +352,7 @@ export function DocumentLayer({
     [layer.id, onResize],
   )
 
-  const { makeHandleProps } = useArtboardResize({
+  const { makeHandleProps } = useIframeLayerResize({
     zoom,
     onResize: handleResize,
     onResizeStart: () => {
@@ -364,7 +364,7 @@ export function DocumentLayer({
   })
 
   // When the user holds meta to pop the doc out of its group, the parent
-  // ArtboardGroup absolutely-positions us at the cursor; otherwise we sit
+  // IframeLayerGroup absolutely-positions us at the cursor; otherwise we sit
   // in the flex flow and `dragTranslate{X,Y}` is layered on as a transform
   // during a non-popped reorder drag.
   const transform =
@@ -374,14 +374,14 @@ export function DocumentLayer({
 
   return (
     <div
-      id={`document-layer-${layer.id}`}
+      id={`markdown-layer-${layer.id}`}
       ref={rootRef}
-      data-document-layer
+      data-markdown-layer
       data-doc-id={layer.id}
       // No overflow-hidden on the root — the group label sits above the tile
-      // via `bottom-full` and would be clipped. Match Artboard, which keeps
+      // via `bottom-full` and would be clipped. Match IframeLayer, which keeps
       // its outer root open and pushes overflow clipping to the inner body.
-      // Inner clipping happens on `data-document-scroll` (overflow-y-auto)
+      // Inner clipping happens on `data-markdown-layer-scroll` (overflow-y-auto)
       // and the body padding constrains horizontal layout.
       className="relative flex flex-col rounded-md bg-background"
       style={{
@@ -401,10 +401,10 @@ export function DocumentLayer({
       }}
     >
       {groupLabel && (
-        // Mirror Artboard's label placement: anchored above the tile, scaled
+        // Mirror IframeLayer's label placement: anchored above the tile, scaled
         // to stay constant in screen pixels regardless of zoom. The drag
         // handlers are spread here so dragging the label moves the parent
-        // group — same affordance as Artboard's label region.
+        // group — same affordance as IframeLayer's label region.
         <div
           className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
           style={{
@@ -424,7 +424,7 @@ export function DocumentLayer({
       )}
       {/* Title is the editor's first heading; body follows in the same
        *  editor surface (Notion-style — no separate title bar). */}
-      <div data-document-scroll className="relative flex-1 overflow-y-auto">
+      <div data-markdown-layer-scroll className="relative flex-1 overflow-y-auto">
         <div
           className="px-6 py-5"
           style={{ pointerEvents: editing ? "auto" : "none" }}
@@ -440,7 +440,7 @@ export function DocumentLayer({
               if (e.button === 0 && !spaceHeld) {
                 selectedOnPointerDown.current = false
                 // While the parent group owns the selection, plain clicks on
-                // the doc are a no-op (matches Artboard). Shift still drills
+                // the doc are a no-op (matches IframeLayer). Shift still drills
                 // through so the user can additively pick this member.
                 if (groupSelected && !e.shiftKey) return
                 if (!selected || e.shiftKey) {
