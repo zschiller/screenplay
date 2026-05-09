@@ -26,7 +26,7 @@ import {
 } from "@/lib/yjs/react"
 import { seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { useSession } from "@/lib/auth-client"
-import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
+import { AppWindow, ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -4734,7 +4734,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !documentMode && !frameMode ? "default" : "ghost"}
+                          variant={!commentMode && !documentMode && !frameMode && !sketchMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
@@ -4742,6 +4742,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setInspectHover(null)
                             setDocumentMode(false)
                             setFrameMode(false)
+                            setSketchMode(false)
                           }}
                         >
                           <MousePointer2 className="h-3.5 w-3.5" />
@@ -4762,13 +4763,35 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setInspectHover(null)
+                            setSketchMode(false)
+                          }}
+                        >
+                          <AppWindow className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Frame <Kbd>F</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={sketchMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setSketchMode((m) => !m)
+                            setFrameMode(false)
+                            setDocumentMode(false)
+                            setCommentMode(false)
+                            setNewCommentPos(null)
+                            setInspectHover(null)
                           }}
                         >
                           <Frame className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        Frame <Kbd>F</Kbd>
+                        Sketch <Kbd>S</Kbd>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -4782,6 +4805,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setNewCommentPos(null)
                             setInspectHover(null)
                             setFrameMode(false)
+                            setSketchMode(false)
                           }}
                         >
                           <FileText className="h-3.5 w-3.5" />
@@ -4802,6 +4826,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setInspectHover(null)
                             setDocumentMode(false)
                             setFrameMode(false)
+                            setSketchMode(false)
                           }}
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
