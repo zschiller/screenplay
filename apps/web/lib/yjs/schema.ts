@@ -7,6 +7,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   PlanData,
+  SketchLayerData,
   ViewportData,
   WorkspaceData,
 } from "@/lib/types"
@@ -25,6 +26,7 @@ export const COLLECTION_KEYS = {
   iframeLayers: "iframeLayers",
   iframeLayerGroups: "iframeLayerGroups",
   markdownLayers: "markdownLayers",
+  sketchLayers: "sketchLayers",
   chatSessions: "chatSessions",
   plans: "plans",
   // Live tracked-pin positions for selector-anchored comments. Keyed by
@@ -224,6 +226,7 @@ export type RoomCollections = {
   iframeLayers: YjsCollection<IframeLayerData>
   iframeLayerGroups: YjsCollection<IframeLayerGroupData>
   markdownLayers: YjsCollection<MarkdownLayerData>
+  sketchLayers: YjsCollection<SketchLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   commentPositions: YjsCollection<CommentPosition>
@@ -260,6 +263,10 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     markdownLayers: new YjsCollection<MarkdownLayerData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.markdownLayers),
+    ),
+    sketchLayers: new YjsCollection<SketchLayerData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.sketchLayers),
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,

@@ -19,6 +19,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   PlanData,
+  SketchLayerData,
   ViewportData,
   WorkspaceData,
 } from "@/lib/types"
@@ -73,6 +74,10 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
   return useCollectionArray(useRoomCollections().markdownLayers)
 }
 
+export function useSketchLayers(): Array<SketchLayerData> {
+  return useCollectionArray(useRoomCollections().sketchLayers)
+}
+
 export function useWorkspaces(): Array<WorkspaceData> {
   return useCollectionArray(useRoomCollections().workspaces)
 }
@@ -110,6 +115,7 @@ export function useYjsHistory() {
         doc.getMap(COLLECTION_KEYS.iframeLayers),
         doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
         doc.getMap(COLLECTION_KEYS.markdownLayers),
+        doc.getMap(COLLECTION_KEYS.sketchLayers),
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
       ],

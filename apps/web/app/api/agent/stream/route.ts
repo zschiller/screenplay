@@ -8,6 +8,7 @@ import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
   markdownLayerChatTarget,
   prepareChatTarget,
+  sketchLayerChatTarget,
 } from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
@@ -39,6 +40,8 @@ interface RequestBody {
   branch?: string
   /** Required when the chat targets a document layer (no sandbox). */
   markdownLayerId?: string
+  /** Required when the chat targets a sketch layer (no sandbox). */
+  sketchLayerId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -57,6 +60,7 @@ export async function POST(req: Request) {
     sandboxName,
     branch,
     markdownLayerId,
+    sketchLayerId,
     message,
     isFirstChat,
     autoNamedBranch,
@@ -66,27 +70,40 @@ export async function POST(req: Request) {
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
-  if (!markdownLayerId && !sandboxName) {
-    return new Response("Missing target: markdownLayerId or sandboxName", { status: 400 })
+  if (!markdownLayerId && !sketchLayerId && !sandboxName) {
+    return new Response(
+      "Missing target: markdownLayerId, sketchLayerId, or sandboxName",
+      { status: 400 },
+    )
   }
 
-  // Layer-targeted chats (currently just markdownLayers) defer all of their
-  // kind-specific bits — system prompt, tools, message decoration — to a
-  // registered `ChatTargetSpec`. Adding a new chat-targetable kind means
-  // shipping a spec and a route branch; the surrounding agent loop is
-  // unchanged.
-  if (markdownLayerId) {
-    const prepared = await prepareChatTarget(roomId, markdownLayerChatTarget, {
-      markdownLayerId,
-    })
-    if (!prepared) return new Response("Document not found", { status: 404 })
+  // Layer-targeted chats defer all of their kind-specific bits — system
+  // prompt, tools, message decoration — to a registered `ChatTargetSpec`.
+  // Adding a new chat-targetable kind means shipping a spec and a route
+  // branch; the surrounding agent loop is unchanged.
+  const layerChat: { spec: typeof markdownLayerChatTarget; target: { markdownLayerId: string } }
+    | { spec: typeof sketchLayerChatTarget; target: { sketchLayerId: string } }
+    | null = markdownLayerId
+      ? { spec: markdownLayerChatTarget, target: { markdownLayerId } }
+      : sketchLayerId
+        ? { spec: sketchLayerChatTarget, target: { sketchLayerId } }
+        : null
+  if (layerChat) {
+    const prepared = await prepareChatTarget(
+      roomId,
+      // The discriminating union above keeps spec/target paired; cast through
+      // `never` so prepareChatTarget's generic doesn't try to unify them.
+      layerChat.spec as unknown as Parameters<typeof prepareChatTarget>[1],
+      layerChat.target as unknown as never,
+    )
+    if (!prepared) return new Response("Layer not found", { status: 404 })
 
     const effectiveModel = model || DEFAULT_MODEL
     await upsertChat({
       chatId,
       roomId,
       // No sandbox — pass an empty string so the persistence layer's NOT NULL
-      // constraint is satisfied; it's never read back for doc chats.
+      // constraint is satisfied; it's never read back for layer chats.
       sandboxName: "",
       model: effectiveModel,
       systemPrompt: prepared.systemPrompt,

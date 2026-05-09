@@ -3,6 +3,7 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  SketchLayerData,
   GroupMember,
   GroupMemberKind,
 } from "@/lib/types"
@@ -47,6 +48,7 @@ export function getMemberSize(
   member: GroupMember,
   iframeLayers: ReadonlyMap<string, IframeLayerData>,
   markdownLayers: ReadonlyMap<string, MarkdownLayerData>,
+  sketchLayers: ReadonlyMap<string, SketchLayerData> = EMPTY_SKETCH_MAP,
 ): { width: number; height: number } | null {
   if (member.kind === "iframe-layer") {
     const ab = iframeLayers.get(member.id)
@@ -56,8 +58,14 @@ export function getMemberSize(
     const d = markdownLayers.get(member.id)
     return d ? { width: d.width, height: d.height } : null
   }
+  if (member.kind === "sketch-layer") {
+    const s = sketchLayers.get(member.id)
+    return s ? { width: s.width, height: s.height } : null
+  }
   return null
 }
+
+const EMPTY_SKETCH_MAP: ReadonlyMap<string, SketchLayerData> = new Map()
 
 export type GroupMemberLayout = {
   id: string
@@ -93,11 +101,14 @@ export function computeIframeLayerLayouts(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
   markdownLayers: readonly MarkdownLayerData[] = [],
+  sketchLayers: readonly SketchLayerData[] = [],
 ): IframeLayerLayoutMap {
   const abById = new Map<string, IframeLayerData>()
   for (const ab of iframeLayers) abById.set(ab.id, ab)
   const docById = new Map<string, MarkdownLayerData>()
   for (const d of markdownLayers) docById.set(d.id, d)
+  const sketchById = new Map<string, SketchLayerData>()
+  for (const s of sketchLayers) sketchById.set(s.id, s)
 
   const map = new Map<string, GroupMemberLayout>()
   for (const group of groups) {
@@ -107,7 +118,7 @@ export function computeIframeLayerLayouts(
     const gap = groupGap(group)
     for (let i = 0; i < members.length; i++) {
       const member = members[i]!
-      const size = getMemberSize(member, abById, docById)
+      const size = getMemberSize(member, abById, docById, sketchById)
       if (!size) continue
       map.set(member.id, {
         id: member.id,
@@ -131,13 +142,15 @@ export function groupContentWidth(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
   markdownLayers: readonly MarkdownLayerData[] = [],
+  sketchLayers: readonly SketchLayerData[] = [],
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
   const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const sketchById = new Map(sketchLayers.map((s) => [s.id, s]))
   let width = 0
   let count = 0
   for (const m of getGroupMembers(group)) {
-    const size = getMemberSize(m, abById, docById)
+    const size = getMemberSize(m, abById, docById, sketchById)
     if (!size) continue
     width += size.width
     count += 1
@@ -151,12 +164,14 @@ export function groupContentHeight(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
   markdownLayers: readonly MarkdownLayerData[] = [],
+  sketchLayers: readonly SketchLayerData[] = [],
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
   const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const sketchById = new Map(sketchLayers.map((s) => [s.id, s]))
   let height = 0
   for (const m of getGroupMembers(group)) {
-    const size = getMemberSize(m, abById, docById)
+    const size = getMemberSize(m, abById, docById, sketchById)
     if (size && size.height > height) height = size.height
   }
   return height
@@ -177,6 +192,7 @@ export function placeNewIframeLayerGroup(
   width: number,
   height: number,
   markdownLayers: readonly MarkdownLayerData[] = [],
+  sketchLayers: readonly SketchLayerData[] = [],
 ): { x: number; y: number } {
   if (groups.length === 0) {
     return {
@@ -188,7 +204,7 @@ export function placeNewIframeLayerGroup(
   let maxRight = -Infinity
   for (const g of groups) {
     minY = Math.min(minY, g.y)
-    const w = groupContentWidth(g, iframeLayers, markdownLayers)
+    const w = groupContentWidth(g, iframeLayers, markdownLayers, sketchLayers)
     if (g.x + w > maxRight) maxRight = g.x + w
   }
   return { x: maxRight + IFRAME_LAYER_GROUP_GAP, y: minY }

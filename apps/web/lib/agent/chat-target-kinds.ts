@@ -1,12 +1,18 @@
 import "server-only"
 
 import type { ModelMessage, Tool } from "ai"
-import { buildAgentSystemPrompt, buildMarkdownLayerSystemPrompt } from "./config"
+import {
+  buildAgentSystemPrompt,
+  buildMarkdownLayerSystemPrompt,
+  buildSketchLayerSystemPrompt,
+} from "./config"
 import { buildAgentTools } from "./tools"
 import { buildMarkdownLayerTools } from "./markdown-layer-tools"
+import { buildSketchLayerTools } from "./sketch-layer-tools"
 import type { ToolContext } from "./tool-executor"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
+import type { JsonObject, JsonValue } from "@/lib/types"
 
 /**
  * Server-side registry of chat target kinds. Each entry contains the
@@ -120,12 +126,60 @@ export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, Markdo
 }
 
 // ---------------------------------------------------------------------------
+// Sketch layer target — edits a sketch layer's static HTML (and title) via
+// Yjs writes. The agent's HTML can declare knobs and read/write shared state
+// against the canvas via the runtime bootstrap injected on the iframe side.
+// ---------------------------------------------------------------------------
+
+export interface SketchLayerTarget {
+  sketchLayerId: string
+}
+
+interface SketchLayerContext {
+  title: string
+  html: string
+  declaredKnobs: JsonValue[]
+  sharedState: JsonObject
+}
+
+export const sketchLayerChatTarget: ChatTargetSpec<SketchLayerTarget, SketchLayerContext> = {
+  kind: "sketch-layer",
+  async loadContext(roomId, target) {
+    return await readRoomDoc(roomId, ({ sketchLayers }) => {
+      const layer = sketchLayers.get(target.sketchLayerId)
+      if (!layer) return null
+      return {
+        title: layer.title,
+        html: layer.html,
+        declaredKnobs: layer.knobs ?? [],
+        sharedState: layer.sharedState ?? {},
+      }
+    })
+  },
+  buildSystemPrompt(ctx) {
+    return buildSketchLayerSystemPrompt({
+      currentTitle: ctx.title,
+      currentHtml: ctx.html,
+      declaredKnobs: ctx.declaredKnobs,
+      sharedState: ctx.sharedState,
+    })
+  },
+  buildTools(roomId, target) {
+    return buildSketchLayerTools({ roomId, sketchLayerId: target.sketchLayerId })
+  },
+  decorateUserMessage(message, { planMode }) {
+    return planMode ? `[plan mode: enabled] ${message}` : message
+  },
+}
+
+// ---------------------------------------------------------------------------
 // Registry + lookup.
 // ---------------------------------------------------------------------------
 
 const REGISTRY: ReadonlyArray<ChatTargetSpec<never, never>> = [
   agentChatTarget as unknown as ChatTargetSpec<never, never>,
   markdownLayerChatTarget as unknown as ChatTargetSpec<never, never>,
+  sketchLayerChatTarget as unknown as ChatTargetSpec<never, never>,
 ]
 
 const REGISTRY_BY_KIND = new Map(REGISTRY.map((s) => [s.kind, s]))
