@@ -1,18 +1,18 @@
 import "server-only"
 
 import { tool, jsonSchema } from "ai"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import { mutateRoomDoc } from "@/lib/yjs/server"
 
 /**
- * Tools available to a chat session that targets a sketch layer. A sketch is
- * a single static-HTML document the iframe renders via `srcdoc`; editing it
- * means rewriting the `html` field on the layer in Yjs.
+ * *Write* tools for a chat session targeting a sketch layer — replace the
+ * full HTML, retitle. The matching `read_sketch` tool lives in
+ * `layer-read-tools.ts` and is mixed into every chat target's toolset, so
+ * any chat (agent, doc, sketch) can fetch a sketch by id.
  *
- * The toolset is intentionally tiny — read, replace, retitle. Knobs and
- * shared state aren't first-class tools: the model declares them by writing
- * `screenplay.knob({...})` and `screenplay.state.set("...", ...)` calls into
- * the HTML, and the runtime bootstrap injected into every sketch wires them
- * up to the canvas via postMessage.
+ * Knobs and shared state aren't first-class tools: the model declares them
+ * by writing `screenplay.knob({...})` and `screenplay.state.set("...", ...)`
+ * calls into the HTML, and the runtime bootstrap injected into every sketch
+ * wires them up to the canvas via postMessage.
  */
 export interface SketchLayerToolContext {
   roomId: string
@@ -26,39 +26,6 @@ const MAX_SKETCH_HTML_BYTES = 256 * 1024
 
 export function buildSketchLayerTools(ctx: SketchLayerToolContext) {
   return {
-    read_sketch: tool({
-      description:
-        "Read the current state of the targeted sketch — its title, full HTML, declared knobs, and current shared-state values. Call this before rewriting if you need to confirm what's there or build on existing knobs.",
-      inputSchema: jsonSchema<Record<string, never>>({
-        type: "object",
-        properties: {},
-      }),
-      execute: async () => {
-        const result = await readRoomDoc(ctx.roomId, ({ sketchLayers }) => {
-          const layer = sketchLayers.get(ctx.sketchLayerId)
-          if (!layer) return null
-          return {
-            title: layer.title,
-            html: layer.html,
-            knobs: layer.knobs ?? [],
-            sharedState: layer.sharedState ?? {},
-          }
-        })
-        if (!result) return `Sketch not found: ${ctx.sketchLayerId}`
-        return [
-          `# ${result.title || "Untitled"}`,
-          "",
-          "HTML:",
-          "```html",
-          result.html || "(empty)",
-          "```",
-          "",
-          `Declared knobs: ${JSON.stringify(result.knobs)}`,
-          `Shared state: ${JSON.stringify(result.sharedState)}`,
-        ].join("\n")
-      },
-    }),
-
     replace_sketch_html: tool({
       description:
         "Replace the sketch's full HTML. The value should be a complete document body — typically a `<style>` block, the markup, and a `<script>` block. The runtime bootstrap (which exposes `window.screenplay.knob`, `window.screenplay.state`) is prepended automatically by the canvas; don't include your own. Soft cap of 256KB.",

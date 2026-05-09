@@ -1,5 +1,41 @@
 import { getSkillIndex } from "@/lib/skills"
-import type { JsonObject, JsonValue, MarkdownLayerData } from "@/lib/types"
+import type { JsonObject, JsonValue, MarkdownLayerData, SketchLayerData } from "@/lib/types"
+
+/** Identity of every layer on the canvas the model could be asked to read. */
+export interface LayerDirectory {
+  documents: Array<Pick<MarkdownLayerData, "id" | "title">>
+  sketches: Array<Pick<SketchLayerData, "id" | "title">>
+}
+
+/**
+ * Renders the canvas's layer directory as a system-prompt block. Every chat
+ * target — agent, document, sketch — bakes this in so the model can resolve
+ * a `@<title>`-style mention (in the user message *or* in a body it just
+ * fetched via a read tool) back to the layer's stable id and call the
+ * right read tool.
+ *
+ * `excludeId` filters out the layer the chat is targeting so a doc chat's
+ * directory doesn't list the doc itself (the targeted doc's full body is
+ * already inlined elsewhere in the prompt).
+ */
+function renderLayerDirectory(
+  dir: LayerDirectory,
+  excludeId?: string,
+): string {
+  const docs = dir.documents.filter((d) => d.id !== excludeId)
+  const sketches = dir.sketches.filter((s) => s.id !== excludeId)
+  if (docs.length === 0 && sketches.length === 0) return ""
+  const lines: string[] = ["", "Layers on this canvas (call `read_document` or `read_sketch` with the id):"]
+  if (docs.length > 0) {
+    lines.push("  Documents:")
+    for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
+  }
+  if (sketches.length > 0) {
+    lines.push("  Sketches:")
+    for (const s of sketches) lines.push(`    - ${s.id}: ${s.title || "Untitled"}`)
+  }
+  return lines.join("\n")
+}
 
 /**
  * System prompt for chat sessions that target a *document layer* on the
@@ -9,24 +45,15 @@ import type { JsonObject, JsonValue, MarkdownLayerData } from "@/lib/types"
  *
  * `currentTitle` and `currentBody` are baked in so the model has the
  * latest state without having to call `read_document` first; it can still
- * read peer documents via `read_document(id)` to follow @-mentions.
+ * read peer documents/sketches to follow `@<title>` mentions.
  */
 export function buildMarkdownLayerSystemPrompt(opts: {
   currentTitle: string
   currentBody: string
-  peers: Array<Pick<MarkdownLayerData, "id" | "title">>
+  layerDirectory: LayerDirectory
+  /** This doc's own id — excluded from the directory to avoid self-recursion. */
+  selfId?: string
 }): string {
-  const peersBlock =
-    opts.peers.length === 0
-      ? ""
-      : [
-          "",
-          "Other documents in this canvas (call `read_document` with an id to read one):",
-          ...opts.peers.map(
-            (p) => `- ${p.id} — ${p.title || "Untitled"}`,
-          ),
-        ].join("\n")
-
   return [
     "You are an editor working inside a Notion-style document tile on a collaborative canvas. You can read, retitle, and rewrite the document via your tools. There is no sandbox, no shell, no git — only the document body.",
     "",
@@ -37,11 +64,15 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "- Inline marks (bold/italic/code) aren't preserved on save — emit plain text.",
     "",
     "When the user asks for a change:",
-    "1. If you need to confirm the current text, call `read_document` first.",
+    "1. If you need to confirm the current text, call `read_document` first (with no `id`, you get the targeted doc).",
     "2. For full rewrites or restructures, call `replace_document_body` with the entire new body.",
     "3. For incremental additions, call `append_to_document_body`.",
     "4. To rename the doc, call `set_document_title`.",
     "5. After editing, give the user a short summary of what you changed.",
+    "",
+    "Following `@<title>` mentions:",
+    "- The user's message and any document body you fetch may contain `@<title>` references to other docs or sketches.",
+    "- Look up the title in the layer directory below to get the id, then call `read_document(id)` or `read_sketch(id)` to load it.",
     "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
     "",
@@ -49,7 +80,7 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "```",
     opts.currentBody || "(empty)",
     "```",
-    peersBlock,
+    renderLayerDirectory(opts.layerDirectory, opts.selfId),
   ].join("\n")
 }
 
@@ -65,6 +96,8 @@ export function buildSketchLayerSystemPrompt(opts: {
   currentHtml: string
   declaredKnobs: JsonValue[]
   sharedState: JsonObject
+  layerDirectory: LayerDirectory
+  selfId?: string
 }): string {
   return [
     "You are a UI prototyper editing a single static-HTML 'sketch' tile on a collaborative canvas. Your only output surface is the sketch's `html` field — there is no file system, no shell, no git, no build step. The canvas renders the HTML directly inside a sandboxed iframe (`srcdoc`).",
@@ -94,6 +127,9 @@ export function buildSketchLayerSystemPrompt(opts: {
     "3. Call `set_sketch_title` if the change implies a new label.",
     "4. After editing, give the user a short summary of what you changed.",
     "",
+    "Following `@<title>` mentions:",
+    "- The user's message may reference other docs or sketches by title. Look up the id in the layer directory below, then call `read_document(id)` or `read_sketch(id)`.",
+    "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
     "",
     "Currently declared knobs:",
@@ -110,6 +146,7 @@ export function buildSketchLayerSystemPrompt(opts: {
     "```html",
     opts.currentHtml || "(empty)",
     "```",
+    renderLayerDirectory(opts.layerDirectory, opts.selfId),
   ].join("\n")
 }
 
@@ -140,7 +177,10 @@ IMPORTANT run_command rules:
 - For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
 Opening a pull request:
-When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.`
+When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
+
+Following \`@<title>\` mentions:
+The user's messages may reference docs or sketches that live on the canvas (separate from the sandbox project). Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` or \`read_sketch(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
 
 const AGENT_SYSTEM_PROMPT_TAIL = `
 
@@ -159,7 +199,10 @@ Keep your responses concise. Show the user what you changed and why.`
  * context (e.g. "this config targets apps/web in the monorepo") is part of
  * every chat under that workspace without leaking into siblings.
  */
-export function buildAgentSystemPrompt(workspaceSystemPrompt?: string): string {
+export function buildAgentSystemPrompt(
+  workspaceSystemPrompt: string | undefined,
+  layerDirectory: LayerDirectory,
+): string {
   const skills = getSkillIndex()
   const skillsBlock =
     skills.length === 0
@@ -175,10 +218,12 @@ export function buildAgentSystemPrompt(workspaceSystemPrompt?: string): string {
   const workspaceBlock = workspaceSystemPrompt?.trim()
     ? `\n\nWorkspace context:\n${workspaceSystemPrompt.trim()}`
     : ""
+  const directoryBlock = renderLayerDirectory(layerDirectory)
   return (
     AGENT_SYSTEM_PROMPT_BASE +
     skillsBlock +
     AGENT_SYSTEM_PROMPT_TAIL +
-    workspaceBlock
+    workspaceBlock +
+    (directoryBlock ? `\n${directoryBlock}` : "")
   )
 }

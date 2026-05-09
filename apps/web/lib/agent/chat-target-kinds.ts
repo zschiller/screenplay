@@ -5,10 +5,12 @@ import {
   buildAgentSystemPrompt,
   buildMarkdownLayerSystemPrompt,
   buildSketchLayerSystemPrompt,
+  type LayerDirectory,
 } from "./config"
 import { buildAgentTools } from "./tools"
 import { buildMarkdownLayerTools } from "./markdown-layer-tools"
 import { buildSketchLayerTools } from "./sketch-layer-tools"
+import { buildLayerReadTools } from "./layer-read-tools"
 import type { ToolContext } from "./tool-executor"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
@@ -24,11 +26,14 @@ import type { JsonObject, JsonValue } from "@/lib/types"
  *   - `decoratePrompt` lets the kind pre-process the user message (e.g.
  *     prepend a `[plan mode: enabled]` flag for sandbox chats).
  *
+ * Every chat target's toolset includes the cross-cutting `read_document`
+ * and `read_sketch` tools (via `buildLayerReadTools`) so the model can
+ * follow `@<title>` mentions to peer layers, regardless of which kind is
+ * being targeted. The targeted layer's *write* tools stay private to that
+ * target's own factory.
+ *
  * `/api/agent/stream` looks up the right entry by `target.kind` and runs
  * the same `runAgentLoop` against whatever toolset the entry returns.
- * Adding a future chat-targetable kind (sticky note, embed, …) is a
- * matter of registering one more entry here — the route doesn't need a
- * new branch.
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
@@ -36,6 +41,19 @@ export interface ChatTargetSpec<TTarget, TContext> {
   buildSystemPrompt(ctx: TContext, opts: { workspaceSystemPrompt?: string }): string
   buildTools(roomId: string, target: TTarget, sandbox?: ToolContext): Record<string, Tool>
   decorateUserMessage?(message: string, opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }): string
+}
+
+/**
+ * Snapshot the canvas's docs + sketches for the model's directory block.
+ * Cheap — both collections are already in memory; we copy id + title only.
+ */
+export async function loadLayerDirectory(roomId: string): Promise<LayerDirectory> {
+  return (
+    (await readRoomDoc(roomId, ({ markdownLayers, sketchLayers }) => ({
+      documents: markdownLayers.toArray().map((d) => ({ id: d.id, title: d.title })),
+      sketches: sketchLayers.toArray().map((s) => ({ id: s.id, title: s.title })),
+    })).catch(() => null)) ?? { documents: [], sketches: [] }
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -50,26 +68,33 @@ export interface AgentTarget {
 
 interface AgentContext {
   workspaceSystemPrompt: string | undefined
+  layerDirectory: LayerDirectory
 }
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
   async loadContext(roomId, target) {
-    const workspaceSystemPrompt = await readRoomDoc(roomId, ({ agents, workspaces }) => {
-      const agent = agents.toArray().find((a) => a.sandboxName === target.sandboxName)
-      if (!agent) return undefined
-      return workspaces.get(agent.workspaceId)?.systemPrompt
-    }).catch(() => undefined)
-    return { workspaceSystemPrompt }
+    const [workspaceSystemPrompt, layerDirectory] = await Promise.all([
+      readRoomDoc(roomId, ({ agents, workspaces }) => {
+        const agent = agents.toArray().find((a) => a.sandboxName === target.sandboxName)
+        if (!agent) return undefined
+        return workspaces.get(agent.workspaceId)?.systemPrompt
+      }).catch(() => undefined),
+      loadLayerDirectory(roomId),
+    ])
+    return { workspaceSystemPrompt, layerDirectory }
   },
   buildSystemPrompt(ctx) {
-    return buildAgentSystemPrompt(ctx.workspaceSystemPrompt ?? undefined)
+    return buildAgentSystemPrompt(ctx.workspaceSystemPrompt ?? undefined, ctx.layerDirectory)
   },
-  buildTools(_roomId, _target, sandbox) {
+  buildTools(roomId, _target, sandbox) {
     if (!sandbox) {
       throw new Error("agent chat target requires a sandbox ToolContext")
     }
-    return buildAgentTools(sandbox)
+    return {
+      ...buildAgentTools(sandbox),
+      ...buildLayerReadTools({ roomId }),
+    }
   },
   decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
     const planPrefix = planMode ? "[plan mode: enabled] " : ""
@@ -87,38 +112,44 @@ export interface MarkdownLayerTarget {
 }
 
 interface MarkdownLayerContext {
+  id: string
   title: string
   body: string
-  peers: Array<{ id: string; title: string }>
+  layerDirectory: LayerDirectory
 }
 
 export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, MarkdownLayerContext> = {
   kind: "markdown-layer",
   async loadContext(roomId, target) {
-    return await readRoomDoc(roomId, ({ markdownLayers, doc }) => {
-      const layer = markdownLayers.get(target.markdownLayerId)
-      if (!layer) return null
-      const fragment = doc.getXmlFragment(`markdown-layer-${target.markdownLayerId}`)
-      const peers = markdownLayers
-        .toArray()
-        .filter((d) => d.id !== target.markdownLayerId)
-        .map((d) => ({ id: d.id, title: d.title }))
-      return {
-        title: layer.title,
-        body: fragmentBodyToPlainText(fragment),
-        peers,
-      }
-    })
+    const [self, layerDirectory] = await Promise.all([
+      readRoomDoc(roomId, ({ markdownLayers, doc }) => {
+        const layer = markdownLayers.get(target.markdownLayerId)
+        if (!layer) return null
+        const fragment = doc.getXmlFragment(`markdown-layer-${target.markdownLayerId}`)
+        return {
+          id: target.markdownLayerId,
+          title: layer.title,
+          body: fragmentBodyToPlainText(fragment),
+        }
+      }),
+      loadLayerDirectory(roomId),
+    ])
+    if (!self) return null
+    return { ...self, layerDirectory }
   },
   buildSystemPrompt(ctx) {
     return buildMarkdownLayerSystemPrompt({
       currentTitle: ctx.title,
       currentBody: ctx.body,
-      peers: ctx.peers,
+      layerDirectory: ctx.layerDirectory,
+      selfId: ctx.id,
     })
   },
   buildTools(roomId, target) {
-    return buildMarkdownLayerTools({ roomId, markdownLayerId: target.markdownLayerId })
+    return {
+      ...buildMarkdownLayerTools({ roomId, markdownLayerId: target.markdownLayerId }),
+      ...buildLayerReadTools({ roomId }),
+    }
   },
   decorateUserMessage(message, { planMode }) {
     return planMode ? `[plan mode: enabled] ${message}` : message
@@ -136,25 +167,33 @@ export interface SketchLayerTarget {
 }
 
 interface SketchLayerContext {
+  id: string
   title: string
   html: string
   declaredKnobs: JsonValue[]
   sharedState: JsonObject
+  layerDirectory: LayerDirectory
 }
 
 export const sketchLayerChatTarget: ChatTargetSpec<SketchLayerTarget, SketchLayerContext> = {
   kind: "sketch-layer",
   async loadContext(roomId, target) {
-    return await readRoomDoc(roomId, ({ sketchLayers }) => {
-      const layer = sketchLayers.get(target.sketchLayerId)
-      if (!layer) return null
-      return {
-        title: layer.title,
-        html: layer.html,
-        declaredKnobs: layer.knobs ?? [],
-        sharedState: layer.sharedState ?? {},
-      }
-    })
+    const [self, layerDirectory] = await Promise.all([
+      readRoomDoc(roomId, ({ sketchLayers }) => {
+        const layer = sketchLayers.get(target.sketchLayerId)
+        if (!layer) return null
+        return {
+          id: target.sketchLayerId,
+          title: layer.title,
+          html: layer.html,
+          declaredKnobs: layer.knobs ?? [],
+          sharedState: layer.sharedState ?? {},
+        }
+      }),
+      loadLayerDirectory(roomId),
+    ])
+    if (!self) return null
+    return { ...self, layerDirectory }
   },
   buildSystemPrompt(ctx) {
     return buildSketchLayerSystemPrompt({
@@ -162,10 +201,15 @@ export const sketchLayerChatTarget: ChatTargetSpec<SketchLayerTarget, SketchLaye
       currentHtml: ctx.html,
       declaredKnobs: ctx.declaredKnobs,
       sharedState: ctx.sharedState,
+      layerDirectory: ctx.layerDirectory,
+      selfId: ctx.id,
     })
   },
   buildTools(roomId, target) {
-    return buildSketchLayerTools({ roomId, sketchLayerId: target.sketchLayerId })
+    return {
+      ...buildSketchLayerTools({ roomId, sketchLayerId: target.sketchLayerId }),
+      ...buildLayerReadTools({ roomId }),
+    }
   },
   decorateUserMessage(message, { planMode }) {
     return planMode ? `[plan mode: enabled] ${message}` : message

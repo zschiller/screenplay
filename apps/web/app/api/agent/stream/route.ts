@@ -2,10 +2,13 @@ import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
+import { buildAgentTools } from "@/lib/agent/tools"
+import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
+  loadLayerDirectory,
   markdownLayerChatTarget,
   prepareChatTarget,
   sketchLayerChatTarget,
@@ -153,13 +156,19 @@ export async function POST(req: Request) {
 
   // Workspace-scoped optional system prompt — appended to the live skill
   // index so each (workspace, model) pair sees the right persona.
-  const workspaceSystemPrompt = await readRoomDoc(roomId, ({ agents, workspaces }) => {
-    const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
-    if (!agent) return undefined
-    return workspaces.get(agent.workspaceId)?.systemPrompt
-  }).catch(() => undefined)
+  const [workspaceSystemPrompt, layerDirectory] = await Promise.all([
+    readRoomDoc(roomId, ({ agents, workspaces }) => {
+      const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
+      if (!agent) return undefined
+      return workspaces.get(agent.workspaceId)?.systemPrompt
+    }).catch(() => undefined),
+    loadLayerDirectory(roomId),
+  ])
 
-  const systemPrompt = buildAgentSystemPrompt(workspaceSystemPrompt ?? undefined)
+  const systemPrompt = buildAgentSystemPrompt(
+    workspaceSystemPrompt ?? undefined,
+    layerDirectory,
+  )
 
   await upsertChat({
     chatId,
@@ -251,7 +260,10 @@ export async function POST(req: Request) {
       roomId,
       systemPrompt,
       model: effectiveModel,
-      toolCtx,
+      tools: {
+        ...buildAgentTools(toolCtx),
+        ...buildLayerReadTools({ roomId }),
+      },
       messages: history,
     })
   })

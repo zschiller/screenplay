@@ -13,7 +13,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 import type { JSONContent } from "@tiptap/core"
-import { buildMarkdownLayerMentionSuggestion } from "@/lib/markdown-layer-mention-suggestion"
+import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import {
   InputGroup,
   InputGroupAddon,
@@ -32,10 +32,8 @@ import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
-import { useMarkdownLayers } from "@/lib/yjs/react"
-import { useYjs } from "@/lib/yjs/context"
-import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
-import type { MarkdownLayerData } from "@/lib/types"
+import { useMarkdownLayers, useSketchLayers } from "@/lib/yjs/react"
+import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -81,18 +79,21 @@ function groupModelsByProvider(models: ModelInfo[]) {
 
 /**
  * Walk a TipTap JSON document and return:
- *  - `text`: plain-text rendering, with each mention serialized as `@<label>`
- *    so the conversation log reads naturally.
- *  - `mentionIds`: deduplicated list of doc ids the user mentioned.
+ *  - `text`: plain-text rendering, with each mention serialized as
+ *    `[@<label>](mention:<id>)` so the user-message renderer can recover it
+ *    as a chip.
+ *  - `mentions`: deduplicated `{ kind, id }` list. The `kind` is preserved
+ *    on the Mention node so a downstream reference footer can tell the
+ *    model which `read_*` tool to call to follow each one.
  * Block boundaries (paragraphs, headings, list items) become newlines.
  */
 function extractTextAndMentions(json: JSONContent | undefined): {
   text: string
-  mentionIds: string[]
+  mentions: Array<{ kind: "markdown-layer" | "sketch-layer"; id: string }>
 } {
-  if (!json) return { text: "", mentionIds: [] }
+  if (!json) return { text: "", mentions: [] }
   const out: string[] = []
-  const ids: string[] = []
+  const mentions: Array<{ kind: "markdown-layer" | "sketch-layer"; id: string }> = []
   const seen = new Set<string>()
 
   const visit = (node: JSONContent, depth: number) => {
@@ -103,12 +104,15 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     if (node.type === "mention") {
       const id = node.attrs?.id as string | undefined
       const label = (node.attrs?.label as string | undefined) ?? id ?? ""
-      // Serialize as a markdown link with a `mention:` scheme so the
-      // user-message renderer can pick it out and draw it as a chip.
+      // Older mentions in saved chat history won't carry `kind`; default to
+      // markdown-layer (the only kind that existed before sketches landed).
+      const kind =
+        (node.attrs?.kind as "markdown-layer" | "sketch-layer" | undefined) ??
+        "markdown-layer"
       out.push(`[@${label}](mention:${id ?? ""})`)
       if (id && !seen.has(id)) {
         seen.add(id)
-        ids.push(id)
+        mentions.push({ kind, id })
       }
       return
     }
@@ -133,7 +137,7 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     }
   }
   visit(json, 0)
-  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentionIds: ids }
+  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentions }
 }
 
 interface AgentChatProps {
@@ -189,13 +193,15 @@ export function AgentChat({
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
   const markdownLayers = useMarkdownLayers()
-  const { doc: yjsDoc } = useYjs()
+  const sketchLayers = useSketchLayers()
 
   // The Mention extension's `suggestion.items` callback runs inside a closure
-  // captured at editor-construction time, so it can't read `markdownLayers`
-  // directly — use a ref so the latest list is always visible to it.
+  // captured at editor-construction time, so it can't read these arrays
+  // directly — funnel through refs so the latest lists are always visible.
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
   markdownLayersRef.current = markdownLayers
+  const sketchLayersRef = useRef<SketchLayerData[]>(sketchLayers)
+  sketchLayersRef.current = sketchLayers
 
   // Tracks whether the mention popover is currently open. ProseMirror checks
   // direct `editorProps.handleKeyDown` before plugin props, so without this
@@ -243,7 +249,22 @@ export function AgentChat({
         horizontalRule: false,
         dropcursor: false,
       }),
-      Mention.configure({
+      Mention.extend({
+        // Carry the layer kind on the node so `extractTextAndMentions` can
+        // tell `read_document` mentions from `read_sketch` ones when it
+        // builds the reference footer for the agent.
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            kind: {
+              default: "markdown-layer",
+              parseHTML: (el) => el.getAttribute("data-kind") ?? "markdown-layer",
+              renderHTML: (attrs) =>
+                attrs.kind ? { "data-kind": attrs.kind as string } : {},
+            },
+          }
+        },
+      }).configure({
         HTMLAttributes: {
           class:
             "mention-doc-pill inline-flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary",
@@ -258,8 +279,9 @@ export function AgentChat({
           return ["span", options.HTMLAttributes, label]
         },
         deleteTriggerWithBackspace: true,
-        suggestion: buildMarkdownLayerMentionSuggestion({
+        suggestion: buildLayerMentionSuggestion({
           getMarkdownLayers: () => markdownLayersRef.current,
+          getSketchLayers: () => sketchLayersRef.current,
           getAnchorRect: () =>
             editorContainerRef.current?.getBoundingClientRect() ?? null,
           onOpenChange: (open) => {
@@ -273,7 +295,7 @@ export function AgentChat({
       attributes: {
         class:
           "tiptap min-h-[40px] max-h-48 overflow-y-auto px-3 py-2 text-xs focus:outline-none",
-        "data-placeholder": "Ask the agent... (@ to mention a document)",
+        "data-placeholder": "Ask the agent... (@ to mention a doc or sketch)",
       },
       handleKeyDown(_view, event) {
         if (event.key !== "Enter" || event.shiftKey) return false
@@ -309,40 +331,50 @@ export function AgentChat({
   )
 
   /**
-   * Expand any `@`-mentioned markdownLayers into the message text. The original
-   * `@<title>` token stays where the user typed it (so the conversation log
-   * reads naturally), and we append a "Referenced documents" block with each
-   * doc's title + body so the model can read them without an extra tool call.
+   * Append a "Referenced layers" footer to the user message listing each
+   * `@<title>` mention's id and kind. Bodies are NOT inlined — the agent
+   * loop has `read_document` and `read_sketch` tools available across every
+   * chat target, so the model fetches the live state on demand. This keeps
+   * chat history bounded and avoids stale snapshots when a layer the user
+   * mentioned earlier is later edited.
    */
-  const expandMentions = useCallback(
-    (text: string, mentionIds: string[]): string => {
-      if (mentionIds.length === 0) return text
-      const blocks: string[] = []
-      for (const id of mentionIds) {
-        const layer = markdownLayers.find((d) => d.id === id)
-        if (!layer) continue
-        const title = layer.title || "Untitled"
-        const fragment = yjsDoc.getXmlFragment(`markdown-layer-${id}`)
-        const body = fragmentToPlainText(fragment)
-        blocks.push(`### ${title}\n\n${body || "(empty)"}`)
+  const formatMentionFooter = useCallback(
+    (
+      text: string,
+      mentions: Array<{ kind: "markdown-layer" | "sketch-layer"; id: string }>,
+    ): string => {
+      if (mentions.length === 0) return text
+      const lines: string[] = []
+      for (const m of mentions) {
+        const title =
+          m.kind === "markdown-layer"
+            ? markdownLayersRef.current.find((d) => d.id === m.id)?.title
+            : sketchLayersRef.current.find((s) => s.id === m.id)?.title
+        lines.push(`- ${m.kind} ${m.id}: ${title || "Untitled"}`)
       }
-      if (blocks.length === 0) return text
-      return `${text}\n\n---\n\nReferenced documents:\n\n${blocks.join("\n\n")}`
+      return [
+        text,
+        "",
+        "---",
+        "",
+        "Referenced layers (call `read_document` or `read_sketch` with the id to load contents):",
+        ...lines,
+      ].join("\n")
     },
-    [markdownLayers, yjsDoc],
+    [],
   )
 
   const handleSubmit = useCallback(() => {
     if (!editor || isStreaming) return
     if (editor.isEmpty) return
     const json = editor.getJSON()
-    const { text, mentionIds } = extractTextAndMentions(json)
+    const { text, mentions } = extractTextAndMentions(json)
     if (!text.trim()) return
-    const expanded = expandMentions(text.trim(), mentionIds)
-    sendMessage(expanded, { model: effectiveModel })
+    const decorated = formatMentionFooter(text.trim(), mentions)
+    sendMessage(decorated, { model: effectiveModel })
     editor.commands.clearContent()
     setHasContent(false)
-  }, [editor, isStreaming, sendMessage, effectiveModel, expandMentions])
+  }, [editor, isStreaming, sendMessage, effectiveModel, formatMentionFooter])
 
   // Stash the latest submit handler in a ref so the editor's
   // `handleKeyDown` (registered once at construction) always calls the

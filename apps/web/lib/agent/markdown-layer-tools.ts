@@ -1,7 +1,7 @@
 import "server-only"
 
 import { tool, jsonSchema } from "ai"
-import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import { mutateRoomDoc } from "@/lib/yjs/server"
 import {
   fragmentBodyToPlainText,
   replaceFragmentBodyPreservingTitle,
@@ -9,11 +9,10 @@ import {
 } from "@/lib/yjs/fragment-text"
 
 /**
- * Tools available to a chat session that targets a document layer (rather
- * than an agent's sandbox). The toolset is intentionally small and focused
- * on prose editing — read, replace, append, retitle. Future kinds of layer
- * targets (sticky notes, embeds, …) can register their own tool factories
- * alongside this one.
+ * *Write* tools for a chat session targeting a document layer — replace
+ * body, append, retitle. The matching read tool (`read_document`) is no
+ * longer kind-private; it lives in `layer-read-tools.ts` and is mixed into
+ * every chat target's toolset so any chat can follow `@<title>` mentions.
  *
  * Every mutation goes through `mutateRoomDoc` so concurrent edits from the
  * agent and the human sit on the same Yjs CRDT — the human's keystrokes
@@ -22,41 +21,12 @@ import {
  */
 export interface MarkdownLayerToolContext {
   roomId: string
-  /** The document the chat is targeting. Tool calls without an explicit
-   *  `id` argument default to it. */
+  /** The document the chat is targeting. */
   markdownLayerId: string
 }
 
 export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
   return {
-    read_document: tool({
-      description:
-        "Read the body of a document on the canvas. With no `id`, returns the targeted document. Use this to confirm current contents before rewriting, or to pull in another document's body when the user @-mentions one.",
-      inputSchema: jsonSchema<{ id?: string }>({
-        type: "object",
-        properties: { id: { type: "string" } },
-      }),
-      execute: async (input) => {
-        const id = (input as { id?: string }).id ?? ctx.markdownLayerId
-        const result = await readRoomDoc(ctx.roomId, ({ markdownLayers, doc }) => {
-          const layer = markdownLayers.get(id)
-          if (!layer) return null
-          const fragment = doc.getXmlFragment(`markdown-layer-${id}`)
-          return {
-            id,
-            title: layer.title,
-            body: fragmentBodyToPlainText(fragment),
-          }
-        })
-        if (!result) return `Document not found: ${id}`
-        return [
-          `# ${result.title || "Untitled"}`,
-          "",
-          result.body || "(empty)",
-        ].join("\n")
-      },
-    }),
-
     replace_document_body: tool({
       description:
         "Replace the body of the targeted document, below the title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The document title is set separately, don't repeat it as a top-level `#` heading. Use this when you've redrafted the document; for incremental edits prefer `append_to_document_body`. To change the title, use `set_document_title`.",
