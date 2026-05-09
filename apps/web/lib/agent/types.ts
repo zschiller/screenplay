@@ -11,6 +11,9 @@ export type CustomToolName =
   | "replace_document_body"
   | "append_to_document_body"
   | "set_document_title"
+  | "read_sketch"
+  | "replace_sketch_html"
+  | "set_sketch_title"
 
 export type ReadFileInput = { path: string }
 export type WriteFileInput = { path: string; content: string }
