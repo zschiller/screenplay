@@ -52,9 +52,9 @@ async function getWorkspaceFromStorage(
 
 
 /**
- * Ensure a chat session exists for the agent. Artboards + groups are
+ * Ensure a chat session exists for the agent. IframeLayers + groups are
  * pre-created on the client at agent-creation time (see
- * `seedArtboardForAgent` in canvas.tsx) — doing layout server-side raced
+ * `seedIframeLayerForAgent` in canvas.tsx) — doing layout server-side raced
  * across parallel pipelines because each `mutateRoomDoc` call is a
  * snapshot-then-write rather than a serialized transaction. Chats stay
  * server-created for single-agent flows that don't pre-seed them.
@@ -151,7 +151,7 @@ async function runNewOrFromBranchPipeline(
   })
   await ensureChatForAgent(roomId, agentId)
 
-  // Best-effort: crawl routes so the artboard route picker has options without
+  // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
   crawlRoutes(cloneResult.sandboxName).then((result) => {
     if (result.success) {

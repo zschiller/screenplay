@@ -22,10 +22,10 @@ import {
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import type { ThreadWithComments } from "@/lib/comments"
 import {
-  ARTBOARD_SIZE_CATEGORY_ICONS,
-  GROUPED_ARTBOARD_SIZE_PRESETS,
-  getArtboardSizePreset,
-} from "@/lib/artboard-sizes"
+  IFRAME_LAYER_SIZE_CATEGORY_ICONS,
+  GROUPED_IFRAME_LAYER_SIZE_PRESETS,
+  getIframeLayerSizePreset,
+} from "@/lib/iframe-layer-sizes"
 import { PlayerKnobs } from "./player-knobs"
 import { PlayerComments } from "./player-comments"
 
@@ -65,7 +65,7 @@ interface PlayerHudProps {
   /** Reflects the chat panel's expanded state so the HUD button can flip variants. */
   chatOpen?: boolean
   initialThreads: ThreadWithComments[]
-  /** Active device preview preset id (from `lib/artboard-sizes`). */
+  /** Active device preview preset id (from `lib/iframeLayer-sizes`). */
   deviceSizeId: string
   onDeviceSizeChange: (id: string) => void
 }
@@ -85,8 +85,8 @@ export function PlayerHud({
   deviceSizeId,
   onDeviceSizeChange,
 }: PlayerHudProps) {
-  const devicePreset = getArtboardSizePreset(deviceSizeId)
-  const DeviceIcon = ARTBOARD_SIZE_CATEGORY_ICONS[devicePreset.category]
+  const devicePreset = getIframeLayerSizePreset(deviceSizeId)
+  const DeviceIcon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[devicePreset.category]
   // Read the saved corner lazily so the very first render already places the
   // HUD in the right spot. Guarded for SSR where `window` is undefined.
   const [corner, setCorner] = useState<Corner>(() => {
@@ -253,8 +253,8 @@ export function PlayerHud({
               onPointerDown={(e) => e.stopPropagation()}
               className="max-h-80"
             >
-              {GROUPED_ARTBOARD_SIZE_PRESETS.map((group, index) => {
-                const Icon = ARTBOARD_SIZE_CATEGORY_ICONS[group.category]
+              {GROUPED_IFRAME_LAYER_SIZE_PRESETS.map((group, index) => {
+                const Icon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[group.category]
                 return (
                   <SelectGroup key={group.category}>
                     {index > 0 ? <SelectSeparator /> : null}

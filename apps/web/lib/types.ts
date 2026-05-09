@@ -27,8 +27,8 @@ export type WorkspaceData = {
   devScript: string
   devServerPort: number
   envVars: string
-  /** Preset id from `lib/artboard-sizes`. Falls back to the default preset when unset. */
-  defaultArtboardSizeId?: string
+  /** Preset id from `lib/iframe-layer-sizes`. Falls back to the default preset when unset. */
+  defaultIframeLayerSizeId?: string
   /** Extra workspace-specific instructions appended to the agent's system prompt. */
   systemPrompt?: string
   createdAt: number
@@ -50,27 +50,27 @@ export type AgentData = {
   autoNamedBranch?: boolean
   /** Routes discovered for this sandbox — initially crawled at startup, appended as the user navigates. */
   discoveredRoutes?: { route: string; label: string }[]
-  /** Set true by the parallel-create flow, which defers artboard seeding until `previewDomain` is known.
+  /** Set true by the parallel-create flow, which defers iframe-layer seeding until `previewDomain` is known.
    *  The deferred-seed effect seeds once and clears the flag, so deleting the last frame never re-seeds. */
-  pendingArtboardSeed?: boolean
+  pendingIframeLayerSeed?: boolean
 }
 
 /**
  * A chat session targets exactly one of:
  *  - an *agent* (the existing flow): edits files in the agent's sandbox,
  *    drives a branch, etc. — `agentId` is set.
- *  - a *document* layer: edits the document body / title via doc-mutation
- *    tools — `documentId` is set, `agentId` is undefined.
+ *  - a *markdown layer*: edits the layer's body / title via doc-mutation
+ *    tools — `markdownLayerId` is set, `agentId` is undefined.
  *
- * Multiple chat tabs can target the same doc (or agent), so a user can
- * keep parallel conversations going against the same document.
+ * Multiple chat tabs can target the same markdown layer (or agent), so a
+ * user can keep parallel conversations going against the same layer.
  */
 export type ChatSessionData = {
   id: string
-  /** Set when the chat targets an agent. Mutually exclusive with `documentId`. */
+  /** Set when the chat targets an agent. Mutually exclusive with `markdownLayerId`. */
   agentId?: string
-  /** Set when the chat targets a document layer. */
-  documentId?: string
+  /** Set when the chat targets a markdown layer. */
+  markdownLayerId?: string
   label: string
   createdAt: number
   isStreaming?: boolean
@@ -91,7 +91,7 @@ export type PlanData = {
   resolvedAt?: number
 }
 
-export type ArtboardData = {
+export type IframeLayerData = {
   id: string
   /** Undefined for empty frames not yet associated with an agent. */
   sandboxId?: string
@@ -119,26 +119,26 @@ export type ArtboardData = {
  * Tagged reference to a child of a group. Designed to be open-ended so new
  * layer kinds (images, embeds, etc.) can drop in without rewriting groups —
  * each new kind just adds its case here and registers a sizer in
- * `artboard-layout.ts`.
+ * `iframe-layer-layout.ts`.
  */
-export type GroupMemberKind = "artboard" | "document"
+export type GroupMemberKind = "iframe-layer" | "markdown-layer"
 export type GroupMember = {
   kind: GroupMemberKind
   id: string
 }
 
 /**
- * Container for a row of frame-like layers (artboards, documents, …) laid
- * out via flex. Owns the world-space (x, y) origin; each child's position is
- * implicit from its index in `members` and the widths of preceding children
- * plus the row gap.
+ * Container for a row of frame-like layers (iframe layers, markdown layers,
+ * …) laid out via flex. Owns the world-space (x, y) origin; each child's
+ * position is implicit from its index in `members` and the widths of
+ * preceding children plus the row gap.
  *
- * `artboardIds` is legacy — pre-document data only had artboards. The
- * migration in `getRoomCollections` converts any group still carrying it
- * into a typed `members` list and clears the field, so all downstream code
- * can read `members` exclusively.
+ * `iframeLayerIds` is legacy — pre-markdown-layer data only had iframe
+ * layers. The migration in `getRoomCollections` converts any group still
+ * carrying it into a typed `members` list and clears the field, so all
+ * downstream code can read `members` exclusively.
  */
-export type ArtboardGroupData = {
+export type IframeLayerGroupData = {
   id: string
   /**
    * Stable display name set at creation time (e.g. "Group 3"). Sidebar
@@ -150,22 +150,22 @@ export type ArtboardGroupData = {
   y: number
   /** Members in left-to-right order. Source of truth for layout + sidebar. */
   members: GroupMember[]
-  /** @deprecated Legacy: artboard ids only. Migrated into `members` on read. */
-  artboardIds?: string[]
+  /** @deprecated Legacy: iframe-layer ids only. Migrated into `members` on read. */
+  iframeLayerIds?: string[]
   /** Display order in the sidebar Frames list. Lower values render first. */
   sidebarOrder?: number
-  /** Horizontal gap between members in this group. Falls back to ARTBOARD_GROUP_GAP. */
+  /** Horizontal gap between members in this group. Falls back to IFRAME_LAYER_GROUP_GAP. */
   gap?: number
 }
 
 /**
- * A Notion-style document tile on the canvas. Lives inside an
- * `ArtboardGroup` exactly like artboards do — the group anchors world-space
- * `(x, y)`, and the doc carries only its own size + title. Body content
- * lives in a Yjs XmlFragment keyed by `doc-${id}` (owned by TipTap, same
- * shape as text layers' `text-${id}` fragments).
+ * A Notion-style markdown tile on the canvas. Lives inside an
+ * `IframeLayerGroup` exactly like iframe layers do — the group anchors
+ * world-space `(x, y)`, and the layer carries only its own size + title.
+ * Body content lives in a Yjs XmlFragment keyed by `markdown-layer-${id}`
+ * (owned by TipTap, same shape as text layers' `text-${id}` fragments).
  */
-export type DocumentLayerData = {
+export type MarkdownLayerData = {
   id: string
   width: number
   height: number

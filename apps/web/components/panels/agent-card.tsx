@@ -3,17 +3,17 @@
 import { GitFork, RefreshCw, Trash2, Loader2, Plus, Monitor } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ArtboardData } from "@/lib/types"
+import type { AgentData, IframeLayerData } from "@/lib/types"
 
 interface AgentCardProps {
   agent: AgentData
   selected: boolean
-  artboards: Array<Pick<ArtboardData, "id" | "label">>
+  iframeLayers: Array<Pick<IframeLayerData, "id" | "label">>
   onSelect: (id: string) => void
   onFork: (id: string) => void
   onRefresh: (id: string) => void
   onRemove: (id: string) => void
-  onAddArtboard: (agentId: string) => void
+  onAddIframeLayer: (agentId: string) => void
 }
 
 const statusColors: Record<AgentData["status"], string> = {
@@ -27,12 +27,12 @@ const statusColors: Record<AgentData["status"], string> = {
 export function AgentCard({
   agent,
   selected,
-  artboards,
+  iframeLayers,
   onSelect,
   onFork,
   onRefresh,
   onRemove,
-  onAddArtboard,
+  onAddIframeLayer,
 }: AgentCardProps) {
   const isLoading =
     agent.status === "creating" || agent.status === "starting"
@@ -63,9 +63,9 @@ export function AgentCard({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => onAddArtboard(agent.id)}
+            onClick={() => onAddIframeLayer(agent.id)}
             disabled={agent.status !== "running"}
-            title="Add artboard"
+            title="Add iframeLayer"
           >
             <Plus className="h-3 w-3" />
           </Button>
@@ -116,16 +116,16 @@ export function AgentCard({
         <p className="mt-1 text-[10px] text-red-500 pl-4">{agent.error}</p>
       )}
 
-      {artboards.length > 0 && (
+      {iframeLayers.length > 0 && (
         <div className="mt-1.5 pl-4 space-y-0.5">
-          {artboards.map((ab) => (
+          {iframeLayers.map((ab) => (
             <div key={ab.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <Monitor className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate">{ab.label}</span>
             </div>
           ))}
           <span className="text-[10px] text-muted-foreground/60">
-            {artboards.length} screen{artboards.length !== 1 ? "s" : ""}
+            {iframeLayers.length} screen{iframeLayers.length !== 1 ? "s" : ""}
           </span>
         </div>
       )}

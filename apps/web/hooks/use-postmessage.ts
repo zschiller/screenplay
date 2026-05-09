@@ -5,23 +5,23 @@ import type { HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protoco
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 
 interface UsePostMessageOptions {
-  artboardId: string
+  iframeLayerId: string
   iframeState: JsonObject
   iframeScrollX?: number
   iframeScrollY?: number
   knobValues?: JsonObject
   sharedState?: JsonObject
-  onStateChanged: (artboardId: string, state: JsonObject) => void
-  onNavigation?: (artboardId: string, path: string) => void
-  onScroll?: (artboardId: string, scrollX: number, scrollY: number) => void
-  onReady?: (artboardId: string, version: string | undefined) => void
-  onHmrStatus?: (artboardId: string, status: HmrStatus) => void
-  onKnobsDeclared?: (artboardId: string, knobs: JsonValue[]) => void
-  onSharedStateChanged?: (artboardId: string, state: JsonObject) => void
+  onStateChanged: (iframeLayerId: string, state: JsonObject) => void
+  onNavigation?: (iframeLayerId: string, path: string) => void
+  onScroll?: (iframeLayerId: string, scrollX: number, scrollY: number) => void
+  onReady?: (iframeLayerId: string, version: string | undefined) => void
+  onHmrStatus?: (iframeLayerId: string, status: HmrStatus) => void
+  onKnobsDeclared?: (iframeLayerId: string, knobs: JsonValue[]) => void
+  onSharedStateChanged?: (iframeLayerId: string, state: JsonObject) => void
 }
 
 export function usePostMessage({
-  artboardId,
+  iframeLayerId,
   iframeState,
   iframeScrollX,
   iframeScrollY,
@@ -140,16 +140,16 @@ export function usePostMessage({
         if (scrollRef.current) {
           sendScrollTo(scrollRef.current.x, scrollRef.current.y)
         }
-        onReadyRef.current?.(artboardId, e.data.version)
+        onReadyRef.current?.(iframeLayerId, e.data.version)
       } else if (e.data.type === "screenplay:state-changed") {
-        onStateChanged(artboardId, e.data.state)
+        onStateChanged(iframeLayerId, e.data.state)
       } else if (e.data.type === "screenplay:navigation") {
-        onNavigation?.(artboardId, e.data.path)
+        onNavigation?.(iframeLayerId, e.data.path)
       } else if (e.data.type === "screenplay:scroll") {
         lastScrollRef.current = { x: e.data.scrollX, y: e.data.scrollY }
-        onScroll?.(artboardId, e.data.scrollX, e.data.scrollY)
+        onScroll?.(iframeLayerId, e.data.scrollX, e.data.scrollY)
       } else if (e.data.type === "screenplay:hmr-status") {
-        onHmrStatusRef.current?.(artboardId, e.data.status)
+        onHmrStatusRef.current?.(iframeLayerId, e.data.status)
       } else if (e.data.type === "screenplay:knobs-declared") {
         // Push stored values down now that the iframe has registered the
         // knobs. Sending earlier (e.g. on screenplay:ready) drops the values:
@@ -158,7 +158,7 @@ export function usePostMessage({
         if (knobValuesRef.current) {
           sendKnobValues(knobValuesRef.current)
         }
-        onKnobsDeclaredRef.current?.(artboardId, e.data.knobs)
+        onKnobsDeclaredRef.current?.(iframeLayerId, e.data.knobs)
       } else if (e.data.type === "screenplay:shared-state") {
         // Record the serialized form so the next Yjs echo down to this same
         // iframe is suppressed (we'd otherwise apply our own update back).
@@ -168,13 +168,13 @@ export function usePostMessage({
         } catch {
           lastSharedStateRef.current = null
         }
-        onSharedStateChangedRef.current?.(artboardId, next)
+        onSharedStateChangedRef.current?.(iframeLayerId, next)
       }
     }
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [artboardId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
+  }, [iframeLayerId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
 
   return { iframeRef, sendMessage }
 }

@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import type { ArtboardLayoutMap } from "@/lib/artboard-layout"
+import type { IframeLayerLayoutMap } from "@/lib/iframe-layer-layout"
 
 interface OtherSelection {
-  selectedArtboardIds: string[]
+  selectedIframeLayerIds: string[]
   color: string
   name: string
 }
@@ -12,12 +12,12 @@ interface OtherSelection {
 interface SelectionOverlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
-  selectedArtboardIds: Set<string>
-  /** Artboards highlighted because their parent group is selected. No resize handles. */
-  groupSelectedArtboardIds: Set<string>
-  focusedArtboardId: string | null
-  hoveredArtboardId: string | null
-  artboardLayouts: ArtboardLayoutMap
+  selectedIframeLayerIds: Set<string>
+  /** IframeLayers highlighted because their parent group is selected. No resize handles. */
+  groupSelectedIframeLayerIds: Set<string>
+  focusedIframeLayerId: string | null
+  hoveredIframeLayerId: string | null
+  iframeLayerLayouts: IframeLayerLayoutMap
   /**
    * World-space rects for "add frame" placeholders. Drawn here (instead of in
    * the world transform) so the border stays 1px crisp at any zoom.
@@ -45,9 +45,9 @@ interface SelectionOverlayProps {
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
   /**
-   * One handle per inter-artboard gap in selected groups. World-space
+   * One handle per inter-iframeLayer gap in selected groups. World-space
    * `centerX` is the gap's midpoint; `top`/`bottom` clamp the handle to the
-   * shared height of the two adjacent artboards. Drawn at constant screen-pixel
+   * shared height of the two adjacent iframeLayers. Drawn at constant screen-pixel
    * size so the grab target doesn't change with zoom.
    */
   gapHandles?: Array<{
@@ -58,20 +58,20 @@ interface SelectionOverlayProps {
     bottom: number
   }>
   /**
-   * One reorder handle per artboard in a selected multi-artboard group. The
+   * One reorder handle per iframeLayer in a selected multi-iframeLayer group. The
    * world-space center is projected to screen and drawn as a small dot at
    * constant pixel size. Pressing one starts a drag that reorders the
-   * artboards in the group.
+   * iframeLayers in the group.
    */
-  reorderHandles?: Array<{ artboardId: string; centerX: number; centerY: number }>
+  reorderHandles?: Array<{ iframeLayerId: string; centerX: number; centerY: number }>
   /** When the cursor is over a reorder dot, render that one filled instead of hollow. */
-  hoveredReorderArtboardId?: string | null
+  hoveredReorderIframeLayerId?: string | null
   /**
-   * World-space shift applied to the lifted artboard's frame outline and its
+   * World-space shift applied to the lifted iframeLayer's frame outline and its
    * reorder dot during a reorder drag — keeps the overlay aligned with the
-   * translated artboard DOM element.
+   * translated iframeLayer DOM element.
    */
-  reorderDragShift?: { artboardId: string; dx: number; dy: number } | null
+  reorderDragShift?: { iframeLayerId: string; dx: number; dy: number } | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -88,11 +88,11 @@ function resolveColor(el: HTMLElement, varName: string, fallback: string): strin
 export function SelectionOverlay({
   zoom,
   viewportPos,
-  selectedArtboardIds,
-  groupSelectedArtboardIds,
-  focusedArtboardId,
-  hoveredArtboardId,
-  artboardLayouts,
+  selectedIframeLayerIds,
+  groupSelectedIframeLayerIds,
+  focusedIframeLayerId,
+  hoveredIframeLayerId,
+  iframeLayerLayouts,
   placeholderRects,
   marquee,
   frameDraft,
@@ -102,7 +102,7 @@ export function SelectionOverlay({
   inspectRect,
   gapHandles,
   reorderHandles,
-  hoveredReorderArtboardId,
+  hoveredReorderIframeLayerId,
   reorderDragShift,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -138,8 +138,8 @@ export function SelectionOverlay({
     })
 
     // Draw hover frame (only if not already selected/focused)
-    if (hoveredArtboardId && !selectedArtboardIds.has(hoveredArtboardId) && focusedArtboardId !== hoveredArtboardId) {
-      const layout = artboardLayouts.get(hoveredArtboardId)
+    if (hoveredIframeLayerId && !selectedIframeLayerIds.has(hoveredIframeLayerId) && focusedIframeLayerId !== hoveredIframeLayerId) {
+      const layout = iframeLayerLayouts.get(hoveredIframeLayerId)
       if (layout) {
         const topLeft = toScreen(layout.x, layout.y)
         const sw = layout.width * zoom
@@ -159,11 +159,11 @@ export function SelectionOverlay({
 
     // Draw other users' selections
     for (const other of othersSelections) {
-      if (other.selectedArtboardIds.length === 0) continue
+      if (other.selectedIframeLayerIds.length === 0) continue
       ctx.strokeStyle = other.color
       ctx.lineWidth = 1
-      for (const id of other.selectedArtboardIds) {
-        const layout = artboardLayouts.get(id)
+      for (const id of other.selectedIframeLayerIds) {
+        const layout = iframeLayerLayouts.get(id)
         if (!layout) continue
         const tl = toScreen(layout.x, layout.y)
         const br = toScreen(layout.x + layout.width, layout.y + layout.height)
@@ -175,14 +175,14 @@ export function SelectionOverlay({
       }
     }
 
-    // Compute rounded frame edges for selected/focused/group-selected artboards
+    // Compute rounded frame edges for selected/focused/group-selected iframeLayers
     const frameEdges = new Map<string, { l: number; t: number; r: number; b: number }>()
-    for (const layout of artboardLayouts.values()) {
-      const inDirect = selectedArtboardIds.has(layout.id)
-      const inGroup = groupSelectedArtboardIds.has(layout.id)
-      if (!inDirect && !inGroup && focusedArtboardId !== layout.id) continue
-      // Lifted artboard's outline tracks its translated DOM position.
-      const shift = reorderDragShift && reorderDragShift.artboardId === layout.id ? reorderDragShift : null
+    for (const layout of iframeLayerLayouts.values()) {
+      const inDirect = selectedIframeLayerIds.has(layout.id)
+      const inGroup = groupSelectedIframeLayerIds.has(layout.id)
+      if (!inDirect && !inGroup && focusedIframeLayerId !== layout.id) continue
+      // Lifted iframeLayer's outline tracks its translated DOM position.
+      const shift = reorderDragShift && reorderDragShift.iframeLayerId === layout.id ? reorderDragShift : null
       const ox = shift ? shift.dx : 0
       const oy = shift ? shift.dy : 0
       const tl = toScreen(layout.x + ox, layout.y + oy)
@@ -195,17 +195,17 @@ export function SelectionOverlay({
       })
     }
 
-    // Draw selection frames for artboards
+    // Draw selection frames for iframeLayers
     ctx.strokeStyle = primaryColor
     ctx.lineWidth = 1
     for (const { l, t, r, b } of frameEdges.values()) {
       ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
     }
 
-    // Draw resize handles for single artboard selection
-    const totalSelected = selectedArtboardIds.size
-    if (selectedArtboardIds.size === 1 && totalSelected === 1 && !hideResizeHandles) {
-      const id = selectedArtboardIds.values().next().value as string
+    // Draw resize handles for single iframeLayer selection
+    const totalSelected = selectedIframeLayerIds.size
+    if (selectedIframeLayerIds.size === 1 && totalSelected === 1 && !hideResizeHandles) {
+      const id = selectedIframeLayerIds.values().next().value as string
       const edges = frameEdges.get(id)
       if (edges) {
         const { l, t, r, b } = edges
@@ -228,11 +228,11 @@ export function SelectionOverlay({
       }
     }
 
-    // Draw union bounding rect when multiple artboards are selected
+    // Draw union bounding rect when multiple iframeLayers are selected
     if (totalSelected > 1) {
       let uLeft = Infinity, uTop = Infinity, uRight = -Infinity, uBottom = -Infinity
-      for (const id of selectedArtboardIds) {
-        const layout = artboardLayouts.get(id)
+      for (const id of selectedIframeLayerIds) {
+        const layout = iframeLayerLayouts.get(id)
         if (!layout) continue
         uLeft = Math.min(uLeft, layout.x)
         uTop = Math.min(uTop, layout.y)
@@ -313,13 +313,13 @@ export function SelectionOverlay({
     // back to primary).
     if (reorderHandles && reorderHandles.length > 0) {
       for (const h of reorderHandles) {
-        const shift = reorderDragShift && reorderDragShift.artboardId === h.artboardId ? reorderDragShift : null
+        const shift = reorderDragShift && reorderDragShift.iframeLayerId === h.iframeLayerId ? reorderDragShift : null
         const ox = shift ? shift.dx : 0
         const oy = shift ? shift.dy : 0
         const center = toScreen(h.centerX + ox, h.centerY + oy)
         const cx = Math.round(center.x) + 0.5
         const cy = Math.round(center.y) + 0.5
-        const filled = h.artboardId === hoveredReorderArtboardId
+        const filled = h.iframeLayerId === hoveredReorderIframeLayerId
         // 12×12 outer white
         ctx.beginPath()
         ctx.arc(cx, cy, 6, 0, Math.PI * 2)
@@ -401,7 +401,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedArtboardIds, groupSelectedArtboardIds, focusedArtboardId, hoveredArtboardId, artboardLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderArtboardId, reorderDragShift])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
 
   // Keep canvas sized to container
   useEffect(() => {

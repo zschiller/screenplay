@@ -9,7 +9,7 @@ interface UseDragOptions {
   onClick?: (e: React.PointerEvent) => void
 }
 
-export function useArtboardDrag({
+export function useIframeLayerDrag({
   zoom,
   onDrag,
   onDragEnd,

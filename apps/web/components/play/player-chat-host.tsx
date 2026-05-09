@@ -220,7 +220,7 @@ export function PlayerChatHost({
       // The agent picker is built around switching between siblings; in the
       // player there's only one agent so we hand it a single-element list.
       agents={[agent]}
-      documents={[]}
+      markdownLayers={[]}
       onSelectAgent={() => {}}
       onSelectLayer={() => {}}
       disableBranchPicker

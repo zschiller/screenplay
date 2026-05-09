@@ -2,10 +2,10 @@ import * as Y from "yjs"
 import { nanoid } from "nanoid"
 import type {
   AgentData,
-  ArtboardData,
-  ArtboardGroupData,
+  IframeLayerData,
+  IframeLayerGroupData,
   ChatSessionData,
-  DocumentLayerData,
+  MarkdownLayerData,
   PlanData,
   ViewportData,
   WorkspaceData,
@@ -22,15 +22,15 @@ import type {
 export const COLLECTION_KEYS = {
   workspaces: "workspaces",
   agents: "sandboxes",
-  artboards: "artboards",
-  artboardGroups: "artboardGroups",
-  documentLayers: "documentLayers",
+  iframeLayers: "iframeLayers",
+  iframeLayerGroups: "iframeLayerGroups",
+  markdownLayers: "markdownLayers",
   chatSessions: "chatSessions",
   plans: "plans",
   // Live tracked-pin positions for selector-anchored comments. Keyed by
-  // threadId; value is the artboard-local (x, y) of the pin. Synced across
-  // clients so everyone sees the pin at the same place even before their
-  // dev server / iframe is ready.
+  // threadId; value is the iframe-layer-local (x, y) of the pin. Synced
+  // across clients so everyone sees the pin at the same place even before
+  // their dev server / iframe is ready.
   commentPositions: "commentPositions",
 } as const
 
@@ -221,9 +221,9 @@ export type RoomCollections = {
   doc: Y.Doc
   workspaces: YjsCollection<WorkspaceData>
   agents: YjsCollection<AgentData>
-  artboards: YjsCollection<ArtboardData>
-  artboardGroups: YjsCollection<ArtboardGroupData>
-  documentLayers: YjsCollection<DocumentLayerData>
+  iframeLayers: YjsCollection<IframeLayerData>
+  iframeLayerGroups: YjsCollection<IframeLayerGroupData>
+  markdownLayers: YjsCollection<MarkdownLayerData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   commentPositions: YjsCollection<CommentPosition>
@@ -249,17 +249,17 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
       doc,
       ensureCollection(doc, COLLECTION_KEYS.agents),
     ),
-    artboards: new YjsCollection<ArtboardData>(
+    iframeLayers: new YjsCollection<IframeLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.artboards),
+      ensureCollection(doc, COLLECTION_KEYS.iframeLayers),
     ),
-    artboardGroups: new YjsCollection<ArtboardGroupData>(
+    iframeLayerGroups: new YjsCollection<IframeLayerGroupData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.artboardGroups),
+      ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups),
     ),
-    documentLayers: new YjsCollection<DocumentLayerData>(
+    markdownLayers: new YjsCollection<MarkdownLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.documentLayers),
+      ensureCollection(doc, COLLECTION_KEYS.markdownLayers),
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,
@@ -276,75 +276,60 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),
   }
-  migrateLegacyArtboards(collections)
+  migrateLegacyGroups(collections)
   COLLECTIONS_CACHE.set(doc, collections)
   return collections
 }
 
 /**
  * Idempotent on-load migration that:
- *  - Converts any group still using the legacy `artboardIds` field into a
- *    typed `members` list and clears the legacy field.
- *  - Wraps any standalone artboard (one that predates groups, still carrying
- *    its own x/y) in a fresh single-member group.
- *  - Wraps any standalone document (created before docs were group members)
- *    in a fresh single-member group, anchored at the doc's own x/y.
+ *  - Wraps any standalone iframe layer (one that predates groups, still
+ *    carrying its own x/y) in a fresh single-member group.
+ *  - Wraps any standalone markdown layer (created before they were group
+ *    members) in a fresh single-member group, anchored at its own x/y.
  *  - Back-fills a `name` on any group that lacks one.
  *
  * Runs once per Y.Doc in `getRoomCollections`. Safe to re-run — every step
  * is a no-op when the data is already in the target shape.
  */
-function migrateLegacyArtboards(c: RoomCollections): void {
+function migrateLegacyGroups(c: RoomCollections): void {
   const doc = c.doc
-  const artboardsMap = ensureCollection(doc, COLLECTION_KEYS.artboards)
-  const documentsMap = ensureCollection(doc, COLLECTION_KEYS.documentLayers)
-  const groupsMap = ensureCollection(doc, COLLECTION_KEYS.artboardGroups)
+  const iframeLayersMap = ensureCollection(doc, COLLECTION_KEYS.iframeLayers)
+  const markdownLayersMap = ensureCollection(doc, COLLECTION_KEYS.markdownLayers)
+  const groupsMap = ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups)
 
-  // Detect groups still on the legacy schema, and collect every member id
-  // currently referenced (under either field) so we can identify orphans.
-  const groupsToMigrate: Array<{
-    id: string
-    map: AnyMap
-    legacyIds: string[]
-  }> = []
   const referenced = new Set<string>()
-  groupsMap.forEach((groupMap, id) => {
+  groupsMap.forEach((groupMap) => {
     const members = groupMap.get("members") as
       | Array<{ kind: string; id: string }>
       | undefined
     if (Array.isArray(members) && members.length > 0) {
       for (const m of members) if (m && typeof m.id === "string") referenced.add(m.id)
-      return
-    }
-    const legacyIds = groupMap.get("artboardIds") as string[] | undefined
-    if (Array.isArray(legacyIds)) {
-      for (const aid of legacyIds) referenced.add(aid)
-      groupsToMigrate.push({ id, map: groupMap, legacyIds })
     }
   })
 
-  const artboardOrphans: {
+  const iframeLayerOrphans: {
     id: string
     x: number
     y: number
     sidebarOrder?: number
   }[] = []
-  artboardsMap.forEach((abMap, id) => {
+  iframeLayersMap.forEach((layerMap, id) => {
     if (referenced.has(id)) return
-    const x = abMap.get("x") as number | undefined
-    const y = abMap.get("y") as number | undefined
+    const x = layerMap.get("x") as number | undefined
+    const y = layerMap.get("y") as number | undefined
     if (typeof x !== "number" || typeof y !== "number") return
-    const sidebarOrder = abMap.get("sidebarOrder") as number | undefined
-    artboardOrphans.push({ id, x, y, sidebarOrder })
+    const sidebarOrder = layerMap.get("sidebarOrder") as number | undefined
+    iframeLayerOrphans.push({ id, x, y, sidebarOrder })
   })
 
-  const documentOrphans: { id: string; x: number; y: number }[] = []
-  documentsMap.forEach((docMap, id) => {
+  const markdownLayerOrphans: { id: string; x: number; y: number }[] = []
+  markdownLayersMap.forEach((layerMap, id) => {
     if (referenced.has(id)) return
-    const x = docMap.get("x") as number | undefined
-    const y = docMap.get("y") as number | undefined
+    const x = layerMap.get("x") as number | undefined
+    const y = layerMap.get("y") as number | undefined
     if (typeof x !== "number" || typeof y !== "number") return
-    documentOrphans.push({ id, x, y })
+    markdownLayerOrphans.push({ id, x, y })
   })
 
   // Collect groups missing a name so we can back-fill. Sort by the sidebar
@@ -374,9 +359,8 @@ function migrateLegacyArtboards(c: RoomCollections): void {
   })
 
   if (
-    groupsToMigrate.length === 0 &&
-    artboardOrphans.length === 0 &&
-    documentOrphans.length === 0 &&
+    iframeLayerOrphans.length === 0 &&
+    markdownLayerOrphans.length === 0 &&
     unnamed.length === 0
   ) {
     return
@@ -390,43 +374,36 @@ function migrateLegacyArtboards(c: RoomCollections): void {
         g.set("name", `Group ${nextNumber++}`)
       }
     }
-    for (const g of groupsToMigrate) {
-      g.map.set(
-        "members",
-        g.legacyIds.map((id) => ({ kind: "artboard", id })),
-      )
-      g.map.delete("artboardIds")
-    }
-    for (const orphan of artboardOrphans) {
+    for (const orphan of iframeLayerOrphans) {
       const groupId = nanoid()
-      c.artboardGroups.set(groupId, {
+      c.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextNumber++}`,
         x: orphan.x,
         y: orphan.y,
-        members: [{ kind: "artboard", id: orphan.id }],
+        members: [{ kind: "iframe-layer", id: orphan.id }],
         ...(orphan.sidebarOrder !== undefined ? { sidebarOrder: orphan.sidebarOrder } : {}),
       })
-      const ab = artboardsMap.get(orphan.id)
-      if (ab) {
-        ab.delete("x")
-        ab.delete("y")
-        ab.delete("sidebarOrder")
+      const layer = iframeLayersMap.get(orphan.id)
+      if (layer) {
+        layer.delete("x")
+        layer.delete("y")
+        layer.delete("sidebarOrder")
       }
     }
-    for (const orphan of documentOrphans) {
+    for (const orphan of markdownLayerOrphans) {
       const groupId = nanoid()
-      c.artboardGroups.set(groupId, {
+      c.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextNumber++}`,
         x: orphan.x,
         y: orphan.y,
-        members: [{ kind: "document", id: orphan.id }],
+        members: [{ kind: "markdown-layer", id: orphan.id }],
       })
-      const d = documentsMap.get(orphan.id)
-      if (d) {
-        d.delete("x")
-        d.delete("y")
+      const layer = markdownLayersMap.get(orphan.id)
+      if (layer) {
+        layer.delete("x")
+        layer.delete("y")
       }
     }
   })

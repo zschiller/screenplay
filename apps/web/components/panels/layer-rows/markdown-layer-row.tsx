@@ -13,8 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { documentKind } from "@/lib/layer-kinds/document"
-import type { DocumentLayerData } from "@/lib/types"
+import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
+import type { MarkdownLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 export function DocumentRow({
@@ -23,8 +23,8 @@ export function DocumentRow({
   selected,
   onSelect,
   onActivate,
-}: LayerRowProps<DocumentLayerData>) {
-  const Icon = documentKind.Icon
+}: LayerRowProps<MarkdownLayerData>) {
+  const Icon = markdownLayerKind.Icon
   if (variant === "flat") {
     return (
       <SidebarMenuButton
@@ -40,7 +40,7 @@ export function DocumentRow({
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
-        <span className="truncate">{documentKind.getLabel(item)}</span>
+        <span className="truncate">{markdownLayerKind.getLabel(item)}</span>
       </SidebarMenuButton>
     )
   }
@@ -59,7 +59,7 @@ export function DocumentRow({
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
-        <span className="truncate">{documentKind.getLabel(item)}</span>
+        <span className="truncate">{markdownLayerKind.getLabel(item)}</span>
       </button>
     </SidebarMenuSubButton>
   )
@@ -70,7 +70,7 @@ export function DocumentRowMenu({
   isSub,
   onRename,
   onRemove,
-}: LayerRowMenuProps<DocumentLayerData>) {
+}: LayerRowMenuProps<MarkdownLayerData>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

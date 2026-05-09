@@ -1,9 +1,9 @@
 import { FileText } from "lucide-react"
-import type { DocumentLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 import type { LayerKindDescriptor } from "./types"
 
-export const documentKind: LayerKindDescriptor<DocumentLayerData> = {
-  kind: "document",
+export const markdownLayerKind: LayerKindDescriptor<MarkdownLayerData> = {
+  kind: "markdown-layer",
   pluralLabel: "Documents",
   singularLabel: "document",
   Icon: FileText,

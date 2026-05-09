@@ -31,7 +31,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ChatSessionData, DocumentLayerData } from "@/lib/types"
+import type { AgentData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -108,7 +108,7 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
  * The chat panel can target one of two top-level kinds:
  *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
  *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
- *    true (currently just documents). The `layerKind` discriminator
+ *    true (currently just markdownLayers). The `layerKind` discriminator
  *    determines which descriptor's icon/label drives the chrome and which
  *    server-side toolset runs.
  *
@@ -123,10 +123,10 @@ export type ChatPanelTarget =
 interface ChatPanelProps {
   target: ChatPanelTarget
   agents: AgentData[]
-  documents: DocumentLayerData[]
+  markdownLayers: MarkdownLayerData[]
   onSelectAgent: (id: string) => void
   /** Generalised "pick a layer-kind target" callback — receives the kind
-   *  ("document", future kinds, …) and the layer id. */
+   *  ("markdown-layer", future kinds, …) and the layer id. */
   onSelectLayer: (layerKind: string, layerId: string) => void
   chatSessions: ChatSessionData[]
   selectedChatId: string | null
@@ -157,7 +157,7 @@ interface ChatPanelProps {
 export function ChatPanel({
   target,
   agents,
-  documents,
+  markdownLayers,
   onSelectAgent,
   onSelectLayer,
   chatSessions,
@@ -180,7 +180,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const isAgentTarget = target.kind === "agent"
   const agent = target.kind === "agent" ? target.agent : null
-  // Layer-kind targets (currently just documents) are routed through the
+  // Layer-kind targets (currently just markdownLayers) are routed through the
   // shared `LayerKindDescriptor` registry; the chrome (target pill,
   // picker entry) reads icon/label from there so future kinds light up
   // without changes to this file.
@@ -295,7 +295,7 @@ export function ChatPanel({
         ) : (
           <TargetPicker
             agents={agents}
-            documents={documents}
+            markdownLayers={markdownLayers}
             target={target}
             onSelectAgent={onSelectAgent}
             onSelectLayer={onSelectLayer}
@@ -466,7 +466,7 @@ export function ChatPanel({
           (c) =>
             c.id !== chat.id &&
             ((chat.agentId && c.agentId === chat.agentId) ||
-              (chat.documentId && c.documentId === chat.documentId)),
+              (chat.markdownLayerId && c.markdownLayerId === chat.markdownLayerId)),
         )
         return (
           <TabsContent
@@ -481,7 +481,7 @@ export function ChatPanel({
               sandboxId={agent?.id}
               sandboxName={agent?.sandboxName}
               branch={agent?.branch}
-              documentId={layerTarget?.layerKind === "document" ? layerTarget.layer.id : undefined}
+              markdownLayerId={layerTarget?.layerKind === "markdown-layer" ? layerTarget.layer.id : undefined}
               isFirstChat={isFirst}
               autoNamedBranch={agent?.autoNamedBranch}
               planMode={chat.planMode}
@@ -535,7 +535,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
  */
 function TargetPicker({
   agents,
-  documents,
+  markdownLayers,
   target,
   onSelectAgent,
   onSelectLayer,
@@ -543,7 +543,7 @@ function TargetPicker({
   agents: AgentData[]
   /** All chat-targetable layers, keyed by kind. The picker renders one
    *  CommandGroup per kind in registry order. */
-  documents: DocumentLayerData[]
+  markdownLayers: MarkdownLayerData[]
   target: ChatPanelTarget
   onSelectAgent: (id: string) => void
   onSelectLayer: (layerKind: string, layerId: string) => void
@@ -552,9 +552,9 @@ function TargetPicker({
   const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
 
   // For now there's only one layer kind that's chat-targetable
-  // (documents). Future kinds add their lookup here next to `documents`.
+  // (markdownLayers). Future kinds add their lookup here next to `markdownLayers`.
   const layersByKind: Record<string, Array<{ id: string } & Record<string, unknown>>> = {
-    document: documents,
+    document: markdownLayers,
   }
 
   return (

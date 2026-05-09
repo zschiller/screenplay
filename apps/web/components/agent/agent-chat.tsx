@@ -13,7 +13,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 import type { JSONContent } from "@tiptap/core"
-import { buildDocumentMentionSuggestion } from "@/lib/document-mention-suggestion"
+import { buildMarkdownLayerMentionSuggestion } from "@/lib/markdown-layer-mention-suggestion"
 import {
   InputGroup,
   InputGroupAddon,
@@ -32,10 +32,10 @@ import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
-import { useDocumentLayers } from "@/lib/yjs/react"
+import { useMarkdownLayers } from "@/lib/yjs/react"
 import { useYjs } from "@/lib/yjs/context"
 import { fragmentToPlainText } from "@/lib/yjs/fragment-text"
-import type { DocumentLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -139,12 +139,12 @@ function extractTextAndMentions(json: JSONContent | undefined): {
 interface AgentChatProps {
   chatId: string
   roomId: string
-  /** Sandbox-backed target. Either this or `documentId` is set. */
+  /** Sandbox-backed target. Either this or `markdownLayerId` is set. */
   sandboxId?: string
   sandboxName?: string
   branch?: string
   /** Document-layer target. */
-  documentId?: string
+  markdownLayerId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
@@ -160,7 +160,7 @@ export function AgentChat({
   roomId,
   sandboxName,
   branch,
-  documentId,
+  markdownLayerId,
   isFirstChat,
   autoNamedBranch,
   planMode,
@@ -176,7 +176,7 @@ export function AgentChat({
     isLoadingHistory,
     sendMessage,
     stopMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, documentId, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
+  } = useAgentChat({ chatId, roomId, sandboxName, branch, markdownLayerId, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
@@ -185,14 +185,14 @@ export function AgentChat({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
-  const documentLayers = useDocumentLayers()
+  const markdownLayers = useMarkdownLayers()
   const { doc: yjsDoc } = useYjs()
 
   // The Mention extension's `suggestion.items` callback runs inside a closure
-  // captured at editor-construction time, so it can't read `documentLayers`
+  // captured at editor-construction time, so it can't read `markdownLayers`
   // directly — use a ref so the latest list is always visible to it.
-  const documentLayersRef = useRef<DocumentLayerData[]>(documentLayers)
-  documentLayersRef.current = documentLayers
+  const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
+  markdownLayersRef.current = markdownLayers
 
   // Tracks whether the mention popover is currently open. ProseMirror checks
   // direct `editorProps.handleKeyDown` before plugin props, so without this
@@ -224,7 +224,7 @@ export function AgentChat({
   }, [])
 
   // Build the editor once. The mention extension's suggestion handler reads
-  // through refs so it always sees the latest documents and submit handler.
+  // through refs so it always sees the latest markdownLayers and submit handler.
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -255,8 +255,8 @@ export function AgentChat({
           return ["span", options.HTMLAttributes, label]
         },
         deleteTriggerWithBackspace: true,
-        suggestion: buildDocumentMentionSuggestion({
-          getDocuments: () => documentLayersRef.current,
+        suggestion: buildMarkdownLayerMentionSuggestion({
+          getMarkdownLayers: () => markdownLayersRef.current,
           getAnchorRect: () =>
             editorContainerRef.current?.getBoundingClientRect() ?? null,
           onOpenChange: (open) => {
@@ -306,7 +306,7 @@ export function AgentChat({
   )
 
   /**
-   * Expand any `@`-mentioned documents into the message text. The original
+   * Expand any `@`-mentioned markdownLayers into the message text. The original
    * `@<title>` token stays where the user typed it (so the conversation log
    * reads naturally), and we append a "Referenced documents" block with each
    * doc's title + body so the model can read them without an extra tool call.
@@ -316,17 +316,17 @@ export function AgentChat({
       if (mentionIds.length === 0) return text
       const blocks: string[] = []
       for (const id of mentionIds) {
-        const layer = documentLayers.find((d) => d.id === id)
+        const layer = markdownLayers.find((d) => d.id === id)
         if (!layer) continue
         const title = layer.title || "Untitled"
-        const fragment = yjsDoc.getXmlFragment(`doc-${id}`)
+        const fragment = yjsDoc.getXmlFragment(`markdown-layer-${id}`)
         const body = fragmentToPlainText(fragment)
         blocks.push(`### ${title}\n\n${body || "(empty)"}`)
       }
       if (blocks.length === 0) return text
       return `${text}\n\n---\n\nReferenced documents:\n\n${blocks.join("\n\n")}`
     },
-    [documentLayers, yjsDoc],
+    [markdownLayers, yjsDoc],
   )
 
   const handleSubmit = useCallback(() => {

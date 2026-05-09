@@ -1,5 +1,5 @@
 import { getSkillIndex } from "@/lib/skills"
-import type { DocumentLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 /**
  * System prompt for chat sessions that target a *document layer* on the
@@ -11,10 +11,10 @@ import type { DocumentLayerData } from "@/lib/types"
  * latest state without having to call `read_document` first; it can still
  * read peer documents via `read_document(id)` to follow @-mentions.
  */
-export function buildDocumentSystemPrompt(opts: {
+export function buildMarkdownLayerSystemPrompt(opts: {
   currentTitle: string
   currentBody: string
-  peers: Array<Pick<DocumentLayerData, "id" | "title">>
+  peers: Array<Pick<MarkdownLayerData, "id" | "title">>
 }): string {
   const peersBlock =
     opts.peers.length === 0

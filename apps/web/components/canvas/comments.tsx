@@ -43,7 +43,7 @@ import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 
-interface ArtboardPos {
+interface IframeLayerPos {
   id: string
   x: number
   y: number
@@ -54,7 +54,7 @@ interface ArtboardPos {
 interface NewCommentPos {
   x: number
   y: number
-  artboardId?: string
+  iframeLayerId?: string
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
@@ -66,12 +66,12 @@ interface CommentsProps {
   newCommentPos: NewCommentPos | null
   onNewCommentPlaced: () => void
   onCancelComment: () => void
-  artboards: ArtboardPos[]
-  getArtboardDom?: (id: string) => ScreenplayDom | undefined
+  iframeLayers: IframeLayerPos[]
+  getIframeLayerDom?: (id: string) => ScreenplayDom | undefined
   /**
    * Threads pre-fetched on the server so pins render on the first paint
    * without waiting for a client-side server action — that action otherwise
-   * gets queued behind the artboard's probeSandboxUrl polling and only
+   * gets queued behind the iframeLayer's probeSandboxUrl polling and only
    * resolves once the iframe URL is up.
    */
   initialThreads?: ThreadWithComments[]
@@ -79,11 +79,11 @@ interface CommentsProps {
    * If provided, the new-thread composer shows a "Send to Claude" secondary
    * CTA that hands the typed text + the picked element context off to the
    * agent chat instead of creating a comment thread. Only shown when the
-   * comment was anchored to an element inside an artboard.
+   * comment was anchored to an element inside an iframeLayer.
    */
   onSendToChat?: (
     text: string,
-    ctx: { artboardId: string; selector: string | null },
+    ctx: { iframeLayerId: string; selector: string | null },
   ) => void
 }
 
@@ -97,8 +97,8 @@ export function Comments({
   newCommentPos,
   onNewCommentPlaced,
   onCancelComment,
-  artboards,
-  getArtboardDom,
+  iframeLayers,
+  getIframeLayerDom,
   initialThreads,
   onSendToChat,
 }: CommentsProps) {
@@ -139,11 +139,11 @@ export function Comments({
     transformOrigin: "bottom left" as const,
   }
 
-  const artboardById = useMemo(() => {
-    const m = new Map<string, ArtboardPos>()
-    for (const a of artboards) m.set(a.id, a)
+  const iframeLayerById = useMemo(() => {
+    const m = new Map<string, IframeLayerPos>()
+    for (const a of iframeLayers) m.set(a.id, a)
     return m
-  }, [artboards])
+  }, [iframeLayers])
 
   // Live tracked-pin positions, read from the room's Yjs doc. Synced across
   // clients in realtime and persisted by the Yjs server, so a freshly-loaded
@@ -167,32 +167,32 @@ export function Comments({
   }, [threads, threadsLoaded, pruneCommentPositions])
 
   // Poll selector-anchored threads and update tracked positions. Each tick
-  // sends one batched bridge call per artboard (collapsing N round-trips
+  // sends one batched bridge call per iframeLayer (collapsing N round-trips
   // into one) and self-throttles via rAF — the next tick is scheduled only
   // after the previous batch resolves, so cadence tracks the channel's real
   // throughput instead of flooding it.
   useEffect(() => {
-    if (!getArtboardDom) return
+    if (!getIframeLayerDom) return
     let cancelled = false
     let rafId: number | null = null
     const anchored = threads.filter(
-      (t) => !t.resolved && t.artboardId && t.selector,
+      (t) => !t.resolved && t.iframeLayerId && t.selector,
     )
     if (anchored.length === 0) return
 
-    // Group anchored threads by artboard so we can issue one batched call
+    // Group anchored threads by iframeLayer so we can issue one batched call
     // per iframe per tick.
-    const byArtboard = new Map<string, typeof anchored>()
+    const byIframeLayer = new Map<string, typeof anchored>()
     for (const t of anchored) {
-      const arr = byArtboard.get(t.artboardId!)
+      const arr = byIframeLayer.get(t.iframeLayerId!)
       if (arr) arr.push(t)
-      else byArtboard.set(t.artboardId!, [t])
+      else byIframeLayer.set(t.iframeLayerId!, [t])
     }
 
     async function tick() {
       await Promise.all(
-        Array.from(byArtboard.entries()).map(async ([artboardId, group]) => {
-          const dom = getArtboardDom!(artboardId)
+        Array.from(byIframeLayer.entries()).map(async ([iframeLayerId, group]) => {
+          const dom = getIframeLayerDom!(iframeLayerId)
           if (!dom) return
           const selectors = group.map((t) => t.selector!)
           let rects: (DomRect | null)[]
@@ -207,7 +207,7 @@ export function Comments({
             if (!t || !rect) continue
             // Offsets are stored as fractions of the element's size at click
             // time, so the pin tracks the same relative point on the element
-            // even as it resizes with artboard / page reflow.
+            // even as it resizes with iframeLayer / page reflow.
             const x = rect.x + (t.offsetX ?? 0) * rect.width
             const y = rect.y + (t.offsetY ?? 0) * rect.height
             // Compare against the current yjs cached position (or DB
@@ -246,20 +246,20 @@ export function Comments({
       cancelled = true
       if (rafId !== null) cancelAnimationFrame(rafId)
     }
-  }, [threads, getArtboardDom, setCommentPosition])
+  }, [threads, getIframeLayerDom, setCommentPosition])
 
   const resolvePos = useCallback(
     (t: {
       id?: string
       x: number | null
       y: number | null
-      artboardId?: string | null
+      iframeLayerId?: string | null
       selector?: string | null
     }): { x: number; y: number } | null => {
-      if (t.artboardId) {
-        const ab = artboardById.get(t.artboardId)
-        // Artboards data may load after threads (yjs warm-up). Returning null
-        // here makes the caller skip rendering until the artboard's canvas
+      if (t.iframeLayerId) {
+        const ab = iframeLayerById.get(t.iframeLayerId)
+        // IframeLayers data may load after threads (yjs warm-up). Returning null
+        // here makes the caller skip rendering until the iframeLayer's canvas
         // position is known, so the pin doesn't flash at iframe-local coords
         // mistakenly placed in canvas space.
         if (!ab) return null
@@ -276,7 +276,7 @@ export function Comments({
       if (t.x === null || t.y === null) return null
       return { x: t.x, y: t.y }
     },
-    [artboardById, trackedPositions],
+    [iframeLayerById, trackedPositions],
   )
 
   const composerCanvasPos = newCommentPos ? resolvePos(newCommentPos) : null
@@ -352,17 +352,17 @@ export function Comments({
                   roomId={roomId}
                   x={newCommentPos.x}
                   y={newCommentPos.y}
-                  artboardId={newCommentPos.artboardId}
+                  iframeLayerId={newCommentPos.iframeLayerId}
                   selector={newCommentPos.selector ?? null}
                   offsetX={newCommentPos.offsetX ?? null}
                   offsetY={newCommentPos.offsetY ?? null}
                   onSubmitted={onNewCommentPlaced}
                   onCancel={onCancelComment}
                   onSendToChat={
-                    onSendToChat && newCommentPos.artboardId
+                    onSendToChat && newCommentPos.iframeLayerId
                       ? (text) =>
                           onSendToChat(text, {
-                            artboardId: newCommentPos.artboardId!,
+                            iframeLayerId: newCommentPos.iframeLayerId!,
                             selector: newCommentPos.selector ?? null,
                           })
                       : undefined
@@ -511,7 +511,7 @@ function NewThreadComposer({
   roomId,
   x,
   y,
-  artboardId,
+  iframeLayerId,
   selector,
   offsetX,
   offsetY,
@@ -522,7 +522,7 @@ function NewThreadComposer({
   roomId: string
   x: number
   y: number
-  artboardId?: string
+  iframeLayerId?: string
   selector: string | null
   offsetX: number | null
   offsetY: number | null
@@ -585,7 +585,7 @@ function NewThreadComposer({
           roomId,
           x,
           y,
-          artboardId,
+          iframeLayerId,
           selector,
           offsetX,
           offsetY,
