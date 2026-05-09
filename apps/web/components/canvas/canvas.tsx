@@ -10,11 +10,11 @@ import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import {
   useAgents,
-  useArtboardGroups,
-  useArtboards,
+  useIframeLayerGroups,
+  useIframeLayers,
   useChatSessions,
   useChatStreamEvents,
-  useDocumentLayers,
+  useMarkdownLayers,
   useOtherPresences,
   useRoomCollections,
   useSavedViewport,
@@ -55,9 +55,9 @@ import { Input } from "@workspace/ui/components/input"
 import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
-import { Artboard } from "./artboard"
-import { ArtboardGroup } from "./artboard-group"
-import { DocumentLayer } from "./document-layer"
+import { IframeLayer } from "./iframe-layer"
+import { IframeLayerGroup } from "./iframe-layer-group"
+import { MarkdownLayer } from "./markdown-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -82,7 +82,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { AgentData, ArtboardGroupData, ChatSessionData, DocumentLayerData, GroupMember, ViewportData, WorkspaceData } from "@/lib/types"
+import type { AgentData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, WorkspaceData } from "@/lib/types"
 import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
@@ -99,29 +99,29 @@ import {
   ZOOM_MIN,
   ZOOM_MAX,
   ZOOM_STEP,
-  DEFAULT_ARTBOARD_WIDTH,
-  DEFAULT_ARTBOARD_HEIGHT,
-  MIN_ARTBOARD_WIDTH,
-  MIN_ARTBOARD_HEIGHT,
-  ARTBOARD_GROUP_GAP,
+  DEFAULT_IFRAME_LAYER_WIDTH,
+  DEFAULT_IFRAME_LAYER_HEIGHT,
+  MIN_IFRAME_LAYER_WIDTH,
+  MIN_IFRAME_LAYER_HEIGHT,
+  IFRAME_LAYER_GROUP_GAP,
   CANVAS_SIZE,
 } from "@/lib/constants"
 import {
-  computeArtboardLayouts,
+  computeIframeLayerLayouts,
   getGroupMemberIds,
   getGroupMembers,
   groupGap,
   nextGroupNumber,
-  placeNewArtboardGroup,
-} from "@/lib/artboard-layout"
-import { getArtboardSizePreset } from "@/lib/artboard-sizes"
+  placeNewIframeLayerGroup,
+} from "@/lib/iframe-layer-layout"
+import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import {
   anchorCornerForEdge,
   computeDeviceSnap,
   type AnchorCorner,
   type ResizeEdge,
   type SnapCandidate,
-} from "@/lib/artboard-snap"
+} from "@/lib/iframe-layer-snap"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 
 
@@ -166,10 +166,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [renaming, setRenaming] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
-  const [focusedArtboardId, setFocusedArtboardId] = useState<string | null>(null)
-  // Artboard currently in Create Flow mode. Mutually exclusive with
-  // `focusedArtboardId` — toggling one clears the other.
-  const [createFlowArtboardId, setCreateFlowArtboardId] = useState<string | null>(null)
+  const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<string | null>(null)
+  // IframeLayer currently in Create Flow mode. Mutually exclusive with
+  // `focusedIframeLayerId` — toggling one clears the other.
+  const [createFlowIframeLayerId, setCreateFlowIframeLayerId] = useState<string | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   /**
    * When a chat tab is targeting a document layer (instead of an agent's
@@ -194,45 +194,45 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     renameChat: (chatId: string, label: string) => void
   }>({ branchRename: () => {}, renameChat: () => {} })
   const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
-  // Per-artboard iframe DOM accessor registry. Artboards register on mount and
+  // Per-iframeLayer iframe DOM accessor registry. IframeLayers register on mount and
   // unregister on unmount; selector-anchored comments use it to query element
   // rects in the right iframe.
-  const artboardDomsRef = useRef(new Map<string, ScreenplayDom>())
-  const [, setArtboardDomsVersion] = useState(0)
-  const handleArtboardDomReady = useCallback(
+  const iframeLayerDomsRef = useRef(new Map<string, ScreenplayDom>())
+  const [, setIframeLayerDomsVersion] = useState(0)
+  const handleIframeLayerDomReady = useCallback(
     (id: string, dom: ScreenplayDom | null) => {
-      const map = artboardDomsRef.current
+      const map = iframeLayerDomsRef.current
       if (dom) map.set(id, dom)
       else map.delete(id)
-      setArtboardDomsVersion((v) => v + 1)
+      setIframeLayerDomsVersion((v) => v + 1)
     },
     [],
   )
-  const getArtboardDom = useCallback(
-    (id: string): ScreenplayDom | undefined => artboardDomsRef.current.get(id),
+  const getIframeLayerDom = useCallback(
+    (id: string): ScreenplayDom | undefined => iframeLayerDomsRef.current.get(id),
     [],
   )
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{
     x: number
     y: number
-    artboardId?: string
+    iframeLayerId?: string
     selector?: string | null
     offsetX?: number | null
     offsetY?: number | null
   } | null>(null)
   const [inspectHover, setInspectHover] = useState<{
-    artboardId: string
+    iframeLayerId: string
     rect: DomRect
   } | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
-  const [selectedArtboardIds, setSelectedArtboardIds] = useState<Set<string>>(new Set())
+  const [selectedIframeLayerIds, setSelectedIframeLayerIds] = useState<Set<string>>(new Set())
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
   const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<Set<string>>(new Set())
-  const [hoveredArtboardId, setHoveredArtboardId] = useState<string | null>(null)
+  const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseArtboards: Set<string>; baseDocumentLayers: Set<string> } | null>(null)
+  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseIframeLayers: Set<string>; baseDocumentLayers: Set<string> } | null>(null)
   const [documentMode, setDocumentMode] = useState(false)
   const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<string | null>(null)
   const [documentDraft, setDocumentDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
@@ -242,19 +242,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const gapDragRef = useRef<{ groupId: string; gapIndex: number; startGap: number; startCanvasX: number } | null>(null)
   const [activeGapHandle, setActiveGapHandle] = useState<{ groupId: string; gapIndex: number } | null>(null)
-  const reorderDragRef = useRef<{ groupId: string; artboardId: string } | null>(null)
-  const [reorderDraggingArtboardId, setReorderDraggingArtboardId] = useState<string | null>(null)
-  /** Cursor in canvas space while a reorder drag is active — drives the lifted artboard's translate. */
+  const reorderDragRef = useRef<{ groupId: string; iframeLayerId: string } | null>(null)
+  const [reorderDraggingIframeLayerId, setReorderDraggingIframeLayerId] = useState<string | null>(null)
+  /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
   const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
   /** True while the user is holding the meta/cmd key during a reorder drag —
-   * pops the artboard out of its source group as a preview. The pop is only
+   * pops the iframeLayer out of its source group as a preview. The pop is only
    * committed (new group created, source group updated) on pointer-up if the
    * key is still held. */
   const [reorderDragPopped, setReorderDragPopped] = useState(false)
   // Track meta-key changes during a reorder drag even when the pointer isn't
   // moving, so the popped preview kicks in the instant the user presses cmd.
   useEffect(() => {
-    if (!reorderDraggingArtboardId) return
+    if (!reorderDraggingIframeLayerId) return
     const onKey = (ev: KeyboardEvent) => setReorderDragPopped(ev.metaKey)
     window.addEventListener("keydown", onKey)
     window.addEventListener("keyup", onKey)
@@ -262,7 +262,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       window.removeEventListener("keydown", onKey)
       window.removeEventListener("keyup", onKey)
     }
-  }, [reorderDraggingArtboardId])
+  }, [reorderDraggingIframeLayerId])
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -318,8 +318,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   }, [setPresence])
 
   // Refs so keyboard handler stays current without re-binding
-  const selectedArtboardIdsRef = useRef(selectedArtboardIds)
-  selectedArtboardIdsRef.current = selectedArtboardIds
+  const selectedIframeLayerIdsRef = useRef(selectedIframeLayerIds)
+  selectedIframeLayerIdsRef.current = selectedIframeLayerIds
   const selectedGroupIdsRef = useRef(selectedGroupIds)
   selectedGroupIdsRef.current = selectedGroupIds
   const selectedDocumentLayerIdsRef = useRef(selectedDocumentLayerIds)
@@ -330,7 +330,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   documentModeRef.current = documentMode
   const frameModeRef = useRef(frameMode)
   frameModeRef.current = frameMode
-  const removeArtboardsRef = useRef<(ids: string[]) => void>(() => {})
+  const removeIframeLayersRef = useRef<(ids: string[]) => void>(() => {})
   const removeDocumentLayersRef = useRef<(ids: string[]) => void>(() => {})
 
   // Keyboard shortcuts
@@ -362,12 +362,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setCommentMode(false)
           setNewCommentPos(null)
           setInspectHover(null)
-        } else if (focusedArtboardId) {
-          setFocusedArtboardId(null)
-        } else if (createFlowArtboardId) {
-          setCreateFlowArtboardId(null)
+        } else if (focusedIframeLayerId) {
+          setFocusedIframeLayerId(null)
+        } else if (createFlowIframeLayerId) {
+          setCreateFlowIframeLayerId(null)
         } else {
-          setSelectedArtboardIds(new Set())
+          setSelectedIframeLayerIds(new Set())
           setSelectedGroupIds(new Set())
           setSelectedDocumentLayerIds(new Set())
         }
@@ -452,44 +452,44 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setSpaceHeld(true)
         }
       }
-      // Delete/Backspace removes selected artboards (including all members
+      // Delete/Backspace removes selected iframeLayers (including all members
       // of selected groups) and document layers.
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
-        const abIds = selectedArtboardIdsRef.current
+        const abIds = selectedIframeLayerIdsRef.current
         const grpIds = selectedGroupIdsRef.current
         const docIds = selectedDocumentLayerIdsRef.current
         if (abIds.size > 0 || grpIds.size > 0 || docIds.size > 0) {
           e.preventDefault()
-          const allArtboardIds = new Set<string>(abIds)
+          const allIframeLayerIds = new Set<string>(abIds)
           const allDocumentIds = new Set<string>(docIds)
           if (grpIds.size > 0) {
             // Selecting a whole group cascades the delete to every member,
             // regardless of kind.
-            for (const g of collections.artboardGroups.toArray()) {
+            for (const g of collections.iframeLayerGroups.toArray()) {
               if (!grpIds.has(g.id)) continue
               for (const m of getGroupMembers(g)) {
-                if (m.kind === "artboard") allArtboardIds.add(m.id)
-                else if (m.kind === "document") allDocumentIds.add(m.id)
+                if (m.kind === "iframe-layer") allIframeLayerIds.add(m.id)
+                else if (m.kind === "markdown-layer") allDocumentIds.add(m.id)
               }
             }
           }
-          if (allArtboardIds.size > 0) {
+          if (allIframeLayerIds.size > 0) {
             // Single-frame delete: keep selection on the right neighbor (or
             // left if there's nothing to the right). Multi-frame deletes
             // clear selection — no obvious "next" candidate.
             let nextSelected: string | null = null
-            if (allArtboardIds.size === 1 && allDocumentIds.size === 0) {
-              const onlyId = allArtboardIds.values().next().value as string
-              for (const g of collections.artboardGroups.toArray()) {
-                const ids = getGroupMemberIds(g, "artboard")
+            if (allIframeLayerIds.size === 1 && allDocumentIds.size === 0) {
+              const onlyId = allIframeLayerIds.values().next().value as string
+              for (const g of collections.iframeLayerGroups.toArray()) {
+                const ids = getGroupMemberIds(g, "iframe-layer")
                 const idx = ids.indexOf(onlyId)
                 if (idx === -1) continue
                 nextSelected = ids[idx + 1] ?? ids[idx - 1] ?? null
                 break
               }
             }
-            removeArtboardsRef.current(Array.from(allArtboardIds))
-            setSelectedArtboardIds(nextSelected ? new Set([nextSelected]) : new Set())
+            removeIframeLayersRef.current(Array.from(allIframeLayerIds))
+            setSelectedIframeLayerIds(nextSelected ? new Set([nextSelected]) : new Set())
             setSelectedGroupIds(new Set())
           }
           if (allDocumentIds.size > 0) {
@@ -520,58 +520,58 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, focusedArtboardId, createFlowArtboardId, history, openCursorChat, closeCursorChat])
+  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat])
 
-  const artboards = useArtboards()
-  const artboardGroups = useArtboardGroups()
-  const documentLayers = useDocumentLayers()
-  const artboardsById = useMemo(
-    () => new Map(artboards.map((a) => [a.id, a])),
-    [artboards],
+  const iframeLayers = useIframeLayers()
+  const iframeLayerGroups = useIframeLayerGroups()
+  const markdownLayers = useMarkdownLayers()
+  const iframeLayersById = useMemo(
+    () => new Map(iframeLayers.map((a) => [a.id, a])),
+    [iframeLayers],
   )
   const documentsById = useMemo(
-    () => new Map(documentLayers.map((d) => [d.id, d])),
-    [documentLayers],
+    () => new Map(markdownLayers.map((d) => [d.id, d])),
+    [markdownLayers],
   )
-  const artboardLayouts = useMemo(
-    () => computeArtboardLayouts(artboardGroups, artboards, documentLayers),
-    [artboardGroups, artboards, documentLayers],
+  const iframeLayerLayouts = useMemo(
+    () => computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, markdownLayers),
+    [iframeLayerGroups, iframeLayers, markdownLayers],
   )
   /**
-   * Layouts as the user sees them right now — diverges from `artboardLayouts`
-   * only while a reorder drag has the meta key held: the dragged artboard is
+   * Layouts as the user sees them right now — diverges from `iframeLayerLayouts`
+   * only while a reorder drag has the meta key held: the dragged iframeLayer is
    * pulled out of its source group's flex flow and floats at the cursor, so
    * its siblings close the gap. Used by the selection overlay, hit-tests, and
    * everything else that draws or interacts with on-screen positions.
    */
-  const reorderDragRef_artboardId = reorderDraggingArtboardId
-  const effectiveArtboardLayouts = useMemo(() => {
-    if (!reorderDragPopped || !reorderDragRef_artboardId || !reorderDragCursor) {
-      return artboardLayouts
+  const reorderDragRef_iframeLayerId = reorderDraggingIframeLayerId
+  const effectiveIframeLayerLayouts = useMemo(() => {
+    if (!reorderDragPopped || !reorderDragRef_iframeLayerId || !reorderDragCursor) {
+      return iframeLayerLayouts
     }
-    const popped = artboardLayouts.get(reorderDragRef_artboardId)
-    if (!popped) return artboardLayouts
-    const sourceGroup = artboardGroups.find((g) => g.id === popped.groupId)
-    if (!sourceGroup) return artboardLayouts
-    const result = new Map(artboardLayouts)
-    // Override the popped artboard so it sits centered on the cursor.
-    result.set(reorderDragRef_artboardId, {
+    const popped = iframeLayerLayouts.get(reorderDragRef_iframeLayerId)
+    if (!popped) return iframeLayerLayouts
+    const sourceGroup = iframeLayerGroups.find((g) => g.id === popped.groupId)
+    if (!sourceGroup) return iframeLayerLayouts
+    const result = new Map(iframeLayerLayouts)
+    // Override the popped iframeLayer so it sits centered on the cursor.
+    result.set(reorderDragRef_iframeLayerId, {
       ...popped,
       x: reorderDragCursor.x - popped.width / 2,
       y: reorderDragCursor.y - popped.height / 2,
     })
     // Reflow the source group's remaining members to close the gap.
     const remainingMembers = getGroupMembers(sourceGroup).filter(
-      (m) => m.id !== reorderDragRef_artboardId,
+      (m) => m.id !== reorderDragRef_iframeLayerId,
     )
     const gap = groupGap(sourceGroup)
     let cursorX = sourceGroup.x
     for (let i = 0; i < remainingMembers.length; i++) {
       const m = remainingMembers[i]!
       const size =
-        m.kind === "artboard"
-          ? artboards.find((a) => a.id === m.id)
-          : documentLayers.find((d) => d.id === m.id)
+        m.kind === "iframe-layer"
+          ? iframeLayers.find((a) => a.id === m.id)
+          : markdownLayers.find((d) => d.id === m.id)
       if (!size) continue
       result.set(m.id, {
         id: m.id,
@@ -587,15 +587,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       cursorX += size.width + gap
     }
     return result
-  }, [artboardLayouts, reorderDragPopped, reorderDragRef_artboardId, reorderDragCursor, artboardGroups, artboards, documentLayers])
-  const sortedArtboardGroups = useMemo(() => {
-    return [...artboardGroups].sort((a, b) => {
+  }, [iframeLayerLayouts, reorderDragPopped, reorderDragRef_iframeLayerId, reorderDragCursor, iframeLayerGroups, iframeLayers, markdownLayers])
+  const sortedIframeLayerGroups = useMemo(() => {
+    return [...iframeLayerGroups].sort((a, b) => {
       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
       const bo = b.sidebarOrder ?? Number.MAX_SAFE_INTEGER
       if (ao !== bo) return ao - bo
       return a.id.localeCompare(b.id)
     })
-  }, [artboardGroups])
+  }, [iframeLayerGroups])
 
   // Canvas z-order matches the sidebar list: first row in the sidebar paints
   // on top. We can't reorder the DOM (would reload iframes / re-mount TipTap),
@@ -603,11 +603,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // a per-group `z-index` instead.
   const groupZIndex = useMemo(() => {
     const m = new Map<string, number>()
-    sortedArtboardGroups.forEach((g, i) => {
-      m.set(g.id, sortedArtboardGroups.length - i)
+    sortedIframeLayerGroups.forEach((g, i) => {
+      m.set(g.id, sortedIframeLayerGroups.length - i)
     })
     return m
-  }, [sortedArtboardGroups])
+  }, [sortedIframeLayerGroups])
 
   /**
    * Display name per group. Persisted on the group itself so reordering
@@ -616,34 +616,34 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const groupDisplayNames = useMemo(() => {
     const names = new Map<string, string>()
-    for (const g of sortedArtboardGroups) {
+    for (const g of sortedIframeLayerGroups) {
       names.set(g.id, g.name ?? "Group")
     }
     return names
-  }, [sortedArtboardGroups])
+  }, [sortedIframeLayerGroups])
 
   /**
    * World-space rects for the trailing "add frame" placeholder of every group
-   * that contains a currently-selected artboard. Selecting the whole group
+   * that contains a currently-selected iframeLayer. Selecting the whole group
    * hides it. Drawn by `SelectionOverlay` so the border stays 1px crisp
-   * regardless of zoom; the click target itself lives inside `ArtboardGroup`.
+   * regardless of zoom; the click target itself lives inside `IframeLayerGroup`.
    */
   const placeholderRects = useMemo(() => {
     const rects: Array<{ x: number; y: number; width: number; height: number }> = []
-    for (const g of artboardGroups) {
+    for (const g of iframeLayerGroups) {
       const members = getGroupMembers(g)
       if (members.length === 0) continue
       if (selectedGroupIds.has(g.id)) continue
-      // Placeholder appears when any member (artboard or document) in the group
+      // Placeholder appears when any member (iframeLayer or document) in the group
       // is selected — the affordance is "add another frame next to this one".
       const hasSelected = members.some((m) =>
-        m.kind === "artboard"
-          ? selectedArtboardIds.has(m.id)
+        m.kind === "iframe-layer"
+          ? selectedIframeLayerIds.has(m.id)
           : selectedDocumentLayerIds.has(m.id),
       )
       if (!hasSelected) continue
       const lastMember = members[members.length - 1]!
-      const lastLayout = artboardLayouts.get(lastMember.id)
+      const lastLayout = iframeLayerLayouts.get(lastMember.id)
       if (!lastLayout) continue
       rects.push({
         x: lastLayout.x + lastLayout.width + groupGap(g),
@@ -654,15 +654,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
     return rects
   }, [
-    artboardGroups,
-    artboardLayouts,
-    selectedArtboardIds,
+    iframeLayerGroups,
+    iframeLayerLayouts,
+    selectedIframeLayerIds,
     selectedDocumentLayerIds,
     selectedGroupIds,
   ])
 
   /**
-   * One handle per inter-artboard gap in every selected group. Stored in
+   * One handle per inter-iframeLayer gap in every selected group. Stored in
    * world-space; `SelectionOverlay` projects them to screen-space so the
    * handle stays a constant pixel size at any zoom. `left`/`right` define
    * the full gap area (used for hover hit-testing); `centerX` is the visual
@@ -679,18 +679,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       bottom: number
     }> = []
     if (selectedGroupIds.size === 0) return handles
-    for (const g of artboardGroups) {
+    for (const g of iframeLayerGroups) {
       if (!selectedGroupIds.has(g.id)) continue
       // While the popped preview is showing, gap handles between the popped
       // member and its (former) neighbors don't make sense — skip them.
       const allMembers = getGroupMembers(g)
-      const visibleIds = reorderDragPopped && reorderDragRef_artboardId
-        ? allMembers.filter((m) => m.id !== reorderDragRef_artboardId).map((m) => m.id)
+      const visibleIds = reorderDragPopped && reorderDragRef_iframeLayerId
+        ? allMembers.filter((m) => m.id !== reorderDragRef_iframeLayerId).map((m) => m.id)
         : allMembers.map((m) => m.id)
       if (visibleIds.length < 2) continue
       for (let i = 1; i < visibleIds.length; i++) {
-        const prev = effectiveArtboardLayouts.get(visibleIds[i - 1]!)
-        const next = effectiveArtboardLayouts.get(visibleIds[i]!)
+        const prev = effectiveIframeLayerLayouts.get(visibleIds[i - 1]!)
+        const next = effectiveIframeLayerLayouts.get(visibleIds[i]!)
         if (!prev || !next) continue
         const top = Math.max(prev.y, next.y)
         const bottom = Math.min(prev.y + prev.height, next.y + next.height)
@@ -708,42 +708,42 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
     }
     return handles
-  }, [artboardGroups, effectiveArtboardLayouts, selectedGroupIds, reorderDragPopped, reorderDragRef_artboardId])
+  }, [iframeLayerGroups, effectiveIframeLayerLayouts, selectedGroupIds, reorderDragPopped, reorderDragRef_iframeLayerId])
 
   const gapHandlesRef = useRef(gapHandles)
   gapHandlesRef.current = gapHandles
 
   /**
-   * Centers of every artboard in selected groups with 2+ artboards. Drawn at
+   * Centers of every iframeLayer in selected groups with 2+ iframeLayers. Drawn at
    * constant pixel size by the selection overlay; pressing on one starts a
-   * drag that reorders the artboards inside the group.
+   * drag that reorders the iframeLayers inside the group.
    */
   const reorderHandles = useMemo(() => {
-    const handles: Array<{ artboardId: string; centerX: number; centerY: number }> = []
+    const handles: Array<{ iframeLayerId: string; centerX: number; centerY: number }> = []
     if (selectedGroupIds.size === 0) return handles
-    for (const g of artboardGroups) {
+    for (const g of iframeLayerGroups) {
       if (!selectedGroupIds.has(g.id)) continue
-      // Reorder dots target every member (artboard or document). The drag
-      // logic looks up by id in `effectiveArtboardLayouts`, which already
+      // Reorder dots target every member (iframeLayer or document). The drag
+      // logic looks up by id in `effectiveIframeLayerLayouts`, which already
       // holds both kinds, so the handle is kind-agnostic.
       const members = getGroupMembers(g)
       if (members.length < 2) continue
       for (const m of members) {
-        const layout = effectiveArtboardLayouts.get(m.id)
+        const layout = effectiveIframeLayerLayouts.get(m.id)
         if (!layout) continue
         handles.push({
-          artboardId: m.id,
+          iframeLayerId: m.id,
           centerX: layout.x + layout.width / 2,
           centerY: layout.y + layout.height / 2,
         })
       }
     }
     return handles
-  }, [artboardGroups, effectiveArtboardLayouts, selectedGroupIds])
+  }, [iframeLayerGroups, effectiveIframeLayerLayouts, selectedGroupIds])
 
   const reorderHandlesRef = useRef(reorderHandles)
   reorderHandlesRef.current = reorderHandles
-  const [hoveredReorderArtboardId, setHoveredReorderArtboardId] = useState<string | null>(null)
+  const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] = useState<string | null>(null)
 
   /**
    * Hit-test the reorder dots in screen-space — the visual is 12px across at
@@ -763,11 +763,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   /**
-   * World-space hit test against the entire gap area between two artboards —
+   * World-space hit test against the entire gap area between two iframeLayers —
    * matches the symaphore behavior where hovering anywhere in the gap reveals
    * the handle. The 6px screen-space pad keeps the handle grabbable when the
    * gap has been collapsed to 0 (cursor is then over the touching edge of an
-   * artboard, but the canvas wrapper still picks the gap drag).
+   * iframeLayer, but the canvas wrapper still picks the gap drag).
    */
   const hitTestGapHandle = useCallback(
     (canvasX: number, canvasY: number, currentZoom: number) => {
@@ -782,28 +782,28 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
-  /** Set of artboard ids whose parent group is currently selected. */
-  const groupSelectedArtboardIds = useMemo(() => {
+  /** Set of iframeLayer ids whose parent group is currently selected. */
+  const groupSelectedIframeLayerIds = useMemo(() => {
     const ids = new Set<string>()
     if (selectedGroupIds.size === 0) return ids
-    for (const g of artboardGroups) {
+    for (const g of iframeLayerGroups) {
       if (!selectedGroupIds.has(g.id)) continue
-      // Highlight every member of the selected group — artboards *and*
-      // documents — so docs visually participate in group selection the
+      // Highlight every member of the selected group — iframeLayers *and*
+      // markdownLayers — so docs visually participate in group selection the
       // same way frames do.
       for (const m of getGroupMembers(g)) ids.add(m.id)
     }
     return ids
-  }, [artboardGroups, selectedGroupIds])
-  // Documents share artboard layouts and the same selection visuals (1px
+  }, [iframeLayerGroups, selectedGroupIds])
+  // Documents share iframeLayer layouts and the same selection visuals (1px
   // fuchsia ring on hover/select, resize handle dots when single-selected).
-  // The overlay treats every member id uniformly via `artboardLayouts`, so
+  // The overlay treats every member id uniformly via `iframeLayerLayouts`, so
   // we just merge selection sets here.
   const overlaySelectedIds = useMemo(() => {
-    const ids = new Set<string>(selectedArtboardIds)
+    const ids = new Set<string>(selectedIframeLayerIds)
     for (const id of selectedDocumentLayerIds) ids.add(id)
     return ids
-  }, [selectedArtboardIds, selectedDocumentLayerIds])
+  }, [selectedIframeLayerIds, selectedDocumentLayerIds])
   const workspaces = useWorkspaces()
   const agents = useAgents()
 
@@ -892,37 +892,37 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (id: string) => {
       collections.transact(() => {
         collections.workspaces.delete(id)
-        // Cascade-delete agents and their artboards/chats for this workspace.
+        // Cascade-delete agents and their iframeLayers/chats for this workspace.
         const agentIds: string[] = []
         for (const agent of collections.agents.toArray()) {
           if (agent.workspaceId === id) agentIds.push(agent.id)
         }
-        const removedArtboardIds = new Set<string>()
+        const removedIframeLayerIds = new Set<string>()
         for (const agentId of agentIds) {
           collections.agents.delete(agentId)
-          for (const a of collections.artboards.toArray()) {
+          for (const a of collections.iframeLayers.toArray()) {
             if (a.sandboxId === agentId) {
-              collections.artboards.delete(a.id)
-              removedArtboardIds.add(a.id)
+              collections.iframeLayers.delete(a.id)
+              removedIframeLayerIds.add(a.id)
             }
           }
           for (const cs of collections.chatSessions.toArray()) {
             if (cs.agentId === agentId) collections.chatSessions.delete(cs.id)
           }
         }
-        // Drop the removed artboards from any groups that referenced them; if
+        // Drop the removed iframeLayers from any groups that referenced them; if
         // a group is left empty, delete it as well. Documents that share the
         // group are preserved.
-        for (const g of collections.artboardGroups.toArray()) {
+        for (const g of collections.iframeLayerGroups.toArray()) {
           const before = getGroupMembers(g)
           const remaining = before.filter(
-            (m) => !(m.kind === "artboard" && removedArtboardIds.has(m.id)),
+            (m) => !(m.kind === "iframe-layer" && removedIframeLayerIds.has(m.id)),
           )
           if (remaining.length === before.length) continue
           if (remaining.length === 0) {
-            collections.artboardGroups.delete(g.id)
+            collections.iframeLayerGroups.delete(g.id)
           } else {
-            collections.artboardGroups.update(g.id, { members: remaining })
+            collections.iframeLayerGroups.update(g.id, { members: remaining })
           }
         }
       })
@@ -930,161 +930,161 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  // --- Artboard mutations ---
+  // --- IframeLayer mutations ---
 
-  /** Resolve the default artboard size for the workspace owning the given agent. */
+  /** Resolve the default iframeLayer size for the workspace owning the given agent. */
   const getDefaultSizeForAgent = useCallback(
     (agentId: string): { width: number; height: number } => {
       const agent = collections.agents.get(agentId)
       const workspace = agent
         ? collections.workspaces.get(agent.workspaceId)
         : undefined
-      const preset = getArtboardSizePreset(workspace?.defaultArtboardSizeId)
+      const preset = getIframeLayerSizePreset(workspace?.defaultIframeLayerSizeId)
       return { width: preset.width, height: preset.height }
     },
     [collections],
   )
 
   /**
-   * Place a fresh single-artboard group for a newly-spawned agent. Caller
+   * Place a fresh single-iframeLayer group for a newly-spawned agent. Caller
    * must already be inside a `collections.transact()`. Layout is computed
    * client-side (rather than at the end of the server-side provisioning
    * pipeline) so that concurrently-created agents don't race on the Yjs doc
    * snapshot and end up with overlapping group positions.
    */
-  const seedArtboardForAgent = useCallback(
+  const seedIframeLayerForAgent = useCallback(
     (agentId: string, viewportCenter: { x: number; y: number }, label = "Frame 1") => {
-      const allGroups = collections.artboardGroups.toArray()
-      const allArtboards = collections.artboards.toArray()
+      const allGroups = collections.iframeLayerGroups.toArray()
+      const allIframeLayers = collections.iframeLayers.toArray()
       const { width, height } = getDefaultSizeForAgent(agentId)
-      const { x, y } = placeNewArtboardGroup(
+      const { x, y } = placeNewIframeLayerGroup(
         allGroups,
-        allArtboards,
+        allIframeLayers,
         viewportCenter,
         width,
         height,
       )
-      const artboardId = nanoid()
+      const iframeLayerId = nanoid()
       const groupId = nanoid()
-      collections.artboards.set(artboardId, {
-        id: artboardId,
+      collections.iframeLayers.set(iframeLayerId, {
+        id: iframeLayerId,
         sandboxId: agentId,
         width,
         height,
         label,
         iframeState: {},
       })
-      collections.artboardGroups.set(groupId, {
+      collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(allGroups)}`,
         x,
         y,
-        members: [{ kind: "artboard", id: artboardId }],
+        members: [{ kind: "iframe-layer", id: iframeLayerId }],
       })
     },
     [collections, getDefaultSizeForAgent],
   )
 
-  /** Add an artboard — used by the manual "add screen" button. Always creates a fresh group. */
-  const addArtboard = useCallback(
+  /** Add an iframeLayer — used by the manual "add screen" button. Always creates a fresh group. */
+  const addIframeLayer = useCallback(
     (agentId: string, label: string): string | undefined => {
       const agent = collections.agents.get(agentId)
       if (!agent || agent.status !== "running") return
 
       const { cx, cy } = getViewportCenter()
-      const artboardIdRef = { current: "" }
+      const iframeLayerIdRef = { current: "" }
       collections.transact(() => {
-        const allGroups = collections.artboardGroups.toArray()
-        const allArtboards = collections.artboards.toArray()
+        const allGroups = collections.iframeLayerGroups.toArray()
+        const allIframeLayers = collections.iframeLayers.toArray()
         const { width, height } = getDefaultSizeForAgent(agentId)
-        const { x, y } = placeNewArtboardGroup(
+        const { x, y } = placeNewIframeLayerGroup(
           allGroups,
-          allArtboards,
+          allIframeLayers,
           { x: cx, y: cy },
           width,
           height,
         )
-        const artboardId = nanoid()
+        const iframeLayerId = nanoid()
         const groupId = nanoid()
-        artboardIdRef.current = artboardId
-        collections.artboards.set(artboardId, {
-          id: artboardId,
+        iframeLayerIdRef.current = iframeLayerId
+        collections.iframeLayers.set(iframeLayerId, {
+          id: iframeLayerId,
           sandboxId: agentId,
           width,
           height,
           label,
           iframeState: {},
         })
-        collections.artboardGroups.set(groupId, {
+        collections.iframeLayerGroups.set(groupId, {
           id: groupId,
           name: `Group ${nextGroupNumber(allGroups)}`,
           x,
           y,
-          members: [{ kind: "artboard", id: artboardId }],
+          members: [{ kind: "iframe-layer", id: iframeLayerId }],
         })
       })
-      return artboardIdRef.current
+      return iframeLayerIdRef.current
     },
     [collections, getViewportCenter, getDefaultSizeForAgent],
   )
 
-  /** Add an empty frame not associated with any agent/branch/route. Creates a new single-artboard group. */
+  /** Add an empty frame not associated with any agent/branch/route. Creates a new single-iframeLayer group. */
   const addFrame = useCallback(
     (x: number, y: number, width: number, height: number): string => {
-      const artboardId = nanoid()
+      const iframeLayerId = nanoid()
       const groupId = nanoid()
-      const groupName = `Group ${nextGroupNumber(collections.artboardGroups.toArray())}`
+      const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
       collections.transact(() => {
-        collections.artboards.set(artboardId, {
-          id: artboardId,
-          width: Math.max(MIN_ARTBOARD_WIDTH, width),
-          height: Math.max(MIN_ARTBOARD_HEIGHT, height),
+        collections.iframeLayers.set(iframeLayerId, {
+          id: iframeLayerId,
+          width: Math.max(MIN_IFRAME_LAYER_WIDTH, width),
+          height: Math.max(MIN_IFRAME_LAYER_HEIGHT, height),
           label: "Frame",
           iframeState: {},
         })
-        collections.artboardGroups.set(groupId, {
+        collections.iframeLayerGroups.set(groupId, {
           id: groupId,
           name: groupName,
           x,
           y,
-          members: [{ kind: "artboard", id: artboardId }],
+          members: [{ kind: "iframe-layer", id: iframeLayerId }],
         })
       })
-      return artboardId
+      return iframeLayerId
     },
     [collections],
   )
 
   /**
-   * Create a new group for an agent containing one artboard per discovered
+   * Create a new group for an agent containing one iframeLayer per discovered
    * route. The group is positioned to the right of all existing groups,
    * top-aligned with the topmost. Returns the new group's id and the id of
-   * its first artboard (handy for zooming after the DOM updates).
+   * its first iframeLayer (handy for zooming after the DOM updates).
    */
   const addRoutesGroupForAgent = useCallback(
     (agentId: string, routes: { route: string; label: string }[]):
-      | { groupId: string; firstArtboardId: string }
+      | { groupId: string; firstIframeLayerId: string }
       | undefined => {
       if (routes.length === 0) return
-      const allGroups = collections.artboardGroups.toArray()
-      const allArtboards = collections.artboards.toArray()
+      const allGroups = collections.iframeLayerGroups.toArray()
+      const allIframeLayers = collections.iframeLayers.toArray()
       const { width, height } = getDefaultSizeForAgent(agentId)
 
       const { cx, cy } = getViewportCenter()
-      const { x, y } = placeNewArtboardGroup(
+      const { x, y } = placeNewIframeLayerGroup(
         allGroups,
-        allArtboards,
+        allIframeLayers,
         { x: cx, y: cy },
         width,
         height,
       )
 
-      const artboardIds = routes.map(() => nanoid())
+      const iframeLayerIds = routes.map(() => nanoid())
       const groupId = nanoid()
       collections.transact(() => {
         routes.forEach((r, i) => {
-          collections.artboards.set(artboardIds[i]!, {
-            id: artboardIds[i]!,
+          collections.iframeLayers.set(iframeLayerIds[i]!, {
+            id: iframeLayerIds[i]!,
             sandboxId: agentId,
             width,
             height,
@@ -1093,64 +1093,64 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             route: r.route,
           })
         })
-        collections.artboardGroups.set(groupId, {
+        collections.iframeLayerGroups.set(groupId, {
           id: groupId,
           name: `Routes ${nextGroupNumber(allGroups)}`,
           x,
           y,
-          members: artboardIds.map((id) => ({ kind: "artboard", id })),
+          members: iframeLayerIds.map((id) => ({ kind: "iframe-layer", id })),
         })
       })
-      return { groupId, firstArtboardId: artboardIds[0]! }
+      return { groupId, firstIframeLayerId: iframeLayerIds[0]! }
     },
     [collections, getViewportCenter, getDefaultSizeForAgent],
   )
 
-  /** Append a new artboard to an existing group, mirroring the last sibling artboard's size and agent. */
-  const addArtboardToGroup = useCallback(
+  /** Append a new iframeLayer to an existing group, mirroring the last sibling iframeLayer's size and agent. */
+  const addIframeLayerToGroup = useCallback(
     (groupId: string): string | undefined => {
-      const group = collections.artboardGroups.get(groupId)
+      const group = collections.iframeLayerGroups.get(groupId)
       if (!group) return
       const members = getGroupMembers(group)
       if (members.length === 0) return
-      // Mirror the last *artboard* sibling for size/agent/route when one
+      // Mirror the last *iframeLayer* sibling for size/agent/route when one
       // exists. For doc-only groups, fall back to the last member's bounds
       // so the new frame visually replaces the placeholder rect the user
       // just clicked.
-      const artboardIds = getGroupMemberIds(group, "artboard")
-      const lastArtboardId = artboardIds[artboardIds.length - 1]
-      const lastArtboard = lastArtboardId
-        ? collections.artboards.get(lastArtboardId)
+      const iframeLayerIds = getGroupMemberIds(group, "iframe-layer")
+      const lastIframeLayerId = iframeLayerIds[iframeLayerIds.length - 1]
+      const lastIframeLayer = lastIframeLayerId
+        ? collections.iframeLayers.get(lastIframeLayerId)
         : undefined
       let width: number
       let height: number
       let sandboxId: string | undefined
       let route: string | undefined
-      if (lastArtboard) {
-        width = lastArtboard.width
-        height = lastArtboard.height
-        sandboxId = lastArtboard.sandboxId
-        route = lastArtboard.route
+      if (lastIframeLayer) {
+        width = lastIframeLayer.width
+        height = lastIframeLayer.height
+        sandboxId = lastIframeLayer.sandboxId
+        route = lastIframeLayer.route
       } else {
         const lastMember = members[members.length - 1]!
-        const lastDoc = collections.documentLayers.get(lastMember.id)
+        const lastDoc = collections.markdownLayers.get(lastMember.id)
         if (!lastDoc) return
         width = lastDoc.width
         height = lastDoc.height
       }
       const id = nanoid()
       collections.transact(() => {
-        collections.artboards.set(id, {
+        collections.iframeLayers.set(id, {
           id,
           ...(sandboxId ? { sandboxId } : {}),
           width,
           height,
-          label: sandboxId ? `Frame ${artboardIds.length + 1}` : "Frame",
+          label: sandboxId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
           iframeState: {},
           ...(route ? { route } : {}),
         })
-        collections.artboardGroups.update(groupId, {
-          members: [...members, { kind: "artboard", id }],
+        collections.iframeLayerGroups.update(groupId, {
+          members: [...members, { kind: "iframe-layer", id }],
         })
       })
       return id
@@ -1158,14 +1158,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  /** Translate the groups containing any of the given artboards/documents by (dx, dy). */
-  const moveArtboardsByDelta = useCallback(
+  /** Translate the groups containing any of the given iframeLayers/markdownLayers by (dx, dy). */
+  const moveIframeLayersByDelta = useCallback(
     (ids: string[], dx: number, dy: number) => {
       const idSet = new Set(ids)
       collections.transact(() => {
-        for (const g of collections.artboardGroups.toArray()) {
+        for (const g of collections.iframeLayerGroups.toArray()) {
           if (getGroupMembers(g).some((m) => idSet.has(m.id))) {
-            collections.artboardGroups.update(g.id, {
+            collections.iframeLayerGroups.update(g.id, {
               x: g.x + dx,
               y: g.y + dy,
             })
@@ -1178,14 +1178,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   /**
    * Per-gesture resize state. The hook emits raw screen-derived deltas every
-   * pointer move; we accumulate them against the artboard's size at gesture
+   * pointer move; we accumulate them against the iframeLayer's size at gesture
    * start so the snap math sees the *un-snapped* proposed size, not the
    * already-snapped value we wrote on the previous frame. Without that, once
-   * the artboard locked onto a preset the cumulative delta would never reach
+   * the iframeLayer locked onto a preset the cumulative delta would never reach
    * the next preset.
    */
   const resizeRawRef = useRef<{
-    artboardId: string
+    iframeLayerId: string
     edge: ResizeEdge
     initialWidth: number
     initialHeight: number
@@ -1214,7 +1214,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   /** Snap underlay state — drives the device-size ghosts shown during a resize. */
   const [resizeSnap, setResizeSnap] = useState<{
-    artboardId: string
+    iframeLayerId: string
     edge: ResizeEdge
     anchor: AnchorCorner
     candidates: SnapCandidate[]
@@ -1223,10 +1223,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleResizeStart = useCallback(
     (id: string, edge: ResizeEdge) => {
-      const a = collections.artboards.get(id)
+      const a = collections.iframeLayers.get(id)
       if (!a) return
       resizeRawRef.current = {
-        artboardId: id,
+        iframeLayerId: id,
         edge,
         initialWidth: a.width,
         initialHeight: a.height,
@@ -1243,26 +1243,26 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   }, [])
 
   /**
-   * Resize handler from a single artboard's edge.
-   * - (dx, dy) shifts the artboard's parent group by that delta — non-zero
+   * Resize handler from a single iframeLayer's edge.
+   * - (dx, dy) shifts the iframeLayer's parent group by that delta — non-zero
    *   only for top (`dy`) and left (`dx`) edges, so the group anchor follows
    *   the dragged edge while the right/bottom stays put.
-   * - (dw, dh) is applied to this artboard's own width/height (clamped to
-   *   the 320×200 minimum). Other artboards in the group keep their size.
+   * - (dw, dh) is applied to this iframeLayer's own width/height (clamped to
+   *   the 320×200 minimum). Other iframeLayers in the group keep their size.
    * - `edge` lets us snap to nearby device-size presets and emit the
    *   underlay state used to render their ghosts.
    */
-  const resizeArtboardEdge = useCallback(
+  const resizeIframeLayerEdge = useCallback(
     (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
       collections.transact(() => {
-        const a = collections.artboards.get(id)
+        const a = collections.iframeLayers.get(id)
         if (!a) return
 
         // Initialize raw state lazily if startResize didn't fire — defensive
         // against any future call sites that bypass the gesture lifecycle.
-        if (!resizeRawRef.current || resizeRawRef.current.artboardId !== id) {
+        if (!resizeRawRef.current || resizeRawRef.current.iframeLayerId !== id) {
           resizeRawRef.current = {
-            artboardId: id,
+            iframeLayerId: id,
             edge,
             initialWidth: a.width,
             initialHeight: a.height,
@@ -1274,8 +1274,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const rs = resizeRawRef.current
         rs.rawDw += dw
         rs.rawDh += dh
-        const rawWidth = Math.max(MIN_ARTBOARD_WIDTH, rs.initialWidth + rs.rawDw)
-        const rawHeight = Math.max(MIN_ARTBOARD_HEIGHT, rs.initialHeight + rs.rawDh)
+        const rawWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, rs.initialWidth + rs.rawDw)
+        const rawHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, rs.initialHeight + rs.rawDh)
 
         // Cmd/meta held → bypass snap entirely (no candidates, no lock).
         const snap = resizeMetaHeldRef.current
@@ -1287,21 +1287,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               snappedOrientation: null,
             }
           : computeDeviceSnap({ edge, rawWidth, rawHeight, zoom })
-        const newWidth = Math.max(MIN_ARTBOARD_WIDTH, snap.width)
-        const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, snap.height)
+        const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, snap.width)
+        const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, snap.height)
         const actualDw = newWidth - a.width
         const actualDh = newHeight - a.height
         // The resize hook only sends a non-zero `dx`/`dy` for left/top edge
-        // drags (where `dx ≈ -dw` and `dy ≈ -dh`). Once the artboard hits its
+        // drags (where `dx ≈ -dw` and `dy ≈ -dh`). Once the iframeLayer hits its
         // minimum, `actualDw`/`actualDh` shrink toward 0 — mirror them with
         // the opposite sign so the group anchor stays pinned to the
         // un-dragged side instead of marching off with the cursor.
         const shiftX = dx === 0 ? 0 : -actualDw
         const shiftY = dy === 0 ? 0 : -actualDh
         if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.artboardGroups.toArray()) {
+          for (const g of collections.iframeLayerGroups.toArray()) {
             if (getGroupMembers(g).some((m) => m.id === id)) {
-              collections.artboardGroups.update(g.id, {
+              collections.iframeLayerGroups.update(g.id, {
                 x: g.x + shiftX,
                 y: g.y + shiftY,
               })
@@ -1310,11 +1310,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          collections.artboards.update(id, { width: newWidth, height: newHeight })
+          collections.iframeLayers.update(id, { width: newWidth, height: newHeight })
         }
 
         setResizeSnap({
-          artboardId: id,
+          iframeLayerId: id,
           edge,
           anchor: anchorCornerForEdge(edge),
           candidates: snap.candidates,
@@ -1325,66 +1325,66 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections, zoom],
   )
 
-  const renameArtboard = useCallback(
+  const renameIframeLayer = useCallback(
     (id: string, label: string) => {
-      collections.artboards.update(id, { label })
+      collections.iframeLayers.update(id, { label })
     },
     [collections],
   )
 
-  const fitArtboardToContent = useCallback(
+  const fitIframeLayerToContent = useCallback(
     (id: string, width: number, height: number) => {
       // Ceil rather than round so sub-pixel content extents never shrink the
-      // artboard below the actual content (which would creep smaller on each
+      // iframeLayer below the actual content (which would creep smaller on each
       // repeated Fit click).
-      const newWidth = Math.max(MIN_ARTBOARD_WIDTH, Math.ceil(width))
-      const newHeight = Math.max(MIN_ARTBOARD_HEIGHT, Math.ceil(height))
-      collections.artboards.update(id, { width: newWidth, height: newHeight })
+      const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.ceil(width))
+      const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
+      collections.iframeLayers.update(id, { width: newWidth, height: newHeight })
     },
     [collections],
   )
 
-  const removeArtboards = useCallback(
+  const removeIframeLayers = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return
       const idSet = new Set(ids)
       collections.transact(() => {
-        for (const id of ids) collections.artboards.delete(id)
+        for (const id of ids) collections.iframeLayers.delete(id)
         // Iterate groups exactly once so each group's `members` stays
         // consistent — `toArray()` returns a snapshot that doesn't refresh
         // mid-transaction, so doing it per-id would re-add already-deleted
         // ids on subsequent passes.
-        for (const g of collections.artboardGroups.toArray()) {
+        for (const g of collections.iframeLayerGroups.toArray()) {
           const before = getGroupMembers(g)
           const hasAny = before.some(
-            (m) => m.kind === "artboard" && idSet.has(m.id),
+            (m) => m.kind === "iframe-layer" && idSet.has(m.id),
           )
           if (!hasAny) continue
           const remaining = before.filter(
-            (m) => !(m.kind === "artboard" && idSet.has(m.id)),
+            (m) => !(m.kind === "iframe-layer" && idSet.has(m.id)),
           )
           if (remaining.length === 0) {
-            collections.artboardGroups.delete(g.id)
+            collections.iframeLayerGroups.delete(g.id)
           } else {
-            collections.artboardGroups.update(g.id, { members: remaining })
+            collections.iframeLayerGroups.update(g.id, { members: remaining })
           }
         }
       })
     },
     [collections],
   )
-  removeArtboardsRef.current = removeArtboards
+  removeIframeLayersRef.current = removeIframeLayers
 
   /**
-   * After deleting a single artboard, prefer keeping the user near the same
-   * spot in the row: pick the right-hand artboard neighbor, falling back to
+   * After deleting a single iframeLayer, prefer keeping the user near the same
+   * spot in the row: pick the right-hand iframeLayer neighbor, falling back to
    * the left. Skips document members so the next selection is always a
-   * frame. Returns null if no neighbor artboard exists.
+   * frame. Returns null if no neighbor iframeLayer exists.
    */
   const computeNextSelectionAfterDelete = useCallback(
     (deletedId: string): string | null => {
-      for (const g of collections.artboardGroups.toArray()) {
-        const ids = getGroupMemberIds(g, "artboard")
+      for (const g of collections.iframeLayerGroups.toArray()) {
+        const ids = getGroupMemberIds(g, "iframe-layer")
         const idx = ids.indexOf(deletedId)
         if (idx === -1) continue
         return ids[idx + 1] ?? ids[idx - 1] ?? null
@@ -1394,82 +1394,82 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  const removeArtboard = useCallback(
+  const removeIframeLayer = useCallback(
     (id: string) => {
       const next = computeNextSelectionAfterDelete(id)
-      removeArtboards([id])
+      removeIframeLayers([id])
       if (next) {
-        setSelectedArtboardIds(new Set([next]))
+        setSelectedIframeLayerIds(new Set([next]))
         setSelectedGroupIds(new Set())
         setSelectedDocumentLayerIds(new Set())
       } else {
-        setSelectedArtboardIds(new Set())
+        setSelectedIframeLayerIds(new Set())
       }
     },
-    [computeNextSelectionAfterDelete, removeArtboards],
+    [computeNextSelectionAfterDelete, removeIframeLayers],
   )
 
   // Use a ref so the route handler (passed as a stable callback to many
   // places) sees the latest Create Flow selection without forcing every
   // consumer to re-bind on toggle.
-  const createFlowArtboardIdRef = useRef<string | null>(null)
-  createFlowArtboardIdRef.current = createFlowArtboardId
+  const createFlowIframeLayerIdRef = useRef<string | null>(null)
+  createFlowIframeLayerIdRef.current = createFlowIframeLayerId
 
-  const updateArtboardRoute = useCallback(
+  const updateIframeLayerRoute = useCallback(
     (id: string, route: string) => {
       let viewportShift = 0
       collections.transact(() => {
-        const artboard = collections.artboards.get(id)
-        const previousRoute = artboard?.route
-        const inFlowMode = createFlowArtboardIdRef.current === id
+        const iframeLayer = collections.iframeLayers.get(id)
+        const previousRoute = iframeLayer?.route
+        const inFlowMode = createFlowIframeLayerIdRef.current === id
 
         // In Create Flow mode, every meaningful navigation drops a clone of
-        // the artboard's previous route into the same group, immediately to
-        // the left of the navigated artboard. The group's origin stays put;
+        // the iframeLayer's previous route into the same group, immediately to
+        // the left of the navigated iframeLayer. The group's origin stays put;
         // instead we pan the canvas viewport right by the clone's width so
-        // the navigated artboard appears visually anchored while the trail
+        // the navigated iframeLayer appears visually anchored while the trail
         // grows leftward.
         if (
           inFlowMode &&
-          artboard &&
+          iframeLayer &&
           previousRoute !== undefined &&
           previousRoute !== route
         ) {
-          const group = collections.artboardGroups
+          const group = collections.iframeLayerGroups
             .toArray()
             .find((g) => getGroupMembers(g).some((m) => m.id === id))
           if (group) {
             const cloneId = nanoid()
-            collections.artboards.set(cloneId, {
+            collections.iframeLayers.set(cloneId, {
               id: cloneId,
-              ...(artboard.sandboxId ? { sandboxId: artboard.sandboxId } : {}),
-              width: artboard.width,
-              height: artboard.height,
-              label: artboard.label,
+              ...(iframeLayer.sandboxId ? { sandboxId: iframeLayer.sandboxId } : {}),
+              width: iframeLayer.width,
+              height: iframeLayer.height,
+              label: iframeLayer.label,
               iframeState: {},
               route: previousRoute,
-              ...(artboard.knobs ? { knobs: artboard.knobs } : {}),
-              ...(artboard.knobValues
-                ? { knobValues: artboard.knobValues }
+              ...(iframeLayer.knobs ? { knobs: iframeLayer.knobs } : {}),
+              ...(iframeLayer.knobValues
+                ? { knobValues: iframeLayer.knobValues }
                 : {}),
             })
             const members = getGroupMembers(group)
             const idx = members.findIndex((m) => m.id === id)
             const nextMembers: GroupMember[] = [
               ...members.slice(0, idx),
-              { kind: "artboard", id: cloneId },
+              { kind: "iframe-layer", id: cloneId },
               ...members.slice(idx),
             ]
-            const gap = group.gap ?? ARTBOARD_GROUP_GAP
-            collections.artboardGroups.update(group.id, {
+            const gap = group.gap ?? IFRAME_LAYER_GROUP_GAP
+            collections.iframeLayerGroups.update(group.id, {
               members: nextMembers,
             })
-            viewportShift = artboard.width + gap
+            viewportShift = iframeLayer.width + gap
           }
         }
 
-        collections.artboards.update(id, { route })
-        const sandboxId = artboard?.sandboxId
+        collections.iframeLayers.update(id, { route })
+        const sandboxId = iframeLayer?.sandboxId
         if (!sandboxId) return
         const agent = collections.agents.get(sandboxId)
         if (!agent) return
@@ -1492,11 +1492,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   /** Reorder groups in the sidebar Frames list. */
-  const reorderArtboardGroups = useCallback(
+  const reorderIframeLayerGroups = useCallback(
     (orderedIds: string[]) => {
       collections.transact(() => {
         orderedIds.forEach((id, index) => {
-          collections.artboardGroups.update(id, { sidebarOrder: index })
+          collections.iframeLayerGroups.update(id, { sidebarOrder: index })
         })
       })
     },
@@ -1506,44 +1506,44 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   /**
    * Reorder the members inside a group — also reflects on the canvas via
    * flex order. Accepts a fully-typed member ordering so callers can mix
-   * artboards and documents in the same row.
+   * iframeLayers and markdownLayers in the same row.
    */
   const reorderGroupMembers = useCallback(
     (groupId: string, orderedMembers: GroupMember[]) => {
-      collections.artboardGroups.update(groupId, { members: orderedMembers })
+      collections.iframeLayerGroups.update(groupId, { members: orderedMembers })
     },
     [collections],
   )
 
-  const renameArtboardGroup = useCallback(
+  const renameIframeLayerGroup = useCallback(
     (groupId: string, name: string) => {
-      collections.artboardGroups.update(groupId, { name })
+      collections.iframeLayerGroups.update(groupId, { name })
     },
     [collections],
   )
 
   const setGroupGap = useCallback(
     (groupId: string, gap: number) => {
-      collections.artboardGroups.update(groupId, { gap: Math.max(0, gap) })
+      collections.iframeLayerGroups.update(groupId, { gap: Math.max(0, gap) })
     },
     [collections],
   )
 
-  /** Delete an entire group + all its members (artboards and documents). */
-  const removeArtboardGroup = useCallback(
+  /** Delete an entire group + all its members (iframeLayers and markdownLayers). */
+  const removeIframeLayerGroup = useCallback(
     (groupId: string) => {
-      const g = collections.artboardGroups.get(groupId)
+      const g = collections.iframeLayerGroups.get(groupId)
       if (!g) return
       const members = getGroupMembers(g)
-      const artboardIds = members.filter((m) => m.kind === "artboard").map((m) => m.id)
-      const documentIds = members.filter((m) => m.kind === "document").map((m) => m.id)
+      const iframeLayerIds = members.filter((m) => m.kind === "iframe-layer").map((m) => m.id)
+      const documentIds = members.filter((m) => m.kind === "markdown-layer").map((m) => m.id)
       collections.transact(() => {
-        if (artboardIds.length > 0) removeArtboards(artboardIds)
-        for (const id of documentIds) collections.documentLayers.delete(id)
-        // removeArtboards already cleans up the group when its last artboard
+        if (iframeLayerIds.length > 0) removeIframeLayers(iframeLayerIds)
+        for (const id of documentIds) collections.markdownLayers.delete(id)
+        // removeIframeLayers already cleans up the group when its last iframeLayer
         // is removed, but a docs-only group needs an explicit delete.
-        if (collections.artboardGroups.get(groupId)) {
-          collections.artboardGroups.delete(groupId)
+        if (collections.iframeLayerGroups.get(groupId)) {
+          collections.iframeLayerGroups.delete(groupId)
         }
       })
       setSelectedGroupIds((prev) => {
@@ -1553,47 +1553,47 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         return next
       })
     },
-    [collections, removeArtboards],
+    [collections, removeIframeLayers],
   )
 
-  const assignAgentToArtboard = useCallback(
-    (artboardId: string, agentId: string) => {
-      collections.artboards.update(artboardId, { sandboxId: agentId })
+  const assignAgentToIframeLayer = useCallback(
+    (iframeLayerId: string, agentId: string) => {
+      collections.iframeLayers.update(iframeLayerId, { sandboxId: agentId })
     },
     [collections],
   )
 
-  const updateArtboardState = useCallback(
+  const updateIframeLayerState = useCallback(
     (id: string, state: JsonObject) => {
-      collections.artboards.update(id, { iframeState: state })
+      collections.iframeLayers.update(id, { iframeState: state })
     },
     [collections],
   )
 
-  const updateArtboardScroll = useCallback(
+  const updateIframeLayerScroll = useCallback(
     (id: string, scrollX: number, scrollY: number) => {
-      collections.artboards.update(id, { scrollX, scrollY })
+      collections.iframeLayers.update(id, { scrollX, scrollY })
     },
     [collections],
   )
 
-  const updateArtboardKnobs = useCallback(
+  const updateIframeLayerKnobs = useCallback(
     (id: string, knobs: JsonValue[]) => {
-      collections.artboards.update(id, { knobs })
+      collections.iframeLayers.update(id, { knobs })
     },
     [collections],
   )
 
-  const updateArtboardKnobValues = useCallback(
+  const updateIframeLayerKnobValues = useCallback(
     (id: string, knobValues: JsonObject) => {
-      collections.artboards.update(id, { knobValues })
+      collections.iframeLayers.update(id, { knobValues })
     },
     [collections],
   )
 
-  const updateArtboardSharedState = useCallback(
+  const updateIframeLayerSharedState = useCallback(
     (id: string, sharedState: JsonObject) => {
-      collections.artboards.update(id, { sharedState })
+      collections.iframeLayers.update(id, { sharedState })
     },
     [collections],
   )
@@ -1602,33 +1602,33 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   /**
    * Wrap a new document in a fresh single-member group at the given canvas
-   * coords. Mirrors `addFrame` so docs and artboards have parallel
+   * coords. Mirrors `addFrame` so docs and iframeLayers have parallel
    * "create at canvas position" entry points.
    */
   const addDocumentLayer = useCallback(
     (canvasX: number, canvasY: number, width: number, height: number): string => {
       const docId = nanoid()
       const groupId = nanoid()
-      const groupName = `Group ${nextGroupNumber(collections.artboardGroups.toArray())}`
+      const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
       collections.transact(() => {
-        collections.documentLayers.set(docId, {
+        collections.markdownLayers.set(docId, {
           id: docId,
           width: Math.max(200, width),
           height: Math.max(120, height),
           title: "",
         })
-        collections.artboardGroups.set(groupId, {
+        collections.iframeLayerGroups.set(groupId, {
           id: groupId,
           name: groupName,
           x: canvasX,
           y: canvasY,
-          members: [{ kind: "document", id: docId }],
+          members: [{ kind: "markdown-layer", id: docId }],
         })
         // Seed the body fragment with the schema-required title heading +
         // empty paragraph. Without this the first client to mount the editor
         // would fill the empty fragment locally; doing it on creation means
         // every peer sees the same shape from the start.
-        seedDocumentFragment(collections.doc.getXmlFragment(`doc-${docId}`))
+        seedDocumentFragment(collections.doc.getXmlFragment(`markdown-layer-${docId}`))
       })
       return docId
     },
@@ -1639,12 +1639,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    * Resize a document by edge deltas. `dw`/`dh` adjust this doc's own width
    * and height; `dx`/`dy` are non-zero only for left/top edge drags and shift
    * the parent group's anchor so the un-dragged side stays put — mirrors
-   * `resizeArtboardEdge` exactly so docs feel like artboards.
+   * `resizeIframeLayerEdge` exactly so docs feel like iframeLayers.
    */
   const resizeDocumentLayer = useCallback(
     (id: string, dx: number, dy: number, dw: number, dh: number) => {
       collections.transact(() => {
-        const d = collections.documentLayers.get(id)
+        const d = collections.markdownLayers.get(id)
         if (!d) return
         const minW = 200
         const minH = 120
@@ -1655,9 +1655,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const shiftX = dx === 0 ? 0 : -actualDw
         const shiftY = dy === 0 ? 0 : -actualDh
         if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.artboardGroups.toArray()) {
+          for (const g of collections.iframeLayerGroups.toArray()) {
             if (getGroupMembers(g).some((m) => m.id === id)) {
-              collections.artboardGroups.update(g.id, {
+              collections.iframeLayerGroups.update(g.id, {
                 x: g.x + shiftX,
                 y: g.y + shiftY,
               })
@@ -1666,7 +1666,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          collections.documentLayers.update(id, {
+          collections.markdownLayers.update(id, {
             width: newWidth,
             height: newHeight,
           })
@@ -1682,7 +1682,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    *  on every keystroke. Cache-only. */
   const setDocumentLayerTitleCache = useCallback(
     (id: string, title: string) => {
-      collections.documentLayers.update(id, { title })
+      collections.markdownLayers.update(id, { title })
     },
     [collections],
   )
@@ -1693,9 +1693,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const setDocumentLayerTitle = useCallback(
     (id: string, title: string) => {
       collections.transact(() => {
-        if (!collections.documentLayers.has(id)) return
-        setFragmentTitle(collections.doc.getXmlFragment(`doc-${id}`), title)
-        collections.documentLayers.update(id, { title })
+        if (!collections.markdownLayers.has(id)) return
+        setFragmentTitle(collections.doc.getXmlFragment(`markdown-layer-${id}`), title)
+        collections.markdownLayers.update(id, { title })
       })
     },
     [collections],
@@ -1706,21 +1706,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (ids.length === 0) return
       const idSet = new Set(ids)
       collections.transact(() => {
-        for (const id of ids) collections.documentLayers.delete(id)
+        for (const id of ids) collections.markdownLayers.delete(id)
         // Drop the removed docs from any groups; delete groups left empty.
-        for (const g of collections.artboardGroups.toArray()) {
+        for (const g of collections.iframeLayerGroups.toArray()) {
           const before = getGroupMembers(g)
           const hasAny = before.some(
-            (m) => m.kind === "document" && idSet.has(m.id),
+            (m) => m.kind === "markdown-layer" && idSet.has(m.id),
           )
           if (!hasAny) continue
           const remaining = before.filter(
-            (m) => !(m.kind === "document" && idSet.has(m.id)),
+            (m) => !(m.kind === "markdown-layer" && idSet.has(m.id)),
           )
           if (remaining.length === 0) {
-            collections.artboardGroups.delete(g.id)
+            collections.iframeLayerGroups.delete(g.id)
           } else {
-            collections.artboardGroups.update(g.id, { members: remaining })
+            collections.iframeLayerGroups.update(g.id, { members: remaining })
           }
         }
       })
@@ -1749,26 +1749,26 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (id: string) => {
       collections.transact(() => {
         collections.agents.delete(id)
-        const removedArtboardIds = new Set<string>()
-        for (const a of collections.artboards.toArray()) {
+        const removedIframeLayerIds = new Set<string>()
+        for (const a of collections.iframeLayers.toArray()) {
           if (a.sandboxId === id) {
-            collections.artboards.delete(a.id)
-            removedArtboardIds.add(a.id)
+            collections.iframeLayers.delete(a.id)
+            removedIframeLayerIds.add(a.id)
           }
         }
         for (const cs of collections.chatSessions.toArray()) {
           if (cs.agentId === id) collections.chatSessions.delete(cs.id)
         }
-        for (const g of collections.artboardGroups.toArray()) {
+        for (const g of collections.iframeLayerGroups.toArray()) {
           const before = getGroupMembers(g)
           const remaining = before.filter(
-            (m) => !(m.kind === "artboard" && removedArtboardIds.has(m.id)),
+            (m) => !(m.kind === "iframe-layer" && removedIframeLayerIds.has(m.id)),
           )
           if (remaining.length === before.length) continue
           if (remaining.length === 0) {
-            collections.artboardGroups.delete(g.id)
+            collections.iframeLayerGroups.delete(g.id)
           } else {
-            collections.artboardGroups.update(g.id, { members: remaining })
+            collections.iframeLayerGroups.update(g.id, { members: remaining })
           }
         }
       })
@@ -1815,41 +1815,41 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     ref.zoomToElement(el, scale, 300)
   }, [])
 
-  const handleSelectArtboard = useCallback(
-    (artboardId: string) => {
-      const el = document.getElementById(`artboard-${artboardId}`)
+  const handleSelectIframeLayer = useCallback(
+    (iframeLayerId: string) => {
+      const el = document.getElementById(`iframe-layer-${iframeLayerId}`)
       if (el) zoomToDomElement(el)
     },
     [zoomToDomElement],
   )
 
   const handleZoomToDocument = useCallback(
-    (documentId: string) => {
-      const el = document.getElementById(`document-layer-${documentId}`)
+    (markdownLayerId: string) => {
+      const el = document.getElementById(`markdown-layer-${markdownLayerId}`)
       if (el) zoomToDomElement(el)
     },
     [zoomToDomElement],
   )
 
-  const handleAddArtboardForAgent = useCallback(
+  const handleAddIframeLayerForAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
       if (!agent || agent.status !== "running") return
-      const existing = artboards.filter(
+      const existing = iframeLayers.filter(
         (a) => a.sandboxId === agentId,
       )
-      const newId = addArtboard(
+      const newId = addIframeLayer(
         agentId,
         `Frame ${existing.length + 1}`,
       )
       if (newId) {
-        // Wait for DOM to render the new artboard, then zoom to it
+        // Wait for DOM to render the new iframeLayer, then zoom to it
         requestAnimationFrame(() => {
-          handleSelectArtboard(newId)
+          handleSelectIframeLayer(newId)
         })
       }
     },
-    [agents, artboards, addArtboard, handleSelectArtboard],
+    [agents, iframeLayers, addIframeLayer, handleSelectIframeLayer],
   )
 
   const handleShowRoutesForAgent = useCallback(
@@ -1864,11 +1864,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const result = addRoutesGroupForAgent(agentId, routes)
       if (result) {
         requestAnimationFrame(() => {
-          handleSelectArtboard(result.firstArtboardId)
+          handleSelectIframeLayer(result.firstIframeLayerId)
         })
       }
     },
-    [agents, addRoutesGroupForAgent, handleSelectArtboard],
+    [agents, addRoutesGroupForAgent, handleSelectIframeLayer],
   )
 
   const handlePlayAgent = useCallback(
@@ -1878,16 +1878,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [roomId],
   )
 
-  const handlePlayArtboard = useCallback(
-    (artboardId: string) => {
-      const artboard = artboards.find((a) => a.id === artboardId)
-      if (!artboard?.sandboxId) return
+  const handlePlayIframeLayer = useCallback(
+    (iframeLayerId: string) => {
+      const iframeLayer = iframeLayers.find((a) => a.id === iframeLayerId)
+      if (!iframeLayer?.sandboxId) return
       const params = new URLSearchParams()
-      params.set("artboard", artboardId)
-      if (artboard.route) params.set("route", artboard.route)
-      if (artboard.knobValues && Object.keys(artboard.knobValues).length > 0) {
+      params.set("iframe-layer", iframeLayerId)
+      if (iframeLayer.route) params.set("route", iframeLayer.route)
+      if (iframeLayer.knobValues && Object.keys(iframeLayer.knobValues).length > 0) {
         try {
-          const json = JSON.stringify(artboard.knobValues)
+          const json = JSON.stringify(iframeLayer.knobValues)
           const b64 =
             typeof btoa === "function"
               ? btoa(json)
@@ -1895,10 +1895,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           params.set("k", encodeURIComponent(b64))
         } catch {}
       }
-      const url = `/play/${roomId}/${artboard.sandboxId}?${params.toString()}`
+      const url = `/play/${roomId}/${iframeLayer.sandboxId}?${params.toString()}`
       window.open(url, "_blank", "noopener,noreferrer")
     },
-    [artboards, roomId],
+    [iframeLayers, roomId],
   )
 
   const handleSelectAgent = useCallback(
@@ -1959,23 +1959,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   /**
    * Create a new chat tab targeting a document layer. Mirrors
-   * `handleCreateChat` but stamps `documentId` instead of `agentId` so the
+   * `handleCreateChat` but stamps `markdownLayerId` instead of `agentId` so the
    * server picks the doc-targeted flow when this chat first sends a
    * message.
    */
   const handleCreateDocumentChat = useCallback(
-    (documentId: string) => {
+    (markdownLayerId: string) => {
       const id = nanoid()
       addChatSession(id, {
         id,
-        documentId,
+        markdownLayerId,
         label: "Untitled",
         createdAt: Date.now(),
       })
       setSelectedAgentId(null)
-      setSelectedDocumentChatTargetId(documentId)
+      setSelectedDocumentChatTargetId(markdownLayerId)
       setSelectedChatId(id)
-      selectedChatByDocumentRef.current[documentId] = id
+      selectedChatByDocumentRef.current[markdownLayerId] = id
     },
     [addChatSession],
   )
@@ -2088,14 +2088,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (chatId: string) => {
       const chat = chatSessions.find((c) => c.id === chatId)
       // Filter siblings by the *same* target — agent chats and doc chats
-      // each form their own pool. Without the documentId branch, every
+      // each form their own pool. Without the markdownLayerId branch, every
       // doc chat would match every other doc chat (all share an undefined
       // agentId), and replacement chats would lose their document target.
       const sameTarget = (c: ChatSessionData) =>
         chat?.agentId
           ? c.agentId === chat.agentId
-          : chat?.documentId
-            ? c.documentId === chat.documentId
+          : chat?.markdownLayerId
+            ? c.markdownLayerId === chat.markdownLayerId
             : false
       const siblings = chat
         ? chatSessions
@@ -2108,13 +2108,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         addChatSession(newId, {
           id: newId,
           agentId: chat.agentId,
-          documentId: chat.documentId,
+          markdownLayerId: chat.markdownLayerId,
           label: "Untitled",
           createdAt: Date.now(),
         })
         setSelectedChatId(newId)
-        if (chat.documentId) {
-          selectedChatByDocumentRef.current[chat.documentId] = newId
+        if (chat.markdownLayerId) {
+          selectedChatByDocumentRef.current[chat.markdownLayerId] = newId
         }
       } else if (selectedChatId === chatId) {
         setSelectedChatId(siblings[0]?.id ?? null)
@@ -2132,11 +2132,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   )
 
   const handleInspectHover = useCallback(
-    (artboardId: string, rect: DomRect | null) => {
+    (iframeLayerId: string, rect: DomRect | null) => {
       if (!rect) {
-        setInspectHover((h) => (h?.artboardId === artboardId ? null : h))
+        setInspectHover((h) => (h?.iframeLayerId === iframeLayerId ? null : h))
       } else {
-        setInspectHover({ artboardId, rect })
+        setInspectHover({ iframeLayerId, rect })
       }
     },
     [],
@@ -2144,13 +2144,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   // Hand the comment composer's text off to the agent chat instead of
   // creating a comment thread. Comment-mode hit-tests against
-  // `artboardLayouts`, which includes both artboards and document layers,
-  // so `ctx.artboardId` may be either kind. For artboards we tag the
+  // `iframeLayerLayouts`, which includes both iframeLayers and document layers,
+  // so `ctx.iframeLayerId` may be either kind. For iframeLayers we tag the
   // message with the picked route + element so the agent has context to
   // act on; for docs we route to the doc's own chat target and send the
   // note as-is (no route/element to attach).
   const handleCommentSendToChat = useCallback(
-    (note: string, ctx: { artboardId: string; selector: string | null }) => {
+    (note: string, ctx: { iframeLayerId: string; selector: string | null }) => {
       const expandPanel = () => {
         const panel = chatPanelRef.current
         if (panel?.isCollapsed()) {
@@ -2163,14 +2163,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // Document-layer comment: pivot the panel to that doc's chat (or
       // create one if none exists / the remembered chat is busy) and send
       // just the note — there's no route or DOM element involved.
-      const docLayer = documentLayers.find((d) => d.id === ctx.artboardId)
+      const docLayer = markdownLayers.find((d) => d.id === ctx.iframeLayerId)
       if (docLayer) {
         const remembered = selectedChatByDocumentRef.current[docLayer.id]
         const rememberedChat = remembered
           ? chatSessions.find((c) => c.id === remembered && !c.closedAt)
           : null
         const fallback = chatSessions
-          .filter((c) => c.documentId === docLayer.id && !c.closedAt)
+          .filter((c) => c.markdownLayerId === docLayer.id && !c.closedAt)
           .sort((a, b) => a.createdAt - b.createdAt)[0]
         const target = rememberedChat ?? fallback ?? null
         const targetBusy = target
@@ -2186,7 +2186,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           model = undefined
           addChatSession(chatId, {
             id: chatId,
-            documentId: docLayer.id,
+            markdownLayerId: docLayer.id,
             label: "Untitled",
             createdAt: Date.now(),
           })
@@ -2200,12 +2200,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setSelectedChatId(chatId)
         selectedChatByDocumentRef.current[docLayer.id] = chatId
         const isFirstChat = !chatSessions.some(
-          (c) => c.documentId === docLayer.id && c.id !== chatId,
+          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId,
         )
         chatStore.sendMessage({
           roomId,
           chatId,
-          documentId: docLayer.id,
+          markdownLayerId: docLayer.id,
           message: note,
           isFirstChat,
           planMode,
@@ -2222,8 +2222,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const agent = currentChat
         ? agents.find((a) => a.id === currentChat.agentId)
         : null
-      const artboard = artboards.find((a) => a.id === ctx.artboardId)
-      const route = artboard?.route || "/"
+      const iframeLayer = iframeLayers.find((a) => a.id === ctx.iframeLayerId)
+      const route = iframeLayer?.route || "/"
       const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
       const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
       if (currentChat && agent?.sandboxName && agent.branch) {
@@ -2267,11 +2267,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       expandPanel()
     },
     [
-      documentLayers,
+      markdownLayers,
       selectedChatId,
       chatSessions,
       agents,
-      artboards,
+      iframeLayers,
       roomId,
       addChatSession,
       updateChatSession,
@@ -2286,8 +2286,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const sameTarget = (c: ChatSessionData) =>
             chat.agentId
               ? c.agentId === chat.agentId
-              : chat.documentId
-                ? c.documentId === chat.documentId
+              : chat.markdownLayerId
+                ? c.markdownLayerId === chat.markdownLayerId
                 : false
           const siblings = chatSessions
             .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
@@ -2320,9 +2320,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setSelectedAgentId(chat.agentId)
           selectedChatByAgentRef.current[chat.agentId] = chatId
         }
-        if (chat.documentId) {
-          setSelectedDocumentChatTargetId(chat.documentId)
-          selectedChatByDocumentRef.current[chat.documentId] = chatId
+        if (chat.markdownLayerId) {
+          setSelectedDocumentChatTargetId(chat.markdownLayerId)
+          selectedChatByDocumentRef.current[chat.markdownLayerId] = chatId
         }
       }
     },
@@ -2346,7 +2346,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               devScript: pick.config.devScript,
               devServerPort: pick.config.devServerPort,
               envVars: pick.config.envVars,
-              defaultArtboardSizeId: pick.config.defaultArtboardSizeId,
+              defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
               systemPrompt: pick.config.systemPrompt,
               createdAt: Date.now(),
             }
@@ -2387,7 +2387,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
         })
-        seedArtboardForAgent(agentId, { x: cx, y: cy })
+        seedIframeLayerForAgent(agentId, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) =>
         prev.includes(agentId) ? prev : [...prev, agentId],
@@ -2406,7 +2406,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [addWorkspaceToStorage, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
+    [addWorkspaceToStorage, addAgentToStorage, collections, getViewportCenter, roomId, seedIframeLayerForAgent],
   )
 
   const handleCreateAgent = useCallback(
@@ -2436,7 +2436,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
         })
-        seedArtboardForAgent(id, { x: cx, y: cy })
+        seedIframeLayerForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2453,7 +2453,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedIframeLayerForAgent],
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -2479,7 +2479,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           createdAt: Date.now(),
           autoNamedBranch: false,
         })
-        seedArtboardForAgent(id, { x: cx, y: cy })
+        seedIframeLayerForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2496,7 +2496,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedIframeLayerForAgent],
   )
 
   const handleDuplicateBranch = useCallback(
@@ -2526,7 +2526,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
         })
-        seedArtboardForAgent(id, { x: cx, y: cy })
+        seedIframeLayerForAgent(id, { x: cx, y: cy })
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2544,7 +2544,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedArtboardForAgent],
+    [workspaces, addAgentToStorage, collections, getViewportCenter, roomId, seedIframeLayerForAgent],
   )
 
   const handleForkAgent = useCallback(
@@ -2645,10 +2645,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             // Names are already prompt-derived and deduped — block the
             // first-chat server rename so it can't override them.
             autoNamedBranch: false,
-            // The deferred-seed effect creates the artboard once `previewDomain`
+            // The deferred-seed effect creates the iframeLayer once `previewDomain`
             // is known and clears this flag, so deleting the frame later never
             // re-seeds.
-            pendingArtboardSeed: true,
+            pendingIframeLayerSeed: true,
           })
 
           // Pre-create the chat session so the queued prompt has a stable
@@ -2790,7 +2790,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
   }, [agents, roomId, updateAgentInStorage, updateChatSession])
 
-  // Seed artboards for parallel-create agents whose sandbox has finished
+  // Seed iframeLayers for parallel-create agents whose sandbox has finished
   // provisioning. The flag is set at create time and cleared here after the
   // first seed, so deleting the last frame for a branch later does not
   // re-spawn one. Single-agent flows seed immediately at create time and
@@ -2798,22 +2798,22 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   useEffect(() => {
     const pending = agents.filter(
       (a) =>
-        a.pendingArtboardSeed === true &&
+        a.pendingIframeLayerSeed === true &&
         a.status === "running" &&
         a.previewDomain &&
-        !artboards.some((ab) => ab.sandboxId === a.id),
+        !iframeLayers.some((ab) => ab.sandboxId === a.id),
     )
     if (pending.length === 0) return
     const { cx, cy } = getViewportCenter()
     const target = pending[0]!
-    // Seed one per tick — `seedArtboardForAgent` reads the Yjs snapshot for
+    // Seed one per tick — `seedIframeLayerForAgent` reads the Yjs snapshot for
     // layout, and the snapshot only refreshes after the previous mutation
     // settles. Letting React re-render between seeds avoids stacking groups.
     collections.transact(() => {
-      seedArtboardForAgent(target.id, { x: cx, y: cy })
-      collections.agents.update(target.id, { pendingArtboardSeed: false })
+      seedIframeLayerForAgent(target.id, { x: cx, y: cy })
+      collections.agents.update(target.id, { pendingIframeLayerSeed: false })
     })
-  }, [agents, artboards, collections, getViewportCenter, seedArtboardForAgent])
+  }, [agents, iframeLayers, collections, getViewportCenter, seedIframeLayerForAgent])
 
   // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
   // For each chat that's marked streaming in storage, ask the server to verify
@@ -2991,7 +2991,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom
   const canvasWrapperRef = useRef<HTMLDivElement>(null)
 
-  // Cross-origin iframes inside an artboard can cause the browser to walk up
+  // Cross-origin iframes inside an iframeLayer can cause the browser to walk up
   // the ancestor chain calling `scrollIntoView` (e.g. when their content
   // autofocuses an input). `overflow: hidden` does not block programmatic
   // scrolling, so the canvas wrapper / transform wrapper silently drift from
@@ -3028,8 +3028,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     if (!el) return
 
     const onWheel = (e: WheelEvent) => {
-      if (focusedArtboardId !== null) return
-      if (createFlowArtboardId !== null) return
+      if (focusedIframeLayerId !== null) return
+      if (createFlowIframeLayerId !== null) return
       e.preventDefault()
       const ref = transformRef.current
       if (!ref) return
@@ -3054,7 +3054,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
-  }, [focusedArtboardId, createFlowArtboardId, followingConnectionId])
+  }, [focusedIframeLayerId, createFlowIframeLayerId, followingConnectionId])
 
   // Convert screen coordinates to canvas coordinates
   const screenToCanvas = useCallback((clientX: number, clientY: number, rect: DOMRect) => {
@@ -3069,14 +3069,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   /**
    * Gap-handle hit test runs in the *capture* phase so it fires before the
-   * artboard overlay's `onPointerDown` (which `stopPropagation`s and captures
+   * iframeLayer overlay's `onPointerDown` (which `stopPropagation`s and captures
    * the pointer). Without this the gap handle is unreachable once the gap
-   * collapses to 0 — the cursor is then over an artboard, and the artboard's
+   * collapses to 0 — the cursor is then over an iframeLayer, and the iframeLayer's
    * drag hook grabs the pointer first.
    */
   const handleCanvasPointerDownCapture = useCallback(
     (e: React.PointerEvent) => {
-      if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
+      if (e.button !== 0 || spaceHeld || focusedIframeLayerId !== null) return
       if (commentMode || documentMode || frameMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
@@ -3084,17 +3084,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
 
-      // Reorder dots take priority — they sit over the artboard center, so the
-      // artboard's overlay would otherwise grab the pointer first.
+      // Reorder dots take priority — they sit over the iframeLayer center, so the
+      // iframeLayer's overlay would otherwise grab the pointer first.
       if (reorderHandlesRef.current.length > 0) {
         const reorderHit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
         if (reorderHit) {
-          const group = artboardGroups.find((g) =>
-            getGroupMembers(g).some((m) => m.id === reorderHit.artboardId),
+          const group = iframeLayerGroups.find((g) =>
+            getGroupMembers(g).some((m) => m.id === reorderHit.iframeLayerId),
           )
           if (group) {
-            reorderDragRef.current = { groupId: group.id, artboardId: reorderHit.artboardId }
-            setReorderDraggingArtboardId(reorderHit.artboardId)
+            reorderDragRef.current = { groupId: group.id, iframeLayerId: reorderHit.iframeLayerId }
+            setReorderDraggingIframeLayerId(reorderHit.iframeLayerId)
             e.currentTarget.setPointerCapture(e.pointerId)
             e.stopPropagation()
             e.preventDefault()
@@ -3106,7 +3106,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (gapHandlesRef.current.length === 0) return
       const hit = hitTestGapHandle(canvas.x, canvas.y, zoom)
       if (!hit) return
-      const group = collections.artboardGroups.get(hit.groupId)
+      const group = collections.iframeLayerGroups.get(hit.groupId)
       if (!group) return
 
       gapDragRef.current = {
@@ -3119,13 +3119,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedArtboardId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, artboardGroups],
+    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
   const handleCanvasPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (e.button !== 0 || spaceHeld || focusedArtboardId !== null) return
+      if (e.button !== 0 || spaceHeld || focusedIframeLayerId !== null) return
       const target = e.target as HTMLElement
       // React forwards events from portaled children (dropdowns, dialogs, popovers)
       // through the React tree even though the DOM target lives on document.body.
@@ -3135,7 +3135,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // do here — the early-return below would have skipped it anyway.
       if (gapDragRef.current) return
 
-      if (target.closest("[data-artboard]") || target.closest("[data-document-layer]") || target.closest("button") || target.closest("a")) return
+      if (target.closest("[data-iframe-layer]") || target.closest("[data-markdown-layer]") || target.closest("button") || target.closest("a")) return
 
       // Document tool: start a draft rectangle (click for default size, drag for custom bounds)
       if (documentMode) {
@@ -3168,25 +3168,25 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         startX: canvas.x,
         startY: canvas.y,
         shiftKey: e.shiftKey,
-        baseArtboards: new Set(selectedArtboardIds),
+        baseIframeLayers: new Set(selectedIframeLayerIds),
         baseDocumentLayers: new Set(selectedDocumentLayerIds),
       }
       setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
       setSelectedGroupIds(new Set())
       if (!e.shiftKey) {
-        setSelectedArtboardIds(new Set())
+        setSelectedIframeLayerIds(new Set())
         setSelectedDocumentLayerIds(new Set())
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedArtboardId, frameMode, documentMode, screenToCanvas, selectedArtboardIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
   )
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent) => {
       // Reorder drag: cursor X picks the destination index by walking the
       // current sibling centers in order. Layouts get rebuilt when we update
-      // artboardIds, so subsequent ticks see the new arrangement.
+      // iframeLayerIds, so subsequent ticks see the new arrangement.
       if (reorderDragRef.current) {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
@@ -3194,15 +3194,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const popped = e.metaKey
         setReorderDragPopped(popped)
         setReorderDragCursor({ x: canvas.x, y: canvas.y })
-        // Holding meta previews popping the artboard out into a new group.
+        // Holding meta previews popping the iframeLayer out into a new group.
         // The actual data update is deferred until pointer-up so releasing
         // without meta still leaves the source group as-is.
         if (popped) return
 
-        const group = collections.artboardGroups.get(drag.groupId)
+        const group = collections.iframeLayerGroups.get(drag.groupId)
         if (!group) return
         const members = getGroupMembers(group)
-        const currentIndex = members.findIndex((m) => m.id === drag.artboardId)
+        const currentIndex = members.findIndex((m) => m.id === drag.iframeLayerId)
         if (currentIndex < 0) return
 
         const gap = groupGap(group)
@@ -3210,11 +3210,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const siblingCenters: { id: string; centerX: number }[] = []
         for (const m of members) {
           const size =
-            m.kind === "artboard"
-              ? collections.artboards.get(m.id)
-              : collections.documentLayers.get(m.id)
+            m.kind === "iframe-layer"
+              ? collections.iframeLayers.get(m.id)
+              : collections.markdownLayers.get(m.id)
           if (!size) continue
-          if (m.id !== drag.artboardId) {
+          if (m.id !== drag.iframeLayerId) {
             siblingCenters.push({ id: m.id, centerX: walkX + size.width / 2 })
           }
           walkX += size.width + gap
@@ -3229,7 +3229,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
         if (newIndex !== currentIndex) {
           const dragged = members[currentIndex]!
-          const without = members.filter((m) => m.id !== drag.artboardId)
+          const without = members.filter((m) => m.id !== drag.iframeLayerId)
           without.splice(newIndex, 0, dragged)
           reorderGroupMembers(drag.groupId, without)
         }
@@ -3282,7 +3282,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const bottom = Math.max(start.startY, canvas.y)
 
       const abHits = new Set<string>()
-      for (const layout of artboardLayouts.values()) {
+      for (const layout of iframeLayerLayouts.values()) {
         if (
           layout.x < right &&
           layout.x + layout.width > left &&
@@ -3293,11 +3293,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
       }
       const docHits = new Set<string>()
-      for (const d of documentLayers) {
+      for (const d of markdownLayers) {
         // Documents now live inside groups, so their world rect comes from
         // the layout map rather than a self-position. Skip orphans (which the
         // schema migration shouldn't leave behind).
-        const layout = artboardLayouts.get(d.id)
+        const layout = iframeLayerLayouts.get(d.id)
         if (!layout) continue
         if (
           layout.x < right &&
@@ -3310,12 +3310,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
 
       if (start.shiftKey) {
-        const nextAb = new Set(start.baseArtboards)
+        const nextAb = new Set(start.baseIframeLayers)
         for (const id of abHits) {
           if (nextAb.has(id)) nextAb.delete(id)
           else nextAb.add(id)
         }
-        setSelectedArtboardIds(nextAb)
+        setSelectedIframeLayerIds(nextAb)
         const nextDoc = new Set(start.baseDocumentLayers)
         for (const id of docHits) {
           if (nextDoc.has(id)) nextDoc.delete(id)
@@ -3323,11 +3323,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
         setSelectedDocumentLayerIds(nextDoc)
       } else {
-        setSelectedArtboardIds(abHits)
+        setSelectedIframeLayerIds(abHits)
         setSelectedDocumentLayerIds(docHits)
       }
     },
-    [screenToCanvas, artboardLayouts, documentLayers, setGroupGap, collections, reorderGroupMembers],
+    [screenToCanvas, iframeLayerLayouts, markdownLayers, setGroupGap, collections, reorderGroupMembers],
   )
 
   const handleCanvasPointerUp = useCallback(
@@ -3342,35 +3342,35 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         reorderDragRef.current = null
-        setReorderDraggingArtboardId(null)
+        setReorderDraggingIframeLayerId(null)
         setReorderDragCursor(null)
         setReorderDragPopped(false)
 
         // Meta still held at release → commit the pop: detach from the source
         // group and create a new single-member group anchored at the cursor.
         if (e.metaKey) {
-          const sourceGroup = collections.artboardGroups.get(drag.groupId)
+          const sourceGroup = collections.iframeLayerGroups.get(drag.groupId)
           if (!sourceGroup) {
             // continue with the rest of pointer-up
           } else {
             const sourceMembers = getGroupMembers(sourceGroup)
-            const popped = sourceMembers.find((m) => m.id === drag.artboardId)
+            const popped = sourceMembers.find((m) => m.id === drag.iframeLayerId)
             const ab =
-              popped?.kind === "artboard"
-                ? collections.artboards.get(drag.artboardId)
+              popped?.kind === "iframe-layer"
+                ? collections.iframeLayers.get(drag.iframeLayerId)
                 : null
             const docMember =
-              popped?.kind === "document"
-                ? collections.documentLayers.get(drag.artboardId)
+              popped?.kind === "markdown-layer"
+                ? collections.markdownLayers.get(drag.iframeLayerId)
                 : null
             const size = ab ?? docMember
             if (popped && size) {
               const newGroupId = nanoid()
-              const newGroupName = `Group ${nextGroupNumber(collections.artboardGroups.toArray())}`
-              const remaining = sourceMembers.filter((m) => m.id !== drag.artboardId)
+              const newGroupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
+              const remaining = sourceMembers.filter((m) => m.id !== drag.iframeLayerId)
               collections.transact(() => {
-                collections.artboardGroups.update(drag.groupId, { members: remaining })
-                collections.artboardGroups.set(newGroupId, {
+                collections.iframeLayerGroups.update(drag.groupId, { members: remaining })
+                collections.iframeLayerGroups.set(newGroupId, {
                   id: newGroupId,
                   name: newGroupName,
                   x: canvas.x - size.width / 2,
@@ -3384,7 +3384,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
 
         const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
-        setHoveredReorderArtboardId(hit?.artboardId ?? null)
+        setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null)
         return
       }
 
@@ -3423,7 +3423,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
         const id = addDocumentLayer(x, y, w, h)
         setDocumentMode(false)
-        setSelectedArtboardIds(new Set())
+        setSelectedIframeLayerIds(new Set())
         setSelectedDocumentLayerIds(new Set([id]))
         setEditingDocumentLayerId(id)
         return
@@ -3441,8 +3441,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         let w: number
         let h: number
         if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-          w = DEFAULT_ARTBOARD_WIDTH
-          h = DEFAULT_ARTBOARD_HEIGHT
+          w = DEFAULT_IFRAME_LAYER_WIDTH
+          h = DEFAULT_IFRAME_LAYER_HEIGHT
           x = d.startX - w / 2
           y = d.startY - h / 2
         } else {
@@ -3454,7 +3454,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const id = addFrame(x, y, w, h)
         setFrameMode(false)
         setSelectedDocumentLayerIds(new Set())
-        setSelectedArtboardIds(new Set([id]))
+        setSelectedIframeLayerIds(new Set([id]))
         return
       }
 
@@ -3470,7 +3470,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const dy = Math.abs(end.y - start.startY)
       if (dx < 3 && dy < 3) {
         if (!e.shiftKey) {
-          setSelectedArtboardIds(new Set())
+          setSelectedIframeLayerIds(new Set())
           setSelectedDocumentLayerIds(new Set())
         }
       }
@@ -3478,22 +3478,22 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom],
   )
 
-  // Click on artboard to select. Clicking a child frame whose parent group is
+  // Click on iframeLayer to select. Clicking a child frame whose parent group is
   // currently selected pierces — the click moves selection to the child. To
   // keep group drag working, callers must skip selection on pointerdown when
-  // the group is selected (see Artboard.onPointerDownCapture).
-  const handleArtboardSelect = useCallback(
+  // the group is selected (see IframeLayer.onPointerDownCapture).
+  const handleIframeLayerSelect = useCallback(
     (id: string, shiftKey: boolean) => {
       setSelectedGroupIds(new Set())
       if (shiftKey) {
-        setSelectedArtboardIds((prev) => {
+        setSelectedIframeLayerIds((prev) => {
           const next = new Set(prev)
           if (next.has(id)) next.delete(id)
           else next.add(id)
           return next
         })
       } else {
-        setSelectedArtboardIds(new Set([id]))
+        setSelectedIframeLayerIds(new Set([id]))
         setSelectedDocumentLayerIds(new Set())
       }
     },
@@ -3502,7 +3502,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleGroupSelect = useCallback(
     (groupId: string, shiftKey: boolean) => {
-      setSelectedArtboardIds(new Set())
+      setSelectedIframeLayerIds(new Set())
       setSelectedDocumentLayerIds(new Set())
       if (shiftKey) {
         setSelectedGroupIds((prev) => {
@@ -3520,7 +3520,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleDocumentLayerSelect = useCallback(
     (id: string, shiftKey: boolean) => {
-      // Mirrors handleArtboardSelect: clear group selection so the doc owns
+      // Mirrors handleIframeLayerSelect: clear group selection so the doc owns
       // the selection from here on (the click-guard upstream prevents this
       // path from running while a parent group is selected without shift).
       setSelectedGroupIds(new Set())
@@ -3533,7 +3533,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         })
       } else {
         setSelectedDocumentLayerIds(new Set([id]))
-        setSelectedArtboardIds(new Set())
+        setSelectedIframeLayerIds(new Set())
       }
     },
     [],
@@ -3541,15 +3541,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const handleMoveSelected = useCallback(
     (dx: number, dy: number) => {
-      const abIds = Array.from(selectedArtboardIdsRef.current)
+      const abIds = Array.from(selectedIframeLayerIdsRef.current)
       const docIds = Array.from(selectedDocumentLayerIdsRef.current)
-      // Documents share the move pathway with artboards — they live in
-      // groups, so `moveArtboardsByDelta` finds every group referenced by
+      // Documents share the move pathway with iframeLayers — they live in
+      // groups, so `moveIframeLayersByDelta` finds every group referenced by
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
-      if (groupMemberIds.length > 0) moveArtboardsByDelta(groupMemberIds, dx, dy)
+      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, dx, dy)
     },
-    [moveArtboardsByDelta],
+    [moveIframeLayersByDelta],
   )
 
   const handlePointerMove = useCallback(
@@ -3567,11 +3567,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       setPresence({ pointer: { x: canvasX, y: canvasY } })
 
       // Hit-test for hover highlight. Suppressed while a reorder drag is
-      // active so the dragged artboard sweeping over its siblings doesn't
+      // active so the dragged iframeLayer sweeping over its siblings doesn't
       // paint a hover outline on each one in turn.
       let hovered: string | null = null
       if (!reorderDragRef.current) {
-        for (const layout of artboardLayouts.values()) {
+        for (const layout of iframeLayerLayouts.values()) {
           if (
             canvasX >= layout.x &&
             canvasX <= layout.x + layout.width &&
@@ -3583,7 +3583,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }
         }
       }
-      setHoveredArtboardId(hovered)
+      setHoveredIframeLayerId(hovered)
 
       // Track which gap handle is hovered/dragged so the wrapper can show a
       // col-resize cursor. While dragging, lock to the dragged handle even if
@@ -3606,25 +3606,25 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // highlight to the dragged dot so the cursor can stray off-center
       // without the dot flipping back to its hollow state.
       if (reorderDragRef.current) {
-        setHoveredReorderArtboardId((prev) =>
-          prev === reorderDragRef.current!.artboardId ? prev : reorderDragRef.current!.artboardId,
+        setHoveredReorderIframeLayerId((prev) =>
+          prev === reorderDragRef.current!.iframeLayerId ? prev : reorderDragRef.current!.iframeLayerId,
         )
       } else {
         const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
-        setHoveredReorderArtboardId((prev) => {
-          const nextId = reorderHit?.artboardId ?? null
+        setHoveredReorderIframeLayerId((prev) => {
+          const nextId = reorderHit?.iframeLayerId ?? null
           return prev === nextId ? prev : nextId
         })
       }
     },
-    [setPresence, artboardLayouts, hitTestGapHandle, hitTestReorderHandle],
+    [setPresence, iframeLayerLayouts, hitTestGapHandle, hitTestReorderHandle],
   )
 
   const handlePointerLeave = useCallback(() => {
     setPresence({ pointer: null })
-    setHoveredArtboardId(null)
+    setHoveredIframeLayerId(null)
     setActiveGapHandle(null)
-    setHoveredReorderArtboardId(null)
+    setHoveredReorderIframeLayerId(null)
   }, [setPresence])
 
   const handleCanvasClick = useCallback(
@@ -3639,11 +3639,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
 
-      // Hit-test against artboard bounds — store offset relative to artboard.
-      // The iframe fills the artboard div with no transform, so artboard-local
+      // Hit-test against iframeLayer bounds — store offset relative to iframeLayer.
+      // The iframe fills the iframeLayer div with no transform, so iframeLayer-local
       // coordinates equal iframe-viewport coordinates and can be passed
       // directly to the bridge's elementAtPoint.
-      for (const layout of artboardLayouts.values()) {
+      for (const layout of iframeLayerLayouts.values()) {
         if (
           canvasX >= layout.x &&
           canvasX <= layout.x + layout.width &&
@@ -3654,8 +3654,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const localY = canvasY - layout.y
           // Show the composer immediately at the click point; selector
           // resolution races the user's typing and patches the state in.
-          setNewCommentPos({ x: localX, y: localY, artboardId: layout.id })
-          const dom = getArtboardDom(layout.id)
+          setNewCommentPos({ x: localX, y: localY, iframeLayerId: layout.id })
+          const dom = getIframeLayerDom(layout.id)
           if (dom) {
             dom
               .elementAtPoint(localX, localY)
@@ -3663,14 +3663,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 if (!result) return
                 // Store offsets as fractions of the element's width/height so
                 // the pin tracks the same relative point as the element
-                // resizes with the artboard / page reflow. Falls back to 0
+                // resizes with the iframeLayer / page reflow. Falls back to 0
                 // for zero-sized elements (no meaningful relative position).
                 const w = result.rect.width
                 const h = result.rect.height
                 const offsetX = w > 0 ? (localX - result.rect.x) / w : 0
                 const offsetY = h > 0 ? (localY - result.rect.y) / h : 0
                 setNewCommentPos((prev) => {
-                  if (!prev || prev.artboardId !== layout.id) return prev
+                  if (!prev || prev.iframeLayerId !== layout.id) return prev
                   return {
                     ...prev,
                     selector: result.selector || null,
@@ -3687,21 +3687,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
       setNewCommentPos({ x: canvasX, y: canvasY })
     },
-    [commentMode, artboardLayouts, getArtboardDom],
+    [commentMode, iframeLayerLayouts, getIframeLayerDom],
   )
 
   // Broadcast selection to other users via presence. Doc IDs ride alongside
-  // artboard IDs so remote selection rings render uniformly (the overlay
-  // looks both up against `artboardLayouts`, which already includes docs).
+  // iframeLayer IDs so remote selection rings render uniformly (the overlay
+  // looks both up against `iframeLayerLayouts`, which already includes docs).
   useEffect(() => {
     setPresence({
-      selectedArtboardIds: Array.from(overlaySelectedIds),
+      selectedIframeLayerIds: Array.from(overlaySelectedIds),
     })
   }, [overlaySelectedIds, setPresence])
 
   // Collect other users' selections for the overlay
   const othersSelections = others.map(({ presence }) => ({
-    selectedArtboardIds: presence.selectedArtboardIds ?? [],
+    selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
     color: presence.color,
     name: presence.identity.name || "Anonymous",
   }))
@@ -3788,10 +3788,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         <AgentSidebar
           workspaces={workspaces}
           agents={agents}
-          artboards={artboards}
-          documents={documentLayers}
-          artboardGroups={sortedArtboardGroups}
-          selectedArtboardIds={selectedArtboardIds}
+          iframeLayers={iframeLayers}
+          markdownLayers={markdownLayers}
+          iframeLayerGroups={sortedIframeLayerGroups}
+          selectedIframeLayerIds={selectedIframeLayerIds}
           selectedGroupIds={selectedGroupIds}
           selectedDocumentLayerIds={selectedDocumentLayerIds}
           onSelectGroup={handleGroupSelect}
@@ -3861,20 +3861,20 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               .forEach((c) => chatStore.cleanup(c.id))
             removeAgentFromStorage(id)
           }}
-          onAddArtboard={handleAddArtboardForAgent}
+          onAddIframeLayer={handleAddIframeLayerForAgent}
           onPlayAgent={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
           onUpdateAgent={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
-          onSelectArtboard={handleArtboardSelect}
-          onZoomToArtboard={handleSelectArtboard}
-          onRenameArtboard={renameArtboard}
-          onRouteChange={updateArtboardRoute}
-          onRemoveArtboard={removeArtboard}
-          onReorderArtboardGroups={reorderArtboardGroups}
+          onSelectIframeLayer={handleIframeLayerSelect}
+          onZoomToIframeLayer={handleSelectIframeLayer}
+          onRenameIframeLayer={renameIframeLayer}
+          onRouteChange={updateIframeLayerRoute}
+          onRemoveIframeLayer={removeIframeLayer}
+          onReorderIframeLayerGroups={reorderIframeLayerGroups}
           onReorderGroupMembers={reorderGroupMembers}
-          onRenameArtboardGroup={renameArtboardGroup}
-          onRemoveArtboardGroup={removeArtboardGroup}
+          onRenameIframeLayerGroup={renameIframeLayerGroup}
+          onRemoveIframeLayerGroup={removeIframeLayerGroup}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
           activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt && c.agentId).map((c) => c.agentId as string))}
           chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
@@ -3889,7 +3889,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               className="relative h-full w-full"
               data-canvas-wrapper
               ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : documentMode || frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingArtboardId ? "grabbing" : hoveredReorderArtboardId ? "grab" : undefined }}
+              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : documentMode || frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingIframeLayerId ? "grabbing" : hoveredReorderIframeLayerId ? "grab" : undefined }}
               onPointerDownCapture={handleCanvasPointerDownCapture}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={(e) => {
@@ -3902,16 +3902,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
             >
 
             {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
-                so the artboard iframes paint on top — the parts of each ghost
-                that extend past the active artboard remain visible. Same
+                so the iframeLayer iframes paint on top — the parts of each ghost
+                that extend past the active iframeLayer remain visible. Same
                 screen-space canvas approach as SelectionOverlay so the 1px
                 outlines stay crisp at any zoom. */}
             <ResizeSnapUnderlay
               zoom={zoom}
               viewportPos={viewportPos}
-              artboardRect={(() => {
+              iframeLayerRect={(() => {
                 if (!resizeSnap) return null
-                const layout = effectiveArtboardLayouts.get(resizeSnap.artboardId)
+                const layout = effectiveIframeLayerLayouts.get(resizeSnap.iframeLayerId)
                 if (!layout) return null
                 return {
                   x: layout.x,
@@ -3950,8 +3950,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               panning={{
                 velocityDisabled: true,
                 disabled:
-                  focusedArtboardId !== null ||
-                  createFlowArtboardId !== null ||
+                  focusedIframeLayerId !== null ||
+                  createFlowIframeLayerId !== null ||
                   editingDocumentLayerId !== null,
                 allowLeftClickPan: spaceHeld,
                 allowMiddleClickPan: true,
@@ -4003,15 +4003,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
 
-                  {artboardGroups.map((group) => {
+                  {iframeLayerGroups.map((group) => {
                     const members = getGroupMembers(group)
                     const groupSelected = selectedGroupIds.has(group.id)
-                    // Placeholder shows when any member (artboard or document)
+                    // Placeholder shows when any member (iframeLayer or document)
                     // inside the group is selected — the affordance is "add
                     // another frame next to this one".
                     const hasSelectedFrame = members.some((m) =>
-                      m.kind === "artboard"
-                        ? selectedArtboardIds.has(m.id)
+                      m.kind === "iframe-layer"
+                        ? selectedIframeLayerIds.has(m.id)
                         : selectedDocumentLayerIds.has(m.id),
                     )
                     const showGroupLabel = members.length > 1
@@ -4022,7 +4022,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     // use CSS `order` to place them visually. Reordering an
                     // iframe's DOM position forces it to reload, so we never
                     // want React to insertBefore an iframe element. The same
-                    // stability matters for documents — they hold a TipTap
+                    // stability matters for markdownLayers — they hold a TipTap
                     // editor that re-mounts when the React node moves.
                     const stableMembers = [...members].sort((a, b) =>
                       a.id.localeCompare(b.id),
@@ -4030,26 +4030,26 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     const memberSize = (id: string): { width: number; height: number } | null => {
                       const m = members.find((x) => x.id === id)
                       if (!m) return null
-                      if (m.kind === "artboard") {
-                        const a = artboards.find((x) => x.id === id)
+                      if (m.kind === "iframe-layer") {
+                        const a = iframeLayers.find((x) => x.id === id)
                         return a ? { width: a.width, height: a.height } : null
                       }
-                      const d = documentLayers.find((x) => x.id === id)
+                      const d = markdownLayers.find((x) => x.id === id)
                       return d ? { width: d.width, height: d.height } : null
                     }
                     return (
-                      <ArtboardGroup
+                      <IframeLayerGroup
                         key={group.id}
                         group={group}
                         members={members}
-                        artboards={artboardsById}
-                        documents={documentsById}
+                        iframeLayers={iframeLayersById}
+                        markdownLayers={documentsById}
                         zIndex={groupZIndex.get(group.id)}
-                        hasSelectedArtboard={hasSelectedFrame}
-                        onAddArtboard={(groupId) => {
-                          const newId = addArtboardToGroup(groupId)
+                        hasSelectedIframeLayer={hasSelectedFrame}
+                        onAddIframeLayer={(groupId) => {
+                          const newId = addIframeLayerToGroup(groupId)
                           if (newId) {
-                            setSelectedArtboardIds(new Set([newId]))
+                            setSelectedIframeLayerIds(new Set([newId]))
                             setSelectedGroupIds(new Set())
                             setSelectedDocumentLayerIds(new Set())
                           }
@@ -4064,7 +4064,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                           let dragTranslateY: number | undefined
                           let dragPopped: { left: number; top: number } | undefined
                           if (
-                            reorderDraggingArtboardId === member.id &&
+                            reorderDraggingIframeLayerId === member.id &&
                             reorderDragCursor != null
                           ) {
                             if (reorderDragPopped) {
@@ -4073,7 +4073,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 top: reorderDragCursor.y - group.y - size.height / 2,
                               }
                             } else {
-                              const layout = artboardLayouts.get(member.id)
+                              const layout = iframeLayerLayouts.get(member.id)
                               if (layout) {
                                 dragTranslateX = reorderDragCursor.x - (layout.x + layout.width / 2)
                                 dragTranslateY = reorderDragCursor.y - (layout.y + layout.height / 2)
@@ -4081,16 +4081,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             }
                           }
 
-                          if (member.kind === "document") {
-                            const doc = documentLayers.find((d) => d.id === member.id)
+                          if (member.kind === "markdown-layer") {
+                            const doc = markdownLayers.find((d) => d.id === member.id)
                             if (!doc) return null
                             return (
-                              <DocumentLayer
+                              <MarkdownLayer
                                 key={doc.id}
                                 layer={doc}
                                 zoom={zoom}
                                 selected={selectedDocumentLayerIds.has(doc.id)}
-                                multiSelected={selectedArtboardIds.size + selectedDocumentLayerIds.size > 1}
+                                multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
                                 editing={editingDocumentLayerId === doc.id}
                                 spaceHeld={spaceHeld}
                                 userName={self?.identity.name || "Anonymous"}
@@ -4107,7 +4107,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                     : undefined
                                 }
                                 onSelect={handleDocumentLayerSelect}
-                                onMoveGroup={(dx, dy) => moveArtboardsByDelta([doc.id], dx, dy)}
+                                onMoveGroup={(dx, dy) => moveIframeLayersByDelta([doc.id], dx, dy)}
                                 onMoveSelected={handleMoveSelected}
                                 onResize={resizeDocumentLayer}
                                 onTitleChange={setDocumentLayerTitleCache}
@@ -4117,53 +4117,53 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             )
                           }
 
-                          const artboard = artboards.find((a) => a.id === member.id)
-                          if (!artboard) return null
-                          const agentInfo = artboard.sandboxId ? agentDomains[artboard.sandboxId] : undefined
+                          const iframeLayer = iframeLayers.find((a) => a.id === member.id)
+                          if (!iframeLayer) return null
+                          const agentInfo = iframeLayer.sandboxId ? agentDomains[iframeLayer.sandboxId] : undefined
                           return (
-                            <Artboard
-                              key={artboard.id}
-                              artboard={{
-                                ...artboard,
+                            <IframeLayer
+                              key={iframeLayer.id}
+                              iframeLayer={{
+                                ...iframeLayer,
                                 iframeUrl: agentInfo?.previewDomain,
                                 branch: agentInfo?.branch,
                               }}
                               zoom={zoom}
-                              focused={focusedArtboardId === artboard.id}
-                              createFlow={createFlowArtboardId === artboard.id}
-                              selected={selectedArtboardIds.has(artboard.id)}
+                              focused={focusedIframeLayerId === iframeLayer.id}
+                              createFlow={createFlowIframeLayerId === iframeLayer.id}
+                              selected={selectedIframeLayerIds.has(iframeLayer.id)}
                               onFocus={(id) => {
-                                setFocusedArtboardId(id)
-                                if (id !== null) setCreateFlowArtboardId(null)
+                                setFocusedIframeLayerId(id)
+                                if (id !== null) setCreateFlowIframeLayerId(null)
                               }}
                               onToggleCreateFlow={(id) => {
-                                setCreateFlowArtboardId(id)
-                                if (id !== null) setFocusedArtboardId(null)
+                                setCreateFlowIframeLayerId(id)
+                                if (id !== null) setFocusedIframeLayerId(null)
                               }}
-                              onSelect={handleArtboardSelect}
-                              onMoveGroup={(dx, dy) => moveArtboardsByDelta([artboard.id], dx, dy)}
+                              onSelect={handleIframeLayerSelect}
+                              onMoveGroup={(dx, dy) => moveIframeLayersByDelta([iframeLayer.id], dx, dy)}
                               onMoveSelected={handleMoveSelected}
-                              onResize={resizeArtboardEdge}
+                              onResize={resizeIframeLayerEdge}
                               onResizeStart={handleResizeStart}
                               onResizeEnd={handleResizeEnd}
-                              onRemove={removeArtboard}
-                              onStateChanged={updateArtboardState}
-                              onRouteChange={updateArtboardRoute}
-                              onScrollChange={updateArtboardScroll}
-                              onKnobsDeclared={updateArtboardKnobs}
-                              onKnobValuesChange={updateArtboardKnobValues}
-                              onSharedStateChanged={updateArtboardSharedState}
-                              onPlay={artboard.sandboxId ? handlePlayArtboard : undefined}
-                              onFitToContent={fitArtboardToContent}
-                              multiSelected={selectedArtboardIds.size + selectedDocumentLayerIds.size > 1}
+                              onRemove={removeIframeLayer}
+                              onStateChanged={updateIframeLayerState}
+                              onRouteChange={updateIframeLayerRoute}
+                              onScrollChange={updateIframeLayerScroll}
+                              onKnobsDeclared={updateIframeLayerKnobs}
+                              onKnobValuesChange={updateIframeLayerKnobValues}
+                              onSharedStateChanged={updateIframeLayerSharedState}
+                              onPlay={iframeLayer.sandboxId ? handlePlayIframeLayer : undefined}
+                              onFitToContent={fitIframeLayerToContent}
+                              multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               commentMode={commentMode}
                               onHover={handleInspectHover}
-                              onDomReady={handleArtboardDomReady}
+                              onDomReady={handleIframeLayerDomReady}
                               assignableAgents={runningAgents}
-                              onAssignAgent={assignAgentToArtboard}
+                              onAssignAgent={assignAgentToIframeLayer}
                               discoveredRoutes={agentInfo?.discoveredRoutes}
-                              onSelectRoute={updateArtboardRoute}
+                              onSelectRoute={updateIframeLayerRoute}
                               groupLabel={flexOrder === 0 ? groupLabel : undefined}
                               groupSelected={groupSelected}
                               onSelectGroup={
@@ -4178,7 +4178,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             />
                           )
                         })}
-                      </ArtboardGroup>
+                      </IframeLayerGroup>
                     )
                   })}
 
@@ -4208,8 +4208,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     setCommentMode(false)
                   }}
                   onCancelComment={() => setNewCommentPos(null)}
-                  artboards={Array.from(artboardLayouts.values())}
-                  getArtboardDom={getArtboardDom}
+                  iframeLayers={Array.from(iframeLayerLayouts.values())}
+                  getIframeLayerDom={getIframeLayerDom}
                   initialThreads={initialThreads}
                   onSendToChat={handleCommentSendToChat}
                 />
@@ -4218,24 +4218,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               <SelectionOverlay
                 zoom={zoom}
                 viewportPos={viewportPos}
-                selectedArtboardIds={overlaySelectedIds}
-                groupSelectedArtboardIds={groupSelectedArtboardIds}
-                focusedArtboardId={focusedArtboardId}
-                hoveredArtboardId={hoveredArtboardId}
-                artboardLayouts={effectiveArtboardLayouts}
+                selectedIframeLayerIds={overlaySelectedIds}
+                groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
+                focusedIframeLayerId={focusedIframeLayerId}
+                hoveredIframeLayerId={hoveredIframeLayerId}
+                iframeLayerLayouts={effectiveIframeLayerLayouts}
                 hideResizeHandles={editingDocumentLayerId !== null}
                 placeholderRects={placeholderRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
-                hoveredReorderArtboardId={hoveredReorderArtboardId}
+                hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
                 reorderDragShift={(() => {
-                  // While popped, the dragged artboard's effective layout is
+                  // While popped, the dragged iframeLayer's effective layout is
                   // already centered on the cursor — no extra shift needed.
-                  if (!reorderDraggingArtboardId || !reorderDragCursor || reorderDragPopped) return null
-                  const layout = artboardLayouts.get(reorderDraggingArtboardId)
+                  if (!reorderDraggingIframeLayerId || !reorderDragCursor || reorderDragPopped) return null
+                  const layout = iframeLayerLayouts.get(reorderDraggingIframeLayerId)
                   if (!layout) return null
                   return {
-                    artboardId: reorderDraggingArtboardId,
+                    iframeLayerId: reorderDraggingIframeLayerId,
                     dx: reorderDragCursor.x - (layout.x + layout.width / 2),
                     dy: reorderDragCursor.y - (layout.y + layout.height / 2),
                   }
@@ -4249,7 +4249,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   // user can see what element they're about to anchor to.
                   const source = commentMode ? inspectHover : null
                   if (!source) return null
-                  const layout = artboardLayouts.get(source.artboardId)
+                  const layout = iframeLayerLayouts.get(source.iframeLayerId)
                   if (!layout) return null
                   return {
                     x: layout.x + source.rect.x,
@@ -4544,7 +4544,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           // when one was picked from the dropdown. Falls through to the
           // empty-state below when neither is set.
           const docTarget = selectedDocumentChatTargetId
-            ? documentLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
+            ? markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
             : null
           // Resolve the target. For layer-kind targets we pack the layer
           // into the generic `{ kind: "layer", layerKind, layer }` shape
@@ -4556,7 +4556,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               : docTarget
                 ? {
                     kind: "layer",
-                    layerKind: "document",
+                    layerKind: "markdown-layer",
                     layer: docTarget as unknown as { id: string } & Record<string, unknown>,
                   }
                 : null
@@ -4564,21 +4564,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const filteredSessions = chatSessions.filter((c) => {
             if (target.kind === "agent") return c.agentId === target.agent.id
             // Layer targets: per-kind state lives on the chat session
-            // under different fields. Only `documentId` is wired today.
-            if (target.layerKind === "document") return c.documentId === target.layer.id
+            // under different fields. Only `markdownLayerId` is wired today.
+            if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id
             return false
           })
           return (
             <ChatPanel
               target={target}
               agents={agents}
-              documents={documentLayers}
+              markdownLayers={markdownLayers}
               onSelectAgent={(id) => {
                 setSelectedDocumentChatTargetId(null)
                 handleSelectAgent(id)
               }}
               onSelectLayer={(layerKind, id) => {
-                if (layerKind !== "document") return
+                if (layerKind !== "markdown-layer") return
                 setSelectedAgentId(null)
                 setSelectedDocumentChatTargetId(id)
                 const lastChat = selectedChatByDocumentRef.current[id]
@@ -4590,7 +4590,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               onSelectChat={handleSelectChat}
               onCreateChat={() => {
                 if (target.kind === "agent") handleCreateChat(target.agent.id)
-                else if (target.layerKind === "document")
+                else if (target.layerKind === "markdown-layer")
                   handleCreateDocumentChat(target.layer.id)
               }}
               onRenameChat={handleRenameChat}

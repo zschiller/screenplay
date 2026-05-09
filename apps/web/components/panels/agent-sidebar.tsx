@@ -77,27 +77,27 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type {
   AgentData,
-  ArtboardData,
-  ArtboardGroupData,
-  DocumentLayerData,
+  IframeLayerData,
+  IframeLayerGroupData,
+  MarkdownLayerData,
   GroupMember,
   WorkspaceData,
 } from "@/lib/types"
-import { getGroupMembers } from "@/lib/artboard-layout"
+import { getGroupMembers } from "@/lib/iframe-layer-layout"
 import {
-  ArtboardRowMenu,
-  makeArtboardRow,
-} from "@/components/panels/layer-rows/artboard-row"
+  IframeLayerRowMenu,
+  makeIframeLayerRow,
+} from "@/components/panels/layer-rows/iframe-layer-row"
 import {
   DocumentRow,
   DocumentRowMenu,
-} from "@/components/panels/layer-rows/document-row"
+} from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
 import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
-import { ArtboardSizeSelect } from "@/components/artboard-size-select"
-import { DEFAULT_ARTBOARD_SIZE_ID } from "@/lib/artboard-sizes"
+import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
+import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog"
 import {
@@ -108,11 +108,11 @@ import {
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
-  artboards: Array<Pick<ArtboardData, "id" | "sandboxId" | "label" | "route">>
-  documents: Array<Pick<DocumentLayerData, "id" | "title">>
+  iframeLayers: Array<Pick<IframeLayerData, "id" | "sandboxId" | "label" | "route">>
+  markdownLayers: Array<Pick<MarkdownLayerData, "id" | "title">>
   /** Already sorted by sidebarOrder. */
-  artboardGroups: ArtboardGroupData[]
-  selectedArtboardIds: Set<string>
+  iframeLayerGroups: IframeLayerGroupData[]
+  selectedIframeLayerIds: Set<string>
   selectedGroupIds: Set<string>
   selectedDocumentLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
@@ -134,24 +134,24 @@ interface AgentSidebarProps {
     id: string,
     options: { deleteOnRemote: boolean },
   ) => void | Promise<void>
-  onAddArtboard: (agentId: string) => void
+  onAddIframeLayer: (agentId: string) => void
   onPlayAgent: (agentId: string) => void
   onShowRoutes: (agentId: string) => void
   onUpdateAgent: (id: string, data: Partial<AgentData>) => void
   onRenameBranch: (agentId: string, newBranch: string) => void
-  onSelectArtboard: (artboardId: string, shiftKey: boolean) => void
-  onZoomToArtboard: (artboardId: string) => void
-  onRenameArtboard: (id: string, label: string) => void
+  onSelectIframeLayer: (iframeLayerId: string, shiftKey: boolean) => void
+  onZoomToIframeLayer: (iframeLayerId: string) => void
+  onRenameIframeLayer: (id: string, label: string) => void
   onRouteChange: (id: string, route: string) => void
-  onRemoveArtboard: (id: string) => void
+  onRemoveIframeLayer: (id: string) => void
   onSelectDocument: (id: string, shiftKey: boolean) => void
   onZoomToDocument: (id: string) => void
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
-  onReorderArtboardGroups: (orderedIds: string[]) => void
+  onReorderIframeLayerGroups: (orderedIds: string[]) => void
   onReorderGroupMembers: (groupId: string, orderedMembers: GroupMember[]) => void
-  onRenameArtboardGroup: (groupId: string, name: string) => void
-  onRemoveArtboardGroup: (groupId: string) => void
+  onRenameIframeLayerGroup: (groupId: string, name: string) => void
+  onRemoveIframeLayerGroup: (groupId: string) => void
   onCollapseSidebar?: () => void
   activeAgentIds?: Set<string>
   chatPanelAgentId?: string | null
@@ -164,10 +164,10 @@ interface AgentSidebarProps {
 export function AgentSidebar({
   workspaces,
   agents,
-  artboards,
-  documents,
-  artboardGroups,
-  selectedArtboardIds,
+  iframeLayers,
+  markdownLayers,
+  iframeLayerGroups,
+  selectedIframeLayerIds,
   selectedGroupIds,
   selectedDocumentLayerIds,
   onSelectGroup,
@@ -183,24 +183,24 @@ export function AgentSidebar({
   onRebaseOnDefault,
   onRefreshAgent,
   onRemoveAgent,
-  onAddArtboard,
+  onAddIframeLayer,
   onPlayAgent,
   onShowRoutes,
   onUpdateAgent,
   onRenameBranch,
-  onSelectArtboard,
-  onZoomToArtboard,
-  onRenameArtboard,
+  onSelectIframeLayer,
+  onZoomToIframeLayer,
+  onRenameIframeLayer,
   onRouteChange,
-  onRemoveArtboard,
+  onRemoveIframeLayer,
   onSelectDocument,
   onZoomToDocument,
   onRenameDocument,
   onRemoveDocument,
-  onReorderArtboardGroups,
+  onReorderIframeLayerGroups,
   onReorderGroupMembers,
-  onRenameArtboardGroup,
-  onRemoveArtboardGroup,
+  onRenameIframeLayerGroup,
+  onRemoveIframeLayerGroup,
   onCollapseSidebar,
   activeAgentIds,
   chatPanelAgentId,
@@ -215,16 +215,16 @@ export function AgentSidebar({
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   const diffStats = useDiffStats(agents, workspaces)
-  const artboardsById = useMemo(() => {
-    const m = new Map<string, AgentSidebarProps["artboards"][number]>()
-    for (const a of artboards) m.set(a.id, a)
+  const iframeLayersById = useMemo(() => {
+    const m = new Map<string, AgentSidebarProps["iframeLayers"][number]>()
+    for (const a of iframeLayers) m.set(a.id, a)
     return m
-  }, [artboards])
+  }, [iframeLayers])
   const documentsById = useMemo(() => {
-    const m = new Map<string, AgentSidebarProps["documents"][number]>()
-    for (const d of documents) m.set(d.id, d)
+    const m = new Map<string, AgentSidebarProps["markdownLayers"][number]>()
+    for (const d of markdownLayers) m.set(d.id, d)
     return m
-  }, [documents])
+  }, [markdownLayers])
   const agentsById = useMemo(() => {
     const m = new Map<string, AgentData>()
     for (const a of agents) m.set(a.id, a)
@@ -238,8 +238,8 @@ export function AgentSidebar({
    * kind, drop another entry here keyed by `kind` — the dispatch loop
    * below picks the right components automatically.
    */
-  const ArtboardRow = useMemo(
-    () => makeArtboardRow({ agentsById }),
+  const IframeLayerRow = useMemo(
+    () => makeIframeLayerRow({ agentsById }),
     [agentsById],
   )
   type AnyRowDispatcher = {
@@ -253,15 +253,15 @@ export function AgentSidebar({
     onRemove: (id: string) => void
   }
   const rowDispatchByKind: Record<string, AnyRowDispatcher | undefined> = {
-    artboard: {
-      Row: ArtboardRow as AnyRowDispatcher["Row"],
-      Menu: ArtboardRowMenu as AnyRowDispatcher["Menu"],
-      isSelected: (id) => selectedArtboardIds.has(id),
-      onSelect: onSelectArtboard,
-      onActivate: onZoomToArtboard,
-      onRename: onRenameArtboard,
+    iframeLayer: {
+      Row: IframeLayerRow as AnyRowDispatcher["Row"],
+      Menu: IframeLayerRowMenu as AnyRowDispatcher["Menu"],
+      isSelected: (id) => selectedIframeLayerIds.has(id),
+      onSelect: onSelectIframeLayer,
+      onActivate: onZoomToIframeLayer,
+      onRename: onRenameIframeLayer,
       onChangeRoute: onRouteChange,
-      onRemove: onRemoveArtboard,
+      onRemove: onRemoveIframeLayer,
     },
     document: {
       Row: DocumentRow as AnyRowDispatcher["Row"],
@@ -600,7 +600,7 @@ export function AgentSidebar({
                                                   >
                                                     <button
                                                       className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                                      onClick={(e) => { e.stopPropagation(); onAddArtboard(agent.id) }}
+                                                      onClick={(e) => { e.stopPropagation(); onAddIframeLayer(agent.id) }}
                                                       title={isLoading ? "Sandbox still starting…" : "Add frame"}
                                                       disabled={isLoading}
                                                     >
@@ -643,11 +643,11 @@ export function AgentSidebar({
           <SidebarGroupContent>
             <Reorder.Group
               axis="y"
-              values={artboardGroups}
-              onReorder={(items) => onReorderArtboardGroups(items.map((g) => g.id))}
+              values={iframeLayerGroups}
+              onReorder={(items) => onReorderIframeLayerGroups(items.map((g) => g.id))}
               className="flex w-full min-w-0 flex-col gap-0"
             >
-              {artboardGroups.map((group) => {
+              {iframeLayerGroups.map((group) => {
                 // Resolve members in their stored order, dropping any that
                 // can't be found (lookup races during deletion). Each
                 // entry pairs the member kind with the underlying data so
@@ -656,12 +656,12 @@ export function AgentSidebar({
                 type ResolvedMember = { kind: string; id: string; data: unknown }
                 const groupMembers: ResolvedMember[] = []
                 for (const m of getGroupMembers(group)) {
-                  if (m.kind === "artboard") {
-                    const ab = artboardsById.get(m.id)
+                  if (m.kind === "iframe-layer") {
+                    const ab = iframeLayersById.get(m.id)
                     if (ab) groupMembers.push({ kind: m.kind, id: m.id, data: ab })
                     continue
                   }
-                  if (m.kind === "document") {
+                  if (m.kind === "markdown-layer") {
                     const d = documentsById.get(m.id)
                     if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
                   }
@@ -751,13 +751,13 @@ export function AgentSidebar({
                             <DropdownMenuContent side="right" align="start" className="w-48">
                               <DropdownMenuItem onClick={() => {
                                 const newName = prompt("Rename group", group.name ?? "Group")
-                                if (newName?.trim()) onRenameArtboardGroup(group.id, newName.trim())
+                                if (newName?.trim()) onRenameIframeLayerGroup(group.id, newName.trim())
                               }}>
                                 <Pencil />
                                 Rename
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem variant="destructive" onClick={() => onRemoveArtboardGroup(group.id)}>
+                              <DropdownMenuItem variant="destructive" onClick={() => onRemoveIframeLayerGroup(group.id)}>
                                 <Trash2 />
                                 Delete
                               </DropdownMenuItem>
@@ -797,7 +797,7 @@ export function AgentSidebar({
                 )
               })}
             </Reorder.Group>
-            {artboardGroups.length === 0 && (
+            {iframeLayerGroups.length === 0 && (
               <div className="py-8 text-center text-xs text-sidebar-foreground/50">
                 No frames yet
               </div>
@@ -921,8 +921,8 @@ function WorkspaceSettings({
     String(workspace.devServerPort ?? 3000),
   )
   const [envVars, setEnvVars] = useState(workspace.envVars)
-  const [defaultArtboardSizeId, setDefaultArtboardSizeId] = useState(
-    workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID,
+  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
+    workspace.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
   )
   const [systemPrompt, setSystemPrompt] = useState(workspace.systemPrompt ?? "")
 
@@ -940,7 +940,7 @@ function WorkspaceSettings({
       devScript,
       devServerPort: parsedPort,
       envVars,
-      defaultArtboardSizeId,
+      defaultIframeLayerSizeId,
       systemPrompt: trimmedSystemPrompt || undefined,
     })
     onClose()
@@ -952,7 +952,7 @@ function WorkspaceSettings({
     parsedPort,
     portIsValid,
     envVars,
-    defaultArtboardSizeId,
+    defaultIframeLayerSizeId,
     trimmedSystemPrompt,
     onUpdate,
     onClose,
@@ -964,8 +964,8 @@ function WorkspaceSettings({
     devScript !== workspace.devScript ||
     parsedPort !== (workspace.devServerPort ?? 3000) ||
     envVars !== workspace.envVars ||
-    defaultArtboardSizeId !==
-      (workspace.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID) ||
+    defaultIframeLayerSizeId !==
+      (workspace.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
     trimmedSystemPrompt !== (workspace.systemPrompt ?? "")
 
   return (
@@ -1043,11 +1043,11 @@ function WorkspaceSettings({
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Default artboard size
+          Default iframeLayer size
         </label>
-        <ArtboardSizeSelect
-          value={defaultArtboardSizeId}
-          onChange={setDefaultArtboardSizeId}
+        <IframeLayerSizeSelect
+          value={defaultIframeLayerSizeId}
+          onChange={setDefaultIframeLayerSizeId}
           size="sm"
           className="text-[11px]"
         />

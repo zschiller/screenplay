@@ -1,14 +1,14 @@
 import {
-  ARTBOARD_SIZE_PRESETS,
-  type ArtboardSizePreset,
-} from "@/lib/artboard-sizes"
+  IFRAME_LAYER_SIZE_PRESETS,
+  type IframeLayerSizePreset,
+} from "@/lib/iframe-layer-sizes"
 
 export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
 
 export type SnapOrientation = "portrait" | "landscape"
 
 export type SnapCandidate = {
-  preset: ArtboardSizePreset
+  preset: IframeLayerSizePreset
   orientation: SnapOrientation
   /** Effective ghost dimensions: preset on snap-affected axes, raw on others. */
   ghostWidth: number
@@ -44,7 +44,7 @@ function isVert(edge: ResizeEdge): boolean {
 }
 
 /**
- * For a given edge being dragged and the current (raw, un-snapped) artboard
+ * For a given edge being dragged and the current (raw, un-snapped) iframeLayer
  * size, find every device preset within fade radius and compute the snapped
  * size. Only fires for *corner* drags (both axes moving) — single-edge drags
  * don't trigger device snaps. Mobile and Tablet presets are matched in both
@@ -60,7 +60,7 @@ export function computeDeviceSnap(opts: {
   rawWidth: number
   rawHeight: number
   zoom: number
-  presets?: readonly ArtboardSizePreset[]
+  presets?: readonly IframeLayerSizePreset[]
 }): SnapResult {
   // Only corner drags get the device-size snap underlay — single-edge drags
   // are reserved for free-form resizing without snap interference.
@@ -74,7 +74,7 @@ export function computeDeviceSnap(opts: {
     }
   }
 
-  const presets = opts.presets ?? ARTBOARD_SIZE_PRESETS
+  const presets = opts.presets ?? IFRAME_LAYER_SIZE_PRESETS
   const horiz = true
   const vert = true
   const { rawWidth, rawHeight, zoom } = opts
@@ -156,7 +156,7 @@ export function computeDeviceSnap(opts: {
 }
 
 /**
- * The corner of the artboard that should stay anchored during a resize from
+ * The corner of the iframeLayer that should stay anchored during a resize from
  * `edge` — used to position the snap ghost rects so they grow/shrink toward
  * the dragged edge instead of jumping around the screen.
  */

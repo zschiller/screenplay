@@ -11,8 +11,8 @@ export type WorkspaceConfig = {
   devScript: string
   devServerPort: number
   envVars: string
-  /** Preset id from `lib/artboard-sizes`. Falls back to the default preset when unset. */
-  defaultArtboardSizeId?: string
+  /** Preset id from `lib/iframeLayer-sizes`. Falls back to the default preset when unset. */
+  defaultIframeLayerSizeId?: string
   /** Extra workspace-specific instructions appended to the agent's system prompt. */
   systemPrompt?: string
   createdAt: number

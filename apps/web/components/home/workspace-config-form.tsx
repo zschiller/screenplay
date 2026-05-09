@@ -10,8 +10,8 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { RepoPicker } from "@/components/repo-picker"
 import { upsertWorkspaceConfig } from "@/lib/workspace-configs-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
-import { ArtboardSizeSelect } from "@/components/artboard-size-select"
-import { DEFAULT_ARTBOARD_SIZE_ID } from "@/lib/artboard-sizes"
+import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
+import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 
 interface WorkspaceConfigFormProps {
   initial?: WorkspaceConfig
@@ -50,8 +50,8 @@ export function WorkspaceConfigForm({
     String(initial?.devServerPort ?? 3000),
   )
   const [envVars, setEnvVars] = useState(initial?.envVars ?? "")
-  const [defaultArtboardSizeId, setDefaultArtboardSizeId] = useState(
-    initial?.defaultArtboardSizeId ?? DEFAULT_ARTBOARD_SIZE_ID,
+  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
+    initial?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
   )
   const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
@@ -92,7 +92,7 @@ export function WorkspaceConfigForm({
       devScript,
       devServerPort: parsedPort,
       envVars,
-      defaultArtboardSizeId,
+      defaultIframeLayerSizeId,
       systemPrompt: systemPrompt.trim() ? systemPrompt : undefined,
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
@@ -226,13 +226,13 @@ export function WorkspaceConfigForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-default-artboard-size">
-              Default artboard size
+            <Label htmlFor="config-default-iframe-layer-size">
+              Default iframeLayer size
             </Label>
-            <ArtboardSizeSelect
-              id="config-default-artboard-size"
-              value={defaultArtboardSizeId}
-              onChange={setDefaultArtboardSizeId}
+            <IframeLayerSizeSelect
+              id="config-default-iframe-layer-size"
+              value={defaultIframeLayerSizeId}
+              onChange={setDefaultIframeLayerSizeId}
             />
           </div>
 

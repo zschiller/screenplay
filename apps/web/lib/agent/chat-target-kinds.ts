@@ -1,9 +1,9 @@
 import "server-only"
 
 import type { ModelMessage, Tool } from "ai"
-import { buildAgentSystemPrompt, buildDocumentSystemPrompt } from "./config"
+import { buildAgentSystemPrompt, buildMarkdownLayerSystemPrompt } from "./config"
 import { buildAgentTools } from "./tools"
-import { buildDocumentTools } from "./document-tools"
+import { buildMarkdownLayerTools } from "./markdown-layer-tools"
 import type { ToolContext } from "./tool-executor"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
@@ -76,26 +76,26 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
 // Document target — edits a document layer's title + body via Yjs writes.
 // ---------------------------------------------------------------------------
 
-export interface DocumentTarget {
-  documentId: string
+export interface MarkdownLayerTarget {
+  markdownLayerId: string
 }
 
-interface DocumentContext {
+interface MarkdownLayerContext {
   title: string
   body: string
   peers: Array<{ id: string; title: string }>
 }
 
-export const documentChatTarget: ChatTargetSpec<DocumentTarget, DocumentContext> = {
-  kind: "document",
+export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, MarkdownLayerContext> = {
+  kind: "markdown-layer",
   async loadContext(roomId, target) {
-    return await readRoomDoc(roomId, ({ documentLayers, doc }) => {
-      const layer = documentLayers.get(target.documentId)
+    return await readRoomDoc(roomId, ({ markdownLayers, doc }) => {
+      const layer = markdownLayers.get(target.markdownLayerId)
       if (!layer) return null
-      const fragment = doc.getXmlFragment(`doc-${target.documentId}`)
-      const peers = documentLayers
+      const fragment = doc.getXmlFragment(`markdown-layer-${target.markdownLayerId}`)
+      const peers = markdownLayers
         .toArray()
-        .filter((d) => d.id !== target.documentId)
+        .filter((d) => d.id !== target.markdownLayerId)
         .map((d) => ({ id: d.id, title: d.title }))
       return {
         title: layer.title,
@@ -105,14 +105,14 @@ export const documentChatTarget: ChatTargetSpec<DocumentTarget, DocumentContext>
     })
   },
   buildSystemPrompt(ctx) {
-    return buildDocumentSystemPrompt({
+    return buildMarkdownLayerSystemPrompt({
       currentTitle: ctx.title,
       currentBody: ctx.body,
       peers: ctx.peers,
     })
   },
   buildTools(roomId, target) {
-    return buildDocumentTools({ roomId, documentId: target.documentId })
+    return buildMarkdownLayerTools({ roomId, markdownLayerId: target.markdownLayerId })
   },
   decorateUserMessage(message, { planMode }) {
     return planMode ? `[plan mode: enabled] ${message}` : message
@@ -125,7 +125,7 @@ export const documentChatTarget: ChatTargetSpec<DocumentTarget, DocumentContext>
 
 const REGISTRY: ReadonlyArray<ChatTargetSpec<never, never>> = [
   agentChatTarget as unknown as ChatTargetSpec<never, never>,
-  documentChatTarget as unknown as ChatTargetSpec<never, never>,
+  markdownLayerChatTarget as unknown as ChatTargetSpec<never, never>,
 ]
 
 const REGISTRY_BY_KIND = new Map(REGISTRY.map((s) => [s.kind, s]))

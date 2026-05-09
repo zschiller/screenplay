@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-export type RenderArtboard = {
+export type RenderIframeLayer = {
   id: string
   x: number
   y: number
@@ -12,7 +12,7 @@ export type RenderArtboard = {
   iframeUrl: string | null
 }
 
-export type RenderDocument = {
+export type RenderMarkdownLayer = {
   id: string
   x: number
   y: number
@@ -61,13 +61,13 @@ function bbox(rects: Rect[]) {
 }
 
 export function RenderCanvas({
-  artboards,
-  documents = [],
+  iframeLayers,
+  markdownLayers = [],
 }: {
-  artboards: RenderArtboard[]
-  documents?: RenderDocument[]
+  iframeLayers: RenderIframeLayer[]
+  markdownLayers?: RenderMarkdownLayer[]
 }) {
-  const target = artboards.filter((a) => a.iframeUrl)
+  const target = iframeLayers.filter((a) => a.iframeUrl)
   const targetCount = target.length
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
@@ -95,7 +95,7 @@ export function RenderCanvas({
     })
   }
 
-  const allRects: Rect[] = [...artboards, ...documents]
+  const allRects: Rect[] = [...iframeLayers, ...markdownLayers]
 
   if (allRects.length === 0) {
     return (
@@ -143,7 +143,7 @@ export function RenderCanvas({
           transformOrigin: "top left",
         }}
       >
-        {artboards.map((a) => (
+        {iframeLayers.map((a) => (
           <div
             key={a.id}
             style={{
@@ -188,7 +188,7 @@ export function RenderCanvas({
             )}
           </div>
         ))}
-        {documents.map((d) => (
+        {markdownLayers.map((d) => (
           <div
             key={d.id}
             style={{

@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from "react"
 import { Monitor, type LucideIcon } from "lucide-react"
-import type { AnchorCorner, SnapCandidate } from "@/lib/artboard-snap"
+import type { AnchorCorner, SnapCandidate } from "@/lib/iframe-layer-snap"
 import {
-  ARTBOARD_SIZE_CATEGORY_ICONS,
-  type ArtboardSizeCategory,
-} from "@/lib/artboard-sizes"
-import { rectFromAnchor } from "@/lib/artboard-snap"
+  IFRAME_LAYER_SIZE_CATEGORY_ICONS,
+  type IframeLayerSizeCategory,
+} from "@/lib/iframe-layer-sizes"
+import { rectFromAnchor } from "@/lib/iframe-layer-snap"
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
@@ -24,22 +24,22 @@ interface ResizeSnapUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
   /**
-   * The artboard's current world-space rect (post-snap on the current frame),
+   * The iframeLayer's current world-space rect (post-snap on the current frame),
    * used to derive the anchor corner that ghosts pivot around.
    */
-  artboardRect: { x: number; y: number; width: number; height: number } | null
+  iframeLayerRect: { x: number; y: number; width: number; height: number } | null
   anchor: AnchorCorner
   candidates: SnapCandidate[]
   snappedPresetId: string | null
 }
 
-const CATEGORY_LABEL_ICON: Record<ArtboardSizeCategory, LucideIcon> = ARTBOARD_SIZE_CATEGORY_ICONS
+const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, LucideIcon> = IFRAME_LAYER_SIZE_CATEGORY_ICONS
 
 /**
  * Zoom-independent screen-space underlay shown while the user resizes an
- * artboard from a corner. Renders before the TransformWrapper in DOM order so
- * the artboard iframes paint on top — only the parts of each ghost that
- * extend past the active artboard remain visible.
+ * iframeLayer from a corner. Renders before the TransformWrapper in DOM order so
+ * the iframeLayer iframes paint on top — only the parts of each ghost that
+ * extend past the active iframeLayer remain visible.
  *
  * Outlines: 1px crisp at any zoom (drawn on a screen-space canvas using the
  * same toScreen() trick as SelectionOverlay).
@@ -49,7 +49,7 @@ const CATEGORY_LABEL_ICON: Record<ArtboardSizeCategory, LucideIcon> = ARTBOARD_S
 export function ResizeSnapUnderlay({
   zoom,
   viewportPos,
-  artboardRect,
+  iframeLayerRect,
   anchor,
   candidates,
   snappedPresetId,
@@ -75,7 +75,7 @@ export function ResizeSnapUnderlay({
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.scale(dpr, dpr)
 
-    if (!artboardRect || candidates.length === 0) {
+    if (!iframeLayerRect || candidates.length === 0) {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       return
     }
@@ -90,15 +90,15 @@ export function ResizeSnapUnderlay({
       y: y * zoom + viewportPos.y,
     })
 
-    // Anchor in world space — the corner of the artboard that's *not* moving.
+    // Anchor in world space — the corner of the iframeLayer that's *not* moving.
     const ax =
       anchor === "tl" || anchor === "bl"
-        ? artboardRect.x
-        : artboardRect.x + artboardRect.width
+        ? iframeLayerRect.x
+        : iframeLayerRect.x + iframeLayerRect.width
     const ay =
       anchor === "tl" || anchor === "tr"
-        ? artboardRect.y
-        : artboardRect.y + artboardRect.height
+        ? iframeLayerRect.y
+        : iframeLayerRect.y + iframeLayerRect.height
 
     // Brightest (closest) candidate paints last so it sits on top.
     const sorted = [...candidates].sort((a, b) => b.distancePx - a.distancePx)
@@ -122,7 +122,7 @@ export function ResizeSnapUnderlay({
     ctx.globalAlpha = 1
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, artboardRect, anchor, candidates, snappedPresetId])
+  }, [zoom, viewportPos, iframeLayerRect, anchor, candidates, snappedPresetId])
 
   // Keep canvas sized to its container.
   useEffect(() => {
@@ -147,15 +147,15 @@ export function ResizeSnapUnderlay({
     ? candidates.find((c) => c.preset.id === snappedPresetId) ?? null
     : null
   let snappedLabelPos: { screenX: number; screenY: number } | null = null
-  if (snapped && artboardRect) {
+  if (snapped && iframeLayerRect) {
     const ax =
       anchor === "tl" || anchor === "bl"
-        ? artboardRect.x
-        : artboardRect.x + artboardRect.width
+        ? iframeLayerRect.x
+        : iframeLayerRect.x + iframeLayerRect.width
     const ay =
       anchor === "tl" || anchor === "tr"
-        ? artboardRect.y
-        : artboardRect.y + artboardRect.height
+        ? iframeLayerRect.y
+        : iframeLayerRect.y + iframeLayerRect.height
     const { x, y } = rectFromAnchor(
       anchor,
       ax,

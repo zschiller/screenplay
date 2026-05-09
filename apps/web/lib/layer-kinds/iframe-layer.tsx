@@ -1,16 +1,16 @@
 import { Frame } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
-import type { ArtboardData } from "@/lib/types"
+import type { IframeLayerData } from "@/lib/types"
 import type { LayerKindDescriptor } from "./types"
 
-export const artboardKind: LayerKindDescriptor<ArtboardData> = {
-  kind: "artboard",
+export const iframeLayerKind: LayerKindDescriptor<IframeLayerData> = {
+  kind: "iframe-layer",
   pluralLabel: "Frames",
   singularLabel: "frame",
   Icon: Frame,
   getLabel: (a) => a.label,
-  // Artboards are sandbox-backed; their chat is run by the agent flow on
-  // the agent record, not the artboard itself, so they aren't a chat target.
+  // Iframe layers are sandbox-backed; their chat is run by the agent flow on
+  // the agent record, not the layer itself, so they aren't a chat target.
   canBeChatTarget: false,
   renderRowAccessory: (a) => (
     <Badge

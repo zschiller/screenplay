@@ -20,14 +20,14 @@ import {
  * never get clobbered, and a write applied while the user is typing just
  * merges in.
  */
-export interface DocumentToolContext {
+export interface MarkdownLayerToolContext {
   roomId: string
   /** The document the chat is targeting. Tool calls without an explicit
    *  `id` argument default to it. */
-  documentId: string
+  markdownLayerId: string
 }
 
-export function buildDocumentTools(ctx: DocumentToolContext) {
+export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
   return {
     read_document: tool({
       description:
@@ -37,11 +37,11 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         properties: { id: { type: "string" } },
       }),
       execute: async (input) => {
-        const id = (input as { id?: string }).id ?? ctx.documentId
-        const result = await readRoomDoc(ctx.roomId, ({ documentLayers, doc }) => {
-          const layer = documentLayers.get(id)
+        const id = (input as { id?: string }).id ?? ctx.markdownLayerId
+        const result = await readRoomDoc(ctx.roomId, ({ markdownLayers, doc }) => {
+          const layer = markdownLayers.get(id)
           if (!layer) return null
-          const fragment = doc.getXmlFragment(`doc-${id}`)
+          const fragment = doc.getXmlFragment(`markdown-layer-${id}`)
           return {
             id,
             title: layer.title,
@@ -67,9 +67,9 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async (input) => {
         const content = (input as { content: string }).content
-        await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
-          if (!documentLayers.get(ctx.documentId)) return
-          const fragment = doc.getXmlFragment(`doc-${ctx.documentId}`)
+        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+          if (!markdownLayers.get(ctx.markdownLayerId)) return
+          const fragment = doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`)
           replaceFragmentBodyPreservingTitle(fragment, content)
         })
         return `Replaced document body (${content.length} characters).`
@@ -86,9 +86,9 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async (input) => {
         const content = (input as { content: string }).content
-        await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
-          if (!documentLayers.get(ctx.documentId)) return
-          const fragment = doc.getXmlFragment(`doc-${ctx.documentId}`)
+        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+          if (!markdownLayers.get(ctx.markdownLayerId)) return
+          const fragment = doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`)
           // Re-derive the existing body (excluding the title) and concatenate.
           // Cheap on small docs and avoids us needing a precise "insert at
           // end" API for the parser; round-trip loses inline marks but
@@ -113,13 +113,13 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async (input) => {
         const title = (input as { title: string }).title
-        await mutateRoomDoc(ctx.roomId, ({ doc, documentLayers }) => {
-          if (!documentLayers.get(ctx.documentId)) return
+        await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
+          if (!markdownLayers.get(ctx.markdownLayerId)) return
           // The title heading inside the body is the source of truth — write
           // there and mirror onto the cached `title` field so non-editor
           // consumers (sidebar labels, mention popover) update immediately.
-          setFragmentTitle(doc.getXmlFragment(`doc-${ctx.documentId}`), title)
-          documentLayers.update(ctx.documentId, { title })
+          setFragmentTitle(doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`), title)
+          markdownLayers.update(ctx.markdownLayerId, { title })
         })
         return `Title set to "${title}".`
       },
@@ -127,4 +127,4 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
   }
 }
 
-export type DocumentTools = ReturnType<typeof buildDocumentTools>
+export type DocumentTools = ReturnType<typeof buildMarkdownLayerTools>

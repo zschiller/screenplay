@@ -3,9 +3,9 @@ import * as Y from "yjs"
 import { getRoom } from "@/lib/rooms"
 import { verifyRenderToken } from "@/lib/thumbnail/token"
 import { readRoomDoc } from "@/lib/yjs/server"
-import { computeArtboardLayouts } from "@/lib/artboard-layout"
+import { computeIframeLayerLayouts } from "@/lib/iframe-layer-layout"
 import { RenderCanvas } from "./render-canvas"
-import type { RenderArtboard } from "./render-canvas"
+import type { RenderIframeLayer } from "./render-canvas"
 
 function escapeHtml(s: string): string {
   return s
@@ -99,13 +99,13 @@ export default async function RenderPage({
   const room = await getRoom(roomId)
   if (!room) notFound()
 
-  const { artboards, documents } = await readRoomDoc(roomId, (c) => {
+  const { iframeLayers, markdownLayers } = await readRoomDoc(roomId, (c) => {
     const agents = c.agents.toMap()
-    const allArtboards = c.artboards.toArray()
-    const allDocuments = c.documentLayers.toArray()
-    const allGroups = c.artboardGroups.toArray()
-    const layouts = computeArtboardLayouts(allGroups, allArtboards, allDocuments)
-    const arts: RenderArtboard[] = allArtboards.flatMap((a) => {
+    const allIframeLayers = c.iframeLayers.toArray()
+    const allDocuments = c.markdownLayers.toArray()
+    const allGroups = c.iframeLayerGroups.toArray()
+    const layouts = computeIframeLayerLayouts(allGroups, allIframeLayers, allDocuments)
+    const arts: RenderIframeLayer[] = allIframeLayers.flatMap((a) => {
       const layout = layouts.get(a.id)
       if (!layout) return []
       const agent = a.sandboxId ? agents.get(a.sandboxId) : undefined
@@ -125,7 +125,7 @@ export default async function RenderPage({
     const docs = allDocuments.flatMap((d) => {
       const layout = layouts.get(d.id)
       if (!layout) return []
-      const fragment = c.doc.getXmlFragment(`doc-${d.id}`)
+      const fragment = c.doc.getXmlFragment(`markdown-layer-${d.id}`)
       return [{
         id: d.id,
         x: layout.x,
@@ -136,13 +136,13 @@ export default async function RenderPage({
         html: fragmentToHtml(fragment),
       }]
     })
-    return { artboards: arts, documents: docs }
+    return { iframeLayers: arts, markdownLayers: docs }
   })
 
   return (
     <>
       <style>{`nextjs-portal { display: none !important; }`}</style>
-      <RenderCanvas artboards={artboards} documents={documents} />
+      <RenderCanvas iframeLayers={iframeLayers} markdownLayers={markdownLayers} />
     </>
   )
 }
