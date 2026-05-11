@@ -79,6 +79,25 @@ body {
   --mention-doc-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v4a2 2 0 0 0 2 2h4'/><path d='M10 9H8'/><path d='M16 13H8'/><path d='M16 17H8'/></svg>");
 }
 
+/* Inline document-comment highlight — yellow underlay on text spans that
+   have a comment thread anchored to them. Click goes through to the
+   ProseMirror plugin, which dispatches `onSelectThread`. The explicit
+   `pointer-events: auto` is what lets the highlight catch clicks when the
+   doc isn't in edit mode — its parent editor wrapper is `pointer-events:
+   none` then to defer empty-space clicks to the doc-layer's
+   selection/drag overlay, but spans with this class poke through. */
+.doc-comment-highlight {
+  background-color: rgba(250, 204, 21, 0.28);
+  border-bottom: 1px solid rgba(202, 138, 4, 0.55);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 0.15s ease;
+}
+.doc-comment-highlight:hover,
+.doc-comment-highlight-active {
+  background-color: rgba(250, 204, 21, 0.55);
+}
+
 /* Tiptap Placeholder — `is-empty` is added to nodes whose content is empty;
    we render `data-placeholder` in front via a ::before pseudo so the cursor
    sits at column 0 and the hint disappears the instant the user types. */
