@@ -44,6 +44,10 @@ export async function createThreadAction(opts: {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
+  documentId?: string | null
+  anchorStart?: string | null
+  anchorEnd?: string | null
+  quotedText?: string | null
   body: string
 }): Promise<ThreadWithComments> {
   const userId = await requireUserId()
@@ -58,6 +62,10 @@ export async function createThreadAction(opts: {
     selector: opts.selector ?? null,
     offsetX: opts.offsetX ?? null,
     offsetY: opts.offsetY ?? null,
+    documentId: opts.documentId ?? null,
+    anchorStart: opts.anchorStart ?? null,
+    anchorEnd: opts.anchorEnd ?? null,
+    quotedText: opts.quotedText ?? null,
     branch: null,
     body: trimmed,
     authorId: userId,
