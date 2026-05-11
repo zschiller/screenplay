@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { motion } from "motion/react"
 import { ArrowUp, CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
+import type { Editor } from "@tiptap/core"
 import {
   Popover,
   PopoverAnchor,
@@ -42,6 +43,11 @@ import {
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
+import { decodeAnchor, getLineNumbers } from "@/lib/document-comments"
+import {
+  setDocumentCommentRanges,
+  type DocumentCommentRange,
+} from "@/lib/document-comments-extension"
 
 interface IframeLayerPos {
   id: string
@@ -58,6 +64,23 @@ interface NewCommentPos {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
+  /** Inline document-layer anchor (set when the user clicked the bubble
+   *  "Comment" button on a text selection inside a doc layer). */
+  documentId?: string | null
+  anchorStart?: string | null
+  anchorEnd?: string | null
+  quotedText?: string | null
+  lineFrom?: number | null
+  lineTo?: number | null
+}
+
+export interface SendToChatContext {
+  iframeLayerId?: string | null
+  selector?: string | null
+  documentId?: string | null
+  quotedText?: string | null
+  lineFrom?: number | null
+  lineTo?: number | null
 }
 
 interface CommentsProps {
@@ -68,6 +91,13 @@ interface CommentsProps {
   onCancelComment: () => void
   iframeLayers: IframeLayerPos[]
   getIframeLayerDom?: (id: string) => ScreenplayDom | undefined
+  /** Look up a registered markdown-layer editor by id — used to render inline
+   *  highlights and project pin positions to the right margin. */
+  getDocumentEditor?: (id: string) => Editor | undefined
+  /** Bumped whenever a markdown-layer editor registers or unregisters so
+   *  this component can re-run highlight / pin computations against the
+   *  new set. */
+  documentEditorsVersion?: number
   /**
    * Threads pre-fetched on the server so pins render on the first paint
    * without waiting for a client-side server action — that action otherwise
@@ -78,13 +108,12 @@ interface CommentsProps {
   /**
    * If provided, the new-thread composer shows a "Send to Claude" secondary
    * CTA that hands the typed text + the picked element context off to the
-   * agent chat instead of creating a comment thread. Only shown when the
-   * comment was anchored to an element inside an iframeLayer.
+   * agent chat instead of creating a comment thread.
    */
-  onSendToChat?: (
-    text: string,
-    ctx: { iframeLayerId: string; selector: string | null },
-  ) => void
+  onSendToChat?: (text: string, ctx: SendToChatContext) => void
+  /** Open an existing thread by id — drives highlight clicks inside docs. */
+  activeThreadId?: string | null
+  onActivateThread?: (threadId: string | null) => void
 }
 
 // How far the resolved position must drift from the cached value before we
@@ -99,8 +128,12 @@ export function Comments({
   onCancelComment,
   iframeLayers,
   getIframeLayerDom,
+  getDocumentEditor,
+  documentEditorsVersion,
   initialThreads,
   onSendToChat,
+  activeThreadId: controlledActiveThreadId,
+  onActivateThread,
 }: CommentsProps) {
   const { data: session } = useSession()
   const [threads, setThreads] = useState<ThreadWithComments[]>(
@@ -114,7 +147,20 @@ export function Comments({
   const [threadsLoaded, setThreadsLoaded] = useState(
     () => initialThreads !== undefined,
   )
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [internalActiveThreadId, setInternalActiveThreadId] = useState<
+    string | null
+  >(null)
+  const activeThreadId =
+    controlledActiveThreadId !== undefined
+      ? controlledActiveThreadId
+      : internalActiveThreadId
+  const setActiveThreadId = useCallback(
+    (id: string | null) => {
+      if (onActivateThread) onActivateThread(id)
+      else setInternalActiveThreadId(id)
+    },
+    [onActivateThread],
+  )
   const revision = useCommentsRevision()
 
   // Load + refetch on every revision bump (server-side notification channel).
@@ -248,6 +294,89 @@ export function Comments({
     }
   }, [threads, getIframeLayerDom, setCommentPosition])
 
+  // Inline doc-comment integration: push the active set of highlighted
+  // ranges into each registered editor, and project the corresponding pin
+  // positions to the right margin of each doc tile so they share the same
+  // canvas-pin model as artboard threads.
+  //
+  // The effect runs whenever the threads list, the active thread, or the
+  // editor registry changes. Selection ranges drift through doc edits via
+  // the plugin's decoration mapping in between refreshes, so we don't need
+  // to re-run on every doc transaction.
+  useEffect(() => {
+    if (!getDocumentEditor) return
+    const docThreads = threads.filter(
+      (t) => !t.resolved && t.documentId && t.anchorStart && t.anchorEnd,
+    )
+    const byDoc = new Map<string, ThreadWithComments[]>()
+    for (const t of docThreads) {
+      const arr = byDoc.get(t.documentId!)
+      if (arr) arr.push(t)
+      else byDoc.set(t.documentId!, [t])
+    }
+    const cleanups: Array<() => void> = []
+    for (const [docId, group] of byDoc.entries()) {
+      const editor = getDocumentEditor(docId)
+      if (!editor || editor.isDestroyed) continue
+      const ranges: DocumentCommentRange[] = []
+      const layer = iframeLayerById.get(docId)
+      const layerEl = editor.view.dom.closest(
+        "[data-doc-id]",
+      ) as HTMLElement | null
+      const layerRect = layerEl?.getBoundingClientRect()
+      for (const t of group) {
+        const from = decodeAnchor(editor, t.anchorStart!)
+        const to = decodeAnchor(editor, t.anchorEnd!)
+        if (from === null || to === null || from >= to) continue
+        ranges.push({
+          id: t.id,
+          from,
+          to,
+          active: activeThreadId === t.id,
+        })
+        // Project the pin to the right margin of the doc tile, vertically
+        // aligned with the start of the highlighted range. The yjs comment
+        // position is stored in *layer-local* canvas units (matching how
+        // artboard threads store iframe-local coords), so resolvePos's
+        // existing add-the-layer-origin path renders it correctly.
+        if (layer && layerRect) {
+          const fromCoords = editor.view.coordsAtPos(from)
+          const localY = (fromCoords.top - layerRect.top) / zoom
+          const x = layer.width
+          const y = localY
+          const cached = trackedPositionsRef.current.get(t.id)
+          const baseX = cached?.x ?? t.x
+          const baseY = cached?.y ?? t.y
+          if (
+            baseX === null ||
+            baseY === null ||
+            Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
+          ) {
+            setCommentPosition(t.id, x, y)
+          }
+        }
+      }
+      setDocumentCommentRanges(editor.view, ranges)
+      // On unmount/refresh, clear the highlights so a stale set doesn't
+      // linger if the doc unmounts before the next push.
+      cleanups.push(() => {
+        if (editor.isDestroyed) return
+        setDocumentCommentRanges(editor.view, [])
+      })
+    }
+    return () => {
+      for (const fn of cleanups) fn()
+    }
+  }, [
+    threads,
+    activeThreadId,
+    getDocumentEditor,
+    documentEditorsVersion,
+    iframeLayerById,
+    setCommentPosition,
+    zoom,
+  ])
+
   const resolvePos = useCallback(
     (t: {
       id?: string
@@ -255,11 +384,14 @@ export function Comments({
       y: number | null
       iframeLayerId?: string | null
       selector?: string | null
+      documentId?: string | null
     }): { x: number; y: number } | null => {
-      if (t.iframeLayerId) {
-        const ab = iframeLayerById.get(t.iframeLayerId)
-        // IframeLayers data may load after threads (yjs warm-up). Returning null
-        // here makes the caller skip rendering until the iframeLayer's canvas
+      const containerId = t.iframeLayerId ?? t.documentId
+      if (containerId) {
+        const ab = iframeLayerById.get(containerId)
+        // IframeLayers / markdown-layers data may load after threads (yjs
+        // warm-up). Returning null makes the caller skip rendering until
+        // the container's canvas
         // position is known, so the pin doesn't flash at iframe-local coords
         // mistakenly placed in canvas space.
         if (!ab) return null
@@ -305,6 +437,7 @@ export function Comments({
               pinStyle={pinStyle}
               isOpen={activeThreadId === thread.id}
               currentUserId={session?.user.id ?? null}
+              getDocumentEditor={getDocumentEditor}
               onOpenChange={(open) => {
                 setActiveThreadId(open ? thread.id : null)
                 if (open && thread.unread) {
@@ -356,14 +489,25 @@ export function Comments({
                   selector={newCommentPos.selector ?? null}
                   offsetX={newCommentPos.offsetX ?? null}
                   offsetY={newCommentPos.offsetY ?? null}
+                  documentId={newCommentPos.documentId ?? null}
+                  anchorStart={newCommentPos.anchorStart ?? null}
+                  anchorEnd={newCommentPos.anchorEnd ?? null}
+                  quotedText={newCommentPos.quotedText ?? null}
+                  lineFrom={newCommentPos.lineFrom ?? null}
+                  lineTo={newCommentPos.lineTo ?? null}
                   onSubmitted={onNewCommentPlaced}
                   onCancel={onCancelComment}
                   onSendToChat={
-                    onSendToChat && newCommentPos.iframeLayerId
+                    onSendToChat &&
+                    (newCommentPos.iframeLayerId || newCommentPos.documentId)
                       ? (text) =>
                           onSendToChat(text, {
-                            iframeLayerId: newCommentPos.iframeLayerId!,
+                            iframeLayerId: newCommentPos.iframeLayerId ?? null,
                             selector: newCommentPos.selector ?? null,
+                            documentId: newCommentPos.documentId ?? null,
+                            quotedText: newCommentPos.quotedText ?? null,
+                            lineFrom: newCommentPos.lineFrom ?? null,
+                            lineTo: newCommentPos.lineTo ?? null,
                           })
                       : undefined
                   }
@@ -383,6 +527,7 @@ function CommentPin({
   pinStyle,
   isOpen,
   currentUserId,
+  getDocumentEditor,
   onOpenChange,
   onClose,
   onMarkUnread,
@@ -392,6 +537,7 @@ function CommentPin({
   pinStyle: { transform: string; transformOrigin: "bottom left" }
   isOpen: boolean
   currentUserId: string | null
+  getDocumentEditor?: (id: string) => Editor | undefined
   onOpenChange: (open: boolean) => void
   onClose: () => void
   onMarkUnread: () => void
@@ -497,6 +643,7 @@ function CommentPin({
             <ThreadView
               thread={thread}
               currentUserId={currentUserId}
+              getDocumentEditor={getDocumentEditor}
               onClose={onClose}
               onMarkUnread={onMarkUnread}
             />
@@ -515,6 +662,12 @@ function NewThreadComposer({
   selector,
   offsetX,
   offsetY,
+  documentId,
+  anchorStart,
+  anchorEnd,
+  quotedText,
+  lineFrom,
+  lineTo,
   onSubmitted,
   onCancel,
   onSendToChat,
@@ -526,6 +679,12 @@ function NewThreadComposer({
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  documentId?: string | null
+  anchorStart?: string | null
+  anchorEnd?: string | null
+  quotedText?: string | null
+  lineFrom?: number | null
+  lineTo?: number | null
   onSubmitted: () => void
   onCancel: () => void
   onSendToChat?: (text: string) => void
@@ -534,6 +693,13 @@ function NewThreadComposer({
   const [pending, start] = useTransition()
   return (
     <>
+      {quotedText && (
+        <QuoteHeader
+          quotedText={quotedText}
+          lineFrom={lineFrom ?? null}
+          lineTo={lineTo ?? null}
+        />
+      )}
       <textarea
         autoFocus
         rows={3}
@@ -589,6 +755,10 @@ function NewThreadComposer({
           selector,
           offsetX,
           offsetY,
+          documentId,
+          anchorStart,
+          anchorEnd,
+          quotedText,
           body: text,
         })
         onSubmitted()
@@ -609,19 +779,35 @@ function NewThreadComposer({
 function ThreadView({
   thread,
   currentUserId,
+  getDocumentEditor,
   onClose,
   onMarkUnread,
 }: {
   thread: ThreadWithComments
   currentUserId: string | null
+  getDocumentEditor?: (id: string) => Editor | undefined
   onClose: () => void
   onMarkUnread: () => void
 }) {
   const [reply, setReply] = useState("")
   const [pending, start] = useTransition()
   const canDelete = currentUserId === thread.createdBy
+  // Live line numbers — recomputed against the current doc each time the
+  // popover opens so they reflect any edits since the thread was created.
+  // Falls back to the snapshot quote with no range if the doc isn't
+  // currently mounted.
+  const liveLines = useDocCommentLines(thread, getDocumentEditor)
   return (
     <div className="flex flex-col">
+      {thread.quotedText && (
+        <div className="border-b border-border px-3 pt-2 pb-2">
+          <QuoteHeader
+            quotedText={thread.quotedText}
+            lineFrom={liveLines?.lineFrom ?? null}
+            lineTo={liveLines?.lineTo ?? null}
+          />
+        </div>
+      )}
       <div className="flex items-center justify-end gap-1 border-b border-border px-1.5 py-1">
         <TooltipProvider delayDuration={200}>
           <Tooltip>
@@ -742,6 +928,56 @@ function ThreadView({
       }
     })
   }
+}
+
+function QuoteHeader({
+  quotedText,
+  lineFrom,
+  lineTo,
+}: {
+  quotedText: string
+  lineFrom: number | null
+  lineTo: number | null
+}) {
+  const range =
+    lineFrom !== null && lineTo !== null
+      ? lineFrom === lineTo
+        ? `Line ${lineFrom}`
+        : `Lines ${lineFrom}–${lineTo}`
+      : null
+  return (
+    <div className="mb-2 rounded-sm border-l-2 border-yellow-500 bg-yellow-50 px-2 py-1.5 text-xs leading-snug text-foreground/80 dark:bg-yellow-500/10">
+      {range && (
+        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {range}
+        </div>
+      )}
+      <div className="line-clamp-3 whitespace-pre-wrap break-words">
+        {quotedText}
+      </div>
+    </div>
+  )
+}
+
+function useDocCommentLines(
+  thread: ThreadWithComments,
+  getDocumentEditor?: (id: string) => Editor | undefined,
+): { lineFrom: number; lineTo: number } | null {
+  return useMemo(() => {
+    if (!thread.documentId || !thread.anchorStart || !thread.anchorEnd) {
+      return null
+    }
+    if (!getDocumentEditor) return null
+    const editor = getDocumentEditor(thread.documentId)
+    if (!editor || editor.isDestroyed) return null
+    const from = decodeAnchor(editor, thread.anchorStart)
+    const to = decodeAnchor(editor, thread.anchorEnd)
+    if (from === null || to === null) return null
+    return getLineNumbers(editor.state.doc, from, to)
+    // anchorStart/End are immutable per thread; deps just need the thread id
+    // and the editor lookup (which closes over the latest registry).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.id, thread.documentId, thread.anchorStart, thread.anchorEnd, getDocumentEditor])
 }
 
 function CommentRow({

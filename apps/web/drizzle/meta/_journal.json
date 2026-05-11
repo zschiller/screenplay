@@ -78,6 +78,13 @@
       "when": 1778020698602,
       "tag": "0010_fancy_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778265847482,
+      "tag": "0011_dusty_black_cat",
+      "breakpoints": true
     }
   ]
 }

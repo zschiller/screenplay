@@ -1,6 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MessageSquare } from "lucide-react"
+import type { Editor } from "@tiptap/core"
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
 import { Extension } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
@@ -17,7 +19,26 @@ import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { GroupLabel } from "@/components/canvas/group-label"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
+import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
+import {
+  encodeAnchor,
+  getLineNumbers,
+  getQuotedText,
+} from "@/lib/document-comments"
 import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
+
+export interface InlineCommentDraft {
+  documentId: string
+  anchorStart: string
+  anchorEnd: string
+  quotedText: string
+  lineFrom: number
+  lineTo: number
+  /** Where to anchor the composer's pin in canvas space — at the right edge
+   *  of the doc tile, vertically aligned with the start of the selection. */
+  canvasX: number
+  canvasY: number
+}
 
 /** Forces every doc to start with a heading — that heading is the title.
  *  Body blocks follow. Mirrors how Notion's page model is shaped: there's
@@ -59,7 +80,7 @@ const TitleEnterBehavior = Extension.create({
   },
 })
 
-interface DocumentLayerProps {
+interface MarkdownLayerProps {
   layer: MarkdownLayerData
   zoom: number
   selected: boolean
@@ -68,6 +89,13 @@ interface DocumentLayerProps {
   spaceHeld: boolean
   userName: string
   userColor: string
+  /** Notify the canvas when this doc's editor instance is created/destroyed
+   *  so threads anchored inside the doc can find their highlight target. */
+  onEditorReady?: (id: string, editor: Editor | null) => void
+  /** User clicked the inline "Comment" button on a non-empty selection. */
+  onStartInlineComment?: (draft: InlineCommentDraft) => void
+  /** User clicked an existing inline-comment highlight inside the doc. */
+  onSelectInlineThread?: (threadId: string) => void
   /** Visual order within the parent IframeLayerGroup's flex flow. */
   flexOrder?: number
   /** Reorder-drag translate, applied when this doc is being dragged in-flow. */
@@ -126,7 +154,10 @@ export function MarkdownLayer({
   onTitleChange,
   onStartEdit,
   onStopEdit,
-}: DocumentLayerProps) {
+  onEditorReady,
+  onStartInlineComment,
+  onSelectInlineThread,
+}: MarkdownLayerProps) {
   const { awareness } = useYjs()
   const provider = useMemo(() => ({ awareness }), [awareness])
   const fragment = useDocumentFragment(layer.id)
@@ -159,6 +190,20 @@ export function MarkdownLayer({
   const pendingFocusCoordsRef = useRef<{ left: number; top: number } | null>(
     null,
   )
+
+  // Latest non-empty selection inside the editor, used to drive the inline
+  // "Comment" bubble button. The pos pair survives editor blur (which would
+  // otherwise clear the selection on click) so the click handler can encode
+  // anchors against the still-fresh range.
+  const pendingSelectionRef = useRef<{ from: number; to: number } | null>(
+    null,
+  )
+  const [bubbleAnchor, setBubbleAnchor] = useState<
+    { left: number; top: number } | null
+  >(null)
+
+  const onSelectInlineThreadRef = useRef(onSelectInlineThread)
+  onSelectInlineThreadRef.current = onSelectInlineThread
 
   const editor = useEditor(
     {
@@ -230,6 +275,10 @@ export function MarkdownLayer({
               rootRef.current?.getBoundingClientRect() ?? null,
           }),
         }),
+        DocumentCommentsExtension.configure({
+          onSelectThread: (threadId) =>
+            onSelectInlineThreadRef.current?.(threadId),
+        }),
       ],
       editable: editing,
       immediatelyRender: false,
@@ -295,6 +344,94 @@ export function MarkdownLayer({
       color: userColor,
     })
   }, [editor, userName, userColor])
+
+  // Register / unregister the editor with the canvas so doc-anchored
+  // threads can paint highlights and project pins to the right margin.
+  useEffect(() => {
+    if (!editor || !onEditorReady) return
+    onEditorReady(layer.id, editor)
+    return () => {
+      onEditorReady(layer.id, null)
+    }
+  }, [editor, layer.id, onEditorReady])
+
+  // Drive the inline "Comment" bubble: anchor a small floating button to the
+  // start of any non-empty text selection. Local coords (relative to the
+  // doc tile) so the wrapping `transform: scale(1/zoom)` keeps the button at
+  // a constant screen size regardless of canvas zoom.
+  //
+  // Visibility is tied to selection emptiness only — *not* to focus. If we
+  // hid the bubble on blur, mousing onto the button (which momentarily
+  // shifts focus despite our preventDefault) would unmount it before the
+  // click handler fires and the gesture would silently no-op.
+  useEffect(() => {
+    if (!editor) return
+    const update = () => {
+      const { from, to, empty } = editor.state.selection
+      if (empty) {
+        setBubbleAnchor(null)
+        pendingSelectionRef.current = null
+        return
+      }
+      const rect = rootRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const fromCoords = editor.view.coordsAtPos(from)
+      const toCoords = editor.view.coordsAtPos(to)
+      const localLeft = (fromCoords.left + toCoords.left) / 2 - rect.left
+      const localTop = Math.min(fromCoords.top, toCoords.top) - rect.top
+      // Convert from on-screen pixels back into pre-zoom layer coords so the
+      // absolute-positioned button lines up regardless of canvas zoom (the
+      // bounding rect we just measured is post-zoom).
+      setBubbleAnchor({ left: localLeft / zoom, top: localTop / zoom })
+      pendingSelectionRef.current = { from, to }
+    }
+    editor.on("selectionUpdate", update)
+    update()
+    return () => {
+      editor.off("selectionUpdate", update)
+    }
+  }, [editor, zoom])
+
+  const handleStartInlineComment = useCallback(() => {
+    if (!editor) return
+    // Prefer the captured ref (set by selectionUpdate while the user was
+    // actively selecting), fall back to the editor's live selection — that
+    // handles edge cases where the ref hasn't been populated yet but the
+    // selection is still alive on screen.
+    const live = editor.state.selection
+    const sel =
+      pendingSelectionRef.current ??
+      (live.from < live.to ? { from: live.from, to: live.to } : null)
+    if (!sel) return
+    const anchorStart = encodeAnchor(editor, sel.from)
+    const anchorEnd = encodeAnchor(editor, sel.to)
+    if (!anchorStart || !anchorEnd) return
+    const quotedText = getQuotedText(editor.state.doc, sel.from, sel.to)
+    const { lineFrom, lineTo } = getLineNumbers(
+      editor.state.doc,
+      sel.from,
+      sel.to,
+    )
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const fromCoords = editor.view.coordsAtPos(sel.from)
+    // Anchor the composer at the right edge of the doc tile, vertically
+    // aligned with the top of the selection — same convention Google Docs
+    // uses for thread pins so they don't cover the prose.
+    const localTop = (fromCoords.top - rect.top) / zoom
+    onStartInlineComment?.({
+      documentId: layer.id,
+      anchorStart,
+      anchorEnd,
+      quotedText,
+      lineFrom,
+      lineTo,
+      canvasX: layer.width,
+      canvasY: localTop,
+    })
+    setBubbleAnchor(null)
+    pendingSelectionRef.current = null
+  }, [editor, layer.id, layer.width, onStartInlineComment, zoom])
 
   useEffect(() => {
     if (!editing) return
@@ -441,7 +578,13 @@ export function MarkdownLayer({
        *  editor surface (Notion-style — no separate title bar). */}
       <div data-markdown-layer-scroll className="relative flex-1 overflow-y-auto">
         <div
-          className="px-6 py-5"
+          // `relative` + `z-10` lifts the editor above the layer-selection
+          // overlay below so comment-highlight spans (which set their own
+          // `pointer-events: auto`) sit on top and catch clicks even when
+          // the doc isn't being edited. Empty editor space stays
+          // `pointer-events: none`, falling through to the overlay so
+          // clicking blank prose still selects/drags the doc tile.
+          className="relative z-10 px-6 py-5"
           style={{ pointerEvents: editing ? "auto" : "none" }}
         >
           <EditorContent editor={editor} />
@@ -471,6 +614,45 @@ export function MarkdownLayer({
 
       {selected && !multiSelected && !editing && (
         <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
+      )}
+
+      {bubbleAnchor && editing && (
+        // Floating "Comment" button anchored above the start of the user's
+        // selection — Google-Docs style. mousedown is preventDefaulted so
+        // clicking the button doesn't blur the editor (mousedown is what
+        // shifts focus in browsers; pointerdown alone isn't enough). The
+        // button also fires on mousedown rather than click so the gesture
+        // completes before any later focus/selection event has a chance to
+        // tear down the bubble.
+        <div
+          className="pointer-events-none absolute z-50"
+          style={{
+            left: bubbleAnchor.left,
+            top: bubbleAnchor.top,
+          }}
+        >
+          <div
+            className="pointer-events-auto"
+            style={{
+              transform: `translate(-50%, -100%) translateY(-6px) scale(${1 / zoom})`,
+              transformOrigin: "bottom center",
+            }}
+          >
+            <button
+              type="button"
+              tabIndex={-1}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleStartInlineComment()
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
+            >
+              <MessageSquare className="size-3.5" />
+              Comment
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

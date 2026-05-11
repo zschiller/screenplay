@@ -58,8 +58,10 @@ import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { IframeLayer } from "./iframe-layer"
 import { IframeLayerGroup } from "./iframe-layer-group"
-import { MarkdownLayer } from "./markdown-layer"
+import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
 import { SketchLayer } from "./sketch-layer"
+import { formatQuoteForChat } from "@/lib/document-comments"
+import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -219,6 +221,27 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (id: string): ScreenplayDom | undefined => iframeLayerDomsRef.current.get(id),
     [],
   )
+  // Same registry pattern as iframe DOMs, but for doc-layer TipTap editors.
+  // Inline-comment threads use this to push highlight ranges into the
+  // editor and to compute where to anchor each thread's canvas pin.
+  const documentEditorsRef = useRef(
+    new Map<string, import("@tiptap/core").Editor>(),
+  )
+  const [documentEditorsVersion, setDocumentEditorsVersion] = useState(0)
+  const handleDocumentEditorReady = useCallback(
+    (id: string, editor: import("@tiptap/core").Editor | null) => {
+      const map = documentEditorsRef.current
+      if (editor) map.set(id, editor)
+      else map.delete(id)
+      setDocumentEditorsVersion((v) => v + 1)
+    },
+    [],
+  )
+  const getDocumentEditor = useCallback(
+    (id: string): import("@tiptap/core").Editor | undefined =>
+      documentEditorsRef.current.get(id),
+    [],
+  )
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{
     x: number
@@ -227,7 +250,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     selector?: string | null
     offsetX?: number | null
     offsetY?: number | null
+    documentId?: string | null
+    anchorStart?: string | null
+    anchorEnd?: string | null
+    quotedText?: string | null
+    lineFrom?: number | null
+    lineTo?: number | null
   } | null>(null)
+  const [activeCommentThreadId, setActiveCommentThreadId] = useState<
+    string | null
+  >(null)
   const [inspectHover, setInspectHover] = useState<{
     iframeLayerId: string
     rect: DomRect
@@ -2343,6 +2375,35 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
+  // The user clicked the inline "Comment" button on a text selection inside
+  // a markdown layer. Open the new-thread composer at the right margin of
+  // the doc, anchored to the captured Y.RelativePosition pair. x/y are
+  // stored *layer-local* (matching the iframe-layer-thread convention) so
+  // the composer's resolvePos can land it correctly by adding the doc
+  // tile's canvas origin.
+  const handleStartInlineComment = useCallback(
+    (draft: InlineCommentDraft) => {
+      if (!iframeLayerLayouts.has(draft.documentId)) return
+      setNewCommentPos({
+        x: draft.canvasX,
+        y: draft.canvasY,
+        documentId: draft.documentId,
+        anchorStart: draft.anchorStart,
+        anchorEnd: draft.anchorEnd,
+        quotedText: draft.quotedText,
+        lineFrom: draft.lineFrom,
+        lineTo: draft.lineTo,
+      })
+    },
+    [iframeLayerLayouts],
+  )
+
+  // The user clicked an existing inline-comment highlight inside a doc.
+  // Open that thread's pin popover.
+  const handleSelectInlineThread = useCallback((threadId: string) => {
+    setActiveCommentThreadId(threadId)
+  }, [])
+
   // Hand the comment composer's text off to the agent chat instead of
   // creating a comment thread. Comment-mode hit-tests against
   // `iframeLayerLayouts`, which includes both iframeLayers and document layers,
@@ -2351,7 +2412,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // act on; for docs we route to the doc's own chat target and send the
   // note as-is (no route/element to attach).
   const handleCommentSendToChat = useCallback(
-    (note: string, ctx: { iframeLayerId: string; selector: string | null }) => {
+    (note: string, ctx: SendToChatContext) => {
       const expandPanel = () => {
         const panel = chatPanelRef.current
         if (panel?.isCollapsed()) {
@@ -2363,9 +2424,22 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
       // Document-layer comment: pivot the panel to that doc's chat (or
       // create one if none exists / the remembered chat is busy) and send
-      // just the note — there's no route or DOM element involved.
-      const docLayer = markdownLayers.find((d) => d.id === ctx.iframeLayerId)
+      // the note — prepended with the quoted span + line range when the
+      // user commented on a specific selection.
+      const docId = ctx.documentId ?? ctx.iframeLayerId ?? null
+      const docLayer = docId
+        ? markdownLayers.find((d) => d.id === docId)
+        : undefined
       if (docLayer) {
+        const messageBody =
+          ctx.quotedText && ctx.lineFrom !== null && ctx.lineFrom !== undefined && ctx.lineTo !== null && ctx.lineTo !== undefined
+            ? `${formatQuoteForChat({
+                quotedText: ctx.quotedText,
+                lineFrom: ctx.lineFrom,
+                lineTo: ctx.lineTo,
+                documentTitle: docLayer.title || null,
+              })}\n\n${note}`
+            : note
         const remembered = selectedChatByDocumentRef.current[docLayer.id]
         const rememberedChat = remembered
           ? chatSessions.find((c) => c.id === remembered && !c.closedAt)
@@ -2407,7 +2481,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           roomId,
           chatId,
           markdownLayerId: docLayer.id,
-          message: note,
+          message: messageBody,
           isFirstChat,
           planMode,
           model,
@@ -2423,7 +2497,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const agent = currentChat
         ? agents.find((a) => a.id === currentChat.agentId)
         : null
-      const iframeLayer = iframeLayers.find((a) => a.id === ctx.iframeLayerId)
+      const iframeLayer = ctx.iframeLayerId
+        ? iframeLayers.find((a) => a.id === ctx.iframeLayerId)
+        : undefined
       const route = iframeLayer?.route || "/"
       const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
       const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
@@ -4403,6 +4479,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 onTitleChange={setDocumentLayerTitleCache}
                                 onStartEdit={setEditingDocumentLayerId}
                                 onStopEdit={() => setEditingDocumentLayerId(null)}
+                                onEditorReady={handleDocumentEditorReady}
+                                onStartInlineComment={handleStartInlineComment}
+                                onSelectInlineThread={handleSelectInlineThread}
                               />
                             )
                           }
@@ -4538,8 +4617,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   onCancelComment={() => setNewCommentPos(null)}
                   iframeLayers={Array.from(iframeLayerLayouts.values())}
                   getIframeLayerDom={getIframeLayerDom}
+                  getDocumentEditor={getDocumentEditor}
+                  documentEditorsVersion={documentEditorsVersion}
                   initialThreads={initialThreads}
                   onSendToChat={handleCommentSendToChat}
+                  activeThreadId={activeCommentThreadId}
+                  onActivateThread={setActiveCommentThreadId}
                 />
               </div>
 

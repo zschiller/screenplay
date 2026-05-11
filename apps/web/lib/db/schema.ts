@@ -128,6 +128,19 @@ export const thread = pgTable(
     selector: text("selector"),
     offsetX: doublePrecision("offset_x"),
     offsetY: doublePrecision("offset_y"),
+    // Inline document-layer anchor. When set, the thread is anchored to a
+    // text range inside a TipTap/Yjs document (Notion-style doc layer), not
+    // an iframe DOM element. anchor_start / anchor_end are base64-encoded
+    // Y.RelativePosition values from the document's Y.XmlFragment, so the
+    // anchor tracks the same logical span across concurrent edits. quoted_
+    // text is a snapshot of the selected text at create time — used in the
+    // thread header and in the "Send to Claude" payload, and as a fallback
+    // when the relative positions can no longer resolve (range fully
+    // deleted). Mutually exclusive with `selector` (artboard anchor).
+    documentId: text("document_id"),
+    anchorStart: text("anchor_start"),
+    anchorEnd: text("anchor_end"),
+    quotedText: text("quoted_text"),
     // Set on threads scoped to an agent branch (the prototype player's flat
     // comment feed). Mutually exclusive with the positional fields above —
     // canvas threads have branch null, branch threads have x/y/iframeLayerId/
@@ -144,6 +157,7 @@ export const thread = pgTable(
   (t) => [
     index("thread_room_idx").on(t.roomId),
     index("thread_room_branch_idx").on(t.roomId, t.branch),
+    index("thread_document_idx").on(t.documentId),
   ],
 )
 

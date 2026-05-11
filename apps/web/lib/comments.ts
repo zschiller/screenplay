@@ -16,6 +16,14 @@ export type ThreadRecord = {
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  /** Inline document-layer anchor. When `documentId` is set the thread is
+   *  anchored to a text range inside a TipTap doc (Notion-style layer);
+   *  `anchorStart`/`anchorEnd` are base64-encoded Y.RelativePosition values
+   *  and `quotedText` is the captured text at create time. */
+  documentId: string | null
+  anchorStart: string | null
+  anchorEnd: string | null
+  quotedText: string | null
   /** Set on threads scoped to an agent branch (the player's flat feed). */
   branch: string | null
   resolved: boolean
@@ -51,6 +59,10 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     selector: row.selector,
     offsetX: row.offsetX,
     offsetY: row.offsetY,
+    documentId: row.documentId,
+    anchorStart: row.anchorStart,
+    anchorEnd: row.anchorEnd,
+    quotedText: row.quotedText,
     branch: row.branch,
     resolved: row.resolved,
     resolvedAt: row.resolvedAt?.getTime() ?? null,
@@ -197,6 +209,10 @@ export async function createThreadWithFirstComment(opts: {
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  documentId?: string | null
+  anchorStart?: string | null
+  anchorEnd?: string | null
+  quotedText?: string | null
   branch: string | null
   body: string
   authorId: string
@@ -216,6 +232,10 @@ export async function createThreadWithFirstComment(opts: {
       selector: opts.selector,
       offsetX: opts.offsetX,
       offsetY: opts.offsetY,
+      documentId: opts.documentId ?? null,
+      anchorStart: opts.anchorStart ?? null,
+      anchorEnd: opts.anchorEnd ?? null,
+      quotedText: opts.quotedText ?? null,
       branch: opts.branch,
       createdBy: opts.authorId,
       createdAt: now,
