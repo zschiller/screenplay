@@ -80,7 +80,6 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
-  SketchLayerData,
   GroupMember,
   WorkspaceData,
 } from "@/lib/types"
@@ -93,10 +92,6 @@ import {
   DocumentRow,
   DocumentRowMenu,
 } from "@/components/panels/layer-rows/markdown-layer-row"
-import {
-  SketchRow,
-  SketchRowMenu,
-} from "@/components/panels/layer-rows/sketch-layer-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-actions"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
@@ -115,13 +110,11 @@ interface AgentSidebarProps {
   agents: AgentData[]
   iframeLayers: Array<Pick<IframeLayerData, "id" | "sandboxId" | "label" | "route">>
   markdownLayers: Array<Pick<MarkdownLayerData, "id" | "title">>
-  sketchLayers: Array<Pick<SketchLayerData, "id" | "title">>
   /** Already sorted by sidebarOrder. */
   iframeLayerGroups: IframeLayerGroupData[]
   selectedIframeLayerIds: Set<string>
   selectedGroupIds: Set<string>
   selectedDocumentLayerIds: Set<string>
-  selectedSketchLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
@@ -155,10 +148,6 @@ interface AgentSidebarProps {
   onZoomToDocument: (id: string) => void
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
-  onSelectSketch: (id: string, shiftKey: boolean) => void
-  onZoomToSketch: (id: string) => void
-  onRenameSketch: (id: string, title: string) => void
-  onRemoveSketch: (id: string) => void
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
   onReorderGroupMembers: (groupId: string, orderedMembers: GroupMember[]) => void
   onRenameIframeLayerGroup: (groupId: string, name: string) => void
@@ -177,12 +166,10 @@ export function AgentSidebar({
   agents,
   iframeLayers,
   markdownLayers,
-  sketchLayers,
   iframeLayerGroups,
   selectedIframeLayerIds,
   selectedGroupIds,
   selectedDocumentLayerIds,
-  selectedSketchLayerIds,
   onSelectGroup,
   onSelectAgent,
   onCreateWorkspace,
@@ -210,10 +197,6 @@ export function AgentSidebar({
   onZoomToDocument,
   onRenameDocument,
   onRemoveDocument,
-  onSelectSketch,
-  onZoomToSketch,
-  onRenameSketch,
-  onRemoveSketch,
   onReorderIframeLayerGroups,
   onReorderGroupMembers,
   onRenameIframeLayerGroup,
@@ -242,11 +225,6 @@ export function AgentSidebar({
     for (const d of markdownLayers) m.set(d.id, d)
     return m
   }, [markdownLayers])
-  const sketchesById = useMemo(() => {
-    const m = new Map<string, AgentSidebarProps["sketchLayers"][number]>()
-    for (const s of sketchLayers) m.set(s.id, s)
-    return m
-  }, [sketchLayers])
   const agentsById = useMemo(() => {
     const m = new Map<string, AgentData>()
     for (const a of agents) m.set(a.id, a)
@@ -295,15 +273,6 @@ export function AgentSidebar({
       onActivate: onZoomToDocument,
       onRename: onRenameDocument,
       onRemove: onRemoveDocument,
-    },
-    "sketch-layer": {
-      Row: SketchRow as AnyRowDispatcher["Row"],
-      Menu: SketchRowMenu as AnyRowDispatcher["Menu"],
-      isSelected: (id) => selectedSketchLayerIds.has(id),
-      onSelect: onSelectSketch,
-      onActivate: onZoomToSketch,
-      onRename: onRenameSketch,
-      onRemove: onRemoveSketch,
     },
   }
 
@@ -697,11 +666,6 @@ export function AgentSidebar({
                   if (m.kind === "markdown-layer") {
                     const d = documentsById.get(m.id)
                     if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
-                    continue
-                  }
-                  if (m.kind === "sketch-layer") {
-                    const s = sketchesById.get(m.id)
-                    if (s) groupMembers.push({ kind: m.kind, id: m.id, data: s })
                   }
                 }
 

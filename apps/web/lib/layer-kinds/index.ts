@@ -1,10 +1,9 @@
 import type { LayerKindDescriptor } from "./types"
 import { iframeLayerKind } from "./iframe-layer"
 import { markdownLayerKind } from "./markdown-layer"
-import { sketchLayerKind } from "./sketch-layer"
 
 export type { LayerKindDescriptor } from "./types"
-export { iframeLayerKind, markdownLayerKind, sketchLayerKind }
+export { iframeLayerKind, markdownLayerKind }
 
 /**
  * Erased descriptor type — opaque payload type so the registry can hold a
@@ -23,7 +22,6 @@ type AnyLayerKindDescriptor = LayerKindDescriptor<never>
 export const LAYER_KINDS: ReadonlyArray<AnyLayerKindDescriptor> = [
   iframeLayerKind as unknown as AnyLayerKindDescriptor,
   markdownLayerKind as unknown as AnyLayerKindDescriptor,
-  sketchLayerKind as unknown as AnyLayerKindDescriptor,
 ]
 
 const KIND_BY_KEY = new Map<string, AnyLayerKindDescriptor>(

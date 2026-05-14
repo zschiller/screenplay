@@ -41,12 +41,6 @@ interface SelectionOverlayProps {
     currentX: number
     currentY: number
   } | null
-  sketchDraft: {
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null
   othersSelections: OtherSelection[]
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
@@ -103,7 +97,6 @@ export function SelectionOverlay({
   marquee,
   frameDraft,
   documentDraft,
-  sketchDraft,
   othersSelections,
   hideResizeHandles,
   inspectRect,
@@ -407,25 +400,8 @@ export function SelectionOverlay({
       ctx.setLineDash([])
     }
 
-    // Draw sketch-draft rectangle (while dragging with the sketch tool)
-    if (sketchDraft) {
-      const a = toScreen(sketchDraft.startX, sketchDraft.startY)
-      const b = toScreen(sketchDraft.currentX, sketchDraft.currentY)
-      const l = Math.round(Math.min(a.x, b.x))
-      const t = Math.round(Math.min(a.y, b.y))
-      const r = Math.round(Math.max(a.x, b.x))
-      const bo = Math.round(Math.max(a.y, b.y))
-
-      ctx.globalAlpha = 1
-      ctx.setLineDash([4, 4])
-      ctx.strokeStyle = primaryColor
-      ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
-      ctx.setLineDash([])
-    }
-
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, sketchDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
 
   // Keep canvas sized to container
   useEffect(() => {
