@@ -61,8 +61,6 @@ export type AgentData = {
  *    drives a branch, etc. — `agentId` is set.
  *  - a *markdown layer*: edits the layer's body / title via doc-mutation
  *    tools — `markdownLayerId` is set.
- *  - a *sketch layer*: rewrites the layer's static HTML via sketch-mutation
- *    tools — `sketchLayerId` is set.
  *
  * Multiple chat tabs can target the same layer (or agent), so a user can
  * keep parallel conversations going against the same target.
@@ -73,8 +71,6 @@ export type ChatSessionData = {
   agentId?: string
   /** Set when the chat targets a markdown layer. */
   markdownLayerId?: string
-  /** Set when the chat targets a sketch layer. */
-  sketchLayerId?: string
   label: string
   createdAt: number
   isStreaming?: boolean
@@ -125,7 +121,7 @@ export type IframeLayerData = {
  * each new kind just adds its case here and registers a sizer in
  * `iframe-layer-layout.ts`.
  */
-export type GroupMemberKind = "iframe-layer" | "markdown-layer" | "sketch-layer"
+export type GroupMemberKind = "iframe-layer" | "markdown-layer"
 export type GroupMember = {
   kind: GroupMemberKind
   id: string
@@ -174,31 +170,6 @@ export type MarkdownLayerData = {
   width: number
   height: number
   title: string
-}
-
-/**
- * Static-HTML tile rendered into a sandboxed iframe via `srcdoc` — no dev
- * server. The model owns `html` (full document body, including any
- * `<style>` and `<script>` tags it needs); the canvas prepends a small
- * runtime bootstrap so the iframe can declare knobs and read/write shared
- * state through the same postMessage protocol as iframe-layer.
- *
- * Like markdown layers, sketches live as group members anchored by their
- * parent IframeLayerGroup's (x, y); `width`/`height` are this tile's own.
- */
-export type SketchLayerData = {
-  id: string
-  width: number
-  height: number
-  title: string
-  /** Full HTML document the iframe renders. Edited via the chat-target tools. */
-  html: string
-  /** Knob declarations posted by the running sketch. Replaced wholesale on each declaration. */
-  knobs?: JsonValue[]
-  /** Current knob values keyed by knob id. Source of truth — synced down into the iframe. */
-  knobValues?: JsonObject
-  /** Bidirectional shared state (same protocol as iframe-layer). */
-  sharedState?: JsonObject
 }
 
 export type ViewportData = {

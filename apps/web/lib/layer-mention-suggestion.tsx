@@ -3,35 +3,29 @@
 import { ReactRenderer } from "@tiptap/react"
 import type { MentionOptions } from "@tiptap/extension-mention"
 import { MentionList, type MentionListHandle } from "@/components/agent/mention-list"
-import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 /**
- * Item shape passed into the suggestion popover. `kind` lets the popover
- * group documents and sketches under separate headings, and is preserved on
- * the resulting Mention node so the agent's message-extraction code can tell
+ * Item shape passed into the suggestion popover. `kind` is preserved on the
+ * resulting Mention node so the agent's message-extraction code can tell
  * which `read_*` tool the model should call to follow the reference.
  */
 export interface LayerMentionItem {
-  kind: "markdown-layer" | "sketch-layer"
+  kind: "markdown-layer"
   id: string
   label: string
 }
 
 /**
- * Build a TipTap Mention `suggestion` config that mixes documents and
- * sketches in one popover. Both the agent chat input and the markdown body
- * editor wire `@` to this so a single picker covers every chat-targetable
- * layer kind on the canvas.
- *
- * Picker order: documents first, sketches second — alphabetical inside each
- * section, matching the chat target picker's layout.
+ * Build a TipTap Mention `suggestion` config listing documents on the
+ * canvas. Both the agent chat input and the markdown body editor wire `@`
+ * to this so a single picker covers every chat-targetable layer kind.
  */
 export function buildLayerMentionSuggestion(opts: {
   getMarkdownLayers: () => MarkdownLayerData[]
-  getSketchLayers: () => SketchLayerData[]
   /**
-   * Optional: a layer id (any kind) to exclude from the candidate list — a
-   * doc or sketch shouldn't be able to @-mention itself.
+   * Optional: a layer id to exclude from the candidate list — a doc
+   * shouldn't be able to @-mention itself.
    */
   getExcludeId?: () => string | undefined
   /**
@@ -61,15 +55,7 @@ export function buildLayerMentionSuggestion(opts: {
           id: d.id,
           label: d.title || "Untitled",
         }))
-      const sketches: LayerMentionItem[] = opts
-        .getSketchLayers()
-        .filter((s) => s.id !== exclude)
-        .map((s) => ({
-          kind: "sketch-layer" as const,
-          id: s.id,
-          label: s.title || "Untitled",
-        }))
-      return [...docs, ...sketches]
+      return docs
         .filter((item) => item.label.toLowerCase().includes(q))
         .slice(0, 12)
     },

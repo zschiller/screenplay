@@ -221,7 +221,6 @@ export function PlayerChatHost({
       // player there's only one agent so we hand it a single-element list.
       agents={[agent]}
       markdownLayers={[]}
-      sketchLayers={[]}
       onSelectAgent={() => {}}
       onSelectLayer={() => {}}
       disableBranchPicker

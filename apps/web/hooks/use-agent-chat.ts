@@ -11,8 +11,6 @@ interface UseAgentChatOptions {
   branch?: string
   /** Document-layer target. Mutually exclusive with `sandboxName`. */
   markdownLayerId?: string
-  /** Sketch-layer target. Mutually exclusive with `sandboxName`. */
-  sketchLayerId?: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
   planMode?: boolean
@@ -30,7 +28,6 @@ export function useAgentChat({
   sandboxName,
   branch,
   markdownLayerId,
-  sketchLayerId,
   isFirstChat,
   autoNamedBranch,
   planMode,
@@ -70,7 +67,6 @@ export function useAgentChat({
         sandboxName,
         branch,
         markdownLayerId,
-        sketchLayerId,
         message: text,
         isFirstChat,
         autoNamedBranch,
@@ -86,7 +82,6 @@ export function useAgentChat({
       sandboxName,
       branch,
       markdownLayerId,
-      sketchLayerId,
       isFirstChat,
       autoNamedBranch,
       planMode,

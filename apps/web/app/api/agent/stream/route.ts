@@ -11,7 +11,6 @@ import {
   loadLayerDirectory,
   markdownLayerChatTarget,
   prepareChatTarget,
-  sketchLayerChatTarget,
 } from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
@@ -43,8 +42,6 @@ interface RequestBody {
   branch?: string
   /** Required when the chat targets a document layer (no sandbox). */
   markdownLayerId?: string
-  /** Required when the chat targets a sketch layer (no sandbox). */
-  sketchLayerId?: string
   message: string
   isFirstChat?: boolean
   autoNamedBranch?: boolean
@@ -63,7 +60,6 @@ export async function POST(req: Request) {
     sandboxName,
     branch,
     markdownLayerId,
-    sketchLayerId,
     message,
     isFirstChat,
     autoNamedBranch,
@@ -73,9 +69,9 @@ export async function POST(req: Request) {
   if (!roomId || !chatId || !message) {
     return new Response("Missing required fields", { status: 400 })
   }
-  if (!markdownLayerId && !sketchLayerId && !sandboxName) {
+  if (!markdownLayerId && !sandboxName) {
     return new Response(
-      "Missing target: markdownLayerId, sketchLayerId, or sandboxName",
+      "Missing target: markdownLayerId or sandboxName",
       { status: 400 },
     )
   }
@@ -84,13 +80,11 @@ export async function POST(req: Request) {
   // prompt, tools, message decoration — to a registered `ChatTargetSpec`.
   // Adding a new chat-targetable kind means shipping a spec and a route
   // branch; the surrounding agent loop is unchanged.
-  const layerChat: { spec: typeof markdownLayerChatTarget; target: { markdownLayerId: string } }
-    | { spec: typeof sketchLayerChatTarget; target: { sketchLayerId: string } }
+  const layerChat:
+    | { spec: typeof markdownLayerChatTarget; target: { markdownLayerId: string } }
     | null = markdownLayerId
       ? { spec: markdownLayerChatTarget, target: { markdownLayerId } }
-      : sketchLayerId
-        ? { spec: sketchLayerChatTarget, target: { sketchLayerId } }
-        : null
+      : null
   if (layerChat) {
     const prepared = await prepareChatTarget(
       roomId,

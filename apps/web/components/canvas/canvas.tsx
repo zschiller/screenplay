@@ -20,13 +20,12 @@ import {
   useSavedViewport,
   useSelfPresence,
   useSetPresence,
-  useSketchLayers,
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { useSession } from "@/lib/auth-client"
-import { AppWindow, ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
+import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -59,7 +58,6 @@ import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { IframeLayer } from "./iframe-layer"
 import { IframeLayerGroup } from "./iframe-layer-group"
 import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
-import { SketchLayer } from "./sketch-layer"
 import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
@@ -182,9 +180,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    * `selectedAgentId` from the panel's POV.
    */
   const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] = useState<string | null>(null)
-  /** Same idea for sketch layers — pivot the panel into "sketch mode" when
-   *  the selected chat targets a sketch. */
-  const [selectedSketchChatTargetId, setSelectedSketchChatTargetId] = useState<string | null>(null)
   // Agents created this session whose sandbox isn't streaming logs yet.
   // A LogProbe is rendered for each; on ready we flip selection and drop
   // the id. No cleanup effect — filtering in render handles deletions,
@@ -196,8 +191,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
   /** Per-document memory: switching back to a doc target restores the last open chat tab. */
   const selectedChatByDocumentRef = useRef<Record<string, string>>({})
-  /** Per-sketch memory: switching back to a sketch target restores the last open chat tab. */
-  const selectedChatBySketchRef = useRef<Record<string, string>>({})
   const inspectHandlersRef = useRef<{
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
@@ -269,7 +262,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [selectedIframeLayerIds, setSelectedIframeLayerIds] = useState<Set<string>>(new Set())
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
   const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<Set<string>>(new Set())
-  const [selectedSketchLayerIds, setSelectedSketchLayerIds] = useState<Set<string>>(new Set())
   const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseIframeLayers: Set<string>; baseDocumentLayers: Set<string> } | null>(null)
@@ -280,9 +272,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const [frameMode, setFrameMode] = useState(false)
   const [frameDraft, setFrameDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const [sketchMode, setSketchMode] = useState(false)
-  const [sketchDraft, setSketchDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const sketchDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
   const gapDragRef = useRef<{ groupId: string; gapIndex: number; startGap: number; startCanvasX: number } | null>(null)
   const [activeGapHandle, setActiveGapHandle] = useState<{ groupId: string; gapIndex: number } | null>(null)
   const reorderDragRef = useRef<{ groupId: string; iframeLayerId: string } | null>(null)
@@ -373,13 +362,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   documentModeRef.current = documentMode
   const frameModeRef = useRef(frameMode)
   frameModeRef.current = frameMode
-  const sketchModeRef = useRef(sketchMode)
-  sketchModeRef.current = sketchMode
-  const selectedSketchLayerIdsRef = useRef(selectedSketchLayerIds)
-  selectedSketchLayerIdsRef.current = selectedSketchLayerIds
   const removeIframeLayersRef = useRef<(ids: string[]) => void>(() => {})
   const removeDocumentLayersRef = useRef<(ids: string[]) => void>(() => {})
-  const removeSketchLayersRef = useRef<(ids: string[]) => void>(() => {})
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -406,10 +390,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           setFrameMode(false)
           return
         }
-        if (sketchModeRef.current) {
-          setSketchMode(false)
-          return
-        }
         if (commentMode || newCommentPos) {
           setCommentMode(false)
           setNewCommentPos(null)
@@ -430,7 +410,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setInspectHover(null)
         setDocumentMode(false)
         setFrameMode(false)
-        setSketchMode(false)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
@@ -438,7 +417,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setInspectHover(null)
         setDocumentMode(false)
         setFrameMode(false)
-        setSketchMode(false)
       }
       if (e.key === "d" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setDocumentMode((m) => !m)
@@ -446,19 +424,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setNewCommentPos(null)
         setInspectHover(null)
         setFrameMode(false)
-        setSketchMode(false)
       }
       if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setFrameMode((m) => !m)
-        setDocumentMode(false)
-        setCommentMode(false)
-        setNewCommentPos(null)
-        setInspectHover(null)
-        setSketchMode(false)
-      }
-      if (e.key === "s" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setSketchMode((m) => !m)
-        setFrameMode(false)
         setDocumentMode(false)
         setCommentMode(false)
         setNewCommentPos(null)
@@ -522,12 +490,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const abIds = selectedIframeLayerIdsRef.current
         const grpIds = selectedGroupIdsRef.current
         const docIds = selectedDocumentLayerIdsRef.current
-        const sketchIds = selectedSketchLayerIdsRef.current
-        if (abIds.size > 0 || grpIds.size > 0 || docIds.size > 0 || sketchIds.size > 0) {
+        if (abIds.size > 0 || grpIds.size > 0 || docIds.size > 0) {
           e.preventDefault()
           const allIframeLayerIds = new Set<string>(abIds)
           const allDocumentIds = new Set<string>(docIds)
-          const allSketchIds = new Set<string>(sketchIds)
           if (grpIds.size > 0) {
             // Selecting a whole group cascades the delete to every member,
             // regardless of kind.
@@ -536,7 +502,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               for (const m of getGroupMembers(g)) {
                 if (m.kind === "iframe-layer") allIframeLayerIds.add(m.id)
                 else if (m.kind === "markdown-layer") allDocumentIds.add(m.id)
-                else if (m.kind === "sketch-layer") allSketchIds.add(m.id)
               }
             }
           }
@@ -562,10 +527,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           if (allDocumentIds.size > 0) {
             removeDocumentLayersRef.current(Array.from(allDocumentIds))
             setSelectedDocumentLayerIds(new Set())
-          }
-          if (allSketchIds.size > 0) {
-            removeSketchLayersRef.current(Array.from(allSketchIds))
-            setSelectedSketchLayerIds(new Set())
           }
         }
       }
@@ -596,7 +557,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
-  const sketchLayers = useSketchLayers()
   const iframeLayersById = useMemo(
     () => new Map(iframeLayers.map((a) => [a.id, a])),
     [iframeLayers],
@@ -605,13 +565,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     () => new Map(markdownLayers.map((d) => [d.id, d])),
     [markdownLayers],
   )
-  const sketchesById = useMemo(
-    () => new Map(sketchLayers.map((s) => [s.id, s])),
-    [sketchLayers],
-  )
   const iframeLayerLayouts = useMemo(
-    () => computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, markdownLayers, sketchLayers),
-    [iframeLayerGroups, iframeLayers, markdownLayers, sketchLayers],
+    () => computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, markdownLayers),
+    [iframeLayerGroups, iframeLayers, markdownLayers],
   )
   /**
    * Layouts as the user sees them right now — diverges from `iframeLayerLayouts`
@@ -647,9 +603,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const size =
         m.kind === "iframe-layer"
           ? iframeLayers.find((a) => a.id === m.id)
-          : m.kind === "markdown-layer"
-            ? markdownLayers.find((d) => d.id === m.id)
-            : sketchLayers.find((s) => s.id === m.id)
+          : markdownLayers.find((d) => d.id === m.id)
       if (!size) continue
       result.set(m.id, {
         id: m.id,
@@ -665,7 +619,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       cursorX += size.width + gap
     }
     return result
-  }, [iframeLayerLayouts, reorderDragPopped, reorderDragRef_iframeLayerId, reorderDragCursor, iframeLayerGroups, iframeLayers, markdownLayers, sketchLayers])
+  }, [iframeLayerLayouts, reorderDragPopped, reorderDragRef_iframeLayerId, reorderDragCursor, iframeLayerGroups, iframeLayers, markdownLayers])
   const sortedIframeLayerGroups = useMemo(() => {
     return [...iframeLayerGroups].sort((a, b) => {
       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
@@ -1607,7 +1561,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  /** Delete an entire group + all its members (iframeLayers, markdownLayers, sketchLayers). */
+  /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
   const removeIframeLayerGroup = useCallback(
     (groupId: string) => {
       const g = collections.iframeLayerGroups.get(groupId)
@@ -1615,13 +1569,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const members = getGroupMembers(g)
       const iframeLayerIds = members.filter((m) => m.kind === "iframe-layer").map((m) => m.id)
       const documentIds = members.filter((m) => m.kind === "markdown-layer").map((m) => m.id)
-      const sketchIds = members.filter((m) => m.kind === "sketch-layer").map((m) => m.id)
       collections.transact(() => {
         if (iframeLayerIds.length > 0) removeIframeLayers(iframeLayerIds)
         for (const id of documentIds) collections.markdownLayers.delete(id)
-        for (const id of sketchIds) collections.sketchLayers.delete(id)
         // removeIframeLayers already cleans up the group when its last iframeLayer
-        // is removed, but a docs/sketches-only group needs an explicit delete.
+        // is removed, but a docs-only group needs an explicit delete.
         if (collections.iframeLayerGroups.get(groupId)) {
           collections.iframeLayerGroups.delete(groupId)
         }
@@ -1678,29 +1630,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
-  // --- Sketch layer mutators (mirror the iframe-layer ones above) ----------
-
-  const updateSketchLayerKnobs = useCallback(
-    (id: string, knobs: JsonValue[]) => {
-      collections.sketchLayers.update(id, { knobs })
-    },
-    [collections],
-  )
-
-  const updateSketchLayerKnobValues = useCallback(
-    (id: string, knobValues: JsonObject) => {
-      collections.sketchLayers.update(id, { knobValues })
-    },
-    [collections],
-  )
-
-  const updateSketchLayerSharedState = useCallback(
-    (id: string, sharedState: JsonObject) => {
-      collections.sketchLayers.update(id, { sharedState })
-    },
-    [collections],
-  )
-
   // --- Document layer mutations ---
 
   /**
@@ -1737,97 +1666,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     },
     [collections],
   )
-
-  /**
-   * Create a fresh sketch tile in its own single-member group at the given
-   * canvas coordinates. Mirrors `addDocumentLayer` so sketches feel like
-   * documents on creation. The HTML starts empty; the chat is the primary
-   * way to fill it in.
-   */
-  const addSketchLayer = useCallback(
-    (canvasX: number, canvasY: number, width: number, height: number): string => {
-      const sketchId = nanoid()
-      const groupId = nanoid()
-      const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
-      collections.transact(() => {
-        collections.sketchLayers.set(sketchId, {
-          id: sketchId,
-          width: Math.max(200, width),
-          height: Math.max(120, height),
-          title: "",
-          html: "",
-        })
-        collections.iframeLayerGroups.set(groupId, {
-          id: groupId,
-          name: groupName,
-          x: canvasX,
-          y: canvasY,
-          members: [{ kind: "sketch-layer", id: sketchId }],
-        })
-      })
-      return sketchId
-    },
-    [collections],
-  )
-
-  /** Resize a sketch by edge deltas — same shape as `resizeDocumentLayer`. */
-  const resizeSketchLayer = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) => {
-      collections.transact(() => {
-        const s = collections.sketchLayers.get(id)
-        if (!s) return
-        const minW = 200
-        const minH = 120
-        const newWidth = Math.max(minW, s.width + dw)
-        const newHeight = Math.max(minH, s.height + dh)
-        const actualDw = newWidth - s.width
-        const actualDh = newHeight - s.height
-        const shiftX = dx === 0 ? 0 : -actualDw
-        const shiftY = dy === 0 ? 0 : -actualDh
-        if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.iframeLayerGroups.toArray()) {
-            if (getGroupMembers(g).some((m) => m.id === id)) {
-              collections.iframeLayerGroups.update(g.id, {
-                x: g.x + shiftX,
-                y: g.y + shiftY,
-              })
-              break
-            }
-          }
-        }
-        if (actualDw !== 0 || actualDh !== 0) {
-          collections.sketchLayers.update(id, {
-            width: newWidth,
-            height: newHeight,
-          })
-        }
-      })
-    },
-    [collections],
-  )
-
-  /** Bulk delete sketch layers; also drops references from any group that
-   *  contained them, and deletes the group when its members list goes empty. */
-  const removeSketchLayers = useCallback(
-    (ids: string[]) => {
-      if (ids.length === 0) return
-      const idSet = new Set(ids)
-      collections.transact(() => {
-        for (const id of ids) collections.sketchLayers.delete(id)
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          const members = getGroupMembers(g)
-          if (!members.some((m) => m.kind === "sketch-layer" && idSet.has(m.id))) continue
-          const next = members.filter(
-            (m) => !(m.kind === "sketch-layer" && idSet.has(m.id)),
-          )
-          if (next.length === 0) collections.iframeLayerGroups.delete(g.id)
-          else collections.iframeLayerGroups.update(g.id, { members: next })
-        }
-      })
-    },
-    [collections],
-  )
-  removeSketchLayersRef.current = removeSketchLayers
 
   /**
    * Resize a document by edge deltas. `dw`/`dh` adjust this doc's own width
@@ -2025,21 +1863,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [zoomToDomElement],
   )
 
-  const handleZoomToSketch = useCallback(
-    (sketchLayerId: string) => {
-      const el = document.getElementById(`sketch-layer-${sketchLayerId}`)
-      if (el) zoomToDomElement(el)
-    },
-    [zoomToDomElement],
-  )
-
-  const setSketchLayerTitle = useCallback(
-    (id: string, title: string) => {
-      collections.sketchLayers.update(id, { title })
-    },
-    [collections],
-  )
-
   const handleAddIframeLayerForAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -2189,24 +2012,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [addChatSession],
   )
 
-  /** Create a new chat tab targeting a sketch layer. */
-  const handleCreateSketchChat = useCallback(
-    (sketchLayerId: string) => {
-      const id = nanoid()
-      addChatSession(id, {
-        id,
-        sketchLayerId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
-      setSelectedAgentId(null)
-      setSelectedSketchChatTargetId(sketchLayerId)
-      setSelectedChatId(id)
-      selectedChatBySketchRef.current[sketchLayerId] = id
-    },
-    [addChatSession],
-  )
-
   const handleSubmitAsPlan = useCallback(
     (text: string, agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -2323,9 +2128,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           ? c.agentId === chat.agentId
           : chat?.markdownLayerId
             ? c.markdownLayerId === chat.markdownLayerId
-            : chat?.sketchLayerId
-              ? c.sketchLayerId === chat.sketchLayerId
-              : false
+            : false
       const siblings = chat
         ? chatSessions
             .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
@@ -2338,16 +2141,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           id: newId,
           agentId: chat.agentId,
           markdownLayerId: chat.markdownLayerId,
-          sketchLayerId: chat.sketchLayerId,
           label: "Untitled",
           createdAt: Date.now(),
         })
         setSelectedChatId(newId)
         if (chat.markdownLayerId) {
           selectedChatByDocumentRef.current[chat.markdownLayerId] = newId
-        }
-        if (chat.sketchLayerId) {
-          selectedChatBySketchRef.current[chat.sketchLayerId] = newId
         }
       } else if (selectedChatId === chatId) {
         setSelectedChatId(siblings[0]?.id ?? null)
@@ -3354,7 +3153,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleCanvasPointerDownCapture = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0 || spaceHeld || focusedIframeLayerId !== null) return
-      if (commentMode || documentMode || frameMode || sketchMode) return
+      if (commentMode || documentMode || frameMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
 
@@ -3396,7 +3195,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, sketchMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups],
+    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -3412,7 +3211,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // do here — the early-return below would have skipped it anyway.
       if (gapDragRef.current) return
 
-      if (target.closest("[data-iframe-layer]") || target.closest("[data-markdown-layer]") || target.closest("[data-sketch-layer]") || target.closest("button") || target.closest("a")) return
+      if (target.closest("[data-iframe-layer]") || target.closest("[data-markdown-layer]") || target.closest("button") || target.closest("a")) return
 
       // Document tool: start a draft rectangle (click for default size, drag for custom bounds)
       if (documentMode) {
@@ -3430,16 +3229,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
         frameDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
         setFrameDraft(frameDraftRef.current)
-        e.currentTarget.setPointerCapture(e.pointerId)
-        return
-      }
-
-      // Sketch tool: start a draft rectangle (click for default size, drag for custom)
-      if (sketchMode) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        sketchDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
-        setSketchDraft(sketchDraftRef.current)
         e.currentTarget.setPointerCapture(e.pointerId)
         return
       }
@@ -3466,7 +3255,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, sketchMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3553,16 +3342,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         const next = { ...frameDraftRef.current, currentX: canvas.x, currentY: canvas.y }
         frameDraftRef.current = next
         setFrameDraft(next)
-        return
-      }
-
-      // Sketch-tool draft tracking
-      if (sketchDraftRef.current) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const next = { ...sketchDraftRef.current, currentX: canvas.x, currentY: canvas.y }
-        sketchDraftRef.current = next
-        setSketchDraft(next)
         return
       }
 
@@ -3755,38 +3534,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         return
       }
 
-      // Sketch-tool: release creates a new empty sketch
-      if (sketchDraftRef.current) {
-        const d = sketchDraftRef.current
-        sketchDraftRef.current = null
-        setSketchDraft(null)
-        const dx = d.currentX - d.startX
-        const dy = d.currentY - d.startY
-        const DEFAULT_W = 480
-        const DEFAULT_H = 320
-        let x: number
-        let y: number
-        let w: number
-        let h: number
-        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-          w = DEFAULT_W
-          h = DEFAULT_H
-          x = d.startX - w / 2
-          y = d.startY - h / 2
-        } else {
-          x = Math.min(d.startX, d.currentX)
-          y = Math.min(d.startY, d.currentY)
-          w = Math.max(200, Math.abs(dx))
-          h = Math.max(120, Math.abs(dy))
-        }
-        const id = addSketchLayer(x, y, w, h)
-        setSketchMode(false)
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set())
-        setSelectedSketchLayerIds(new Set([id]))
-        return
-      }
-
       if (!marqueeRef.current) return
       const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
@@ -3804,7 +3551,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
       }
     },
-    [screenToCanvas, addDocumentLayer, addFrame, addSketchLayer, hitTestReorderHandle, zoom],
+    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom],
   )
 
   // Click on iframeLayer to select. Clicking a child frame whose parent group is
@@ -3824,7 +3571,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         setSelectedIframeLayerIds(new Set([id]))
         setSelectedDocumentLayerIds(new Set())
-        setSelectedSketchLayerIds(new Set())
       }
     },
     [],
@@ -3834,7 +3580,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (groupId: string, shiftKey: boolean) => {
       setSelectedIframeLayerIds(new Set())
       setSelectedDocumentLayerIds(new Set())
-      setSelectedSketchLayerIds(new Set())
       if (shiftKey) {
         setSelectedGroupIds((prev) => {
           const next = new Set(prev)
@@ -3865,26 +3610,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       } else {
         setSelectedDocumentLayerIds(new Set([id]))
         setSelectedIframeLayerIds(new Set())
-        setSelectedSketchLayerIds(new Set())
-      }
-    },
-    [],
-  )
-
-  const handleSketchLayerSelect = useCallback(
-    (id: string, shiftKey: boolean) => {
-      setSelectedGroupIds(new Set())
-      if (shiftKey) {
-        setSelectedSketchLayerIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return next
-        })
-      } else {
-        setSelectedSketchLayerIds(new Set([id]))
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set())
       }
     },
     [],
@@ -3894,11 +3619,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (dx: number, dy: number) => {
       const abIds = Array.from(selectedIframeLayerIdsRef.current)
       const docIds = Array.from(selectedDocumentLayerIdsRef.current)
-      const sketchIds = Array.from(selectedSketchLayerIdsRef.current)
-      // Documents and sketches share the move pathway with iframeLayers — they
-      // live in groups, so `moveIframeLayersByDelta` finds every group
-      // referenced by any of the ids and shifts its anchor.
-      const groupMemberIds = [...abIds, ...docIds, ...sketchIds]
+      // Documents share the move pathway with iframeLayers — they live in
+      // groups, so `moveIframeLayersByDelta` finds every group referenced by
+      // any of the ids and shifts its anchor.
+      const groupMemberIds = [...abIds, ...docIds]
       if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, dx, dy)
     },
     [moveIframeLayersByDelta],
@@ -4068,11 +3792,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   // selection back to a running agent and clobber the doc target.
   useEffect(() => {
     if (selectedDocumentChatTargetId) return
-    if (selectedSketchChatTargetId) return
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
     if (firstRunning) setSelectedAgentId(firstRunning.id)
-  }, [selectedAgentId, agents, selectedDocumentChatTargetId, selectedSketchChatTargetId])
+  }, [selectedAgentId, agents, selectedDocumentChatTargetId])
 
   const handlePendingReady = useCallback((id: string) => {
     setSelectedAgentId(id)
@@ -4143,21 +3866,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           agents={agents}
           iframeLayers={iframeLayers}
           markdownLayers={markdownLayers}
-          sketchLayers={sketchLayers}
           iframeLayerGroups={sortedIframeLayerGroups}
           selectedIframeLayerIds={selectedIframeLayerIds}
           selectedGroupIds={selectedGroupIds}
           selectedDocumentLayerIds={selectedDocumentLayerIds}
-          selectedSketchLayerIds={selectedSketchLayerIds}
           onSelectGroup={handleGroupSelect}
           onSelectDocument={handleDocumentLayerSelect}
           onZoomToDocument={handleZoomToDocument}
           onRenameDocument={setDocumentLayerTitle}
           onRemoveDocument={(id) => removeDocumentLayers([id])}
-          onSelectSketch={handleSketchLayerSelect}
-          onZoomToSketch={handleZoomToSketch}
-          onRenameSketch={setSketchLayerTitle}
-          onRemoveSketch={(id) => removeSketchLayers([id])}
           onSelectAgent={handleSelectAgent}
           onCreateWorkspace={handleCreateWorkspace}
           onUpdateWorkspace={updateWorkspaceInStorage}
@@ -4371,9 +4088,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     const hasSelectedFrame = members.some((m) =>
                       m.kind === "iframe-layer"
                         ? selectedIframeLayerIds.has(m.id)
-                        : m.kind === "markdown-layer"
-                          ? selectedDocumentLayerIds.has(m.id)
-                          : selectedSketchLayerIds.has(m.id),
+                        : selectedDocumentLayerIds.has(m.id),
                     )
                     const showGroupLabel = members.length > 1
                     const groupLabel = showGroupLabel
@@ -4395,10 +4110,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         const a = iframeLayers.find((x) => x.id === id)
                         return a ? { width: a.width, height: a.height } : null
                       }
-                      if (m.kind === "sketch-layer") {
-                        const s = sketchLayers.find((x) => x.id === id)
-                        return s ? { width: s.width, height: s.height } : null
-                      }
                       const d = markdownLayers.find((x) => x.id === id)
                       return d ? { width: d.width, height: d.height } : null
                     }
@@ -4409,7 +4120,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         members={members}
                         iframeLayers={iframeLayersById}
                         markdownLayers={documentsById}
-                        sketchLayers={sketchesById}
                         zIndex={groupZIndex.get(group.id)}
                         hasSelectedIframeLayer={hasSelectedFrame}
                         onAddIframeLayer={(groupId) => {
@@ -4482,44 +4192,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 onEditorReady={handleDocumentEditorReady}
                                 onStartInlineComment={handleStartInlineComment}
                                 onSelectInlineThread={handleSelectInlineThread}
-                              />
-                            )
-                          }
-
-                          if (member.kind === "sketch-layer") {
-                            const sketch = sketchLayers.find((s) => s.id === member.id)
-                            if (!sketch) return null
-                            return (
-                              <SketchLayer
-                                key={sketch.id}
-                                layer={sketch}
-                                zoom={zoom}
-                                selected={selectedSketchLayerIds.has(sketch.id)}
-                                multiSelected={
-                                  selectedIframeLayerIds.size +
-                                    selectedDocumentLayerIds.size +
-                                    selectedSketchLayerIds.size >
-                                  1
-                                }
-                                spaceHeld={spaceHeld}
-                                flexOrder={flexOrder}
-                                dragTranslateX={dragTranslateX}
-                                dragTranslateY={dragTranslateY}
-                                dragPopped={dragPopped}
-                                groupLabel={flexOrder === 0 ? groupLabel : undefined}
-                                groupSelected={groupSelected}
-                                onSelectGroup={
-                                  flexOrder === 0 && showGroupLabel
-                                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                                    : undefined
-                                }
-                                onSelect={handleSketchLayerSelect}
-                                onMoveGroup={(dx, dy) => moveIframeLayersByDelta([sketch.id], dx, dy)}
-                                onMoveSelected={handleMoveSelected}
-                                onResize={resizeSketchLayer}
-                                onKnobsDeclared={updateSketchLayerKnobs}
-                                onKnobValuesChange={updateSketchLayerKnobValues}
-                                onSharedStateChanged={updateSketchLayerSharedState}
                               />
                             )
                           }
@@ -4654,7 +4326,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 marquee={marquee}
                 frameDraft={frameDraft}
                 documentDraft={documentDraft}
-                sketchDraft={sketchDraft}
                 othersSelections={othersSelections}
                 inspectRect={(() => {
                   // Show the live hover overlay while in commentMode so the
@@ -4817,7 +4488,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !documentMode && !frameMode && !sketchMode ? "default" : "ghost"}
+                          variant={!commentMode && !documentMode && !frameMode ? "default" : "ghost"}
                           size="icon-xs"
                           onClick={() => {
                             setCommentMode(false)
@@ -4825,7 +4496,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setInspectHover(null)
                             setDocumentMode(false)
                             setFrameMode(false)
-                            setSketchMode(false)
                           }}
                         >
                           <MousePointer2 className="h-3.5 w-3.5" />
@@ -4846,35 +4516,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setCommentMode(false)
                             setNewCommentPos(null)
                             setInspectHover(null)
-                            setSketchMode(false)
-                          }}
-                        >
-                          <AppWindow className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Frame <Kbd>F</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={sketchMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setSketchMode((m) => !m)
-                            setFrameMode(false)
-                            setDocumentMode(false)
-                            setCommentMode(false)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
                           }}
                         >
                           <Frame className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        Sketch <Kbd>S</Kbd>
+                        Frame <Kbd>F</Kbd>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -4888,7 +4536,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setNewCommentPos(null)
                             setInspectHover(null)
                             setFrameMode(false)
-                            setSketchMode(false)
                           }}
                         >
                           <FileText className="h-3.5 w-3.5" />
@@ -4909,7 +4556,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             setInspectHover(null)
                             setDocumentMode(false)
                             setFrameMode(false)
-                            setSketchMode(false)
                           }}
                         >
                           <MessageSquare className="h-3.5 w-3.5" />
@@ -4983,9 +4629,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const docTarget = selectedDocumentChatTargetId
             ? markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
             : null
-          const sketchTarget = selectedSketchChatTargetId
-            ? sketchLayers.find((s) => s.id === selectedSketchChatTargetId) ?? null
-            : null
           // Resolve the target. For layer-kind targets we pack the layer
           // into the generic `{ kind: "layer", layerKind, layer }` shape
           // — that's what the chat panel expects so it can dispatch
@@ -4993,26 +4636,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           const target: ChatPanelTarget | null =
             selectedAgent?.sandboxName
               ? { kind: "agent", agent: selectedAgent }
-              : sketchTarget
+              : docTarget
                 ? {
                     kind: "layer",
-                    layerKind: "sketch-layer",
-                    layer: sketchTarget as unknown as { id: string } & Record<string, unknown>,
+                    layerKind: "markdown-layer",
+                    layer: docTarget as unknown as { id: string } & Record<string, unknown>,
                   }
-                : docTarget
-                  ? {
-                      kind: "layer",
-                      layerKind: "markdown-layer",
-                      layer: docTarget as unknown as { id: string } & Record<string, unknown>,
-                    }
-                  : null
+                : null
           if (!target) return null
           const filteredSessions = chatSessions.filter((c) => {
             if (target.kind === "agent") return c.agentId === target.agent.id
             // Layer targets: per-kind state lives on the chat session
             // under different fields.
             if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id
-            if (target.layerKind === "sketch-layer") return c.sketchLayerId === target.layer.id
             return false
           })
           return (
@@ -5020,26 +4656,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               target={target}
               agents={agents}
               markdownLayers={markdownLayers}
-              sketchLayers={sketchLayers}
               onSelectAgent={(id) => {
                 setSelectedDocumentChatTargetId(null)
-                setSelectedSketchChatTargetId(null)
                 handleSelectAgent(id)
               }}
               onSelectLayer={(layerKind, id) => {
                 if (layerKind === "markdown-layer") {
                   setSelectedAgentId(null)
-                  setSelectedSketchChatTargetId(null)
                   setSelectedDocumentChatTargetId(id)
                   const lastChat = selectedChatByDocumentRef.current[id]
-                  setSelectedChatId(lastChat ?? null)
-                  return
-                }
-                if (layerKind === "sketch-layer") {
-                  setSelectedAgentId(null)
-                  setSelectedDocumentChatTargetId(null)
-                  setSelectedSketchChatTargetId(id)
-                  const lastChat = selectedChatBySketchRef.current[id]
                   setSelectedChatId(lastChat ?? null)
                   return
                 }
@@ -5052,8 +4677,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 if (target.kind === "agent") handleCreateChat(target.agent.id)
                 else if (target.layerKind === "markdown-layer")
                   handleCreateDocumentChat(target.layer.id)
-                else if (target.layerKind === "sketch-layer")
-                  handleCreateSketchChat(target.layer.id)
               }}
               onRenameChat={handleRenameChat}
               onRemoveChat={handleRemoveChat}
