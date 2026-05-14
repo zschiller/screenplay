@@ -14,7 +14,7 @@ import Placeholder from "@tiptap/extension-placeholder"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
 import { useIframeLayerResize } from "@/hooks/use-iframe-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
-import { useMarkdownLayers, useSketchLayers } from "@/lib/yjs/react"
+import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { GroupLabel } from "@/components/canvas/group-label"
@@ -25,7 +25,7 @@ import {
   getLineNumbers,
   getQuotedText,
 } from "@/lib/document-comments"
-import type { MarkdownLayerData, SketchLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -167,11 +167,8 @@ export function MarkdownLayer({
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
   const markdownLayers = useMarkdownLayers()
-  const sketchLayers = useSketchLayers()
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
   markdownLayersRef.current = markdownLayers
-  const sketchLayersRef = useRef<SketchLayerData[]>(sketchLayers)
-  sketchLayersRef.current = sketchLayers
   const layerIdRef = useRef(layer.id)
   layerIdRef.current = layer.id
 
@@ -269,7 +266,6 @@ export function MarkdownLayer({
           deleteTriggerWithBackspace: true,
           suggestion: buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
-            getSketchLayers: () => sketchLayersRef.current,
             getExcludeId: () => layerIdRef.current,
             getAnchorRect: () =>
               rootRef.current?.getBoundingClientRect() ?? null,

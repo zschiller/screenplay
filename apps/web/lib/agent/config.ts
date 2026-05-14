@@ -1,16 +1,15 @@
 import { getSkillIndex } from "@/lib/skills"
-import type { JsonObject, JsonValue, MarkdownLayerData, SketchLayerData } from "@/lib/types"
+import type { MarkdownLayerData } from "@/lib/types"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
   documents: Array<Pick<MarkdownLayerData, "id" | "title">>
-  sketches: Array<Pick<SketchLayerData, "id" | "title">>
 }
 
 /**
  * Renders the canvas's layer directory as a system-prompt block. Every chat
- * target — agent, document, sketch — bakes this in so the model can resolve
- * a `@<title>`-style mention (in the user message *or* in a body it just
+ * target — agent, document — bakes this in so the model can resolve a
+ * `@<title>`-style mention (in the user message *or* in a body it just
  * fetched via a read tool) back to the layer's stable id and call the
  * right read tool.
  *
@@ -23,17 +22,10 @@ function renderLayerDirectory(
   excludeId?: string,
 ): string {
   const docs = dir.documents.filter((d) => d.id !== excludeId)
-  const sketches = dir.sketches.filter((s) => s.id !== excludeId)
-  if (docs.length === 0 && sketches.length === 0) return ""
-  const lines: string[] = ["", "Layers on this canvas (call `read_document` or `read_sketch` with the id):"]
-  if (docs.length > 0) {
-    lines.push("  Documents:")
-    for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
-  }
-  if (sketches.length > 0) {
-    lines.push("  Sketches:")
-    for (const s of sketches) lines.push(`    - ${s.id}: ${s.title || "Untitled"}`)
-  }
+  if (docs.length === 0) return ""
+  const lines: string[] = ["", "Layers on this canvas (call `read_document` with the id):"]
+  lines.push("  Documents:")
+  for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
   return lines.join("\n")
 }
 
@@ -45,7 +37,7 @@ function renderLayerDirectory(
  *
  * `currentTitle` and `currentBody` are baked in so the model has the
  * latest state without having to call `read_document` first; it can still
- * read peer documents/sketches to follow `@<title>` mentions.
+ * read peer documents to follow `@<title>` mentions.
  */
 export function buildMarkdownLayerSystemPrompt(opts: {
   currentTitle: string
@@ -71,80 +63,14 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "5. After editing, give the user a short summary of what you changed.",
     "",
     "Following `@<title>` mentions:",
-    "- The user's message and any document body you fetch may contain `@<title>` references to other docs or sketches.",
-    "- Look up the title in the layer directory below to get the id, then call `read_document(id)` or `read_sketch(id)` to load it.",
+    "- The user's message and any document body you fetch may contain `@<title>` references to other docs.",
+    "- Look up the title in the layer directory below to get the id, then call `read_document(id)` to load it.",
     "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
     "",
     "Current body:",
     "```",
     opts.currentBody || "(empty)",
-    "```",
-    renderLayerDirectory(opts.layerDirectory, opts.selfId),
-  ].join("\n")
-}
-
-/**
- * System prompt for chat sessions that target a *sketch layer*. The agent
- * here is a quick-prototyping front-end developer — it owns one HTML
- * document that the canvas renders directly via `srcdoc`, with a tiny
- * runtime injected on top that exposes `window.screenplay.knob(...)` and
- * `window.screenplay.state.*` so controls and shared values just work.
- */
-export function buildSketchLayerSystemPrompt(opts: {
-  currentTitle: string
-  currentHtml: string
-  declaredKnobs: JsonValue[]
-  sharedState: JsonObject
-  layerDirectory: LayerDirectory
-  selfId?: string
-}): string {
-  return [
-    "You are a UI prototyper editing a single static-HTML 'sketch' tile on a collaborative canvas. Your only output surface is the sketch's `html` field — there is no file system, no shell, no git, no build step. The canvas renders the HTML directly inside a sandboxed iframe (`srcdoc`).",
-    "",
-    "Authoring rules:",
-    "- Write a complete document body. Include everything inline: `<style>` blocks, markup, and a `<script>` block at the end if you need behavior. No external `<script src>` or stylesheet `<link>` requests except to data: URIs — the iframe is sandboxed and offline-friendly.",
-    "- The canvas prepends a runtime bootstrap before your HTML. **Do not include your own.** That bootstrap exposes `window.screenplay`:",
-    "  - `screenplay.knob({ id, type, label?, default?, min?, max?, step?, options? })` declares a knob and returns its current value. Knob types: `number`, `slider`, `boolean`, `string`, `select`, `color`. The id must be unique per sketch.",
-    "  - `screenplay.onKnob(id, fn)` subscribes to value changes. Use this if you want to react when the user moves a knob without polling.",
-    "  - `screenplay.state.get(key)` / `set(key, value)` / `subscribe(key, fn)` is the bidirectional shared state. **Default to using shared state for everything.** Any value the user might want persisted, observable from outside, or shared between collaborators belongs here. Use plain local variables only for per-frame ephemera.",
-    "- Idiomatic startup pattern:",
-    "    ```html",
-    "    <script>",
-    "      const speed = screenplay.knob({ id: 'speed', type: 'slider', min: 0, max: 10, default: 3 })",
-    "      let counter = screenplay.state.get('counter') ?? 0",
-    "      screenplay.state.subscribe('counter', v => { counter = v ?? 0; render() })",
-    "      screenplay.onKnob('speed', _ => render())",
-    "      function render() { /* ... */ }",
-    "      render()",
-    "    </script>",
-    "    ```",
-    "- Knob ids and shared-state keys persist across edits — keep them stable when you rewrite the HTML so the user's tweaked values aren't reset.",
-    "",
-    "When the user asks for a change:",
-    "1. If you need to confirm what's currently on the page, call `read_sketch` first.",
-    "2. Call `replace_sketch_html` with the new full document. Don't try to diff or patch — always send the complete HTML.",
-    "3. Call `set_sketch_title` if the change implies a new label.",
-    "4. After editing, give the user a short summary of what you changed.",
-    "",
-    "Following `@<title>` mentions:",
-    "- The user's message may reference other docs or sketches by title. Look up the id in the layer directory below, then call `read_document(id)` or `read_sketch(id)`.",
-    "",
-    `Current title: ${opts.currentTitle || "(untitled)"}`,
-    "",
-    "Currently declared knobs:",
-    "```json",
-    JSON.stringify(opts.declaredKnobs, null, 2),
-    "```",
-    "",
-    "Current shared state:",
-    "```json",
-    JSON.stringify(opts.sharedState, null, 2),
-    "```",
-    "",
-    "Current HTML:",
-    "```html",
-    opts.currentHtml || "(empty)",
     "```",
     renderLayerDirectory(opts.layerDirectory, opts.selfId),
   ].join("\n")
@@ -180,7 +106,7 @@ Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 
 Following \`@<title>\` mentions:
-The user's messages may reference docs or sketches that live on the canvas (separate from the sandbox project). Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` or \`read_sketch(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
+The user's messages may reference docs that live on the canvas (separate from the sandbox project). Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
 
 const AGENT_SYSTEM_PROMPT_TAIL = `
 
