@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Maximize2, MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -66,6 +66,17 @@ interface IframeLayerProps {
   /** Drag any iframeLayer moves the parent group. */
   onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
+  /** Fires once when a group-move drag actually begins (after the move threshold). */
+  onGroupDragStart?: () => void
+  /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
+  onGroupDragEnd?: (metaKey: boolean) => void
+  /**
+   * Attempt to start a reorder drag from a layer-owned element (e.g. the
+   * name label). Returns `true` if the reorder took over the pointer (in
+   * which case the caller skips its own drag), `false` for single-member
+   * groups where reorder doesn't apply.
+   */
+  onRequestReorderDrag?: (iframeLayerId: string, e: React.PointerEvent) => boolean
   /**
    * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
    * edges leave the group anchor in place. The iframeLayer's own width/height
@@ -148,6 +159,9 @@ export function IframeLayer({
   onSelect,
   onMoveGroup,
   onMoveSelected,
+  onGroupDragStart,
+  onGroupDragEnd,
+  onRequestReorderDrag,
   onResize,
   onResizeStart,
   onResizeEnd,
@@ -193,6 +207,8 @@ export function IframeLayer({
   const dragHandlers = useIframeLayerDrag({
     zoom,
     onDrag: handleDrag,
+    onDragStart: onGroupDragStart,
+    onDragEnd: onGroupDragEnd,
     onClick: (e) => {
       if (selectedOnPointerDown.current) {
         selectedOnPointerDown.current = false
@@ -200,6 +216,35 @@ export function IframeLayer({
       }
       onSelect(iframeLayer.id, e.shiftKey)
     },
+  })
+
+  // Drag handlers for the name label. Pointerdown first asks the canvas to
+  // start a reorder drag — for multi-member groups it takes over the gesture
+  // (the canvas wrapper captures the pointer and runs the existing reorder
+  // flow, including cmd-pop-out). Single-member groups fall through to the
+  // regular group-move drag.
+  const labelDragHandlers = useMemo(
+    () => ({
+      ...dragHandlers,
+      onPointerDown: (e: React.PointerEvent) => {
+        if (e.button !== 0) return
+        if (onRequestReorderDrag?.(iframeLayer.id, e)) return
+        dragHandlers.onPointerDown(e)
+      },
+    }),
+    [dragHandlers, onRequestReorderDrag, iframeLayer.id],
+  )
+
+  // Separate drag handlers for the *group* label — dragging it translates the
+  // whole group (like the frame body) but a release without movement does
+  // NOT fall through to the frame's `onSelect` (group selection was already
+  // applied on pointerdown). Reuses `handleDrag` so the snap-merge feature
+  // still kicks in.
+  const groupLabelDragHandlers = useIframeLayerDrag({
+    zoom,
+    onDrag: handleDrag,
+    onDragStart: onGroupDragStart,
+    onDragEnd: onGroupDragEnd,
   })
 
   const handleResize = useCallback(
@@ -568,7 +613,8 @@ export function IframeLayer({
         zoom={zoom}
         iframeLayerWidth={iframeLayer.width}
         reservedRightPx={reservedRightPx}
-        dragHandlers={interactive ? undefined : dragHandlers}
+        dragHandlers={interactive ? undefined : labelDragHandlers}
+        groupLabelDragHandlers={interactive ? undefined : groupLabelDragHandlers}
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
         onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(iframeLayer.id, agentId) : undefined}
@@ -592,6 +638,9 @@ export function IframeLayer({
           onSelect(iframeLayer.id, shiftKey)
         }}
         onContentWidthChange={setLabelContentWidth}
+        reorderDragTranslateX={dragTranslateX}
+        reorderDragTranslateY={dragTranslateY}
+        reorderDragPopped={dragPopped != null}
       />
       {iframeLayer.sandboxId && (
         <div

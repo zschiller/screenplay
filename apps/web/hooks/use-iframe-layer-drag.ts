@@ -5,13 +5,16 @@ import { useCallback, useRef } from "react"
 interface UseDragOptions {
   zoom: number
   onDrag: (dx: number, dy: number) => void
-  onDragEnd?: () => void
+  /** Fires once per gesture, the first time the cursor crosses the move threshold. */
+  onDragStart?: () => void
+  onDragEnd?: (metaKey: boolean) => void
   onClick?: (e: React.PointerEvent) => void
 }
 
 export function useIframeLayerDrag({
   zoom,
   onDrag,
+  onDragStart,
   onDragEnd,
   onClick,
 }: UseDragOptions) {
@@ -38,12 +41,15 @@ export function useIframeLayerDrag({
       const dx = (e.clientX - lastPos.current.x) / zoom
       const dy = (e.clientY - lastPos.current.y) / zoom
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-        didMove.current = true
+        if (!didMove.current) {
+          didMove.current = true
+          onDragStart?.()
+        }
       }
       lastPos.current = { x: e.clientX, y: e.clientY }
       onDrag(dx, dy)
     },
-    [zoom, onDrag],
+    [zoom, onDrag, onDragStart],
   )
 
   const onPointerUp = useCallback(
@@ -54,7 +60,7 @@ export function useIframeLayerDrag({
       if (!didMove.current) {
         onClick?.(e)
       } else {
-        onDragEnd?.()
+        onDragEnd?.(e.metaKey)
       }
     },
     [onDragEnd, onClick],
