@@ -116,6 +116,10 @@ interface MarkdownLayerProps {
   /** Move the parent group by (dx, dy) — same contract as IframeLayer.onMoveGroup. */
   onMoveGroup: (dx: number, dy: number) => void
   onMoveSelected: (dx: number, dy: number) => void
+  /** Fires once when a group-move drag begins (after the move threshold). */
+  onGroupDragStart?: () => void
+  /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
+  onGroupDragEnd?: (metaKey: boolean) => void
   /** Adjust this doc's own width/height; the group anchor (x/y) shifts in the
    *  parent when the drag came from the left/top edge. */
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
@@ -150,6 +154,8 @@ export function MarkdownLayer({
   onSelect,
   onMoveGroup,
   onMoveSelected,
+  onGroupDragStart,
+  onGroupDragEnd,
   onResize,
   onTitleChange,
   onStartEdit,
@@ -469,9 +475,21 @@ export function MarkdownLayer({
 
   const selectedOnPointerDown = useRef(false)
 
+  // Same as the body's drag, but a release without movement does NOT fall
+  // back to selecting this doc — the group label's pointerdown already
+  // applied the group selection.
+  const groupLabelDragHandlers = useIframeLayerDrag({
+    zoom,
+    onDrag: handleDrag,
+    onDragStart: onGroupDragStart,
+    onDragEnd: onGroupDragEnd,
+  })
+
   const dragHandlers = useIframeLayerDrag({
     zoom,
     onDrag: handleDrag,
+    onDragStart: onGroupDragStart,
+    onDragEnd: onGroupDragEnd,
     onClick: (e) => {
       if (selectedOnPointerDown.current) {
         selectedOnPointerDown.current = false
@@ -567,6 +585,7 @@ export function MarkdownLayer({
             label={groupLabel}
             groupSelected={groupSelected}
             onSelectGroup={onSelectGroup}
+            dragHandlers={groupLabelDragHandlers}
           />
         </div>
       )}

@@ -72,6 +72,12 @@ interface SelectionOverlayProps {
    * translated iframeLayer DOM element.
    */
   reorderDragShift?: { iframeLayerId: string; dx: number; dy: number } | null
+  /**
+   * Pink "snap" placeholders shown while a group drag is hovering near
+   * another group's trailing-edge slot — one rect per source-group member,
+   * positioned where each would land after the merge.
+   */
+  groupMergeSnapRects?: Array<{ x: number; y: number; width: number; height: number }> | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -104,6 +110,7 @@ export function SelectionOverlay({
   reorderHandles,
   hoveredReorderIframeLayerId,
   reorderDragShift,
+  groupMergeSnapRects,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -267,6 +274,25 @@ export function SelectionOverlay({
       }
     }
 
+    // Pink group-merge snap target — drawn after the standard placeholder so
+    // it visibly overrides the dashed gray slot of the target group while the
+    // user is hovering for a snap-merge.
+    if (groupMergeSnapRects && groupMergeSnapRects.length > 0) {
+      ctx.globalAlpha = 0.4
+      ctx.strokeStyle = primaryColor
+      ctx.lineWidth = 1
+      for (const rect of groupMergeSnapRects) {
+        const tl = toScreen(rect.x, rect.y)
+        const br = toScreen(rect.x + rect.width, rect.y + rect.height)
+        const l = Math.round(tl.x)
+        const t = Math.round(tl.y)
+        const r = Math.round(br.x)
+        const b = Math.round(br.y)
+        ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
+      }
+      ctx.globalAlpha = 1
+    }
+
     // Draw inspect rect (hovered or picked element)
     if (inspectRect) {
       const tl = toScreen(inspectRect.x, inspectRect.y)
@@ -355,14 +381,19 @@ export function SelectionOverlay({
       const HH = 12
       for (const h of gapHandles) {
         const center = toScreen(h.centerX, (h.top + h.bottom) / 2)
-        const cx = Math.round(center.x)
         const cy = Math.round(center.y)
         const halfH = Math.min(HH / 2, ((h.bottom - h.top) * zoom) / 2)
-        // 3×(HH+2) white outline rect, then 1×HH primary line on top.
+        // Translate to the exact gap midpoint and draw symmetrically. We
+        // intentionally don't round the X here: rounding snaps the 1px line
+        // ±1px from the visual gap center when centerX lands near a
+        // half-pixel, which reads as the handle being off from the gap.
+        ctx.save()
+        ctx.translate(center.x, cy)
         ctx.fillStyle = bgColor
-        ctx.fillRect(cx - 1, cy - halfH - 1, 3, halfH * 2 + 2)
+        ctx.fillRect(-1.5, -halfH - 1, 3, halfH * 2 + 2)
         ctx.fillStyle = primaryColor
-        ctx.fillRect(cx, cy - halfH, 1, halfH * 2)
+        ctx.fillRect(-0.5, -halfH, 1, halfH * 2)
+        ctx.restore()
       }
     }
 
@@ -401,7 +432,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, groupMergeSnapRects])
 
   // Keep canvas sized to container
   useEffect(() => {
