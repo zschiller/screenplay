@@ -17,7 +17,7 @@ import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
-import { GroupLabel } from "@/components/canvas/group-label"
+import { LayerTitleBar, LayerTitleText } from "@/components/canvas/layer-title-bar"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import {
@@ -112,6 +112,12 @@ interface MarkdownLayerProps {
   groupSelected?: boolean
   /** Click handler for the group label. */
   onSelectGroup?: (shiftKey: boolean) => void
+  /**
+   * Ask the canvas to start a reorder drag from this doc's title bar. Returns
+   * `true` for multi-member groups (canvas owns the gesture), `false` for
+   * single-member groups so the caller falls back to a regular group-move drag.
+   */
+  onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   onSelect: (id: string, shiftKey: boolean) => void
   /** Move the parent group by (dx, dy) — same contract as IframeLayer.onMoveGroup. */
   onMoveGroup: (dx: number, dy: number) => void
@@ -151,6 +157,7 @@ export function MarkdownLayer({
   groupLabel,
   groupSelected,
   onSelectGroup,
+  onRequestReorderDrag,
   onSelect,
   onMoveGroup,
   onMoveSelected,
@@ -566,31 +573,48 @@ export function MarkdownLayer({
         onStartEdit(layer.id)
       }}
     >
-      {groupLabel && (
-        // Mirror IframeLayer's label placement: anchored above the tile, scaled
-        // to stay constant in screen pixels regardless of zoom. The drag
-        // handlers are spread here so dragging the label moves the parent
-        // group — same affordance as IframeLayer's label region.
+      <LayerTitleBar
+        layerId={layer.id}
+        layerWidth={layer.width}
+        zoom={zoom}
+        dragHandlers={spaceHeld ? undefined : dragHandlers}
+        onRequestReorderDrag={spaceHeld ? undefined : onRequestReorderDrag}
+        groupLabel={groupLabel}
+        groupSelected={groupSelected}
+        onSelectGroup={onSelectGroup}
+        groupLabelDragHandlers={spaceHeld ? undefined : groupLabelDragHandlers}
+        reorderDragTranslateX={dragTranslateX}
+        reorderDragTranslateY={dragTranslateY}
+        reorderDragPopped={dragPopped != null}
+      >
+        {/* Flex-row wrapper with an explicit max-width so `truncate` on the
+         *  title span has something to clip against — without it, the
+         *  LayerTitleBar's `items-start` lets the child size to its (nowrap)
+         *  content and the title runs past the tile's right edge. Mirrors
+         *  the equivalent row in IframeLayerLabel. */}
         <div
-          className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
-          style={{
-            transform: `scale(${1 / zoom})`,
-            transformOrigin: "bottom left",
-            maxWidth: layer.width * zoom,
-            marginBottom: 4 / zoom,
-          }}
-          {...(spaceHeld ? {} : dragHandlers)}
+          className="flex items-center max-w-full"
+          style={{ maxWidth: layer.width * zoom }}
         >
-          <GroupLabel
-            label={groupLabel}
-            groupSelected={groupSelected}
-            onSelectGroup={onSelectGroup}
-            dragHandlers={groupLabelDragHandlers}
+          <LayerTitleText
+            title={layer.title || "Untitled"}
+            selected={selected || groupSelected}
+            onSelectLayer={(shiftKey) => {
+              // Defer to the group's selection while the group is selected
+              // (shift drills through to additive doc selection). Mirrors
+              // IframeLayerLabel.onSelectFrame.
+              if (selected && !shiftKey) return
+              if (groupSelected && !shiftKey) return
+              selectedOnPointerDown.current = true
+              onSelect(layer.id, shiftKey)
+            }}
           />
         </div>
-      )}
-      {/* Title is the editor's first heading; body follows in the same
-       *  editor surface (Notion-style — no separate title bar). */}
+      </LayerTitleBar>
+      {/* The title bar above is purely a display/drag affordance — the
+       *  source of truth is still the editor's first heading, which is the
+       *  cached `layer.title` field. The wrapper below holds the editor
+       *  itself (title heading + body) in a Notion-style stacked surface. */}
       <div data-markdown-layer-scroll className="relative flex-1 overflow-y-auto">
         <div
           // `relative` + `z-10` lifts the editor above the layer-selection

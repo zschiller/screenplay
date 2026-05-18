@@ -85,6 +85,13 @@
       "when": 1778265847482,
       "tag": "0011_dusty_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779840000000,
+      "tag": "0012_rename_thread_artboard_id",
+      "breakpoints": true
     }
   ]
 }
