@@ -57,8 +57,12 @@ export type AgentMessage =
     }
 
 export type AgentStreamEvent =
+  // `textId` identifies the source text block from the model. The client
+  // tracks the most recent textId per chat and appends a new assistant
+  // message whenever it changes, so multiple text blocks within a step
+  // don't clobber each other in the UI.
   | { type: "user_message"; text: string }
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; textId?: string }
   | { type: "tool_use"; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; name: string; output: string }
   | { type: "status"; status: string }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { nanoid } from "nanoid"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { renameAgentBranch } from "@/lib/sandbox-actions"
@@ -94,13 +94,17 @@ export function PlayerChatHost({
   }, [chatSessions])
 
   // Hydrate streaming state from Yjs on mount/reconnect — same pattern as
-  // the canvas. Empty deps: only on mount.
+  // the canvas. The previous empty-deps form ran before Yjs initial sync
+  // populated `chatSessions`, missing the streaming flag for slow
+  // connections; now we hydrate exactly once when entries first arrive.
+  const hydratedStreamingRef = useRef(false)
   useEffect(() => {
+    if (hydratedStreamingRef.current || chatSessions.length === 0) return
+    hydratedStreamingRef.current = true
     for (const cs of chatSessions) {
       if (cs.isStreaming) chatStore.setStreaming(cs.id, true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [chatSessions])
 
   const handleCreateChat = useCallback(() => {
     if (!agent) return

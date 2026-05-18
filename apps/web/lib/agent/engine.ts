@@ -19,7 +19,7 @@ import {
 import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
 
 const MAX_STEPS = 20
-const ABORT_POLL_INTERVAL_MS = 1500
+const ABORT_POLL_INTERVAL_MS = 250
 
 export interface RunAgentLoopOptions {
   chatId: string
@@ -85,6 +85,11 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
       abortSignal: controller.signal,
 
       onChunk: async ({ chunk }) => {
+        // Drop chunks the model already buffered before the abort propagated
+        // — without this guard, /stop produces a flurry of late text/tool
+        // events that keep growing the message list after the user thinks
+        // the turn is over.
+        if (controller.signal.aborted) return
         switch (chunk.type) {
           case "text-delta":
             await broadcaster.onTextDelta(chunk.id, chunk.text)
