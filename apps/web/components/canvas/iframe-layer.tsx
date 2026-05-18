@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Maximize2, MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -217,23 +217,6 @@ export function IframeLayer({
       onSelect(iframeLayer.id, e.shiftKey)
     },
   })
-
-  // Drag handlers for the name label. Pointerdown first asks the canvas to
-  // start a reorder drag — for multi-member groups it takes over the gesture
-  // (the canvas wrapper captures the pointer and runs the existing reorder
-  // flow, including cmd-pop-out). Single-member groups fall through to the
-  // regular group-move drag.
-  const labelDragHandlers = useMemo(
-    () => ({
-      ...dragHandlers,
-      onPointerDown: (e: React.PointerEvent) => {
-        if (e.button !== 0) return
-        if (onRequestReorderDrag?.(iframeLayer.id, e)) return
-        dragHandlers.onPointerDown(e)
-      },
-    }),
-    [dragHandlers, onRequestReorderDrag, iframeLayer.id],
-  )
 
   // Separate drag handlers for the *group* label — dragging it translates the
   // whole group (like the frame body) but a release without movement does
@@ -605,6 +588,7 @@ export function IframeLayer({
       }}
     >
       <IframeLayerLabel
+        iframeLayerId={iframeLayer.id}
         label={iframeLayer.label}
         branch={iframeLayer.branch}
         sandboxId={iframeLayer.sandboxId}
@@ -613,7 +597,8 @@ export function IframeLayer({
         zoom={zoom}
         iframeLayerWidth={iframeLayer.width}
         reservedRightPx={reservedRightPx}
-        dragHandlers={interactive ? undefined : labelDragHandlers}
+        dragHandlers={interactive ? undefined : dragHandlers}
+        onRequestReorderDrag={interactive ? undefined : onRequestReorderDrag}
         groupLabelDragHandlers={interactive ? undefined : groupLabelDragHandlers}
         hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}

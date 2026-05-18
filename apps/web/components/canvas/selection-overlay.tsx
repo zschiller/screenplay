@@ -72,12 +72,6 @@ interface SelectionOverlayProps {
    * translated iframeLayer DOM element.
    */
   reorderDragShift?: { iframeLayerId: string; dx: number; dy: number } | null
-  /**
-   * Pink "snap" placeholders shown while a group drag is hovering near
-   * another group's trailing-edge slot — one rect per source-group member,
-   * positioned where each would land after the merge.
-   */
-  groupMergeSnapRects?: Array<{ x: number; y: number; width: number; height: number }> | null
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -110,7 +104,6 @@ export function SelectionOverlay({
   reorderHandles,
   hoveredReorderIframeLayerId,
   reorderDragShift,
-  groupMergeSnapRects,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -143,23 +136,28 @@ export function SelectionOverlay({
       x: x * zoom + viewportPos.x,
       y: y * zoom + viewportPos.y,
     })
+    // Snap to device-pixel boundaries (not CSS pixels) so 1px strokes stay
+    // crisp on retina while still moving smoothly when the viewport pans
+    // sub-CSS-pixel amounts. Rounding to whole CSS pixels would produce
+    // visible 1px jitter as the viewport position crosses each integer.
+    const snap = (v: number) => Math.round(v * dpr) / dpr
+    // Offset to put a 1px stroke between two device pixels.
+    const HALF = 0.5 / dpr
 
     // Draw hover frame (only if not already selected/focused)
     if (hoveredIframeLayerId && !selectedIframeLayerIds.has(hoveredIframeLayerId) && focusedIframeLayerId !== hoveredIframeLayerId) {
       const layout = iframeLayerLayouts.get(hoveredIframeLayerId)
       if (layout) {
-        const topLeft = toScreen(layout.x, layout.y)
-        const sw = layout.width * zoom
-        const sh = layout.height * zoom
+        const tl = toScreen(layout.x, layout.y)
+        const br = toScreen(layout.x + layout.width, layout.y + layout.height)
+        const l = snap(tl.x)
+        const t = snap(tl.y)
+        const r = snap(br.x)
+        const b = snap(br.y)
         ctx.globalAlpha = 0.4
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
-        ctx.strokeRect(
-          Math.round(topLeft.x) - 0.5,
-          Math.round(topLeft.y) - 0.5,
-          Math.round(sw) + 1,
-          Math.round(sh) + 1,
-        )
+        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
         ctx.globalAlpha = 1
       }
     }
@@ -174,11 +172,11 @@ export function SelectionOverlay({
         if (!layout) continue
         const tl = toScreen(layout.x, layout.y)
         const br = toScreen(layout.x + layout.width, layout.y + layout.height)
-        const l = Math.round(tl.x)
-        const t = Math.round(tl.y)
-        const r = Math.round(br.x)
-        const b = Math.round(br.y)
-        ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
+        const l = snap(tl.x)
+        const t = snap(tl.y)
+        const r = snap(br.x)
+        const b = snap(br.y)
+        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
       }
     }
 
@@ -195,10 +193,10 @@ export function SelectionOverlay({
       const tl = toScreen(layout.x + ox, layout.y + oy)
       const br = toScreen(layout.x + layout.width + ox, layout.y + layout.height + oy)
       frameEdges.set(layout.id, {
-        l: Math.round(tl.x),
-        t: Math.round(tl.y),
-        r: Math.round(br.x),
-        b: Math.round(br.y),
+        l: snap(tl.x),
+        t: snap(tl.y),
+        r: snap(br.x),
+        b: snap(br.y),
       })
     }
 
@@ -206,7 +204,7 @@ export function SelectionOverlay({
     ctx.strokeStyle = primaryColor
     ctx.lineWidth = 1
     for (const { l, t, r, b } of frameEdges.values()) {
-      ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
+      ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
     }
 
     // Draw resize handles for single iframeLayer selection
@@ -216,8 +214,8 @@ export function SelectionOverlay({
       const edges = frameEdges.get(id)
       if (edges) {
         const { l, t, r, b } = edges
-        const mx = Math.round((l + r) / 2)
-        const my = Math.round((t + b) / 2)
+        const mx = snap((l + r) / 2)
+        const my = snap((t + b) / 2)
         const hs = HANDLE_SIZE
         const hh = hs / 2
 
@@ -230,7 +228,7 @@ export function SelectionOverlay({
           ctx.fillRect(hx - hh, hy - hh, hs, hs)
           ctx.strokeStyle = primaryColor
           ctx.lineWidth = 1
-          ctx.strokeRect(hx - hh + 0.5, hy - hh + 0.5, hs - 1, hs - 1)
+          ctx.strokeRect(hx - hh + HALF, hy - hh + HALF, hs - 2 * HALF, hs - 2 * HALF)
         }
       }
     }
@@ -249,13 +247,13 @@ export function SelectionOverlay({
       if (uLeft < Infinity) {
         const tl = toScreen(uLeft, uTop)
         const br = toScreen(uRight, uBottom)
-        const l = Math.round(tl.x)
-        const t = Math.round(tl.y)
-        const r = Math.round(br.x)
-        const b = Math.round(br.y)
+        const l = snap(tl.x)
+        const t = snap(tl.y)
+        const r = snap(br.x)
+        const b = snap(br.y)
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
-        ctx.strokeRect(l - 0.5, t - 0.5, r - l + 1, b - t + 1)
+        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
       }
     }
 
@@ -266,60 +264,41 @@ export function SelectionOverlay({
       for (const rect of placeholderRects) {
         const tl = toScreen(rect.x, rect.y)
         const br = toScreen(rect.x + rect.width, rect.y + rect.height)
-        const l = Math.round(tl.x)
-        const t = Math.round(tl.y)
-        const r = Math.round(br.x)
-        const b = Math.round(br.y)
-        ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
+        const l = snap(tl.x)
+        const t = snap(tl.y)
+        const r = snap(br.x)
+        const b = snap(br.y)
+        ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
       }
-    }
-
-    // Pink group-merge snap target — drawn after the standard placeholder so
-    // it visibly overrides the dashed gray slot of the target group while the
-    // user is hovering for a snap-merge.
-    if (groupMergeSnapRects && groupMergeSnapRects.length > 0) {
-      ctx.globalAlpha = 0.4
-      ctx.strokeStyle = primaryColor
-      ctx.lineWidth = 1
-      for (const rect of groupMergeSnapRects) {
-        const tl = toScreen(rect.x, rect.y)
-        const br = toScreen(rect.x + rect.width, rect.y + rect.height)
-        const l = Math.round(tl.x)
-        const t = Math.round(tl.y)
-        const r = Math.round(br.x)
-        const b = Math.round(br.y)
-        ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
-      }
-      ctx.globalAlpha = 1
     }
 
     // Draw inspect rect (hovered or picked element)
     if (inspectRect) {
       const tl = toScreen(inspectRect.x, inspectRect.y)
       const br = toScreen(inspectRect.x + inspectRect.width, inspectRect.y + inspectRect.height)
-      const l = Math.round(tl.x)
-      const t = Math.round(tl.y)
-      const r = Math.round(br.x)
-      const b = Math.round(br.y)
+      const l = snap(tl.x)
+      const t = snap(tl.y)
+      const r = snap(br.x)
+      const b = snap(br.y)
       ctx.globalAlpha = 0.1
       ctx.fillStyle = "#3b82f6"
       ctx.fillRect(l, t, r - l, b - t)
       ctx.globalAlpha = 1
       ctx.strokeStyle = "#3b82f6"
       ctx.lineWidth = 1
-      // Inside stroke: inset by 0.5 so the 1px line sits entirely within the bounds
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l - 1, b - t - 1)
+      // Inside stroke: inset by HALF so the 1px line sits entirely within the bounds
+      ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
     }
 
     // Draw marquee rectangle
     if (marquee) {
-      // Convert both corners to screen space, then round edges independently
+      // Convert both corners to screen space, then snap edges independently
       const a = toScreen(marquee.startX, marquee.startY)
       const b = toScreen(marquee.currentX, marquee.currentY)
-      const l = Math.round(Math.min(a.x, b.x))
-      const t = Math.round(Math.min(a.y, b.y))
-      const r = Math.round(Math.max(a.x, b.x))
-      const bo = Math.round(Math.max(a.y, b.y))
+      const l = snap(Math.min(a.x, b.x))
+      const t = snap(Math.min(a.y, b.y))
+      const r = snap(Math.max(a.x, b.x))
+      const bo = snap(Math.max(a.y, b.y))
 
       ctx.globalAlpha = 0.1
       ctx.fillStyle = primaryColor
@@ -328,7 +307,7 @@ export function SelectionOverlay({
       ctx.globalAlpha = 1
       ctx.strokeStyle = primaryColor
       ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
+      ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
     }
 
     // Draw reorder handles — matches symaphore's CompositionHandle. Both
@@ -343,8 +322,8 @@ export function SelectionOverlay({
         const ox = shift ? shift.dx : 0
         const oy = shift ? shift.dy : 0
         const center = toScreen(h.centerX + ox, h.centerY + oy)
-        const cx = Math.round(center.x) + 0.5
-        const cy = Math.round(center.y) + 0.5
+        const cx = snap(center.x) + HALF
+        const cy = snap(center.y) + HALF
         const filled = h.iframeLayerId === hoveredReorderIframeLayerId
         // 12×12 outer white
         ctx.beginPath()
@@ -381,7 +360,7 @@ export function SelectionOverlay({
       const HH = 12
       for (const h of gapHandles) {
         const center = toScreen(h.centerX, (h.top + h.bottom) / 2)
-        const cy = Math.round(center.y)
+        const cy = snap(center.y)
         const halfH = Math.min(HH / 2, ((h.bottom - h.top) * zoom) / 2)
         // Translate to the exact gap midpoint and draw symmetrically. We
         // intentionally don't round the X here: rounding snaps the 1px line
@@ -401,16 +380,16 @@ export function SelectionOverlay({
     if (frameDraft) {
       const a = toScreen(frameDraft.startX, frameDraft.startY)
       const b = toScreen(frameDraft.currentX, frameDraft.currentY)
-      const l = Math.round(Math.min(a.x, b.x))
-      const t = Math.round(Math.min(a.y, b.y))
-      const r = Math.round(Math.max(a.x, b.x))
-      const bo = Math.round(Math.max(a.y, b.y))
+      const l = snap(Math.min(a.x, b.x))
+      const t = snap(Math.min(a.y, b.y))
+      const r = snap(Math.max(a.x, b.x))
+      const bo = snap(Math.max(a.y, b.y))
 
       ctx.globalAlpha = 1
       ctx.setLineDash([4, 4])
       ctx.strokeStyle = primaryColor
       ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
+      ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
       ctx.setLineDash([])
     }
 
@@ -418,21 +397,21 @@ export function SelectionOverlay({
     if (documentDraft) {
       const a = toScreen(documentDraft.startX, documentDraft.startY)
       const b = toScreen(documentDraft.currentX, documentDraft.currentY)
-      const l = Math.round(Math.min(a.x, b.x))
-      const t = Math.round(Math.min(a.y, b.y))
-      const r = Math.round(Math.max(a.x, b.x))
-      const bo = Math.round(Math.max(a.y, b.y))
+      const l = snap(Math.min(a.x, b.x))
+      const t = snap(Math.min(a.y, b.y))
+      const r = snap(Math.max(a.x, b.x))
+      const bo = snap(Math.max(a.y, b.y))
 
       ctx.globalAlpha = 1
       ctx.setLineDash([4, 4])
       ctx.strokeStyle = primaryColor
       ctx.lineWidth = 1
-      ctx.strokeRect(l + 0.5, t + 0.5, r - l, bo - t)
+      ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
       ctx.setLineDash([])
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, groupMergeSnapRects])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
 
   // Keep canvas sized to container
   useEffect(() => {

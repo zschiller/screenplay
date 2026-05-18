@@ -24,9 +24,11 @@ import type { AgentData } from "@/lib/types"
 import type { HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { cn } from "@workspace/ui/lib/utils"
-import { GroupLabel } from "./group-label"
+import { LayerTitleBar, LayerTitleText } from "./layer-title-bar"
 
 interface IframeLayerLabelProps {
+  /** Frame id — routed through `LayerTitleBar` to start reorder drags. */
+  iframeLayerId: string
   label: string
   branch?: string
   sandboxId?: string
@@ -38,7 +40,15 @@ interface IframeLayerLabelProps {
   iframeLayerWidth: number
   /** Screen-px width to reserve on the right (e.g. for the action buttons). */
   reservedRightPx?: number
-  dragHandlers?: Record<string, unknown>
+  /** Base move-drag handlers — `LayerTitleBar` composes them with the
+   *  reorder-request hook so the bar lifts the frame into a reorder gesture
+   *  in multi-member groups and falls back to a group-move drag otherwise. */
+  dragHandlers?: {
+    onPointerDown: (e: React.PointerEvent) => void
+    [key: string]: unknown
+  }
+  /** Ask the canvas to start a reorder drag from this frame's title bar. */
+  onRequestReorderDrag?: (iframeLayerId: string, e: React.PointerEvent) => boolean
   /** Drag handlers attached to the GroupLabel button — separate set so the
    *  group label moves the whole group rather than reordering a single
    *  frame within the group. */
@@ -93,7 +103,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function IframeLayerLabel({ label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, groupLabelDragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
+export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
   const measureRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!onContentWidthChange) return
@@ -108,38 +118,20 @@ export function IframeLayerLabel({ label, branch, sandboxId, route, sharedState,
   }, [onContentWidthChange])
 
   return (
-    <div
-      className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
-      style={{
-        transform: `scale(${1 / zoom})`,
-        transformOrigin: "bottom left",
-        maxWidth: iframeLayerWidth * zoom,
-        marginBottom: 4 / zoom,
-      }}
-      {...dragHandlers}
+    <LayerTitleBar
+      layerId={iframeLayerId}
+      layerWidth={iframeLayerWidth}
+      zoom={zoom}
+      dragHandlers={dragHandlers}
+      onRequestReorderDrag={onRequestReorderDrag}
+      groupLabel={groupLabel}
+      groupSelected={groupSelected}
+      onSelectGroup={onSelectGroup}
+      groupLabelDragHandlers={groupLabelDragHandlers}
+      reorderDragTranslateX={reorderDragTranslateX}
+      reorderDragTranslateY={reorderDragTranslateY}
+      reorderDragPopped={reorderDragPopped}
     >
-      {groupLabel && !reorderDragPopped && (
-        <div
-          style={
-            reorderDragTranslateX != null || reorderDragTranslateY != null
-              ? {
-                  // The outer frame container is `translate(dx, dy)` in world
-                  // units; this label sits inside a `scale(1/zoom)` wrapper,
-                  // so its own local px need to be multiplied by `zoom` to
-                  // produce the same world-space distance.
-                  transform: `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`,
-                }
-              : undefined
-          }
-        >
-          <GroupLabel
-            label={groupLabel}
-            groupSelected={groupSelected}
-            onSelectGroup={onSelectGroup}
-            dragHandlers={groupLabelDragHandlers}
-          />
-        </div>
-      )}
       {(branch || onAssignAgent) && (
         <div className="mb-0.5 max-w-full min-w-0">
           {onAssignAgent ? (
@@ -168,18 +160,11 @@ export function IframeLayerLabel({ label, branch, sandboxId, route, sharedState,
             )}
           />
         )}
-        <span
-          className={cn(
-            "text-xs font-medium truncate min-w-[0.75em]",
-            selected ? "text-fuchsia-500" : "text-foreground/70",
-          )}
-          onPointerDown={onSelectFrame ? (e) => {
-            if (e.button !== 0) return
-            onSelectFrame(e.shiftKey)
-          } : undefined}
-        >
-          {label}
-        </span>
+        <LayerTitleText
+          title={label}
+          selected={selected}
+          onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
+        />
         {branch && (onSelectRoute ? (
           <RoutePicker
             route={route}
@@ -231,7 +216,7 @@ export function IframeLayerLabel({ label, branch, sandboxId, route, sharedState,
           )
         )}
       </div>
-    </div>
+    </LayerTitleBar>
   )
 }
 

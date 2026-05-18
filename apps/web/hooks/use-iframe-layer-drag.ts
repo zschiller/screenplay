@@ -30,7 +30,12 @@ export function useIframeLayerDrag({
       dragging.current = true
       didMove.current = false
       lastPos.current = { x: e.clientX, y: e.clientY }
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      // Capture on currentTarget (the element with the move/up listeners) not
+      // e.target — pointerdown often lands on an inner child (e.g. the frame
+      // name span has its own onPointerDown for instant-select). If selection
+      // triggers a re-render mid-gesture, listeners on the outer div are
+      // replaced; capturing on the leaf can drop the first pointermove.
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     },
     [],
   )
@@ -56,7 +61,7 @@ export function useIframeLayerDrag({
     (e: React.PointerEvent) => {
       if (!dragging.current) return
       dragging.current = false
-      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
       if (!didMove.current) {
         onClick?.(e)
       } else {
