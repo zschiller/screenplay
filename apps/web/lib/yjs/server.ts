@@ -44,11 +44,14 @@ type ChatBroadcastInput = ChatBroadcastEvent extends infer T
  * in-progress stream automatically.
  *
  * Each event gets a stable id so clients can dedup if multiple subscribers
- * deliver it to the same store. On `chat-stream-end` we trim everything
- * before the end marker — the stream is over, the persisted ModelMessages
- * in the DB are the authoritative record of what happened, and leaving the
- * events around would let `findActiveStreamStart` re-replay a completed
- * turn over freshly-fetched history.
+ * deliver it to the same store. We trim on `chat-stream-start` (not on end)
+ * because Yjs delivers a transaction's changes atomically to observers —
+ * trimming in the same transaction as the end push would let clients whose
+ * cursor was deep into the array re-sync past the end marker via
+ * `findActiveStreamStart`, missing the end event and stranding the UI in
+ * the streaming state. Trimming at the next start instead means the prior
+ * end event has already been observed standalone before the array is
+ * compacted.
  */
 export async function broadcastChatEventViaDoc(
   roomId: string,
@@ -62,9 +65,9 @@ export async function broadcastChatEventViaDoc(
       arr = new Y.Array<unknown>()
       map.set(event.chatId, arr)
     }
-    arr.push([JSON.parse(JSON.stringify(withId)) as unknown])
-    if (withId.type === "chat-stream-end" && arr.length > 1) {
-      arr.delete(0, arr.length - 1)
+    if (withId.type === "chat-stream-start" && arr.length > 0) {
+      arr.delete(0, arr.length)
     }
+    arr.push([JSON.parse(JSON.stringify(withId)) as unknown])
   })
 }

@@ -112,6 +112,14 @@ class ChatStore {
    */
   private appliedEventIds = new Map<string, Set<string>>()
 
+  /**
+   * Most-recent text-block id seen per chat. When the broadcaster moves to a
+   * new text block (a new `textId`) we append a fresh assistant message
+   * instead of replacing the trailing one, so multiple text blocks within a
+   * single agent step don't clobber each other.
+   */
+  private currentTextId = new Map<string, string>()
+
   /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
   private callbacks = new Map<
     string,
@@ -189,6 +197,10 @@ class ChatStore {
         this.update(chatId, { messages, isLoadingHistory: false })
       })
       .catch(() => {
+        // Release the once-per-chat lock on failure so the next mount (or an
+        // explicit retry) can try again, rather than leaving the chat
+        // permanently stuck with empty history and no spinner.
+        this.historyLoaded.delete(chatId)
         this.update(chatId, { isLoadingHistory: false })
       })
   }
@@ -279,10 +291,12 @@ class ChatStore {
   // --- Stop a running stream ---
 
   async stopMessage(roomId: string, chatId: string) {
-    // Flip the UI to non-streaming immediately. The server still broadcasts
-    // chat-stream-end after the run's abort flag flips, but the user's
-    // intent to stop shouldn't depend on that round-trip succeeding.
-    this.update(chatId, { isStreaming: false })
+    // We used to flip `isStreaming` to false synchronously here, but that
+    // raced with chunks the model had already buffered before the abort
+    // propagated — the UI would show "stopped" while messages kept growing.
+    // /api/agent/stop broadcasts `chat-stream-end` immediately on its end,
+    // and the engine's onChunk now drops post-abort chunks, so the spinner
+    // clears as soon as the broadcast lands (typically tens of ms).
     try {
       const res = await fetch("/api/agent/stop", {
         method: "POST",
@@ -294,8 +308,10 @@ class ChatStore {
         throw new Error(errorText || `HTTP ${res.status}`)
       }
     } catch (e) {
+      // Network failure means the server's broadcast may never land — fall
+      // back to clearing local streaming state so the user isn't stuck.
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, { error: msg })
+      this.update(chatId, { error: msg, isStreaming: false })
     }
   }
 
@@ -316,6 +332,10 @@ class ChatStore {
 
     switch (event.type) {
       case "chat-stream-start":
+        // Reset the text-block tracker so the next text event starts a fresh
+        // assistant message rather than replacing the last one from a
+        // previous turn.
+        this.currentTextId.delete(chatId)
         this.update(chatId, { isStreaming: true })
         break
 
@@ -325,6 +345,7 @@ class ChatStore {
         // already cleared it.
         const wasStreaming = this.getOrCreate(chatId).isStreaming
         if (wasStreaming) this.unreadChats.add(chatId)
+        this.currentTextId.delete(chatId)
         this.update(chatId, { isStreaming: false })
         break
       }
@@ -354,7 +375,19 @@ class ChatStore {
       case "text": {
         const prev = this.getOrCreate(chatId).messages
         const last = prev[prev.length - 1]
-        if (last?.role === "assistant") {
+        const prevTextId = this.currentTextId.get(chatId)
+        // Replace the trailing assistant message only when the broadcaster
+        // is still emitting deltas for the same text block. A new textId
+        // means the model started a fresh block (a second paragraph after a
+        // tool-call within one step, or text from the next step) — append
+        // instead so the prior text isn't overwritten.
+        const sameBlock =
+          last?.role === "assistant" &&
+          (event.textId === undefined || prevTextId === event.textId)
+        if (event.textId !== undefined) {
+          this.currentTextId.set(chatId, event.textId)
+        }
+        if (sameBlock) {
           this.update(chatId, {
             messages: [
               ...prev.slice(0, -1),
@@ -373,6 +406,10 @@ class ChatStore {
       }
 
       case "tool_use":
+        // A tool call breaks the current text block — the next text event
+        // should append a new assistant message even if its textId happens
+        // to repeat.
+        this.currentTextId.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -386,6 +423,7 @@ class ChatStore {
         break
 
       case "tool_result":
+        this.currentTextId.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -530,6 +568,7 @@ class ChatStore {
     this.callbacks.delete(chatId)
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)
+    this.currentTextId.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }

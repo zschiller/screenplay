@@ -75,6 +75,15 @@ export async function appendMessages(
 }
 
 export async function startRun(chatId: string): Promise<string> {
+  // Abort any still-active runs for this chat before inserting the new one.
+  // Without this, a user who clicks Stop and immediately resends a message
+  // would have the old loop still emitting chunks while the new loop runs,
+  // and `findActiveRun` would return whichever was inserted most recently,
+  // letting /stop target the wrong run.
+  await db
+    .update(agentRun)
+    .set({ aborted: true, status: "ended", endedAt: new Date() })
+    .where(and(eq(agentRun.chatId, chatId), ne(agentRun.status, "ended")))
   const id = nanoid()
   await db.insert(agentRun).values({ id, chatId, status: "running" })
   return id

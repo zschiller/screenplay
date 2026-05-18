@@ -52,7 +52,11 @@ export class StreamBroadcaster {
   async onTextDelta(textId: string, delta: string): Promise<void> {
     const next = (this.textBuffers.get(textId) ?? "") + delta
     this.textBuffers.set(textId, next)
-    await broadcastEvent(this.roomId, this.chatId, { type: "text", text: next })
+    await broadcastEvent(this.roomId, this.chatId, {
+      type: "text",
+      text: next,
+      textId,
+    })
   }
 
   /**
