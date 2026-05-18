@@ -3150,11 +3150,18 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     }
   }, [agents, iframeLayers, collections, getViewportCenter, seedIframeLayerForAgent, handleSelectIframeLayer])
 
-  // Hydrate chatStore streaming state from Liveblocks storage on mount/reconnect.
-  // For each chat that's marked streaming in storage, ask the server to verify
-  // the underlying agent run is still actually active. If it's ended, the
-  // heal endpoint broadcasts chat-stream-end to unstick the spinner.
+  // Hydrate chatStore streaming state from Yjs storage on mount/reconnect.
+  // For each chat that's marked streaming in storage, ask the server to
+  // verify the underlying agent run is still actually active. If it's
+  // ended, the heal endpoint broadcasts chat-stream-end to unstick the
+  // spinner. The previous empty-deps form ran before Yjs initial sync
+  // completed, so for slow connections the streaming flag from storage
+  // was missed; now we hydrate the first time `chatSessions` actually has
+  // entries, then never again.
+  const hydratedStreamingRef = useRef(false)
   useEffect(() => {
+    if (hydratedStreamingRef.current || chatSessions.length === 0) return
+    hydratedStreamingRef.current = true
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
@@ -3164,8 +3171,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         body: JSON.stringify({ roomId, chatId: cs.id }),
       }).catch((e) => console.error("Heal request failed:", e))
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only on mount
+  }, [chatSessions, roomId])
 
   // Receive server-broadcast chat events via the room Y.Doc and feed into chat store.
   useChatStreamEvents((e) => {

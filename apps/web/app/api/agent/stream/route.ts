@@ -15,6 +15,7 @@ import {
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
+  endRun,
   findPendingPlanForChat,
   loadChatHistory,
   resolvePendingToolCall,
@@ -116,19 +117,36 @@ export async function POST(req: Request) {
     const history = await loadChatHistory(chatId)
     const runId = await startRun(chatId)
 
+    // Broadcast the start signal and echo the user message synchronously so
+    // the client transitions into the streaming state before the response
+    // returns. If the `after()` callback never runs (cold-start eviction,
+    // OOM, container drain), the safety net inside it ensures the UI
+    // doesn't get stranded with an indefinite spinner.
+    await broadcastSignal(roomId, chatId, "chat-stream-start")
+    const broadcaster = new StreamBroadcaster(roomId, chatId)
+    await broadcaster.onUserMessage(message)
+
     after(async () => {
-      await broadcastSignal(roomId, chatId, "chat-stream-start")
-      const broadcaster = new StreamBroadcaster(roomId, chatId)
-      await broadcaster.onUserMessage(message)
-      await runAgentLoop({
-        chatId,
-        runId,
-        roomId,
-        systemPrompt: prepared.systemPrompt,
-        model: effectiveModel,
-        tools: prepared.tools,
-        messages: history,
-      })
+      try {
+        await runAgentLoop({
+          chatId,
+          runId,
+          roomId,
+          systemPrompt: prepared.systemPrompt,
+          model: effectiveModel,
+          tools: prepared.tools,
+          messages: history,
+        })
+      } catch (e) {
+        console.error("runAgentLoop failed (layer chat):", e)
+        const msg = e instanceof Error ? e.message : String(e)
+        try {
+          await broadcastEvent(roomId, chatId, { type: "error", message: msg })
+        } finally {
+          await endRun(runId, "ended").catch(() => {})
+          await broadcastSignal(roomId, chatId, "chat-stream-end")
+        }
+      }
     })
 
     return Response.json({ chatId, runId })
@@ -241,25 +259,40 @@ export async function POST(req: Request) {
   const history = await loadChatHistory(chatId)
   const runId = await startRun(chatId)
 
+  // Broadcast the start signal and echo the user message synchronously so
+  // the client transitions into streaming before the response returns —
+  // otherwise a failed/dropped `after()` callback would strand the chat with
+  // a persisted user message and no indication anything is happening.
+  await broadcastSignal(roomId, chatId, "chat-stream-start")
+  const broadcaster = new StreamBroadcaster(roomId, chatId)
+  await broadcaster.onUserMessage(message)
+
   // Kick off the loop in the background and return immediately — the client
   // receives state via the Y.Doc broadcast channel.
   after(async () => {
-    await broadcastSignal(roomId, chatId, "chat-stream-start")
-    const broadcaster = new StreamBroadcaster(roomId, chatId)
-    await broadcaster.onUserMessage(message)
-
-    await runAgentLoop({
-      chatId,
-      runId,
-      roomId,
-      systemPrompt,
-      model: effectiveModel,
-      tools: {
-        ...buildAgentTools(toolCtx),
-        ...buildLayerReadTools({ roomId }),
-      },
-      messages: history,
-    })
+    try {
+      await runAgentLoop({
+        chatId,
+        runId,
+        roomId,
+        systemPrompt,
+        model: effectiveModel,
+        tools: {
+          ...buildAgentTools(toolCtx),
+          ...buildLayerReadTools({ roomId }),
+        },
+        messages: history,
+      })
+    } catch (e) {
+      console.error("runAgentLoop failed:", e)
+      const msg = e instanceof Error ? e.message : String(e)
+      try {
+        await broadcastEvent(roomId, chatId, { type: "error", message: msg })
+      } finally {
+        await endRun(runId, "ended").catch(() => {})
+        await broadcastSignal(roomId, chatId, "chat-stream-end")
+      }
+    }
   })
 
   return Response.json({ chatId, runId })

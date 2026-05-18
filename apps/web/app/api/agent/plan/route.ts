@@ -12,6 +12,7 @@ import {
 } from "@/lib/agent/engine"
 import {
   appendMessage,
+  endRun,
   findPendingToolCall,
   loadChatHistory,
   resolvePendingToolCall,
@@ -98,20 +99,35 @@ export async function POST(req: Request) {
     })
   }
 
+  // Broadcast the resume signal synchronously so the UI re-enters the
+  // streaming state before the response returns; a failed `after()` won't
+  // leave the chat stuck on the plan card with no progress.
+  await broadcastSignal(roomId, chatId, "chat-stream-start")
+
   after(async () => {
-    await broadcastSignal(roomId, chatId, "chat-stream-start")
-    await runAgentLoop({
-      chatId,
-      runId,
-      roomId,
-      systemPrompt: chat.systemPrompt,
-      model: chat.model,
-      tools: {
-        ...buildAgentTools(toolCtx),
-        ...buildLayerReadTools({ roomId }),
-      },
-      messages: history,
-    })
+    try {
+      await runAgentLoop({
+        chatId,
+        runId,
+        roomId,
+        systemPrompt: chat.systemPrompt,
+        model: chat.model,
+        tools: {
+          ...buildAgentTools(toolCtx),
+          ...buildLayerReadTools({ roomId }),
+        },
+        messages: history,
+      })
+    } catch (e) {
+      console.error("runAgentLoop failed (plan resume):", e)
+      const msg = e instanceof Error ? e.message : String(e)
+      try {
+        await broadcastEvent(roomId, chatId, { type: "error", message: msg })
+      } finally {
+        await endRun(runId, "ended").catch(() => {})
+        await broadcastSignal(roomId, chatId, "chat-stream-end")
+      }
+    }
   })
 
   return Response.json({ success: true, runId })
