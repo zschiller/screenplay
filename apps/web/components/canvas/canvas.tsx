@@ -127,6 +127,7 @@ import {
   type SnapCandidate,
 } from "@/lib/iframe-layer-snap"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
+import { GroupMergeUnderlay } from "./group-merge-underlay"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -790,20 +791,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const placeholderRects = useMemo(() => {
     const rects: Array<{ x: number; y: number; width: number; height: number }> = []
+    const poppedId = reorderDragPopped ? reorderDragRef_iframeLayerId : null
     for (const g of iframeLayerGroups) {
-      const members = getGroupMembers(g)
-      if (members.length === 0) continue
+      const allMembers = getGroupMembers(g)
+      if (allMembers.length === 0) continue
       if (selectedGroupIds.has(g.id)) continue
       // Placeholder appears when any member (iframeLayer or document) in the group
       // is selected — the affordance is "add another frame next to this one".
-      const hasSelected = members.some((m) =>
+      const hasSelected = allMembers.some((m) =>
         m.kind === "iframe-layer"
           ? selectedIframeLayerIds.has(m.id)
           : selectedDocumentLayerIds.has(m.id),
       )
       if (!hasSelected) continue
+      // While meta-dragging a frame out, the popped frame floats at the cursor
+      // and the source group's remaining siblings close the gap. Anchor on the
+      // new last remaining member so the placeholder's overlay border tracks
+      // the reflowed row instead of staying at the original right edge.
+      const members =
+        poppedId && allMembers.some((m) => m.id === poppedId)
+          ? allMembers.filter((m) => m.id !== poppedId)
+          : allMembers
+      if (members.length === 0) continue
       const lastMember = members[members.length - 1]!
-      const lastLayout = iframeLayerLayouts.get(lastMember.id)
+      const lastLayout = effectiveIframeLayerLayouts.get(lastMember.id)
       if (!lastLayout) continue
       rects.push({
         x: lastLayout.x + lastLayout.width + groupGap(g),
@@ -815,10 +826,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     return rects
   }, [
     iframeLayerGroups,
-    iframeLayerLayouts,
+    effectiveIframeLayerLayouts,
     selectedIframeLayerIds,
     selectedDocumentLayerIds,
     selectedGroupIds,
+    reorderDragPopped,
+    reorderDragRef_iframeLayerId,
   ])
 
   /**
@@ -1896,6 +1909,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (canvasX: number, canvasY: number, width: number, height: number): string => {
       const docId = nanoid()
       const groupId = nanoid()
+      const chatId = nanoid()
       const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
       collections.transact(() => {
         collections.markdownLayers.set(docId, {
@@ -1916,7 +1930,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         // would fill the empty fragment locally; doing it on creation means
         // every peer sees the same shape from the start.
         seedDocumentFragment(collections.doc.getXmlFragment(`markdown-layer-${docId}`))
+        // Seed an empty chat so the doc has a tab ready the first time its
+        // chat panel opens — mirrors the chat-session pre-create in the
+        // agent batch-spawn flow.
+        collections.chatSessions.set(chatId, {
+          id: chatId,
+          markdownLayerId: docId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
       })
+      selectedChatByDocumentRef.current[docId] = chatId
       return docId
     },
     [collections],
@@ -2116,6 +2140,47 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       if (el) zoomToDomElement(el)
     },
     [zoomToDomElement],
+  )
+
+  const handleZoomToGroup = useCallback(
+    (groupId: string) => {
+      const ref = transformRef.current
+      if (!ref) return
+      const group = iframeLayerGroups.find((g) => g.id === groupId)
+      if (!group) return
+      const members = getGroupMembers(group)
+      if (members.length === 0) return
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const m of members) {
+        const layout = effectiveIframeLayerLayouts.get(m.id)
+        if (!layout) continue
+        if (layout.x < minX) minX = layout.x
+        if (layout.y < minY) minY = layout.y
+        if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
+        if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
+      }
+      if (!isFinite(minX) || !isFinite(minY)) return
+      const worldW = maxX - minX
+      const worldH = maxY - minY
+      if (worldW <= 0 || worldH <= 0) return
+      const padding = 20
+      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const scale = Math.min(
+        (wrapperW - padding * 2) / worldW,
+        (wrapperH - padding * 2) / worldH,
+        ZOOM_MAX,
+      )
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+      const positionX = wrapperW / 2 - centerX * scale
+      const positionY = wrapperH / 2 - centerY * scale
+      ref.setTransform(positionX, positionY, scale, 300)
+    },
+    [iframeLayerGroups, effectiveIframeLayerLayouts],
   )
 
   const handleAddIframeLayerForAgent = useCallback(
@@ -3698,26 +3763,46 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         setReorderDragPopped(false)
 
         // Click-no-move on a drag initiated from a layer's name label →
-        // forward to the regular frame-select path. Without this, clicking a
-        // multi-member frame's name (which takes over the pointer for reorder)
-        // would swallow the click instead of selecting the frame.
+        // forward to the regular select path for whichever kind of layer
+        // started the gesture. Without this, clicking a multi-member layer's
+        // name (which takes over the pointer for reorder) would swallow the
+        // click instead of selecting the layer.
         const moved =
           Math.abs(canvas.x - drag.startCanvas.x) > 3 ||
           Math.abs(canvas.y - drag.startCanvas.y) > 3
         if (!moved && drag.selectOnNoMove) {
-          // Inline selection — mirrors `handleIframeLayerSelect` below but
-          // avoids the forward reference (it's declared later in this file).
+          const sourceGroup = collections.iframeLayerGroups.get(drag.groupId)
+          const memberKind = sourceGroup
+            ? getGroupMembers(sourceGroup).find((m) => m.id === drag.iframeLayerId)?.kind
+            : undefined
+          // Inline selection — mirrors `handleIframeLayerSelect` /
+          // `handleDocumentLayerSelect` below but avoids the forward reference
+          // (they're declared later in this file).
           setSelectedGroupIds(new Set())
-          if (drag.startShiftKey) {
-            setSelectedIframeLayerIds((prev) => {
-              const next = new Set(prev)
-              if (next.has(drag.iframeLayerId)) next.delete(drag.iframeLayerId)
-              else next.add(drag.iframeLayerId)
-              return next
-            })
+          if (memberKind === "markdown-layer") {
+            if (drag.startShiftKey) {
+              setSelectedDocumentLayerIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(drag.iframeLayerId)) next.delete(drag.iframeLayerId)
+                else next.add(drag.iframeLayerId)
+                return next
+              })
+            } else {
+              setSelectedDocumentLayerIds(new Set([drag.iframeLayerId]))
+              setSelectedIframeLayerIds(new Set())
+            }
           } else {
-            setSelectedIframeLayerIds(new Set([drag.iframeLayerId]))
-            setSelectedDocumentLayerIds(new Set())
+            if (drag.startShiftKey) {
+              setSelectedIframeLayerIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(drag.iframeLayerId)) next.delete(drag.iframeLayerId)
+                else next.add(drag.iframeLayerId)
+                return next
+              })
+            } else {
+              setSelectedIframeLayerIds(new Set([drag.iframeLayerId]))
+              setSelectedDocumentLayerIds(new Set())
+            }
           }
           return
         }
@@ -4171,6 +4256,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           selectedGroupIds={selectedGroupIds}
           selectedDocumentLayerIds={selectedDocumentLayerIds}
           onSelectGroup={handleGroupSelect}
+          onZoomToGroup={handleZoomToGroup}
           onSelectDocument={handleDocumentLayerSelect}
           onZoomToDocument={handleZoomToDocument}
           onRenameDocument={setDocumentLayerTitle}
@@ -4299,6 +4385,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               anchor={resizeSnap?.anchor ?? "tl"}
               candidates={resizeSnap?.candidates ?? []}
               snappedPresetId={resizeSnap?.snappedPresetId ?? null}
+            />
+
+            <GroupMergeUnderlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              rects={groupDragSnapRects}
             />
 
             <TransformWrapper
@@ -4493,6 +4585,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 onMoveSelected={handleMoveSelected}
                                 onGroupDragStart={() => handleLayerGroupDragStart(doc.id)}
                                 onGroupDragEnd={handleLayerGroupDragEnd}
+                                onRequestReorderDrag={requestReorderDrag}
                                 onResize={resizeDocumentLayer}
                                 onTitleChange={setDocumentLayerTitleCache}
                                 onStartEdit={setEditingDocumentLayerId}
@@ -4619,7 +4712,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 iframeLayerLayouts={effectiveIframeLayerLayouts}
                 hideResizeHandles={editingDocumentLayerId !== null}
                 placeholderRects={placeholderRects}
-                groupMergeSnapRects={groupDragSnapRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
                 hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}

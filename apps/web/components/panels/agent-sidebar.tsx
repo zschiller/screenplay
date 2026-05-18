@@ -116,6 +116,7 @@ interface AgentSidebarProps {
   selectedGroupIds: Set<string>
   selectedDocumentLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
+  onZoomToGroup: (groupId: string) => void
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateWorkspace: (pick: RepoPickerSelection) => void
   onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
@@ -171,6 +172,7 @@ export function AgentSidebar({
   selectedGroupIds,
   selectedDocumentLayerIds,
   onSelectGroup,
+  onZoomToGroup,
   onSelectAgent,
   onCreateWorkspace,
   onUpdateWorkspace,
@@ -731,6 +733,7 @@ export function AgentSidebar({
                             className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7"
                             isActive={selectedGroupIds.has(group.id)}
                             onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
+                            onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
                           >
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
