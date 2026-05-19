@@ -575,15 +575,6 @@ export function AgentSidebar({
                                                       <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
                                                     </span>
                                                   )}
-                                                  {agent.previewDomain ? (
-                                                    <button
-                                                      className="hidden h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 group-hover/agent-row:flex group-focus-within/agent-row:flex md:group-has-data-[menu-visible]/slot:flex"
-                                                      onClick={(e) => { e.stopPropagation(); onPlayAgent(agent.id) }}
-                                                      title="Open prototype player"
-                                                    >
-                                                      <Play className="size-3.5" />
-                                                    </button>
-                                                  ) : null}
                                                   <AgentDropdownSlot
                                                     menuContent={
                                                       <DropdownMenuContent side="right" align="start" className="w-48">
@@ -696,16 +687,7 @@ export function AgentSidebar({
                                                         </DropdownMenuItem>
                                                       </DropdownMenuContent>
                                                     }
-                                                  >
-                                                    <button
-                                                      className="flex h-5 w-5 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                                                      onClick={(e) => { e.stopPropagation(); onAddIframeLayer(agent.id) }}
-                                                      title={isLoading ? "Sandbox still starting…" : "Add frame"}
-                                                      disabled={isLoading}
-                                                    >
-                                                      <Plus className="size-4" />
-                                                    </button>
-                                                  </AgentDropdownSlot>
+                                                  />
                                                 </>
                                               )
                                             })()}
