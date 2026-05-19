@@ -52,7 +52,7 @@ export function AgentCard({
             className={`h-2 w-2 shrink-0 rounded-full ${statusColors[agent.status]}`}
           />
           {agent.branch ? (
-            <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+            <BranchBadge branch={agent.branch} colorKey={agent.id} colorIndex={agent.colorIndex} className="text-[11px] py-0 px-1.5" />
           ) : (
             <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
           )}

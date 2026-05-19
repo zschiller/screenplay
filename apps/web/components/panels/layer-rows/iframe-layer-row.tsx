@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { EditableText } from "@workspace/ui/components/editable-text"
 import { BranchBadge } from "@/components/branch-badge"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { AgentData, IframeLayerData } from "@/lib/types"
@@ -33,14 +34,28 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     selected,
     onSelect,
     onActivate,
+    onRename,
   }: LayerRowProps<IframeLayerData>) {
     const agent = item.sandboxId ? extras.agentsById.get(item.sandboxId) : undefined
     const Icon = iframeLayerKind.Icon
+    const label = iframeLayerKind.getLabel(item)
+
+    const nameEditable = (
+      <EditableText
+        as="span"
+        value={label}
+        onCommit={(next) => onRename(item.id, next)}
+        placeholder="Untitled"
+        className="min-w-0"
+        viewClassName="truncate"
+        editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+      />
+    )
 
     if (variant === "flat") {
       return (
         <SidebarMenuButton
-          className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
+          className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
           isActive={selected}
           onClick={(e) => {
             e.stopPropagation()
@@ -56,10 +71,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             <BranchBadge
               branch={agent.branch}
               colorKey={agent.id}
+              colorIndex={agent.colorIndex}
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}
-          <span className="truncate">{iframeLayerKind.getLabel(item)}</span>
+          {nameEditable}
           {iframeLayerKind.renderRowAccessory?.(item)}
         </SidebarMenuButton>
       )
@@ -68,7 +84,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
       <SidebarMenuSubButton asChild isActive={selected}>
         <button
           type="button"
-          className="w-full cursor-pointer pr-7"
+          className="w-full cursor-pointer pr-7 has-[[data-editable-text=editing]]:overflow-visible"
           onClick={(e) => {
             e.stopPropagation()
             onSelect(item.id, e.shiftKey)
@@ -83,10 +99,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             <BranchBadge
               branch={agent.branch}
               colorKey={agent.id}
+              colorIndex={agent.colorIndex}
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}
-          <span className="truncate">{iframeLayerKind.getLabel(item)}</span>
+          {nameEditable}
           {iframeLayerKind.renderRowAccessory?.(item)}
         </button>
       </SidebarMenuSubButton>

@@ -68,6 +68,8 @@ interface IframeLayerLabelProps {
   groupSelected?: boolean
   /** Click handler for the group label. When provided, the label is interactive. */
   onSelectGroup?: (shiftKey: boolean) => void
+  /** Inline rename for the group label. */
+  onRenameGroup?: (next: string) => void
   /**
    * When the frame is being reorder-dragged, these world-space translation
    * values are applied to the outer frame container. The group label sits
@@ -83,6 +85,9 @@ interface IframeLayerLabelProps {
   reorderDragPopped?: boolean
   /** Pointer-down select for the frame name — mirrors the frame body's instant-select behavior. */
   onSelectFrame?: (shiftKey: boolean) => void
+  /** Inline rename for the frame name. When provided, double-clicking the
+   *  name swaps it into a contenteditable. */
+  onRename?: (next: string) => void
   /**
    * Reports the natural (unconstrained) width of the bottom row in screen px —
    * status dot + name + route badge — so the parent can decide how much room
@@ -103,7 +108,7 @@ const HMR_DOT_TITLE: Record<HmrStatus, string> = {
   disconnected: "Dev server disconnected",
 }
 
-export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onSelectFrame, onContentWidthChange, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
+export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, onContentWidthChange, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
   const measureRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!onContentWidthChange) return
@@ -127,6 +132,7 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
       groupLabel={groupLabel}
       groupSelected={groupSelected}
       onSelectGroup={onSelectGroup}
+      onRenameGroup={onRenameGroup}
       groupLabelDragHandlers={groupLabelDragHandlers}
       reorderDragTranslateX={reorderDragTranslateX}
       reorderDragTranslateY={reorderDragTranslateY}
@@ -139,11 +145,17 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
               branch={branch}
               currentAgentId={sandboxId}
               colorKey={sandboxId}
+              colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
               assignableAgents={assignableAgents ?? []}
               onAssignAgent={onAssignAgent}
             />
           ) : branch ? (
-            <BranchBadge branch={branch} colorKey={sandboxId} className="text-[10px] py-0 px-1.5" />
+            <BranchBadge
+              branch={branch}
+              colorKey={sandboxId}
+              colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
+              className="text-[10px] py-0 px-1.5"
+            />
           ) : null}
         </div>
       )}
@@ -164,6 +176,8 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
           title={label}
           selected={selected}
           onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
+          onRename={onRename}
+          placeholder="Untitled"
         />
         {branch && (onSelectRoute ? (
           <RoutePicker
@@ -321,6 +335,7 @@ interface BranchPickerProps {
   branch?: string
   currentAgentId?: string
   colorKey?: string
+  colorIndex?: number
   assignableAgents: AgentData[]
   onAssignAgent: (agentId: string) => void
 }
@@ -372,7 +387,7 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
   )
 }
 
-function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAssignAgent }: BranchPickerProps) {
+function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignableAgents, onAssignAgent }: BranchPickerProps) {
   const [open, setOpen] = useState(false)
   const pickableAgents = assignableAgents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
 
@@ -386,7 +401,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
           onClick={(e) => e.stopPropagation()}
         >
           {branch ? (
-            <BranchBadge branch={branch} colorKey={colorKey} className="min-w-0 text-[10px] py-0 px-1.5" />
+            <BranchBadge branch={branch} colorKey={colorKey} colorIndex={colorIndex} className="min-w-0 text-[10px] py-0 px-1.5" />
           ) : (
             <span className="min-w-0 truncate text-xs text-muted-foreground">
               Choose a branch
@@ -413,7 +428,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, assignableAgents, onAs
                     }}
                   >
                     <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
-                    <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                    <BranchBadge branch={a.branch} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
                     {isBusy && <Spinner className="ml-auto size-3" />}
                   </CommandItem>
                 )

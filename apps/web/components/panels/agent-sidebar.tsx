@@ -24,6 +24,8 @@ import {
   Route,
   PanelLeftClose,
   Terminal,
+  Palette,
+  Check,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -38,6 +40,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
+import { EditableText } from "@workspace/ui/components/editable-text"
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,8 +51,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { BRANCH_COLORS } from "@/lib/branch-colors"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   Popover,
   PopoverContent,
@@ -162,6 +170,15 @@ interface AgentSidebarProps {
   branchPrs: Map<string, BranchPrInfo>
 }
 
+function sanitizeBranchName(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9/_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
 export function AgentSidebar({
   workspaces,
   agents,
@@ -216,6 +233,10 @@ export function AgentSidebar({
   const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
+  // Per-workspace cache of remote branch names, fetched lazily on first
+  // render of a workspace and refreshed whenever the workspace list changes.
+  // Used to block inline-renames that would collide with an existing branch.
+  const [remoteBranchesByWorkspace, setRemoteBranchesByWorkspace] = useState<Map<string, Set<string>>>(new Map())
   const diffStats = useDiffStats(agents, workspaces)
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, AgentSidebarProps["iframeLayers"][number]>()
@@ -232,6 +253,29 @@ export function AgentSidebar({
     for (const a of agents) m.set(a.id, a)
     return m
   }, [agents])
+
+  // Fetch each workspace's remote branch list once (per workspace add). This
+  // powers the inline-rename collision check below; without it we'd silently
+  // let the user rename onto an existing branch and the server-side `git
+  // branch -m` would fail after the fact.
+  useEffect(() => {
+    let cancelled = false
+    for (const ws of workspaces) {
+      if (remoteBranchesByWorkspace.has(ws.id)) continue
+      listRepoBranches(ws.repoOwner, ws.repoName).then((data) => {
+        if (cancelled) return
+        setRemoteBranchesByWorkspace((prev) => {
+          if (prev.has(ws.id)) return prev
+          const next = new Map(prev)
+          next.set(ws.id, new Set(data.map((b) => b.name)))
+          return next
+        })
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [workspaces, remoteBranchesByWorkspace])
 
   /**
    * Per-kind sidebar row + menu component lookup. Each entry binds a
@@ -498,7 +542,23 @@ export function AgentSidebar({
                                               <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                                             )}
                                             {agent.branch ? (
-                                              <BranchBadge branch={agent.branch} colorKey={agent.id} className="text-[11px] py-0 px-1.5" />
+                                              <BranchBadge
+                                                branch={agent.branch}
+                                                colorKey={agent.id}
+                                                colorIndex={agent.colorIndex}
+                                                className="text-[11px] py-0 px-1.5"
+                                                onRename={(next) => {
+                                                  const sanitized = sanitizeBranchName(next)
+                                                  if (!sanitized) return
+                                                  if (sanitized === agent.branch) return
+                                                  const remote = remoteBranchesByWorkspace.get(workspace.id)
+                                                  const localTaken = workspaceAgents.some(
+                                                    (a) => a.id !== agent.id && a.branch === sanitized,
+                                                  )
+                                                  if (localTaken || remote?.has(sanitized)) return
+                                                  onRenameBranch(agent.id, sanitized)
+                                                }}
+                                              />
                                             ) : (
                                               <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
                                             )}
@@ -538,13 +598,48 @@ export function AgentSidebar({
                                                         <DropdownMenuItem onClick={() => {
                                                           const raw = prompt("Rename branch", agent.branch ?? "")
                                                           if (!raw?.trim()) return
-                                                          const sanitized = raw.trim().toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
-                                                          if (sanitized.length < 1) return
+                                                          const sanitized = sanitizeBranchName(raw)
+                                                          if (!sanitized) return
                                                           onRenameBranch(agent.id, sanitized)
                                                         }}>
                                                           <Pencil />
                                                           Rename
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuSub>
+                                                          <DropdownMenuSubTrigger>
+                                                            <Palette />
+                                                            Color
+                                                          </DropdownMenuSubTrigger>
+                                                          <DropdownMenuSubContent className="p-2">
+                                                            <div className="grid grid-cols-8 gap-1">
+                                                              {BRANCH_COLORS.map((c, i) => {
+                                                                const active = agent.colorIndex === i
+                                                                return (
+                                                                  <button
+                                                                    key={c.name}
+                                                                    type="button"
+                                                                    title={c.name}
+                                                                    aria-label={c.name}
+                                                                    onClick={() => onUpdateAgent(agent.id, { colorIndex: i })}
+                                                                    className={cn(
+                                                                      "flex h-5 w-5 items-center justify-center rounded-md ring-1 ring-foreground/10 outline-hidden focus-visible:ring-2 focus-visible:ring-foreground/40",
+                                                                      c.swatch,
+                                                                    )}
+                                                                  >
+                                                                    {active && <Check className="size-3 text-white drop-shadow" />}
+                                                                  </button>
+                                                                )
+                                                              })}
+                                                            </div>
+                                                            <DropdownMenuSeparator className="my-2" />
+                                                            <DropdownMenuItem
+                                                              disabled={agent.colorIndex === undefined}
+                                                              onClick={() => onUpdateAgent(agent.id, { colorIndex: undefined })}
+                                                            >
+                                                              Reset to default
+                                                            </DropdownMenuItem>
+                                                          </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
                                                         <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
                                                           <GitBranchPlus />
                                                           Duplicate branch
@@ -689,6 +784,7 @@ export function AgentSidebar({
                         selected={dispatch.isSelected(member.id)}
                         onSelect={dispatch.onSelect}
                         onActivate={dispatch.onActivate}
+                        onRename={dispatch.onRename}
                       />
                       <Menu
                         item={member.data}
@@ -730,20 +826,30 @@ export function AgentSidebar({
                     <Collapsible defaultOpen className="group/frame-collapsible flex flex-col">
                       <div className="group/frame-group-row relative">
                           <SidebarMenuButton
-                            className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7"
+                            className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
                             isActive={selectedGroupIds.has(group.id)}
                             onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
                             onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
                           >
-                            <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <CollapsibleTrigger
+                              asChild
+                              onClick={(e) => e.stopPropagation()}
+                              onDoubleClick={(e) => e.stopPropagation()}
+                            >
                               <span className="relative shrink-0">
                                 <Folder className="block group-hover/frame-group-row:hidden text-sidebar-foreground/70" />
                                 <ChevronRight className="hidden group-hover/frame-group-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/frame-collapsible:rotate-90" />
                               </span>
                             </CollapsibleTrigger>
-                            <span className="truncate font-medium text-sidebar-foreground/70">
-                              {group.name ?? "Group"}
-                            </span>
+                            <EditableText
+                              as="span"
+                              value={group.name ?? ""}
+                              onCommit={(next) => onRenameIframeLayerGroup(group.id, next)}
+                              placeholder="Group"
+                              className="min-w-0 font-medium text-sidebar-foreground/70"
+                              viewClassName="truncate"
+                              editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                            />
                           </SidebarMenuButton>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

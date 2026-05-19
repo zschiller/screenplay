@@ -53,6 +53,8 @@ export type AgentData = {
   /** Set true by the parallel-create flow, which defers iframe-layer seeding until `previewDomain` is known.
    *  The deferred-seed effect seeds once and clears the flag, so deleting the last frame never re-seeds. */
   pendingIframeLayerSeed?: boolean
+  /** Manual override into `BRANCH_COLORS`. When unset, the badge color is hashed from `id`. */
+  colorIndex?: number
 }
 
 /**
