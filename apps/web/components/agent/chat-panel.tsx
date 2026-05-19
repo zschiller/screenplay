@@ -510,6 +510,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
       <BranchBadge
         branch={target.agent.branch}
         colorKey={target.agent.id}
+        colorIndex={target.agent.colorIndex}
         className="text-[11px] py-0 px-1.5"
       />
     )
@@ -585,7 +586,7 @@ function TargetPicker({
                       }}
                     >
                       <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
-                      <BranchBadge branch={a.branch} colorKey={a.id} className="text-[11px] py-0 px-1.5" />
+                      <BranchBadge branch={a.branch} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
                       {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>
                   )

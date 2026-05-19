@@ -189,13 +189,18 @@ export function PlayerChatHost({
         agent.branch === newBranch
       )
         return
+      // Optimistic local rename — the sandbox roundtrip can take several
+      // seconds and leaving the old name on screen feels broken. Roll back
+      // if the sandbox rejects.
+      const previousBranch = agent.branch
+      updateAgent(agent.id, { branch: newBranch })
       const result = await renameAgentBranch(
         workspace,
         agent.sandboxName,
-        agent.branch,
+        previousBranch,
         newBranch,
       )
-      if (result.success) updateAgent(agent.id, { branch: newBranch })
+      if (!result.success) updateAgent(agent.id, { branch: previousBranch })
     },
     [agent, workspace, updateAgent],
   )

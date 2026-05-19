@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@workspace/ui/lib/utils"
+import { EditableText } from "@workspace/ui/components/editable-text"
 
 interface GroupLabelProps {
   label: string
@@ -16,6 +17,9 @@ interface GroupLabelProps {
    * — which now runs reorder logic in multi-member groups — doesn't fire.
    */
   dragHandlers?: Record<string, unknown>
+  /** Optional inline rename. When provided, double-click flips the label
+   *  into a contenteditable with the same affordance the frame name uses. */
+  onRename?: (next: string) => void
 }
 
 /**
@@ -23,28 +27,58 @@ interface GroupLabelProps {
  * leftmost item in a multi-member group. Shared between `IframeLayer` and
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
-export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers }: GroupLabelProps) {
+export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, onRename }: GroupLabelProps) {
   if (onSelectGroup) {
     const dragPointerDown = dragHandlers?.onPointerDown as
       | ((e: React.PointerEvent) => void)
       | undefined
+    const handleSelectPointerDown = (e: React.PointerEvent) => {
+      if (e.button !== 0) return
+      // Stop the frame's label drag handlers (which run reorder/select for
+      // a single frame) from firing — clicking or dragging the group label
+      // should operate on the whole group, not the leftmost frame.
+      e.stopPropagation()
+      onSelectGroup(e.shiftKey)
+      dragPointerDown?.(e)
+    }
+    const colorClass = groupSelected ? "text-fuchsia-500" : "text-muted-foreground"
+
+    if (onRename) {
+      // Match the frame-label structure exactly: EditableText as a direct
+      // child of a `flex items-center` row. `items-center` masks the vertical
+      // shift from `py-0.5 -my-0.5`, and `flex-1` gives the editable a stable
+      // slot to scroll inside.
+      return (
+        <div
+          className="mb-0.5 flex items-center max-w-full"
+          {...dragHandlers}
+          onPointerDown={handleSelectPointerDown}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          <EditableText
+            as="span"
+            value={label}
+            onCommit={onRename}
+            placeholder="Group"
+            className={cn("text-xs font-medium min-w-[0.75em]", colorClass)}
+            viewClassName="truncate cursor-pointer"
+            editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+          />
+        </div>
+      )
+    }
+
     return (
       <button
         type="button"
         className={cn(
           "mb-0.5 text-xs font-medium truncate min-w-0 cursor-pointer outline-none",
-          groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
+          colorClass,
         )}
         {...dragHandlers}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return
-          // Stop the frame's label drag handlers (which run reorder/select for
-          // a single frame) from firing — clicking or dragging the group label
-          // should operate on the whole group, not the leftmost frame.
-          e.stopPropagation()
-          onSelectGroup(e.shiftKey)
-          dragPointerDown?.(e)
-        }}
+        onPointerDown={handleSelectPointerDown}
         onClick={(e) => {
           e.stopPropagation()
         }}

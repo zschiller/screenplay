@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { EditableText } from "@workspace/ui/components/editable-text"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
@@ -23,12 +24,27 @@ export function DocumentRow({
   selected,
   onSelect,
   onActivate,
+  onRename,
 }: LayerRowProps<MarkdownLayerData>) {
   const Icon = markdownLayerKind.Icon
+  const label = markdownLayerKind.getLabel(item)
+
+  const nameEditable = (
+    <EditableText
+      as="span"
+      value={label}
+      onCommit={(next) => onRename(item.id, next)}
+      placeholder="Untitled"
+      className="min-w-0"
+      viewClassName="truncate"
+      editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+    />
+  )
+
   if (variant === "flat") {
     return (
       <SidebarMenuButton
-        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7"
+        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
         isActive={selected}
         onClick={(e) => {
           e.stopPropagation()
@@ -40,7 +56,7 @@ export function DocumentRow({
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
-        <span className="truncate">{markdownLayerKind.getLabel(item)}</span>
+        {nameEditable}
       </SidebarMenuButton>
     )
   }
@@ -48,7 +64,7 @@ export function DocumentRow({
     <SidebarMenuSubButton asChild isActive={selected}>
       <button
         type="button"
-        className="w-full cursor-pointer pr-7"
+        className="w-full cursor-pointer pr-7 has-[[data-editable-text=editing]]:overflow-visible"
         onClick={(e) => {
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
@@ -59,7 +75,7 @@ export function DocumentRow({
         }}
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
-        <span className="truncate">{markdownLayerKind.getLabel(item)}</span>
+        {nameEditable}
       </button>
     </SidebarMenuSubButton>
   )

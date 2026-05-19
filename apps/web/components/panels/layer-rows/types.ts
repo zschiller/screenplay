@@ -23,8 +23,11 @@ export interface LayerRowProps<T> {
   variant: "flat" | "sub"
   selected: boolean
   onSelect: (id: string, shiftKey: boolean) => void
-  /** Optional double-click activation (e.g. zoom-to-frame). */
+  /** Optional double-click activation (e.g. zoom-to-frame). Suppressed when
+   *  the user is double-clicking the name to inline-rename. */
   onActivate?: (id: string) => void
+  /** Inline rename triggered by double-clicking the row's name. */
+  onRename: (id: string, name: string) => void
 }
 
 export interface LayerRowMenuProps<T> {
