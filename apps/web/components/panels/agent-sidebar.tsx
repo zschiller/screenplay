@@ -25,7 +25,6 @@ import {
   PanelLeftClose,
   Terminal,
   Palette,
-  Check,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -50,6 +49,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -601,28 +602,19 @@ export function AgentSidebar({
                                                             <Palette />
                                                             Color
                                                           </DropdownMenuSubTrigger>
-                                                          <DropdownMenuSubContent className="p-2">
-                                                            <div className="grid grid-cols-8 gap-1">
-                                                              {BRANCH_COLORS.map((c, i) => {
-                                                                const active = agent.colorIndex === i
-                                                                return (
-                                                                  <button
-                                                                    key={c.name}
-                                                                    type="button"
-                                                                    title={c.name}
-                                                                    aria-label={c.name}
-                                                                    onClick={() => onUpdateAgent(agent.id, { colorIndex: i })}
-                                                                    className={cn(
-                                                                      "flex h-5 w-5 items-center justify-center rounded-md ring-1 ring-foreground/10 outline-hidden focus-visible:ring-2 focus-visible:ring-foreground/40",
-                                                                      c.swatch,
-                                                                    )}
-                                                                  >
-                                                                    {active && <Check className="size-3 text-white drop-shadow" />}
-                                                                  </button>
-                                                                )
-                                                              })}
-                                                            </div>
-                                                            <DropdownMenuSeparator className="my-2" />
+                                                          <DropdownMenuSubContent className="w-40">
+                                                            <DropdownMenuRadioGroup
+                                                              value={agent.colorIndex !== undefined ? String(agent.colorIndex) : ""}
+                                                              onValueChange={(v) => onUpdateAgent(agent.id, { colorIndex: Number(v) })}
+                                                            >
+                                                              {BRANCH_COLORS.map((c, i) => (
+                                                                <DropdownMenuRadioItem key={c.name} value={String(i)}>
+                                                                  <span className={cn("size-4 rounded-[3px]", c.swatch)} />
+                                                                  <span className="capitalize">{c.name}</span>
+                                                                </DropdownMenuRadioItem>
+                                                              ))}
+                                                            </DropdownMenuRadioGroup>
+                                                            <DropdownMenuSeparator />
                                                             <DropdownMenuItem
                                                               disabled={agent.colorIndex === undefined}
                                                               onClick={() => onUpdateAgent(agent.id, { colorIndex: undefined })}
