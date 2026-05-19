@@ -4557,8 +4557,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                             } else {
                               const layout = iframeLayerLayouts.get(member.id)
                               if (layout) {
+                                // In-flow reorder locks Y so the dragged frame
+                                // slides only horizontally. Holding meta switches
+                                // to the popped branch above, which restores Y.
                                 dragTranslateX = reorderDragCursor.x - grab.x - layout.x
-                                dragTranslateY = reorderDragCursor.y - grab.y - layout.y
+                                dragTranslateY = 0
                               }
                             }
                           }
@@ -4751,7 +4754,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   return {
                     iframeLayerId: reorderDraggingIframeLayerId,
                     dx: reorderDragCursor.x - grab.x - layout.x,
-                    dy: reorderDragCursor.y - grab.y - layout.y,
+                    dy: 0,
                   }
                 })()}
                 marquee={marquee}
