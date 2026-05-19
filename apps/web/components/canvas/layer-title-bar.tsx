@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { cn } from "@workspace/ui/lib/utils"
+import { EditableText } from "@workspace/ui/components/editable-text"
 import { GroupLabel } from "./group-label"
 
 interface LayerTitleBarProps {
@@ -28,6 +29,8 @@ interface LayerTitleBarProps {
   groupLabel?: string
   groupSelected?: boolean
   onSelectGroup?: (shiftKey: boolean) => void
+  /** Optional inline rename for the group label. */
+  onRenameGroup?: (next: string) => void
   /** Drag handlers for the GroupLabel button — translate the whole group
    *  rather than reordering a single member. */
   groupLabelDragHandlers?: Record<string, unknown>
@@ -72,6 +75,7 @@ export function LayerTitleBar({
   groupLabel,
   groupSelected,
   onSelectGroup,
+  onRenameGroup,
   groupLabelDragHandlers,
   reorderDragTranslateX,
   reorderDragTranslateY,
@@ -123,6 +127,7 @@ export function LayerTitleBar({
             label={groupLabel}
             groupSelected={groupSelected}
             onSelectGroup={onSelectGroup}
+            onRename={onRenameGroup}
             dragHandlers={groupLabelDragHandlers}
           />
         </div>
@@ -141,6 +146,11 @@ interface LayerTitleTextProps {
    *  body's instant-select so the title click feels identical to clicking
    *  the layer itself. */
   onSelectLayer: (shiftKey: boolean) => void
+  /** Optional rename. When provided, double-click swaps the label into an
+   *  inline contenteditable. */
+  onRename?: (next: string) => void
+  /** Placeholder shown when the title is empty. */
+  placeholder?: string
 }
 
 /**
@@ -152,17 +162,38 @@ interface LayerTitleTextProps {
  * `max-width` its container imposes (frames clamp to leave room for action
  * buttons; docs let the bar's outer max-width do the clipping).
  */
-export function LayerTitleText({ title, selected, onSelectLayer }: LayerTitleTextProps) {
+export function LayerTitleText({ title, selected, onSelectLayer, onRename, placeholder }: LayerTitleTextProps) {
+  const colorClass = selected ? "text-fuchsia-500" : "text-foreground/70"
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return
+    onSelectLayer(e.shiftKey)
+  }
+
+  if (onRename) {
+    return (
+      <EditableText
+        as="span"
+        value={title}
+        placeholder={placeholder}
+        onCommit={onRename}
+        onPointerDown={handlePointerDown}
+        className={cn("text-xs font-medium min-w-[0.75em]", colorClass)}
+        // Clip the read-only label inside the row's max-width; during edit
+        // let the caret/text grow naturally so the user can see what they're
+        // typing past the truncate boundary.
+        viewClassName="truncate"
+        editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+      />
+    )
+  }
+
   return (
     <span
       className={cn(
         "text-xs font-medium truncate min-w-[0.75em]",
-        selected ? "text-fuchsia-500" : "text-foreground/70",
+        colorClass,
       )}
-      onPointerDown={(e) => {
-        if (e.button !== 0) return
-        onSelectLayer(e.shiftKey)
-      }}
+      onPointerDown={handlePointerDown}
     >
       {title}
     </span>

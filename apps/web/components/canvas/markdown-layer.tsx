@@ -112,6 +112,8 @@ interface MarkdownLayerProps {
   groupSelected?: boolean
   /** Click handler for the group label. */
   onSelectGroup?: (shiftKey: boolean) => void
+  /** Inline rename for the group label. */
+  onRenameGroup?: (next: string) => void
   /**
    * Ask the canvas to start a reorder drag from this doc's title bar. Returns
    * `true` for multi-member groups (canvas owns the gesture), `false` for
@@ -157,6 +159,7 @@ export function MarkdownLayer({
   groupLabel,
   groupSelected,
   onSelectGroup,
+  onRenameGroup,
   onRequestReorderDrag,
   onSelect,
   onMoveGroup,
@@ -582,6 +585,7 @@ export function MarkdownLayer({
         groupLabel={groupLabel}
         groupSelected={groupSelected}
         onSelectGroup={onSelectGroup}
+        onRenameGroup={onRenameGroup}
         groupLabelDragHandlers={spaceHeld ? undefined : groupLabelDragHandlers}
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}

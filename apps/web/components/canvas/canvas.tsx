@@ -3126,14 +3126,22 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       if (!workspace) return
 
+      // Apply the rename locally before the sandbox roundtrip — the sandbox
+      // resume + `git branch -m` + GitHub call can take several seconds and
+      // the badge sitting on the old name in the meantime feels broken.
+      // Roll back if the sandbox rejects (e.g. branch already exists).
+      const previousBranch = agent.branch
+      const previousAutoNamed = agent.autoNamedBranch
+      updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
+
       const result = await renameAgentBranch(
         workspace,
         agent.sandboxName,
-        agent.branch,
+        previousBranch,
         newBranch,
       )
-      if (result.success) {
-        updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
+      if (!result.success) {
+        updateAgentInStorage(agentId, { branch: previousBranch, autoNamedBranch: previousAutoNamed })
       }
     },
     [agents, workspaces, updateAgentInStorage],
@@ -4580,6 +4588,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                     ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
                                     : undefined
                                 }
+                                onRenameGroup={
+                                  flexOrder === 0 && showGroupLabel
+                                    ? (name) => renameIframeLayerGroup(group.id, name)
+                                    : undefined
+                                }
                                 onSelect={handleDocumentLayerSelect}
                                 onMoveGroup={(dx, dy) => moveIframeLayersByDelta([doc.id], dx, dy)}
                                 onMoveSelected={handleMoveSelected}
@@ -4630,6 +4643,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onResizeStart={handleResizeStart}
                               onResizeEnd={handleResizeEnd}
                               onRemove={removeIframeLayer}
+                              onRename={renameIframeLayer}
                               onStateChanged={updateIframeLayerState}
                               onRouteChange={updateIframeLayerRoute}
                               onScrollChange={updateIframeLayerScroll}
@@ -4652,6 +4666,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onSelectGroup={
                                 flexOrder === 0 && showGroupLabel
                                   ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                                  : undefined
+                              }
+                              onRenameGroup={
+                                flexOrder === 0 && showGroupLabel
+                                  ? (name) => renameIframeLayerGroup(group.id, name)
                                   : undefined
                               }
                               flexOrder={flexOrder}

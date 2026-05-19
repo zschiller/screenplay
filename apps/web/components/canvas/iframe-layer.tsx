@@ -89,6 +89,8 @@ interface IframeLayerProps {
   /** Fired when a resize gesture ends so the canvas can clear the snap underlay. */
   onResizeEnd?: (id: string) => void
   onRemove: (id: string) => void
+  /** Inline rename triggered by double-clicking the frame name. */
+  onRename?: (id: string, label: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
   onRouteChange?: (id: string, route: string) => void
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
@@ -124,6 +126,8 @@ interface IframeLayerProps {
   groupSelected?: boolean
   /** Click handler for the group label (only meaningful when `groupLabel` is set). */
   onSelectGroup?: (shiftKey: boolean) => void
+  /** Inline rename for the group label (only meaningful when `groupLabel` is set). */
+  onRenameGroup?: (next: string) => void
   /**
    * CSS `order` for the parent flex row. Lets us render iframeLayers in a stable
    * DOM order (so iframes don't reload) while still showing them in the
@@ -166,6 +170,7 @@ export function IframeLayer({
   onResizeStart,
   onResizeEnd,
   onRemove,
+  onRename,
   onStateChanged,
   onRouteChange,
   onScrollChange,
@@ -186,6 +191,7 @@ export function IframeLayer({
   groupLabel,
   groupSelected,
   onSelectGroup,
+  onRenameGroup,
   flexOrder,
   dragTranslateX,
   dragTranslateY,
@@ -616,12 +622,14 @@ export function IframeLayer({
           selectedOnPointerDown.current = true
           onSelectGroup(shiftKey)
         } : undefined}
+        onRenameGroup={onRenameGroup}
         onSelectFrame={(shiftKey) => {
           if (selected && !shiftKey) return
           if (groupSelected && !shiftKey) return
           selectedOnPointerDown.current = true
           onSelect(iframeLayer.id, shiftKey)
         }}
+        onRename={onRename ? (next) => onRename(iframeLayer.id, next) : undefined}
         onContentWidthChange={setLabelContentWidth}
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
