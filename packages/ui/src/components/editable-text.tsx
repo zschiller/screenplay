@@ -32,6 +32,13 @@ export type EditableTextProps = {
   revertOnEmpty?: boolean
   /** Default "doubleClick". "manual" requires using the ref handle. */
   editTrigger?: "doubleClick" | "click" | "manual"
+  /** Default false. When true, and the view element is being truncated at
+   *  edit-start, the edit element is given a `max-width` equal to the
+   *  view element's visible width — so the input matches the truncated
+   *  label it replaces (with internal scroll, via the consumer's
+   *  `overflow-x-auto`) but still shrinks if the user shortens the value.
+   *  When the view wasn't truncated, no width is applied. */
+  lockWidthOnEdit?: boolean
   onEditStart?: () => void
   onEditEnd?: () => void
   /** Default "span". The element renders identically in view and edit modes
@@ -58,6 +65,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       selectAllOnEdit = true,
       revertOnEmpty = true,
       editTrigger = "doubleClick",
+      lockWidthOnEdit = false,
       onEditStart,
       onEditEnd,
       as = "span",
@@ -70,6 +78,10 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     const isComposingRef = React.useRef(false)
     // Snapshot of value at edit-start so we can ignore no-op commits.
     const originalRef = React.useRef(value)
+    // Pixel max-width captured from the view element at edit-start when
+    // `lockWidthOnEdit` is on AND the view was truncated; applied as
+    // inline max-width on the edit element so shorter values still shrink.
+    const lockedWidthRef = React.useRef<number | null>(null)
     // Pointerdown-based double-click detection. We can't rely on the
     // browser's `dblclick` event because ancestors (e.g. drag handlers) often
     // call `preventDefault()` on `pointerdown`, which suppresses the
@@ -87,9 +99,16 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       if (isEditingRef.current) return
       isEditingRef.current = true
       originalRef.current = value
+      if (lockWidthOnEdit) {
+        const el = elRef.current
+        // Only pin when the view label is actually truncated — otherwise
+        // let the edit element shrink/grow naturally with the value.
+        lockedWidthRef.current =
+          el && el.scrollWidth > el.clientWidth ? el.clientWidth : null
+      }
       setIsEditing(true)
       onEditStart?.()
-    }, [disabled, onEditStart, value])
+    }, [disabled, lockWidthOnEdit, onEditStart, value])
 
     const stopEditing = React.useCallback(
       (commit: boolean = true) => {
@@ -255,6 +274,10 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         "data-placeholder": placeholder,
         "data-editable-text": "editing",
         className: cn(sharedClass, editClassName),
+        style:
+          lockWidthOnEdit && lockedWidthRef.current != null
+            ? { maxWidth: lockedWidthRef.current }
+            : undefined,
         onKeyDown: handleKeyDown,
         onPaste: handlePaste,
         onDrop: handleDrop,

@@ -18,6 +18,7 @@ import {
   endRun,
   findPendingPlanForChat,
   loadChatHistory,
+  loadChatHistoryForModel,
   resolvePendingToolCall,
   startRun,
   upsertChat,
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
     const userMessage: ModelMessage = { role: "user", content: userText }
     await appendMessage(chatId, userMessage)
 
-    const history = await loadChatHistory(chatId)
+    const history = await loadChatHistoryForModel(chatId)
     const runId = await startRun(chatId)
 
     // Broadcast the start signal and echo the user message synchronously so
@@ -256,7 +257,7 @@ export async function POST(req: Request) {
   const userMessage: ModelMessage = { role: "user", content: userText }
   await appendMessage(chatId, userMessage)
 
-  const history = await loadChatHistory(chatId)
+  const history = await loadChatHistoryForModel(chatId)
   const runId = await startRun(chatId)
 
   // Broadcast the start signal and echo the user message synchronously so
