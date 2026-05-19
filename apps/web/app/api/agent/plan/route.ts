@@ -14,7 +14,7 @@ import {
   appendMessage,
   endRun,
   findPendingToolCall,
-  loadChatHistory,
+  loadChatHistoryForModel,
   resolvePendingToolCall,
   startRun,
 } from "@/lib/agent/persistence"
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
   })
   await appendMessage(chatId, toolResultMsg)
 
-  const history = await loadChatHistory(chatId)
+  const history = await loadChatHistoryForModel(chatId)
   const runId = await startRun(chatId)
 
   // Mirror v1's approval/rejection broadcast so the UI updates the plan card.
