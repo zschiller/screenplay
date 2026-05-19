@@ -30,7 +30,7 @@ export function BranchBadge({ branch, colorKey, colorIndex, icon = false, classN
         // Allow the inline-rename input's bg/inset-ring to render without being
         // clipped by ancestor truncate (which would set overflow:hidden on us).
         // Internal scroll is handled by the EditableText itself in edit mode.
-        onRename && "!overflow-visible",
+        onRename && "has-[[data-editable-text=editing]]:!overflow-visible",
         color.badge,
         className,
       )}
@@ -41,9 +41,10 @@ export function BranchBadge({ branch, colorKey, colorIndex, icon = false, classN
           as="span"
           value={branch}
           onCommit={onRename}
+          lockWidthOnEdit
           className="min-w-0"
           viewClassName="truncate"
-          editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+          editClassName="relative z-10 box-content min-w-0 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
         />
       ) : (
         <span className="truncate">{branch}</span>
