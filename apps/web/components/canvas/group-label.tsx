@@ -63,7 +63,7 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
             onCommit={onRename}
             placeholder="Group"
             className={cn("text-xs font-medium min-w-[0.75em]", colorClass)}
-            viewClassName="truncate cursor-pointer"
+            viewClassName="truncate cursor-default"
             editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
           />
         </div>
@@ -74,7 +74,7 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
       <button
         type="button"
         className={cn(
-          "mb-0.5 text-xs font-medium truncate min-w-0 cursor-pointer outline-none",
+          "mb-0.5 text-xs font-medium truncate min-w-0 cursor-default outline-none",
           colorClass,
         )}
         {...dragHandlers}

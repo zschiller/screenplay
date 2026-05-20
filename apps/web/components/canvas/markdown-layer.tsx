@@ -644,7 +644,7 @@ export function MarkdownLayer({
          *  content and the title runs past the tile's right edge. Mirrors
          *  the equivalent row in IframeLayerLabel. */}
         <div
-          className="flex items-center max-w-full"
+          className="flex min-h-[18px] items-center max-w-full"
           style={{ maxWidth: layer.width * zoom }}
         >
           <LayerTitleText
