@@ -983,8 +983,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const diffStats = useDiffStats(agents, workspaces)
   const branchPrs = useBranchPrs(agents, workspaces)
 
-  const runningAgents = useMemo(() => agents.filter((a) => a.status === "running"), [agents])
-
   const chatSessions = useChatSessions()
   const savedViewport = useSavedViewport()
 
@@ -4660,7 +4658,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               commentMode={commentMode}
                               onHover={handleInspectHover}
                               onDomReady={handleIframeLayerDomReady}
-                              assignableAgents={runningAgents}
+                              assignableAgents={agents}
                               onAssignAgent={assignAgentToIframeLayer}
                               discoveredRoutes={agentInfo?.discoveredRoutes}
                               onSelectRoute={updateIframeLayerRoute}
@@ -4723,6 +4721,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   onActivateThread={setActiveCommentThreadId}
                 />
               </div>
+
+              {/* Portal target for floating frame toolbars. Lives above the
+                  SelectionOverlay so the toolbar isn't painted over by hover
+                  rings or resize handles. Children (rendered via createPortal
+                  from iframe-layer) position themselves in canvas-wrapper
+                  coords via a rAF loop. */}
+              <div
+                id="frame-toolbar-portal"
+                className="pointer-events-none absolute inset-0 z-30"
+              />
 
               <SelectionOverlay
                 zoom={zoom}

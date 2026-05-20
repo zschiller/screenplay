@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Maximize2, MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -311,135 +312,46 @@ export function IframeLayer({
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
 
   const frameRef = useRef<HTMLDivElement>(null)
-  const buttonsRef = useRef<HTMLDivElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
-  // Natural (unconstrained) width of the label's bottom row — reported by
-  // IframeLayerLabel from a hidden measurement copy. Used to decide which action
-  // buttons fit in the remaining space.
-  const [labelContentWidth, setLabelContentWidth] = useState(0)
+  // Floating action toolbar only mounts when the frame itself is selected.
+  // Feature gates (Fit/Play/Reload) still hide buttons that don't apply.
+  const showToolbar = selected
 
-  // Measured widths of each individual button. Wrappers around each button
-  // give us a direct ref to read offsetWidth; cached so a hidden button keeps
-  // its last-known width (we still know whether it would have fit).
-  const interactWrapperRef = useRef<HTMLDivElement>(null)
-  const createFlowWrapperRef = useRef<HTMLDivElement>(null)
-  const knobsWrapperRef = useRef<HTMLDivElement>(null)
-  const fitWrapperRef = useRef<HTMLDivElement>(null)
-  const playWrapperRef = useRef<HTMLDivElement>(null)
-  const reloadWrapperRef = useRef<HTMLDivElement>(null)
-  const [buttonNaturalWidths, setButtonNaturalWidths] = useState<{
-    interact: number
-    createFlow: number
-    knobs: number
-    fit: number
-    play: number
-    reload: number
-  }>({ interact: 0, createFlow: 0, knobs: 0, fit: 0, play: 0, reload: 0 })
-  useLayoutEffect(() => {
-    setButtonNaturalWidths((prev) => {
-      const next = {
-        interact: interactWrapperRef.current?.offsetWidth ?? prev.interact,
-        createFlow: createFlowWrapperRef.current?.offsetWidth ?? prev.createFlow,
-        knobs: knobsWrapperRef.current?.offsetWidth ?? prev.knobs,
-        fit: fitWrapperRef.current?.offsetWidth ?? prev.fit,
-        play: playWrapperRef.current?.offsetWidth ?? prev.play,
-        reload: reloadWrapperRef.current?.offsetWidth ?? prev.reload,
+  // Portal target is created in canvas.tsx at z-30 (above the SelectionOverlay
+  // canvas at z-10), so the toolbar isn't painted over by hover rings or
+  // resize handles. Resolved on mount; null until then.
+  const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setToolbarPortalTarget(document.getElementById("frame-toolbar-portal"))
+  }, [])
+
+  // Keep the portaled toolbar anchored to the frame's right edge. The frame
+  // lives inside the world transform (panning/zooming change its screen
+  // position) but the toolbar lives outside it, so we re-read the frame's
+  // client rect every frame while the toolbar is mounted and write the
+  // canvas-wrapper-relative offset directly to the toolbar's style.
+  useEffect(() => {
+    if (!showToolbar || !toolbarPortalTarget) return
+    const canvasWrapper = document.querySelector<HTMLDivElement>("[data-canvas-wrapper]")
+    if (!canvasWrapper) return
+    let rafId = 0
+    const tick = () => {
+      const frame = frameRef.current
+      const toolbar = toolbarRef.current
+      if (frame && toolbar) {
+        const fr = frame.getBoundingClientRect()
+        const cw = canvasWrapper.getBoundingClientRect()
+        toolbar.style.transform = `translate(${fr.right - cw.left + 8}px, ${fr.top - cw.top}px)`
       }
-      if (
-        next.interact === prev.interact &&
-        next.createFlow === prev.createFlow &&
-        next.knobs === prev.knobs &&
-        next.fit === prev.fit &&
-        next.play === prev.play &&
-        next.reload === prev.reload
-      ) {
-        return prev
-      }
-      return next
-    })
-  })
-
-  // Decide which action buttons fit using the actual measured widths of the
-  // label content + each button. Computed synchronously every render so the
-  // label's reservedRightPx and the visible button set stay in lockstep —
-  // using a ResizeObserver here would lag a frame and the label would briefly
-  // truncate at the threshold before the button disappears.
-  const BUTTON_GAP = 2 // gap-0.5 between buttons (must match className below)
-  const BUTTON_MARGIN = 8 // breathing room between label and the button row
-  const space = Math.max(
-    0,
-    iframeLayer.width * zoom - labelContentWidth - BUTTON_MARGIN,
-  )
-  const interactW = buttonNaturalWidths.interact
-  const createFlowW = buttonNaturalWidths.createFlow
-  const knobsW = buttonNaturalWidths.knobs
-  const fitW = buttonNaturalWidths.fit
-  const playW = buttonNaturalWidths.play
-  const reloadW = buttonNaturalWidths.reload
-  const canFit = !!onFitToContent && !!iframeLayer.sandboxId
-  const showInteract = !interactW || space >= interactW
-  const showCreateFlow =
-    showInteract &&
-    (!createFlowW || space >= interactW + BUTTON_GAP + createFlowW)
-  const showKnobs =
-    showCreateFlow &&
-    (!knobsW ||
-      space >= interactW + BUTTON_GAP + createFlowW + BUTTON_GAP + knobsW)
-  const showFit =
-    canFit &&
-    showKnobs &&
-    (!fitW ||
-      space >=
-        interactW +
-          BUTTON_GAP +
-          createFlowW +
-          BUTTON_GAP +
-          knobsW +
-          BUTTON_GAP +
-          fitW)
-  const showPlay =
-    !!onPlay &&
-    showKnobs &&
-    (!playW ||
-      space >=
-        interactW +
-          BUTTON_GAP +
-          createFlowW +
-          BUTTON_GAP +
-          knobsW +
-          BUTTON_GAP +
-          (showFit && fitW ? fitW + BUTTON_GAP : 0) +
-          playW)
-  const showReload =
-    hmrStatus === "disconnected" &&
-    showKnobs &&
-    (!reloadW ||
-      space >=
-        interactW +
-          BUTTON_GAP +
-          createFlowW +
-          BUTTON_GAP +
-          knobsW +
-          BUTTON_GAP +
-          (showFit && fitW ? fitW + BUTTON_GAP : 0) +
-          (showPlay && playW ? playW + BUTTON_GAP : 0) +
-          reloadW)
-  const visibleButtonsTotal = (() => {
-    const widths: number[] = []
-    if (showInteract && interactW) widths.push(interactW)
-    if (showCreateFlow && createFlowW) widths.push(createFlowW)
-    if (showKnobs && knobsW) widths.push(knobsW)
-    if (showFit && fitW) widths.push(fitW)
-    if (showPlay && playW) widths.push(playW)
-    if (showReload && reloadW) widths.push(reloadW)
-    return widths.reduce(
-      (sum, w, i) => sum + w + (i > 0 ? BUTTON_GAP : 0),
-      0,
-    )
-  })()
-  const reservedRightPx = visibleButtonsTotal
-    ? visibleButtonsTotal + BUTTON_MARGIN
-    : 0
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [showToolbar, toolbarPortalTarget])
+  const showFit = !!onFitToContent && !!iframeLayer.sandboxId
+  const showPlay = !!onPlay
+  const showReload = hmrStatus === "disconnected"
 
   const handleHmrStatus = useCallback((_id: string, status: HmrStatus) => {
     setHmrStatus(status)
@@ -602,11 +514,9 @@ export function IframeLayer({
         sharedState={iframeLayer.sharedState}
         zoom={zoom}
         iframeLayerWidth={iframeLayer.width}
-        reservedRightPx={reservedRightPx}
         dragHandlers={interactive ? undefined : dragHandlers}
         onRequestReorderDrag={interactive ? undefined : onRequestReorderDrag}
         groupLabelDragHandlers={interactive ? undefined : groupLabelDragHandlers}
-        hmrStatus={hmrStatus}
         assignableAgents={assignableAgents}
         onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(iframeLayer.id, agentId) : undefined}
         discoveredRoutes={discoveredRoutes}
@@ -630,125 +540,100 @@ export function IframeLayer({
           onSelect(iframeLayer.id, shiftKey)
         }}
         onRename={onRename ? (next) => onRename(iframeLayer.id, next) : undefined}
-        onContentWidthChange={setLabelContentWidth}
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
         reorderDragPopped={dragPopped != null}
       />
-      {iframeLayer.sandboxId && (
+      {iframeLayer.sandboxId && showToolbar && toolbarPortalTarget && createPortal(
         <div
-          ref={buttonsRef}
-          // row-reverse keeps the visual order [Reload, Knobs, Interact].
-          // clip-path lets the knob's override-dot extend ~4px above the row.
-          className="absolute right-0 bottom-full z-10 flex h-5 flex-row-reverse items-center gap-0.5"
-          style={{
-            transform: `scale(${1 / zoom})`,
-            transformOrigin: "bottom right",
-            marginBottom: 2 / zoom,
-            clipPath: "inset(-4px 0 0 0)",
-          }}
+          ref={toolbarRef}
+          // Positioned every frame by the rAF loop above (translate is set
+          // imperatively from the frame's getBoundingClientRect). Lives
+          // outside the world transform, so it's already at constant screen
+          // size — no inverse-zoom scaling needed.
+          className="pointer-events-auto absolute left-0 top-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
-          {showInteract && (
-            <div ref={interactWrapperRef} className="flex">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant={focused ? "default" : "outline"}
-                      onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                    >
-                      {focused ? <Move /> : <MousePointer />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {focused ? "Back to canvas" : "Interact"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          )}
-          {showCreateFlow && (
-            <div ref={createFlowWrapperRef} className="flex">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant={createFlow ? "default" : "outline"}
-                      onClick={() =>
-                        onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                      }
-                    >
-                      <Route />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    {createFlow ? "Stop Create Flow" : "Create Flow"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          )}
-          {showKnobs && (
-            <div ref={knobsWrapperRef} className="flex">
-              <KnobsPopover
-                knobs={iframeLayer.knobs}
-                values={iframeLayer.knobValues}
-                onChange={(values) => onKnobValuesChange?.(iframeLayer.id, values)}
-                anchorRef={frameRef}
-              />
-            </div>
-          )}
-          {showFit && (
-            <div ref={fitWrapperRef} className="flex">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant="outline"
-                      onClick={handleFitToContent}
-                    >
-                      <Maximize2 />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Fit to content
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          )}
-          {showPlay && (
-            <div ref={playWrapperRef} className="flex">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant="outline"
-                      onClick={() => onPlay?.(iframeLayer.id)}
-                    >
-                      <Play />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    Open prototype player
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          )}
-          {showReload && (
-            <div ref={reloadWrapperRef} className="flex">
-              <Button size="xxs" onClick={reloadIframe}>
-                <RotateCw />
-                Reload
-              </Button>
-            </div>
-          )}
-        </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon-xxs"
+                  variant={focused ? "default" : "ghost"}
+                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                >
+                  {focused ? <Move /> : <MousePointer />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {focused ? "Back to canvas" : "Interact"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon-xxs"
+                  variant={createFlow ? "default" : "ghost"}
+                  onClick={() =>
+                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                  }
+                >
+                  <Route />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {createFlow ? "Stop Create Flow" : "Create Flow"}
+              </TooltipContent>
+            </Tooltip>
+            <KnobsPopover
+              knobs={iframeLayer.knobs}
+              values={iframeLayer.knobValues}
+              onChange={(values) => onKnobValuesChange?.(iframeLayer.id, values)}
+            />
+            {showFit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xxs"
+                    variant="ghost"
+                    onClick={handleFitToContent}
+                  >
+                    <Maximize2 />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Fit to content</TooltipContent>
+              </Tooltip>
+            )}
+            {showPlay && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xxs"
+                    variant="ghost"
+                    onClick={() => onPlay?.(iframeLayer.id)}
+                  >
+                    <Play />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Open prototype player
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {showReload && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon-xxs" variant="default" onClick={reloadIframe}>
+                    <RotateCw />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Reload</TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
+        </div>,
+        toolbarPortalTarget,
       )}
       <div
         className="relative h-full w-full overflow-hidden"
