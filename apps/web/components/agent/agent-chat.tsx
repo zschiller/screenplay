@@ -179,7 +179,8 @@ export function AgentChat({
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
   const [storedModel, setStoredModel] = useState<string | null>(null)
   const [hasContent, setHasContent] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
   const markdownLayers = useMarkdownLayers()
@@ -200,10 +201,41 @@ export function AgentChat({
     setStoredModel(readStoredModel())
   }, [])
 
-  // Auto-scroll to bottom on new messages
+  // Keep the message list pinned to the bottom as content resolves —
+  // react-markdown / code blocks / streaming tokens all grow the height
+  // asynchronously, so a single scrollTo after a `messages` update lands
+  // short of the new bottom. A ResizeObserver on the content wrapper
+  // catches every height change.
+  //
+  // The first reveal (initial mount, or the panel transitioning from a
+  // collapsed 0px state to visible) jumps instantly so opening the chat
+  // doesn't animate from the top. Subsequent growth scrolls smoothly,
+  // but only when the user is already near the bottom — so manually
+  // scrolling up to read history isn't yanked away by streaming output.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    const container = scrollContainerRef.current
+    const content = scrollContentRef.current
+    if (!container || !content) return
+    let lastClientHeight = 0
+    const observer = new ResizeObserver(() => {
+      const clientHeight = container.clientHeight
+      if (clientHeight === 0) {
+        lastClientHeight = 0
+        return
+      }
+      const isFirstReveal = lastClientHeight === 0
+      lastClientHeight = clientHeight
+      const distance = container.scrollHeight - container.scrollTop - clientHeight
+      if (!isFirstReveal && distance > 64) return
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: isFirstReveal ? "auto" : "smooth",
+      })
+    })
+    observer.observe(content)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -385,40 +417,39 @@ export function AgentChat({
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {isLoadingHistory ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-center text-xs text-muted-foreground">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        <div ref={scrollContentRef} className="flex min-h-full flex-col p-3">
+          {isLoadingHistory ? (
+            <div className="m-auto">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages.length === 0 ? (
+            <p className="m-auto text-center text-xs text-muted-foreground">
               Ask the AI to make changes to your app.
               <br />
               It can read, edit, and run commands in the sandbox.
             </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {messages.map((msg, i) => {
-              if (msg.role === "tool_use") {
-                const result = messages.slice(i + 1).find(
-                  (m): m is AgentMessage & { role: "tool_result" } =>
-                    m.role === "tool_result" && m.name === msg.name
-                )
-                return <AgentMessageItem key={i} message={msg} toolResult={result} roomId={roomId} chatId={chatId} />
-              }
-              return <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
-            })}
-            {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Thinking...
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
+          ) : (
+            <div className="space-y-3">
+              {messages.map((msg, i) => {
+                if (msg.role === "tool_use") {
+                  const result = messages.slice(i + 1).find(
+                    (m): m is AgentMessage & { role: "tool_result" } =>
+                      m.role === "tool_result" && m.name === msg.name
+                  )
+                  return <AgentMessageItem key={i} message={msg} toolResult={result} roomId={roomId} chatId={chatId} />
+                }
+                return <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+              })}
+              {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Thinking...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Input */}

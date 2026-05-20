@@ -17,6 +17,7 @@ import {
   GitPullRequestClosed,
   RefreshCw,
   Rows3,
+  FolderOpen,
   Trash2,
   MoreHorizontal,
   Pencil,
@@ -37,9 +38,11 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
-import { EditableText } from "@workspace/ui/components/editable-text"
+import { EditableText, type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
   Collapsible,
   CollapsibleContent,
@@ -152,7 +155,6 @@ interface AgentSidebarProps {
   onSelectIframeLayer: (iframeLayerId: string, shiftKey: boolean) => void
   onZoomToIframeLayer: (iframeLayerId: string) => void
   onRenameIframeLayer: (id: string, label: string) => void
-  onRouteChange: (id: string, route: string) => void
   onRemoveIframeLayer: (id: string) => void
   onSelectDocument: (id: string, shiftKey: boolean) => void
   onZoomToDocument: (id: string) => void
@@ -211,7 +213,6 @@ export function AgentSidebar({
   onSelectIframeLayer,
   onZoomToIframeLayer,
   onRenameIframeLayer,
-  onRouteChange,
   onRemoveIframeLayer,
   onSelectDocument,
   onZoomToDocument,
@@ -296,7 +297,6 @@ export function AgentSidebar({
     onSelect: (id: string, shiftKey: boolean) => void
     onActivate?: (id: string) => void
     onRename: (id: string, name: string) => void
-    onChangeRoute?: (id: string, route: string) => void
     onRemove: (id: string) => void
   }
   // Keys match `GroupMember.kind` so the dispatch loop below can look up
@@ -309,7 +309,6 @@ export function AgentSidebar({
       onSelect: onSelectIframeLayer,
       onActivate: onZoomToIframeLayer,
       onRename: onRenameIframeLayer,
-      onChangeRoute: onRouteChange,
       onRemove: onRemoveIframeLayer,
     },
     "markdown-layer": {
@@ -382,7 +381,7 @@ export function AgentSidebar({
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <SidebarGroup className="pt-0">
-          <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+          <SidebarGroupLabel>Branches</SidebarGroupLabel>
           <Popover open={showPicker} onOpenChange={setShowPicker}>
             <PopoverTrigger asChild>
               <SidebarGroupAction title="Add workspace" className="top-1.5">
@@ -422,8 +421,9 @@ export function AgentSidebar({
                           <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[6.5rem] group-focus-within/workspace-row:!pr-[6.5rem] group-data-[settings-open]/workspace-row:!pr-[6.5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <span className="relative shrink-0">
-                                <Folder className="block group-hover/workspace-row:hidden text-sidebar-foreground/70" />
-                                <ChevronRight className="hidden group-hover/workspace-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                                <Folder className="block group-hover/workspace-row:hidden group-data-[state=open]/collapsible:hidden text-sidebar-foreground/70" />
+                                <FolderOpen className="hidden group-data-[state=open]/collapsible:block group-hover/workspace-row:!hidden text-sidebar-foreground/70" />
+                                <ChevronRight className="hidden group-hover/workspace-row:!block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                               </span>
                             </CollapsibleTrigger>
                             <span className="truncate font-medium text-sidebar-foreground/70">
@@ -505,7 +505,7 @@ export function AgentSidebar({
                         </div>
 
                         <CollapsibleContent>
-                          <SidebarMenu>
+                          <SidebarMenuSub>
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
                               const isActive = activeAgentIds?.has(agent.id) ?? false
@@ -520,50 +520,57 @@ export function AgentSidebar({
                                   className="group/collapsible-agent"
                                 >
                                   <SidebarMenuItem>
-                                    <>
+                                    <WithEditableRef>
+                                      {({ ref: branchRef, triggerEdit: triggerBranchRename, onCloseAutoFocus: onAgentMenuCloseAutoFocus }) => (
+                                      <>
                                         <div
                                           className={`group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
                                           onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id, { expandPanel: false }) }}
                                           onDoubleClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
                                         >
-                                          <SidebarMenuButton
+                                          <SidebarMenuSubButton
+                                            asChild
                                             className="!pr-0 !bg-transparent hover:!bg-transparent"
                                             isActive={false}
-                                            title={isLoading ? (agent.statusMessage || "Starting…") : undefined}
                                           >
-                                            {isLoading || isActive ? (
-                                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
-                                            ) : pr?.state === "merged" ? (
-                                              <GitMerge className="shrink-0 text-purple-600 dark:text-purple-400" />
-                                            ) : pr?.state === "open" ? (
-                                              <GitPullRequest className="shrink-0 text-green-700 dark:text-green-300" />
-                                            ) : pr?.state === "closed" ? (
-                                              <GitPullRequestClosed className="shrink-0 text-red-600 dark:text-red-400" />
-                                            ) : (
-                                              <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                                            )}
-                                            {agent.branch ? (
-                                              <BranchBadge
-                                                branch={agent.branch}
-                                                colorKey={agent.id}
-                                                colorIndex={agent.colorIndex}
-                                                className="text-[11px] py-0 px-1.5"
-                                                onRename={(next) => {
-                                                  const sanitized = sanitizeBranchName(next)
-                                                  if (!sanitized) return
-                                                  if (sanitized === agent.branch) return
-                                                  const remote = remoteBranchesByWorkspace.get(workspace.id)
-                                                  const localTaken = workspaceAgents.some(
-                                                    (a) => a.id !== agent.id && a.branch === sanitized,
-                                                  )
-                                                  if (localTaken || remote?.has(sanitized)) return
-                                                  onRenameBranch(agent.id, sanitized)
-                                                }}
-                                              />
-                                            ) : (
-                                              <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
-                                            )}
-                                          </SidebarMenuButton>
+                                            <div
+                                              title={isLoading ? (agent.statusMessage || "Starting…") : undefined}
+                                            >
+                                              {isLoading || isActive ? (
+                                                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
+                                              ) : pr?.state === "merged" ? (
+                                                <GitMerge className="shrink-0 text-purple-600 dark:text-purple-400" />
+                                              ) : pr?.state === "open" ? (
+                                                <GitPullRequest className="shrink-0 text-green-700 dark:text-green-300" />
+                                              ) : pr?.state === "closed" ? (
+                                                <GitPullRequestClosed className="shrink-0 text-red-600 dark:text-red-400" />
+                                              ) : (
+                                                <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                                              )}
+                                              {agent.branch ? (
+                                                <BranchBadge
+                                                  ref={branchRef}
+                                                  branch={agent.branch}
+                                                  colorKey={agent.id}
+                                                  colorIndex={agent.colorIndex}
+                                                  className="text-[11px] py-0 px-1.5"
+                                                  onRename={(next) => {
+                                                    const sanitized = sanitizeBranchName(next)
+                                                    if (!sanitized) return
+                                                    if (sanitized === agent.branch) return
+                                                    const remote = remoteBranchesByWorkspace.get(workspace.id)
+                                                    const localTaken = workspaceAgents.some(
+                                                      (a) => a.id !== agent.id && a.branch === sanitized,
+                                                    )
+                                                    if (localTaken || remote?.has(sanitized)) return
+                                                    onRenameBranch(agent.id, sanitized)
+                                                  }}
+                                                />
+                                              ) : (
+                                                <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
+                                              )}
+                                            </div>
+                                          </SidebarMenuSubButton>
                                           <div className="group/slot flex items-center shrink-0 pl-2 pr-1">
                                             {(() => {
                                               const stats = diffStats.get(agent.id)
@@ -578,7 +585,7 @@ export function AgentSidebar({
                                                   )}
                                                   <AgentDropdownSlot
                                                     menuContent={
-                                                      <DropdownMenuContent side="right" align="start" className="w-48">
+                                                      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onAgentMenuCloseAutoFocus}>
                                                         <DropdownMenuItem
                                                           disabled={!agent.previewDomain}
                                                           onClick={() => onPlayAgent(agent.id)}
@@ -587,13 +594,10 @@ export function AgentSidebar({
                                                           Open prototype player
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem onClick={() => {
-                                                          const raw = prompt("Rename branch", agent.branch ?? "")
-                                                          if (!raw?.trim()) return
-                                                          const sanitized = sanitizeBranchName(raw)
-                                                          if (!sanitized) return
-                                                          onRenameBranch(agent.id, sanitized)
-                                                        }}>
+                                                        <DropdownMenuItem
+                                                          disabled={!agent.branch}
+                                                          onClick={triggerBranchRename}
+                                                        >
                                                           <Pencil />
                                                           Rename
                                                         </DropdownMenuItem>
@@ -690,12 +694,14 @@ export function AgentSidebar({
                                           <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
                                         )}
                                       </>
+                                      )}
+                                    </WithEditableRef>
                                   </SidebarMenuItem>
                                 </Collapsible>
                               )
                             })}
 
-                          </SidebarMenu>
+                          </SidebarMenuSub>
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
@@ -712,7 +718,7 @@ export function AgentSidebar({
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Frames</SidebarGroupLabel>
+          <SidebarGroupLabel>Canvas</SidebarGroupLabel>
           <SidebarGroupContent>
             <Reorder.Group
               axis="y"
@@ -742,34 +748,20 @@ export function AgentSidebar({
 
                 /** Render `<Row />` + `<Menu />` for a single member by
                  *  looking up the kind in `rowDispatchByKind`. New layer
-                 *  kinds plug in by adding an entry to that map up top. */
+                 *  kinds plug in by adding an entry to that map up top.
+                 *  Wrapped in a component so each member can own its own
+                 *  `EditableText` ref — shared between Row (input) and
+                 *  Menu (Rename click triggers `startEditing()`). */
                 const renderMember = (
                   member: { kind: string; id: string; data: unknown },
                   variant: "flat" | "sub",
-                ) => {
-                  const dispatch = rowDispatchByKind[member.kind]
-                  if (!dispatch) return null
-                  const { Row, Menu } = dispatch
-                  return (
-                    <>
-                      <Row
-                        item={member.data}
-                        variant={variant}
-                        selected={dispatch.isSelected(member.id)}
-                        onSelect={dispatch.onSelect}
-                        onActivate={dispatch.onActivate}
-                        onRename={dispatch.onRename}
-                      />
-                      <Menu
-                        item={member.data}
-                        isSub={variant === "sub"}
-                        onRename={dispatch.onRename}
-                        onChangeRoute={dispatch.onChangeRoute}
-                        onRemove={dispatch.onRemove}
-                      />
-                    </>
-                  )
-                }
+                ) => (
+                  <MemberEntry
+                    member={member}
+                    variant={variant}
+                    dispatch={rowDispatchByKind[member.kind]}
+                  />
+                )
 
                 // Single-member groups render flat — the group header would
                 // be visual noise. The Reorder.Item still wraps it so the
@@ -798,57 +790,60 @@ export function AgentSidebar({
                     className="group/menu-item relative flex flex-col cursor-grab active:cursor-grabbing"
                   >
                     <Collapsible defaultOpen className="group/frame-collapsible flex flex-col">
-                      <div className="group/frame-group-row relative">
-                          <SidebarMenuButton
-                            className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
-                            isActive={selectedGroupIds.has(group.id)}
-                            onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
-                            onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
-                          >
-                            <CollapsibleTrigger
-                              asChild
-                              onClick={(e) => e.stopPropagation()}
-                              onDoubleClick={(e) => e.stopPropagation()}
+                      <WithEditableRef>
+                        {({ ref: groupNameRef, triggerEdit: triggerGroupRename, onCloseAutoFocus: onGroupMenuCloseAutoFocus }) => (
+                          <div className="group/frame-group-row relative">
+                            <SidebarMenuButton
+                              className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+                              isActive={selectedGroupIds.has(group.id)}
+                              onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
+                              onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
                             >
-                              <span className="relative shrink-0">
-                                <Folder className="block group-hover/frame-group-row:hidden text-sidebar-foreground/70" />
-                                <ChevronRight className="hidden group-hover/frame-group-row:block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/frame-collapsible:rotate-90" />
-                              </span>
-                            </CollapsibleTrigger>
-                            <EditableText
-                              as="span"
-                              value={group.name ?? ""}
-                              onCommit={(next) => onRenameIframeLayerGroup(group.id, next)}
-                              placeholder="Group"
-                              className="min-w-0 font-medium text-sidebar-foreground/70"
-                              viewClassName="truncate"
-                              editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
-                            />
-                          </SidebarMenuButton>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <SidebarMenuAction
-                                className="md:opacity-0 group-hover/frame-group-row:opacity-100 group-focus-within/frame-group-row:opacity-100 aria-expanded:opacity-100"
+                              <CollapsibleTrigger
+                                asChild
+                                onClick={(e) => e.stopPropagation()}
+                                onDoubleClick={(e) => e.stopPropagation()}
                               >
-                                <MoreHorizontal />
-                              </SidebarMenuAction>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent side="right" align="start" className="w-48">
-                              <DropdownMenuItem onClick={() => {
-                                const newName = prompt("Rename group", group.name ?? "Group")
-                                if (newName?.trim()) onRenameIframeLayerGroup(group.id, newName.trim())
-                              }}>
-                                <Pencil />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem variant="destructive" onClick={() => onRemoveIframeLayerGroup(group.id)}>
-                                <Trash2 />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                                <span className="relative shrink-0">
+                                  <Folder className="block group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden text-sidebar-foreground/70" />
+                                  <FolderOpen className="hidden group-data-[state=open]/frame-collapsible:block group-hover/frame-group-row:!hidden text-sidebar-foreground/70" />
+                                  <ChevronRight className="hidden group-hover/frame-group-row:!block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/frame-collapsible:rotate-90" />
+                                </span>
+                              </CollapsibleTrigger>
+                              <EditableText
+                                ref={groupNameRef}
+                                as="span"
+                                value={group.name ?? ""}
+                                onCommit={(next) => onRenameIframeLayerGroup(group.id, next)}
+                                placeholder="Group"
+                                className="min-w-0 font-medium text-sidebar-foreground/70"
+                                viewClassName="truncate"
+                                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                              />
+                            </SidebarMenuButton>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <SidebarMenuAction
+                                  className="md:opacity-0 group-hover/frame-group-row:opacity-100 group-focus-within/frame-group-row:opacity-100 aria-expanded:opacity-100"
+                                >
+                                  <MoreHorizontal />
+                                </SidebarMenuAction>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onGroupMenuCloseAutoFocus}>
+                                <DropdownMenuItem onClick={triggerGroupRename}>
+                                  <Pencil />
+                                  Rename
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem variant="destructive" onClick={() => onRemoveIframeLayerGroup(group.id)}>
+                                  <Trash2 />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        )}
+                      </WithEditableRef>
                         <CollapsibleContent>
                           <Reorder.Group
                             axis="y"
@@ -955,6 +950,85 @@ export function AgentSidebar({
   )
 }
 
+
+/** Owns a single `EditableText` handle and hands it to its children via
+ *  render prop, so a row's name input and the matching dropdown's
+ *  "Rename" item can share one ref without lifting state up.
+ *
+ *  Triggering rename from a dropdown is a two-step dance: the click sets
+ *  a pending flag, the dropdown's `onCloseAutoFocus` fires once the menu
+ *  has fully unmounted (and its focus trap with it), and only then do we
+ *  call `startEditing` + `preventDefault` so focus lands on the inline
+ *  input instead of the menu trigger. */
+function WithEditableRef({
+  children,
+}: {
+  children: (api: {
+    ref: React.RefObject<EditableTextHandle | null>
+    triggerEdit: () => void
+    onCloseAutoFocus: (e: Event) => void
+  }) => React.ReactNode
+}) {
+  const ref = useRef<EditableTextHandle | null>(null)
+  const pendingEditRef = useRef(false)
+  const triggerEdit = useCallback(() => {
+    pendingEditRef.current = true
+  }, [])
+  const onCloseAutoFocus = useCallback((e: Event) => {
+    if (!pendingEditRef.current) return
+    pendingEditRef.current = false
+    e.preventDefault()
+    ref.current?.startEditing()
+  }, [])
+  return <>{children({ ref, triggerEdit, onCloseAutoFocus })}</>
+}
+
+/** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the
+ *  inline-rename ref shared between them. Extracted from the group
+ *  dispatcher so each member gets its own hook scope. */
+function MemberEntry({
+  member,
+  variant,
+  dispatch,
+}: {
+  member: { kind: string; id: string; data: unknown }
+  variant: "flat" | "sub"
+  dispatch:
+    | {
+        Row: React.ComponentType<import("./layer-rows/types").LayerRowProps<unknown>>
+        Menu: React.ComponentType<import("./layer-rows/types").LayerRowMenuProps<unknown>>
+        isSelected: (id: string) => boolean
+        onSelect: (id: string, shiftKey: boolean) => void
+        onActivate?: (id: string) => void
+        onRename: (id: string, name: string) => void
+        onRemove: (id: string) => void
+      }
+    | undefined
+}) {
+  const editableRef = useRef<EditableTextHandle | null>(null)
+  if (!dispatch) return null
+  const { Row, Menu } = dispatch
+  return (
+    <>
+      <Row
+        item={member.data}
+        variant={variant}
+        selected={dispatch.isSelected(member.id)}
+        onSelect={dispatch.onSelect}
+        onActivate={dispatch.onActivate}
+        onRename={dispatch.onRename}
+        editableRef={editableRef}
+      />
+      <Menu
+        item={member.data}
+        isSub={variant === "sub"}
+        onRename={dispatch.onRename}
+        onRemove={dispatch.onRemove}
+        editableRef={editableRef}
+      />
+    </>
+  )
+}
 
 function AgentDropdownSlot({ menuContent, children }: { menuContent: React.ReactNode; children?: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)

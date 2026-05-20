@@ -517,11 +517,9 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
   }
   const descriptor = getLayerKind(target.layerKind)
   if (!descriptor) return null
-  const Icon = descriptor.Icon
   const label = descriptor.getLabel(target.layer as never)
   return (
     <span className="inline-flex items-center gap-2 text-sm">
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate max-w-[14rem]">{label}</span>
     </span>
   )
@@ -596,7 +594,6 @@ function TargetPicker({
             {CHAT_TARGETABLE_LAYER_KINDS.map((descriptor) => {
               const items = layersByKind[descriptor.kind] ?? []
               if (items.length === 0) return null
-              const Icon = descriptor.Icon
               return (
                 <CommandGroup key={descriptor.kind} heading={descriptor.pluralLabel}>
                   {items.map((item) => {
@@ -615,7 +612,6 @@ function TargetPicker({
                         }}
                       >
                         <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
-                        <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
                         <span className="truncate">{label}</span>
                       </CommandItem>
                     )

@@ -1,6 +1,7 @@
 "use client"
 
-import { MoreHorizontal, Pencil, Route, Trash2 } from "lucide-react"
+import { useCallback, useRef } from "react"
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import {
   SidebarMenuAction,
   SidebarMenuButton,
@@ -35,6 +36,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     onSelect,
     onActivate,
     onRename,
+    editableRef,
   }: LayerRowProps<IframeLayerData>) {
     const agent = item.sandboxId ? extras.agentsById.get(item.sandboxId) : undefined
     const Icon = iframeLayerKind.Icon
@@ -42,6 +44,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
 
     const nameEditable = (
       <EditableText
+        ref={editableRef}
         as="span"
         value={label}
         onCommit={(next) => onRename(item.id, next)}
@@ -116,10 +119,20 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
 export function IframeLayerRowMenu({
   item,
   isSub,
-  onRename,
-  onChangeRoute,
   onRemove,
+  editableRef,
 }: LayerRowMenuProps<IframeLayerData>) {
+  // Rename → close menu → `onCloseAutoFocus` → preventDefault + start
+  // editing. Has to be deferred to `onCloseAutoFocus` because Radix's
+  // focus trap is still active while the menu is closing, and calling
+  // `focus()` on the inline input mid-close gets hijacked by the trap.
+  const pendingEditRef = useRef(false)
+  const onCloseAutoFocus = useCallback((e: Event) => {
+    if (!pendingEditRef.current) return
+    pendingEditRef.current = false
+    e.preventDefault()
+    editableRef?.current?.startEditing()
+  }, [editableRef])
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -133,31 +146,11 @@ export function IframeLayerRowMenu({
           <MoreHorizontal />
         </SidebarMenuAction>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start" className="w-48">
-        <DropdownMenuItem
-          onClick={() => {
-            const newLabel = prompt("Rename frame", item.label)
-            if (newLabel?.trim()) onRename(item.id, newLabel.trim())
-          }}
-        >
+      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onCloseAutoFocus}>
+        <DropdownMenuItem onClick={() => { pendingEditRef.current = true }}>
           <Pencil />
           Rename
         </DropdownMenuItem>
-        {onChangeRoute && (
-          <DropdownMenuItem
-            onClick={() => {
-              const newRoute = prompt("Route path", item.route || "/")
-              if (newRoute != null) {
-                let value = newRoute.trim() || "/"
-                if (!value.startsWith("/")) value = "/" + value
-                onChangeRoute(item.id, value)
-              }
-            }}
-          >
-            <Route />
-            Change route
-          </DropdownMenuItem>
-        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={() => onRemove(item.id)}>
           <Trash2 />

@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback, useRef } from "react"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import {
   SidebarMenuAction,
@@ -25,12 +26,14 @@ export function DocumentRow({
   onSelect,
   onActivate,
   onRename,
+  editableRef,
 }: LayerRowProps<MarkdownLayerData>) {
   const Icon = markdownLayerKind.Icon
   const label = markdownLayerKind.getLabel(item)
 
   const nameEditable = (
     <EditableText
+      ref={editableRef}
       as="span"
       value={label}
       onCommit={(next) => onRename(item.id, next)}
@@ -84,9 +87,19 @@ export function DocumentRow({
 export function DocumentRowMenu({
   item,
   isSub,
-  onRename,
   onRemove,
+  editableRef,
 }: LayerRowMenuProps<MarkdownLayerData>) {
+  // See IframeLayerRowMenu — start editing from `onCloseAutoFocus` so
+  // the menu's focus trap is fully torn down before we focus the inline
+  // input, otherwise the trap steals focus back.
+  const pendingEditRef = useRef(false)
+  const onCloseAutoFocus = useCallback((e: Event) => {
+    if (!pendingEditRef.current) return
+    pendingEditRef.current = false
+    e.preventDefault()
+    editableRef?.current?.startEditing()
+  }, [editableRef])
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -100,13 +113,8 @@ export function DocumentRowMenu({
           <MoreHorizontal />
         </SidebarMenuAction>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start" className="w-48">
-        <DropdownMenuItem
-          onClick={() => {
-            const newTitle = prompt("Rename document", item.title || "Untitled")
-            if (newTitle != null) onRename(item.id, newTitle.trim())
-          }}
-        >
+      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onCloseAutoFocus}>
+        <DropdownMenuItem onClick={() => { pendingEditRef.current = true }}>
           <Pencil />
           Rename
         </DropdownMenuItem>
