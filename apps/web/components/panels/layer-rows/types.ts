@@ -1,4 +1,5 @@
-import type { ComponentType } from "react"
+import type { ComponentType, RefObject } from "react"
+import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 
 /**
  * Per-kind sidebar row component contract. Each layer kind ships exactly
@@ -28,12 +29,17 @@ export interface LayerRowProps<T> {
   onActivate?: (id: string) => void
   /** Inline rename triggered by double-clicking the row's name. */
   onRename: (id: string, name: string) => void
+  /** Forwarded to the row's inline-rename input so the Menu's "Rename" item
+   *  can flip the row into edit mode in place instead of opening a prompt. */
+  editableRef?: RefObject<EditableTextHandle | null>
 }
 
 export interface LayerRowMenuProps<T> {
   item: T
   isSub: boolean
   onRename: (id: string, name: string) => void
-  onChangeRoute?: (id: string, route: string) => void
   onRemove: (id: string) => void
+  /** Shared with the matching Row — clicking "Rename" calls `startEditing()`
+   *  to put the row's name into inline edit mode. */
+  editableRef?: RefObject<EditableTextHandle | null>
 }

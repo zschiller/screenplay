@@ -4337,7 +4337,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onSelectIframeLayer={handleIframeLayerSelect}
           onZoomToIframeLayer={handleSelectIframeLayer}
           onRenameIframeLayer={renameIframeLayer}
-          onRouteChange={updateIframeLayerRoute}
           onRemoveIframeLayer={removeIframeLayer}
           onReorderIframeLayerGroups={reorderIframeLayerGroups}
           onReorderGroupMembers={reorderGroupMembers}
@@ -4602,6 +4601,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 onRequestReorderDrag={requestReorderDrag}
                                 onResize={resizeDocumentLayer}
                                 onTitleChange={setDocumentLayerTitleCache}
+                                onRename={setDocumentLayerTitle}
                                 onStartEdit={setEditingDocumentLayerId}
                                 onStopEdit={() => setEditingDocumentLayerId(null)}
                                 onEditorReady={handleDocumentEditorReady}
@@ -4653,6 +4653,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                               onSharedStateChanged={updateIframeLayerSharedState}
                               onPlay={iframeLayer.sandboxId ? handlePlayIframeLayer : undefined}
                               onFitToContent={fitIframeLayerToContent}
+                              onSetSize={fitIframeLayerToContent}
                               multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
                               spaceHeld={spaceHeld}
                               commentMode={commentMode}
@@ -4729,6 +4730,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   coords via a rAF loop. */}
               <div
                 id="frame-toolbar-portal"
+                className="pointer-events-none absolute inset-0 z-30"
+              />
+
+              {/* Portal target for the inline "Comment" bubble that appears
+                  above text selections inside a document layer. Same reason
+                  as the toolbar portal: the bubble lives inside the world
+                  transform's stacking context, so an internal z-index can't
+                  lift it above the SelectionOverlay sibling. Portaled out
+                  and positioned via rAF from markdown-layer. */}
+              <div
+                id="inline-comment-bubble-portal"
                 className="pointer-events-none absolute inset-0 z-30"
               />
 

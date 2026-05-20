@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { MessageSquare } from "lucide-react"
 import type { Editor } from "@tiptap/core"
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
@@ -132,6 +133,10 @@ interface MarkdownLayerProps {
    *  parent when the drag came from the left/top edge. */
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onTitleChange: (id: string, title: string) => void
+  /** Inline rename from the title bar. Unlike `onTitleChange` (cache-only,
+   *  driven by the editor) this must also write into the editor's first
+   *  heading so every peer's view updates. */
+  onRename?: (id: string, title: string) => void
   onStartEdit: (id: string) => void
   onStopEdit: () => void
 }
@@ -168,6 +173,7 @@ export function MarkdownLayer({
   onGroupDragEnd,
   onResize,
   onTitleChange,
+  onRename,
   onStartEdit,
   onStopEdit,
   onEditorReady,
@@ -214,6 +220,16 @@ export function MarkdownLayer({
   const [bubbleAnchor, setBubbleAnchor] = useState<
     { left: number; top: number } | null
   >(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+
+  // Portal target lives outside the world transform so the bubble can sit
+  // above the SelectionOverlay (z-30 sibling vs. the TransformWrapper's
+  // stacking context, where an internal z-index would be capped). Resolved
+  // on mount; null until then.
+  const [bubblePortalTarget, setBubblePortalTarget] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setBubblePortalTarget(document.getElementById("inline-comment-bubble-portal"))
+  }, [])
 
   const onSelectInlineThreadRef = useRef(onSelectInlineThread)
   onSelectInlineThreadRef.current = onSelectInlineThread
@@ -404,6 +420,32 @@ export function MarkdownLayer({
     }
   }, [editor, zoom])
 
+  // Keep the portaled bubble anchored to the start of the selection. The doc
+  // tile lives inside the world transform (panning/zooming move it on
+  // screen), but the bubble lives in screen space, so we re-read the tile's
+  // client rect every frame and write the canvas-wrapper-relative offset
+  // directly to the bubble's style.
+  useEffect(() => {
+    if (!bubbleAnchor || !editing || !bubblePortalTarget) return
+    const canvasWrapper = document.querySelector<HTMLDivElement>("[data-canvas-wrapper]")
+    if (!canvasWrapper) return
+    let rafId = 0
+    const tick = () => {
+      const root = rootRef.current
+      const bubble = bubbleRef.current
+      if (root && bubble) {
+        const rr = root.getBoundingClientRect()
+        const cw = canvasWrapper.getBoundingClientRect()
+        const x = rr.left - cw.left + bubbleAnchor.left * zoom
+        const y = rr.top - cw.top + bubbleAnchor.top * zoom
+        bubble.style.transform = `translate(${x}px, ${y}px)`
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [bubbleAnchor, editing, bubblePortalTarget, zoom])
+
   const handleStartInlineComment = useCallback(() => {
     if (!editor) return
     // Prefer the captured ref (set by selectionUpdate while the user was
@@ -449,9 +491,14 @@ export function MarkdownLayer({
     if (!editing) return
     const onDown = (e: PointerEvent) => {
       if (!rootRef.current) return
-      if (!rootRef.current.contains(e.target as Node)) {
-        onStopEdit()
-      }
+      const target = e.target as Node
+      if (rootRef.current.contains(target)) return
+      // The floating "Comment" bubble is portaled out of the doc's DOM tree
+      // (so it can paint above the SelectionOverlay), but interactions with
+      // it should not count as clicking outside the doc — that would blur
+      // the editor and clear the selection before the click can fire.
+      if (bubbleRef.current?.contains(target)) return
+      onStopEdit()
     }
     window.addEventListener("pointerdown", onDown, true)
     return () => window.removeEventListener("pointerdown", onDown, true)
@@ -601,7 +648,8 @@ export function MarkdownLayer({
           style={{ maxWidth: layer.width * zoom }}
         >
           <LayerTitleText
-            title={layer.title || "Untitled"}
+            title={layer.title}
+            placeholder="Untitled"
             selected={selected || groupSelected}
             onSelectLayer={(shiftKey) => {
               // Defer to the group's selection while the group is selected
@@ -612,6 +660,7 @@ export function MarkdownLayer({
               selectedOnPointerDown.current = true
               onSelect(layer.id, shiftKey)
             }}
+            onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
           />
         </div>
       </LayerTitleBar>
@@ -659,25 +708,26 @@ export function MarkdownLayer({
         <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
 
-      {bubbleAnchor && editing && (
+      {bubbleAnchor && editing && bubblePortalTarget && createPortal(
         // Floating "Comment" button anchored above the start of the user's
-        // selection — Google-Docs style. mousedown is preventDefaulted so
-        // clicking the button doesn't blur the editor (mousedown is what
-        // shifts focus in browsers; pointerdown alone isn't enough). The
-        // button also fires on mousedown rather than click so the gesture
-        // completes before any later focus/selection event has a chance to
-        // tear down the bubble.
+        // selection — Google-Docs style. Portaled out of the world transform
+        // so it sits above the SelectionOverlay (see canvas.tsx for the
+        // portal target). Positioned every frame by the rAF loop above
+        // (translate is set imperatively from the tile's client rect), so
+        // it tracks pan/zoom/drag without needing inverse-scale tricks.
+        // mousedown is preventDefaulted so clicking the button doesn't
+        // blur the editor (mousedown is what shifts focus in browsers;
+        // pointerdown alone isn't enough). The button also fires on
+        // mousedown rather than click so the gesture completes before any
+        // later focus/selection event has a chance to tear down the bubble.
         <div
-          className="pointer-events-none absolute z-50"
-          style={{
-            left: bubbleAnchor.left,
-            top: bubbleAnchor.top,
-          }}
+          ref={bubbleRef}
+          className="pointer-events-none absolute left-0 top-0"
         >
           <div
             className="pointer-events-auto"
             style={{
-              transform: `translate(-50%, -100%) translateY(-6px) scale(${1 / zoom})`,
+              transform: "translate(-50%, -100%) translateY(-6px)",
               transformOrigin: "bottom center",
             }}
           >
@@ -695,7 +745,8 @@ export function MarkdownLayer({
               Comment
             </button>
           </div>
-        </div>
+        </div>,
+        bubblePortalTarget,
       )}
     </div>
   )

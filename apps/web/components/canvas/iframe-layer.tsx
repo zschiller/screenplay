@@ -15,6 +15,7 @@ import { useIframeLayerResize, type ResizeEdge } from "@/hooks/use-iframe-layer-
 import { usePostMessage } from "@/hooks/use-postmessage"
 import { useScreenplayDom, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl, installBridge, getBridgeVersion } from "@/lib/sandbox-actions"
+import { DeviceSizeMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { ResizeHandles } from "./resize-handles"
@@ -102,6 +103,8 @@ interface IframeLayerProps {
   onPlay?: (id: string) => void
   /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
   onFitToContent?: (id: string, width: number, height: number) => void
+  /** Set the frame to an explicit width/height (used by the device-preset menu). */
+  onSetSize?: (id: string, width: number, height: number) => void
   multiSelected: boolean
   spaceHeld: boolean
   /** Comment mode shows an element hover overlay so the user can see what
@@ -180,6 +183,7 @@ export function IframeLayer({
   onSharedStateChanged,
   onPlay,
   onFitToContent,
+  onSetSize,
   multiSelected,
   spaceHeld,
   commentMode,
@@ -586,6 +590,13 @@ export function IframeLayer({
                 {createFlow ? "Stop Create Flow" : "Create Flow"}
               </TooltipContent>
             </Tooltip>
+            {onSetSize && (
+              <DeviceSizeMenu
+                width={iframeLayer.width}
+                height={iframeLayer.height}
+                onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+              />
+            )}
             <KnobsPopover
               knobs={iframeLayer.knobs}
               values={iframeLayer.knobValues}
