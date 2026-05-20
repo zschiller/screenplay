@@ -103,7 +103,7 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
       reorderDragTranslateY={reorderDragTranslateY}
       reorderDragPopped={reorderDragPopped}
     >
-      <div className="flex items-center gap-2 max-w-full overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
+      <div className="flex min-h-[18px] items-center gap-2 max-w-full overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
         {onAssignAgent ? (
           <BranchPicker
             branch={branch}
@@ -329,7 +329,11 @@ function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignable
           )}
           <ChevronsUpDown
             aria-hidden
-            className="h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+            className={
+              branch
+                ? "h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+                : "h-3 w-3 ml-1 shrink-0 text-muted-foreground"
+            }
           />
         </button>
       </PopoverTrigger>

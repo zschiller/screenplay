@@ -181,7 +181,7 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
-        viewClassName="truncate"
+        viewClassName="truncate cursor-grab active:cursor-grabbing"
         editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
       />
     )

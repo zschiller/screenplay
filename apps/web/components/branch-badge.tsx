@@ -1,6 +1,7 @@
+import { forwardRef } from "react"
 import { GitBranch } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
-import { EditableText } from "@workspace/ui/components/editable-text"
+import { EditableText, type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { getBranchColor } from "@/lib/branch-colors"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -19,7 +20,10 @@ interface BranchBadgeProps {
   onRename?: (next: string) => void
 }
 
-export function BranchBadge({ branch, colorKey, colorIndex, icon = false, className, onRename }: BranchBadgeProps) {
+export const BranchBadge = forwardRef<EditableTextHandle, BranchBadgeProps>(function BranchBadge(
+  { branch, colorKey, colorIndex, icon = false, className, onRename },
+  ref,
+) {
   const color = getBranchColor(colorKey ?? branch, colorIndex)
 
   return (
@@ -38,6 +42,7 @@ export function BranchBadge({ branch, colorKey, colorIndex, icon = false, classN
       {icon && <GitBranch className="h-3 w-3 shrink-0" />}
       {onRename ? (
         <EditableText
+          ref={ref}
           as="span"
           value={branch}
           onCommit={onRename}
@@ -51,4 +56,4 @@ export function BranchBadge({ branch, colorKey, colorIndex, icon = false, classN
       )}
     </Badge>
   )
-}
+})
