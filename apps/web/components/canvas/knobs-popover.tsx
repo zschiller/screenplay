@@ -1,11 +1,10 @@
 "use client"
 
-import { useMemo, type RefObject } from "react"
+import { useMemo } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Popover,
-  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
@@ -39,15 +38,9 @@ interface KnobsPopoverProps {
   knobs: JsonValue[] | undefined
   values: JsonObject | undefined
   onChange: (values: KnobValues) => void
-  /**
-   * Element to anchor the popover content against. Defaults to the trigger
-   * button — pass the frame element so the popover docks beside the iframeLayer
-   * instead of overlapping its iframe.
-   */
-  anchorRef?: RefObject<HTMLElement | null>
 }
 
-export function KnobsPopover({ knobs, values, onChange, anchorRef }: KnobsPopoverProps) {
+export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
   const defs = useMemo<KnobDef[]>(() => {
     if (!knobs) return []
     return knobs.filter(isKnobDef)
@@ -86,7 +79,7 @@ export function KnobsPopover({ knobs, values, onChange, anchorRef }: KnobsPopove
             <PopoverTrigger asChild>
               <Button
                 size="icon-xxs"
-                variant="outline"
+                variant="ghost"
                 className="relative"
               >
                 <SlidersHorizontal />
@@ -99,22 +92,13 @@ export function KnobsPopover({ knobs, values, onChange, anchorRef }: KnobsPopove
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Knobs</TooltipContent>
+          <TooltipContent side="right">Knobs</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {/* Anchor must render AFTER PopoverTrigger: on the first render the
-          trigger auto-wraps in a PopperAnchor until `hasCustomAnchor` flips,
-          and effects run in render order — so a leading PopoverAnchor sets
-          the anchor first and then the trigger's wrapper overwrites it. */}
-      {anchorRef ? (
-        <PopoverAnchor
-          virtualRef={anchorRef as RefObject<HTMLElement>}
-        />
-      ) : null}
       <PopoverContent
-        side={anchorRef ? "right" : "bottom"}
-        align={anchorRef ? "start" : "end"}
-        sideOffset={anchorRef ? 8 : 6}
+        side="right"
+        align="start"
+        sideOffset={8}
         collisionPadding={16}
         className="w-72 gap-3"
       >

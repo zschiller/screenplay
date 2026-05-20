@@ -177,7 +177,7 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
         placeholder={placeholder}
         onCommit={onRename}
         onPointerDown={handlePointerDown}
-        className={cn("text-xs font-medium min-w-[0.75em]", colorClass)}
+        className={cn("text-xs font-medium min-w-0", colorClass)}
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
@@ -190,7 +190,7 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
   return (
     <span
       className={cn(
-        "text-xs font-medium truncate min-w-[0.75em]",
+        "text-xs font-medium truncate min-w-0",
         colorClass,
       )}
       onPointerDown={handlePointerDown}

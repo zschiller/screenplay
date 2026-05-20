@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { Braces, Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { BranchBadge } from "@/components/branch-badge"
@@ -21,9 +21,8 @@ import {
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
 import type { AgentData } from "@/lib/types"
-import type { HmrStatus, JsonObject } from "@/lib/postmessage-protocol"
+import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
-import { cn } from "@workspace/ui/lib/utils"
 import { LayerTitleBar, LayerTitleText } from "./layer-title-bar"
 
 interface IframeLayerLabelProps {
@@ -38,8 +37,6 @@ interface IframeLayerLabelProps {
   sharedState?: JsonObject
   zoom: number
   iframeLayerWidth: number
-  /** Screen-px width to reserve on the right (e.g. for the action buttons). */
-  reservedRightPx?: number
   /** Base move-drag handlers — `LayerTitleBar` composes them with the
    *  reorder-request hook so the bar lifts the frame into a reorder gesture
    *  in multi-member groups and falls back to a group-move drag otherwise. */
@@ -53,7 +50,6 @@ interface IframeLayerLabelProps {
    *  group label moves the whole group rather than reordering a single
    *  frame within the group. */
   groupLabelDragHandlers?: Record<string, unknown>
-  hmrStatus?: HmrStatus | null
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableAgents?: AgentData[]
   onAssignAgent?: (agentId: string) => void
@@ -88,40 +84,9 @@ interface IframeLayerLabelProps {
   /** Inline rename for the frame name. When provided, double-clicking the
    *  name swaps it into a contenteditable. */
   onRename?: (next: string) => void
-  /**
-   * Reports the natural (unconstrained) width of the bottom row in screen px —
-   * status dot + name + route badge — so the parent can decide how much room
-   * is left for action buttons.
-   */
-  onContentWidthChange?: (width: number) => void
 }
 
-const HMR_DOT_COLOR: Record<HmrStatus, string> = {
-  connected: "bg-green-500",
-  reconnecting: "bg-yellow-500",
-  disconnected: "bg-red-500",
-}
-
-const HMR_DOT_TITLE: Record<HmrStatus, string> = {
-  connected: "Dev server connected",
-  reconnecting: "Reconnecting to dev server…",
-  disconnected: "Dev server disconnected",
-}
-
-export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, reservedRightPx = 0, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, hmrStatus, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, onContentWidthChange, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
-  const measureRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!onContentWidthChange) return
-    const el = measureRef.current
-    if (!el) return
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry) onContentWidthChange(entry.contentRect.width)
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [onContentWidthChange])
-
+export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
   return (
     <LayerTitleBar
       layerId={iframeLayerId}
@@ -138,40 +103,24 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
       reorderDragTranslateY={reorderDragTranslateY}
       reorderDragPopped={reorderDragPopped}
     >
-      {(branch || onAssignAgent) && (
-        <div className="mb-0.5 max-w-full min-w-0">
-          {onAssignAgent ? (
-            <BranchPicker
-              branch={branch}
-              currentAgentId={sandboxId}
-              colorKey={sandboxId}
-              colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
-              assignableAgents={assignableAgents ?? []}
-              onAssignAgent={onAssignAgent}
-            />
-          ) : branch ? (
-            <BranchBadge
-              branch={branch}
-              colorKey={sandboxId}
-              colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
-              className="text-[10px] py-0 px-1.5"
-            />
-          ) : null}
-        </div>
-      )}
-      <div
-        className="flex items-center gap-1.5 max-w-full"
-        style={{ maxWidth: Math.max(0, iframeLayerWidth * zoom - reservedRightPx) }}
-      >
-        {hmrStatus && (
-          <span
-            title={HMR_DOT_TITLE[hmrStatus]}
-            className={cn(
-              "inline-block h-1.5 w-1.5 shrink-0 rounded-full ring-1 ring-white",
-              HMR_DOT_COLOR[hmrStatus],
-            )}
+      <div className="flex items-center gap-2 max-w-full overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
+        {onAssignAgent ? (
+          <BranchPicker
+            branch={branch}
+            currentAgentId={sandboxId}
+            colorKey={sandboxId}
+            colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
+            assignableAgents={assignableAgents ?? []}
+            onAssignAgent={onAssignAgent}
           />
-        )}
+        ) : branch ? (
+          <BranchBadge
+            branch={branch}
+            colorKey={sandboxId}
+            colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
+            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+          />
+        ) : null}
         <LayerTitleText
           title={label}
           selected={selected}
@@ -187,48 +136,11 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
             sharedState={sharedState}
           />
         ) : (
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] hover:max-w-full transition-[max-width] duration-200">
+          <Badge variant="outline" className="shrink-0 border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] hover:max-w-full transition-[max-width] duration-200">
             <span className="truncate">{route || "/"}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
         ))}
-      </div>
-      {/* Hidden duplicate of the bottom row used to measure its natural
-          (unconstrained, untruncated) width. Mirrors the visible row's
-          `min-w-*` floors AND the RoutePicker's chevron-slot (opacity-0 but
-          still occupies layout) so the measurement matches what the live row
-          actually renders. Without this, labels would truncate before action
-          buttons drop out at the threshold. */}
-      <div
-        ref={measureRef}
-        aria-hidden
-        className="invisible pointer-events-none absolute -left-[9999px] top-0 flex items-center gap-1.5 whitespace-nowrap"
-      >
-        {hmrStatus && (
-          <span
-            className={cn(
-              "inline-block h-1.5 w-1.5 shrink-0 rounded-full ring-1 ring-white",
-              HMR_DOT_COLOR[hmrStatus],
-            )}
-          />
-        )}
-        <span className="text-xs font-medium min-w-[0.75em]">{label}</span>
-        {branch && (
-          onSelectRoute ? (
-            <span className="flex items-center gap-1">
-              <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem]">
-                <span className="truncate">{route || "/"}</span>
-                <SharedStateIndicator sharedState={sharedState} />
-              </Badge>
-              <span className="h-3 w-3 shrink-0" />
-            </span>
-          ) : (
-            <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem]">
-              <span className="truncate">{route || "/"}</span>
-              <SharedStateIndicator sharedState={sharedState} />
-            </Badge>
-          )
-        )}
       </div>
     </LayerTitleBar>
   )
@@ -272,15 +184,18 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-1 min-w-0 outline-none focus-visible:outline-none"
+          className="group flex shrink-0 items-center outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] group-hover:max-w-full transition-[max-width] duration-200">
+          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] group-hover:max-w-full group-data-[state=open]:max-w-full transition-[max-width] duration-200">
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
-          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
+          <ChevronsUpDown
+            aria-hidden
+            className="h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
@@ -396,18 +311,26 @@ function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignable
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-1 max-w-full min-w-0 outline-none focus-visible:outline-none"
+          className="group flex shrink-0 items-center outline-none focus-visible:outline-none"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           {branch ? (
-            <BranchBadge branch={branch} colorKey={colorKey} colorIndex={colorIndex} className="min-w-0 text-[10px] py-0 px-1.5" />
+            <BranchBadge
+              branch={branch}
+              colorKey={colorKey}
+              colorIndex={colorIndex}
+              className="shrink-0 max-w-[1.25rem] group-hover:max-w-[30rem] group-data-[state=open]:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+            />
           ) : (
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
+            <span className="truncate text-xs text-muted-foreground">
               Choose a branch
             </span>
           )}
-          <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100" />
+          <ChevronsUpDown
+            aria-hidden
+            className="h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
