@@ -118,7 +118,7 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
             branch={branch}
             colorKey={sandboxId}
             colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
-            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] hover:delay-300 transition-[max-width] duration-200 text-[10px] py-0 px-1"
           />
         ) : null}
         <LayerTitleText
@@ -320,7 +320,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignable
               branch={branch}
               colorKey={colorKey}
               colorIndex={colorIndex}
-              className="shrink-0 max-w-[1.25rem] group-hover:max-w-[30rem] group-data-[state=open]:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+              className="shrink-0 max-w-[1.25rem] group-hover:max-w-[30rem] group-hover:delay-300 group-data-[state=open]:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -331,7 +331,7 @@ function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignable
             aria-hidden
             className={
               branch
-                ? "h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+                ? "h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-hover:delay-300 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
                 : "h-3 w-3 ml-1 shrink-0 text-muted-foreground"
             }
           />
