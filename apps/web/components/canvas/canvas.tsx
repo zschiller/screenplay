@@ -1813,6 +1813,131 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [collections],
   )
 
+  /**
+   * Move a single member across groups (Figma-style sidebar drag). Handles
+   * three cases in one transaction so undo is atomic:
+   *  - drop into an existing group at a specific index
+   *  - drop into the gap between groups → spawn a new single-member group
+   *    placed near the viewport center, then renumber `sidebarOrder`
+   *  - either case may leave the source group empty → delete it
+   */
+  const moveMember = useCallback(
+    (
+      member: GroupMember,
+      target:
+        | { kind: "into-group"; groupId: string; index: number }
+        | { kind: "new-group"; sidebarIndex: number },
+    ) => {
+      collections.transact(() => {
+        const allGroups = collections.iframeLayerGroups.toArray()
+        const sourceGroup = allGroups.find((g) =>
+          getGroupMembers(g).some((m) => m.kind === member.kind && m.id === member.id),
+        )
+        if (!sourceGroup) return
+
+        const sourceMembers = getGroupMembers(sourceGroup).filter(
+          (m) => !(m.kind === member.kind && m.id === member.id),
+        )
+
+        if (target.kind === "into-group") {
+          if (target.groupId === sourceGroup.id) {
+            // Same-group reorder — splice the member back in at the new
+            // index. We removed it above so target index is already in the
+            // post-removal coordinate space.
+            const clamped = Math.max(0, Math.min(target.index, sourceMembers.length))
+            const nextMembers = [
+              ...sourceMembers.slice(0, clamped),
+              member,
+              ...sourceMembers.slice(clamped),
+            ]
+            collections.iframeLayerGroups.update(sourceGroup.id, { members: nextMembers })
+            return
+          }
+
+          const targetGroup = collections.iframeLayerGroups.get(target.groupId)
+          if (!targetGroup) return
+          const targetMembers = getGroupMembers(targetGroup)
+          const clamped = Math.max(0, Math.min(target.index, targetMembers.length))
+          const nextTargetMembers = [
+            ...targetMembers.slice(0, clamped),
+            member,
+            ...targetMembers.slice(clamped),
+          ]
+
+          if (sourceMembers.length === 0) {
+            collections.iframeLayerGroups.delete(sourceGroup.id)
+          } else {
+            collections.iframeLayerGroups.update(sourceGroup.id, { members: sourceMembers })
+          }
+          collections.iframeLayerGroups.update(target.groupId, {
+            members: nextTargetMembers,
+          })
+          return
+        }
+
+        // target.kind === "new-group" — create a fresh single-member group
+        // and renumber sidebar order so it slots in at the requested index.
+        const memberSize = (() => {
+          if (member.kind === "iframe-layer") {
+            const ab = collections.iframeLayers.get(member.id)
+            return ab ? { width: ab.width, height: ab.height } : null
+          }
+          if (member.kind === "markdown-layer") {
+            const d = collections.markdownLayers.get(member.id)
+            return d ? { width: d.width, height: d.height } : null
+          }
+          return null
+        })()
+        if (!memberSize) return
+
+        const { cx, cy } = getViewportCenter()
+        const groupsForPlacement = allGroups.filter((g) => g.id !== sourceGroup.id || sourceMembers.length > 0)
+        const allIframeLayers = collections.iframeLayers.toArray()
+        const { x, y } = placeNewIframeLayerGroup(
+          groupsForPlacement,
+          allIframeLayers,
+          { x: cx, y: cy },
+          memberSize.width,
+          memberSize.height,
+        )
+        const newGroupId = nanoid()
+        const newGroup = {
+          id: newGroupId,
+          name: `Group ${nextGroupNumber(allGroups)}`,
+          x,
+          y,
+          members: [member],
+        }
+
+        if (sourceMembers.length === 0) {
+          collections.iframeLayerGroups.delete(sourceGroup.id)
+        } else {
+          collections.iframeLayerGroups.update(sourceGroup.id, { members: sourceMembers })
+        }
+        collections.iframeLayerGroups.set(newGroupId, newGroup)
+
+        // Renumber sidebarOrder over the post-mutation set so the new group
+        // lands at target.sidebarIndex. Use the freshly read snapshot, then
+        // splice in the new id; drop the source if we just deleted it.
+        const orderedIds = collections.iframeLayerGroups
+          .toArray()
+          .filter((g) => g.id !== newGroupId)
+          .sort((a, b) => (a.sidebarOrder ?? 0) - (b.sidebarOrder ?? 0))
+          .map((g) => g.id)
+        const clamped = Math.max(0, Math.min(target.sidebarIndex, orderedIds.length))
+        const finalOrder = [
+          ...orderedIds.slice(0, clamped),
+          newGroupId,
+          ...orderedIds.slice(clamped),
+        ]
+        finalOrder.forEach((id, index) => {
+          collections.iframeLayerGroups.update(id, { sidebarOrder: index })
+        })
+      })
+    },
+    [collections, getViewportCenter],
+  )
+
   const renameIframeLayerGroup = useCallback(
     (groupId: string, name: string) => {
       collections.iframeLayerGroups.update(groupId, { name })
@@ -4339,7 +4464,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           onRenameIframeLayer={renameIframeLayer}
           onRemoveIframeLayer={removeIframeLayer}
           onReorderIframeLayerGroups={reorderIframeLayerGroups}
-          onReorderGroupMembers={reorderGroupMembers}
+          onMoveMember={moveMember}
           onRenameIframeLayerGroup={renameIframeLayerGroup}
           onRemoveIframeLayerGroup={removeIframeLayerGroup}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}

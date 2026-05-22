@@ -1,7 +1,25 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Reorder } from "motion/react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import {
   FolderPlus,
   Plus,
@@ -117,6 +135,169 @@ import {
   type ParallelAgentSpec,
 } from "@/components/parallel-create-dialog"
 
+/**
+ * Resolved sidebar member — pairs the kind + id with the underlying data
+ * looked up out of `iframeLayers` / `markdownLayers`. Members whose data is
+ * missing (lookup races during deletion) are filtered out earlier.
+ */
+type ResolvedMember = { kind: string; id: string; data: unknown }
+
+/**
+ * One visible row in the sidebar's Canvas section. `group-header` is the
+ * folder line for a multi-member group, `flat` is the single-member
+ * shorthand (no header), and `member` is a child row inside an expanded
+ * multi-member group. The Sortable list contains one entry per row.
+ */
+type SidebarDragRow =
+  | { kind: "group-header"; groupId: string }
+  | { kind: "flat"; groupId: string; member: ResolvedMember }
+  | { kind: "member"; groupId: string; member: ResolvedMember }
+
+function rowSortableId(row: SidebarDragRow): string {
+  if (row.kind === "group-header") return `group:${row.groupId}`
+  if (row.kind === "flat") return `flat:${row.groupId}`
+  return `member:${row.member.kind}:${row.member.id}`
+}
+
+type ParsedRowId =
+  | { kind: "group-header"; groupId: string }
+  | { kind: "flat"; groupId: string }
+  | { kind: "member"; memberKind: string; memberId: string }
+  | { kind: "gap"; sidebarIndex: number }
+
+function parseSortableId(id: string): ParsedRowId | null {
+  if (id.startsWith("gap:")) {
+    return { kind: "gap", sidebarIndex: Number(id.slice(4)) }
+  }
+  if (id.startsWith("group:")) {
+    return { kind: "group-header", groupId: id.slice(6) }
+  }
+  if (id.startsWith("flat:")) {
+    return { kind: "flat", groupId: id.slice(5) }
+  }
+  if (id.startsWith("member:")) {
+    const rest = id.slice(7)
+    const colon = rest.indexOf(":")
+    if (colon < 0) return null
+    return { kind: "member", memberKind: rest.slice(0, colon), memberId: rest.slice(colon + 1) }
+  }
+  return null
+}
+
+/**
+ * A row wired into dnd-kit's sortable context. We intentionally DON'T
+ * apply `useSortable`'s `transform`/`transition` to the rendered div:
+ * the strategy assumes a flat equal-height list, but this Canvas list
+ * mixes group headers, indented members, and flat rows — letting the
+ * strategy translate them mid-drag makes nested items fly around. The
+ * dragged source goes opacity 0, the cursor preview is rendered by
+ * `<DragOverlay>`, and `isOver` is exposed via `data-over` so callers
+ * can render a static drop indicator instead.
+ */
+function SortableRow({
+  id,
+  groupId,
+  className,
+  children,
+  ...rest
+}: {
+  id: string
+  /** Group this row belongs to. Used to suppress the "into" indicator
+   *  when the dragged member is already a child of this row's group. */
+  groupId: string
+  className?: string
+  children: React.ReactNode
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
+  const { attributes, listeners, setNodeRef, isDragging, isOver, over, active } =
+    useSortable({ id, data: { groupId } })
+  // Three indicator states:
+  //   "into"   — dropping a member onto a container (group header / flat
+  //              row / closed group): full ring around the row.
+  //   before / after — dropping adjacent to a row: thin top/bottom line.
+  let indicator: "before" | "after" | "into" | null = null
+  if (isOver && over && active) {
+    const activeParsed = parseSortableId(String(active.id))
+    const thisParsed = parseSortableId(id)
+    const activeGroupId = (active.data.current as { groupId?: string } | undefined)
+      ?.groupId
+    if (activeParsed && thisParsed && activeParsed.kind !== "gap") {
+      const activeIsMemberLike =
+        activeParsed.kind === "member" || activeParsed.kind === "flat"
+      const thisIsContainer =
+        thisParsed.kind === "group-header" || thisParsed.kind === "flat"
+      const sameGroup = activeGroupId !== undefined && activeGroupId === groupId
+      if (activeIsMemberLike && thisIsContainer && !sameGroup) {
+        indicator = "into"
+      } else if (activeParsed.kind === "group-header" && sameGroup) {
+        // Dragging a group header over one of its own children — no
+        // sensible action; suppress the indicator entirely.
+        indicator = null
+      } else {
+        const activeInitialTop = active.rect.current.initial?.top ?? 0
+        const overTop = over.rect.top
+        indicator = activeInitialTop < overTop ? "after" : "before"
+      }
+    }
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ opacity: isDragging ? 0 : undefined }}
+      className={cn(
+        "relative",
+        // `ring` (not `ring-inset`) so it sits OUTSIDE the row, where it
+        // remains visible even when the underlying row has its own
+        // selection styling (e.g. a selected frame's accent ring).
+        indicator === "into" && "z-10 rounded-md ring-2 ring-fuchsia-500",
+        className,
+      )}
+      {...attributes}
+      {...listeners}
+      {...rest}
+    >
+      {children}
+      {indicator === "before" || indicator === "after" ? (
+        <DropLine side={indicator} />
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The single canonical drop indicator — a 2px fuchsia line flush with the
+ * row's top or bottom edge. Matches the canvas selection color
+ * (`#d946ef`, Tailwind `fuchsia-500`) so the sidebar and canvas share one
+ * "active target" visual language. No rounded corners, no shadows.
+ */
+function DropLine({ side }: { side: "before" | "after" }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-fuchsia-500",
+        side === "before" ? "-top-px" : "-bottom-px",
+      )}
+    />
+  )
+}
+
+/**
+ * Droppable slot between (and around) the top-level groups. Stays a fixed
+ * thin height regardless of drag state so dropping it in doesn't shove
+ * the rest of the list around — the cursor itself drives `isOver`, which
+ * lights the strip up as a visible "create new group here" indicator.
+ */
+function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `gap:${sidebarIndex}` })
+  return (
+    <div ref={setNodeRef} aria-hidden className="relative h-1 -my-px">
+      {isOver ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 rounded-full bg-fuchsia-500" />
+      ) : null}
+    </div>
+  )
+}
+
 interface AgentSidebarProps {
   workspaces: WorkspaceData[]
   agents: AgentData[]
@@ -161,7 +342,17 @@ interface AgentSidebarProps {
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
-  onReorderGroupMembers: (groupId: string, orderedMembers: GroupMember[]) => void
+  /**
+   * Move a single member across (or within) groups. `target` either points
+   * into an existing group at a specific index, or asks for a new
+   * single-member group to be created at a given sidebar slot.
+   */
+  onMoveMember: (
+    member: GroupMember,
+    target:
+      | { kind: "into-group"; groupId: string; index: number }
+      | { kind: "new-group"; sidebarIndex: number },
+  ) => void
   onRenameIframeLayerGroup: (groupId: string, name: string) => void
   onRemoveIframeLayerGroup: (groupId: string) => void
   onCollapseSidebar?: () => void
@@ -219,7 +410,7 @@ export function AgentSidebar({
   onRenameDocument,
   onRemoveDocument,
   onReorderIframeLayerGroups,
-  onReorderGroupMembers,
+  onMoveMember,
   onRenameIframeLayerGroup,
   onRemoveIframeLayerGroup,
   onCollapseSidebar,
@@ -321,6 +512,250 @@ export function AgentSidebar({
       onRemove: onRemoveDocument,
     },
   }
+
+  /**
+   * Flatten the groups list into one row per visible sidebar line. The
+   * `SortableContext` below consumes this in order; the same list also
+   * drives `RowOverlay` lookups during drag.
+   */
+  const flattenedRows = useMemo<SidebarDragRow[]>(() => {
+    const rows: SidebarDragRow[] = []
+    for (const group of iframeLayerGroups) {
+      const members: ResolvedMember[] = []
+      for (const m of getGroupMembers(group)) {
+        if (m.kind === "iframe-layer") {
+          const ab = iframeLayersById.get(m.id)
+          if (ab) members.push({ kind: m.kind, id: m.id, data: ab })
+          continue
+        }
+        if (m.kind === "markdown-layer") {
+          const d = documentsById.get(m.id)
+          if (d) members.push({ kind: m.kind, id: m.id, data: d })
+        }
+      }
+      if (members.length === 1) {
+        rows.push({ kind: "flat", groupId: group.id, member: members[0]! })
+      } else if (members.length > 1) {
+        rows.push({ kind: "group-header", groupId: group.id })
+        for (const m of members) {
+          rows.push({ kind: "member", groupId: group.id, member: m })
+        }
+      }
+    }
+    return rows
+  }, [iframeLayerGroups, iframeLayersById, documentsById])
+
+  const sortableIds = useMemo(
+    () => flattenedRows.map(rowSortableId),
+    [flattenedRows],
+  )
+
+  const sensors = useSensors(
+    // Activation distance lets clicks/double-clicks (no movement) through to
+    // selection + zoom handlers, but any real drag past 6px starts moving.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const [activeDragRow, setActiveDragRow] = useState<SidebarDragRow | null>(null)
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const row = flattenedRows.find((r) => rowSortableId(r) === String(event.active.id))
+      setActiveDragRow(row ?? null)
+    },
+    [flattenedRows],
+  )
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDragRow(null)
+  }, [])
+
+  /**
+   * Slot the source group into the sidebar at `sidebarIndex` (gap-space
+   * coordinates: 0 = before first, N = after last). Accounts for the
+   * removal of the source group itself so callers can pass the gap index
+   * directly off a `gap:N` drop.
+   */
+  const reorderGroupToGap = useCallback(
+    (groupId: string, sidebarIndex: number) => {
+      const currentIds = iframeLayerGroups.map((g) => g.id)
+      const currentIdx = currentIds.indexOf(groupId)
+      if (currentIdx < 0) return
+      let target = sidebarIndex
+      if (currentIdx < sidebarIndex) target -= 1
+      const withoutSource = currentIds.filter((_, i) => i !== currentIdx)
+      const clamped = Math.max(0, Math.min(target, withoutSource.length))
+      const newOrder = [
+        ...withoutSource.slice(0, clamped),
+        groupId,
+        ...withoutSource.slice(clamped),
+      ]
+      if (newOrder.join(",") === currentIds.join(",")) return
+      onReorderIframeLayerGroups(newOrder)
+    },
+    [iframeLayerGroups, onReorderIframeLayerGroups],
+  )
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveDragRow(null)
+      const { active, over } = event
+      if (!over) return
+      const activeId = String(active.id)
+      const overId = String(over.id)
+      if (activeId === overId) return
+
+      const activeInfo = parseSortableId(activeId)
+      if (!activeInfo || activeInfo.kind === "gap") return
+
+      const activeRow = flattenedRows.find((r) => rowSortableId(r) === activeId)
+      if (!activeRow) return
+
+      const overInfo = parseSortableId(overId)
+      if (!overInfo) return
+
+      // Gap drop — either group reorder (preserving group id) or new
+      // single-member group, depending on whether the dragged row IS a group.
+      if (overInfo.kind === "gap") {
+        if (activeRow.kind === "member") {
+          onMoveMember(
+            { kind: activeRow.member.kind, id: activeRow.member.id } as GroupMember,
+            { kind: "new-group", sidebarIndex: overInfo.sidebarIndex },
+          )
+        } else {
+          // group-header or flat → keep group identity
+          reorderGroupToGap(activeRow.groupId, overInfo.sidebarIndex)
+        }
+        return
+      }
+
+      // Dragging a multi-member group's header onto another row → treat as
+      // a whole-group reorder. (Nesting groups isn't a thing.)
+      if (activeRow.kind === "group-header") {
+        if (overInfo.kind === "group-header" && overInfo.groupId === activeRow.groupId)
+          return
+        const overGroupId =
+          overInfo.kind === "group-header" || overInfo.kind === "flat"
+            ? overInfo.groupId
+            : // over is a member — find its group via flattened rows
+              flattenedRows.find(
+                (r) =>
+                  r.kind === "member" &&
+                  r.member.kind === overInfo.memberKind &&
+                  r.member.id === overInfo.memberId,
+              )?.groupId
+        if (!overGroupId || overGroupId === activeRow.groupId) return
+        const overIdx = iframeLayerGroups.findIndex((g) => g.id === overGroupId)
+        if (overIdx < 0) return
+        const insertAfter = event.delta.y > 0
+        const sidebarIndex = insertAfter ? overIdx + 1 : overIdx
+        reorderGroupToGap(activeRow.groupId, sidebarIndex)
+        return
+      }
+
+      // Active is a member or a flat (= single-member) row — move that one
+      // member to wherever the drop landed.
+      const draggedMember: GroupMember = {
+        kind: activeRow.member.kind,
+        id: activeRow.member.id,
+      } as GroupMember
+
+      // Drop onto a multi-member group's header.
+      if (overInfo.kind === "group-header") {
+        if (overInfo.groupId === activeRow.groupId) {
+          // Same group as the dragged member — the indicator paints a
+          // "before" line above the header (the member started inside
+          // the group, below the header, so direction is always "up"
+          // from its perspective). Route that to "extract me into a new
+          // sibling group above this one" — the same action the gap
+          // above the group would trigger. Otherwise we'd silently no-op
+          // and the user would have to creep 1–2 pixels further up to
+          // hit the gap zone.
+          const sidebarIdx = iframeLayerGroups.findIndex(
+            (g) => g.id === overInfo.groupId,
+          )
+          if (sidebarIdx < 0) return
+          onMoveMember(draggedMember, {
+            kind: "new-group",
+            sidebarIndex: sidebarIdx,
+          })
+          return
+        }
+        // Cross-group → append into the target group.
+        const targetGroup = iframeLayerGroups.find((g) => g.id === overInfo.groupId)
+        if (!targetGroup) return
+        const targetMembers = getGroupMembers(targetGroup)
+        onMoveMember(draggedMember, {
+          kind: "into-group",
+          groupId: overInfo.groupId,
+          index: targetMembers.length,
+        })
+        return
+      }
+
+      // Drop onto another flat (single-member) row → merge into that group,
+      // creating a 2-member group with a header.
+      if (overInfo.kind === "flat") {
+        if (overInfo.groupId === activeRow.groupId) return
+        onMoveMember(draggedMember, {
+          kind: "into-group",
+          groupId: overInfo.groupId,
+          index: 1,
+        })
+        return
+      }
+
+      // Drop adjacent to another member.
+      const overGroupId = flattenedRows.find(
+        (r) =>
+          r.kind === "member" &&
+          r.member.kind === overInfo.memberKind &&
+          r.member.id === overInfo.memberId,
+      )?.groupId
+      if (!overGroupId) return
+      const targetGroup = iframeLayerGroups.find((g) => g.id === overGroupId)
+      if (!targetGroup) return
+      const targetMembers = getGroupMembers(targetGroup)
+      const overMemberIdx = targetMembers.findIndex(
+        (m) => m.kind === overInfo.memberKind && m.id === overInfo.memberId,
+      )
+      if (overMemberIdx < 0) return
+
+      // Direction = standard sortable semantics: if the dragged row
+      // started above the over row in document order, dropping on it
+      // means "after"; if it started below, "before". This matches the
+      // drop indicator rendered by `SortableRow`, so the commit always
+      // lands where the indicator pointed.
+      const activeInitialTop = active.rect.current.initial?.top ?? 0
+      const overTop = over.rect.top
+      const insertAfter = activeInitialTop < overTop
+      let targetIndex = insertAfter ? overMemberIdx + 1 : overMemberIdx
+
+      // moveMember's same-group path expects an index in post-removal space.
+      if (
+        activeRow.kind === "member" &&
+        activeRow.groupId === overGroupId
+      ) {
+        const currentIdx = targetMembers.findIndex(
+          (m) => m.kind === draggedMember.kind && m.id === draggedMember.id,
+        )
+        if (currentIdx >= 0 && currentIdx < targetIndex) targetIndex -= 1
+      }
+
+      onMoveMember(draggedMember, {
+        kind: "into-group",
+        groupId: overGroupId,
+        index: targetIndex,
+      })
+    },
+    [
+      flattenedRows,
+      iframeLayerGroups,
+      onMoveMember,
+      reorderGroupToGap,
+    ],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -717,173 +1152,191 @@ export function AgentSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Canvas</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <Reorder.Group
-              axis="y"
-              values={iframeLayerGroups}
-              onReorder={(items) => onReorderIframeLayerGroups(items.map((g) => g.id))}
-              className="flex w-full min-w-0 flex-col gap-0"
-            >
-              {iframeLayerGroups.map((group) => {
-                // Resolve members in their stored order, dropping any that
-                // can't be found (lookup races during deletion). Each
-                // entry pairs the member kind with the underlying data so
-                // the dispatcher below can hand it straight to the right
-                // row component without a per-kind branch.
-                type ResolvedMember = { kind: string; id: string; data: unknown }
-                const groupMembers: ResolvedMember[] = []
-                for (const m of getGroupMembers(group)) {
-                  if (m.kind === "iframe-layer") {
-                    const ab = iframeLayersById.get(m.id)
-                    if (ab) groupMembers.push({ kind: m.kind, id: m.id, data: ab })
-                    continue
-                  }
-                  if (m.kind === "markdown-layer") {
-                    const d = documentsById.get(m.id)
-                    if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
-                  }
-                }
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <SidebarGroup>
+            <SidebarGroupLabel>Canvas</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                <div className="flex w-full min-w-0 flex-col gap-0">
+                  {iframeLayerGroups.map((group, gIdx) => {
+                    // Resolve the group's members again here so the JSX can
+                    // branch on count. `flattenedRows` is the source of
+                    // truth for sortable IDs and overlay lookups; this
+                    // local resolution drives the JSX shape (flat vs
+                    // header + children).
+                    const groupMembers: ResolvedMember[] = []
+                    for (const m of getGroupMembers(group)) {
+                      if (m.kind === "iframe-layer") {
+                        const ab = iframeLayersById.get(m.id)
+                        if (ab) groupMembers.push({ kind: m.kind, id: m.id, data: ab })
+                        continue
+                      }
+                      if (m.kind === "markdown-layer") {
+                        const d = documentsById.get(m.id)
+                        if (d) groupMembers.push({ kind: m.kind, id: m.id, data: d })
+                      }
+                    }
 
-                /** Render `<Row />` + `<Menu />` for a single member by
-                 *  looking up the kind in `rowDispatchByKind`. New layer
-                 *  kinds plug in by adding an entry to that map up top.
-                 *  Wrapped in a component so each member can own its own
-                 *  `EditableText` ref — shared between Row (input) and
-                 *  Menu (Rename click triggers `startEditing()`). */
-                const renderMember = (
-                  member: { kind: string; id: string; data: unknown },
-                  variant: "flat" | "sub",
-                ) => (
-                  <MemberEntry
-                    member={member}
-                    variant={variant}
-                    dispatch={rowDispatchByKind[member.kind]}
-                  />
-                )
+                    /** Render `<Row />` + `<Menu />` for a single member by
+                     *  looking up the kind in `rowDispatchByKind`. New layer
+                     *  kinds plug in by adding an entry to that map up top.
+                     *  Wrapped in a component so each member can own its own
+                     *  `EditableText` ref — shared between Row (input) and
+                     *  Menu (Rename click triggers `startEditing()`). */
+                    const renderMember = (
+                      member: ResolvedMember,
+                      variant: "flat" | "sub",
+                    ) => (
+                      <MemberEntry
+                        member={member}
+                        variant={variant}
+                        dispatch={rowDispatchByKind[member.kind]}
+                      />
+                    )
 
-                // Single-member groups render flat — the group header would
-                // be visual noise. The Reorder.Item still wraps it so the
-                // row can be dragged to reorder the implicit group.
-                if (groupMembers.length === 1) {
-                  const m = groupMembers[0]!
-                  return (
-                    <Reorder.Item
-                      key={group.id}
-                      value={group}
-                      layout="position"
-                      className="group/menu-item group/frame-row relative cursor-grab active:cursor-grabbing"
-                    >
-                      {renderMember(m, "flat")}
-                    </Reorder.Item>
-                  )
-                }
-
-                return (
-                  <Reorder.Item
-                    key={group.id}
-                    value={group}
-                    layout="position"
-                    data-slot="sidebar-menu-item"
-                    data-sidebar="menu-item"
-                    className="group/menu-item relative flex flex-col cursor-grab active:cursor-grabbing"
-                  >
-                    <Collapsible defaultOpen className="group/frame-collapsible flex flex-col">
-                      <WithEditableRef>
-                        {({ ref: groupNameRef, triggerEdit: triggerGroupRename, onCloseAutoFocus: onGroupMenuCloseAutoFocus }) => (
-                          <div className="group/frame-group-row relative">
-                            <SidebarMenuButton
-                              className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
-                              isActive={selectedGroupIds.has(group.id)}
-                              onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
-                              onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
-                            >
-                              <CollapsibleTrigger
-                                asChild
-                                onClick={(e) => e.stopPropagation()}
-                                onDoubleClick={(e) => e.stopPropagation()}
-                              >
-                                <span className="relative shrink-0">
-                                  <Folder className="block group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden text-sidebar-foreground/70" />
-                                  <FolderOpen className="hidden group-data-[state=open]/frame-collapsible:block group-hover/frame-group-row:!hidden text-sidebar-foreground/70" />
-                                  <ChevronRight className="hidden group-hover/frame-group-row:!block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/frame-collapsible:rotate-90" />
-                                </span>
-                              </CollapsibleTrigger>
-                              <EditableText
-                                ref={groupNameRef}
-                                as="span"
-                                value={group.name ?? ""}
-                                onCommit={(next) => onRenameIframeLayerGroup(group.id, next)}
-                                placeholder="Group"
-                                className="min-w-0 font-medium text-sidebar-foreground/70"
-                                viewClassName="truncate"
-                                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
-                              />
-                            </SidebarMenuButton>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <SidebarMenuAction
-                                  className="md:opacity-0 group-hover/frame-group-row:opacity-100 group-focus-within/frame-group-row:opacity-100 aria-expanded:opacity-100"
-                                >
-                                  <MoreHorizontal />
-                                </SidebarMenuAction>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onGroupMenuCloseAutoFocus}>
-                                <DropdownMenuItem onClick={triggerGroupRename}>
-                                  <Pencil />
-                                  Rename
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive" onClick={() => onRemoveIframeLayerGroup(group.id)}>
-                                  <Trash2 />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        )}
-                      </WithEditableRef>
-                        <CollapsibleContent>
-                          <Reorder.Group
-                            axis="y"
-                            values={groupMembers}
-                            onReorder={(items) =>
-                              onReorderGroupMembers(
-                                group.id,
-                                items.map((m) => ({ kind: m.kind, id: m.id })) as GroupMember[],
-                              )
-                            }
-                            data-slot="sidebar-menu-sub"
-                            data-sidebar="menu-sub"
-                            className="ml-3.5 mr-0 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border pl-1 pr-0 py-0.5"
+                    const isGroupDragging =
+                      activeDragRow?.kind === "group-header" &&
+                      activeDragRow.groupId === group.id
+                    return (
+                      <Fragment key={group.id}>
+                        <GapDrop sidebarIndex={gIdx} />
+                        {groupMembers.length === 1 ? (
+                          <SortableRow
+                            id={`flat:${group.id}`}
+                            groupId={group.id}
+                            className="group/menu-item group/frame-row cursor-grab active:cursor-grabbing"
                           >
-                            {groupMembers.map((m) => (
-                              <Reorder.Item
-                                key={m.id}
-                                value={m}
-                                layout="position"
-                                data-slot="sidebar-menu-sub-item"
-                                data-sidebar="menu-sub-item"
-                                className="group/menu-sub-item group/frame-row relative cursor-grab active:cursor-grabbing"
-                              >
-                                {renderMember(m, "sub")}
-                              </Reorder.Item>
-                            ))}
-                          </Reorder.Group>
-                        </CollapsibleContent>
-                    </Collapsible>
-                  </Reorder.Item>
-                )
-              })}
-            </Reorder.Group>
-            {iframeLayerGroups.length === 0 && (
-              <div className="py-8 text-center text-xs text-sidebar-foreground/50">
-                No frames yet
+                            {renderMember(groupMembers[0]!, "flat")}
+                          </SortableRow>
+                        ) : groupMembers.length > 1 ? (
+                          <div
+                            data-slot="sidebar-menu-item"
+                            data-sidebar="menu-item"
+                            className="group/menu-item relative flex flex-col"
+                            style={isGroupDragging ? { opacity: 0 } : undefined}
+                          >
+                            <Collapsible defaultOpen className="group/frame-collapsible flex flex-col">
+                              <WithEditableRef>
+                                {({ ref: groupNameRef, triggerEdit: triggerGroupRename, onCloseAutoFocus: onGroupMenuCloseAutoFocus }) => (
+                                  <SortableRow
+                                    id={`group:${group.id}`}
+                                    groupId={group.id}
+                                    className="group/frame-group-row cursor-grab active:cursor-grabbing"
+                                  >
+                                    <SidebarMenuButton
+                                      className="!pr-2 !transition-[width,height] group-hover/frame-group-row:!pr-7 group-focus-within/frame-group-row:!pr-7 group-has-data-[state=open]/frame-group-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+                                      isActive={selectedGroupIds.has(group.id)}
+                                      onClick={(e) => { e.stopPropagation(); onSelectGroup(group.id, e.shiftKey) }}
+                                      onDoubleClick={(e) => { e.stopPropagation(); onZoomToGroup(group.id) }}
+                                    >
+                                      <CollapsibleTrigger
+                                        asChild
+                                        onClick={(e) => e.stopPropagation()}
+                                        onDoubleClick={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="relative shrink-0">
+                                          <Folder className="block group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden text-sidebar-foreground/70" />
+                                          <FolderOpen className="hidden group-data-[state=open]/frame-collapsible:block group-hover/frame-group-row:!hidden text-sidebar-foreground/70" />
+                                          <ChevronRight className="hidden group-hover/frame-group-row:!block cursor-pointer text-sidebar-foreground/70 transition-transform group-data-[state=open]/frame-collapsible:rotate-90" />
+                                        </span>
+                                      </CollapsibleTrigger>
+                                      <EditableText
+                                        ref={groupNameRef}
+                                        as="span"
+                                        value={group.name ?? ""}
+                                        onCommit={(next) => onRenameIframeLayerGroup(group.id, next)}
+                                        placeholder="Group"
+                                        className="min-w-0 font-medium text-sidebar-foreground/70"
+                                        viewClassName="truncate"
+                                        editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+                                      />
+                                    </SidebarMenuButton>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <SidebarMenuAction
+                                          className="md:opacity-0 group-hover/frame-group-row:opacity-100 group-focus-within/frame-group-row:opacity-100 aria-expanded:opacity-100"
+                                        >
+                                          <MoreHorizontal />
+                                        </SidebarMenuAction>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onGroupMenuCloseAutoFocus}>
+                                        <DropdownMenuItem onClick={triggerGroupRename}>
+                                          <Pencil />
+                                          Rename
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem variant="destructive" onClick={() => onRemoveIframeLayerGroup(group.id)}>
+                                          <Trash2 />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </SortableRow>
+                                )}
+                              </WithEditableRef>
+                              <CollapsibleContent>
+                                <div
+                                  data-slot="sidebar-menu-sub"
+                                  data-sidebar="menu-sub"
+                                  className="ml-3.5 mr-0 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border pl-1 pr-0 py-0.5"
+                                >
+                                  {groupMembers.map((m) => (
+                                    <SortableRow
+                                      key={`${m.kind}:${m.id}`}
+                                      id={`member:${m.kind}:${m.id}`}
+                                      groupId={group.id}
+                                      data-slot="sidebar-menu-sub-item"
+                                      data-sidebar="menu-sub-item"
+                                      className="group/menu-sub-item group/frame-row cursor-grab active:cursor-grabbing"
+                                    >
+                                      {renderMember(m, "sub")}
+                                    </SortableRow>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </div>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })}
+                  <GapDrop sidebarIndex={iframeLayerGroups.length} />
+                </div>
+              </SortableContext>
+              {iframeLayerGroups.length === 0 && (
+                <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                  No frames yet
+                </div>
+              )}
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <DragOverlay dropAnimation={null}>
+            {activeDragRow ? (
+              <div className="rounded-md bg-sidebar shadow-lg ring-1 ring-sidebar-border opacity-95">
+                {activeDragRow.kind === "group-header" ? (
+                  <SidebarMenuButton className="!pr-2">
+                    <Folder className="text-sidebar-foreground/70" />
+                    <span className="truncate font-medium text-sidebar-foreground/70">
+                      {iframeLayerGroups.find((g) => g.id === activeDragRow.groupId)?.name ?? "Group"}
+                    </span>
+                  </SidebarMenuButton>
+                ) : (
+                  <MemberEntry
+                    member={activeDragRow.member}
+                    variant={activeDragRow.kind === "flat" ? "flat" : "sub"}
+                    dispatch={rowDispatchByKind[activeDragRow.member.kind]}
+                  />
+                )}
               </div>
-            )}
-          </SidebarGroupContent>
-        </SidebarGroup>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </div>
       {(() => {
         const agent = pendingDeleteAgentId
