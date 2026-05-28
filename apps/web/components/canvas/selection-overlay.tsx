@@ -19,11 +19,6 @@ interface SelectionOverlayProps {
   focusedIframeLayerId: string | null
   hoveredIframeLayerId: string | null
   iframeLayerLayouts: IframeLayerLayoutMap
-  /**
-   * World-space rects for "add frame" placeholders. Drawn here (instead of in
-   * the world transform) so the border stays 1px crisp at any zoom.
-   */
-  placeholderRects: Array<{ x: number; y: number; width: number; height: number }>
   marquee: {
     startX: number
     startY: number
@@ -100,7 +95,6 @@ export function SelectionOverlay({
   focusedIframeLayerId,
   hoveredIframeLayerId,
   iframeLayerLayouts,
-  placeholderRects,
   marquee,
   frameDraft,
   documentDraft,
@@ -137,7 +131,6 @@ export function SelectionOverlay({
 
     const primaryColor = "#d946ef" // tailwind fuchsia-500
     const bgColor = resolveColor(canvas, "--background", "#fff")
-    const borderColor = resolveColor(canvas, "--border", "#a1a1aa")
     const HANDLE_SIZE = 8
 
     const toScreen = (x: number, y: number) => ({
@@ -262,21 +255,6 @@ export function SelectionOverlay({
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
         ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
-      }
-    }
-
-    // Draw "add frame" placeholders — solid 1px border, no fill, square corners.
-    if (placeholderRects.length > 0) {
-      ctx.strokeStyle = borderColor
-      ctx.lineWidth = 1
-      for (const rect of placeholderRects) {
-        const tl = toScreen(rect.x, rect.y)
-        const br = toScreen(rect.x + rect.width, rect.y + rect.height)
-        const l = snap(tl.x)
-        const t = snap(tl.y)
-        const r = snap(br.x)
-        const b = snap(br.y)
-        ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
       }
     }
 
@@ -505,7 +483,7 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, snapGuides])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, snapGuides])
 
   // Keep canvas sized to container
   useEffect(() => {

@@ -133,6 +133,7 @@ import {
 } from "@/lib/iframe-layer-snap"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
+import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -808,8 +809,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   /**
    * World-space rects for the trailing "add frame" placeholder of every group
    * that contains a currently-selected iframeLayer. Selecting the whole group
-   * hides it. Drawn by `SelectionOverlay` so the border stays 1px crisp
-   * regardless of zoom; the click target itself lives inside `IframeLayerGroup`.
+   * hides it. Drawn by `PlaceholderRectsUnderlay` (behind world content) so
+   * the border stays 1px crisp regardless of zoom; the click target itself
+   * lives inside `IframeLayerGroup`.
    */
   const placeholderRects = useMemo(() => {
     const rects: Array<{ x: number; y: number; width: number; height: number }> = []
@@ -4661,6 +4663,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               rects={groupDragSnapRects}
             />
 
+            {/* "+ frame" placeholder outlines. Underlay so the slot reads as
+                a backdrop hint rather than overlay chrome — selection rings
+                and iframe content paint on top. */}
+            <PlaceholderRectsUnderlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              rects={placeholderRects}
+            />
+
             <TransformWrapper
               ref={transformRef}
               initialScale={1}
@@ -5020,7 +5031,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 hoveredIframeLayerId={hoveredIframeLayerId}
                 iframeLayerLayouts={effectiveIframeLayerLayouts}
                 hideResizeHandles={editingDocumentLayerId !== null}
-                placeholderRects={placeholderRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
                 hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
