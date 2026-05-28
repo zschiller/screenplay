@@ -66,8 +66,20 @@ interface IframeLayerProps {
   onToggleCreateFlow: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
   /** Drag any iframeLayer moves the parent group. */
-  onMoveGroup: (dx: number, dy: number) => void
-  onMoveSelected: (dx: number, dy: number) => void
+  onMoveGroup: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
+  onMoveSelected: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
   /** Fires once when a group-move drag actually begins (after the move threshold). */
   onGroupDragStart?: () => void
   /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
@@ -203,11 +215,17 @@ export function IframeLayer({
   dragPopped,
 }: IframeLayerProps) {
   const handleDrag = useCallback(
-    (dx: number, dy: number) => {
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
       if (selected) {
-        onMoveSelected(dx, dy)
+        onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
       } else {
-        onMoveGroup(dx, dy)
+        onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
       }
     },
     [selected, onMoveGroup, onMoveSelected],
@@ -504,9 +522,11 @@ export function IframeLayer({
               : undefined,
         zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
         // Other siblings snap to their new flex slots; the lifted iframeLayer
-        // tracks the cursor without a transition so it doesn't lag.
+        // tracks the cursor without a transition so it doesn't lag. Default
+        // back to `auto` since the parent group sets `pointer-events: none`
+        // so empty interior space falls through.
         pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
+          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : "auto",
       }}
     >
       <IframeLayerLabel

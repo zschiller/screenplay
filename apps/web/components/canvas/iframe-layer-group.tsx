@@ -84,6 +84,12 @@ export function IframeLayerGroup({
         top: group.y,
         gap: groupGap(group),
         zIndex,
+        // Empty interior space (the gap between members, or the area below a
+        // shorter member in a "T"-shape group) shouldn't trap clicks — pass
+        // them through to whatever sits beneath. Members and the trailing
+        // "+ frame" placeholder are direct children with the default
+        // `pointer-events: auto`, so they still catch their own events.
+        pointerEvents: "none",
       }}
     >
       {children}
@@ -94,7 +100,7 @@ export function IframeLayerGroup({
           className="shrink-0 cursor-pointer bg-transparent"
           // High flex order so the placeholder always renders last visually,
           // even when iframeLayers are placed via CSS `order` rather than DOM order.
-          style={{ width: placeholderWidth, height: placeholderHeight, order: 9999 }}
+          style={{ width: placeholderWidth, height: placeholderHeight, order: 9999, pointerEvents: "auto" }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()

@@ -123,8 +123,20 @@ interface MarkdownLayerProps {
   onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   onSelect: (id: string, shiftKey: boolean) => void
   /** Move the parent group by (dx, dy) — same contract as IframeLayer.onMoveGroup. */
-  onMoveGroup: (dx: number, dy: number) => void
-  onMoveSelected: (dx: number, dy: number) => void
+  onMoveGroup: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
+  onMoveSelected: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
   /** Fires once when a group-move drag begins (after the move threshold). */
   onGroupDragStart?: () => void
   /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
@@ -523,9 +535,15 @@ export function MarkdownLayer({
   }, [])
 
   const handleDrag = useCallback(
-    (dx: number, dy: number) => {
-      if (selected) onMoveSelected(dx, dy)
-      else onMoveGroup(dx, dy)
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
+      if (selected) onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
+      else onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
     },
     [selected, onMoveGroup, onMoveSelected],
   )
@@ -616,6 +634,9 @@ export function MarkdownLayer({
         top: dragPopped?.top,
         transform,
         flexShrink: 0,
+        // Parent group sets `pointer-events: none` so empty interior space
+        // falls through; re-enable hit-testing on the tile itself.
+        pointerEvents: "auto",
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()

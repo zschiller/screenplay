@@ -61,6 +61,11 @@ import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
 import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
+import {
+  computeMoveSnap,
+  type SnapGuide,
+  type Rect as MoveSnapRect,
+} from "@/lib/iframe-layer-move-snap"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
@@ -311,6 +316,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    *  suppress the hover outline so sweeping over sibling frames during a
    *  drag doesn't paint a hover rect on each one in turn. */
   const layerDraggingRef = useRef(false)
+  /**
+   * Edge/center snap state for the current move drag. `startUnion` is the
+   * world-space bbox of every layer that will move at drag start; `candidates`
+   * are the rects we snap against (everything that *won't* move). On each
+   * pointermove we recompute the snap from the raw rect (start + cumulative
+   * cursor delta) — that way the rect "sticks" to a snap line as the cursor
+   * keeps moving, since the snap delta absorbs the cursor shift until it
+   * exceeds the threshold. `appliedSnap` is the snap delta we already applied
+   * to the world position; the per-frame adjustment is
+   * `cursorDelta + (newSnap - appliedSnap)`.
+   */
+  const dragSnapStateRef = useRef<{
+    startUnion: MoveSnapRect
+    candidates: MoveSnapRect[]
+    appliedSnap: { x: number; y: number }
+  } | null>(null)
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   /** Tracks cmd/meta during a group drag so we can suppress the snap preview live. */
   const [groupDragMetaKey, setGroupDragMetaKey] = useState(false)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
@@ -1426,6 +1448,45 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       groupDragSourceRef.current = sourceId
       groupDragTargetRef.current = null
       setDraggingSourceGroupId(sourceId)
+
+      // Edge-snap setup. Compute the union bbox of every layer that will move
+      // (all members of the affected groups) and collect the rects of every
+      // layer that *won't* move as snap candidates.
+      const layouts = iframeLayerLayoutsRef.current
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      const candidates: MoveSnapRect[] = []
+      for (const layout of layouts.values()) {
+        if (groupIds.has(layout.groupId)) {
+          if (layout.x < minX) minX = layout.x
+          if (layout.y < minY) minY = layout.y
+          if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
+          if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
+        } else {
+          candidates.push({
+            x: layout.x,
+            y: layout.y,
+            width: layout.width,
+            height: layout.height,
+          })
+        }
+      }
+      if (minX < Infinity && candidates.length > 0) {
+        dragSnapStateRef.current = {
+          startUnion: {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+          },
+          candidates,
+          appliedSnap: { x: 0, y: 0 },
+        }
+      } else {
+        dragSnapStateRef.current = null
+      }
     },
     [collections],
   )
@@ -1440,6 +1501,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleLayerGroupDragEnd = useCallback(
     (metaKey: boolean) => {
       layerDraggingRef.current = false
+      dragSnapStateRef.current = null
+      setSnapGuides([])
       const sourceId = groupDragSourceRef.current
       const targetId = groupDragTargetRef.current
       groupDragSourceRef.current = null
@@ -4131,17 +4194,92 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
+  /**
+   * Recompute edge/center snap from the cumulative cursor delta and return the
+   * adjusted incremental delta to actually apply. Updates the red guide lines
+   * for the overlay. No-op when no snap state was set up (drag of a single
+   * isolated group with no other rects on the canvas).
+   */
+  const applyMoveSnap = useCallback(
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ): { adjDx: number; adjDy: number } => {
+      const state = dragSnapStateRef.current
+      if (!state) return { adjDx: dx, adjDy: dy }
+      // Cmd/meta held → bypass snap and release any active lock. The "release"
+      // delta (-state.appliedSnap) pops the rect back to its raw cursor
+      // position so it instantly follows the cursor instead of staying stuck
+      // at the previous snap target.
+      if (metaKey) {
+        const adjDx = dx - state.appliedSnap.x
+        const adjDy = dy - state.appliedSnap.y
+        state.appliedSnap = { x: 0, y: 0 }
+        setSnapGuides([])
+        return { adjDx, adjDy }
+      }
+      const zoom = transformRef.current?.state.scale ?? 1
+      const rawRect: MoveSnapRect = {
+        x: state.startUnion.x + totalDx,
+        y: state.startUnion.y + totalDy,
+        width: state.startUnion.width,
+        height: state.startUnion.height,
+      }
+      const { snapDx, snapDy, guides } = computeMoveSnap({
+        rect: rawRect,
+        candidates: state.candidates,
+        zoom,
+      })
+      const adjDx = dx + (snapDx - state.appliedSnap.x)
+      const adjDy = dy + (snapDy - state.appliedSnap.y)
+      state.appliedSnap = { x: snapDx, y: snapDy }
+      setSnapGuides(guides)
+      return { adjDx, adjDy }
+    },
+    [],
+  )
+
   const handleMoveSelected = useCallback(
-    (dx: number, dy: number) => {
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
+      const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
       const abIds = Array.from(selectedIframeLayerIdsRef.current)
       const docIds = Array.from(selectedDocumentLayerIdsRef.current)
       // Documents share the move pathway with iframeLayers — they live in
       // groups, so `moveIframeLayersByDelta` finds every group referenced by
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
-      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, dx, dy)
+      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
     },
-    [moveIframeLayersByDelta],
+    [moveIframeLayersByDelta, applyMoveSnap],
+  )
+
+  /**
+   * Per-layer drag (cursor on a non-selected frame). Same snap path as
+   * `handleMoveSelected` — both end up translating one or more entire groups
+   * via `moveIframeLayersByDelta`, so they share `dragSnapStateRef`.
+   */
+  const handleMoveGroupForLayer = useCallback(
+    (
+      layerId: string,
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
+      const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
+      moveIframeLayersByDelta([layerId], adjDx, adjDy)
+    },
+    [moveIframeLayersByDelta, applyMoveSnap],
   )
 
   const handlePointerMove = useCallback(
@@ -4719,7 +4857,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                     : undefined
                                 }
                                 onSelect={handleDocumentLayerSelect}
-                                onMoveGroup={(dx, dy) => moveIframeLayersByDelta([doc.id], dx, dy)}
+                                onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
+                                  handleMoveGroupForLayer(doc.id, dx, dy, totalDx, totalDy, metaKey)
+                                }
                                 onMoveSelected={handleMoveSelected}
                                 onGroupDragStart={() => handleLayerGroupDragStart(doc.id)}
                                 onGroupDragEnd={handleLayerGroupDragEnd}
@@ -4760,7 +4900,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                                 if (id !== null) setFocusedIframeLayerId(null)
                               }}
                               onSelect={handleIframeLayerSelect}
-                              onMoveGroup={(dx, dy) => moveIframeLayersByDelta([iframeLayer.id], dx, dy)}
+                              onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
+                                handleMoveGroupForLayer(iframeLayer.id, dx, dy, totalDx, totalDy, metaKey)
+                              }
                               onMoveSelected={handleMoveSelected}
                               onGroupDragStart={() => handleLayerGroupDragStart(iframeLayer.id)}
                               onGroupDragEnd={handleLayerGroupDragEnd}
@@ -4906,6 +5048,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 frameDraft={frameDraft}
                 documentDraft={documentDraft}
                 othersSelections={othersSelections}
+                snapGuides={snapGuides}
                 inspectRect={(() => {
                   // Show the live hover overlay while in commentMode so the
                   // user can see what element they're about to anchor to.
