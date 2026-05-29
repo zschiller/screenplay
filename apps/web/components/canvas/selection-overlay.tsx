@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import type { IframeLayerLayoutMap } from "@/lib/iframe-layer-layout"
+import type { SnapGuide } from "@/lib/iframe-layer-move-snap"
 
 interface OtherSelection {
   selectedIframeLayerIds: string[]
@@ -18,11 +19,6 @@ interface SelectionOverlayProps {
   focusedIframeLayerId: string | null
   hoveredIframeLayerId: string | null
   iframeLayerLayouts: IframeLayerLayoutMap
-  /**
-   * World-space rects for "add frame" placeholders. Drawn here (instead of in
-   * the world transform) so the border stays 1px crisp at any zoom.
-   */
-  placeholderRects: Array<{ x: number; y: number; width: number; height: number }>
   marquee: {
     startX: number
     startY: number
@@ -72,6 +68,12 @@ interface SelectionOverlayProps {
    * translated iframeLayer DOM element.
    */
   reorderDragShift?: { iframeLayerId: string; dx: number; dy: number } | null
+  /**
+   * Active edge/center snap guides for the current move drag. World-space
+   * axis-aligned segments — projected to screen and drawn at 1px red. Empty
+   * when no drag is in progress.
+   */
+  snapGuides?: SnapGuide[]
 }
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
@@ -93,7 +95,6 @@ export function SelectionOverlay({
   focusedIframeLayerId,
   hoveredIframeLayerId,
   iframeLayerLayouts,
-  placeholderRects,
   marquee,
   frameDraft,
   documentDraft,
@@ -104,6 +105,7 @@ export function SelectionOverlay({
   reorderHandles,
   hoveredReorderIframeLayerId,
   reorderDragShift,
+  snapGuides,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -129,7 +131,6 @@ export function SelectionOverlay({
 
     const primaryColor = "#d946ef" // tailwind fuchsia-500
     const bgColor = resolveColor(canvas, "--background", "#fff")
-    const borderColor = resolveColor(canvas, "--border", "#a1a1aa")
     const HANDLE_SIZE = 8
 
     const toScreen = (x: number, y: number) => ({
@@ -254,21 +255,6 @@ export function SelectionOverlay({
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
         ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
-      }
-    }
-
-    // Draw "add frame" placeholders — solid 1px border, no fill, square corners.
-    if (placeholderRects.length > 0) {
-      ctx.strokeStyle = borderColor
-      ctx.lineWidth = 1
-      for (const rect of placeholderRects) {
-        const tl = toScreen(rect.x, rect.y)
-        const br = toScreen(rect.x + rect.width, rect.y + rect.height)
-        const l = snap(tl.x)
-        const t = snap(tl.y)
-        const r = snap(br.x)
-        const b = snap(br.y)
-        ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
       }
     }
 
@@ -410,8 +396,94 @@ export function SelectionOverlay({
       ctx.setLineDash([])
     }
 
+    // Edge/center snap guides — 1px red lines anchored to the snapped world
+    // coord. The pixel offset matches the selection-rect's outside-stroke
+    // convention so the guide visually lies on top of the matching edge
+    // strokes instead of one device pixel inside.
+    //
+    //   selection rect left edge:  path at snap(X) - HALF  → pixel at snap(X) - 1
+    //   selection rect right edge: path at snap(X) + HALF  → pixel at snap(X)
+    //
+    // sourceKind tells us which side of the dragged rect drove the snap; we
+    // mirror that offset so e.g. left-to-left alignments overlap and "look
+    // like one stroke." `mid` has no corresponding rect edge — default to the
+    // +HALF side for consistency.
+    //
+    // Subpixel precision on the perpendicular axis is preserved (no Math.round
+    // on the endpoints) so the line tracks the world coord exactly as the
+    // camera pans, without jitter.
+    if (snapGuides && snapGuides.length > 0) {
+      const guideColor = "#ef4444" // tailwind red-500
+      const X_ARM = 3 // half-extent of × markers in screen px
+      ctx.strokeStyle = guideColor
+      ctx.lineWidth = 1
+
+      ctx.beginPath()
+      for (const g of snapGuides) {
+        const offset = g.sourceKind === "min" ? -HALF : HALF
+        let start = Infinity
+        let end = -Infinity
+        for (const [a, b] of g.marks) {
+          if (a < start) start = a
+          if (b > end) end = b
+        }
+        if (g.axis === "x") {
+          const screenX = snap(g.pos * zoom + viewportPos.x) + offset
+          const y1 = start * zoom + viewportPos.y
+          const y2 = end * zoom + viewportPos.y
+          ctx.moveTo(screenX, y1)
+          ctx.lineTo(screenX, y2)
+        } else {
+          const screenY = snap(g.pos * zoom + viewportPos.y) + offset
+          const x1 = start * zoom + viewportPos.x
+          const x2 = end * zoom + viewportPos.x
+          ctx.moveTo(x1, screenY)
+          ctx.lineTo(x2, screenY)
+        }
+      }
+      ctx.stroke()
+
+      // × end-markers — one per rect endpoint on each guide. Centered exactly
+      // on the rect corner so the × visually "pins" each participating rect
+      // to the alignment line.
+      ctx.beginPath()
+      for (const g of snapGuides) {
+        const offset = g.sourceKind === "min" ? -HALF : HALF
+        if (g.axis === "x") {
+          const screenX = snap(g.pos * zoom + viewportPos.x) + offset
+          for (const [a, b] of g.marks) {
+            const ya = a * zoom + viewportPos.y
+            const yb = b * zoom + viewportPos.y
+            ctx.moveTo(screenX - X_ARM, ya - X_ARM)
+            ctx.lineTo(screenX + X_ARM, ya + X_ARM)
+            ctx.moveTo(screenX + X_ARM, ya - X_ARM)
+            ctx.lineTo(screenX - X_ARM, ya + X_ARM)
+            ctx.moveTo(screenX - X_ARM, yb - X_ARM)
+            ctx.lineTo(screenX + X_ARM, yb + X_ARM)
+            ctx.moveTo(screenX + X_ARM, yb - X_ARM)
+            ctx.lineTo(screenX - X_ARM, yb + X_ARM)
+          }
+        } else {
+          const screenY = snap(g.pos * zoom + viewportPos.y) + offset
+          for (const [a, b] of g.marks) {
+            const xa = a * zoom + viewportPos.x
+            const xb = b * zoom + viewportPos.x
+            ctx.moveTo(xa - X_ARM, screenY - X_ARM)
+            ctx.lineTo(xa + X_ARM, screenY + X_ARM)
+            ctx.moveTo(xa + X_ARM, screenY - X_ARM)
+            ctx.lineTo(xa - X_ARM, screenY + X_ARM)
+            ctx.moveTo(xb - X_ARM, screenY - X_ARM)
+            ctx.lineTo(xb + X_ARM, screenY + X_ARM)
+            ctx.moveTo(xb + X_ARM, screenY - X_ARM)
+            ctx.lineTo(xb - X_ARM, screenY + X_ARM)
+          }
+        }
+      }
+      ctx.stroke()
+    }
+
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, placeholderRects, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift])
+  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, snapGuides])
 
   // Keep canvas sized to container
   useEffect(() => {

@@ -190,7 +190,7 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
   return (
     <span
       className={cn(
-        "text-xs font-medium truncate min-w-0",
+        "text-xs font-medium truncate min-w-0 cursor-grab active:cursor-grabbing",
         colorClass,
       )}
       onPointerDown={handlePointerDown}
