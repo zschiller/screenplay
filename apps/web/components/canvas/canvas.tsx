@@ -56,11 +56,15 @@ import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { deleteProject, renameProject } from "@/lib/projects-actions"
 import { IframeLayer } from "./iframe-layer"
-import { IframeLayerGroup } from "./iframe-layer-group"
 import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
 import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
+import {
+  computeMoveSnap,
+  type SnapGuide,
+  type Rect as MoveSnapRect,
+} from "@/lib/iframe-layer-move-snap"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
@@ -128,6 +132,7 @@ import {
 } from "@/lib/iframe-layer-snap"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
+import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
@@ -311,6 +316,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    *  suppress the hover outline so sweeping over sibling frames during a
    *  drag doesn't paint a hover rect on each one in turn. */
   const layerDraggingRef = useRef(false)
+  /**
+   * Edge/center snap state for the current move drag. `startUnion` is the
+   * world-space bbox of every layer that will move at drag start; `candidates`
+   * are the rects we snap against (everything that *won't* move). On each
+   * pointermove we recompute the snap from the raw rect (start + cumulative
+   * cursor delta) — that way the rect "sticks" to a snap line as the cursor
+   * keeps moving, since the snap delta absorbs the cursor shift until it
+   * exceeds the threshold. `appliedSnap` is the snap delta we already applied
+   * to the world position; the per-frame adjustment is
+   * `cursorDelta + (newSnap - appliedSnap)`.
+   */
+  const dragSnapStateRef = useRef<{
+    startUnion: MoveSnapRect
+    candidates: MoveSnapRect[]
+    appliedSnap: { x: number; y: number }
+  } | null>(null)
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
   /** Tracks cmd/meta during a group drag so we can suppress the snap preview live. */
   const [groupDragMetaKey, setGroupDragMetaKey] = useState(false)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
@@ -610,14 +632,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
-  const iframeLayersById = useMemo(
-    () => new Map(iframeLayers.map((a) => [a.id, a])),
-    [iframeLayers],
-  )
-  const documentsById = useMemo(
-    () => new Map(markdownLayers.map((d) => [d.id, d])),
-    [markdownLayers],
-  )
   const iframeLayerLayouts = useMemo(
     () => computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, markdownLayers),
     [iframeLayerGroups, iframeLayers, markdownLayers],
@@ -786,11 +800,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   /**
    * World-space rects for the trailing "add frame" placeholder of every group
    * that contains a currently-selected iframeLayer. Selecting the whole group
-   * hides it. Drawn by `SelectionOverlay` so the border stays 1px crisp
-   * regardless of zoom; the click target itself lives inside `IframeLayerGroup`.
+   * hides it. Drawn by `PlaceholderRectsUnderlay` (behind world content) so
+   * the border stays 1px crisp regardless of zoom. The transparent click
+   * target is rendered from these same rects in the flat member layer.
    */
   const placeholderRects = useMemo(() => {
-    const rects: Array<{ x: number; y: number; width: number; height: number }> = []
+    const rects: Array<{ groupId: string; x: number; y: number; width: number; height: number }> = []
     const poppedId = reorderDragPopped ? reorderDragRef_iframeLayerId : null
     for (const g of iframeLayerGroups) {
       const allMembers = getGroupMembers(g)
@@ -817,6 +832,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const lastLayout = effectiveIframeLayerLayouts.get(lastMember.id)
       if (!lastLayout) continue
       rects.push({
+        groupId: g.id,
         x: lastLayout.x + lastLayout.width + groupGap(g),
         y: lastLayout.y,
         width: lastLayout.width,
@@ -1426,6 +1442,45 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       groupDragSourceRef.current = sourceId
       groupDragTargetRef.current = null
       setDraggingSourceGroupId(sourceId)
+
+      // Edge-snap setup. Compute the union bbox of every layer that will move
+      // (all members of the affected groups) and collect the rects of every
+      // layer that *won't* move as snap candidates.
+      const layouts = iframeLayerLayoutsRef.current
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      const candidates: MoveSnapRect[] = []
+      for (const layout of layouts.values()) {
+        if (groupIds.has(layout.groupId)) {
+          if (layout.x < minX) minX = layout.x
+          if (layout.y < minY) minY = layout.y
+          if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
+          if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
+        } else {
+          candidates.push({
+            x: layout.x,
+            y: layout.y,
+            width: layout.width,
+            height: layout.height,
+          })
+        }
+      }
+      if (minX < Infinity && candidates.length > 0) {
+        dragSnapStateRef.current = {
+          startUnion: {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+          },
+          candidates,
+          appliedSnap: { x: 0, y: 0 },
+        }
+      } else {
+        dragSnapStateRef.current = null
+      }
     },
     [collections],
   )
@@ -1440,6 +1495,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const handleLayerGroupDragEnd = useCallback(
     (metaKey: boolean) => {
       layerDraggingRef.current = false
+      dragSnapStateRef.current = null
+      setSnapGuides([])
       const sourceId = groupDragSourceRef.current
       const targetId = groupDragTargetRef.current
       groupDragSourceRef.current = null
@@ -4131,17 +4188,92 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     [],
   )
 
+  /**
+   * Recompute edge/center snap from the cumulative cursor delta and return the
+   * adjusted incremental delta to actually apply. Updates the red guide lines
+   * for the overlay. No-op when no snap state was set up (drag of a single
+   * isolated group with no other rects on the canvas).
+   */
+  const applyMoveSnap = useCallback(
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ): { adjDx: number; adjDy: number } => {
+      const state = dragSnapStateRef.current
+      if (!state) return { adjDx: dx, adjDy: dy }
+      // Cmd/meta held → bypass snap and release any active lock. The "release"
+      // delta (-state.appliedSnap) pops the rect back to its raw cursor
+      // position so it instantly follows the cursor instead of staying stuck
+      // at the previous snap target.
+      if (metaKey) {
+        const adjDx = dx - state.appliedSnap.x
+        const adjDy = dy - state.appliedSnap.y
+        state.appliedSnap = { x: 0, y: 0 }
+        setSnapGuides([])
+        return { adjDx, adjDy }
+      }
+      const zoom = transformRef.current?.state.scale ?? 1
+      const rawRect: MoveSnapRect = {
+        x: state.startUnion.x + totalDx,
+        y: state.startUnion.y + totalDy,
+        width: state.startUnion.width,
+        height: state.startUnion.height,
+      }
+      const { snapDx, snapDy, guides } = computeMoveSnap({
+        rect: rawRect,
+        candidates: state.candidates,
+        zoom,
+      })
+      const adjDx = dx + (snapDx - state.appliedSnap.x)
+      const adjDy = dy + (snapDy - state.appliedSnap.y)
+      state.appliedSnap = { x: snapDx, y: snapDy }
+      setSnapGuides(guides)
+      return { adjDx, adjDy }
+    },
+    [],
+  )
+
   const handleMoveSelected = useCallback(
-    (dx: number, dy: number) => {
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
+      const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
       const abIds = Array.from(selectedIframeLayerIdsRef.current)
       const docIds = Array.from(selectedDocumentLayerIdsRef.current)
       // Documents share the move pathway with iframeLayers — they live in
       // groups, so `moveIframeLayersByDelta` finds every group referenced by
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
-      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, dx, dy)
+      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
     },
-    [moveIframeLayersByDelta],
+    [moveIframeLayersByDelta, applyMoveSnap],
+  )
+
+  /**
+   * Per-layer drag (cursor on a non-selected frame). Same snap path as
+   * `handleMoveSelected` — both end up translating one or more entire groups
+   * via `moveIframeLayersByDelta`, so they share `dragSnapStateRef`.
+   */
+  const handleMoveGroupForLayer = useCallback(
+    (
+      layerId: string,
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
+      const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
+      moveIframeLayersByDelta([layerId], adjDx, adjDy)
+    },
+    [moveIframeLayersByDelta, applyMoveSnap],
   )
 
   const handlePointerMove = useCallback(
@@ -4523,6 +4655,15 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               rects={groupDragSnapRects}
             />
 
+            {/* "+ frame" placeholder outlines. Underlay so the slot reads as
+                a backdrop hint rather than overlay chrome — selection rings
+                and iframe content paint on top. */}
+            <PlaceholderRectsUnderlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              rects={placeholderRects}
+            />
+
             <TransformWrapper
               ref={transformRef}
               initialScale={1}
@@ -4601,215 +4742,227 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
 
-                  {iframeLayerGroups.map((group) => {
-                    const members = getGroupMembers(group)
-                    const groupSelected = selectedGroupIds.has(group.id)
-                    // Placeholder shows when any member (iframeLayer or document)
-                    // inside the group is selected — the affordance is "add
-                    // another frame next to this one".
-                    const hasSelectedFrame = members.some((m) =>
-                      m.kind === "iframe-layer"
-                        ? selectedIframeLayerIds.has(m.id)
-                        : selectedDocumentLayerIds.has(m.id),
-                    )
-                    const showGroupLabel = members.length > 1
-                    const groupLabel = showGroupLabel
-                      ? groupDisplayNames.get(group.id)
-                      : undefined
-                    // Render members in a stable DOM order (sorted by id) and
-                    // use CSS `order` to place them visually. Reordering an
-                    // iframe's DOM position forces it to reload, so we never
-                    // want React to insertBefore an iframe element. The same
-                    // stability matters for markdownLayers — they hold a TipTap
-                    // editor that re-mounts when the React node moves.
-                    const stableMembers = [...members].sort((a, b) =>
-                      a.id.localeCompare(b.id),
-                    )
-                    const memberSize = (id: string): { width: number; height: number } | null => {
-                      const m = members.find((x) => x.id === id)
-                      if (!m) return null
-                      if (m.kind === "iframe-layer") {
-                        const a = iframeLayers.find((x) => x.id === id)
-                        return a ? { width: a.width, height: a.height } : null
+                  {/* Flat member layer. Every iframe/markdown layer across all
+                      groups renders as a stable, id-sorted, absolutely-positioned
+                      sibling — NOT nested in a per-group element. A member keeps
+                      its React identity (and its live DOM: the running iframe or
+                      the TipTap editor) when it moves between groups, so pop-out
+                      / drag-in no longer remount it → no reload. Group membership
+                      only changes the member's computed world position. */}
+                  {(() => {
+                    // Flatten to [member, group] pairs, then sort by member id so
+                    // React never reparents or re-orders a member node (either of
+                    // which remounts the iframe / TipTap editor — see the
+                    // `groupZIndex` note for why DOM order has to stay fixed).
+                    const entries: Array<{ member: GroupMember; group: IframeLayerGroupData }> = []
+                    for (const group of iframeLayerGroups) {
+                      for (const member of getGroupMembers(group)) {
+                        entries.push({ member, group })
                       }
-                      const d = markdownLayers.find((x) => x.id === id)
-                      return d ? { width: d.width, height: d.height } : null
                     }
-                    return (
-                      <IframeLayerGroup
-                        key={group.id}
-                        group={group}
-                        members={members}
-                        iframeLayers={iframeLayersById}
-                        markdownLayers={documentsById}
-                        zIndex={groupZIndex.get(group.id)}
-                        hasSelectedIframeLayer={hasSelectedFrame}
-                        onAddIframeLayer={(groupId) => {
-                          const newId = addIframeLayerToGroup(groupId)
-                          if (newId) {
-                            setSelectedIframeLayerIds(new Set([newId]))
-                            setSelectedGroupIds(new Set())
-                            setSelectedDocumentLayerIds(new Set())
-                          }
-                        }}
-                      >
-                        {stableMembers.map((member) => {
-                          const flexOrder = members.findIndex((m) => m.id === member.id)
-                          const size = memberSize(member.id)
-                          if (!size) return null
+                    entries.sort((a, b) => a.member.id.localeCompare(b.member.id))
 
-                          let dragTranslateX: number | undefined
-                          let dragTranslateY: number | undefined
-                          let dragPopped: { left: number; top: number } | undefined
-                          if (
-                            reorderDraggingIframeLayerId === member.id &&
-                            reorderDragCursor != null
-                          ) {
-                            // Keep the frame pinned at the cursor's original
-                            // grab point instead of jumping to be centered.
-                            const grab = reorderDragRef.current?.grabOffset ?? {
-                              x: size.width / 2,
-                              y: size.height / 2,
+                    return entries.map(({ member, group }) => {
+                      const members = getGroupMembers(group)
+                      const index = members.findIndex((m) => m.id === member.id)
+                      const groupSelected = selectedGroupIds.has(group.id)
+                      const showGroupLabel = members.length > 1
+                      const groupLabel = showGroupLabel
+                        ? groupDisplayNames.get(group.id)
+                        : undefined
+                      const layout = effectiveIframeLayerLayouts.get(member.id)
+                      if (!layout) return null
+
+                      // In-flow reorder: layer a cursor-tracking translate over
+                      // the layout slot (siblings reflow via the layout map). A
+                      // popped frame already sits at `cursor - grab` in
+                      // effectiveIframeLayerLayouts, so it needs no transform —
+                      // only the `dragPopped` flag for z-elevation / pointer
+                      // pass-through / group-label anchoring.
+                      let dragTranslateX: number | undefined
+                      let dragTranslateY: number | undefined
+                      let dragPopped = false
+                      if (
+                        reorderDraggingIframeLayerId === member.id &&
+                        reorderDragCursor != null
+                      ) {
+                        const grab = reorderDragRef.current?.grabOffset ?? {
+                          x: layout.width / 2,
+                          y: layout.height / 2,
+                        }
+                        if (reorderDragPopped) {
+                          dragPopped = true
+                        } else {
+                          const raw = iframeLayerLayouts.get(member.id)
+                          if (raw) {
+                            // Lock Y so the dragged frame slides only horizontally.
+                            dragTranslateX = reorderDragCursor.x - grab.x - raw.x
+                            dragTranslateY = 0
+                          }
+                        }
+                      }
+
+                      const zIndex = groupZIndex.get(group.id)
+
+                      if (member.kind === "markdown-layer") {
+                        const doc = markdownLayers.find((d) => d.id === member.id)
+                        if (!doc) return null
+                        return (
+                          <MarkdownLayer
+                            key={doc.id}
+                            layer={doc}
+                            zoom={zoom}
+                            selected={selectedDocumentLayerIds.has(doc.id)}
+                            multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
+                            editing={editingDocumentLayerId === doc.id}
+                            spaceHeld={spaceHeld}
+                            userName={self?.identity.name || "Anonymous"}
+                            userColor={self?.color || "#888888"}
+                            worldX={layout.x}
+                            worldY={layout.y}
+                            zIndex={zIndex}
+                            dragTranslateX={dragTranslateX}
+                            dragTranslateY={dragTranslateY}
+                            dragPopped={dragPopped}
+                            groupLabel={index === 0 ? groupLabel : undefined}
+                            groupSelected={groupSelected}
+                            onSelectGroup={
+                              index === 0 && showGroupLabel
+                                ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                                : undefined
                             }
-                            if (reorderDragPopped) {
-                              dragPopped = {
-                                left: reorderDragCursor.x - grab.x - group.x,
-                                top: reorderDragCursor.y - grab.y - group.y,
-                              }
-                            } else {
-                              const layout = iframeLayerLayouts.get(member.id)
-                              if (layout) {
-                                // In-flow reorder locks Y so the dragged frame
-                                // slides only horizontally. Holding meta switches
-                                // to the popped branch above, which restores Y.
-                                dragTranslateX = reorderDragCursor.x - grab.x - layout.x
-                                dragTranslateY = 0
-                              }
+                            onRenameGroup={
+                              index === 0 && showGroupLabel
+                                ? (name) => renameIframeLayerGroup(group.id, name)
+                                : undefined
                             }
-                          }
+                            onSelect={handleDocumentLayerSelect}
+                            onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
+                              handleMoveGroupForLayer(doc.id, dx, dy, totalDx, totalDy, metaKey)
+                            }
+                            onMoveSelected={handleMoveSelected}
+                            onGroupDragStart={() => handleLayerGroupDragStart(doc.id)}
+                            onGroupDragEnd={handleLayerGroupDragEnd}
+                            onRequestReorderDrag={requestReorderDrag}
+                            onResize={resizeDocumentLayer}
+                            onTitleChange={setDocumentLayerTitleCache}
+                            onRename={setDocumentLayerTitle}
+                            onStartEdit={setEditingDocumentLayerId}
+                            onStopEdit={() => setEditingDocumentLayerId(null)}
+                            onEditorReady={handleDocumentEditorReady}
+                            onStartInlineComment={handleStartInlineComment}
+                            onSelectInlineThread={handleSelectInlineThread}
+                          />
+                        )
+                      }
 
-                          if (member.kind === "markdown-layer") {
-                            const doc = markdownLayers.find((d) => d.id === member.id)
-                            if (!doc) return null
-                            return (
-                              <MarkdownLayer
-                                key={doc.id}
-                                layer={doc}
-                                zoom={zoom}
-                                selected={selectedDocumentLayerIds.has(doc.id)}
-                                multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
-                                editing={editingDocumentLayerId === doc.id}
-                                spaceHeld={spaceHeld}
-                                userName={self?.identity.name || "Anonymous"}
-                                userColor={self?.color || "#888888"}
-                                flexOrder={flexOrder}
-                                dragTranslateX={dragTranslateX}
-                                dragTranslateY={dragTranslateY}
-                                dragPopped={dragPopped}
-                                groupLabel={flexOrder === 0 ? groupLabel : undefined}
-                                groupSelected={groupSelected}
-                                onSelectGroup={
-                                  flexOrder === 0 && showGroupLabel
-                                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                                    : undefined
-                                }
-                                onRenameGroup={
-                                  flexOrder === 0 && showGroupLabel
-                                    ? (name) => renameIframeLayerGroup(group.id, name)
-                                    : undefined
-                                }
-                                onSelect={handleDocumentLayerSelect}
-                                onMoveGroup={(dx, dy) => moveIframeLayersByDelta([doc.id], dx, dy)}
-                                onMoveSelected={handleMoveSelected}
-                                onGroupDragStart={() => handleLayerGroupDragStart(doc.id)}
-                                onGroupDragEnd={handleLayerGroupDragEnd}
-                                onRequestReorderDrag={requestReorderDrag}
-                                onResize={resizeDocumentLayer}
-                                onTitleChange={setDocumentLayerTitleCache}
-                                onRename={setDocumentLayerTitle}
-                                onStartEdit={setEditingDocumentLayerId}
-                                onStopEdit={() => setEditingDocumentLayerId(null)}
-                                onEditorReady={handleDocumentEditorReady}
-                                onStartInlineComment={handleStartInlineComment}
-                                onSelectInlineThread={handleSelectInlineThread}
-                              />
-                            )
+                      const iframeLayer = iframeLayers.find((a) => a.id === member.id)
+                      if (!iframeLayer) return null
+                      const agentInfo = iframeLayer.sandboxId ? agentDomains[iframeLayer.sandboxId] : undefined
+                      return (
+                        <IframeLayer
+                          key={iframeLayer.id}
+                          iframeLayer={{
+                            ...iframeLayer,
+                            iframeUrl: agentInfo?.previewDomain,
+                            branch: agentInfo?.branch,
+                          }}
+                          zoom={zoom}
+                          focused={focusedIframeLayerId === iframeLayer.id}
+                          createFlow={createFlowIframeLayerId === iframeLayer.id}
+                          selected={selectedIframeLayerIds.has(iframeLayer.id)}
+                          onFocus={(id) => {
+                            setFocusedIframeLayerId(id)
+                            if (id !== null) setCreateFlowIframeLayerId(null)
+                          }}
+                          onToggleCreateFlow={(id) => {
+                            setCreateFlowIframeLayerId(id)
+                            if (id !== null) setFocusedIframeLayerId(null)
+                          }}
+                          onSelect={handleIframeLayerSelect}
+                          onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
+                            handleMoveGroupForLayer(iframeLayer.id, dx, dy, totalDx, totalDy, metaKey)
                           }
+                          onMoveSelected={handleMoveSelected}
+                          onGroupDragStart={() => handleLayerGroupDragStart(iframeLayer.id)}
+                          onGroupDragEnd={handleLayerGroupDragEnd}
+                          onRequestReorderDrag={requestReorderDrag}
+                          onResize={resizeIframeLayerEdge}
+                          onResizeStart={handleResizeStart}
+                          onResizeEnd={handleResizeEnd}
+                          onRemove={removeIframeLayer}
+                          onRename={renameIframeLayer}
+                          onStateChanged={updateIframeLayerState}
+                          onRouteChange={updateIframeLayerRoute}
+                          onScrollChange={updateIframeLayerScroll}
+                          onKnobsDeclared={updateIframeLayerKnobs}
+                          onKnobValuesChange={updateIframeLayerKnobValues}
+                          onSharedStateChanged={updateIframeLayerSharedState}
+                          onPlay={iframeLayer.sandboxId ? handlePlayIframeLayer : undefined}
+                          onFitToContent={fitIframeLayerToContent}
+                          onSetSize={fitIframeLayerToContent}
+                          multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
+                          spaceHeld={spaceHeld}
+                          commentMode={commentMode}
+                          onHover={handleInspectHover}
+                          onDomReady={handleIframeLayerDomReady}
+                          assignableAgents={agents}
+                          onAssignAgent={assignAgentToIframeLayer}
+                          discoveredRoutes={agentInfo?.discoveredRoutes}
+                          onSelectRoute={updateIframeLayerRoute}
+                          groupLabel={index === 0 ? groupLabel : undefined}
+                          groupSelected={groupSelected}
+                          onSelectGroup={
+                            index === 0 && showGroupLabel
+                              ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                              : undefined
+                          }
+                          onRenameGroup={
+                            index === 0 && showGroupLabel
+                              ? (name) => renameIframeLayerGroup(group.id, name)
+                              : undefined
+                          }
+                          worldX={layout.x}
+                          worldY={layout.y}
+                          zIndex={zIndex}
+                          dragTranslateX={dragTranslateX}
+                          dragTranslateY={dragTranslateY}
+                          dragPopped={dragPopped}
+                        />
+                      )
+                    })
+                  })()}
 
-                          const iframeLayer = iframeLayers.find((a) => a.id === member.id)
-                          if (!iframeLayer) return null
-                          const agentInfo = iframeLayer.sandboxId ? agentDomains[iframeLayer.sandboxId] : undefined
-                          return (
-                            <IframeLayer
-                              key={iframeLayer.id}
-                              iframeLayer={{
-                                ...iframeLayer,
-                                iframeUrl: agentInfo?.previewDomain,
-                                branch: agentInfo?.branch,
-                              }}
-                              zoom={zoom}
-                              focused={focusedIframeLayerId === iframeLayer.id}
-                              createFlow={createFlowIframeLayerId === iframeLayer.id}
-                              selected={selectedIframeLayerIds.has(iframeLayer.id)}
-                              onFocus={(id) => {
-                                setFocusedIframeLayerId(id)
-                                if (id !== null) setCreateFlowIframeLayerId(null)
-                              }}
-                              onToggleCreateFlow={(id) => {
-                                setCreateFlowIframeLayerId(id)
-                                if (id !== null) setFocusedIframeLayerId(null)
-                              }}
-                              onSelect={handleIframeLayerSelect}
-                              onMoveGroup={(dx, dy) => moveIframeLayersByDelta([iframeLayer.id], dx, dy)}
-                              onMoveSelected={handleMoveSelected}
-                              onGroupDragStart={() => handleLayerGroupDragStart(iframeLayer.id)}
-                              onGroupDragEnd={handleLayerGroupDragEnd}
-                              onRequestReorderDrag={requestReorderDrag}
-                              onResize={resizeIframeLayerEdge}
-                              onResizeStart={handleResizeStart}
-                              onResizeEnd={handleResizeEnd}
-                              onRemove={removeIframeLayer}
-                              onRename={renameIframeLayer}
-                              onStateChanged={updateIframeLayerState}
-                              onRouteChange={updateIframeLayerRoute}
-                              onScrollChange={updateIframeLayerScroll}
-                              onKnobsDeclared={updateIframeLayerKnobs}
-                              onKnobValuesChange={updateIframeLayerKnobValues}
-                              onSharedStateChanged={updateIframeLayerSharedState}
-                              onPlay={iframeLayer.sandboxId ? handlePlayIframeLayer : undefined}
-                              onFitToContent={fitIframeLayerToContent}
-                              onSetSize={fitIframeLayerToContent}
-                              multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
-                              spaceHeld={spaceHeld}
-                              commentMode={commentMode}
-                              onHover={handleInspectHover}
-                              onDomReady={handleIframeLayerDomReady}
-                              assignableAgents={agents}
-                              onAssignAgent={assignAgentToIframeLayer}
-                              discoveredRoutes={agentInfo?.discoveredRoutes}
-                              onSelectRoute={updateIframeLayerRoute}
-                              groupLabel={flexOrder === 0 ? groupLabel : undefined}
-                              groupSelected={groupSelected}
-                              onSelectGroup={
-                                flexOrder === 0 && showGroupLabel
-                                  ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                                  : undefined
-                              }
-                              onRenameGroup={
-                                flexOrder === 0 && showGroupLabel
-                                  ? (name) => renameIframeLayerGroup(group.id, name)
-                                  : undefined
-                              }
-                              flexOrder={flexOrder}
-                              dragTranslateX={dragTranslateX}
-                              dragTranslateY={dragTranslateY}
-                              dragPopped={dragPopped}
-                            />
-                          )
-                        })}
-                      </IframeLayerGroup>
-                    )
-                  })}
+                  {/* Trailing "+ frame" placeholder click targets — one per group
+                      with a selected member. The visible outline is painted by
+                      PlaceholderRectsUnderlay; this is just the transparent hit
+                      target, positioned absolutely in world space. */}
+                  {placeholderRects.map((rect) => (
+                    <button
+                      key={`placeholder-${rect.groupId}`}
+                      type="button"
+                      data-iframe-layer-placeholder
+                      className="absolute cursor-pointer bg-transparent"
+                      style={{
+                        left: rect.x,
+                        top: rect.y,
+                        width: rect.width,
+                        height: rect.height,
+                        zIndex: groupZIndex.get(rect.groupId),
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const newId = addIframeLayerToGroup(rect.groupId)
+                        if (newId) {
+                          setSelectedIframeLayerIds(new Set([newId]))
+                          setSelectedGroupIds(new Set())
+                          setSelectedDocumentLayerIds(new Set())
+                        }
+                      }}
+                      aria-label="Add frame to group"
+                    />
+                  ))}
 
 
                 </div>
@@ -4878,7 +5031,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 hoveredIframeLayerId={hoveredIframeLayerId}
                 iframeLayerLayouts={effectiveIframeLayerLayouts}
                 hideResizeHandles={editingDocumentLayerId !== null}
-                placeholderRects={placeholderRects}
                 gapHandles={gapHandles}
                 reorderHandles={reorderHandles}
                 hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
@@ -4906,6 +5058,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 frameDraft={frameDraft}
                 documentDraft={documentDraft}
                 othersSelections={othersSelections}
+                snapGuides={snapGuides}
                 inspectRect={(() => {
                   // Show the live hover overlay while in commentMode so the
                   // user can see what element they're about to anchor to.

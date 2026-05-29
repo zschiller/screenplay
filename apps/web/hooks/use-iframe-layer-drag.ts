@@ -4,7 +4,22 @@ import { useCallback, useRef } from "react"
 
 interface UseDragOptions {
   zoom: number
-  onDrag: (dx: number, dy: number) => void
+  /**
+   * Fires for every pointermove during a drag. `dx`/`dy` are the incremental
+   * world-space delta since the last move; `totalDx`/`totalDy` are the
+   * cumulative delta since pointerdown (snap-aware consumers use the
+   * cumulative pair so they can recompute the snap target from the raw
+   * cursor position every frame — the rect "sticks" because the snap absorbs
+   * the cursor shift). `metaKey` reflects the live cmd/meta state on this
+   * event so consumers can bypass snap while the user holds cmd.
+   */
+  onDrag: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
   /** Fires once per gesture, the first time the cursor crosses the move threshold. */
   onDragStart?: () => void
   onDragEnd?: (metaKey: boolean) => void
@@ -21,6 +36,7 @@ export function useIframeLayerDrag({
   const dragging = useRef(false)
   const didMove = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })
+  const totalDelta = useRef({ x: 0, y: 0 })
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -30,6 +46,7 @@ export function useIframeLayerDrag({
       dragging.current = true
       didMove.current = false
       lastPos.current = { x: e.clientX, y: e.clientY }
+      totalDelta.current = { x: 0, y: 0 }
       // Capture on currentTarget (the element with the move/up listeners) not
       // e.target — pointerdown often lands on an inner child (e.g. the frame
       // name span has its own onPointerDown for instant-select). If selection
@@ -48,11 +65,18 @@ export function useIframeLayerDrag({
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
         if (!didMove.current) {
           didMove.current = true
+          // Zero cumulative tracking at the dragStart event so it aligns with
+          // any "starting state" the parent captures in onDragStart (e.g. the
+          // snap-anchor union bbox). Pre-threshold moves are already applied
+          // to the world and reflected in that captured state.
+          totalDelta.current = { x: 0, y: 0 }
           onDragStart?.()
         }
       }
       lastPos.current = { x: e.clientX, y: e.clientY }
-      onDrag(dx, dy)
+      totalDelta.current.x += dx
+      totalDelta.current.y += dy
+      onDrag(dx, dy, totalDelta.current.x, totalDelta.current.y, e.metaKey)
     },
     [zoom, onDrag, onDragStart],
   )

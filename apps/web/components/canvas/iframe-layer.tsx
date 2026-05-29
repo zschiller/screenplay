@@ -66,8 +66,20 @@ interface IframeLayerProps {
   onToggleCreateFlow: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
   /** Drag any iframeLayer moves the parent group. */
-  onMoveGroup: (dx: number, dy: number) => void
-  onMoveSelected: (dx: number, dy: number) => void
+  onMoveGroup: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
+  onMoveSelected: (
+    dx: number,
+    dy: number,
+    totalDx: number,
+    totalDy: number,
+    metaKey: boolean,
+  ) => void
   /** Fires once when a group-move drag actually begins (after the move threshold). */
   onGroupDragStart?: () => void
   /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
@@ -133,27 +145,30 @@ interface IframeLayerProps {
   /** Inline rename for the group label (only meaningful when `groupLabel` is set). */
   onRenameGroup?: (next: string) => void
   /**
-   * CSS `order` for the parent flex row. Lets us render iframeLayers in a stable
-   * DOM order (so iframes don't reload) while still showing them in the
-   * group's logical left-to-right order via flex.
+   * Absolute world-space position of this layer's top-left. Layers render as
+   * flat, absolutely-positioned siblings (not nested in a per-group flex row),
+   * so moving one between groups never reparents its React subtree — the
+   * iframe DOM survives and there's no reload. The position comes from
+   * `effectiveIframeLayerLayouts` and already bakes in the pop-out offset.
    */
-  flexOrder?: number
+  worldX: number
+  worldY: number
+  /** Paint order, projected from the group's sidebar position (higher = on top). */
+  zIndex?: number
   /**
-   * World-space offset to translate the iframeLayer while it's being reorder-
-   * dragged so its center tracks the cursor. Other siblings still snap to
-   * their flex slots; only the lifted iframeLayer floats.
+   * In-flow reorder translate (world px), layered on top of `worldX/worldY`
+   * so the lifted frame tracks the cursor while its siblings reflow to their
+   * new slots. Popped drags don't use this — their float position is already
+   * baked into `worldX/worldY`.
    */
   dragTranslateX?: number
   dragTranslateY?: number
   /**
-   * When set, the iframeLayer is "popped" out of its source group — rendered
-   * with absolute positioning relative to the parent IframeLayerGroup so flex
-   * flow drops it and its siblings close the gap. Used during a reorder
-   * drag with the meta key held; on release the pop is committed by the
-   * canvas (creates a new group). `left`/`top` are relative to the parent
-   * IframeLayerGroup origin.
+   * True while this frame is the one being "popped" out at the cursor (reorder
+   * drag with meta held). Drives z-elevation, pointer-events pass-through, and
+   * the group label's anchor behavior. Its float position lives in `worldX/Y`.
    */
-  dragPopped?: { left: number; top: number }
+  dragPopped?: boolean
 }
 
 export function IframeLayer({
@@ -197,17 +212,25 @@ export function IframeLayer({
   groupSelected,
   onSelectGroup,
   onRenameGroup,
-  flexOrder,
+  worldX,
+  worldY,
+  zIndex,
   dragTranslateX,
   dragTranslateY,
   dragPopped,
 }: IframeLayerProps) {
   const handleDrag = useCallback(
-    (dx: number, dy: number) => {
+    (
+      dx: number,
+      dy: number,
+      totalDx: number,
+      totalDy: number,
+      metaKey: boolean,
+    ) => {
       if (selected) {
-        onMoveSelected(dx, dy)
+        onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
       } else {
-        onMoveGroup(dx, dy)
+        onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
       }
     },
     [selected, onMoveGroup, onMoveSelected],
@@ -488,25 +511,26 @@ export function IframeLayer({
       ref={frameRef}
       id={`iframe-layer-${iframeLayer.id}`}
       data-iframe-layer
-      className="relative shrink-0"
+      className="absolute"
       style={{
         width: iframeLayer.width,
         height: iframeLayer.height,
-        order: flexOrder,
-        position: dragPopped ? "absolute" : undefined,
-        left: dragPopped?.left,
-        top: dragPopped?.top,
+        // Flat, absolutely-positioned in world space. Moving between groups
+        // only changes `worldX/worldY`, never the React parent, so the iframe
+        // element is never unmounted/remounted — no reload on pop-out/in.
+        left: worldX,
+        top: worldY,
         transform:
-          dragPopped
-            ? undefined
-            : dragTranslateX != null || dragTranslateY != null
-              ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
-              : undefined,
-        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 5 : undefined,
-        // Other siblings snap to their new flex slots; the lifted iframeLayer
-        // tracks the cursor without a transition so it doesn't lag.
+          dragTranslateX != null || dragTranslateY != null
+            ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
+            : undefined,
+        // Dragged/popped frame floats above its siblings; otherwise paint
+        // order follows the group's sidebar position.
+        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 9999 : zIndex,
+        // The lifted frame is non-interactive so drop hit-testing falls
+        // through to whatever sits beneath the cursor.
         pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : undefined,
+          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : "auto",
       }}
     >
       <IframeLayerLabel
@@ -546,7 +570,7 @@ export function IframeLayer({
         onRename={onRename ? (next) => onRename(iframeLayer.id, next) : undefined}
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
-        reorderDragPopped={dragPopped != null}
+        reorderDragPopped={dragPopped}
       />
       {iframeLayer.sandboxId && showToolbar && toolbarPortalTarget && createPortal(
         <div
