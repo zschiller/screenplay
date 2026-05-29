@@ -97,14 +97,23 @@ interface MarkdownLayerProps {
   onStartInlineComment?: (draft: InlineCommentDraft) => void
   /** User clicked an existing inline-comment highlight inside the doc. */
   onSelectInlineThread?: (threadId: string) => void
-  /** Visual order within the parent IframeLayerGroup's flex flow. */
-  flexOrder?: number
-  /** Reorder-drag translate, applied when this doc is being dragged in-flow. */
+  /**
+   * Absolute world-space position of this layer's top-left. Layers render as
+   * flat, absolutely-positioned siblings (not nested in a per-group flex row),
+   * so moving one between groups never reparents its React subtree — the
+   * TipTap editor isn't remounted. Position comes from
+   * `effectiveIframeLayerLayouts` and already bakes in the pop-out offset.
+   */
+  worldX: number
+  worldY: number
+  /** Paint order, projected from the group's sidebar position (higher = on top). */
+  zIndex?: number
+  /** In-flow reorder translate, applied when this doc is being dragged in-flow. */
   dragTranslateX?: number
   dragTranslateY?: number
-  /** When the user holds meta to "pop" this doc out of its group, the
-   *  IframeLayerGroup parent feeds back a position so it floats at the cursor. */
-  dragPopped?: { left: number; top: number }
+  /** True while this doc is the one being "popped" out at the cursor; its
+   *  float position is baked into `worldX/worldY`. */
+  dragPopped?: boolean
   /** Group display name — only set on the leftmost member of a multi-member group. */
   groupLabel?: string
   /** True when the parent group is selected. Drives label color, frame
@@ -169,7 +178,9 @@ export function MarkdownLayer({
   spaceHeld,
   userName,
   userColor,
-  flexOrder,
+  worldX,
+  worldY,
+  zIndex,
   dragTranslateX,
   dragTranslateY,
   dragPopped,
@@ -604,10 +615,9 @@ export function MarkdownLayer({
     },
   })
 
-  // When the user holds meta to pop the doc out of its group, the parent
-  // IframeLayerGroup absolutely-positions us at the cursor; otherwise we sit
-  // in the flex flow and `dragTranslate{X,Y}` is layered on as a transform
-  // during a non-popped reorder drag.
+  // Flat, absolutely-positioned in world space (see `worldX/worldY`). A
+  // non-popped reorder drag layers `dragTranslate{X,Y}` on as a transform so
+  // the lifted doc tracks the cursor; popped position is baked into worldX/Y.
   const transform =
     dragTranslateX || dragTranslateY
       ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
@@ -624,19 +634,20 @@ export function MarkdownLayer({
       // its outer root open and pushes overflow clipping to the inner body.
       // Inner clipping happens on `data-markdown-layer-scroll` (overflow-y-auto)
       // and the body padding constrains horizontal layout.
-      className="relative flex flex-col rounded-md bg-background"
+      className="absolute flex flex-col rounded-md bg-background"
       style={{
         width: layer.width,
         height: layer.height,
-        order: flexOrder,
-        position: dragPopped ? "absolute" : undefined,
-        left: dragPopped?.left,
-        top: dragPopped?.top,
+        left: worldX,
+        top: worldY,
         transform,
-        flexShrink: 0,
-        // Parent group sets `pointer-events: none` so empty interior space
-        // falls through; re-enable hit-testing on the tile itself.
-        pointerEvents: "auto",
+        // Dragged/popped doc floats above siblings; otherwise paint order
+        // follows the group's sidebar position.
+        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 9999 : zIndex,
+        // The lifted doc is non-interactive so drop hit-testing falls through;
+        // otherwise the tile catches its own events.
+        pointerEvents:
+          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : "auto",
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
@@ -657,7 +668,7 @@ export function MarkdownLayer({
         groupLabelDragHandlers={spaceHeld ? undefined : groupLabelDragHandlers}
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
-        reorderDragPopped={dragPopped != null}
+        reorderDragPopped={dragPopped}
       >
         {/* Flex-row wrapper with an explicit max-width so `truncate` on the
          *  title span has something to clip against — without it, the
