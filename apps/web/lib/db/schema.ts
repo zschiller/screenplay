@@ -245,8 +245,21 @@ export const agentRun = pgTable(
     chatId: text("chat_id")
       .notNull()
       .references(() => agentChat.id, { onDelete: "cascade" }),
+    // Expand phase of the run-lifecycle migration (#167): the four truthful
+    // terminal values land *alongside* the legacy `ended` so old code paths
+    // keep working until the contract slice (#170) retires `ended` and the
+    // `aborted` column. The enum is enforced only in TypeScript — `status` is
+    // a plain `text` column — so widening it generates no SQL migration.
     status: text("status")
-      .$type<"running" | "paused_for_plan" | "ended">()
+      .$type<
+        | "running"
+        | "paused_for_plan"
+        | "ended"
+        | "completed"
+        | "failed"
+        | "aborted"
+        | "superseded"
+      >()
       .notNull()
       .default("running"),
     aborted: boolean("aborted").notNull().default(false),
