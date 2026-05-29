@@ -40,6 +40,17 @@ The *identity* of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
+**Chat Target**:
+What a Chat Session talks to — either an agent's **sandbox** or a Markdown
+Layer (a document). The target decides the system prompt and which Tools the
+model is given.
+_Avoid_: subject, destination.
+
+**Tool**:
+A capability the model can call during a chat turn (read_file, run_command,
+read_document, …). Each Tool's availability is scoped by Chat Target.
+_Avoid_: function, action (action = server action), command.
+
 **Canvas Operation**:
 A verb that mutates committed canvas state across one or more collections while
 preserving canvas invariants (e.g. Group pruning). The deep module fronting the
