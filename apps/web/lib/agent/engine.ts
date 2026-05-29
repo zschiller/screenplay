@@ -10,16 +10,31 @@ import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "@/lib/agent/tool-executor"
 import { buildAgentTools } from "./tools"
-import {
-  appendMessages,
-  endRun,
-  isRunAborted,
-  savePendingToolCall,
-} from "./persistence"
+import { appendMessages, savePendingToolCall } from "./persistence"
+import { isRunActive, transition, type RunState } from "./run-state"
 import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
 
 const MAX_STEPS = 20
 const ABORT_POLL_INTERVAL_MS = 250
+
+/**
+ * The slice of the run-state machine the loop drives: it records the truthful
+ * outcome (`transition`) and polls liveness between steps (`isRunActive`).
+ * Narrowed from {@link RunState} so callers — and tests — can inject a machine
+ * over an in-memory store instead of the live database.
+ */
+export type EngineRunState = Pick<RunState, "transition" | "isRunActive">
+
+/**
+ * The streamText surface the loop depends on: a function that takes the same
+ * config and returns something we can drain. Injectable so tests can simulate a
+ * clean finish or a thrown error without a live model.
+ */
+export type StreamDriver = (
+  config: Parameters<typeof streamText>[0],
+) => { consumeStream: () => Promise<void> }
+
+const defaultRunState: EngineRunState = { transition, isRunActive }
 
 export interface RunAgentLoopOptions {
   chatId: string
@@ -41,6 +56,16 @@ export interface RunAgentLoopOptions {
   tools?: Record<string, Tool>
   /** Full conversation, including the just-appended user message or tool result. */
   messages: ModelMessage[]
+  /**
+   * Run-state machine that records the loop's outcome. Defaults to the live
+   * database-backed machine; tests inject one over an in-memory store.
+   */
+  runState?: EngineRunState
+  /**
+   * streamText driver. Defaults to the real `streamText`; tests inject a fake
+   * that simulates the finish/error paths.
+   */
+  startStream?: StreamDriver
 }
 
 /**
@@ -54,6 +79,8 @@ export interface RunAgentLoopOptions {
  */
 export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   const { chatId, runId, roomId, systemPrompt, model, toolCtx, messages } = opts
+  const runState = opts.runState ?? defaultRunState
+  const startStream = opts.startStream ?? streamText
   const broadcaster = new StreamBroadcaster(roomId, chatId)
   const tools =
     opts.tools ??
@@ -68,7 +95,10 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   const controller = new AbortController()
   const watchdog = setInterval(async () => {
     try {
-      if (await isRunAborted(runId)) controller.abort()
+      // Halt the moment the run stops being the live one — covers a user /stop
+      // (aborted) *and* a newer message that superseded us. Anything other than
+      // `running` means we should stand down.
+      if (!(await runState.isRunActive(runId))) controller.abort()
     } catch {
       // Transient DB blip — keep going. /stop will retry effectively on next
       // tick if it actually wrote.
@@ -76,7 +106,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   }, ABORT_POLL_INTERVAL_MS)
 
   try {
-    const result = streamText({
+    const result = startStream({
       model: resolveLanguageModel(model),
       system: systemPrompt,
       messages,
@@ -132,7 +162,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
             toolName: "submit_plan",
             input: planCall.input as Record<string, unknown>,
           })
-          await endRun(runId, "paused_for_plan")
+          await runState.transition(runId, "paused_for_plan")
           await broadcastEvent(roomId, chatId, {
             type: "plan_submitted",
             planId,
@@ -143,7 +173,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
           return
         }
 
-        await endRun(runId, "ended")
+        await runState.transition(runId, "completed")
         await broadcastEvent(roomId, chatId, { type: "done" })
         await broadcastSignal(roomId, chatId, "chat-stream-end")
 
@@ -160,12 +190,17 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
     await result.consumeStream()
   } catch (e) {
     if (controller.signal.aborted) {
-      // Aborted runs broadcast 'error' + chat-stream-end so the UI unsticks.
+      // The watchdog tripped the controller because the run is no longer
+      // `running` — a user /stop or a supersede already recorded the terminal
+      // outcome. Don't transition (the machine would no-op anyway); just
+      // broadcast the stop so the UI unsticks.
       await broadcaster.onError("Stopped by user")
     } else {
+      // A genuine failure: surface the real error and record it as `failed`,
+      // distinct from a user stop.
       await broadcaster.onError(e instanceof Error ? e.message : String(e))
+      await runState.transition(runId, "failed")
     }
-    await endRun(runId, "ended")
     await broadcastSignal(roomId, chatId, "chat-stream-end")
   } finally {
     clearInterval(watchdog)
