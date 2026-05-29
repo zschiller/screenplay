@@ -3,6 +3,8 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 import type * as Y from "yjs"
 
+import { documentFragment } from "@/lib/yjs/fragment-text"
+
 /**
  * Structural shape that any Yjs awareness implementation must satisfy.
  * Both `y-protocols/awareness.Awareness` and `@liveblocks/yjs`'s built-in
@@ -51,5 +53,5 @@ export function useYjs(): YjsConnection {
  */
 export function useDocumentFragment(layerId: string): Y.XmlFragment {
   const { doc } = useYjs()
-  return useMemo(() => doc.getXmlFragment(`markdown-layer-${layerId}`), [doc, layerId])
+  return useMemo(() => documentFragment(doc, layerId), [doc, layerId])
 }

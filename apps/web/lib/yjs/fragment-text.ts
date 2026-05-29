@@ -5,6 +5,17 @@ import { MarkdownManager } from "@tiptap/markdown"
 import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap"
 
 /**
+ * Resolve a Document layer's body fragment from the room Y.Doc. Every Markdown
+ * Layer's body lives in a `Y.XmlFragment` keyed `markdown-layer-{id}` (see
+ * `apps/web/CONTEXT.md`). This is the single owner of that key string — the key
+ * is the persisted identity of a document in every existing room, so call sites
+ * resolve through here rather than constructing it inline.
+ */
+export function documentFragment(doc: Y.Doc, id: string): Y.XmlFragment {
+  return doc.getXmlFragment(`markdown-layer-${id}`)
+}
+
+/**
  * Serialize a TipTap-managed Y.XmlFragment to plain text. Walks the fragment
  * tree and joins paragraphs / list items / etc. with newlines so the result
  * reads cleanly when handed to an LLM as context. Mirrors the rendering used
