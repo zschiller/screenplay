@@ -3,6 +3,7 @@ import * as Y from "yjs"
 import { getRoom } from "@/lib/rooms"
 import { verifyRenderToken } from "@/lib/thumbnail/token"
 import { readRoomDoc } from "@/lib/yjs/server"
+import { documentFragment } from "@/lib/yjs/fragment-text"
 import { computeIframeLayerLayouts } from "@/lib/iframe-layer-layout"
 import { RenderCanvas } from "./render-canvas"
 import type { RenderIframeLayer } from "./render-canvas"
@@ -125,7 +126,7 @@ export default async function RenderPage({
     const docs = allDocuments.flatMap((d) => {
       const layout = layouts.get(d.id)
       if (!layout) return []
-      const fragment = c.doc.getXmlFragment(`markdown-layer-${d.id}`)
+      const fragment = documentFragment(c.doc, d.id)
       return [{
         id: d.id,
         x: layout.x,

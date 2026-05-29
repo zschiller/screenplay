@@ -23,7 +23,7 @@ import {
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
-import { seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
+import { documentFragment, seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -2109,7 +2109,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         // empty paragraph. Without this the first client to mount the editor
         // would fill the empty fragment locally; doing it on creation means
         // every peer sees the same shape from the start.
-        seedDocumentFragment(collections.doc.getXmlFragment(`markdown-layer-${docId}`))
+        seedDocumentFragment(documentFragment(collections.doc, docId))
         // Seed an empty chat so the doc has a tab ready the first time its
         // chat panel opens — mirrors the chat-session pre-create in the
         // agent batch-spawn flow.
@@ -2185,7 +2185,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (id: string, title: string) => {
       collections.transact(() => {
         if (!collections.markdownLayers.has(id)) return
-        setFragmentTitle(collections.doc.getXmlFragment(`markdown-layer-${id}`), title)
+        setFragmentTitle(documentFragment(collections.doc, id), title)
         collections.markdownLayers.update(id, { title })
       })
     },

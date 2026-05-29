@@ -3,6 +3,7 @@ import "server-only"
 import { tool, jsonSchema } from "ai"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 import {
+  documentFragment,
   fragmentBodyToPlainText,
   replaceFragmentBodyPreservingTitle,
   setFragmentTitle,
@@ -39,7 +40,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
         const content = (input as { content: string }).content
         await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
           if (!markdownLayers.get(ctx.markdownLayerId)) return
-          const fragment = doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`)
+          const fragment = documentFragment(doc, ctx.markdownLayerId)
           replaceFragmentBodyPreservingTitle(fragment, content)
         })
         return `Replaced document body (${content.length} characters).`
@@ -58,7 +59,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
         const content = (input as { content: string }).content
         await mutateRoomDoc(ctx.roomId, ({ doc, markdownLayers }) => {
           if (!markdownLayers.get(ctx.markdownLayerId)) return
-          const fragment = doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`)
+          const fragment = documentFragment(doc, ctx.markdownLayerId)
           // Re-derive the existing body (excluding the title) and concatenate.
           // Cheap on small docs and avoids us needing a precise "insert at
           // end" API for the parser; round-trip loses inline marks but
@@ -88,7 +89,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
           // The title heading inside the body is the source of truth — write
           // there and mirror onto the cached `title` field so non-editor
           // consumers (sidebar labels, mention popover) update immediately.
-          setFragmentTitle(doc.getXmlFragment(`markdown-layer-${ctx.markdownLayerId}`), title)
+          setFragmentTitle(documentFragment(doc, ctx.markdownLayerId), title)
           markdownLayers.update(ctx.markdownLayerId, { title })
         })
         return `Title set to "${title}".`
