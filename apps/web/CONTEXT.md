@@ -1,9 +1,10 @@
-# Screenplay — Canvas Context
+# apps/web — Canvas & Agent Runtime
 
-Domain language for screenplay's collaborative canvas: the spatial, real-time
-surface of a room and the layers, groups, and chat tabs that live on it. Canvas
-state is held in the room's Y.Doc; this file names the concepts that state
-represents so code and conversation use the same words.
+Domain language for the screenplay web app: the collaborative canvas (the
+spatial, real-time surface of a room and the layers, groups, and chat tabs on
+it, held in the room's Y.Doc) and the agent runtime that drives it (chat
+targets, tools, runs). This file names those concepts so code and conversation
+use the same words.
 
 ## Language
 
