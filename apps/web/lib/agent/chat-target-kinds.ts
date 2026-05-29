@@ -11,7 +11,7 @@ import { buildMarkdownLayerTools } from "./markdown-layer-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import type { ToolContext } from "./tool-executor"
 import { readRoomDoc } from "@/lib/yjs/server"
-import { fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
+import { documentFragment, fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
 
 /**
  * Server-side registry of chat target kinds. Each entry contains the
@@ -121,7 +121,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, Markdo
       readRoomDoc(roomId, ({ markdownLayers, doc }) => {
         const layer = markdownLayers.get(target.markdownLayerId)
         if (!layer) return null
-        const fragment = doc.getXmlFragment(`markdown-layer-${target.markdownLayerId}`)
+        const fragment = documentFragment(doc, target.markdownLayerId)
         return {
           id: target.markdownLayerId,
           title: layer.title,
