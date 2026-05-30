@@ -26,6 +26,7 @@ import {
 import { useSession } from "@/lib/auth-client"
 import {
   useCommentPositions,
+  useCommentsReadRevision,
   useCommentsRevision,
   usePruneCommentPositions,
   useSetCommentPosition,
@@ -162,6 +163,10 @@ export function Comments({
     [onActivateThread],
   )
   const revision = useCommentsRevision()
+  // The acting user's own read-state doorbell. Bumped only when *this* user
+  // marks a thread read/unread (possibly from another tab), so we refetch to
+  // recompute unread without every client in the room refetching.
+  const readRevision = useCommentsReadRevision(session?.user.id ?? null)
 
   // Load + refetch on every revision bump (server-side notification channel).
   useEffect(() => {
@@ -176,7 +181,7 @@ export function Comments({
     return () => {
       cancelled = true
     }
-  }, [roomId, revision])
+  }, [roomId, revision, readRevision])
 
   const pinScale = 1 / zoom
   const pinStyle = {
