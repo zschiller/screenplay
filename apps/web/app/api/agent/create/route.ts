@@ -4,13 +4,12 @@ import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
 import {
   getGitHubToken,
-  createAgentBranch,
   cloneSandbox,
   installDependencies,
   installClaudeCode,
   startDevServer,
-  configureAgentGit,
 } from "@/lib/sandbox-actions"
+import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
 import type { AgentData, WorkspaceData } from "@/lib/types"
