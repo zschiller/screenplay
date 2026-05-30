@@ -2,13 +2,13 @@ import { NextResponse, after } from "next/server"
 import { getUserId } from "@/lib/auth-helpers"
 import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
+import { getGitHubToken } from "@/lib/sandbox-actions"
 import {
-  getGitHubToken,
   cloneSandbox,
   installDependencies,
   installClaudeCode,
   startDevServer,
-} from "@/lib/sandbox-actions"
+} from "@/lib/sandbox/provision"
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
@@ -113,13 +113,16 @@ async function runNewOrFromBranchPipeline(
     await markError(roomId, agentId, cloneResult.error)
     return
   }
+  const clonedSandboxName = cloneResult.value.sandboxName
 
   // Step 3: Install dependencies + Claude Code in parallel.
-  // Claude Code is best-effort — a failure there shouldn't fail the pipeline.
+  // Claude Code is best-effort — its result is intentionally ignored here so a
+  // failed CLI install doesn't fail the pipeline (the action still reports the
+  // failure truthfully; this caller chooses to swallow it).
   await updateAgent(roomId, agentId, { statusMessage: "Installing dependencies…" })
   const [installResult] = await Promise.all([
-    installDependencies(cloneResult.sandboxName, workspace.setupScript),
-    installClaudeCode(cloneResult.sandboxName),
+    installDependencies(clonedSandboxName, workspace.setupScript),
+    installClaudeCode(clonedSandboxName),
   ])
   if (!installResult.success) {
     await markError(roomId, agentId, installResult.error)
@@ -128,15 +131,15 @@ async function runNewOrFromBranchPipeline(
 
   // Step 4: Start dev server
   await updateAgent(roomId, agentId, { statusMessage: "Starting dev server…" })
-  const serverResult = await startDevServer(cloneResult.sandboxName, workspace.devServerPort, workspace.devScript)
-  if (serverResult.status !== "running") {
+  const serverResult = await startDevServer(clonedSandboxName, workspace.devServerPort, workspace.devScript)
+  if (!serverResult.success) {
     await markError(roomId, agentId, serverResult.error)
     return
   }
 
   // Step 5: Configure git
   await updateAgent(roomId, agentId, { statusMessage: "Configuring git…" })
-  const gitResult = await configureAgentGit(cloneResult.sandboxName, workspace, branch)
+  const gitResult = await configureAgentGit(clonedSandboxName, workspace, branch)
   if (!gitResult.success) {
     await markError(roomId, agentId, gitResult.error)
     return
@@ -144,7 +147,7 @@ async function runNewOrFromBranchPipeline(
 
   // Done
   await updateAgent(roomId, agentId, {
-    previewDomain: serverResult.previewDomain,
+    previewDomain: serverResult.value.previewDomain,
     status: "running",
     statusMessage: undefined,
   })
@@ -152,7 +155,7 @@ async function runNewOrFromBranchPipeline(
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
-  crawlRoutes(cloneResult.sandboxName).then((result) => {
+  crawlRoutes(clonedSandboxName).then((result) => {
     if (result.success) {
       return updateAgent(roomId, agentId, { discoveredRoutes: result.value })
     }
