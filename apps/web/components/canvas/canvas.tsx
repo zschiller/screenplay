@@ -23,7 +23,7 @@ import {
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
-import { documentFragment, seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
+import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
@@ -120,10 +120,8 @@ import {
   groupContentHeight,
   groupContentWidth,
   groupGap,
-  nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/iframe-layer-layout"
-import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import {
   anchorCornerForEdge,
   computeDeviceSnap,
@@ -1093,128 +1091,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   // --- IframeLayer mutations ---
 
-  /** Resolve the default iframeLayer size for the workspace owning the given agent. */
-  const getDefaultSizeForAgent = useCallback(
-    (agentId: string): { width: number; height: number } => {
-      const agent = collections.agents.get(agentId)
-      const workspace = agent
-        ? collections.workspaces.get(agent.workspaceId)
-        : undefined
-      const preset = getIframeLayerSizePreset(workspace?.defaultIframeLayerSizeId)
-      return { width: preset.width, height: preset.height }
-    },
-    [collections],
-  )
-
-  /**
-   * Place a fresh single-iframeLayer group for a newly-spawned agent. Caller
-   * must already be inside a `collections.transact()`. Layout is computed
-   * client-side (rather than at the end of the server-side provisioning
-   * pipeline) so that concurrently-created agents don't race on the Yjs doc
-   * snapshot and end up with overlapping group positions.
-   */
-  const seedIframeLayerForAgent = useCallback(
-    (agentId: string, viewportCenter: { x: number; y: number }, label = "Frame 1") => {
-      const allGroups = collections.iframeLayerGroups.toArray()
-      const allIframeLayers = collections.iframeLayers.toArray()
-      const { width, height } = getDefaultSizeForAgent(agentId)
-      const { x, y } = placeNewIframeLayerGroup(
-        allGroups,
-        allIframeLayers,
-        viewportCenter,
-        width,
-        height,
-      )
-      const iframeLayerId = nanoid()
-      const groupId = nanoid()
-      collections.iframeLayers.set(iframeLayerId, {
-        id: iframeLayerId,
-        sandboxId: agentId,
-        width,
-        height,
-        label,
-        iframeState: {},
-      })
-      collections.iframeLayerGroups.set(groupId, {
-        id: groupId,
-        name: `Group ${nextGroupNumber(allGroups)}`,
-        x,
-        y,
-        members: [{ kind: "iframe-layer", id: iframeLayerId }],
-      })
-      return { iframeLayerId, groupId }
-    },
-    [collections, getDefaultSizeForAgent],
-  )
-
   /** Add an iframeLayer — used by the manual "add screen" button. Always creates a fresh group. */
   const addIframeLayer = useCallback(
     (agentId: string, label: string): string | undefined => {
       const agent = collections.agents.get(agentId)
       if (!agent || agent.status !== "running") return
-
       const { cx, cy } = getViewportCenter()
-      const iframeLayerIdRef = { current: "" }
-      collections.transact(() => {
-        const allGroups = collections.iframeLayerGroups.toArray()
-        const allIframeLayers = collections.iframeLayers.toArray()
-        const { width, height } = getDefaultSizeForAgent(agentId)
-        const { x, y } = placeNewIframeLayerGroup(
-          allGroups,
-          allIframeLayers,
-          { x: cx, y: cy },
-          width,
-          height,
-        )
-        const iframeLayerId = nanoid()
-        const groupId = nanoid()
-        iframeLayerIdRef.current = iframeLayerId
-        collections.iframeLayers.set(iframeLayerId, {
-          id: iframeLayerId,
-          sandboxId: agentId,
-          width,
-          height,
-          label,
-          iframeState: {},
-        })
-        collections.iframeLayerGroups.set(groupId, {
-          id: groupId,
-          name: `Group ${nextGroupNumber(allGroups)}`,
-          x,
-          y,
-          members: [{ kind: "iframe-layer", id: iframeLayerId }],
-        })
-      })
-      return iframeLayerIdRef.current
+      return ops.createFrameForAgent(agentId, { x: cx, y: cy }, label).layerId
     },
-    [collections, getViewportCenter, getDefaultSizeForAgent],
+    [collections, getViewportCenter, ops],
   )
 
   /** Add an empty frame not associated with any agent/branch/route. Creates a new single-iframeLayer group. */
   const addFrame = useCallback(
     (x: number, y: number, width: number, height: number): string => {
-      const iframeLayerId = nanoid()
-      const groupId = nanoid()
-      const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
-      collections.transact(() => {
-        collections.iframeLayers.set(iframeLayerId, {
-          id: iframeLayerId,
-          width: Math.max(MIN_IFRAME_LAYER_WIDTH, width),
-          height: Math.max(MIN_IFRAME_LAYER_HEIGHT, height),
-          label: "Frame",
-          iframeState: {},
-        })
-        collections.iframeLayerGroups.set(groupId, {
-          id: groupId,
-          name: groupName,
-          x,
-          y,
-          members: [{ kind: "iframe-layer", id: iframeLayerId }],
-        })
-      })
-      return iframeLayerId
+      return ops.createBlankFrame({ x, y }, { width, height })
     },
-    [collections],
+    [ops],
   )
 
   /**
@@ -1227,45 +1120,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     (agentId: string, routes: { route: string; label: string }[]):
       | { groupId: string; firstIframeLayerId: string }
       | undefined => {
-      if (routes.length === 0) return
-      const allGroups = collections.iframeLayerGroups.toArray()
-      const allIframeLayers = collections.iframeLayers.toArray()
-      const { width, height } = getDefaultSizeForAgent(agentId)
-
       const { cx, cy } = getViewportCenter()
-      const { x, y } = placeNewIframeLayerGroup(
-        allGroups,
-        allIframeLayers,
-        { x: cx, y: cy },
-        width,
-        height,
-      )
-
-      const iframeLayerIds = routes.map(() => nanoid())
-      const groupId = nanoid()
-      collections.transact(() => {
-        routes.forEach((r, i) => {
-          collections.iframeLayers.set(iframeLayerIds[i]!, {
-            id: iframeLayerIds[i]!,
-            sandboxId: agentId,
-            width,
-            height,
-            label: r.label || routeToLabel(r.route),
-            iframeState: {},
-            route: r.route,
-          })
-        })
-        collections.iframeLayerGroups.set(groupId, {
-          id: groupId,
-          name: `Routes ${nextGroupNumber(allGroups)}`,
-          x,
-          y,
-          members: iframeLayerIds.map((id) => ({ kind: "iframe-layer", id })),
-        })
-      })
-      return { groupId, firstIframeLayerId: iframeLayerIds[0]! }
+      const result = ops.createFramesForRoutes(agentId, routes, { x: cx, y: cy })
+      if (!result) return
+      return { groupId: result.groupId, firstIframeLayerId: result.firstLayerId }
     },
-    [collections, getViewportCenter, getDefaultSizeForAgent],
+    [getViewportCenter, ops],
   )
 
   /** Append a new iframeLayer to an existing group, mirroring the last sibling iframeLayer's size and agent. */
@@ -1996,43 +1856,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const addDocumentLayer = useCallback(
     (canvasX: number, canvasY: number, width: number, height: number): string => {
-      const docId = nanoid()
-      const groupId = nanoid()
-      const chatId = nanoid()
-      const groupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
-      collections.transact(() => {
-        collections.markdownLayers.set(docId, {
-          id: docId,
-          width: Math.max(200, width),
-          height: Math.max(120, height),
-          title: "",
-        })
-        collections.iframeLayerGroups.set(groupId, {
-          id: groupId,
-          name: groupName,
-          x: canvasX,
-          y: canvasY,
-          members: [{ kind: "markdown-layer", id: docId }],
-        })
-        // Seed the body fragment with the schema-required title heading +
-        // empty paragraph. Without this the first client to mount the editor
-        // would fill the empty fragment locally; doing it on creation means
-        // every peer sees the same shape from the start.
-        seedDocumentFragment(documentFragment(collections.doc, docId))
-        // Seed an empty chat so the doc has a tab ready the first time its
-        // chat panel opens — mirrors the chat-session pre-create in the
-        // agent batch-spawn flow.
-        collections.chatSessions.set(chatId, {
-          id: chatId,
-          markdownLayerId: docId,
-          label: "Untitled",
-          createdAt: Date.now(),
-        })
-      })
+      const { docId, chatId } = ops.createDocument(
+        { x: canvasX, y: canvasY },
+        { width, height },
+      )
       selectedChatByDocumentRef.current[docId] = chatId
       return docId
     },
-    [collections],
+    [ops],
   )
 
   /**
@@ -2115,13 +1946,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const updateAgentInStorage = useCallback(
     (id: string, data: Partial<AgentData>) => {
       collections.agents.update(id, data)
-    },
-    [collections],
-  )
-
-  const addAgentToStorage = useCallback(
-    (id: string, data: AgentData) => {
-      collections.agents.set(id, data)
     },
     [collections],
   )
@@ -2807,7 +2631,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               envVars: "",
               createdAt: Date.now(),
             }
-      const agentId = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
       const branch = uniqueNamesGenerator({
         dictionaries: [adjectives, colors, animals],
@@ -2815,21 +2638,24 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         length: 3,
       })
 
-      collections.transact(() => {
+      // One transaction so the workspace and its first agent land as a single
+      // undo step. `createAgent` owns the agent record + deferred-seed flag.
+      let agentId = ""
+      ops.batch(() => {
         addWorkspaceToStorage(id, data)
-        addAgentToStorage(agentId, {
-          id: agentId,
-          workspaceId: id,
-          sandboxName,
-          gitUrl: data.cloneUrl,
-          branch,
-          previewDomain: "",
-          port: data.devServerPort ?? 3000,
-          status: "creating",
-          statusMessage: "Creating branch…",
-          createdAt: Date.now(),
-          pendingIframeLayerSeed: true,
-        })
+        agentId = ops.createAgent({
+          agent: {
+            workspaceId: id,
+            sandboxName,
+            gitUrl: data.cloneUrl,
+            branch,
+            previewDomain: "",
+            port: data.devServerPort ?? 3000,
+            status: "creating",
+            statusMessage: "Creating branch…",
+            createdAt: Date.now(),
+          },
+        }).agentId
       })
       setPendingAgentIds((prev) =>
         prev.includes(agentId) ? prev : [...prev, agentId],
@@ -2848,7 +2674,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [addWorkspaceToStorage, addAgentToStorage, collections, roomId],
+    [addWorkspaceToStorage, ops, roomId],
   )
 
   const handleCreateAgent = useCallback(
@@ -2856,7 +2682,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
-      const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
       const branch = uniqueNamesGenerator({
         dictionaries: [adjectives, colors, animals],
@@ -2864,9 +2689,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         length: 3,
       })
 
-      collections.transact(() => {
-        addAgentToStorage(id, {
-          id,
+      const { agentId: id } = ops.createAgent({
+        agent: {
           workspaceId,
           sandboxName,
           gitUrl: workspace.cloneUrl,
@@ -2876,8 +2700,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           status: "creating",
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
-          pendingIframeLayerSeed: true,
-        })
+        },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2894,7 +2717,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, roomId],
+    [workspaces, ops, roomId],
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -2902,12 +2725,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
-      const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
 
-      collections.transact(() => {
-        addAgentToStorage(id, {
-          id,
+      const { agentId: id } = ops.createAgent({
+        agent: {
           workspaceId,
           sandboxName,
           gitUrl: workspace.cloneUrl,
@@ -2918,8 +2739,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           statusMessage: "Cloning repository…",
           createdAt: Date.now(),
           autoNamedBranch: false,
-          pendingIframeLayerSeed: true,
-        })
+        },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2936,7 +2756,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, roomId],
+    [workspaces, ops, roomId],
   )
 
   const handleDuplicateBranch = useCallback(
@@ -2944,7 +2764,6 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const workspace = workspaces.find((w) => w.id === workspaceId)
       if (!workspace) return
 
-      const id = nanoid()
       const sandboxName = `sp-${nanoid(10)}`
       const newBranch = uniqueNamesGenerator({
         dictionaries: [adjectives, colors, animals],
@@ -2952,9 +2771,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         length: 3,
       })
 
-      collections.transact(() => {
-        addAgentToStorage(id, {
-          id,
+      const { agentId: id } = ops.createAgent({
+        agent: {
           workspaceId,
           sandboxName,
           gitUrl: workspace.cloneUrl,
@@ -2964,8 +2782,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           status: "creating",
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
-          pendingIframeLayerSeed: true,
-        })
+        },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
@@ -2983,7 +2800,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }),
       })
     },
-    [workspaces, addAgentToStorage, collections, roomId],
+    [workspaces, ops, roomId],
   )
 
   const handleForkAgent = useCallback(
@@ -3059,9 +2876,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         sourceBranch: string | undefined
       }> = []
 
-      collections.transact(() => {
+      ops.batch(() => {
         trimmedSpecs.forEach((spec, idx) => {
-          const id = nanoid()
           const sandboxName = `sp-${nanoid(10)}`
           const { branch, label } = nameResults[idx]!
           const isDefault = spec.baseBranch === workspace.defaultBranch
@@ -3070,41 +2886,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           // the named source into our generated branch name.
           const flow: "new" | "duplicate-branch" = isDefault ? "new" : "duplicate-branch"
 
-          collections.agents.set(id, {
-            id,
-            workspaceId,
-            sandboxName,
-            gitUrl: workspace.cloneUrl,
-            branch,
-            previewDomain: "",
-            port: workspace.devServerPort ?? 3000,
-            status: "creating",
-            statusMessage: "Creating branch…",
-            createdAt: Date.now(),
-            // Names are already prompt-derived and deduped — block the
-            // first-chat server rename so it can't override them.
-            autoNamedBranch: false,
-            // The deferred-seed effect creates the iframeLayer once `previewDomain`
-            // is known and clears this flag, so deleting the frame later never
-            // re-seeds.
-            pendingIframeLayerSeed: true,
-          })
-
-          // Pre-create the chat session so the queued prompt has a stable
-          // chatId before the agent finishes provisioning. The server's
-          // ensureChatForAgent skips creation when a chat already exists
-          // for the agent, so this won't double up.
-          const chatId = nanoid()
-          collections.chatSessions.set(chatId, {
-            id: chatId,
-            agentId: id,
-            label,
-            createdAt: Date.now(),
-            model: spec.model,
+          // createAgent owns the agent record (with the deferred-seed flag) and
+          // pre-creates the chat targeting it, so the queued prompt has a
+          // stable chatId before the agent finishes provisioning. The server's
+          // ensureChatForAgent skips creation when a chat already exists.
+          const { agentId: id, chatId } = ops.createAgent({
+            agent: {
+              workspaceId,
+              sandboxName,
+              gitUrl: workspace.cloneUrl,
+              branch,
+              previewDomain: "",
+              port: workspace.devServerPort ?? 3000,
+              status: "creating",
+              statusMessage: "Creating branch…",
+              createdAt: Date.now(),
+              // Names are already prompt-derived and deduped — block the
+              // first-chat server rename so it can't override them.
+              autoNamedBranch: false,
+            },
+            chat: { label, model: spec.model },
           })
 
           pendingPromptsRef.current.set(id, {
-            chatId,
+            chatId: chatId!,
             prompt: spec.prompt,
             model: spec.model,
           })
@@ -3251,24 +3056,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
     if (pending.length === 0) return
     const { cx, cy } = getViewportCenter()
     const target = pending[0]!
-    // Seed one per tick — `seedIframeLayerForAgent` reads the Yjs snapshot for
+    // Seed one per tick — `seedFrameForAgent` reads the Yjs snapshot for
     // layout, and the snapshot only refreshes after the previous mutation
     // settles. Letting React re-render between seeds avoids stacking groups.
-    let seeded: { iframeLayerId: string; groupId: string } | undefined
-    collections.transact(() => {
-      seeded = seedIframeLayerForAgent(target.id, { x: cx, y: cy })
-      collections.agents.update(target.id, { pendingIframeLayerSeed: false })
+    // The verb creates the frame and clears `pendingIframeLayerSeed` in one
+    // transaction, so this reactive trigger is the only seed logic left here.
+    const { layerId } = ops.seedFrameForAgent(target.id, { x: cx, y: cy })
+    setSelectedIframeLayerIds(new Set([layerId]))
+    setSelectedGroupIds(new Set())
+    // Wait for the new iframeLayer DOM node to mount before zooming.
+    requestAnimationFrame(() => {
+      handleSelectIframeLayer(layerId)
     })
-    if (seeded) {
-      const { iframeLayerId } = seeded
-      setSelectedIframeLayerIds(new Set([iframeLayerId]))
-      setSelectedGroupIds(new Set())
-      // Wait for the new iframeLayer DOM node to mount before zooming.
-      requestAnimationFrame(() => {
-        handleSelectIframeLayer(iframeLayerId)
-      })
-    }
-  }, [agents, iframeLayers, collections, getViewportCenter, seedIframeLayerForAgent, handleSelectIframeLayer])
+  }, [agents, iframeLayers, ops, getViewportCenter, handleSelectIframeLayer])
 
   // Hydrate chatStore streaming state from Yjs storage on mount/reconnect.
   // For each chat that's marked streaming in storage, ask the server to
