@@ -10,10 +10,9 @@ interface RequestBody {
 }
 
 /**
- * v2 equivalent of /api/agent/heal: if the chat's UI thinks it's still
- * streaming but no agent_run row is in a non-ended state, broadcast
- * chat-stream-end so the spinner clears. paused_for_plan counts as "still
- * doing something" and is left alone.
+ * If the chat's UI thinks it's still streaming but no run row is in a
+ * non-ended state, broadcast chat-stream-end so the spinner clears.
+ * paused_for_plan counts as "still doing something" and is left alone.
  */
 export async function POST(req: Request) {
   const userId = await getUserId()

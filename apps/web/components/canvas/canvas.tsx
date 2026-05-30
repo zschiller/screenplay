@@ -2587,13 +2587,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         prev.includes(agentId) ? prev : [...prev, agentId],
       )
 
-      fetch("/api/agent/create", {
+      fetch("/api/branch/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           flow: "new",
           roomId,
-          agentId,
+          branchId: agentId,
           sandboxName,
           branch,
           repoId: id,
@@ -2630,13 +2630,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
-      fetch("/api/agent/create", {
+      fetch("/api/branch/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           flow: "new",
           roomId,
-          agentId: id,
+          branchId: id,
           sandboxName,
           branch,
           repoId,
@@ -2669,13 +2669,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
-      fetch("/api/agent/create", {
+      fetch("/api/branch/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           flow: "from-branch",
           roomId,
-          agentId: id,
+          branchId: id,
           sandboxName,
           branch,
           repoId,
@@ -2712,13 +2712,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
-      fetch("/api/agent/create", {
+      fetch("/api/branch/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           flow: "duplicate-branch",
           roomId,
-          agentId: id,
+          branchId: id,
           sandboxName,
           branch: newBranch,
           sourceBranch: branch,
@@ -2851,13 +2851,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       })
 
       for (const d of dispatched) {
-        fetch("/api/agent/create", {
+        fetch("/api/branch/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             flow: d.flow,
             roomId,
-            agentId: d.id,
+            branchId: d.id,
             sandboxName: d.sandboxName,
             branch: d.branch,
             repoId,
@@ -3019,7 +3019,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
-      fetch("/api/agent/heal", {
+      fetch("/api/branch/heal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId: cs.id }),
@@ -3058,13 +3058,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           })
           continue
         }
-        fetch("/api/agent/create", {
+        fetch("/api/branch/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             flow: "from-branch",
             roomId,
-            agentId: agent.id,
+            branchId: agent.id,
             sandboxName: agent.sandboxName,
             branch: agent.ref,
             repoId: agent.repoId,
