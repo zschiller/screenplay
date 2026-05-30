@@ -24,6 +24,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { documentFragment, seedDocumentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
+import { createCanvasOps } from "@/lib/canvas/ops"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -380,6 +381,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
   const { data: session } = useSession()
   const history = useYjsHistory()
   const collections = useRoomCollections()
+  // Canvas Operations seam (#157): the single transaction entry point + the
+  // generic single-field `patch`. Trivial single-field writes below go through
+  // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
+  const ops = useMemo(() => createCanvasOps(collections), [collections])
   useThumbnailHeartbeat(roomId, hasThumbnail)
 
   // Publish identity + a stable color into awareness on mount and whenever the
@@ -2045,30 +2050,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateIframeLayerState = useCallback(
     (id: string, state: JsonObject) => {
-      collections.iframeLayers.update(id, { iframeState: state })
+      ops.patch("iframeLayers", id, { iframeState: state })
     },
-    [collections],
+    [ops],
   )
 
   const updateIframeLayerScroll = useCallback(
     (id: string, scrollX: number, scrollY: number) => {
-      collections.iframeLayers.update(id, { scrollX, scrollY })
+      ops.patch("iframeLayers", id, { scrollX, scrollY })
     },
-    [collections],
+    [ops],
   )
 
   const updateIframeLayerKnobs = useCallback(
     (id: string, knobs: JsonValue[]) => {
-      collections.iframeLayers.update(id, { knobs })
+      ops.patch("iframeLayers", id, { knobs })
     },
-    [collections],
+    [ops],
   )
 
   const updateIframeLayerKnobValues = useCallback(
     (id: string, knobValues: JsonObject) => {
-      collections.iframeLayers.update(id, { knobValues })
+      ops.patch("iframeLayers", id, { knobValues })
     },
-    [collections],
+    [ops],
   )
 
   const updateIframeLayerSharedState = useCallback(
