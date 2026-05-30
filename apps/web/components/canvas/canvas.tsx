@@ -52,9 +52,9 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { Input } from "@workspace/ui/components/input"
-import { DeleteProjectDialog } from "@/components/delete-project-dialog"
-import { ShareProjectDialog } from "@/components/share-project-dialog"
-import { deleteProject, renameProject } from "@/lib/projects-actions"
+import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { ShareRoomDialog } from "@/components/share-room-dialog"
+import { deleteRoom, renameRoom } from "@/lib/rooms-actions"
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
 import { formatQuoteForChat } from "@/lib/document-comments"
@@ -163,9 +163,9 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads }: { roomId: string; projectName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[] }) {
+export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads }: { roomId: string; roomName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[] }) {
   const router = useRouter()
-  const [currentProjectName, setCurrentProjectName] = useState(projectName)
+  const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [renameDraft, setRenameDraft] = useState("")
@@ -4725,14 +4725,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium text-foreground">
-                              {currentProjectName}
+                              {currentRoomName}
                               <ChevronDown className="h-3 w-3 opacity-60" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start">
                             <DropdownMenuItem
                               onSelect={() => {
-                                setRenameDraft(currentProjectName)
+                                setRenameDraft(currentRoomName)
                                 setRenameDialogOpen(true)
                               }}
                             >
@@ -4765,8 +4765,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                           const trimmed = renameDraft.trim() || "Untitled"
                           setRenaming(true)
                           try {
-                            await renameProject(roomId, trimmed)
-                            setCurrentProjectName(trimmed)
+                            await renameRoom(roomId, trimmed)
+                            setCurrentRoomName(trimmed)
                             setRenameDialogOpen(false)
                           } finally {
                             setRenaming(false)
@@ -4803,12 +4803,12 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                       </form>
                     </DialogContent>
                   </Dialog>
-                  <DeleteProjectDialog
+                  <DeleteRoomDialog
                     open={deleteDialogOpen}
                     onOpenChange={setDeleteDialogOpen}
-                    projectName={currentProjectName}
+                    roomName={currentRoomName}
                     onConfirm={async () => {
-                      await deleteProject(roomId)
+                      await deleteRoom(roomId)
                       setDeleteDialogOpen(false)
                       router.push("/")
                     }}
@@ -4913,11 +4913,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                   >
                     Share
                   </Button>
-                  <ShareProjectDialog
+                  <ShareRoomDialog
                     open={shareDialogOpen}
                     onOpenChange={setShareDialogOpen}
-                    projectId={roomId}
-                    projectName={currentProjectName}
+                    roomId={roomId}
+                    roomName={currentRoomName}
                   />
                   {chatCollapsed && (
                     <TooltipProvider>

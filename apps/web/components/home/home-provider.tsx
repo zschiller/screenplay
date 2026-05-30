@@ -9,12 +9,12 @@ import {
   useState,
 } from "react"
 import {
-  createProject,
-  deleteProject,
-  listProjects,
-  renameProject,
-  type ProjectSummary,
-} from "@/lib/projects-actions"
+  createRoom,
+  deleteRoom,
+  listRooms,
+  renameRoom,
+  type RoomSummary,
+} from "@/lib/rooms-actions"
 import {
   cleanupMissingFiles,
   createFolder as createFolderAction,
@@ -38,7 +38,7 @@ export const PINNED_VIEW_ID = "__pinned__"
 export const ALL_VIEW_ID = "__all__"
 
 type HomeContextValue = {
-  files: ProjectSummary[]
+  files: RoomSummary[]
   folders: Folder[]
   fileFolder: Record<string, string>
   pinnedFiles: Set<string>
@@ -51,12 +51,12 @@ type HomeContextValue = {
   sort: SortKey
   setSort: (s: SortKey) => void
 
-  filesInFolder: (folderId: string) => ProjectSummary[]
-  filesInSelection: ProjectSummary[]
+  filesInFolder: (folderId: string) => RoomSummary[]
+  filesInSelection: RoomSummary[]
   selectionLabel: string
   isDraftsSelected: boolean
 
-  createFile: (name: string, folderId: string) => Promise<ProjectSummary>
+  createFile: (name: string, folderId: string) => Promise<RoomSummary>
   renameFile: (id: string, name: string) => Promise<void>
   removeFile: (id: string) => Promise<void>
   moveFile: (fileId: string, folderId: string) => Promise<void>
@@ -86,7 +86,7 @@ function applyOrg(state: OrganizationState) {
 }
 
 export function HomeProvider({ children }: { children: React.ReactNode }) {
-  const [files, setFiles] = useState<ProjectSummary[]>([])
+  const [files, setFiles] = useState<RoomSummary[]>([])
   const [org, setOrg] = useState(() => applyOrg({
     folders: [],
     fileFolder: {},
@@ -100,14 +100,14 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([listProjects(), getOrganization()])
-      .then(async ([projectList, orgState]) => {
+    Promise.all([listRooms(), getOrganization()])
+      .then(async ([roomList, orgState]) => {
         if (cancelled) return
         const cleaned = await cleanupMissingFiles(
-          projectList.map((p) => p.id),
+          roomList.map((p) => p.id),
         ).catch(() => orgState)
         if (cancelled) return
-        setFiles(projectList)
+        setFiles(roomList)
         setOrg(applyOrg(cleaned))
       })
       .catch((err) => console.error("Failed to load home data", err))
@@ -130,7 +130,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
   )
 
   const sortedSelection = useMemo(() => {
-    let list: ProjectSummary[]
+    let list: RoomSummary[]
     if (selectedId === PINNED_VIEW_ID) {
       list = files.filter((f) => org.pinnedFiles.has(f.id))
     } else if (selectedId === ALL_VIEW_ID) {
@@ -163,7 +163,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
 
   const createFile = useCallback(
     async (name: string, folderId: string) => {
-      const file = await createProject(name)
+      const file = await createRoom(name)
       setFiles((prev) => [file, ...prev])
       if (folderId !== DRAFTS_FOLDER_ID) {
         const next = await moveFileAction(file.id, folderId)
@@ -176,14 +176,14 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
 
   const renameFile = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim() || "Untitled"
-    await renameProject(id, trimmed)
+    await renameRoom(id, trimmed)
     setFiles((prev) =>
       prev.map((p) => (p.id === id ? { ...p, name: trimmed } : p)),
     )
   }, [])
 
   const removeFile = useCallback(async (id: string) => {
-    await deleteProject(id)
+    await deleteRoom(id)
     setFiles((prev) => prev.filter((p) => p.id !== id))
     const next = await cleanupMissingFiles(
       files.filter((f) => f.id !== id).map((f) => f.id),

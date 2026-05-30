@@ -15,23 +15,23 @@ import {
 import {
   listCollaborators,
   removeCollaborator,
-  shareProject,
+  shareRoom,
   type CollaboratorInfo,
-} from "@/lib/projects-actions"
+} from "@/lib/rooms-actions"
 
-type ShareProjectDialogProps = {
+type ShareRoomDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projectId: string
-  projectName: string
+  roomId: string
+  roomName: string
 }
 
-export function ShareProjectDialog({
+export function ShareRoomDialog({
   open,
   onOpenChange,
-  projectId,
-  projectName,
-}: ShareProjectDialogProps) {
+  roomId,
+  roomName,
+}: ShareRoomDialogProps) {
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState("")
@@ -46,18 +46,18 @@ export function ShareProjectDialog({
       return
     }
     setLoading(true)
-    listCollaborators(projectId)
+    listCollaborators(roomId)
       .then(setCollaborators)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false))
-  }, [open, projectId])
+  }, [open, roomId])
 
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
     try {
-      const updated = await shareProject(projectId, email)
+      const updated = await shareRoom(roomId, email)
       setCollaborators(updated)
       setEmail("")
     } catch (err) {
@@ -70,7 +70,7 @@ export function ShareProjectDialog({
   const handleRemove = async (collaboratorId: string) => {
     setError(null)
     try {
-      const updated = await removeCollaborator(projectId, collaboratorId)
+      const updated = await removeCollaborator(roomId, collaboratorId)
       setCollaborators(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -81,7 +81,7 @@ export function ShareProjectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Share &ldquo;{projectName}&rdquo;</DialogTitle>
+          <DialogTitle>Share &ldquo;{roomName}&rdquo;</DialogTitle>
           <DialogDescription>
             Invite collaborators by their Screenplay account email.
           </DialogDescription>

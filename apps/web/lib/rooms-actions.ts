@@ -8,19 +8,19 @@ import {
 } from "@/lib/auth-helpers"
 import {
   addMember,
-  createRoom,
+  createRoom as createRoomRecord,
   deleteRoom as deleteRoomRecord,
   getRoom,
   listMembers,
   listRoomsForUser,
   removeMember,
-  renameRoom,
+  renameRoom as renameRoomRecord,
   requireMember,
   requireOwner,
 } from "@/lib/rooms"
 import { yjsHost } from "@/lib/yjs-host"
 
-export type ProjectSummary = {
+export type RoomSummary = {
   id: string
   name: string
   ownerId: string
@@ -39,12 +39,12 @@ export type CollaboratorInfo = {
   isOwner: boolean
 }
 
-export async function createProject(name: string): Promise<ProjectSummary> {
+export async function createRoom(name: string): Promise<RoomSummary> {
   const userId = await requireUserId()
   const trimmed = name.trim() || "Untitled"
   const id = nanoid(10)
 
-  const room = await createRoom({ id, name: trimmed, ownerId: userId })
+  const room = await createRoomRecord({ id, name: trimmed, ownerId: userId })
 
   await yjsHost.ensureRoom({ roomId: id, ownerId: userId, name: trimmed })
 
@@ -60,7 +60,7 @@ export async function createProject(name: string): Promise<ProjectSummary> {
   }
 }
 
-export async function listProjects(): Promise<ProjectSummary[]> {
+export async function listRooms(): Promise<RoomSummary[]> {
   const userId = await requireUserId()
   const rooms = await listRoomsForUser(userId)
   return rooms.map((room) => ({
@@ -75,18 +75,18 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   }))
 }
 
-export async function renameProject(
+export async function renameRoom(
   roomId: string,
   name: string,
 ): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
   const trimmed = name.trim() || "Untitled"
-  await renameRoom(roomId, trimmed)
+  await renameRoomRecord(roomId, trimmed)
   await yjsHost.updateRoomMetadata(roomId, { name: trimmed })
 }
 
-export async function deleteProject(roomId: string): Promise<void> {
+export async function deleteRoom(roomId: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
   await deleteRoomRecord(roomId)
@@ -120,7 +120,7 @@ export async function listCollaborators(
   })
 }
 
-export async function shareProject(
+export async function shareRoom(
   roomId: string,
   email: string,
 ): Promise<CollaboratorInfo[]> {

@@ -24,7 +24,7 @@ import { PlayerChatHost } from "./player-chat-host"
 
 interface PrototypePlayerProps {
   roomId: string
-  projectName: string
+  roomName: string
   agentId: string
   branch: string
   previewDomain: string
@@ -45,7 +45,7 @@ const STORAGE_KEY_DEVICE = "screenplay:player-device-size"
 
 export function PrototypePlayer({
   roomId,
-  projectName,
+  roomName,
   agentId,
   branch,
   previewDomain,
@@ -296,7 +296,7 @@ export function PrototypePlayer({
               <iframe
                 ref={iframeRef}
                 src={initialSrc}
-                title={`${projectName} — ${branch}`}
+                title={`${roomName} — ${branch}`}
                 className="h-full w-full border-0 bg-white dark:bg-zinc-900"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 style={iframeStyle}
@@ -315,7 +315,7 @@ export function PrototypePlayer({
                 <iframe
                   ref={iframeRef}
                   src={initialSrc}
-                  title={`${projectName} — ${branch}`}
+                  title={`${roomName} — ${branch}`}
                   className="h-full w-full border-0 bg-white dark:bg-zinc-900"
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                   style={iframeStyle}
@@ -325,7 +325,7 @@ export function PrototypePlayer({
           </div>
           <PlayerHud
             roomId={roomId}
-            projectName={projectName}
+            roomName={roomName}
             agentId={agentId}
             branch={branch}
             knobs={knobs}

@@ -23,10 +23,10 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { useHome } from "./home-provider"
-import type { ProjectSummary } from "@/lib/projects-actions"
+import type { RoomSummary } from "@/lib/rooms-actions"
 
 type Props = {
-  file: ProjectSummary
+  file: RoomSummary
   children: React.ReactNode
   onRename: () => void
   onDelete: () => void

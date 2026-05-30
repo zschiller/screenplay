@@ -46,7 +46,7 @@ const STORAGE_KEY = "screenplay:player-hud-corner"
 
 interface PlayerHudProps {
   roomId: string
-  projectName: string
+  roomName: string
   agentId: string
   branch: string
   knobs: JsonValue[]
@@ -72,7 +72,7 @@ interface PlayerHudProps {
 
 export function PlayerHud({
   roomId,
-  projectName,
+  roomName,
   agentId,
   branch,
   knobs,
@@ -226,7 +226,7 @@ export function PlayerHud({
               </Button>
             </TooltipTrigger>
             <TooltipContent side={tooltipSide}>
-              Back to {projectName}
+              Back to {roomName}
             </TooltipContent>
           </Tooltip>
           <Select value={deviceSizeId} onValueChange={onDeviceSizeChange}>

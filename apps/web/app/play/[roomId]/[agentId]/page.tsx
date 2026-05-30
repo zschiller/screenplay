@@ -80,7 +80,7 @@ export default async function PlayPage({
     >
       <PrototypePlayer
         roomId={roomId}
-        projectName={room.name}
+        roomName={room.name}
         agentId={agent.id}
         branch={agent.branch}
         previewDomain={agent.previewDomain}
