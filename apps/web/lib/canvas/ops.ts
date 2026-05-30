@@ -257,6 +257,22 @@ export type CanvasOps = {
    */
   removeWorkspace(id: string): { removedChatIds: string[] }
   /**
+   * Reorder the in-room sidebar's repo list: renumber each Workspace's
+   * `sidebarOrder` to its index in `orderedIds`, in one batch under the
+   * canvas-ops origin. Makes the manual order the shared source of truth from
+   * the first drag on. Mirrors {@link reorderAgents} and the Canvas section's
+   * group reorder.
+   */
+  reorderWorkspaces(orderedIds: string[]): void
+  /**
+   * Reorder the branch list within a single Workspace: renumber the
+   * `sidebarOrder` of each Agent in `orderedIds` to its index, in one batch
+   * under the canvas-ops origin. Ids not belonging to `workspaceId` are
+   * ignored, so reordering one Workspace's branches never touches another's —
+   * the within-repo constraint lives here, not just in the UI.
+   */
+  reorderAgents(workspaceId: string, orderedIds: string[]): void
+  /**
    * Move the Member with `layerId` out of whatever Group holds it and into
    * `targetGroupId` at `index` (appended when `index` is omitted), pruning the
    * source Group if the move empties it. When source and target are the same
@@ -743,6 +759,27 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { removedChatIds }
   }
 
+  function reorderWorkspaces(orderedIds: string[]): void {
+    batch(() => {
+      orderedIds.forEach((id, index) => {
+        collections.workspaces.update(id, { sidebarOrder: index })
+      })
+    })
+  }
+
+  function reorderAgents(workspaceId: string, orderedIds: string[]): void {
+    batch(() => {
+      orderedIds.forEach((id, index) => {
+        // Confine the renumber to this Workspace's own branches: an id that
+        // isn't one of its Agents is skipped, so a stray cross-repo id can
+        // never reorder a sibling Workspace's branches.
+        const agent = collections.agents.get(id)
+        if (!agent || agent.workspaceId !== workspaceId) return
+        collections.agents.update(id, { sidebarOrder: index })
+      })
+    })
+  }
+
   function moveLayerToGroup(
     layerId: string,
     targetGroupId: string,
@@ -853,6 +890,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     removeDocuments,
     removeAgent,
     removeWorkspace,
+    reorderWorkspaces,
+    reorderAgents,
     moveLayerToGroup,
     mergeGroups,
     splitToNewGroup,
