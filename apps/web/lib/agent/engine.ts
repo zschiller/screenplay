@@ -8,8 +8,8 @@ import {
 } from "ai"
 import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
-import type { ToolContext } from "@/lib/agent/tool-executor"
-import { buildAgentTools } from "./tools"
+import type { ToolContext } from "./tools"
+import { toolsetFor } from "./toolset"
 import { appendMessages, savePendingToolCall } from "./persistence"
 import { isRunActive, transition, type RunState } from "./run-state"
 import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
@@ -51,7 +51,7 @@ export interface RunAgentLoopOptions {
   /**
    * Pre-built tools object — typed loosely so per-target toolsets (agent
    * sandbox tools, document-mutation tools, future kinds) all fit. Defaults
-   * to `buildAgentTools(toolCtx)` when omitted.
+   * to the redacted sandbox toolset built from `toolCtx` when omitted.
    */
   tools?: Record<string, Tool>
   /** Full conversation, including the just-appended user message or tool result. */
@@ -85,7 +85,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   const tools =
     opts.tools ??
     (toolCtx
-      ? buildAgentTools(toolCtx)
+      ? toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx })
       : (() => {
           throw new Error("runAgentLoop: either `tools` or `toolCtx` must be provided")
         })())

@@ -10,11 +10,11 @@ vi.mock("@/lib/agent/providers", () => ({ resolveLanguageModel: () => ({}) }))
 vi.mock("@/lib/yjs/server", () => ({
   broadcastChatEventViaDoc: vi.fn(async () => {}),
 }))
-// `buildAgentTools` (the default toolset) reaches through tool-executor into the
+// `toolsetFor` (the default toolset assembly) reaches through the sandbox +
 // auth stack, which demands runtime env at import. Every test injects its own
-// `tools`, so the default factory is never called — stub it to keep that chain
+// `tools`, so the default assembly is never called — stub it to keep that chain
 // out of the test's import graph.
-vi.mock("@/lib/agent/tools", () => ({ buildAgentTools: () => ({}) }))
+vi.mock("@/lib/agent/toolset", () => ({ toolsetFor: () => ({}) }))
 
 import { runAgentLoop, type StreamDriver } from "@/lib/agent/engine"
 import {
