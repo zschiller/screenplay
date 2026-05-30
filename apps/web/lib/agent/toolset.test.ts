@@ -85,9 +85,25 @@ describe("toolsetFor (sandbox)", () => {
     expect(out).toContain("[REDACTED]")
   })
 
+  it("redacts a GitHub token from grep output — new tools inherit redaction", async () => {
+    fake.setInstance(fakeSandboxReturning(`config.ts:1:TOKEN=${TOKEN}\n`))
+
+    const tools = toolsetFor(sandboxTarget)
+    const out = await tools.grep.execute!({ pattern: "TOKEN" }, {} as never)
+
+    expect(out).not.toContain(TOKEN)
+    expect(out).toContain("[REDACTED]")
+  })
+
   it("includes the cross-cutting read_document tool", () => {
     const tools = toolsetFor(sandboxTarget)
     expect(tools.read_document).toBeDefined()
+  })
+
+  it("assembles the new grep and glob tools", () => {
+    const tools = toolsetFor(sandboxTarget)
+    expect(tools.grep).toBeDefined()
+    expect(tools.glob).toBeDefined()
   })
 
   it("preserves submit_plan as a human-in-the-loop tool with no execute", () => {
