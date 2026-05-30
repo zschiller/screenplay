@@ -51,12 +51,12 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { useHome, ALL_VIEW_ID } from "./home-provider"
 import { InputDialog } from "./file-dialogs"
-import { DeleteProjectDialog } from "@/components/delete-project-dialog"
-import { ShareProjectDialog } from "@/components/share-project-dialog"
+import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { FileActionMenu } from "./file-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { RepoConfigsDialog } from "./repo-configs-dialog"
-import type { ProjectSummary } from "@/lib/projects-actions"
+import type { RoomSummary } from "@/lib/rooms-actions"
 import type { Folder as FolderType } from "@/lib/organization"
 
 function UserHeader() {
@@ -136,7 +136,7 @@ function UserHeader() {
   )
 }
 
-function SidebarFileItem({ file }: { file: ProjectSummary }) {
+function SidebarFileItem({ file }: { file: RoomSummary }) {
   const { renameFile, removeFile } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -171,21 +171,21 @@ function SidebarFileItem({ file }: { file: ProjectSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFile(file.id, name)}
       />
-      <DeleteProjectDialog
+      <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        projectName={file.name}
+        roomName={file.name}
         onConfirm={async () => {
           await removeFile(file.id)
           setDeleteOpen(false)
         }}
       />
       {shareOpen && (
-        <ShareProjectDialog
+        <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          projectId={file.id}
-          projectName={file.name}
+          roomId={file.id}
+          roomName={file.name}
         />
       )}
     </SidebarMenuSubItem>
@@ -279,10 +279,10 @@ function SidebarFolderItem({
           submittingLabel="Saving…"
           onSubmit={(name) => renameFolder(folder.id, name)}
         />
-        <DeleteProjectDialog
+        <DeleteRoomDialog
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
-          projectName={folder.name}
+          roomName={folder.name}
           onConfirm={async () => {
             await removeFolder(folder.id)
             setDeleteOpen(false)
@@ -325,10 +325,10 @@ function PinnedFolderItem({ folder }: { folder: FolderType }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFolder(folder.id, name)}
       />
-      <DeleteProjectDialog
+      <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        projectName={folder.name}
+        roomName={folder.name}
         onConfirm={async () => {
           await removeFolder(folder.id)
           setDeleteOpen(false)
@@ -338,7 +338,7 @@ function PinnedFolderItem({ folder }: { folder: FolderType }) {
   )
 }
 
-function PinnedFileItem({ file }: { file: ProjectSummary }) {
+function PinnedFileItem({ file }: { file: RoomSummary }) {
   const { renameFile, removeFile } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -371,21 +371,21 @@ function PinnedFileItem({ file }: { file: ProjectSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFile(file.id, name)}
       />
-      <DeleteProjectDialog
+      <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        projectName={file.name}
+        roomName={file.name}
         onConfirm={async () => {
           await removeFile(file.id)
           setDeleteOpen(false)
         }}
       />
       {shareOpen && (
-        <ShareProjectDialog
+        <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          projectId={file.id}
-          projectName={file.name}
+          roomId={file.id}
+          roomName={file.name}
         />
       )}
     </SidebarMenuItem>

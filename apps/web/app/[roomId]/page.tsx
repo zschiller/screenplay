@@ -66,7 +66,7 @@ export default async function RoomPage({
     >
       <Canvas
         roomId={roomId}
-        projectName={room.name}
+        roomName={room.name}
         hasThumbnail={!!room.thumbnailUrl}
         parentFolderName={parentFolderName}
         initialLayout={initialLayout}

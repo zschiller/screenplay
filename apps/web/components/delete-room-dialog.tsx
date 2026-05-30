@@ -13,19 +13,19 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { buttonVariants } from "@workspace/ui/components/button"
 
-type DeleteProjectDialogProps = {
+type DeleteRoomDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projectName: string
+  roomName: string
   onConfirm: () => Promise<void>
 }
 
-export function DeleteProjectDialog({
+export function DeleteRoomDialog({
   open,
   onOpenChange,
-  projectName,
+  roomName,
   onConfirm,
-}: DeleteProjectDialogProps) {
+}: DeleteRoomDialogProps) {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +47,7 @@ export function DeleteProjectDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete &ldquo;{projectName}&rdquo;?</AlertDialogTitle>
+          <AlertDialogTitle>Delete &ldquo;{roomName}&rdquo;?</AlertDialogTitle>
           <AlertDialogDescription>
             This project and all of its contents will be permanently deleted. This cannot be undone.
           </AlertDialogDescription>
