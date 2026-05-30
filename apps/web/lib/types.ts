@@ -32,6 +32,9 @@ export type WorkspaceData = {
   /** Extra workspace-specific instructions appended to the agent's system prompt. */
   systemPrompt?: string
   createdAt: number
+  /** Display order in the in-room sidebar's repo list. Lower values render
+   *  first; unset falls back to alphabetical by `repoFullName`. */
+  sidebarOrder?: number
 }
 
 export type AgentData = {
@@ -55,6 +58,9 @@ export type AgentData = {
   pendingIframeLayerSeed?: boolean
   /** Manual override into `BRANCH_COLORS`. When unset, the badge color is hashed from `id`. */
   colorIndex?: number
+  /** Display order within its Workspace's branch list in the in-room sidebar.
+   *  Lower values render first; unset falls back to `createdAt` (oldest-first). */
+  sidebarOrder?: number
 }
 
 /**

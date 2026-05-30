@@ -935,3 +935,72 @@ describe("findEmptyGroups (invariant sweep)", () => {
     expect(findEmptyGroups(collections)).toEqual(["group-empty"])
   })
 })
+
+describe("reorderWorkspaces", () => {
+  it("renumbers each workspace's sidebarOrder to its index in the given order", () => {
+    const { ops, collections } = makeHarness()
+    collections.workspaces.set("ws-a", baseWorkspace("ws-a"))
+    collections.workspaces.set("ws-b", baseWorkspace("ws-b"))
+    collections.workspaces.set("ws-c", baseWorkspace("ws-c"))
+
+    ops.reorderWorkspaces(["ws-c", "ws-a", "ws-b"])
+
+    expect(collections.workspaces.get("ws-c")?.sidebarOrder).toBe(0)
+    expect(collections.workspaces.get("ws-a")?.sidebarOrder).toBe(1)
+    expect(collections.workspaces.get("ws-b")?.sidebarOrder).toBe(2)
+  })
+
+  it("commits the renumber as one transaction under the canvas-ops origin", () => {
+    const { doc, ops, collections } = makeHarness()
+    collections.workspaces.set("ws-a", baseWorkspace("ws-a"))
+    collections.workspaces.set("ws-b", baseWorkspace("ws-b"))
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.reorderWorkspaces(["ws-b", "ws-a"])
+
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("reorderAgents", () => {
+  it("renumbers each agent's sidebarOrder to its index in the given order", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-c", baseAgent("ag-c", { workspaceId: "ws-1" }))
+
+    ops.reorderAgents("ws-1", ["ag-c", "ag-a", "ag-b"])
+
+    expect(collections.agents.get("ag-c")?.sidebarOrder).toBe(0)
+    expect(collections.agents.get("ag-a")?.sidebarOrder).toBe(1)
+    expect(collections.agents.get("ag-b")?.sidebarOrder).toBe(2)
+  })
+
+  it("never touches an agent that belongs to a different workspace", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
+    // An agent of another Workspace, plus a stray id pointing at it sneaking
+    // into ws-1's reorder — both must be left alone.
+    collections.agents.set("other", baseAgent("other", { workspaceId: "ws-2" }))
+
+    ops.reorderAgents("ws-1", ["ag-b", "other", "ag-a"])
+
+    expect(collections.agents.get("other")?.sidebarOrder).toBeUndefined()
+    expect(collections.agents.get("ag-b")?.sidebarOrder).toBe(0)
+    expect(collections.agents.get("ag-a")?.sidebarOrder).toBe(2)
+  })
+
+  it("commits the renumber as one transaction under the canvas-ops origin", () => {
+    const { doc, ops, collections } = makeHarness()
+    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.reorderAgents("ws-1", ["ag-b", "ag-a"])
+
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
