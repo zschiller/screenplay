@@ -13,6 +13,7 @@ import {
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
   SNAPSHOT_EXPIRATION,
+  TERMINAL_PORT,
   buildNetworkPolicy,
   launchDevAndProxy,
   runLogged,
@@ -168,7 +169,7 @@ export async function restartSandbox(
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source,
-      ports: [port, port + PROXY_PORT_OFFSET],
+      ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },
