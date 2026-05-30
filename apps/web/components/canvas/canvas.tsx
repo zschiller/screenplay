@@ -1082,44 +1082,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const removeWorkspaceFromStorage = useCallback(
     (id: string) => {
-      collections.transact(() => {
-        collections.workspaces.delete(id)
-        // Cascade-delete agents and their iframeLayers/chats for this workspace.
-        const agentIds: string[] = []
-        for (const agent of collections.agents.toArray()) {
-          if (agent.workspaceId === id) agentIds.push(agent.id)
-        }
-        const removedIframeLayerIds = new Set<string>()
-        for (const agentId of agentIds) {
-          collections.agents.delete(agentId)
-          for (const a of collections.iframeLayers.toArray()) {
-            if (a.sandboxId === agentId) {
-              collections.iframeLayers.delete(a.id)
-              removedIframeLayerIds.add(a.id)
-            }
-          }
-          for (const cs of collections.chatSessions.toArray()) {
-            if (cs.agentId === agentId) collections.chatSessions.delete(cs.id)
-          }
-        }
-        // Drop the removed iframeLayers from any groups that referenced them; if
-        // a group is left empty, delete it as well. Documents that share the
-        // group are preserved.
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          const before = getGroupMembers(g)
-          const remaining = before.filter(
-            (m) => !(m.kind === "iframe-layer" && removedIframeLayerIds.has(m.id)),
-          )
-          if (remaining.length === before.length) continue
-          if (remaining.length === 0) {
-            collections.iframeLayerGroups.delete(g.id)
-          } else {
-            collections.iframeLayerGroups.update(g.id, { members: remaining })
-          }
-        }
-      })
+      const { removedChatIds } = ops.removeWorkspace(id)
+      // Clear the client chat-store mirror for the Chat Sessions the verb
+      // deleted from the Y.Doc (their identity is gone; the conversation lives
+      // client-side).
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [collections],
+    [ops],
   )
 
   // --- IframeLayer mutations ---
@@ -1512,14 +1481,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const target = collections.iframeLayerGroups.get(targetId)
       if (!source || !target || source.id === target.id) return
       const sourceMembers = getGroupMembers(source)
-      const targetMembers = getGroupMembers(target)
       if (sourceMembers.length === 0) return
-      collections.transact(() => {
-        collections.iframeLayerGroups.update(target.id, {
-          members: [...targetMembers, ...sourceMembers],
-        })
-        collections.iframeLayerGroups.delete(source.id)
-      })
+      ops.mergeGroups(source.id, target.id)
       // Keep the dragged layers selected rather than the merged target group.
       // The source group is gone, so map its former members to individual
       // iframe/document selections.
@@ -1533,7 +1496,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       setSelectedIframeLayerIds(draggedIframeIds)
       setSelectedDocumentLayerIds(draggedDocumentIds)
     },
-    [collections],
+    [collections, ops],
   )
 
   /**
@@ -1706,32 +1669,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const removeIframeLayers = useCallback(
     (ids: string[]) => {
-      if (ids.length === 0) return
-      const idSet = new Set(ids)
-      collections.transact(() => {
-        for (const id of ids) collections.iframeLayers.delete(id)
-        // Iterate groups exactly once so each group's `members` stays
-        // consistent — `toArray()` returns a snapshot that doesn't refresh
-        // mid-transaction, so doing it per-id would re-add already-deleted
-        // ids on subsequent passes.
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          const before = getGroupMembers(g)
-          const hasAny = before.some(
-            (m) => m.kind === "iframe-layer" && idSet.has(m.id),
-          )
-          if (!hasAny) continue
-          const remaining = before.filter(
-            (m) => !(m.kind === "iframe-layer" && idSet.has(m.id)),
-          )
-          if (remaining.length === 0) {
-            collections.iframeLayerGroups.delete(g.id)
-          } else {
-            collections.iframeLayerGroups.update(g.id, { members: remaining })
-          }
-        }
-      })
+      ops.removeLayers(ids)
     },
-    [collections],
+    [ops],
   )
   removeIframeLayersRef.current = removeIframeLayers
 
@@ -1890,97 +1830,59 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         | { kind: "into-group"; groupId: string; index: number }
         | { kind: "new-group"; sidebarIndex: number },
     ) => {
-      collections.transact(() => {
-        const allGroups = collections.iframeLayerGroups.toArray()
-        const sourceGroup = allGroups.find((g) =>
-          getGroupMembers(g).some((m) => m.kind === member.kind && m.id === member.id),
-        )
-        if (!sourceGroup) return
+      const allGroups = collections.iframeLayerGroups.toArray()
+      const sourceGroup = allGroups.find((g) =>
+        getGroupMembers(g).some((m) => m.kind === member.kind && m.id === member.id),
+      )
+      if (!sourceGroup) return
 
-        const sourceMembers = getGroupMembers(sourceGroup).filter(
+      if (target.kind === "into-group") {
+        // Cross-group move or same-group reorder — the verb finds the source,
+        // splices the member into the target at `index`, and prunes the source
+        // if the move empties it.
+        ops.moveLayerToGroup(member.id, target.groupId, target.index)
+        return
+      }
+
+      // target.kind === "new-group" — split the member into a fresh group, then
+      // renumber sidebar order so it slots in at the requested index. Placement
+      // (canvas-space) is the caller's job; the verb owns the member move,
+      // group creation/naming, and source pruning.
+      const memberSize = (() => {
+        if (member.kind === "iframe-layer") {
+          const ab = collections.iframeLayers.get(member.id)
+          return ab ? { width: ab.width, height: ab.height } : null
+        }
+        if (member.kind === "markdown-layer") {
+          const d = collections.markdownLayers.get(member.id)
+          return d ? { width: d.width, height: d.height } : null
+        }
+        return null
+      })()
+      if (!memberSize) return
+
+      const sourceWillEmpty =
+        getGroupMembers(sourceGroup).filter(
           (m) => !(m.kind === member.kind && m.id === member.id),
-        )
+        ).length === 0
+      const { cx, cy } = getViewportCenter()
+      const groupsForPlacement = allGroups.filter(
+        (g) => g.id !== sourceGroup.id || !sourceWillEmpty,
+      )
+      const { x, y } = placeNewIframeLayerGroup(
+        groupsForPlacement,
+        collections.iframeLayers.toArray(),
+        { x: cx, y: cy },
+        memberSize.width,
+        memberSize.height,
+      )
 
-        if (target.kind === "into-group") {
-          if (target.groupId === sourceGroup.id) {
-            // Same-group reorder — splice the member back in at the new
-            // index. We removed it above so target index is already in the
-            // post-removal coordinate space.
-            const clamped = Math.max(0, Math.min(target.index, sourceMembers.length))
-            const nextMembers = [
-              ...sourceMembers.slice(0, clamped),
-              member,
-              ...sourceMembers.slice(clamped),
-            ]
-            collections.iframeLayerGroups.update(sourceGroup.id, { members: nextMembers })
-            return
-          }
-
-          const targetGroup = collections.iframeLayerGroups.get(target.groupId)
-          if (!targetGroup) return
-          const targetMembers = getGroupMembers(targetGroup)
-          const clamped = Math.max(0, Math.min(target.index, targetMembers.length))
-          const nextTargetMembers = [
-            ...targetMembers.slice(0, clamped),
-            member,
-            ...targetMembers.slice(clamped),
-          ]
-
-          if (sourceMembers.length === 0) {
-            collections.iframeLayerGroups.delete(sourceGroup.id)
-          } else {
-            collections.iframeLayerGroups.update(sourceGroup.id, { members: sourceMembers })
-          }
-          collections.iframeLayerGroups.update(target.groupId, {
-            members: nextTargetMembers,
-          })
-          return
-        }
-
-        // target.kind === "new-group" — create a fresh single-member group
-        // and renumber sidebar order so it slots in at the requested index.
-        const memberSize = (() => {
-          if (member.kind === "iframe-layer") {
-            const ab = collections.iframeLayers.get(member.id)
-            return ab ? { width: ab.width, height: ab.height } : null
-          }
-          if (member.kind === "markdown-layer") {
-            const d = collections.markdownLayers.get(member.id)
-            return d ? { width: d.width, height: d.height } : null
-          }
-          return null
-        })()
-        if (!memberSize) return
-
-        const { cx, cy } = getViewportCenter()
-        const groupsForPlacement = allGroups.filter((g) => g.id !== sourceGroup.id || sourceMembers.length > 0)
-        const allIframeLayers = collections.iframeLayers.toArray()
-        const { x, y } = placeNewIframeLayerGroup(
-          groupsForPlacement,
-          allIframeLayers,
-          { x: cx, y: cy },
-          memberSize.width,
-          memberSize.height,
-        )
-        const newGroupId = nanoid()
-        const newGroup = {
-          id: newGroupId,
-          name: `Group ${nextGroupNumber(allGroups)}`,
-          x,
-          y,
-          members: [member],
-        }
-
-        if (sourceMembers.length === 0) {
-          collections.iframeLayerGroups.delete(sourceGroup.id)
-        } else {
-          collections.iframeLayerGroups.update(sourceGroup.id, { members: sourceMembers })
-        }
-        collections.iframeLayerGroups.set(newGroupId, newGroup)
-
+      // One batch so the split + sidebar renumber land as a single undo step.
+      ops.batch(() => {
+        const newGroupId = ops.splitToNewGroup([member.id], { x, y })
         // Renumber sidebarOrder over the post-mutation set so the new group
         // lands at target.sidebarIndex. Use the freshly read snapshot, then
-        // splice in the new id; drop the source if we just deleted it.
+        // splice in the new id; an `update` on a pruned source is a no-op.
         const orderedIds = collections.iframeLayerGroups
           .toArray()
           .filter((g) => g.id !== newGroupId)
@@ -1997,7 +1899,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         })
       })
     },
-    [collections, getViewportCenter],
+    [collections, getViewportCenter, ops],
   )
 
   const renameIframeLayerGroup = useCallback(
@@ -2022,15 +1924,17 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const members = getGroupMembers(g)
       const iframeLayerIds = members.filter((m) => m.kind === "iframe-layer").map((m) => m.id)
       const documentIds = members.filter((m) => m.kind === "markdown-layer").map((m) => m.id)
-      collections.transact(() => {
-        if (iframeLayerIds.length > 0) removeIframeLayers(iframeLayerIds)
-        for (const id of documentIds) collections.markdownLayers.delete(id)
-        // removeIframeLayers already cleans up the group when its last iframeLayer
-        // is removed, but a docs-only group needs an explicit delete.
-        if (collections.iframeLayerGroups.get(groupId)) {
-          collections.iframeLayerGroups.delete(groupId)
+      // Compose both removal verbs under one batch so the group teardown is a
+      // single transaction (one undo step). Each verb prunes the group as its
+      // last member of that kind leaves.
+      let removedChatIds: string[] = []
+      ops.batch(() => {
+        if (iframeLayerIds.length > 0) ops.removeLayers(iframeLayerIds)
+        if (documentIds.length > 0) {
+          removedChatIds = ops.removeDocuments(documentIds).removedChatIds
         }
       })
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
       setSelectedGroupIds((prev) => {
         if (!prev.has(groupId)) return prev
         const next = new Set(prev)
@@ -2038,7 +1942,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         return next
       })
     },
-    [collections, removeIframeLayers],
+    [collections, ops],
   )
 
   const assignAgentToIframeLayer = useCallback(
@@ -2199,29 +2103,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const removeDocumentLayers = useCallback(
     (ids: string[]) => {
-      if (ids.length === 0) return
-      const idSet = new Set(ids)
-      collections.transact(() => {
-        for (const id of ids) collections.markdownLayers.delete(id)
-        // Drop the removed docs from any groups; delete groups left empty.
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          const before = getGroupMembers(g)
-          const hasAny = before.some(
-            (m) => m.kind === "markdown-layer" && idSet.has(m.id),
-          )
-          if (!hasAny) continue
-          const remaining = before.filter(
-            (m) => !(m.kind === "markdown-layer" && idSet.has(m.id)),
-          )
-          if (remaining.length === 0) {
-            collections.iframeLayerGroups.delete(g.id)
-          } else {
-            collections.iframeLayerGroups.update(g.id, { members: remaining })
-          }
-        }
-      })
+      const { removedChatIds } = ops.removeDocuments(ids)
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [collections],
+    [ops],
   )
   removeDocumentLayersRef.current = removeDocumentLayers
 
@@ -2243,33 +2128,10 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const removeAgentFromStorage = useCallback(
     (id: string) => {
-      collections.transact(() => {
-        collections.agents.delete(id)
-        const removedIframeLayerIds = new Set<string>()
-        for (const a of collections.iframeLayers.toArray()) {
-          if (a.sandboxId === id) {
-            collections.iframeLayers.delete(a.id)
-            removedIframeLayerIds.add(a.id)
-          }
-        }
-        for (const cs of collections.chatSessions.toArray()) {
-          if (cs.agentId === id) collections.chatSessions.delete(cs.id)
-        }
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          const before = getGroupMembers(g)
-          const remaining = before.filter(
-            (m) => !(m.kind === "iframe-layer" && removedIframeLayerIds.has(m.id)),
-          )
-          if (remaining.length === before.length) continue
-          if (remaining.length === 0) {
-            collections.iframeLayerGroups.delete(g.id)
-          } else {
-            collections.iframeLayerGroups.update(g.id, { members: remaining })
-          }
-        }
-      })
+      const { removedChatIds } = ops.removeAgent(id)
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [collections],
+    [ops],
   )
 
   // --- Chat session mutations ---
@@ -4019,18 +3881,11 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
                 : null
             const size = ab ?? docMember
             if (popped && size) {
-              const newGroupId = nanoid()
-              const newGroupName = `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`
-              const remaining = sourceMembers.filter((m) => m.id !== drag.iframeLayerId)
-              collections.transact(() => {
-                collections.iframeLayerGroups.update(drag.groupId, { members: remaining })
-                collections.iframeLayerGroups.set(newGroupId, {
-                  id: newGroupId,
-                  name: newGroupName,
-                  x: canvas.x - drag.grabOffset.x,
-                  y: canvas.y - drag.grabOffset.y,
-                  members: [popped],
-                })
+              // Split the popped member into a fresh group at the cursor; the
+              // verb prunes the source if this was its last member.
+              const newGroupId = ops.splitToNewGroup([drag.iframeLayerId], {
+                x: canvas.x - drag.grabOffset.x,
+                y: canvas.y - drag.grabOffset.y,
               })
               setSelectedGroupIds(new Set([newGroupId]))
             }
@@ -4586,9 +4441,8 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
               setSelectedChatId(null)
               chatPanelRef.current?.collapse()
             }
-            chatSessions
-              .filter((c) => c.agentId === id)
-              .forEach((c) => chatStore.cleanup(c.id))
+            // removeAgentFromStorage clears the chat-store mirror for the Chat
+            // Sessions the verb deletes.
             removeAgentFromStorage(id)
           }}
           onAddIframeLayer={handleAddIframeLayerForAgent}
