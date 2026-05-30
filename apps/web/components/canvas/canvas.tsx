@@ -98,7 +98,7 @@ import {
   restartSandbox,
   reconnectSandbox,
   keepAliveSandbox,
-} from "@/lib/sandbox-actions"
+} from "@/lib/sandbox/lifecycle"
 import { deleteBranch } from "@/lib/github-actions"
 import {
   ZOOM_MIN,
@@ -2884,13 +2884,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
 
       const result = await restartSandbox(agent.sandboxName, workspace, agent.branch)
-      updateAgentInStorage(id, {
-        sandboxName: result.sandboxName,
-        previewDomain: result.previewDomain || agent.previewDomain,
-        status: result.status === "running" ? "running" : "error",
-        statusMessage: "",
-        error: result.error || "",
-      })
+      if (result.success) {
+        updateAgentInStorage(id, {
+          sandboxName: result.value.sandboxName,
+          previewDomain: result.value.previewDomain || agent.previewDomain,
+          status: "running",
+          statusMessage: "",
+          error: "",
+        })
+      } else {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: "",
+          error: result.error || "",
+        })
+      }
     },
     [agents, workspaces, updateAgentInStorage],
   )
@@ -3073,9 +3081,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       const workspace = workspaces.find((w) => w.id === agent.workspaceId)
       const sandboxName = agent.sandboxName
       reconnectSandbox(sandboxName, agent.port, workspace?.devScript).then((result) => {
-        if (result.status === "running") {
+        if (result.success) {
           updateAgentInStorage(agent.id, {
-            previewDomain: result.previewDomain,
+            previewDomain: result.value.previewDomain,
             status: "running",
             statusMessage: "",
             error: "",
@@ -3099,15 +3107,21 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           error: "",
         })
         restartSandbox(sandboxName, workspace, agent.branch).then((restartResult) => {
-          updateAgentInStorage(agent.id, {
-            sandboxName: restartResult.sandboxName,
-            previewDomain: restartResult.previewDomain || agent.previewDomain,
-            status: restartResult.status === "running" ? "running" : "stopped",
-            statusMessage: "",
-            error: restartResult.status === "running"
-              ? ""
-              : restartResult.error || "Sandbox could not be restarted — click refresh to retry",
-          })
+          if (restartResult.success) {
+            updateAgentInStorage(agent.id, {
+              sandboxName: restartResult.value.sandboxName,
+              previewDomain: restartResult.value.previewDomain || agent.previewDomain,
+              status: "running",
+              statusMessage: "",
+              error: "",
+            })
+          } else {
+            updateAgentInStorage(agent.id, {
+              status: "stopped",
+              statusMessage: "",
+              error: restartResult.error || "Sandbox could not be restarted — click refresh to retry",
+            })
+          }
         })
       })
     }
