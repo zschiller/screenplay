@@ -37,12 +37,13 @@ export type RepoData = {
   sidebarOrder?: number
 }
 
-export type AgentData = {
+export type BranchData = {
   id: string
   repoId: string
   sandboxName: string
   gitUrl: string
-  branch: string
+  /** The git ref (branch name) this Branch maps to. */
+  ref: string
   previewDomain: string
   port: number
   status: SandboxStatus
@@ -65,18 +66,18 @@ export type AgentData = {
 
 /**
  * A chat session targets exactly one of:
- *  - an *agent* (the existing flow): edits files in the agent's sandbox,
- *    drives a branch, etc. — `agentId` is set.
+ *  - a *branch* (the existing flow): edits files in the Branch's sandbox,
+ *    drives a git branch, etc. — `branchId` is set.
  *  - a *markdown layer*: edits the layer's body / title via doc-mutation
  *    tools — `markdownLayerId` is set.
  *
- * Multiple chat tabs can target the same layer (or agent), so a user can
+ * Multiple chat tabs can target the same layer (or Branch), so a user can
  * keep parallel conversations going against the same target.
  */
 export type ChatSessionData = {
   id: string
-  /** Set when the chat targets an agent. Mutually exclusive with the layer ids. */
-  agentId?: string
+  /** Set when the chat targets a Branch. Mutually exclusive with the layer ids. */
+  branchId?: string
   /** Set when the chat targets a markdown layer. */
   markdownLayerId?: string
   label: string
@@ -90,7 +91,7 @@ export type ChatSessionData = {
 export type PlanData = {
   id: string
   chatId: string
-  agentId: string
+  branchId: string
   content: string
   status: "pending" | "approved" | "rejected"
   toolEventId: string
@@ -101,8 +102,8 @@ export type PlanData = {
 
 export type IframeLayerData = {
   id: string
-  /** Undefined for empty frames not yet associated with an agent. */
-  sandboxId?: string
+  /** Id of the Branch this frame is bound to. Undefined for empty frames not yet associated with a Branch. */
+  branchId?: string
   width: number
   height: number
   label: string

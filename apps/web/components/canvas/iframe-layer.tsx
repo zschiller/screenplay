@@ -20,7 +20,7 @@ import { DeviceSizeMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { ResizeHandles } from "./resize-handles"
-import type { AgentData } from "@/lib/types"
+import type { BranchData } from "@/lib/types"
 import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
@@ -41,7 +41,7 @@ const reinstalledSandboxes = new Set<string>()
 
 export interface IframeLayerData {
   id: string
-  sandboxId?: string
+  branchId?: string
   width: number
   height: number
   label: string
@@ -132,8 +132,8 @@ interface IframeLayerProps {
    */
   onDomReady?: (iframeLayerId: string, dom: ScreenplayDom | null) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
-  assignableAgents?: AgentData[]
-  onAssignAgent?: (iframeLayerId: string, agentId: string) => void
+  assignableBranches?: BranchData[]
+  onAssignBranch?: (iframeLayerId: string, branchId: string) => void
   /** Routes discovered for the agent backing this iframeLayer. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (iframeLayerId: string, route: string) => void
@@ -205,8 +205,8 @@ export function IframeLayer({
   commentMode,
   onHover,
   onDomReady,
-  assignableAgents,
-  onAssignAgent,
+  assignableBranches,
+  onAssignBranch,
   discoveredRoutes,
   onSelectRoute,
   groupLabel,
@@ -322,19 +322,19 @@ export function IframeLayer({
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
-      if (!iframeLayer.sandboxId) return
+      if (!iframeLayer.branchId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
-      if (reinstalledSandboxes.has(iframeLayer.sandboxId)) return
-      reinstalledSandboxes.add(iframeLayer.sandboxId)
-      const result = await installBridge(iframeLayer.sandboxId)
+      if (reinstalledSandboxes.has(iframeLayer.branchId)) return
+      reinstalledSandboxes.add(iframeLayer.branchId)
+      const result = await installBridge(iframeLayer.branchId)
       if (!result.success) {
-        reinstalledSandboxes.delete(iframeLayer.sandboxId)
+        reinstalledSandboxes.delete(iframeLayer.branchId)
         return
       }
       reloadIframe()
     },
-    [iframeLayer.sandboxId, reloadIframe],
+    [iframeLayer.branchId, reloadIframe],
   )
 
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
@@ -377,7 +377,7 @@ export function IframeLayer({
     rafId = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafId)
   }, [showToolbar, toolbarPortalTarget])
-  const showFit = !!onFitToContent && !!iframeLayer.sandboxId
+  const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
   const showReload = hmrStatus === "disconnected"
 
@@ -538,7 +538,7 @@ export function IframeLayer({
         iframeLayerId={iframeLayer.id}
         label={iframeLayer.label}
         branch={iframeLayer.branch}
-        sandboxId={iframeLayer.sandboxId}
+        branchId={iframeLayer.branchId}
         route={iframeLayer.route}
         sharedState={iframeLayer.sharedState}
         zoom={zoom}
@@ -546,11 +546,11 @@ export function IframeLayer({
         dragHandlers={interactive ? undefined : dragHandlers}
         onRequestReorderDrag={interactive ? undefined : onRequestReorderDrag}
         groupLabelDragHandlers={interactive ? undefined : groupLabelDragHandlers}
-        assignableAgents={assignableAgents}
-        onAssignAgent={onAssignAgent ? (agentId) => onAssignAgent(iframeLayer.id, agentId) : undefined}
+        assignableBranches={assignableBranches}
+        onAssignBranch={onAssignBranch ? (branchId) => onAssignBranch(iframeLayer.id, branchId) : undefined}
         discoveredRoutes={discoveredRoutes}
         onSelectRoute={
-          onSelectRoute && iframeLayer.sandboxId
+          onSelectRoute && iframeLayer.branchId
             ? (route) => onSelectRoute(iframeLayer.id, route)
             : undefined
         }
@@ -573,7 +573,7 @@ export function IframeLayer({
         reorderDragTranslateY={dragTranslateY}
         reorderDragPopped={dragPopped}
       />
-      {iframeLayer.sandboxId && showToolbar && toolbarPortalTarget && createPortal(
+      {iframeLayer.branchId && showToolbar && toolbarPortalTarget && createPortal(
         <div
           ref={toolbarRef}
           // Positioned every frame by the rAF loop above (translate is set

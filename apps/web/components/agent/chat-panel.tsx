@@ -31,7 +31,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
+import type { BranchData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -117,12 +117,12 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
  * `chat-target-kinds` entry — no changes here needed.
  */
 export type ChatPanelTarget =
-  | { kind: "agent"; agent: AgentData }
+  | { kind: "agent"; agent: BranchData }
   | { kind: "layer"; layerKind: string; layer: { id: string } & Record<string, unknown> }
 
 interface ChatPanelProps {
   target: ChatPanelTarget
-  agents: AgentData[]
+  agents: BranchData[]
   markdownLayers: MarkdownLayerData[]
   onSelectAgent: (id: string) => void
   /** Generalised "pick a layer-kind target" callback — receives the kind
@@ -465,7 +465,7 @@ export function ChatPanel({
         const isFirst = !chatSessions.some(
           (c) =>
             c.id !== chat.id &&
-            ((chat.agentId && c.agentId === chat.agentId) ||
+            ((chat.branchId && c.branchId === chat.branchId) ||
               (chat.markdownLayerId && c.markdownLayerId === chat.markdownLayerId)),
         )
         return (
@@ -480,7 +480,7 @@ export function ChatPanel({
               roomId={roomId}
               sandboxId={agent?.id}
               sandboxName={agent?.sandboxName}
-              branch={agent?.branch}
+              branch={agent?.ref}
               markdownLayerId={layerTarget?.layerKind === "markdown-layer" ? layerTarget.layer.id : undefined}
               isFirstChat={isFirst}
               autoNamedBranch={agent?.autoNamedBranch}
@@ -508,7 +508,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
   if (target.kind === "agent") {
     return (
       <BranchBadge
-        branch={target.agent.branch}
+        branch={target.agent.ref}
         colorKey={target.agent.id}
         colorIndex={target.agent.colorIndex}
         className="text-[11px] py-0 px-1.5"
@@ -539,7 +539,7 @@ function TargetPicker({
   onSelectAgent,
   onSelectLayer,
 }: {
-  agents: AgentData[]
+  agents: BranchData[]
   /** All chat-targetable layers, keyed by kind. The picker renders one
    *  CommandGroup per kind in registry order. */
   markdownLayers: MarkdownLayerData[]
@@ -548,7 +548,7 @@ function TargetPicker({
   onSelectLayer: (layerKind: string, layerId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const pickableAgents = agents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
+  const pickableAgents = agents.filter((a) => a.ref && a.status !== "error" && a.status !== "stopped")
 
   // Keyed by `descriptor.kind` so the picker loop below can look up each
   // chat-targetable kind without a per-kind branch.
@@ -577,14 +577,14 @@ function TargetPicker({
                   return (
                     <CommandItem
                       key={a.id}
-                      value={`branch ${a.branch}`}
+                      value={`branch ${a.ref}`}
                       onSelect={() => {
                         onSelectAgent(a.id)
                         setOpen(false)
                       }}
                     >
                       <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
-                      <BranchBadge branch={a.branch} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
+                      <BranchBadge branch={a.ref} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
                       {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>
                   )

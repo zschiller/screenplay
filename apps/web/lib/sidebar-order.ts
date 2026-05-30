@@ -3,7 +3,7 @@
  * "manual order replaces sort, lazily" policy is testable in isolation.
  *
  * Both the in-room sidebar's repo list and each repo's branch
- * list (Agents) reorder through these two helpers, mirroring the Canvas
+ * list (Branches) reorder through these two helpers, mirroring the Canvas
  * section's group `sidebarOrder`. An item's effective position is its stored
  * `sidebarOrder`; items without one fall back to a caller-supplied comparator
  * (repos alphabetical by full name, branches by `createdAt`) and sort to the

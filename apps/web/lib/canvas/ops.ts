@@ -17,7 +17,7 @@ import {
   setFragmentTitle,
 } from "@/lib/yjs/fragment-text"
 import type {
-  AgentData,
+  BranchData,
   ChatSessionData,
   GroupMember,
   IframeLayerData,
@@ -56,7 +56,7 @@ export const CANVAS_OPS_ORIGIN = Symbol("canvas-ops")
 /** The keyed collections `patch` can write, mapped to their record type. */
 type RecordByKey = {
   repos: RepoData
-  agents: AgentData
+  branches: BranchData
   iframeLayers: IframeLayerData
   iframeLayerGroups: IframeLayerGroupData
   markdownLayers: MarkdownLayerData
@@ -67,14 +67,14 @@ type RecordByKey = {
 type CollectionKey = keyof RecordByKey
 
 /**
- * Input to {@link CanvasOps.createAgent}. The verb allocates the agent id and
+ * Input to {@link CanvasOps.createBranch}. The verb allocates the Branch id and
  * owns the `pendingIframeLayerSeed` flag, so the caller supplies neither. A
  * `chat` sub-spec is optional: when present the verb pre-creates a Chat Session
- * targeting the new agent (the parallel-spawn flow uses this); when absent the
+ * targeting the new Branch (the parallel-spawn flow uses this); when absent the
  * server's chat-ensure path creates the chat lazily, as before.
  */
-export type CreateAgentSpec = {
-  agent: Omit<AgentData, "id" | "pendingIframeLayerSeed">
+export type CreateBranchSpec = {
+  branch: Omit<BranchData, "id" | "pendingIframeLayerSeed">
   chat?: { label: string; model?: string }
 }
 
@@ -102,7 +102,7 @@ export type CanvasOps = {
   saveViewport(viewport: ViewportData): void
   /**
    * Create a Repo record. Composes under one {@link batch} with
-   * {@link createAgent} so a repo and its first agent land as a single
+   * {@link createBranch} so a repo and its first Branch land as a single
    * undo step; a thin verb because `patch` only updates existing records.
    */
   createRepo(id: string, data: RepoData): void
@@ -166,14 +166,14 @@ export type CanvasOps = {
     size: { width: number; height: number },
   ): { docId: string; groupId: string; chatId: string }
   /**
-   * Create an agent record from `spec`, allocating its id and setting the
+   * Create a Branch record from `spec`, allocating its id and setting the
    * deferred-seed flag `pendingIframeLayerSeed`. When `spec.chat` is given,
-   * also pre-creates a Chat Session targeting the agent and returns its
+   * also pre-creates a Chat Session targeting the Branch and returns its
    * `chatId`; otherwise `chatId` is `undefined`. The caller owns all
    * surrounding orchestration (branch-name generation, the provisioning fetch,
-   * pending-agent bookkeeping).
+   * pending-Branch bookkeeping).
    */
-  createAgent(spec: CreateAgentSpec): { agentId: string; chatId?: string }
+  createBranch(spec: CreateBranchSpec): { branchId: string; chatId?: string }
   /**
    * Seed the deferred frame for `agentId` once its sandbox is provisioned:
    * create the agent-bound frame (like {@link createFrameForAgent}) and clear
@@ -217,7 +217,7 @@ export type CanvasOps = {
       width: number
       height: number
       label: string
-      sandboxId?: string
+      branchId?: string
       route?: string
     },
   ): string | undefined
@@ -245,13 +245,13 @@ export type CanvasOps = {
    */
   removeDocuments(ids: string[]): { removedChatIds: string[] }
   /**
-   * Remove an agent and everything keyed to it — its Iframe Layers, its Chat
+   * Remove a Branch and everything keyed to it — its Iframe Layers, its Chat
    * Sessions, and its Members in any Group (pruning Groups emptied by the
    * cascade) — atomically. Returns the `removedChatIds` for the client mirror.
    */
-  removeAgent(agentId: string): { removedChatIds: string[] }
+  removeBranch(branchId: string): { removedChatIds: string[] }
   /**
-   * Remove a repo and cascade across every agent it owns — their Iframe
+   * Remove a repo and cascade across every Branch it owns — their Iframe
    * Layers, Chat Sessions, and Members (pruning Groups emptied by the cascade)
    * — atomically. Returns the `removedChatIds` for the client mirror.
    */
@@ -260,18 +260,18 @@ export type CanvasOps = {
    * Reorder the in-room sidebar's repo list: renumber each Repo's
    * `sidebarOrder` to its index in `orderedIds`, in one batch under the
    * canvas-ops origin. Makes the manual order the shared source of truth from
-   * the first drag on. Mirrors {@link reorderAgents} and the Canvas section's
+   * the first drag on. Mirrors {@link reorderBranches} and the Canvas section's
    * group reorder.
    */
   reorderRepos(orderedIds: string[]): void
   /**
-   * Reorder the branch list within a single Repo: renumber the
-   * `sidebarOrder` of each Agent in `orderedIds` to its index, in one batch
+   * Reorder the Branch list within a single Repo: renumber the
+   * `sidebarOrder` of each Branch in `orderedIds` to its index, in one batch
    * under the canvas-ops origin. Ids not belonging to `repoId` are
-   * ignored, so reordering one Repo's branches never touches another's —
+   * ignored, so reordering one Repo's Branches never touches another's —
    * the within-repo constraint lives here, not just in the UI.
    */
-  reorderAgents(repoId: string, orderedIds: string[]): void
+  reorderBranches(repoId: string, orderedIds: string[]): void
   /**
    * Move the Member with `layerId` out of whatever Group holds it and into
    * `targetGroupId` at `index` (appended when `index` is omitted), pruning the
@@ -382,7 +382,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   // preset configured on the agent's repo, falling back to the default
   // preset. React-free and Y.Doc-only, so it lives behind the seam.
   function defaultSizeForAgent(agentId: string): { width: number; height: number } {
-    const agent = collections.agents.get(agentId)
+    const agent = collections.branches.get(agentId)
     const repo = agent ? collections.repos.get(agent.repoId) : undefined
     const preset = getIframeLayerSizePreset(repo?.defaultIframeLayerSizeId)
     return { width: preset.width, height: preset.height }
@@ -433,7 +433,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       )
       collections.iframeLayers.set(layerId, {
         id: layerId,
-        sandboxId: agentId,
+        branchId: agentId,
         width,
         height,
         label,
@@ -471,7 +471,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       routes.forEach((r, i) => {
         collections.iframeLayers.set(layerIds[i]!, {
           id: layerIds[i]!,
-          sandboxId: agentId,
+          branchId: agentId,
           width,
           height,
           label: r.label || routeToLabel(r.route),
@@ -529,30 +529,30 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { docId, groupId, chatId }
   }
 
-  function createAgent(spec: CreateAgentSpec): { agentId: string; chatId?: string } {
-    const agentId = nanoid()
+  function createBranch(spec: CreateBranchSpec): { branchId: string; chatId?: string } {
+    const branchId = nanoid()
     let chatId: string | undefined
     batch(() => {
       // The verb owns the deferred-seed flag: the reactive "previewDomain
       // arrived → seed" trigger in canvas.tsx clears it via `seedFrameForAgent`
       // once and never re-seeds (parent decision 7).
-      collections.agents.set(agentId, {
-        ...spec.agent,
-        id: agentId,
+      collections.branches.set(branchId, {
+        ...spec.branch,
+        id: branchId,
         pendingIframeLayerSeed: true,
       })
       if (spec.chat) {
         chatId = nanoid()
         collections.chatSessions.set(chatId, {
           id: chatId,
-          agentId,
+          branchId,
           label: spec.chat.label,
           createdAt: Date.now(),
           ...(spec.chat.model ? { model: spec.chat.model } : {}),
         })
       }
     })
-    return { agentId, chatId }
+    return { branchId, chatId }
   }
 
   function seedFrameForAgent(
@@ -566,7 +566,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       // transactions), so the frame write and the flag clear commit as one
       // atomic step — deleting the frame later can never re-trigger the seed.
       result = createFrameForAgent(agentId, anchor, label)
-      collections.agents.update(agentId, { pendingIframeLayerSeed: false })
+      collections.branches.update(agentId, { pendingIframeLayerSeed: false })
     })
     return result!
   }
@@ -598,7 +598,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
           const cloneId = nanoid()
           collections.iframeLayers.set(cloneId, {
             id: cloneId,
-            ...(layer.sandboxId ? { sandboxId: layer.sandboxId } : {}),
+            ...(layer.branchId ? { branchId: layer.branchId } : {}),
             width: layer.width,
             height: layer.height,
             label: layer.label,
@@ -621,13 +621,13 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
       collections.iframeLayers.update(layerId, { route })
 
-      const sandboxId = layer?.sandboxId
-      if (!sandboxId) return
-      const agent = collections.agents.get(sandboxId)
+      const branchId = layer?.branchId
+      if (!branchId) return
+      const agent = collections.branches.get(branchId)
       if (!agent) return
       const existing = agent.discoveredRoutes ?? []
       if (existing.some((r) => r.route === route)) return
-      collections.agents.update(sandboxId, {
+      collections.branches.update(branchId, {
         discoveredRoutes: [...existing, { route, label: routeToLabel(route) }],
       })
     })
@@ -640,7 +640,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       width: number
       height: number
       label: string
-      sandboxId?: string
+      branchId?: string
       route?: string
     },
   ): string | undefined {
@@ -651,7 +651,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (!group) return
       collections.iframeLayers.set(layerId, {
         id: layerId,
-        ...(frame.sandboxId ? { sandboxId: frame.sandboxId } : {}),
+        ...(frame.branchId ? { branchId: frame.branchId } : {}),
         width: frame.width,
         height: frame.height,
         label: frame.label,
@@ -704,19 +704,19 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { removedChatIds }
   }
 
-  function removeAgent(agentId: string): { removedChatIds: string[] } {
+  function removeBranch(branchId: string): { removedChatIds: string[] } {
     const removedChatIds: string[] = []
     batch(() => {
-      collections.agents.delete(agentId)
+      collections.branches.delete(branchId)
       const removedLayerIds = new Set<string>()
       for (const layer of collections.iframeLayers.toArray()) {
-        if (layer.sandboxId === agentId) {
+        if (layer.branchId === branchId) {
           collections.iframeLayers.delete(layer.id)
           removedLayerIds.add(layer.id)
         }
       }
       for (const chat of collections.chatSessions.toArray()) {
-        if (chat.agentId === agentId) {
+        if (chat.branchId === branchId) {
           collections.chatSessions.delete(chat.id)
           removedChatIds.push(chat.id)
         }
@@ -732,22 +732,22 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     const removedChatIds: string[] = []
     batch(() => {
       collections.repos.delete(id)
-      const agentIds = new Set<string>()
-      for (const agent of collections.agents.toArray()) {
-        if (agent.repoId === id) {
-          collections.agents.delete(agent.id)
-          agentIds.add(agent.id)
+      const branchIds = new Set<string>()
+      for (const branch of collections.branches.toArray()) {
+        if (branch.repoId === id) {
+          collections.branches.delete(branch.id)
+          branchIds.add(branch.id)
         }
       }
       const removedLayerIds = new Set<string>()
       for (const layer of collections.iframeLayers.toArray()) {
-        if (layer.sandboxId && agentIds.has(layer.sandboxId)) {
+        if (layer.branchId && branchIds.has(layer.branchId)) {
           collections.iframeLayers.delete(layer.id)
           removedLayerIds.add(layer.id)
         }
       }
       for (const chat of collections.chatSessions.toArray()) {
-        if (chat.agentId && agentIds.has(chat.agentId)) {
+        if (chat.branchId && branchIds.has(chat.branchId)) {
           collections.chatSessions.delete(chat.id)
           removedChatIds.push(chat.id)
         }
@@ -767,15 +767,15 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     })
   }
 
-  function reorderAgents(repoId: string, orderedIds: string[]): void {
+  function reorderBranches(repoId: string, orderedIds: string[]): void {
     batch(() => {
       orderedIds.forEach((id, index) => {
-        // Confine the renumber to this Repo's own branches: an id that
-        // isn't one of its Agents is skipped, so a stray cross-repo id can
-        // never reorder a sibling Repo's branches.
-        const agent = collections.agents.get(id)
-        if (!agent || agent.repoId !== repoId) return
-        collections.agents.update(id, { sidebarOrder: index })
+        // Confine the renumber to this Repo's own Branches: an id that
+        // isn't one of its Branches is skipped, so a stray cross-repo id can
+        // never reorder a sibling Repo's Branches.
+        const branch = collections.branches.get(id)
+        if (!branch || branch.repoId !== repoId) return
+        collections.branches.update(id, { sidebarOrder: index })
       })
     })
   }
@@ -881,17 +881,17 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     createFrameForAgent,
     createFramesForRoutes,
     createDocument,
-    createAgent,
+    createBranch,
     seedFrameForAgent,
     navigateRoute,
     addFrameToGroup,
     renameDocument,
     removeLayers,
     removeDocuments,
-    removeAgent,
+    removeBranch,
     removeRepo,
     reorderRepos,
-    reorderAgents,
+    reorderBranches,
     moveLayerToGroup,
     mergeGroups,
     splitToNewGroup,

@@ -1,7 +1,7 @@
 import * as Y from "yjs"
 import { nanoid } from "nanoid"
 import type {
-  AgentData,
+  BranchData,
   IframeLayerData,
   IframeLayerGroupData,
   ChatSessionData,
@@ -21,7 +21,7 @@ import type {
 
 export const COLLECTION_KEYS = {
   repos: "repos",
-  agents: "sandboxes",
+  branches: "branches",
   iframeLayers: "iframeLayers",
   iframeLayerGroups: "iframeLayerGroups",
   markdownLayers: "markdownLayers",
@@ -220,7 +220,7 @@ export type CommentPosition = { x: number; y: number }
 export type RoomCollections = {
   doc: Y.Doc
   repos: YjsCollection<RepoData>
-  agents: YjsCollection<AgentData>
+  branches: YjsCollection<BranchData>
   iframeLayers: YjsCollection<IframeLayerData>
   iframeLayerGroups: YjsCollection<IframeLayerGroupData>
   markdownLayers: YjsCollection<MarkdownLayerData>
@@ -245,9 +245,9 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
       doc,
       ensureCollection(doc, COLLECTION_KEYS.repos),
     ),
-    agents: new YjsCollection<AgentData>(
+    branches: new YjsCollection<BranchData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.agents),
+      ensureCollection(doc, COLLECTION_KEYS.branches),
     ),
     iframeLayers: new YjsCollection<IframeLayerData>(
       doc,

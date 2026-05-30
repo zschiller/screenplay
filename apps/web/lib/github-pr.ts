@@ -21,12 +21,12 @@ export async function createGitHubPr(
 
   const { branch, repoOwner, repoName, defaultBranch } = await readRoomDoc(
     roomId,
-    ({ agents, repos }) => {
-      const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
+    ({ branches, repos }) => {
+      const agent = branches.toArray().find((a) => a.sandboxName === sandboxName)
       if (!agent) return {}
       const ws = repos.get(agent.repoId)
       return {
-        branch: agent.branch,
+        branch: agent.ref,
         repoOwner: ws?.repoOwner,
         repoName: ws?.repoName,
         defaultBranch: ws?.defaultBranch,

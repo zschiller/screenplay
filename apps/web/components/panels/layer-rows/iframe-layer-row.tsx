@@ -17,15 +17,15 @@ import {
 import { EditableText } from "@workspace/ui/components/editable-text"
 import { BranchBadge } from "@/components/branch-badge"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
-import type { AgentData, IframeLayerData } from "@/lib/types"
+import type { BranchData, IframeLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 /** Per-row props the iframeLayer renderer needs that the generic
- *  contract doesn't carry — used to look up the agent for the branch
+ *  contract doesn't carry — used to look up the Branch for the branch
  *  badge. The sidebar passes them in through a closure. */
 export interface IframeLayerRowExtraProps {
-  /** Agents indexed by id, for fast branch-badge lookup. */
-  agentsById: ReadonlyMap<string, AgentData>
+  /** Branches indexed by id, for fast branch-badge lookup. */
+  branchesById: ReadonlyMap<string, BranchData>
 }
 
 export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
@@ -38,7 +38,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     onRename,
     editableRef,
   }: LayerRowProps<IframeLayerData>) {
-    const agent = item.sandboxId ? extras.agentsById.get(item.sandboxId) : undefined
+    const branch = item.branchId ? extras.branchesById.get(item.branchId) : undefined
     const Icon = iframeLayerKind.Icon
     const label = iframeLayerKind.getLabel(item)
 
@@ -70,11 +70,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
           }}
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {agent?.branch && (
+          {branch?.ref && (
             <BranchBadge
-              branch={agent.branch}
-              colorKey={agent.id}
-              colorIndex={agent.colorIndex}
+              branch={branch.ref}
+              colorKey={branch.id}
+              colorIndex={branch.colorIndex}
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] hover:delay-300 transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}
@@ -98,11 +98,11 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
           }}
         >
           <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {agent?.branch && (
+          {branch?.ref && (
             <BranchBadge
-              branch={agent.branch}
-              colorKey={agent.id}
-              colorIndex={agent.colorIndex}
+              branch={branch.ref}
+              colorKey={branch.id}
+              colorIndex={branch.colorIndex}
               className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] hover:delay-300 transition-[max-width] duration-200 text-[10px] py-0 px-1"
             />
           )}

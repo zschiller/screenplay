@@ -6,26 +6,55 @@ it, held in the room's Y.Doc) and the agent runtime that drives it (chat
 targets, tools, runs). This file names those concepts so code and conversation
 use the same words.
 
+**Naming convention — code = concept, UI = label.** Code uses the structural
+term; the UI shows a friendlier label, and the two are deliberately decoupled.
+The three nested concepts are **Room** (shown to users as "Canvas") → **Repo**
+(shown as "Project") → **Branch** (shown as "Workspace"). Code — types, files,
+Y.Doc keys, props, routes — always uses the structural term; the UI labels
+appear only in rendered user-facing strings, never as identifiers. The word
+**agent** in code refers to the AI runtime (the Engine), never to a Branch.
+
 ## Language
 
+**Room**:
+The collaborative container for one piece of work — owns a single Y.Doc (the
+canvas) and a member list, and is what gets shared, listed, and thumbnailed.
+Holds one or more Repos. Backed by the `room` Postgres table.
+_Shown to users as_: "Canvas".
+_Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
+(reserve that for the spatial surface below).
+
 **Repo**:
-A GitHub repository configured into a room — its repo, default branch, clone
-URL, and run scripts. Holds one or more Agents. Lives in the room's Y.Doc as the
-`repos` collection (`RepoData`). _Code = concept, UI = label_: `Repo` is the
-code identifier everywhere it denotes this entity; the user-facing label still
-reads "Workspace" until the separate UI-string pass renames it to "Project".
+A GitHub repository configured into a Room — its repo identity, default branch,
+clone URL, and run scripts. Holds one or more Branches. Lives in the room's
+Y.Doc as the `repos` collection (`RepoData`). `Repo` is the code identifier
+everywhere it denotes this entity; the user-facing label still reads "Workspace"
+until the separate UI-string pass renames it to "Project".
+_Shown to users as_: "Project".
 _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
-package and the everyday meaning), project.
+package and the everyday meaning), project; "agent" (an agent is the AI, not a
+Repo).
+
+**Branch**:
+A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
+and the Engine that drives it. Each Branch maps to exactly one git branch and is
+rendered in the sidebar by that branch's name. Lives in the room's Y.Doc as the
+`branches` collection (`BranchData`).
+_Shown to users as_: "Workspace".
+_Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
 
 **Agent**:
-A single working branch inside a Repo: its sandbox, branch name, and the
-Engine that drives it. Each Agent maps to exactly one git branch and is
-rendered in the sidebar by that branch's name.
-_Avoid_: branch (the UI word for an Agent), sandbox, run.
+The AI runtime that operates inside a Branch — concretely the Engine (the agent
+loop), its tools, providers, and persisted runs (`lib/agent/`, the
+`agentChat`/`agentMessage`/`agentRun` tables, the `/api/agent/*` AI routes).
+"Agent" is the AI, never an entity on the canvas.
+_Avoid_: using "agent" for a Branch (the entity); harness (reserve that for an
+external/BYO agent tool).
 
 **Canvas**:
-The shared, collaboratively-edited spatial surface of a room. Its committed
-state lives in the room's Y.Doc.
+The shared, collaboratively-edited spatial surface of a Room. Its committed
+state lives in the room's Y.Doc. (Note: "Canvas" is also the user-facing label
+for a Room; in code, Canvas means this surface specifically.)
 _Avoid_: board, whiteboard, scene.
 
 **Group** (Iframe Layer Group):
@@ -57,7 +86,7 @@ messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
 **Chat Target**:
-What a Chat Session talks to — either an agent's **sandbox** or a Markdown
+What a Chat Session talks to — either a Branch's **sandbox** or a Markdown
 Layer (a document). The target decides the system prompt and which Tools the
 model is given.
 _Avoid_: subject, destination.
@@ -76,12 +105,12 @@ _Avoid_: command, macro, plugin.
 
 **App Skill**:
 A Skill screenplay ships in its own source (`lib/skills/`); branch-independent
-and present in every Agent chat. Bundled names carry a `screenplay-` prefix to
+and present in every Branch's chat. Bundled names carry a `screenplay-` prefix to
 stay clear of user skills.
 _Avoid_: bundled skill (casual/UI word), built-in.
 
 **Repo Skill**:
-A Skill discovered in the Agent's checked-out sandbox repo (`.claude/skills/`);
+A Skill discovered in the Branch's checked-out sandbox repo (`.claude/skills/`);
 varies per branch. On a name collision it **shadows** the App Skill of the same
 name — the checked-out repo overrides screenplay's bundled default.
 _Avoid_: project skill, local skill.

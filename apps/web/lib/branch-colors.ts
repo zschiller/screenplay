@@ -9,8 +9,8 @@
  * use a well-distributed hash (djb2) so neighboring branch names don't land
  * on the same color.
  *
- * Users can override the hashed assignment per agent by storing a numeric
- * `colorIndex` on `AgentData` — pass that index to `getBranchColor` (or use
+ * Users can override the hashed assignment per Branch by storing a numeric
+ * `colorIndex` on `BranchData` — pass that index to `getBranchColor` (or use
  * `getBranchColorByIndex`) and it bypasses the hash.
  */
 
