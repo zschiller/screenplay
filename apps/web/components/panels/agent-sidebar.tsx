@@ -123,7 +123,7 @@ import {
   DocumentRowMenu,
 } from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
-import { getSandboxCliContext } from "@/lib/sandbox-actions"
+import { getSandboxCliContext } from "@/lib/sandbox-cli-context"
 import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
 import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"

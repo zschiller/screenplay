@@ -1,8 +1,7 @@
 import { NextResponse, after } from "next/server"
-import { getUserId } from "@/lib/auth-helpers"
+import { getGitHubToken, getUserId } from "@/lib/auth-helpers"
 import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
-import { getGitHubToken } from "@/lib/sandbox-actions"
 import {
   cloneSandbox,
   installDependencies,
