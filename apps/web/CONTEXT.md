@@ -63,6 +63,25 @@ A capability the model can call during a chat turn (read_file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
 _Avoid_: function, action (action = server action), command.
 
+**Skill**:
+A markdown instruction document (`SKILL.md` with `name` + `description`
+frontmatter) that teaches the agent how to perform a screenplay-specific task.
+Surfaced to the model by name + description and loaded in full on demand, never
+always-on. Exists as either an App Skill or a Repo Skill.
+_Avoid_: command, macro, plugin.
+
+**App Skill**:
+A Skill screenplay ships in its own source (`lib/skills/`); branch-independent
+and present in every Agent chat. Bundled names carry a `screenplay-` prefix to
+stay clear of user skills.
+_Avoid_: bundled skill (casual/UI word), built-in.
+
+**Repo Skill**:
+A Skill discovered in the Agent's checked-out sandbox repo (`.claude/skills/`);
+varies per branch. On a name collision it **shadows** the App Skill of the same
+name — the checked-out repo overrides screenplay's bundled default.
+_Avoid_: project skill, local skill.
+
 **Engine** (Agent Loop):
 The owned, server-side turn loop that drives a Chat Session against a model
 via the AI SDK — it replays the persisted conversation, runs Tools, and
