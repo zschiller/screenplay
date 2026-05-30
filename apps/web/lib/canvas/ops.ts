@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid"
 import {
+  IFRAME_LAYER_GROUP_GAP,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
@@ -10,7 +11,11 @@ import {
 } from "@/lib/iframe-layer-layout"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
-import { documentFragment, seedDocumentFragment } from "@/lib/yjs/fragment-text"
+import {
+  documentFragment,
+  seedDocumentFragment,
+  setFragmentTitle,
+} from "@/lib/yjs/fragment-text"
 import type {
   AgentData,
   ChatSessionData,
@@ -19,6 +24,7 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   PlanData,
+  ViewportData,
   WorkspaceData,
 } from "@/lib/types"
 import type {
@@ -88,6 +94,33 @@ export type CanvasOps = {
     fields: Partial<RecordByKey[K]>,
   ): void
   /**
+   * Persist the saved viewport (the singleton restored on room load). A thin
+   * verb — the viewport is its own Y.Doc singleton, not a keyed collection
+   * `patch` can address — but routing it through the seam keeps every committed
+   * canvas mutation under the uniform origin.
+   */
+  saveViewport(viewport: ViewportData): void
+  /**
+   * Create a Workspace record. Composes under one {@link batch} with
+   * {@link createAgent} so a workspace and its first agent land as a single
+   * undo step; a thin verb because `patch` only updates existing records.
+   */
+  createWorkspace(id: string, data: WorkspaceData): void
+  /**
+   * Create a Chat Session identity record (the standalone chat-tab lifecycle:
+   * new tab, reopen-as-new, plan submit). The conversation itself lives in the
+   * client chat-store; this writes only the Y.Doc identity. A thin verb
+   * because `patch` only updates existing records.
+   */
+  addChatSession(id: string, data: ChatSessionData): void
+  /**
+   * Delete a single Chat Session identity record (closing a chat tab for good).
+   * Chat Sessions are leaf entities with no Group-invariant cascade, so unlike
+   * the removal verbs this is a bare delete behind the seam. The caller clears
+   * the client chat-store mirror.
+   */
+  removeChatSession(id: string): void
+  /**
    * Create a blank Iframe Layer (bound to no agent) in a fresh single-member
    * Group anchored at `anchor` (canvas-space top-left). `size` is clamped up to
    * the minimum frame dimensions. Returns the new layer's id.
@@ -152,6 +185,51 @@ export type CanvasOps = {
     anchor: { x: number; y: number },
     label?: string,
   ): { layerId: string; groupId: string }
+  /**
+   * Navigate the Iframe Layer with `layerId` to `route`: write its new route
+   * and, when the route changed, register it on the bound agent's
+   * `discoveredRoutes` (deduped). When `cloneTrail` is set (the canvas's Create
+   * Flow mode), first drop a clone of the frame — carrying its *previous* route
+   * — into the same Group immediately to the frame's left, so the navigated
+   * frame stays put while a trail grows leftward. Returns `{ viewportShift }`:
+   * the pixels the caller should pan the viewport right to keep the navigated
+   * frame visually anchored (0 when no clone was made). All Y.Doc writes — the
+   * clone create, the member splice, the route update, the discoveredRoutes
+   * merge — commit atomically behind the seam; the viewport pan stays in the
+   * caller.
+   */
+  navigateRoute(
+    layerId: string,
+    route: string,
+    options: { cloneTrail: boolean },
+  ): { viewportShift: number }
+  /**
+   * Append a new Iframe Layer to an existing Group, created from the resolved
+   * `frame` spec (the caller mirrors size/agent/route off the group's last
+   * sibling) and spliced onto the end of the Group's current member row. The
+   * layer write plus the member-list update commit atomically — the two-
+   * collection write is why this earns a verb over `patch`. Returns the new
+   * layer's id, or `undefined` when the Group is missing.
+   */
+  addFrameToGroup(
+    groupId: string,
+    frame: {
+      width: number
+      height: number
+      label: string
+      sandboxId?: string
+      route?: string
+    },
+  ): string | undefined
+  /**
+   * Rename a Document (Markdown Layer) from outside the editor (sidebar, agent
+   * tool): write `title` into the body fragment's first heading — the source
+   * of truth every peer's editor renders — and mirror it onto the record's
+   * cached `title`, atomically. No-op when the Document is missing (never
+   * seeds a heading for a Document that was never created). The fragment-key
+   * dual-write is why this earns a verb over `patch`.
+   */
+  renameDocument(docId: string, title: string): void
   /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
@@ -256,6 +334,30 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.update(group.id, { members: remaining })
       pruneIfEmpty(group.id)
     }
+  }
+
+  function saveViewport(viewport: ViewportData): void {
+    batch(() => {
+      collections.savedViewport.set(viewport)
+    })
+  }
+
+  function createWorkspace(id: string, data: WorkspaceData): void {
+    batch(() => {
+      collections.workspaces.set(id, data)
+    })
+  }
+
+  function addChatSession(id: string, data: ChatSessionData): void {
+    batch(() => {
+      collections.chatSessions.set(id, data)
+    })
+  }
+
+  function removeChatSession(id: string): void {
+    batch(() => {
+      collections.chatSessions.delete(id)
+    })
   }
 
   // --- Create verbs ---
@@ -453,6 +555,112 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return result!
   }
 
+  function navigateRoute(
+    layerId: string,
+    route: string,
+    options: { cloneTrail: boolean },
+  ): { viewportShift: number } {
+    let viewportShift = 0
+    batch(() => {
+      const layer = collections.iframeLayers.get(layerId)
+      const previousRoute = layer?.route
+
+      // Create Flow: every meaningful navigation leaves a clone of the frame's
+      // previous route in the same Group, just to the left of the navigated
+      // frame. The Group origin stays put; the caller pans the viewport right
+      // by the clone's width so the trail appears to grow leftward.
+      if (
+        options.cloneTrail &&
+        layer &&
+        previousRoute !== undefined &&
+        previousRoute !== route
+      ) {
+        const group = collections.iframeLayerGroups
+          .toArray()
+          .find((g) => getGroupMembers(g).some((m) => m.id === layerId))
+        if (group) {
+          const cloneId = nanoid()
+          collections.iframeLayers.set(cloneId, {
+            id: cloneId,
+            ...(layer.sandboxId ? { sandboxId: layer.sandboxId } : {}),
+            width: layer.width,
+            height: layer.height,
+            label: layer.label,
+            iframeState: {},
+            route: previousRoute,
+            ...(layer.knobs ? { knobs: layer.knobs } : {}),
+            ...(layer.knobValues ? { knobValues: layer.knobValues } : {}),
+          })
+          const members = getGroupMembers(group)
+          const idx = members.findIndex((m) => m.id === layerId)
+          const nextMembers: GroupMember[] = [
+            ...members.slice(0, idx),
+            { kind: "iframe-layer", id: cloneId },
+            ...members.slice(idx),
+          ]
+          collections.iframeLayerGroups.update(group.id, { members: nextMembers })
+          viewportShift = layer.width + (group.gap ?? IFRAME_LAYER_GROUP_GAP)
+        }
+      }
+
+      collections.iframeLayers.update(layerId, { route })
+
+      const sandboxId = layer?.sandboxId
+      if (!sandboxId) return
+      const agent = collections.agents.get(sandboxId)
+      if (!agent) return
+      const existing = agent.discoveredRoutes ?? []
+      if (existing.some((r) => r.route === route)) return
+      collections.agents.update(sandboxId, {
+        discoveredRoutes: [...existing, { route, label: routeToLabel(route) }],
+      })
+    })
+    return { viewportShift }
+  }
+
+  function addFrameToGroup(
+    groupId: string,
+    frame: {
+      width: number
+      height: number
+      label: string
+      sandboxId?: string
+      route?: string
+    },
+  ): string | undefined {
+    const layerId = nanoid()
+    let created = false
+    batch(() => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group) return
+      collections.iframeLayers.set(layerId, {
+        id: layerId,
+        ...(frame.sandboxId ? { sandboxId: frame.sandboxId } : {}),
+        width: frame.width,
+        height: frame.height,
+        label: frame.label,
+        iframeState: {},
+        ...(frame.route ? { route: frame.route } : {}),
+      })
+      collections.iframeLayerGroups.update(groupId, {
+        members: [...getGroupMembers(group), { kind: "iframe-layer", id: layerId }],
+      })
+      created = true
+    })
+    return created ? layerId : undefined
+  }
+
+  function renameDocument(docId: string, title: string): void {
+    batch(() => {
+      if (!collections.markdownLayers.has(docId)) return
+      // The fragment heading is what every peer's editor renders; the record
+      // `title` is the cache the sidebar/agent tools read. Both move together
+      // so a rename can never leave the two views disagreeing.
+      setFragmentTitle(documentFragment(doc, docId), title)
+      collections.markdownLayers.update(docId, { title })
+    })
+  }
+
   function removeLayers(ids: string[]): { removedChatIds: string[] } {
     if (ids.length === 0) return { removedChatIds: [] }
     const idSet = new Set(ids)
@@ -628,12 +836,19 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   return {
     batch,
     patch,
+    saveViewport,
+    createWorkspace,
+    addChatSession,
+    removeChatSession,
     createBlankFrame,
     createFrameForAgent,
     createFramesForRoutes,
     createDocument,
     createAgent,
     seedFrameForAgent,
+    navigateRoute,
+    addFrameToGroup,
+    renameDocument,
     removeLayers,
     removeDocuments,
     removeAgent,

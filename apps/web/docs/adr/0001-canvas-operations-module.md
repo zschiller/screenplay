@@ -66,7 +66,13 @@ incrementally in #158–#160.
 - The seam is proven end-to-end before the meaning-bearing verbs exist: a
   handful of trivial single-field writes in `canvas.tsx` already go through
   `ops.patch`.
-- Until #158–#160 migrate the remaining sites, `canvas.tsx` still holds direct
-  `collections` writes and raw `collections.transact(` calls; the uniform-origin
-  guarantee is only complete once that sweep (#160) lands.
+- With the sweep (#160) landed, the seam is closed: `canvas.tsx` holds **no**
+  `collections.transact(` / `doc.transact(` calls and **no** direct
+  `collections.*.set/update/delete`. Transaction scoping is exclusively
+  `ops.batch`; trivial single-field writes go through `ops.patch`; and the
+  remaining multi-collection / fragment-dual-write sites surfaced their own
+  named verbs (`renameDocument`, `addFrameToGroup`, `navigateRoute`, plus the
+  thin identity writers `saveViewport`, `createWorkspace`, `addChatSession`,
+  `removeChatSession` for single-record creates/deletes `patch` can't express).
+  The uniform-origin guarantee now holds for every committed canvas mutation.
 - A `Y.UndoManager` scoped to `CANVAS_OPS_ORIGIN` is unblocked but out of scope.
