@@ -24,6 +24,16 @@ export function makeHarness(): {
 } {
   const doc = new Y.Doc()
   const collections = getRoomCollections(doc)
+  // Mirror production: React always subscribes to every collection, which is
+  // what attaches each `YjsCollection`'s `observeDeep` listener and so
+  // invalidates its `toArray()`/`toMap()` snapshot cache after each
+  // transaction. Without a subscriber, a verb's own internal `toArray()` read
+  // would poison the cache with a pre-mutation snapshot and mask later writes.
+  for (const value of Object.values(collections)) {
+    if (value && typeof (value as { observe?: unknown }).observe === "function") {
+      ;(value as { observe(cb: () => void): () => void }).observe(() => {})
+    }
+  }
   const ops = createCanvasOps(collections)
   return { doc, collections, ops }
 }

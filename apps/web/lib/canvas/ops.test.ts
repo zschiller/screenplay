@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
+import { MIN_IFRAME_LAYER_HEIGHT, MIN_IFRAME_LAYER_WIDTH } from "@/lib/constants"
+import { routeToLabel } from "@/lib/route-utils"
+import { documentFragment, getFragmentTitle } from "@/lib/yjs/fragment-text"
 import {
   baseAgent,
   baseChat,
@@ -385,6 +388,285 @@ describe("splitToNewGroup", () => {
     const groupId = ops.splitToNewGroup(["layer-1"], { x: 0, y: 0 })
 
     expect(collections.iframeLayerGroups.get(groupId)?.name).toBe("Group 4")
+  })
+})
+
+describe("createBlankFrame", () => {
+  it("places a fresh Iframe Layer in its own Group at the anchor", () => {
+    const { ops, collections } = makeHarness()
+
+    const layerId = ops.createBlankFrame(
+      { x: 120, y: 80 },
+      { width: 500, height: 400 },
+    )
+
+    const layer = collections.iframeLayers.get(layerId)
+    expect(layer?.width).toBe(500)
+    expect(layer?.height).toBe(400)
+    // A blank frame is bound to no agent.
+    expect(layer?.sandboxId).toBeUndefined()
+
+    const group = collections.iframeLayerGroups.toArray()[0]
+    expect(group?.x).toBe(120)
+    expect(group?.y).toBe(80)
+    expect(group?.members).toEqual([{ kind: "iframe-layer", id: layerId }])
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("clamps a below-minimum size up to the floor", () => {
+    const { ops, collections } = makeHarness()
+
+    const layerId = ops.createBlankFrame({ x: 0, y: 0 }, { width: 10, height: 10 })
+
+    const layer = collections.iframeLayers.get(layerId)
+    expect(layer?.width).toBe(MIN_IFRAME_LAYER_WIDTH)
+    expect(layer?.height).toBe(MIN_IFRAME_LAYER_HEIGHT)
+  })
+})
+
+describe("createFrameForAgent", () => {
+  it("creates an agent-bound Iframe Layer in a fresh Group, sized from the workspace preset", () => {
+    const { ops, collections } = makeHarness()
+    collections.workspaces.set(
+      "ws-1",
+      baseWorkspace("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
+    )
+    collections.agents.set("agent-1", baseAgent("agent-1", { workspaceId: "ws-1" }))
+
+    const { layerId, groupId } = ops.createFrameForAgent(
+      "agent-1",
+      { x: 0, y: 0 },
+      "Home",
+    )
+
+    const layer = collections.iframeLayers.get(layerId)
+    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.label).toBe("Home")
+    // iphone-se preset is 375 × 667.
+    expect(layer?.width).toBe(375)
+    expect(layer?.height).toBe(667)
+    expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
+      { kind: "iframe-layer", id: layerId },
+    ])
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("places the new Group to the right of an existing Group, reading the live snapshot", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+    // An existing group spanning [0, 400] on x; the new frame must clear it.
+    collections.iframeLayers.set("layer-0", baseLayer("layer-0", { width: 400 }))
+    seedGroup(collections, "existing", [{ kind: "iframe-layer", id: "layer-0" }])
+
+    const { groupId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
+
+    // placeNewIframeLayerGroup anchors at maxRight (0 + 400) + gap (50).
+    expect(collections.iframeLayerGroups.get(groupId)?.x).toBe(450)
+  })
+})
+
+describe("createFramesForRoutes", () => {
+  it("creates one agent-bound Iframe Layer per route in a single Group, returning the first", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+
+    const result = ops.createFramesForRoutes(
+      "agent-1",
+      [
+        { route: "/", label: "Home" },
+        { route: "/about", label: "" },
+      ],
+      { x: 0, y: 0 },
+    )
+
+    expect(result).toBeDefined()
+    const { groupId, firstLayerId } = result!
+    const group = collections.iframeLayerGroups.get(groupId)
+    expect(group?.members).toHaveLength(2)
+    expect(group?.members[0]).toEqual({ kind: "iframe-layer", id: firstLayerId })
+
+    const first = collections.iframeLayers.get(firstLayerId)
+    expect(first?.sandboxId).toBe("agent-1")
+    expect(first?.route).toBe("/")
+    expect(first?.label).toBe("Home")
+    // A blank label falls back to a label derived from the route.
+    const secondId = group!.members[1]!.id
+    expect(collections.iframeLayers.get(secondId)?.label).toBe(routeToLabel("/about"))
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("is a no-op for an empty route list", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+
+    expect(ops.createFramesForRoutes("agent-1", [], { x: 0, y: 0 })).toBeUndefined()
+    expect(collections.iframeLayers.toArray()).toEqual([])
+    expect(collections.iframeLayerGroups.toArray()).toEqual([])
+  })
+})
+
+describe("createDocument", () => {
+  it("seeds the body fragment at the right key and returns a coherent { docId, groupId, chatId }", () => {
+    const { ops, collections, doc } = makeHarness()
+
+    const { docId, groupId, chatId } = ops.createDocument(
+      { x: 40, y: 60 },
+      { width: 320, height: 240 },
+    )
+
+    // The Document record lands in a fresh Group anchored at the drop point.
+    const document = collections.markdownLayers.get(docId)
+    expect(document?.width).toBe(320)
+    expect(document?.height).toBe(240)
+    const group = collections.iframeLayerGroups.get(groupId)
+    expect(group?.x).toBe(40)
+    expect(group?.y).toBe(60)
+    expect(group?.members).toEqual([{ kind: "markdown-layer", id: docId }])
+
+    // The body fragment is seeded with the schema-required title heading, at
+    // the key the single fragment-key owner resolves for this id.
+    const fragment = documentFragment(doc, docId)
+    expect(fragment.length).toBe(1)
+    expect(getFragmentTitle(fragment)).toBe("")
+
+    // A Chat Session targeting the Document is pre-created and returned.
+    expect(collections.chatSessions.get(chatId)?.markdownLayerId).toBe(docId)
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("clamps a below-minimum size up to the document floor", () => {
+    const { ops, collections } = makeHarness()
+
+    const { docId } = ops.createDocument({ x: 0, y: 0 }, { width: 10, height: 10 })
+
+    const document = collections.markdownLayers.get(docId)
+    expect(document?.width).toBe(200)
+    expect(document?.height).toBe(120)
+  })
+})
+
+describe("createAgent", () => {
+  const spec = {
+    workspaceId: "ws-1",
+    sandboxName: "sp-1",
+    gitUrl: "https://example.com/repo.git",
+    branch: "main",
+    previewDomain: "",
+    port: 3000,
+    status: "creating" as const,
+    createdAt: 0,
+  }
+
+  it("writes the agent with the deferred-seed flag set, and no chat when none is requested", () => {
+    const { ops, collections } = makeHarness()
+
+    const { agentId, chatId } = ops.createAgent({ agent: spec })
+
+    const agent = collections.agents.get(agentId)
+    expect(agent?.workspaceId).toBe("ws-1")
+    expect(agent?.branch).toBe("main")
+    // createAgent owns the deferred-seed flag (parent decision 7).
+    expect(agent?.pendingIframeLayerSeed).toBe(true)
+    expect(chatId).toBeUndefined()
+    expect(collections.chatSessions.toArray()).toEqual([])
+  })
+
+  it("pre-creates a Chat Session targeting the agent when a chat spec is given", () => {
+    const { ops, collections } = makeHarness()
+
+    const { agentId, chatId } = ops.createAgent({
+      agent: spec,
+      chat: { label: "Build login", model: "claude-x" },
+    })
+
+    expect(chatId).toBeDefined()
+    const chat = collections.chatSessions.get(chatId!)
+    expect(chat?.agentId).toBe(agentId)
+    expect(chat?.label).toBe("Build login")
+    expect(chat?.model).toBe("claude-x")
+  })
+})
+
+describe("seedFrameForAgent", () => {
+  it("creates the frame and clears pendingIframeLayerSeed in one transaction", () => {
+    const { ops, collections, doc } = makeHarness()
+    collections.agents.set(
+      "agent-1",
+      baseAgent("agent-1", { pendingIframeLayerSeed: true }),
+    )
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    const { layerId, groupId } = ops.seedFrameForAgent("agent-1", { x: 0, y: 0 })
+
+    expect(collections.iframeLayers.get(layerId)?.sandboxId).toBe("agent-1")
+    expect(collections.iframeLayerGroups.has(groupId)).toBe(true)
+    // The flag clears atomically with the layer write — exactly one committed
+    // transaction under the canvas-ops origin, so a later frame delete can't
+    // race a re-seed.
+    expect(collections.agents.get("agent-1")?.pendingIframeLayerSeed).toBe(false)
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+})
+
+describe("createFrameForAgent", () => {
+  it("binds a fresh frame to the agent in its own Group with a default label", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+
+    const { layerId, groupId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
+
+    const layer = collections.iframeLayers.get(layerId)
+    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.label).toBe("Frame 1")
+    expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
+      { kind: "iframe-layer", id: layerId },
+    ])
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("sizes the frame from the agent's workspace size preset", () => {
+    const { ops, collections } = makeHarness()
+    collections.workspaces.set(
+      "ws-1",
+      baseWorkspace("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
+    )
+    collections.agents.set("agent-1", baseAgent("agent-1", { workspaceId: "ws-1" }))
+
+    const { layerId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
+
+    const layer = collections.iframeLayers.get(layerId)
+    expect(layer?.width).toBe(375)
+    expect(layer?.height).toBe(667)
+  })
+
+  it("places the new Group to the right of an existing one (placement-race guard)", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.iframeLayers.set("existing", baseLayer("existing", { width: 400 }))
+    collections.iframeLayerGroups.set("g0", {
+      id: "g0",
+      name: "Group 1",
+      x: 0,
+      y: 0,
+      members: [{ kind: "iframe-layer", id: "existing" }],
+    })
+
+    const { groupId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
+
+    // Read inside the verb's own transaction, so the new Group lands beside the
+    // existing one rather than overlapping it.
+    expect(collections.iframeLayerGroups.get(groupId)!.x).toBeGreaterThan(400)
+  })
+
+  it("honors an explicit label", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+
+    const { layerId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 }, "Home")
+
+    expect(collections.iframeLayers.get(layerId)?.label).toBe("Home")
   })
 })
 

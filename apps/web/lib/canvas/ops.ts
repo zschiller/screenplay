@@ -1,5 +1,16 @@
 import { nanoid } from "nanoid"
-import { getGroupMembers, nextGroupNumber } from "@/lib/iframe-layer-layout"
+import {
+  MIN_IFRAME_LAYER_HEIGHT,
+  MIN_IFRAME_LAYER_WIDTH,
+} from "@/lib/constants"
+import {
+  getGroupMembers,
+  nextGroupNumber,
+  placeNewIframeLayerGroup,
+} from "@/lib/iframe-layer-layout"
+import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
+import { routeToLabel } from "@/lib/route-utils"
+import { documentFragment, seedDocumentFragment } from "@/lib/yjs/fragment-text"
 import type {
   AgentData,
   ChatSessionData,
@@ -49,6 +60,18 @@ type RecordByKey = {
 }
 type CollectionKey = keyof RecordByKey
 
+/**
+ * Input to {@link CanvasOps.createAgent}. The verb allocates the agent id and
+ * owns the `pendingIframeLayerSeed` flag, so the caller supplies neither. A
+ * `chat` sub-spec is optional: when present the verb pre-creates a Chat Session
+ * targeting the new agent (the parallel-spawn flow uses this); when absent the
+ * server's chat-ensure path creates the chat lazily, as before.
+ */
+export type CreateAgentSpec = {
+  agent: Omit<AgentData, "id" | "pendingIframeLayerSeed">
+  chat?: { label: string; model?: string }
+}
+
 export type CanvasOps = {
   /** The sole way to open a transaction; wraps the body in the canvas-ops origin. */
   batch(fn: () => void): void
@@ -64,6 +87,71 @@ export type CanvasOps = {
     id: string,
     fields: Partial<RecordByKey[K]>,
   ): void
+  /**
+   * Create a blank Iframe Layer (bound to no agent) in a fresh single-member
+   * Group anchored at `anchor` (canvas-space top-left). `size` is clamped up to
+   * the minimum frame dimensions. Returns the new layer's id.
+   */
+  createBlankFrame(
+    anchor: { x: number; y: number },
+    size: { width: number; height: number },
+  ): string
+  /**
+   * Create an Iframe Layer bound to `agentId` in a fresh single-member Group,
+   * sized from the agent's workspace preset. `anchor` is the viewport center
+   * (canvas-space); the verb reads the live Group snapshot inside its
+   * transaction and places the Group beside the existing ones (the
+   * placement-race guard). Returns the new layer and Group ids.
+   */
+  createFrameForAgent(
+    agentId: string,
+    anchor: { x: number; y: number },
+    label?: string,
+  ): { layerId: string; groupId: string }
+  /**
+   * Create one agent-bound Iframe Layer per discovered route, gathered into a
+   * single fresh "Routes" Group placed beside the existing ones (same
+   * placement-race guard as {@link createFrameForAgent}). Each frame carries
+   * its route and a label (the route's own, falling back to one derived from
+   * the path). Returns the new Group id and its first layer's id, or
+   * `undefined` for an empty route list.
+   */
+  createFramesForRoutes(
+    agentId: string,
+    routes: { route: string; label: string }[],
+    anchor: { x: number; y: number },
+  ): { groupId: string; firstLayerId: string } | undefined
+  /**
+   * Create a Document (Markdown Layer) in a fresh single-member Group anchored
+   * at `anchor` (canvas-space top-left), `size` clamped to the document floor.
+   * Seeds the body fragment's title heading via `documentFragment` (the single
+   * fragment-key owner) and pre-creates a Chat Session targeting the Document.
+   * Returns the new document, Group, and chat ids.
+   */
+  createDocument(
+    anchor: { x: number; y: number },
+    size: { width: number; height: number },
+  ): { docId: string; groupId: string; chatId: string }
+  /**
+   * Create an agent record from `spec`, allocating its id and setting the
+   * deferred-seed flag `pendingIframeLayerSeed`. When `spec.chat` is given,
+   * also pre-creates a Chat Session targeting the agent and returns its
+   * `chatId`; otherwise `chatId` is `undefined`. The caller owns all
+   * surrounding orchestration (branch-name generation, the provisioning fetch,
+   * pending-agent bookkeeping).
+   */
+  createAgent(spec: CreateAgentSpec): { agentId: string; chatId?: string }
+  /**
+   * Seed the deferred frame for `agentId` once its sandbox is provisioned:
+   * create the agent-bound frame (like {@link createFrameForAgent}) and clear
+   * `pendingIframeLayerSeed` in the same transaction, so the seed can never
+   * race a later frame delete into re-seeding. `anchor` is the viewport center.
+   */
+  seedFrameForAgent(
+    agentId: string,
+    anchor: { x: number; y: number },
+    label?: string,
+  ): { layerId: string; groupId: string }
   /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
@@ -168,6 +256,201 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.update(group.id, { members: remaining })
       pruneIfEmpty(group.id)
     }
+  }
+
+  // --- Create verbs ---
+
+  // Default frame size for a new Iframe Layer bound to `agentId`: the size
+  // preset configured on the agent's workspace, falling back to the default
+  // preset. React-free and Y.Doc-only, so it lives behind the seam.
+  function defaultSizeForAgent(agentId: string): { width: number; height: number } {
+    const agent = collections.agents.get(agentId)
+    const workspace = agent ? collections.workspaces.get(agent.workspaceId) : undefined
+    const preset = getIframeLayerSizePreset(workspace?.defaultIframeLayerSizeId)
+    return { width: preset.width, height: preset.height }
+  }
+
+  function createBlankFrame(
+    anchor: { x: number; y: number },
+    size: { width: number; height: number },
+  ): string {
+    const layerId = nanoid()
+    const groupId = nanoid()
+    batch(() => {
+      collections.iframeLayers.set(layerId, {
+        id: layerId,
+        width: Math.max(MIN_IFRAME_LAYER_WIDTH, size.width),
+        height: Math.max(MIN_IFRAME_LAYER_HEIGHT, size.height),
+        label: "Frame",
+        iframeState: {},
+      })
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x: anchor.x,
+        y: anchor.y,
+        members: [{ kind: "iframe-layer", id: layerId }],
+      })
+    })
+    return layerId
+  }
+
+  function createFrameForAgent(
+    agentId: string,
+    anchor: { x: number; y: number },
+    label = "Frame 1",
+  ): { layerId: string; groupId: string } {
+    const layerId = nanoid()
+    const groupId = nanoid()
+    batch(() => {
+      const { width, height } = defaultSizeForAgent(agentId)
+      // Read the Group snapshot inside the transaction so concurrently-created
+      // frames don't race on a stale doc and overlap (the placement-race guard).
+      const { x, y } = placeNewIframeLayerGroup(
+        collections.iframeLayerGroups.toArray(),
+        collections.iframeLayers.toArray(),
+        anchor,
+        width,
+        height,
+      )
+      collections.iframeLayers.set(layerId, {
+        id: layerId,
+        sandboxId: agentId,
+        width,
+        height,
+        label,
+        iframeState: {},
+      })
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x,
+        y,
+        members: [{ kind: "iframe-layer", id: layerId }],
+      })
+    })
+    return { layerId, groupId }
+  }
+
+  function createFramesForRoutes(
+    agentId: string,
+    routes: { route: string; label: string }[],
+    anchor: { x: number; y: number },
+  ): { groupId: string; firstLayerId: string } | undefined {
+    if (routes.length === 0) return undefined
+    const layerIds = routes.map(() => nanoid())
+    const groupId = nanoid()
+    batch(() => {
+      const { width, height } = defaultSizeForAgent(agentId)
+      // Placement-race guard: read the live Group snapshot inside the transaction.
+      const { x, y } = placeNewIframeLayerGroup(
+        collections.iframeLayerGroups.toArray(),
+        collections.iframeLayers.toArray(),
+        anchor,
+        width,
+        height,
+      )
+      routes.forEach((r, i) => {
+        collections.iframeLayers.set(layerIds[i]!, {
+          id: layerIds[i]!,
+          sandboxId: agentId,
+          width,
+          height,
+          label: r.label || routeToLabel(r.route),
+          iframeState: {},
+          route: r.route,
+        })
+      })
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Routes ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x,
+        y,
+        members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
+      })
+    })
+    return { groupId, firstLayerId: layerIds[0]! }
+  }
+
+  function createDocument(
+    anchor: { x: number; y: number },
+    size: { width: number; height: number },
+  ): { docId: string; groupId: string; chatId: string } {
+    const docId = nanoid()
+    const groupId = nanoid()
+    const chatId = nanoid()
+    batch(() => {
+      collections.markdownLayers.set(docId, {
+        id: docId,
+        // Documents have their own minimum dimensions, distinct from frames.
+        width: Math.max(200, size.width),
+        height: Math.max(120, size.height),
+        title: "",
+      })
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x: anchor.x,
+        y: anchor.y,
+        members: [{ kind: "markdown-layer", id: docId }],
+      })
+      // Seed the body fragment with the schema-required title heading so every
+      // peer sees the same shape from creation (rather than the first client to
+      // mount the editor filling an empty fragment locally). The fragment key
+      // has one owner — `documentFragment` (slice 1).
+      seedDocumentFragment(documentFragment(doc, docId))
+      // Pre-create an empty Chat Session targeting the Document so its chat tab
+      // is ready the first time the panel opens.
+      collections.chatSessions.set(chatId, {
+        id: chatId,
+        markdownLayerId: docId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      })
+    })
+    return { docId, groupId, chatId }
+  }
+
+  function createAgent(spec: CreateAgentSpec): { agentId: string; chatId?: string } {
+    const agentId = nanoid()
+    let chatId: string | undefined
+    batch(() => {
+      // The verb owns the deferred-seed flag: the reactive "previewDomain
+      // arrived → seed" trigger in canvas.tsx clears it via `seedFrameForAgent`
+      // once and never re-seeds (parent decision 7).
+      collections.agents.set(agentId, {
+        ...spec.agent,
+        id: agentId,
+        pendingIframeLayerSeed: true,
+      })
+      if (spec.chat) {
+        chatId = nanoid()
+        collections.chatSessions.set(chatId, {
+          id: chatId,
+          agentId,
+          label: spec.chat.label,
+          createdAt: Date.now(),
+          ...(spec.chat.model ? { model: spec.chat.model } : {}),
+        })
+      }
+    })
+    return { agentId, chatId }
+  }
+
+  function seedFrameForAgent(
+    agentId: string,
+    anchor: { x: number; y: number },
+    label = "Frame 1",
+  ): { layerId: string; groupId: string } {
+    let result: { layerId: string; groupId: string }
+    batch(() => {
+      // Nested `createFrameForAgent` reuses this transaction (Yjs nests
+      // transactions), so the frame write and the flag clear commit as one
+      // atomic step — deleting the frame later can never re-trigger the seed.
+      result = createFrameForAgent(agentId, anchor, label)
+      collections.agents.update(agentId, { pendingIframeLayerSeed: false })
+    })
+    return result!
   }
 
   function removeLayers(ids: string[]): { removedChatIds: string[] } {
@@ -345,6 +628,12 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   return {
     batch,
     patch,
+    createBlankFrame,
+    createFrameForAgent,
+    createFramesForRoutes,
+    createDocument,
+    createAgent,
+    seedFrameForAgent,
     removeLayers,
     removeDocuments,
     removeAgent,
