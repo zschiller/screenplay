@@ -10,8 +10,8 @@ import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "./tools"
 import { toolsetFor } from "./toolset"
-import { appendMessages, savePendingToolCall } from "./persistence"
-import { isRunActive, transition, type RunState } from "./run-state"
+import { appendMessages } from "./persistence"
+import { isRunActive, pauseForPlan, transition, type RunState } from "./run-state"
 import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
 
 const MAX_STEPS = 20
@@ -23,7 +23,10 @@ const ABORT_POLL_INTERVAL_MS = 250
  * Narrowed from {@link RunState} so callers — and tests — can inject a machine
  * over an in-memory store instead of the live database.
  */
-export type EngineRunState = Pick<RunState, "transition" | "isRunActive">
+export type EngineRunState = Pick<
+  RunState,
+  "transition" | "isRunActive" | "pauseForPlan"
+>
 
 /**
  * The streamText surface the loop depends on: a function that takes the same
@@ -34,7 +37,7 @@ export type StreamDriver = (
   config: Parameters<typeof streamText>[0],
 ) => { consumeStream: () => Promise<void> }
 
-const defaultRunState: EngineRunState = { transition, isRunActive }
+const defaultRunState: EngineRunState = { transition, isRunActive, pauseForPlan }
 
 export interface RunAgentLoopOptions {
   chatId: string
@@ -155,14 +158,16 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
         // contains a submit_plan tool call.
         const planCall = findSubmitPlanCall(response.messages)
         if (planCall) {
-          const planId = await savePendingToolCall({
-            runId,
-            chatId,
+          // Pause the run and record the pending plan atomically — the run
+          // status change and the pending-row insert land together or not at
+          // all, so a crash can't desync the two tables.
+          await runState.pauseForPlan(runId, {
             toolCallId: planCall.toolCallId,
+            chatId,
             toolName: "submit_plan",
             input: planCall.input as Record<string, unknown>,
           })
-          await runState.transition(runId, "paused_for_plan")
+          const planId = planCall.toolCallId
           await broadcastEvent(roomId, chatId, {
             type: "plan_submitted",
             planId,

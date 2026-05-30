@@ -20,7 +20,16 @@ import {
  */
 function fakeRepo() {
   type Row = { chatId: string; status: RunStatus; endedAt: Date | null }
+  type PendingRow = {
+    runId: string
+    chatId: string
+    toolName: string
+    input: Record<string, unknown>
+    status: "pending" | "approved" | "rejected"
+    feedback: string | null
+  }
   const runs = new Map<string, Row>()
+  const pendings = new Map<string, PendingRow>()
   let seq = 0
 
   const repo: RunStateRepo = {
@@ -49,6 +58,40 @@ function fakeRepo() {
       runs.set(id, { chatId, status: "running", endedAt: null })
       return id
     },
+    async pauseForPlan(runId, planCall) {
+      // A real INSERT would reject a duplicate primary key (the tool-call id);
+      // throwing *before* either write mutates anything models the batch
+      // rolling back as a unit — neither the run status nor the pending row
+      // lands.
+      if (pendings.has(planCall.toolCallId)) {
+        throw new Error(`pending tool call ${planCall.toolCallId} already exists`)
+      }
+      const run = runs.get(runId)
+      if (!run) throw new Error(`unknown run ${runId}`)
+      run.status = "paused_for_plan"
+      pendings.set(planCall.toolCallId, {
+        runId,
+        chatId: planCall.chatId,
+        toolName: planCall.toolName,
+        input: planCall.input,
+        status: "pending",
+        feedback: null,
+      })
+    },
+    async resolvePlan(planId, resolution) {
+      const pending = pendings.get(planId)
+      if (!pending || pending.status !== "pending") return null
+      const run = runs.get(pending.runId)
+      // A vanished run (cascade delete, FK violation) aborts the whole batch;
+      // throwing here before any write models that rollback — the pending row
+      // stays `pending`.
+      if (!run) throw new Error(`run ${pending.runId} not found`)
+      pending.status = resolution.approved ? "approved" : "rejected"
+      pending.feedback = resolution.feedback ?? null
+      run.status = "superseded"
+      run.endedAt = new Date()
+      return { runId: pending.runId }
+    },
   }
 
   return {
@@ -63,7 +106,28 @@ function fakeRepo() {
       })
       return id
     },
+    /** Seed a pending tool-call row directly, returning its id. */
+    seedPending(
+      id: string,
+      opts: {
+        runId: string
+        chatId?: string
+        status?: "pending" | "approved" | "rejected"
+      },
+    ) {
+      pendings.set(id, {
+        runId: opts.runId,
+        chatId: opts.chatId ?? "chat_1",
+        toolName: "submit_plan",
+        input: {},
+        status: opts.status ?? "pending",
+        feedback: null,
+      })
+      return id
+    },
     row: (id: string) => runs.get(id),
+    pending: (id: string) => pendings.get(id),
+    pendingCount: () => pendings.size,
   }
 }
 
@@ -221,5 +285,155 @@ describe("isRunActive", () => {
     expect(await isRunActive(store.seed("completed"))).toBe(false)
     expect(await isRunActive(store.seed("superseded"))).toBe(false)
     expect(await isRunActive("missing")).toBe(false)
+  })
+})
+
+describe("pauseForPlan", () => {
+  it("pauses the run and records its pending plan", async () => {
+    const store = fakeRepo()
+    const id = store.seed("running")
+    const { pauseForPlan } = createRunState(store.repo)
+
+    await pauseForPlan(id, {
+      toolCallId: "call_1",
+      chatId: "chat_1",
+      toolName: "submit_plan",
+      input: { plan: "do the thing" },
+    })
+
+    expect(store.row(id)?.status).toBe("paused_for_plan")
+    expect(store.pending("call_1")?.status).toBe("pending")
+    expect(store.pending("call_1")?.runId).toBe(id)
+  })
+
+  it("rolls back both writes when the pending insert fails (tables stay consistent)", async () => {
+    const store = fakeRepo()
+    const id = store.seed("running")
+    // A pending row already owns this tool-call id; the insert inside
+    // pauseForPlan collides with it. The whole transaction must roll back —
+    // the run stays running and no second pending row appears.
+    store.seedPending("call_dup", { runId: id })
+    const { pauseForPlan } = createRunState(store.repo)
+
+    await expect(
+      pauseForPlan(id, {
+        toolCallId: "call_dup",
+        chatId: "chat_1",
+        toolName: "submit_plan",
+        input: {},
+      }),
+    ).rejects.toThrow()
+
+    expect(store.row(id)?.status).toBe("running")
+    expect(store.pendingCount()).toBe(1)
+  })
+
+  it("throws when the run does not exist", async () => {
+    const store = fakeRepo()
+    const { pauseForPlan } = createRunState(store.repo)
+
+    await expect(
+      pauseForPlan("nope", {
+        toolCallId: "call_x",
+        chatId: "chat_1",
+        toolName: "submit_plan",
+        input: {},
+      }),
+    ).rejects.toThrow(/unknown/i)
+  })
+
+  it("stands down on an already-terminal run without orphaning a pending row", async () => {
+    const store = fakeRepo()
+    // The run was superseded by a newer message while the model was still
+    // emitting its plan; pausing now would orphan a pending row.
+    const id = store.seed("superseded")
+    const { pauseForPlan } = createRunState(store.repo)
+
+    await pauseForPlan(id, {
+      toolCallId: "call_late",
+      chatId: "chat_1",
+      toolName: "submit_plan",
+      input: {},
+    })
+
+    expect(store.row(id)?.status).toBe("superseded")
+    expect(store.pendingCount()).toBe(0)
+  })
+})
+
+describe("resolvePlan", () => {
+  it("approves the plan and supersedes its run, in one step", async () => {
+    const store = fakeRepo()
+    const runId = store.seed("paused_for_plan")
+    store.seedPending("plan_1", { runId })
+    const { resolvePlan } = createRunState(store.repo)
+
+    const result = await resolvePlan("plan_1", { approved: true })
+
+    expect(result).toEqual({ runId })
+    expect(store.pending("plan_1")?.status).toBe("approved")
+    expect(store.row(runId)?.status).toBe("superseded")
+  })
+
+  it("records a rejection with its feedback and supersedes the run", async () => {
+    const store = fakeRepo()
+    const runId = store.seed("paused_for_plan")
+    store.seedPending("plan_2", { runId })
+    const { resolvePlan } = createRunState(store.repo)
+
+    await resolvePlan("plan_2", { approved: false, feedback: "try again" })
+
+    expect(store.pending("plan_2")?.status).toBe("rejected")
+    expect(store.pending("plan_2")?.feedback).toBe("try again")
+    expect(store.row(runId)?.status).toBe("superseded")
+  })
+
+  it("is a no-op returning null when the plan is already resolved", async () => {
+    const store = fakeRepo()
+    const runId = store.seed("paused_for_plan")
+    store.seedPending("plan_done", { runId, status: "approved" })
+    const { resolvePlan } = createRunState(store.repo)
+
+    expect(await resolvePlan("plan_done", { approved: false })).toBeNull()
+    // The run was not touched — a second resolution can't supersede it again.
+    expect(store.row(runId)?.status).toBe("paused_for_plan")
+  })
+
+  it("rolls back both writes when the run write fails (tables stay consistent)", async () => {
+    const store = fakeRepo()
+    // The pending row points at a run that no longer exists, so the run update
+    // inside resolvePlan fails and the whole transaction rolls back — the
+    // tool-call stays pending rather than being marked resolved on its own.
+    store.seedPending("plan_orphan", { runId: "ghost_run" })
+    const { resolvePlan } = createRunState(store.repo)
+
+    await expect(
+      resolvePlan("plan_orphan", { approved: true }),
+    ).rejects.toThrow()
+
+    expect(store.pending("plan_orphan")?.status).toBe("pending")
+  })
+})
+
+describe("approved/rejected plan vs aborted /stop", () => {
+  it("records an approved plan's prior run as superseded, not aborted", async () => {
+    const store = fakeRepo()
+    const runId = store.seed("paused_for_plan")
+    store.seedPending("plan_a", { runId })
+    const { resolvePlan } = createRunState(store.repo)
+
+    await resolvePlan("plan_a", { approved: true })
+
+    expect(store.row(runId)?.status).toBe("superseded")
+  })
+
+  it("records a user /stop as aborted", async () => {
+    const store = fakeRepo()
+    const runId = store.seed("running")
+    const { transition } = createRunState(store.repo)
+
+    await transition(runId, "aborted")
+
+    expect(store.row(runId)?.status).toBe("aborted")
   })
 })
