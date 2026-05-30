@@ -17,14 +17,14 @@ import {
 } from "@workspace/ui/components/table"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DRAFTS_FOLDER_ID } from "@/lib/organization"
-import { DeleteProjectDialog } from "@/components/delete-project-dialog"
-import { ShareProjectDialog } from "@/components/share-project-dialog"
+import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { FileActionMenu } from "./file-action-menu"
 import { InputDialog } from "./file-dialogs"
 import { useHome } from "./home-provider"
-import type { ProjectSummary } from "@/lib/projects-actions"
+import type { RoomSummary } from "@/lib/rooms-actions"
 
-function FileRow({ file }: { file: ProjectSummary }) {
+function FileRow({ file }: { file: RoomSummary }) {
   const { renameFile, removeFile, pinnedFiles, folders, fileFolder } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -91,28 +91,28 @@ function FileRow({ file }: { file: ProjectSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFile(file.id, name)}
       />
-      <DeleteProjectDialog
+      <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        projectName={file.name}
+        roomName={file.name}
         onConfirm={async () => {
           await removeFile(file.id)
           setDeleteOpen(false)
         }}
       />
       {shareOpen && (
-        <ShareProjectDialog
+        <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          projectId={file.id}
-          projectName={file.name}
+          roomId={file.id}
+          roomName={file.name}
         />
       )}
     </TableRow>
   )
 }
 
-export function FileTable({ files }: { files: ProjectSummary[] }) {
+export function FileTable({ files }: { files: RoomSummary[] }) {
   return (
     <Table>
       <TableHeader>

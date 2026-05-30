@@ -5,14 +5,14 @@ import Image from "next/image"
 import { MoreHorizontal, Pin } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { formatDistanceToNow } from "@/lib/utils"
-import { DeleteProjectDialog } from "@/components/delete-project-dialog"
-import { ShareProjectDialog } from "@/components/share-project-dialog"
+import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { FileActionMenu } from "./file-action-menu"
 import { InputDialog } from "./file-dialogs"
 import { useHome } from "./home-provider"
-import type { ProjectSummary } from "@/lib/projects-actions"
+import type { RoomSummary } from "@/lib/rooms-actions"
 
-function FileCard({ file }: { file: ProjectSummary }) {
+function FileCard({ file }: { file: RoomSummary }) {
   const { renameFile, removeFile, pinnedFiles } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -85,28 +85,28 @@ function FileCard({ file }: { file: ProjectSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFile(file.id, name)}
       />
-      <DeleteProjectDialog
+      <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        projectName={file.name}
+        roomName={file.name}
         onConfirm={async () => {
           await removeFile(file.id)
           setDeleteOpen(false)
         }}
       />
       {shareOpen && (
-        <ShareProjectDialog
+        <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          projectId={file.id}
-          projectName={file.name}
+          roomId={file.id}
+          roomName={file.name}
         />
       )}
     </div>
   )
 }
 
-export function FileGrid({ files }: { files: ProjectSummary[] }) {
+export function FileGrid({ files }: { files: RoomSummary[] }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
       {files.map((file) => (
