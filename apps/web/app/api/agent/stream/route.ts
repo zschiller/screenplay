@@ -2,9 +2,8 @@ import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
-import { buildAgentTools } from "@/lib/agent/tools"
-import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
-import type { ToolContext } from "@/lib/agent/tool-executor"
+import { toolsetFor } from "@/lib/agent/toolset"
+import type { ToolContext } from "@/lib/agent/tools"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
@@ -278,10 +277,7 @@ export async function POST(req: Request) {
         roomId,
         systemPrompt,
         model: effectiveModel,
-        tools: {
-          ...buildAgentTools(toolCtx),
-          ...buildLayerReadTools({ roomId }),
-        },
+        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
         messages: history,
       })
     } catch (e) {

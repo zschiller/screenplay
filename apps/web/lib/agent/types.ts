@@ -1,39 +1,17 @@
-export type CustomToolName =
-  | "read_file"
-  | "write_file"
-  | "edit_file"
-  | "run_command"
-  | "list_files"
-  | "submit_plan"
-  | "create_pr"
-  | "read_skill"
-  | "read_document"
-  | "replace_document_body"
-  | "append_to_document_body"
-  | "set_document_title"
+// Tool names are derived from the builders, not hand-maintained: each builder's
+// return type is its `{ name: Tool }` map, so the keys *are* the tool names.
+// Add a tool to a builder and it shows up here automatically; there's no second
+// list to drift. These are `import type` only — erased at build, so this stays
+// client-safe even though the builders are server-only.
+import type { buildSandboxTools } from "@/lib/agent/tools"
+import type { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
+import type { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
 
-export type ReadFileInput = { path: string }
-export type WriteFileInput = { path: string; content: string }
-export type EditFileInput = {
-  path: string
-  old_string: string
-  new_string: string
-}
-export type RunCommandInput = { command: string; args?: string[] }
-export type ListFilesInput = { path?: string; pattern?: string }
-export type CreatePrInput = { title?: string; body?: string }
-export type ReadSkillInput = { name: string }
+type AllTools = ReturnType<typeof buildSandboxTools> &
+  ReturnType<typeof buildMarkdownLayerTools> &
+  ReturnType<typeof buildLayerReadTools>
 
-export type CustomToolInput =
-  | ReadFileInput
-  | WriteFileInput
-  | EditFileInput
-  | RunCommandInput
-  | ListFilesInput
-  | CreatePrInput
-  | ReadSkillInput
-
-export type SubmitPlanInput = { plan: string }
+export type CustomToolName = keyof AllTools
 
 export type AgentMessage =
   | { role: "user"; content: string }
