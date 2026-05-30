@@ -235,9 +235,10 @@ export const agentMessage = pgTable(
   (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)],
 )
 
-// Tracks an in-flight ToolLoopAgent invocation. The stream route inserts a row
-// at start, the stop route flips `aborted=true`, and the loop checks it
-// between steps via prepareStep. `endedAt` is set when the loop exits.
+// Tracks a ToolLoopAgent invocation through its lifecycle. The run-state
+// machine (lib/agent/run-state.ts) owns every transition; the loop polls its
+// own status between steps via prepareStep and halts once it is no longer
+// `running`. `endedAt` is stamped when the run reaches a terminal state.
 export const agentRun = pgTable(
   "agent_run",
   {
@@ -245,16 +246,17 @@ export const agentRun = pgTable(
     chatId: text("chat_id")
       .notNull()
       .references(() => agentChat.id, { onDelete: "cascade" }),
-    // Expand phase of the run-lifecycle migration (#167): the four truthful
-    // terminal values land *alongside* the legacy `ended` so old code paths
-    // keep working until the contract slice (#170) retires `ended` and the
-    // `aborted` column. The enum is enforced only in TypeScript — `status` is
-    // a plain `text` column — so widening it generates no SQL migration.
+    // The truthful run states (#154): one enum where every terminal outcome is
+    // its own value, so illegal combos are unrepresentable. `completed` = clean
+    // finish, `failed` = threw, `aborted` = user /stop, `superseded` = replaced
+    // by a later run. The enum is enforced only in TypeScript — `status` is a
+    // plain `text` column — so narrowing it generates no SQL migration; the
+    // legacy `ended` rows are backfilled and the `aborted` boolean dropped in
+    // the contract migration (#170).
     status: text("status")
       .$type<
         | "running"
         | "paused_for_plan"
-        | "ended"
         | "completed"
         | "failed"
         | "aborted"
@@ -262,7 +264,6 @@ export const agentRun = pgTable(
       >()
       .notNull()
       .default("running"),
-    aborted: boolean("aborted").notNull().default(false),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     endedAt: timestamp("ended_at"),
   },
