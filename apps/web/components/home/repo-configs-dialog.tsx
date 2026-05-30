@@ -12,28 +12,28 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { WorkspaceConfigForm } from "@/components/home/workspace-config-form"
+import { RepoConfigForm } from "@/components/home/repo-config-form"
 import {
-  deleteWorkspaceConfig,
-  listWorkspaceConfigs,
-} from "@/lib/workspace-configs-actions"
-import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
+  deleteRepoConfig,
+  listRepoConfigs,
+} from "@/lib/repo-configs-actions"
+import type { RepoConfig } from "@/lib/repo-configs.types"
 
 type Mode =
   | { kind: "list" }
   | { kind: "new" }
-  | { kind: "edit"; config: WorkspaceConfig }
+  | { kind: "edit"; config: RepoConfig }
 
-interface WorkspaceConfigsDialogProps {
+interface RepoConfigsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function WorkspaceConfigsDialog({
+export function RepoConfigsDialog({
   open,
   onOpenChange,
-}: WorkspaceConfigsDialogProps) {
-  const [configs, setConfigs] = useState<WorkspaceConfig[]>([])
+}: RepoConfigsDialogProps) {
+  const [configs, setConfigs] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -43,7 +43,7 @@ export function WorkspaceConfigsDialog({
     setMode({ kind: "list" })
     setLoading(true)
     let cancelled = false
-    listWorkspaceConfigs()
+    listRepoConfigs()
       .then((list) => {
         if (!cancelled) setConfigs(list)
       })
@@ -58,14 +58,14 @@ export function WorkspaceConfigsDialog({
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     try {
-      const updated = await deleteWorkspaceConfig(id)
+      const updated = await deleteRepoConfig(id)
       setConfigs(updated)
     } finally {
       setDeletingId(null)
     }
   }
 
-  const grouped = new Map<string, WorkspaceConfig[]>()
+  const grouped = new Map<string, RepoConfig[]>()
   for (const c of configs) {
     const list = grouped.get(c.repoFullName) ?? []
     list.push(c)
@@ -173,7 +173,7 @@ export function WorkspaceConfigsDialog({
             </div>
           </div>
         ) : (
-          <WorkspaceConfigForm
+          <RepoConfigForm
             initial={mode.kind === "edit" ? mode.config : undefined}
             existingConfigs={configs}
             onSaved={(updated) => {
