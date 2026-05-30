@@ -120,8 +120,8 @@ export interface SandboxInstance {
 /**
  * A factory for sandbox VMs. Implementations are interchangeable as long as
  * the returned {@link SandboxInstance} objects honor the contract above — the
- * higher-level sandbox workflows in `lib/sandbox-actions.ts` are written
- * against this interface, not any specific SDK.
+ * higher-level sandbox workflows in `lib/sandbox/*` are written against this
+ * interface, not any specific SDK.
  */
 export interface SandboxProvider {
   create(opts: SandboxCreateOptions): Promise<SandboxInstance>
