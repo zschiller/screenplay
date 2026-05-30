@@ -6,6 +6,7 @@ import {
   cloneSandbox,
   installDependencies,
   installClaudeCode,
+  installRipgrep,
   startDevServer,
 } from "@/lib/sandbox/provision"
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
@@ -114,14 +115,15 @@ async function runNewOrFromBranchPipeline(
   }
   const clonedSandboxName = cloneResult.value.sandboxName
 
-  // Step 3: Install dependencies + Claude Code in parallel.
-  // Claude Code is best-effort — its result is intentionally ignored here so a
-  // failed CLI install doesn't fail the pipeline (the action still reports the
-  // failure truthfully; this caller chooses to swallow it).
+  // Step 3: Install dependencies + Claude Code + ripgrep in parallel.
+  // Claude Code and ripgrep are best-effort — their results are intentionally
+  // ignored here so a failed CLI/tool install doesn't fail the pipeline (each
+  // action still reports failure truthfully; this caller chooses to swallow it).
   await updateAgent(roomId, agentId, { statusMessage: "Installing dependencies…" })
   const [installResult] = await Promise.all([
     installDependencies(clonedSandboxName, workspace.setupScript),
     installClaudeCode(clonedSandboxName),
+    installRipgrep(clonedSandboxName),
   ])
   if (!installResult.success) {
     await markError(roomId, agentId, installResult.error)
