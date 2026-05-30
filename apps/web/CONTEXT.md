@@ -8,6 +8,17 @@ use the same words.
 
 ## Language
 
+**Workspace**:
+A GitHub repository configured into a room — its repo, default branch, clone
+URL, and run scripts. Holds one or more Agents. Lives in the room's Y.Doc.
+_Avoid_: repo (the UI word for a Workspace's underlying repository), project.
+
+**Agent**:
+A single working branch inside a Workspace: its sandbox, branch name, and the
+Engine that drives it. Each Agent maps to exactly one git branch and is
+rendered in the sidebar by that branch's name.
+_Avoid_: branch (the UI word for an Agent), sandbox, run.
+
 **Canvas**:
 The shared, collaboratively-edited spatial surface of a room. Its committed
 state lives in the room's Y.Doc.
