@@ -101,7 +101,7 @@ export default async function RenderPage({
   if (!room) notFound()
 
   const { iframeLayers, markdownLayers } = await readRoomDoc(roomId, (c) => {
-    const agents = c.agents.toMap()
+    const branches = c.branches.toMap()
     const allIframeLayers = c.iframeLayers.toArray()
     const allDocuments = c.markdownLayers.toArray()
     const allGroups = c.iframeLayerGroups.toArray()
@@ -109,8 +109,8 @@ export default async function RenderPage({
     const arts: RenderIframeLayer[] = allIframeLayers.flatMap((a) => {
       const layout = layouts.get(a.id)
       if (!layout) return []
-      const agent = a.sandboxId ? agents.get(a.sandboxId) : undefined
-      const previewDomain = agent?.previewDomain
+      const branch = a.branchId ? branches.get(a.branchId) : undefined
+      const previewDomain = branch?.previewDomain
       return [{
         id: a.id,
         x: layout.x,

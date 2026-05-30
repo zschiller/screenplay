@@ -167,10 +167,10 @@ export async function POST(req: Request) {
   // Repo-scoped optional system prompt — appended to the live skill
   // index so each (repo, model) pair sees the right persona.
   const [repoSystemPrompt, layerDirectory] = await Promise.all([
-    readRoomDoc(roomId, ({ agents, repos }) => {
-      const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
-      if (!agent) return undefined
-      return repos.get(agent.repoId)?.systemPrompt
+    readRoomDoc(roomId, ({ branches, repos }) => {
+      const branch = branches.toArray().find((a) => a.sandboxName === sandboxName)
+      if (!branch) return undefined
+      return repos.get(branch.repoId)?.systemPrompt
     }).catch(() => undefined),
     loadLayerDirectory(roomId),
   ])

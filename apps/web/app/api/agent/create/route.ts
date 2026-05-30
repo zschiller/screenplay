@@ -12,7 +12,7 @@ import {
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
-import type { AgentData, RepoData } from "@/lib/types"
+import type { BranchData, RepoData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 
 export const runtime = "nodejs"
@@ -35,10 +35,10 @@ interface CreateRequest {
 async function updateAgent(
   roomId: string,
   agentId: string,
-  data: Partial<AgentData>,
+  data: Partial<BranchData>,
 ) {
-  await mutateRoomDoc(roomId, ({ agents }) => {
-    agents.update(agentId, data)
+  await mutateRoomDoc(roomId, ({ branches }) => {
+    branches.update(agentId, data)
   })
 }
 
@@ -59,15 +59,15 @@ async function getRepoFromStorage(
  * server-created for single-agent flows that don't pre-seed them.
  */
 async function ensureChatForAgent(roomId: string, agentId: string) {
-  await mutateRoomDoc(roomId, ({ agents, chatSessions, transact }) => {
-    if (!agents.get(agentId)) return
+  await mutateRoomDoc(roomId, ({ branches, chatSessions, transact }) => {
+    if (!branches.get(agentId)) return
     transact(() => {
-      const hasChat = chatSessions.toArray().some((cs) => cs.agentId === agentId)
+      const hasChat = chatSessions.toArray().some((cs) => cs.branchId === agentId)
       if (!hasChat) {
         const chatId = nanoid()
         chatSessions.set(chatId, {
           id: chatId,
-          agentId,
+          branchId: agentId,
           label: "Untitled",
           createdAt: Date.now(),
         })

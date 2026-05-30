@@ -20,7 +20,7 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { Spinner } from "@workspace/ui/components/spinner"
-import type { AgentData } from "@/lib/types"
+import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
 import { LayerTitleBar, LayerTitleText } from "./layer-title-bar"
@@ -30,7 +30,7 @@ interface IframeLayerLabelProps {
   iframeLayerId: string
   label: string
   branch?: string
-  sandboxId?: string
+  branchId?: string
   route?: string
   /** Bidirectional shared state from `@screenplay.space/state`. When present
    *  with non-empty keys, a tiny indicator renders inside the route pill. */
@@ -51,8 +51,8 @@ interface IframeLayerLabelProps {
    *  frame within the group. */
   groupLabelDragHandlers?: Record<string, unknown>
   /** Agents the user can pick from (typically all running agents in the room). */
-  assignableAgents?: AgentData[]
-  onAssignAgent?: (agentId: string) => void
+  assignableBranches?: BranchData[]
+  onAssignBranch?: (branchId: string) => void
   /** Routes known for the agent backing this iframeLayer. Drives the route picker. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (route: string) => void
@@ -86,7 +86,7 @@ interface IframeLayerLabelProps {
   onRename?: (next: string) => void
 }
 
-export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, route, sharedState, zoom, iframeLayerWidth, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, assignableAgents, onAssignAgent, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
+export function IframeLayerLabel({ iframeLayerId, label, branch, branchId, route, sharedState, zoom, iframeLayerWidth, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, assignableBranches, onAssignBranch, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
   return (
     <LayerTitleBar
       layerId={iframeLayerId}
@@ -104,20 +104,20 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, sandboxId, rout
       reorderDragPopped={reorderDragPopped}
     >
       <div className="flex min-h-[18px] items-center gap-2 max-w-full overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
-        {onAssignAgent ? (
+        {onAssignBranch ? (
           <BranchPicker
             branch={branch}
-            currentAgentId={sandboxId}
-            colorKey={sandboxId}
-            colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
-            assignableAgents={assignableAgents ?? []}
-            onAssignAgent={onAssignAgent}
+            currentBranchId={branchId}
+            colorKey={branchId}
+            colorIndex={assignableBranches?.find((a) => a.id === branchId)?.colorIndex}
+            assignableBranches={assignableBranches ?? []}
+            onAssignBranch={onAssignBranch}
           />
         ) : branch ? (
           <BranchBadge
             branch={branch}
-            colorKey={sandboxId}
-            colorIndex={assignableAgents?.find((a) => a.id === sandboxId)?.colorIndex}
+            colorKey={branchId}
+            colorIndex={assignableBranches?.find((a) => a.id === branchId)?.colorIndex}
             className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] hover:delay-300 transition-[max-width] duration-200 text-[10px] py-0 px-1"
           />
         ) : null}
@@ -248,11 +248,11 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
 
 interface BranchPickerProps {
   branch?: string
-  currentAgentId?: string
+  currentBranchId?: string
   colorKey?: string
   colorIndex?: number
-  assignableAgents: AgentData[]
-  onAssignAgent: (agentId: string) => void
+  assignableBranches: BranchData[]
+  onAssignBranch: (branchId: string) => void
 }
 
 interface SharedStateIndicatorProps {
@@ -302,9 +302,9 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
   )
 }
 
-function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignableAgents, onAssignAgent }: BranchPickerProps) {
+function BranchPicker({ branch, currentBranchId, colorKey, colorIndex, assignableBranches, onAssignBranch }: BranchPickerProps) {
   const [open, setOpen] = useState(false)
-  const pickableAgents = assignableAgents.filter((a) => a.branch && a.status !== "error" && a.status !== "stopped")
+  const pickableBranches = assignableBranches.filter((a) => a.ref && a.status !== "error" && a.status !== "stopped")
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -343,19 +343,19 @@ function BranchPicker({ branch, currentAgentId, colorKey, colorIndex, assignable
           <CommandList>
             <CommandEmpty>No branches found.</CommandEmpty>
             <CommandGroup>
-              {pickableAgents.map((a) => {
+              {pickableBranches.map((a) => {
                 const isBusy = a.status === "creating" || a.status === "starting"
                 return (
                   <CommandItem
                     key={a.id}
-                    value={a.branch}
+                    value={a.ref}
                     onSelect={() => {
-                      onAssignAgent(a.id)
+                      onAssignBranch(a.id)
                       setOpen(false)
                     }}
                   >
-                    <Check className={`shrink-0 ${a.id === currentAgentId ? "" : "opacity-0"}`} />
-                    <BranchBadge branch={a.branch} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
+                    <Check className={`shrink-0 ${a.id === currentBranchId ? "" : "opacity-0"}`} />
+                    <BranchBadge branch={a.ref} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
                     {isBusy && <Spinner className="ml-auto size-3" />}
                   </CommandItem>
                 )

@@ -69,10 +69,10 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
   async loadContext(roomId, target) {
     const [repoSystemPrompt, layerDirectory] = await Promise.all([
-      readRoomDoc(roomId, ({ agents, repos }) => {
-        const agent = agents.toArray().find((a) => a.sandboxName === target.sandboxName)
-        if (!agent) return undefined
-        return repos.get(agent.repoId)?.systemPrompt
+      readRoomDoc(roomId, ({ branches, repos }) => {
+        const branch = branches.toArray().find((a) => a.sandboxName === target.sandboxName)
+        if (!branch) return undefined
+        return repos.get(branch.repoId)?.systemPrompt
       }).catch(() => undefined),
       loadLayerDirectory(roomId),
     ])
