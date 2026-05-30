@@ -7,7 +7,7 @@ import type {
   SandboxInstance,
   SandboxProvider,
 } from "@/lib/sandbox/types"
-import type { WorkspaceData } from "@/lib/types"
+import type { RepoData } from "@/lib/types"
 
 // The lifecycle actions resolve (or create) the live instance through the
 // provider seam. A fake provider — scripted, no real VM — stands in for Vercel
@@ -71,7 +71,7 @@ vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
 
 // restartSandbox falls back to the session's GitHub token; reconnect/restart
-// read persisted workspace env. Both need a request context / KV we don't have
+// read persisted repo env. Both need a request context / KV we don't have
 // under plain Node — stub them so the action's create + result shaping is what's
 // under test.
 const getGitHubToken = vi.hoisted(() => vi.fn(async () => null as string | null))
@@ -168,14 +168,14 @@ function fakeSandbox(
 
 const GH_TOKEN = "ghp_0123456789abcdefABCDEF0123456789abcd"
 
-const workspace = {
+const repo = {
   cloneUrl: "https://github.com/octocat/hello-world.git",
   devServerPort: 3000,
   devScript: "npm run dev",
   setupScript: "npm install",
   repoOwner: "octocat",
   repoName: "hello-world",
-} as WorkspaceData
+} as RepoData
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -234,7 +234,7 @@ describe("restartSandbox", () => {
     fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await restartSandbox("sandbox-a", workspace, "feature")
+    const result = await restartSandbox("sandbox-a", repo, "feature")
 
     expect(result).toEqual({
       success: true,
@@ -252,7 +252,7 @@ describe("restartSandbox", () => {
     fake.setGet(fakeSandbox({ snapshotError: true }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await restartSandbox("sandbox-a", workspace, "feature")
+    const result = await restartSandbox("sandbox-a", repo, "feature")
 
     expect(result).toEqual({
       success: true,
@@ -263,14 +263,14 @@ describe("restartSandbox", () => {
       url: "https://github.com/octocat/hello-world.git",
       revision: "feature",
     })
-    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", workspace, "feature")
+    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
   })
 
   it("returns a failure when the setup script exits non-zero on the fresh path", async () => {
     fake.setGet(fakeSandbox({ snapshotError: true }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) }))
 
-    const result = await restartSandbox("sandbox-a", workspace, "feature")
+    const result = await restartSandbox("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -283,7 +283,7 @@ describe("restartSandbox", () => {
     fake.setGet(fakeSandbox({ snapshotError: true }))
     fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
 
-    const result = await restartSandbox("sandbox-a", workspace, "feature")
+    const result = await restartSandbox("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")

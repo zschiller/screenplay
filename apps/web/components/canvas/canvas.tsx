@@ -20,7 +20,7 @@ import {
   useSavedViewport,
   useSelfPresence,
   useSetPresence,
-  useWorkspaces,
+  useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
@@ -88,7 +88,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { AgentData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, WorkspaceData } from "@/lib/types"
+import type { AgentData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData } from "@/lib/types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -190,8 +190,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // so agents from Liveblocks can be a new reference every render safely.
   const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
-  // Per-workspace / per-agent memory so switching back restores prior selection
-  const selectedAgentByWorkspaceRef = useRef<Record<string, string>>({})
+  // Per-repo / per-agent memory so switching back restores prior selection
+  const selectedAgentByRepoRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
   /** Per-document memory: switching back to a doc target restores the last open chat tab. */
   const selectedChatByDocumentRef = useRef<Record<string, string>>({})
@@ -993,11 +993,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     for (const id of selectedDocumentLayerIds) ids.add(id)
     return ids
   }, [selectedIframeLayerIds, selectedDocumentLayerIds])
-  const workspaces = useWorkspaces()
+  const repos = useRepos()
   const agents = useAgents()
 
-  const diffStats = useDiffStats(agents, workspaces)
-  const branchPrs = useBranchPrs(agents, workspaces)
+  const diffStats = useDiffStats(agents, repos)
+  const branchPrs = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
   const savedViewport = useSavedViewport()
@@ -1059,25 +1059,25 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     return { cx, cy }
   }, [])
 
-  // --- Workspace mutations ---
+  // --- Repo mutations ---
 
-  const addWorkspaceToStorage = useCallback(
-    (id: string, data: WorkspaceData) => {
-      ops.createWorkspace(id, data)
+  const addRepoToStorage = useCallback(
+    (id: string, data: RepoData) => {
+      ops.createRepo(id, data)
     },
     [ops],
   )
 
-  const updateWorkspaceInStorage = useCallback(
-    (id: string, data: Partial<WorkspaceData>) => {
-      ops.patch("workspaces", id, data)
+  const updateRepoInStorage = useCallback(
+    (id: string, data: Partial<RepoData>) => {
+      ops.patch("repos", id, data)
     },
     [ops],
   )
 
-  const removeWorkspaceFromStorage = useCallback(
+  const removeRepoFromStorage = useCallback(
     (id: string) => {
-      const { removedChatIds } = ops.removeWorkspace(id)
+      const { removedChatIds } = ops.removeRepo(id)
       // Clear the client chat-store mirror for the Chat Sessions the verb
       // deleted from the Y.Doc (their identity is gone; the conversation lives
       // client-side).
@@ -2059,10 +2059,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
       }
 
-      // Save agent selection for its workspace
+      // Save agent selection for its repo
       const agent = agents.find((a) => a.id === agentId)
       if (agent) {
-        selectedAgentByWorkspaceRef.current[agent.workspaceId] = agentId
+        selectedAgentByRepoRef.current[agent.repoId] = agentId
       }
 
       setSelectedAgentId(agentId)
@@ -2169,10 +2169,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
       if (!agent?.sandboxName || !agent.branch) return
-      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
-      if (!workspace) return
+      const repo = repos.find((w) => w.id === agent.repoId)
+      if (!repo) return
 
-      const message = `Rebase this branch onto the latest \`origin/${workspace.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
+      const message = `Rebase this branch onto the latest \`origin/${repo.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
 
       const existingChats = chatSessions
         .filter((c) => c.agentId === agentId && !c.closedAt)
@@ -2230,7 +2230,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         if (inPixels < 480) panel.resize(480)
       }
     },
-    [agents, workspaces, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
+    [agents, repos, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
   )
 
   const handleCloseChat = useCallback(
@@ -2522,10 +2522,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [chatSessions],
   )
 
-  const handleCreateWorkspace = useCallback(
+  const handleCreateRepo = useCallback(
     (pick: RepoPickerSelection) => {
       const id = nanoid()
-      const data: WorkspaceData =
+      const data: RepoData =
         pick.kind === "config"
           ? {
               id,
@@ -2564,14 +2564,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         length: 3,
       })
 
-      // One transaction so the workspace and its first agent land as a single
+      // One transaction so the repo and its first agent land as a single
       // undo step. `createAgent` owns the agent record + deferred-seed flag.
       let agentId = ""
       ops.batch(() => {
-        addWorkspaceToStorage(id, data)
+        addRepoToStorage(id, data)
         agentId = ops.createAgent({
           agent: {
-            workspaceId: id,
+            repoId: id,
             sandboxName,
             gitUrl: data.cloneUrl,
             branch,
@@ -2596,17 +2596,17 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           agentId,
           sandboxName,
           branch,
-          workspaceId: id,
+          repoId: id,
         }),
       })
     },
-    [addWorkspaceToStorage, ops, roomId],
+    [addRepoToStorage, ops, roomId],
   )
 
   const handleCreateAgent = useCallback(
-    (workspaceId: string) => {
-      const workspace = workspaces.find((w) => w.id === workspaceId)
-      if (!workspace) return
+    (repoId: string) => {
+      const repo = repos.find((w) => w.id === repoId)
+      if (!repo) return
 
       const sandboxName = `sp-${nanoid(10)}`
       const branch = uniqueNamesGenerator({
@@ -2617,12 +2617,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       const { agentId: id } = ops.createAgent({
         agent: {
-          workspaceId,
+          repoId,
           sandboxName,
-          gitUrl: workspace.cloneUrl,
+          gitUrl: repo.cloneUrl,
           branch,
           previewDomain: "",
-          port: workspace.devServerPort ?? 3000,
+          port: repo.devServerPort ?? 3000,
           status: "creating",
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
@@ -2639,28 +2639,28 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           agentId: id,
           sandboxName,
           branch,
-          workspaceId,
+          repoId,
         }),
       })
     },
-    [workspaces, ops, roomId],
+    [repos, ops, roomId],
   )
 
   const handleCreateAgentFromBranch = useCallback(
-    (workspaceId: string, branch: string) => {
-      const workspace = workspaces.find((w) => w.id === workspaceId)
-      if (!workspace) return
+    (repoId: string, branch: string) => {
+      const repo = repos.find((w) => w.id === repoId)
+      if (!repo) return
 
       const sandboxName = `sp-${nanoid(10)}`
 
       const { agentId: id } = ops.createAgent({
         agent: {
-          workspaceId,
+          repoId,
           sandboxName,
-          gitUrl: workspace.cloneUrl,
+          gitUrl: repo.cloneUrl,
           branch,
           previewDomain: "",
-          port: workspace.devServerPort ?? 3000,
+          port: repo.devServerPort ?? 3000,
           status: "creating",
           statusMessage: "Cloning repository…",
           createdAt: Date.now(),
@@ -2678,17 +2678,17 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           agentId: id,
           sandboxName,
           branch,
-          workspaceId,
+          repoId,
         }),
       })
     },
-    [workspaces, ops, roomId],
+    [repos, ops, roomId],
   )
 
   const handleDuplicateBranch = useCallback(
-    (workspaceId: string, branch: string) => {
-      const workspace = workspaces.find((w) => w.id === workspaceId)
-      if (!workspace) return
+    (repoId: string, branch: string) => {
+      const repo = repos.find((w) => w.id === repoId)
+      if (!repo) return
 
       const sandboxName = `sp-${nanoid(10)}`
       const newBranch = uniqueNamesGenerator({
@@ -2699,12 +2699,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       const { agentId: id } = ops.createAgent({
         agent: {
-          workspaceId,
+          repoId,
           sandboxName,
-          gitUrl: workspace.cloneUrl,
+          gitUrl: repo.cloneUrl,
           branch: newBranch,
           previewDomain: "",
-          port: workspace.devServerPort ?? 3000,
+          port: repo.devServerPort ?? 3000,
           status: "creating",
           statusMessage: "Creating branch…",
           createdAt: Date.now(),
@@ -2722,18 +2722,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           sandboxName,
           branch: newBranch,
           sourceBranch: branch,
-          workspaceId,
+          repoId,
         }),
       })
     },
-    [workspaces, ops, roomId],
+    [repos, ops, roomId],
   )
 
   const handleForkAgent = useCallback(
     (agentId: string) => {
       const sourceAgent = agents.find((a) => a.id === agentId)
       if (!sourceAgent?.branch || !sourceAgent.sandboxName) return
-      handleDuplicateBranch(sourceAgent.workspaceId, sourceAgent.branch)
+      handleDuplicateBranch(sourceAgent.repoId, sourceAgent.branch)
     },
     [agents, handleDuplicateBranch],
   )
@@ -2746,9 +2746,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   >(new Map())
 
   const handleCreateParallelAgents = useCallback(
-    async (workspaceId: string, specs: ParallelAgentSpec[]) => {
-      const workspace = workspaces.find((w) => w.id === workspaceId)
-      if (!workspace) return
+    async (repoId: string, specs: ParallelAgentSpec[]) => {
+      const repo = repos.find((w) => w.id === repoId)
+      if (!repo) return
 
       const trimmedSpecs = specs
         .map((s) => ({ ...s, prompt: s.prompt.trim() }))
@@ -2806,8 +2806,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         trimmedSpecs.forEach((spec, idx) => {
           const sandboxName = `sp-${nanoid(10)}`
           const { branch, label } = nameResults[idx]!
-          const isDefault = spec.baseBranch === workspace.defaultBranch
-          // The "new" flow creates a fresh branch off the workspace default.
+          const isDefault = spec.baseBranch === repo.defaultBranch
+          // The "new" flow creates a fresh branch off the repo default.
           // For any other base, we use "duplicate-branch" so the API forks
           // the named source into our generated branch name.
           const flow: "new" | "duplicate-branch" = isDefault ? "new" : "duplicate-branch"
@@ -2818,12 +2818,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           // ensureChatForAgent skips creation when a chat already exists.
           const { agentId: id, chatId } = ops.createAgent({
             agent: {
-              workspaceId,
+              repoId,
               sandboxName,
-              gitUrl: workspace.cloneUrl,
+              gitUrl: repo.cloneUrl,
               branch,
               previewDomain: "",
-              port: workspace.devServerPort ?? 3000,
+              port: repo.devServerPort ?? 3000,
               status: "creating",
               statusMessage: "Creating branch…",
               createdAt: Date.now(),
@@ -2860,14 +2860,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             agentId: d.id,
             sandboxName: d.sandboxName,
             branch: d.branch,
-            workspaceId,
+            repoId,
             sourceBranch: d.sourceBranch,
           }),
         })
         setPendingAgentIds((prev) => (prev.includes(d.id) ? prev : [...prev, d.id]))
       }
     },
-    [workspaces, collections, roomId],
+    [repos, collections, roomId],
   )
 
   const handleRefreshAgent = useCallback(
@@ -2875,15 +2875,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const agent = agents.find((a) => a.id === id)
       if (!agent?.sandboxName) return
 
-      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
-      if (!workspace) {
+      const repo = repos.find((w) => w.id === agent.repoId)
+      if (!repo) {
         updateAgentInStorage(id, { status: "error", error: "Workspace not found" })
         return
       }
 
       updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
 
-      const result = await restartSandbox(agent.sandboxName, workspace, agent.branch)
+      const result = await restartSandbox(agent.sandboxName, repo, agent.branch)
       if (result.success) {
         updateAgentInStorage(id, {
           sandboxName: result.value.sandboxName,
@@ -2900,7 +2900,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [agents, workspaces, updateAgentInStorage],
+    [agents, repos, updateAgentInStorage],
   )
 
   const handleBranchRename = useCallback(
@@ -2909,8 +2909,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const agent = agents.find((a) => a.id === agentId)
       if (!newBranch || !agent?.sandboxName || !agent.branch || agent.branch === newBranch) return
 
-      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
-      if (!workspace) return
+      const repo = repos.find((w) => w.id === agent.repoId)
+      if (!repo) return
 
       // Apply the rename locally before the sandbox roundtrip — the sandbox
       // resume + `git branch -m` + GitHub call can take several seconds and
@@ -2921,7 +2921,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
 
       const result = await renameAgentBranch(
-        workspace,
+        repo,
         agent.sandboxName,
         previousBranch,
         newBranch,
@@ -2930,7 +2930,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         updateAgentInStorage(agentId, { branch: previousBranch, autoNamedBranch: previousAutoNamed })
       }
     },
-    [agents, workspaces, updateAgentInStorage],
+    [agents, repos, updateAgentInStorage],
   )
 
   inspectHandlersRef.current = {
@@ -3067,7 +3067,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             agentId: agent.id,
             sandboxName: agent.sandboxName,
             branch: agent.branch,
-            workspaceId: agent.workspaceId,
+            repoId: agent.repoId,
           }),
         })
         continue
@@ -3078,9 +3078,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // Covers normal reloads and restarts (status === "starting") that were
       // interrupted by a page reload. reconnectSandbox probes the existing
       // sandbox first, so it won't recreate one that's already running.
-      const workspace = workspaces.find((w) => w.id === agent.workspaceId)
+      const repo = repos.find((w) => w.id === agent.repoId)
       const sandboxName = agent.sandboxName
-      reconnectSandbox(sandboxName, agent.port, workspace?.devScript).then((result) => {
+      reconnectSandbox(sandboxName, agent.port, repo?.devScript).then((result) => {
         if (result.success) {
           updateAgentInStorage(agent.id, {
             previewDomain: result.value.previewDomain,
@@ -3093,7 +3093,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         // Resume failed — likely the snapshot has fully expired (>24h) and
         // been deleted. Auto-recreate from git instead of stranding the user
         // at "stopped" waiting to click refresh.
-        if (!workspace) {
+        if (!repo) {
           updateAgentInStorage(agent.id, {
             status: "stopped",
             statusMessage: "",
@@ -3106,7 +3106,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           statusMessage: "Recreating expired sandbox…",
           error: "",
         })
-        restartSandbox(sandboxName, workspace, agent.branch).then((restartResult) => {
+        restartSandbox(sandboxName, repo, agent.branch).then((restartResult) => {
           if (restartResult.success) {
             updateAgentInStorage(agent.id, {
               sandboxName: restartResult.value.sandboxName,
@@ -3126,7 +3126,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, workspaces, updateAgentInStorage, roomId])
+  }, [agents, repos, updateAgentInStorage, roomId])
 
   // Heartbeat: extend sandbox timeouts while the tab is visible so they
   // stay alive as long as the user is actively using the page.
@@ -4110,7 +4110,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }}
       >
         <AgentSidebar
-          workspaces={workspaces}
+          repos={repos}
           agents={agents}
           iframeLayers={iframeLayers}
           markdownLayers={markdownLayers}
@@ -4125,18 +4125,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           onRenameDocument={setDocumentLayerTitle}
           onRemoveDocument={(id) => removeDocumentLayers([id])}
           onSelectAgent={handleSelectAgent}
-          onCreateWorkspace={handleCreateWorkspace}
-          onUpdateWorkspace={updateWorkspaceInStorage}
-          onRemoveWorkspace={async (id, { deleteBranchesOnRemote }) => {
+          onCreateRepo={handleCreateRepo}
+          onUpdateRepo={updateRepoInStorage}
+          onRemoveRepo={async (id, { deleteBranchesOnRemote }) => {
             if (deleteBranchesOnRemote) {
-              const workspace = workspaces.find((w) => w.id === id)
-              if (workspace) {
+              const repo = repos.find((w) => w.id === id)
+              if (repo) {
                 const branches = agents
-                  .filter((a) => a.workspaceId === id && a.branch)
+                  .filter((a) => a.repoId === id && a.branch)
                   .map((a) => a.branch)
                 const results = await Promise.all(
                   branches.map((branch) =>
-                    deleteBranch(workspace.repoOwner, workspace.repoName, branch),
+                    deleteBranch(repo.repoOwner, repo.repoName, branch),
                   ),
                 )
                 const failed = results.filter((r) => !r.success)
@@ -4148,7 +4148,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                 }
               }
             }
-            removeWorkspaceFromStorage(id)
+            removeRepoFromStorage(id)
           }}
           onCreateAgent={handleCreateAgent}
           onCreateAgentFromBranch={handleCreateAgentFromBranch}
@@ -4160,13 +4160,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           onRemoveAgent={async (id, { deleteOnRemote }) => {
             if (deleteOnRemote) {
               const agent = agents.find((a) => a.id === id)
-              const workspace = agent
-                ? workspaces.find((w) => w.id === agent.workspaceId)
+              const repo = agent
+                ? repos.find((w) => w.id === agent.repoId)
                 : undefined
-              if (agent?.branch && workspace) {
+              if (agent?.branch && repo) {
                 const result = await deleteBranch(
-                  workspace.repoOwner,
-                  workspace.repoName,
+                  repo.repoOwner,
+                  repo.repoName,
                   agent.branch,
                 )
                 if (!result.success) {
@@ -4195,7 +4195,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           onRenameIframeLayer={renameIframeLayer}
           onRemoveIframeLayer={removeIframeLayer}
           onReorderIframeLayerGroups={reorderIframeLayerGroups}
-          onReorderWorkspaces={ops.reorderWorkspaces}
+          onReorderRepos={ops.reorderRepos}
           onReorderAgents={ops.reorderAgents}
           onMoveMember={moveMember}
           onRenameIframeLayerGroup={renameIframeLayerGroup}
@@ -5045,13 +5045,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                 </Tooltip>
               </TooltipProvider>
               <span className="text-xs text-muted-foreground">
-                {workspaces.length === 0 ? "No workspaces" : "No active agents"}
+                {repos.length === 0 ? "No workspaces" : "No active agents"}
               </span>
             </div>
             <div className="border-b border-border" />
             <div className="flex flex-1 items-center justify-center px-6">
               <p className="text-sm text-muted-foreground">
-                {workspaces.length === 0
+                {repos.length === 0
                   ? "Add a workspace to get started"
                   : "Waiting for an agent to start…"}
               </p>

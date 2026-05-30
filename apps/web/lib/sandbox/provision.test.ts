@@ -52,7 +52,7 @@ vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 // network-policy.test.ts, and the real registry drags in the kv/db chain.
 vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
 
-// cloneSandbox falls back to the session's GitHub token and persists workspace
+// cloneSandbox falls back to the session's GitHub token and persists repo
 // env vars. Both need a request context / KV we don't have under plain Node —
 // stub them so the action's create + result shaping is what's under test.
 const getUserId = vi.hoisted(() => vi.fn(async () => null as string | null))
@@ -306,7 +306,7 @@ describe("cloneSandbox", () => {
     })
   })
 
-  it("persists workspace env vars when provided", async () => {
+  it("persists repo env vars when provided", async () => {
     fake.setInstance(fakeSandbox())
 
     await cloneSandbox("sandbox-a", "url", "main", 3000, { FOO: "bar" }, "tok")

@@ -7,7 +7,7 @@ import type {
   GroupMember,
   IframeLayerData,
   MarkdownLayerData,
-  WorkspaceData,
+  RepoData,
 } from "@/lib/types"
 
 /**
@@ -53,7 +53,7 @@ export function baseAgent(
 ): AgentData {
   return {
     id,
-    workspaceId: "workspace-1",
+    repoId: "repo-1",
     sandboxName: `sandbox-${id}`,
     gitUrl: "https://example.com/repo.git",
     branch: "main",
@@ -81,11 +81,11 @@ export function baseChat(
   return { id, label: "Chat", createdAt: 0, ...overrides }
 }
 
-/** A minimal valid Workspace record for seeding cascade-removal tests. */
-export function baseWorkspace(
+/** A minimal valid Repo record for seeding cascade-removal tests. */
+export function baseRepo(
   id: string,
-  overrides: Partial<WorkspaceData> = {},
-): WorkspaceData {
+  overrides: Partial<RepoData> = {},
+): RepoData {
   return {
     id,
     name: id,

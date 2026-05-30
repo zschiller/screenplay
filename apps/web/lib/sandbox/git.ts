@@ -6,7 +6,7 @@ import { createBranch, renameBranch } from "@/lib/github-actions"
 import { sandboxProvider } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
-import type { WorkspaceData } from "@/lib/types"
+import type { RepoData } from "@/lib/types"
 
 /**
  * Create a Git branch on GitHub for the agent. This is a pure GitHub API call —
@@ -15,16 +15,16 @@ import type { WorkspaceData } from "@/lib/types"
  * out) so every git action surfaces failure the same way to callers.
  */
 export async function createAgentBranch(
-  workspace: WorkspaceData,
+  repo: RepoData,
   branchName: string,
   fromBranch?: string,
   ghToken?: string,
 ): Promise<SandboxActionResult<void>> {
   const result = await createBranch(
-    workspace.repoOwner,
-    workspace.repoName,
+    repo.repoOwner,
+    repo.repoName,
     branchName,
-    fromBranch || workspace.defaultBranch,
+    fromBranch || repo.defaultBranch,
     ghToken,
   )
   if (result.success) return { success: true, value: undefined }
@@ -39,7 +39,7 @@ export async function createAgentBranch(
  * pushed under the new name later.
  */
 export async function renameAgentBranch(
-  workspace: WorkspaceData,
+  repo: RepoData,
   sandboxName: string,
   oldBranch: string,
   newBranch: string,
@@ -51,8 +51,8 @@ export async function renameAgentBranch(
 
   // Attempt GitHub rename — may not exist remotely yet (e.g. forked sandboxes).
   const remote = await renameBranch(
-    workspace.repoOwner,
-    workspace.repoName,
+    repo.repoOwner,
+    repo.repoName,
     oldBranch,
     newBranch,
   )
@@ -144,7 +144,7 @@ export async function getDiffStats(
  */
 export async function configureAgentGit(
   sandboxName: string,
-  workspace: WorkspaceData,
+  repo: RepoData,
   branch: string,
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
@@ -157,7 +157,7 @@ export async function configureAgentGit(
       "remote",
       "set-url",
       "origin",
-      `https://github.com/${workspace.repoOwner}/${workspace.repoName}.git`,
+      `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
     ])
 
     await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])

@@ -8,13 +8,17 @@ use the same words.
 
 ## Language
 
-**Workspace**:
+**Repo**:
 A GitHub repository configured into a room — its repo, default branch, clone
-URL, and run scripts. Holds one or more Agents. Lives in the room's Y.Doc.
-_Avoid_: repo (the UI word for a Workspace's underlying repository), project.
+URL, and run scripts. Holds one or more Agents. Lives in the room's Y.Doc as the
+`repos` collection (`RepoData`). _Code = concept, UI = label_: `Repo` is the
+code identifier everywhere it denotes this entity; the user-facing label still
+reads "Workspace" until the separate UI-string pass renames it to "Project".
+_Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
+package and the everyday meaning), project.
 
 **Agent**:
-A single working branch inside a Workspace: its sandbox, branch name, and the
+A single working branch inside a Repo: its sandbox, branch name, and the
 Engine that drives it. Each Agent maps to exactly one git branch and is
 rendered in the sidebar by that branch's name.
 _Avoid_: branch (the UI word for an Agent), sandbox, run.

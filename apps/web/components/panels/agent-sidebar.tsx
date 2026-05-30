@@ -111,7 +111,7 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   GroupMember,
-  WorkspaceData,
+  RepoData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/iframe-layer-layout"
 import { reorderedIds, sortForSidebar } from "@/lib/sidebar-order"
@@ -130,7 +130,7 @@ import { listRepoConfigs } from "@/lib/repo-configs-actions"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
-import { DeleteWorkspaceDialog } from "@/components/delete-workspace-dialog"
+import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
 import {
   ParallelCreateDialog,
   type ParallelAgentSpec,
@@ -283,7 +283,7 @@ function DropLine({ side }: { side: "before" | "after" }) {
 }
 
 /**
- * A whole-row sortable for the "Branches" section — repos (Workspaces) at the
+ * A whole-row sortable for the "Branches" section — repos at the
  * top level, branches (Agents) nested inside each repo. Same interaction as
  * the Canvas section's `SortableRow` (drag the whole row, source goes
  * transparent, the `<DragOverlay>` paints the floating preview, a static
@@ -291,14 +291,14 @@ function DropLine({ side }: { side: "before" | "after" }) {
  * semantics this section needs — there is no "into" nesting here.
  *
  * Drops are only valid between rows of the *same kind*, and for branches only
- * within the *same repo* (`workspaceId`): the indicator stays dark unless the
+ * within the *same repo* (`repoId`): the indicator stays dark unless the
  * dragged row is a compatible target, which is what visually enforces the
  * within-repo constraint.
  */
 function BranchesSortableRow({
   id,
   kind,
-  workspaceId,
+  repoId,
   className,
   children,
   ...rest
@@ -306,20 +306,20 @@ function BranchesSortableRow({
   id: string
   kind: "repo" | "branch"
   /** Owning repo, for branch rows — used to confine branch drops to one repo. */
-  workspaceId?: string
+  repoId?: string
   className?: string
   children: React.ReactNode
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
   const { attributes, listeners, setNodeRef, isDragging, isOver, over, active } =
-    useSortable({ id, data: { kind, workspaceId } })
+    useSortable({ id, data: { kind, repoId } })
   let indicator: "before" | "after" | null = null
   if (isOver && over && active && String(active.id) !== id) {
     const activeData = active.data.current as
-      | { kind?: string; workspaceId?: string }
+      | { kind?: string; repoId?: string }
       | undefined
     const compatible =
       activeData?.kind === kind &&
-      (kind === "repo" || activeData?.workspaceId === workspaceId)
+      (kind === "repo" || activeData?.repoId === repoId)
     if (compatible) {
       const activeInitialTop = active.rect.current.initial?.top ?? 0
       const overTop = over.rect.top
@@ -359,7 +359,7 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
 }
 
 interface AgentSidebarProps {
-  workspaces: WorkspaceData[]
+  repos: RepoData[]
   agents: AgentData[]
   iframeLayers: Array<Pick<IframeLayerData, "id" | "sandboxId" | "label" | "route">>
   markdownLayers: Array<Pick<MarkdownLayerData, "id" | "title">>
@@ -371,16 +371,16 @@ interface AgentSidebarProps {
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onZoomToGroup: (groupId: string) => void
   onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
-  onCreateWorkspace: (pick: RepoPickerSelection) => void
-  onUpdateWorkspace: (id: string, data: Partial<WorkspaceData>) => void
-  onRemoveWorkspace: (
+  onCreateRepo: (pick: RepoPickerSelection) => void
+  onUpdateRepo: (id: string, data: Partial<RepoData>) => void
+  onRemoveRepo: (
     id: string,
     options: { deleteBranchesOnRemote: boolean },
   ) => void | Promise<void>
-  onCreateAgent: (workspaceId: string) => void
-  onCreateAgentFromBranch: (workspaceId: string, branch: string) => void
-  onCreateParallelAgents: (workspaceId: string, specs: ParallelAgentSpec[]) => void
-  onDuplicateBranch: (workspaceId: string, branch: string) => void
+  onCreateAgent: (repoId: string) => void
+  onCreateAgentFromBranch: (repoId: string, branch: string) => void
+  onCreateParallelAgents: (repoId: string, specs: ParallelAgentSpec[]) => void
+  onDuplicateBranch: (repoId: string, branch: string) => void
   onForkAgent: (agentId: string) => void
   onRebaseOnDefault: (agentId: string) => void
   onRefreshAgent: (id: string) => void
@@ -402,10 +402,10 @@ interface AgentSidebarProps {
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
-  /** Persist the room-shared order of the repo (Workspace) list. */
-  onReorderWorkspaces: (orderedIds: string[]) => void
+  /** Persist the room-shared order of the repo list. */
+  onReorderRepos: (orderedIds: string[]) => void
   /** Persist the room-shared order of one repo's branch (Agent) list. */
-  onReorderAgents: (workspaceId: string, orderedIds: string[]) => void
+  onReorderAgents: (repoId: string, orderedIds: string[]) => void
   /**
    * Move a single member across (or within) groups. `target` either points
    * into an existing group at a specific index, or asks for a new
@@ -438,7 +438,7 @@ function sanitizeBranchName(raw: string): string {
 }
 
 export function AgentSidebar({
-  workspaces,
+  repos,
   agents,
   iframeLayers,
   markdownLayers,
@@ -449,9 +449,9 @@ export function AgentSidebar({
   onSelectGroup,
   onZoomToGroup,
   onSelectAgent,
-  onCreateWorkspace,
-  onUpdateWorkspace,
-  onRemoveWorkspace,
+  onCreateRepo,
+  onUpdateRepo,
+  onRemoveRepo,
   onCreateAgent,
   onCreateAgentFromBranch,
   onCreateParallelAgents,
@@ -474,7 +474,7 @@ export function AgentSidebar({
   onRenameDocument,
   onRemoveDocument,
   onReorderIframeLayerGroups,
-  onReorderWorkspaces,
+  onReorderRepos,
   onReorderAgents,
   onMoveMember,
   onRenameIframeLayerGroup,
@@ -485,18 +485,18 @@ export function AgentSidebar({
   branchPrs,
 }: AgentSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
-  const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null)
-  const [branchPickerWorkspaceId, setBranchPickerWorkspaceId] = useState<string | null>(null)
-  const [parallelWorkspaceId, setParallelWorkspaceId] = useState<string | null>(null)
+  const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
+  const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(null)
+  const [parallelRepoId, setParallelRepoId] = useState<string | null>(null)
   const [pendingDeleteAgentId, setPendingDeleteAgentId] = useState<string | null>(null)
-  const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null)
+  const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
-  // Per-workspace cache of remote branch names, fetched lazily on first
-  // render of a workspace and refreshed whenever the workspace list changes.
+  // Per-repo cache of remote branch names, fetched lazily on first
+  // render of a repo and refreshed whenever the repo list changes.
   // Used to block inline-renames that would collide with an existing branch.
-  const [remoteBranchesByWorkspace, setRemoteBranchesByWorkspace] = useState<Map<string, Set<string>>>(new Map())
-  const diffStats = useDiffStats(agents, workspaces)
+  const [remoteBranchesByRepo, setRemoteBranchesByRepo] = useState<Map<string, Set<string>>>(new Map())
+  const diffStats = useDiffStats(agents, repos)
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, AgentSidebarProps["iframeLayers"][number]>()
     for (const a of iframeLayers) m.set(a.id, a)
@@ -513,17 +513,17 @@ export function AgentSidebar({
     return m
   }, [agents])
 
-  // Fetch each workspace's remote branch list once (per workspace add). This
+  // Fetch each repo's remote branch list once (per repo add). This
   // powers the inline-rename collision check below; without it we'd silently
   // let the user rename onto an existing branch and the server-side `git
   // branch -m` would fail after the fact.
   useEffect(() => {
     let cancelled = false
-    for (const ws of workspaces) {
-      if (remoteBranchesByWorkspace.has(ws.id)) continue
+    for (const ws of repos) {
+      if (remoteBranchesByRepo.has(ws.id)) continue
       listRepoBranches(ws.repoOwner, ws.repoName).then((data) => {
         if (cancelled) return
-        setRemoteBranchesByWorkspace((prev) => {
+        setRemoteBranchesByRepo((prev) => {
           if (prev.has(ws.id)) return prev
           const next = new Map(prev)
           next.set(ws.id, new Set(data.map((b) => b.name)))
@@ -534,7 +534,7 @@ export function AgentSidebar({
     return () => {
       cancelled = true
     }
-  }, [workspaces, remoteBranchesByWorkspace])
+  }, [repos, remoteBranchesByRepo])
 
   /**
    * Per-kind sidebar row + menu component lookup. Each entry binds a
@@ -644,43 +644,43 @@ export function AgentSidebar({
    * to alphabetical by repo full name for any repo never dragged. The branch
    * lists sort the same way per repo, by `createdAt`, at render time.
    */
-  const sortedWorkspaces = useMemo(
+  const sortedRepos = useMemo(
     () =>
-      sortForSidebar(workspaces, (a, b) =>
+      sortForSidebar(repos, (a, b) =>
         a.repoFullName.localeCompare(b.repoFullName),
       ),
-    [workspaces],
+    [repos],
   )
 
   const branchFallback = useCallback(
     (a: AgentData, b: AgentData) => a.createdAt - b.createdAt,
     [],
   )
-  const agentsByWorkspace = useCallback(
-    (workspaceId: string) =>
+  const agentsByRepo = useCallback(
+    (repoId: string) =>
       sortForSidebar(
-        agents.filter((a) => a.workspaceId === workspaceId),
+        agents.filter((a) => a.repoId === repoId),
         branchFallback,
       ),
     [agents, branchFallback],
   )
 
   const [activeBranchesDrag, setActiveBranchesDrag] = useState<
-    { kind: "repo"; workspace: WorkspaceData } | { kind: "branch"; agent: AgentData } | null
+    { kind: "repo"; repo: RepoData } | { kind: "branch"; agent: AgentData } | null
   >(null)
 
   const handleBranchesDragStart = useCallback(
     (event: DragStartEvent) => {
       const id = String(event.active.id)
       if (id.startsWith("repo:")) {
-        const ws = workspaces.find((w) => w.id === id.slice(5))
-        setActiveBranchesDrag(ws ? { kind: "repo", workspace: ws } : null)
+        const ws = repos.find((w) => w.id === id.slice(5))
+        setActiveBranchesDrag(ws ? { kind: "repo", repo: ws } : null)
       } else if (id.startsWith("branch:")) {
         const ag = agents.find((a) => a.id === id.slice(7))
         setActiveBranchesDrag(ag ? { kind: "branch", agent: ag } : null)
       }
     },
-    [workspaces, agents],
+    [repos, agents],
   )
 
   const handleBranchesDragCancel = useCallback(() => {
@@ -699,9 +699,9 @@ export function AgentSidebar({
       // Top-level repo reorder — first drag stamps explicit `sidebarOrder` on
       // every repo (the ops verb renumbers 0..n), so manual order takes over.
       if (activeId.startsWith("repo:") && overId.startsWith("repo:")) {
-        const currentIds = sortedWorkspaces.map((w) => w.id)
+        const currentIds = sortedRepos.map((w) => w.id)
         const newOrder = reorderedIds(currentIds, activeId.slice(5), overId.slice(5))
-        if (newOrder.join(",") !== currentIds.join(",")) onReorderWorkspaces(newOrder)
+        if (newOrder.join(",") !== currentIds.join(",")) onReorderRepos(newOrder)
         return
       }
 
@@ -709,17 +709,17 @@ export function AgentSidebar({
       // target repos differ (or a drop onto a repo row) is ignored, so a
       // branch can never be filed under a repo it doesn't belong to.
       if (activeId.startsWith("branch:") && overId.startsWith("branch:")) {
-        const activeWs = (active.data.current as { workspaceId?: string } | undefined)
-          ?.workspaceId
-        const overWs = (over.data.current as { workspaceId?: string } | undefined)
-          ?.workspaceId
+        const activeWs = (active.data.current as { repoId?: string } | undefined)
+          ?.repoId
+        const overWs = (over.data.current as { repoId?: string } | undefined)
+          ?.repoId
         if (!activeWs || activeWs !== overWs) return
-        const currentIds = agentsByWorkspace(activeWs).map((a) => a.id)
+        const currentIds = agentsByRepo(activeWs).map((a) => a.id)
         const newOrder = reorderedIds(currentIds, activeId.slice(7), overId.slice(7))
         if (newOrder.join(",") !== currentIds.join(",")) onReorderAgents(activeWs, newOrder)
       }
     },
-    [sortedWorkspaces, agentsByWorkspace, onReorderWorkspaces, onReorderAgents],
+    [sortedRepos, agentsByRepo, onReorderRepos, onReorderAgents],
   )
 
   /**
@@ -985,7 +985,7 @@ export function AgentSidebar({
               <RepoPicker
                 configs={savedConfigs}
                 onSelect={(pick) => {
-                  onCreateWorkspace(pick)
+                  onCreateRepo(pick)
                   setShowPicker(false)
                 }}
               />
@@ -994,25 +994,25 @@ export function AgentSidebar({
           <SidebarGroupContent>
             <SidebarMenu className="gap-3">
               <SortableContext
-                items={sortedWorkspaces.map((w) => `repo:${w.id}`)}
+                items={sortedRepos.map((w) => `repo:${w.id}`)}
                 strategy={verticalListSortingStrategy}
               >
-              {sortedWorkspaces
-                .map((workspace) => {
-                  const workspaceAgents = agentsByWorkspace(workspace.id)
+              {sortedRepos
+                .map((repo) => {
+                  const repoAgents = agentsByRepo(repo.id)
                   return (
                     <Collapsible
-                      key={workspace.id}
+                      key={repo.id}
                       asChild
                       defaultOpen
                       className="group/collapsible"
                     >
                       <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
                         <BranchesSortableRow
-                          id={`repo:${workspace.id}`}
+                          id={`repo:${repo.id}`}
                           kind="repo"
                           className="group/workspace-row cursor-grab active:cursor-grabbing"
-                          data-settings-open={settingsWorkspaceId === workspace.id || undefined}
+                          data-settings-open={settingsRepoId === repo.id || undefined}
                         >
                           <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[6.5rem] group-focus-within/workspace-row:!pr-[6.5rem] group-data-[settings-open]/workspace-row:!pr-[6.5rem]" onClick={(e) => e.stopPropagation()}>
                             <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -1023,16 +1023,16 @@ export function AgentSidebar({
                               </span>
                             </CollapsibleTrigger>
                             <span className="truncate font-medium text-sidebar-foreground/70">
-                              {workspace.repoFullName}
-                              {workspace.name ? (
-                                <span className="text-sidebar-foreground/50"> · {workspace.name}</span>
+                              {repo.repoFullName}
+                              {repo.name ? (
+                                <span className="text-sidebar-foreground/50"> · {repo.name}</span>
                               ) : null}
                             </span>
                           </SidebarMenuButton>
 
                           <Popover
-                            open={settingsWorkspaceId === workspace.id}
-                            onOpenChange={(open) => setSettingsWorkspaceId(open ? workspace.id : null)}
+                            open={settingsRepoId === repo.id}
+                            onOpenChange={(open) => setSettingsRepoId(open ? repo.id : null)}
                           >
                             <PopoverTrigger asChild>
                               <SidebarMenuAction
@@ -1044,56 +1044,56 @@ export function AgentSidebar({
                               </SidebarMenuAction>
                             </PopoverTrigger>
                             <PopoverContent className="w-72 p-3" side="bottom" align="start">
-                              <WorkspaceSettings
-                                workspace={workspace}
-                                onUpdate={onUpdateWorkspace}
+                              <RepoSettings
+                                repo={repo}
+                                onUpdate={onUpdateRepo}
                                 onRemove={() => {
-                                  setSettingsWorkspaceId(null)
-                                  setPendingDeleteWorkspaceId(workspace.id)
+                                  setSettingsRepoId(null)
+                                  setPendingDeleteRepoId(repo.id)
                                 }}
-                                onClose={() => setSettingsWorkspaceId(null)}
+                                onClose={() => setSettingsRepoId(null)}
                               />
                             </PopoverContent>
                           </Popover>
                           <SidebarMenuAction
                             className="right-[3.25rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
-                            onClick={(e) => { e.stopPropagation(); setParallelWorkspaceId(workspace.id) }}
+                            onClick={(e) => { e.stopPropagation(); setParallelRepoId(repo.id) }}
                             title="Spin up parallel agents"
                           >
                             <Rows3 />
                           </SidebarMenuAction>
                           <SidebarMenuAction
                             className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
-                            onClick={(e) => { e.stopPropagation(); setBranchPickerWorkspaceId(workspace.id) }}
+                            onClick={(e) => { e.stopPropagation(); setBranchPickerRepoId(repo.id) }}
                             title="New agent from branch"
                           >
                             <GitBranch />
                           </SidebarMenuAction>
                           <Dialog
-                            open={branchPickerWorkspaceId === workspace.id}
-                            onOpenChange={(open) => setBranchPickerWorkspaceId(open ? workspace.id : null)}
+                            open={branchPickerRepoId === repo.id}
+                            onOpenChange={(open) => setBranchPickerRepoId(open ? repo.id : null)}
                           >
                             <DialogContent className="max-w-sm p-0 gap-0">
                               <DialogHeader className="px-4 pt-4 pb-2">
                                 <DialogTitle>Select a branch</DialogTitle>
                               </DialogHeader>
                               <BranchPicker
-                                owner={workspace.repoOwner}
-                                repo={workspace.repoName}
+                                owner={repo.repoOwner}
+                                repo={repo.repoName}
                                 onSelect={(branch) => {
-                                  setBranchPickerWorkspaceId(null)
-                                  onCreateAgentFromBranch(workspace.id, branch)
+                                  setBranchPickerRepoId(null)
+                                  onCreateAgentFromBranch(repo.id, branch)
                                 }}
                                 onDuplicate={(branch) => {
-                                  setBranchPickerWorkspaceId(null)
-                                  onDuplicateBranch(workspace.id, branch)
+                                  setBranchPickerRepoId(null)
+                                  onDuplicateBranch(repo.id, branch)
                                 }}
                               />
                             </DialogContent>
                           </Dialog>
                           <SidebarMenuAction
                             className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100"
-                            onClick={(e) => { e.stopPropagation(); onCreateAgent(workspace.id) }}
+                            onClick={(e) => { e.stopPropagation(); onCreateAgent(repo.id) }}
                             title="New agent"
                           >
                             <Plus />
@@ -1103,10 +1103,10 @@ export function AgentSidebar({
                         <CollapsibleContent>
                           <SidebarMenuSub>
                             <SortableContext
-                              items={workspaceAgents.map((a) => `branch:${a.id}`)}
+                              items={repoAgents.map((a) => `branch:${a.id}`)}
                               strategy={verticalListSortingStrategy}
                             >
-                            {workspaceAgents.map((agent) => {
+                            {repoAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
                               const isActive = activeAgentIds?.has(agent.id) ?? false
                               const isPanelActive = chatPanelAgentId === agent.id
@@ -1117,7 +1117,7 @@ export function AgentSidebar({
                                   key={agent.id}
                                   id={`branch:${agent.id}`}
                                   kind="branch"
-                                  workspaceId={workspace.id}
+                                  repoId={repo.id}
                                   className="cursor-grab active:cursor-grabbing"
                                 >
                                 <Collapsible
@@ -1164,8 +1164,8 @@ export function AgentSidebar({
                                                     const sanitized = sanitizeBranchName(next)
                                                     if (!sanitized) return
                                                     if (sanitized === agent.branch) return
-                                                    const remote = remoteBranchesByWorkspace.get(workspace.id)
-                                                    const localTaken = workspaceAgents.some(
+                                                    const remote = remoteBranchesByRepo.get(repo.id)
+                                                    const localTaken = repoAgents.some(
                                                       (a) => a.id !== agent.id && a.branch === sanitized,
                                                     )
                                                     if (localTaken || remote?.has(sanitized)) return
@@ -1269,13 +1269,13 @@ export function AgentSidebar({
                                                           onClick={() => onRebaseOnDefault(agent.id)}
                                                         >
                                                           <GitMerge />
-                                                          Rebase on {workspace.defaultBranch}
+                                                          Rebase on {repo.defaultBranch}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                           disabled={!agent.branch}
                                                           onClick={() => {
                                                             if (!agent.branch) return
-                                                            const url = `https://github.com/${workspace.repoOwner}/${workspace.repoName}/tree/${encodeURI(agent.branch)}`
+                                                            const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(agent.branch)}`
                                                             window.open(url, "_blank", "noopener,noreferrer")
                                                           }}
                                                         >
@@ -1317,7 +1317,7 @@ export function AgentSidebar({
               </SortableContext>
             </SidebarMenu>
 
-            {workspaces.length === 0 && !showPicker && (
+            {repos.length === 0 && !showPicker && (
               <div className="py-8 text-center text-xs text-sidebar-foreground/50">
                 No workspaces yet
               </div>
@@ -1331,7 +1331,7 @@ export function AgentSidebar({
                 <SidebarMenuButton className="!pr-2">
                   <Folder className="text-sidebar-foreground/70" />
                   <span className="truncate font-medium text-sidebar-foreground/70">
-                    {activeBranchesDrag.workspace.repoFullName}
+                    {activeBranchesDrag.repo.repoFullName}
                   </span>
                 </SidebarMenuButton>
               ) : (
@@ -1564,43 +1564,43 @@ export function AgentSidebar({
         )
       })()}
       {(() => {
-        const workspace = parallelWorkspaceId
-          ? workspaces.find((w) => w.id === parallelWorkspaceId)
+        const repo = parallelRepoId
+          ? repos.find((w) => w.id === parallelRepoId)
           : null
-        return workspace ? (
+        return repo ? (
           <ParallelCreateDialog
             open={true}
             onOpenChange={(open) => {
-              if (!open) setParallelWorkspaceId(null)
+              if (!open) setParallelRepoId(null)
             }}
-            repoOwner={workspace.repoOwner}
-            repoName={workspace.repoName}
-            defaultBranch={workspace.defaultBranch}
-            onSubmit={(specs) => onCreateParallelAgents(workspace.id, specs)}
+            repoOwner={repo.repoOwner}
+            repoName={repo.repoName}
+            defaultBranch={repo.defaultBranch}
+            onSubmit={(specs) => onCreateParallelAgents(repo.id, specs)}
           />
         ) : null
       })()}
       {(() => {
-        const workspace = pendingDeleteWorkspaceId
-          ? workspaces.find((w) => w.id === pendingDeleteWorkspaceId)
+        const repo = pendingDeleteRepoId
+          ? repos.find((w) => w.id === pendingDeleteRepoId)
           : null
-        const workspaceBranches = workspace
+        const repoBranches = repo
           ? agents
-              .filter((a) => a.workspaceId === workspace.id && a.branch)
+              .filter((a) => a.repoId === repo.id && a.branch)
               .map((a) => a.branch)
           : []
         return (
-          <DeleteWorkspaceDialog
-            open={!!workspace}
+          <DeleteRepoDialog
+            open={!!repo}
             onOpenChange={(open) => {
-              if (!open) setPendingDeleteWorkspaceId(null)
+              if (!open) setPendingDeleteRepoId(null)
             }}
-            workspaceName={workspace?.name?.trim() || workspace?.repoFullName || ""}
-            branches={workspaceBranches}
+            repoName={repo?.name?.trim() || repo?.repoFullName || ""}
+            branches={repoBranches}
             onConfirm={async ({ deleteBranchesOnRemote }) => {
-              if (!workspace) return
-              await onRemoveWorkspace(workspace.id, { deleteBranchesOnRemote })
-              setPendingDeleteWorkspaceId(null)
+              if (!repo) return
+              await onRemoveRepo(repo.id, { deleteBranchesOnRemote })
+              setPendingDeleteRepoId(null)
             }}
           />
         )
@@ -1721,28 +1721,28 @@ function AgentDropdownSlot({ menuContent, children }: { menuContent: React.React
   )
 }
 
-function WorkspaceSettings({
-  workspace,
+function RepoSettings({
+  repo,
   onUpdate,
   onRemove,
   onClose,
 }: {
-  workspace: WorkspaceData
-  onUpdate: (id: string, data: Partial<WorkspaceData>) => void
+  repo: RepoData
+  onUpdate: (id: string, data: Partial<RepoData>) => void
   onRemove: () => void
   onClose: () => void
 }) {
-  const [name, setName] = useState(workspace.name ?? "")
-  const [setupScript, setSetupScript] = useState(workspace.setupScript)
-  const [devScript, setDevScript] = useState(workspace.devScript)
+  const [name, setName] = useState(repo.name ?? "")
+  const [setupScript, setSetupScript] = useState(repo.setupScript)
+  const [devScript, setDevScript] = useState(repo.devScript)
   const [devServerPort, setDevServerPort] = useState(
-    String(workspace.devServerPort ?? 3000),
+    String(repo.devServerPort ?? 3000),
   )
-  const [envVars, setEnvVars] = useState(workspace.envVars)
+  const [envVars, setEnvVars] = useState(repo.envVars)
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    workspace.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
+    repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
   )
-  const [systemPrompt, setSystemPrompt] = useState(workspace.systemPrompt ?? "")
+  const [systemPrompt, setSystemPrompt] = useState(repo.systemPrompt ?? "")
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
@@ -1752,7 +1752,7 @@ function WorkspaceSettings({
 
   const handleSave = useCallback(() => {
     if (!portIsValid) return
-    onUpdate(workspace.id, {
+    onUpdate(repo.id, {
       name: name.trim(),
       setupScript,
       devScript,
@@ -1763,7 +1763,7 @@ function WorkspaceSettings({
     })
     onClose()
   }, [
-    workspace.id,
+    repo.id,
     name,
     setupScript,
     devScript,
@@ -1777,14 +1777,14 @@ function WorkspaceSettings({
   ])
 
   const hasChanges =
-    name.trim() !== (workspace.name ?? "") ||
-    setupScript !== workspace.setupScript ||
-    devScript !== workspace.devScript ||
-    parsedPort !== (workspace.devServerPort ?? 3000) ||
-    envVars !== workspace.envVars ||
+    name.trim() !== (repo.name ?? "") ||
+    setupScript !== repo.setupScript ||
+    devScript !== repo.devScript ||
+    parsedPort !== (repo.devServerPort ?? 3000) ||
+    envVars !== repo.envVars ||
     defaultIframeLayerSizeId !==
-      (workspace.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
-    trimmedSystemPrompt !== (workspace.systemPrompt ?? "")
+      (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
+    trimmedSystemPrompt !== (repo.systemPrompt ?? "")
 
   return (
     <div className="space-y-3">
@@ -1800,7 +1800,7 @@ function WorkspaceSettings({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={workspace.repoFullName}
+          placeholder={repo.repoFullName}
           className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
         />
       </div>
