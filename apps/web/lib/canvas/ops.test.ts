@@ -545,6 +545,255 @@ describe("createDocument", () => {
   })
 })
 
+describe("saveViewport", () => {
+  it("writes the viewport singleton under the canvas-ops origin", () => {
+    const { ops, collections, doc } = makeHarness()
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.saveViewport({ x: 12, y: 34, zoom: 1.5 })
+
+    expect(collections.savedViewport.get()).toEqual({ x: 12, y: 34, zoom: 1.5 })
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("createWorkspace", () => {
+  it("writes the workspace record under the canvas-ops origin", () => {
+    const { ops, collections, doc } = makeHarness()
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.createWorkspace("ws-1", baseWorkspace("ws-1", { name: "My app" }))
+
+    expect(collections.workspaces.get("ws-1")?.name).toBe("My app")
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("addChatSession", () => {
+  it("writes the chat-session identity record under the canvas-ops origin", () => {
+    const { ops, collections, doc } = makeHarness()
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.addChatSession("chat-1", baseChat("chat-1", { agentId: "agent-1" }))
+
+    expect(collections.chatSessions.get("chat-1")?.agentId).toBe("agent-1")
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("removeChatSession", () => {
+  it("deletes a single chat-session record under the canvas-ops origin", () => {
+    const { ops, collections, doc } = makeHarness()
+    collections.chatSessions.set("chat-1", baseChat("chat-1"))
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.removeChatSession("chat-1")
+
+    expect(collections.chatSessions.has("chat-1")).toBe(false)
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+})
+
+describe("navigateRoute", () => {
+  it("updates the frame's route and registers it on the agent's discoveredRoutes", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { sandboxId: "agent-1", route: "/" }),
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const { viewportShift } = ops.navigateRoute("layer-1", "/about", {
+      cloneTrail: false,
+    })
+
+    expect(collections.iframeLayers.get("layer-1")?.route).toBe("/about")
+    expect(collections.agents.get("agent-1")?.discoveredRoutes).toEqual([
+      { route: "/about", label: routeToLabel("/about") },
+    ])
+    // No clone trail → no member added and no viewport pan.
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toHaveLength(1)
+    expect(viewportShift).toBe(0)
+  })
+
+  it("does not duplicate a route already on the agent", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set(
+      "agent-1",
+      baseAgent("agent-1", {
+        discoveredRoutes: [{ route: "/about", label: "About" }],
+      }),
+    )
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { sandboxId: "agent-1", route: "/" }),
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    ops.navigateRoute("layer-1", "/about", { cloneTrail: false })
+
+    expect(collections.agents.get("agent-1")?.discoveredRoutes).toEqual([
+      { route: "/about", label: "About" },
+    ])
+  })
+
+  it("drops a clone of the previous route into the group when trailing, returning the pan width", () => {
+    const { ops, collections } = makeHarness()
+    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { sandboxId: "agent-1", route: "/", width: 400 }),
+    )
+    collections.iframeLayerGroups.set("group-1", {
+      id: "group-1",
+      name: "group-1",
+      x: 0,
+      y: 0,
+      members: [{ kind: "iframe-layer", id: "layer-1" }],
+      gap: 50,
+    })
+
+    const { viewportShift } = ops.navigateRoute("layer-1", "/about", {
+      cloneTrail: true,
+    })
+
+    const members = collections.iframeLayerGroups.get("group-1")!.members
+    expect(members).toHaveLength(2)
+    // The clone holds the previous route and is spliced in just before the
+    // navigated frame so the trail grows leftward.
+    const cloneId = members[0]!.id
+    expect(members[1]).toEqual({ kind: "iframe-layer", id: "layer-1" })
+    expect(collections.iframeLayers.get(cloneId)?.route).toBe("/")
+    expect(collections.iframeLayers.get("layer-1")?.route).toBe("/about")
+    // The viewport pans right by the clone's width + the group's gap.
+    expect(viewportShift).toBe(450)
+  })
+
+  it("leaves no clone when the route is unchanged even in trail mode", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { route: "/same" }),
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const { viewportShift } = ops.navigateRoute("layer-1", "/same", {
+      cloneTrail: true,
+    })
+
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toHaveLength(1)
+    expect(viewportShift).toBe(0)
+  })
+})
+
+describe("addFrameToGroup", () => {
+  it("creates the frame and appends it to the existing Group's members", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const id = ops.addFrameToGroup("group-1", {
+      width: 420,
+      height: 320,
+      label: "Frame 2",
+      sandboxId: "agent-1",
+      route: "/about",
+    })
+
+    expect(id).toBeDefined()
+    const layer = collections.iframeLayers.get(id!)
+    expect(layer?.width).toBe(420)
+    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.route).toBe("/about")
+    // Appended after the existing sibling, preserving row order.
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "iframe-layer", id },
+    ])
+  })
+
+  it("omits sandboxId and route for a blank frame", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const id = ops.addFrameToGroup("group-1", {
+      width: 400,
+      height: 300,
+      label: "Frame",
+    })
+
+    const layer = collections.iframeLayers.get(id!)
+    expect(layer?.sandboxId).toBeUndefined()
+    expect(layer?.route).toBeUndefined()
+  })
+
+  it("commits under the canvas-ops origin", () => {
+    const { ops, collections, doc } = makeHarness()
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.addFrameToGroup("group-1", { width: 400, height: 300, label: "Frame" })
+
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+
+  it("is a no-op returning undefined when the Group is missing", () => {
+    const { ops, collections } = makeHarness()
+
+    const id = ops.addFrameToGroup("missing", {
+      width: 400,
+      height: 300,
+      label: "Frame",
+    })
+
+    expect(id).toBeUndefined()
+    expect(collections.iframeLayers.toArray()).toEqual([])
+  })
+})
+
+describe("renameDocument", () => {
+  it("writes the new title into both the body fragment heading and the record", () => {
+    const { ops, collections, doc } = makeHarness()
+    const { docId } = ops.createDocument({ x: 0, y: 0 }, { width: 300, height: 200 })
+
+    ops.renameDocument(docId, "Launch plan")
+
+    // The fragment heading is the source of truth every peer's editor renders;
+    // the record `title` is the cache the sidebar/agent tools read.
+    expect(getFragmentTitle(documentFragment(doc, docId))).toBe("Launch plan")
+    expect(collections.markdownLayers.get(docId)?.title).toBe("Launch plan")
+  })
+
+  it("commits the dual write under the canvas-ops origin", () => {
+    const { ops, doc } = makeHarness()
+    const { docId } = ops.createDocument({ x: 0, y: 0 }, { width: 300, height: 200 })
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    ops.renameDocument(docId, "Renamed")
+
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+
+  it("is a no-op when the Document does not exist", () => {
+    const { ops, collections, doc } = makeHarness()
+
+    ops.renameDocument("missing", "ghost")
+
+    expect(collections.markdownLayers.has("missing")).toBe(false)
+    // Never seeds a heading for a Document that was never created.
+    expect(getFragmentTitle(documentFragment(doc, "missing"))).toBe("")
+  })
+})
+
 describe("createAgent", () => {
   const spec = {
     workspaceId: "ws-1",

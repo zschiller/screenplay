@@ -23,7 +23,6 @@ import {
   useWorkspaces,
   useYjsHistory,
 } from "@/lib/yjs/react"
-import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
@@ -90,7 +89,6 @@ import {
   writePanelLayout,
 } from "@/lib/panel-layout"
 import type { AgentData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, WorkspaceData } from "@/lib/types"
-import { routeToLabel } from "@/lib/route-utils"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -110,7 +108,6 @@ import {
   DEFAULT_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
   MIN_IFRAME_LAYER_HEIGHT,
-  IFRAME_LAYER_GROUP_GAP,
   CANVAS_SIZE,
 } from "@/lib/constants"
 import {
@@ -1007,9 +1004,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const saveViewport = useCallback(
     (vp: ViewportData) => {
-      collections.savedViewport.set(vp)
+      ops.saveViewport(vp)
     },
-    [collections],
+    [ops],
   )
 
   const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1066,16 +1063,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const addWorkspaceToStorage = useCallback(
     (id: string, data: WorkspaceData) => {
-      collections.workspaces.set(id, data)
+      ops.createWorkspace(id, data)
     },
-    [collections],
+    [ops],
   )
 
   const updateWorkspaceInStorage = useCallback(
     (id: string, data: Partial<WorkspaceData>) => {
-      collections.workspaces.update(id, data)
+      ops.patch("workspaces", id, data)
     },
-    [collections],
+    [ops],
   )
 
   const removeWorkspaceFromStorage = useCallback(
@@ -1160,42 +1157,30 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         width = lastDoc.width
         height = lastDoc.height
       }
-      const id = nanoid()
-      collections.transact(() => {
-        collections.iframeLayers.set(id, {
-          id,
-          ...(sandboxId ? { sandboxId } : {}),
-          width,
-          height,
-          label: sandboxId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
-          iframeState: {},
-          ...(route ? { route } : {}),
-        })
-        collections.iframeLayerGroups.update(groupId, {
-          members: [...members, { kind: "iframe-layer", id }],
-        })
+      return ops.addFrameToGroup(groupId, {
+        width,
+        height,
+        label: sandboxId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
+        ...(sandboxId ? { sandboxId } : {}),
+        ...(route ? { route } : {}),
       })
-      return id
     },
-    [collections],
+    [collections, ops],
   )
 
   /** Translate the groups containing any of the given iframeLayers/markdownLayers by (dx, dy). */
   const moveIframeLayersByDelta = useCallback(
     (ids: string[], dx: number, dy: number) => {
       const idSet = new Set(ids)
-      collections.transact(() => {
+      ops.batch(() => {
         for (const g of collections.iframeLayerGroups.toArray()) {
           if (getGroupMembers(g).some((m) => idSet.has(m.id))) {
-            collections.iframeLayerGroups.update(g.id, {
-              x: g.x + dx,
-              y: g.y + dy,
-            })
+            ops.patch("iframeLayerGroups", g.id, { x: g.x + dx, y: g.y + dy })
           }
         }
       })
     },
-    [collections],
+    [collections, ops],
   )
 
   /**
@@ -1437,7 +1422,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const resizeIframeLayerEdge = useCallback(
     (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
-      collections.transact(() => {
+      ops.batch(() => {
         const a = collections.iframeLayers.get(id)
         if (!a) return
 
@@ -1484,7 +1469,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (shiftX !== 0 || shiftY !== 0) {
           for (const g of collections.iframeLayerGroups.toArray()) {
             if (getGroupMembers(g).some((m) => m.id === id)) {
-              collections.iframeLayerGroups.update(g.id, {
+              ops.patch("iframeLayerGroups", g.id, {
                 x: g.x + shiftX,
                 y: g.y + shiftY,
               })
@@ -1493,7 +1478,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          collections.iframeLayers.update(id, { width: newWidth, height: newHeight })
+          ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
         }
 
         setResizeSnap({
@@ -1505,14 +1490,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         })
       })
     },
-    [collections, zoom],
+    [collections, ops, zoom],
   )
 
   const renameIframeLayer = useCallback(
     (id: string, label: string) => {
-      collections.iframeLayers.update(id, { label })
+      ops.patch("iframeLayers", id, { label })
     },
-    [collections],
+    [ops],
   )
 
   const fitIframeLayerToContent = useCallback(
@@ -1522,9 +1507,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
       // repeated Fit click).
       const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.ceil(width))
       const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
-      collections.iframeLayers.update(id, { width: newWidth, height: newHeight })
+      ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
     },
-    [collections],
+    [ops],
   )
 
   const removeIframeLayers = useCallback(
@@ -1577,68 +1562,13 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateIframeLayerRoute = useCallback(
     (id: string, route: string) => {
-      let viewportShift = 0
-      collections.transact(() => {
-        const iframeLayer = collections.iframeLayers.get(id)
-        const previousRoute = iframeLayer?.route
-        const inFlowMode = createFlowIframeLayerIdRef.current === id
-
-        // In Create Flow mode, every meaningful navigation drops a clone of
-        // the iframeLayer's previous route into the same group, immediately to
-        // the left of the navigated iframeLayer. The group's origin stays put;
-        // instead we pan the canvas viewport right by the clone's width so
-        // the navigated iframeLayer appears visually anchored while the trail
-        // grows leftward.
-        if (
-          inFlowMode &&
-          iframeLayer &&
-          previousRoute !== undefined &&
-          previousRoute !== route
-        ) {
-          const group = collections.iframeLayerGroups
-            .toArray()
-            .find((g) => getGroupMembers(g).some((m) => m.id === id))
-          if (group) {
-            const cloneId = nanoid()
-            collections.iframeLayers.set(cloneId, {
-              id: cloneId,
-              ...(iframeLayer.sandboxId ? { sandboxId: iframeLayer.sandboxId } : {}),
-              width: iframeLayer.width,
-              height: iframeLayer.height,
-              label: iframeLayer.label,
-              iframeState: {},
-              route: previousRoute,
-              ...(iframeLayer.knobs ? { knobs: iframeLayer.knobs } : {}),
-              ...(iframeLayer.knobValues
-                ? { knobValues: iframeLayer.knobValues }
-                : {}),
-            })
-            const members = getGroupMembers(group)
-            const idx = members.findIndex((m) => m.id === id)
-            const nextMembers: GroupMember[] = [
-              ...members.slice(0, idx),
-              { kind: "iframe-layer", id: cloneId },
-              ...members.slice(idx),
-            ]
-            const gap = group.gap ?? IFRAME_LAYER_GROUP_GAP
-            collections.iframeLayerGroups.update(group.id, {
-              members: nextMembers,
-            })
-            viewportShift = iframeLayer.width + gap
-          }
-        }
-
-        collections.iframeLayers.update(id, { route })
-        const sandboxId = iframeLayer?.sandboxId
-        if (!sandboxId) return
-        const agent = collections.agents.get(sandboxId)
-        if (!agent) return
-        const existing = agent.discoveredRoutes ?? []
-        if (existing.some((r) => r.route === route)) return
-        collections.agents.update(sandboxId, {
-          discoveredRoutes: [...existing, { route, label: routeToLabel(route) }],
-        })
-      })
+      // In Create Flow mode the verb leaves a clone of the previous route in
+      // the group (immediately left of the navigated frame) and reports how far
+      // to pan so the navigated frame stays visually anchored as the trail
+      // grows leftward. The pan is the only part that touches React/viewport
+      // state, so it stays here; every Y.Doc write lives behind the verb.
+      const cloneTrail = createFlowIframeLayerIdRef.current === id
+      const { viewportShift } = ops.navigateRoute(id, route, { cloneTrail })
 
       if (viewportShift > 0) {
         const ref = transformRef.current
@@ -1648,19 +1578,19 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         }
       }
     },
-    [collections],
+    [ops],
   )
 
   /** Reorder groups in the sidebar Frames list. */
   const reorderIframeLayerGroups = useCallback(
     (orderedIds: string[]) => {
-      collections.transact(() => {
+      ops.batch(() => {
         orderedIds.forEach((id, index) => {
-          collections.iframeLayerGroups.update(id, { sidebarOrder: index })
+          ops.patch("iframeLayerGroups", id, { sidebarOrder: index })
         })
       })
     },
-    [collections],
+    [ops],
   )
 
   /**
@@ -1670,9 +1600,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const reorderGroupMembers = useCallback(
     (groupId: string, orderedMembers: GroupMember[]) => {
-      collections.iframeLayerGroups.update(groupId, { members: orderedMembers })
+      ops.patch("iframeLayerGroups", groupId, { members: orderedMembers })
     },
-    [collections],
+    [ops],
   )
 
   /**
@@ -1755,7 +1685,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           ...orderedIds.slice(clamped),
         ]
         finalOrder.forEach((id, index) => {
-          collections.iframeLayerGroups.update(id, { sidebarOrder: index })
+          ops.patch("iframeLayerGroups", id, { sidebarOrder: index })
         })
       })
     },
@@ -1764,16 +1694,16 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const renameIframeLayerGroup = useCallback(
     (groupId: string, name: string) => {
-      collections.iframeLayerGroups.update(groupId, { name })
+      ops.patch("iframeLayerGroups", groupId, { name })
     },
-    [collections],
+    [ops],
   )
 
   const setGroupGap = useCallback(
     (groupId: string, gap: number) => {
-      collections.iframeLayerGroups.update(groupId, { gap: Math.max(0, gap) })
+      ops.patch("iframeLayerGroups", groupId, { gap: Math.max(0, gap) })
     },
-    [collections],
+    [ops],
   )
 
   /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
@@ -1807,9 +1737,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const assignAgentToIframeLayer = useCallback(
     (iframeLayerId: string, agentId: string) => {
-      collections.iframeLayers.update(iframeLayerId, { sandboxId: agentId })
+      ops.patch("iframeLayers", iframeLayerId, { sandboxId: agentId })
     },
-    [collections],
+    [ops],
   )
 
   const updateIframeLayerState = useCallback(
@@ -1842,9 +1772,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateIframeLayerSharedState = useCallback(
     (id: string, sharedState: JsonObject) => {
-      collections.iframeLayers.update(id, { sharedState })
+      ops.patch("iframeLayers", id, { sharedState })
     },
-    [collections],
+    [ops],
   )
 
   // --- Document layer mutations ---
@@ -1874,7 +1804,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    */
   const resizeDocumentLayer = useCallback(
     (id: string, dx: number, dy: number, dw: number, dh: number) => {
-      collections.transact(() => {
+      ops.batch(() => {
         const d = collections.markdownLayers.get(id)
         if (!d) return
         const minW = 200
@@ -1888,7 +1818,7 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
         if (shiftX !== 0 || shiftY !== 0) {
           for (const g of collections.iframeLayerGroups.toArray()) {
             if (getGroupMembers(g).some((m) => m.id === id)) {
-              collections.iframeLayerGroups.update(g.id, {
+              ops.patch("iframeLayerGroups", g.id, {
                 x: g.x + shiftX,
                 y: g.y + shiftY,
               })
@@ -1897,14 +1827,14 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          collections.markdownLayers.update(id, {
+          ops.patch("markdownLayers", id, {
             width: newWidth,
             height: newHeight,
           })
         }
       })
     },
-    [collections],
+    [collections, ops],
   )
 
   /** Mirror the editor's first-heading text onto the cached `title` field.
@@ -1913,9 +1843,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    *  on every keystroke. Cache-only. */
   const setDocumentLayerTitleCache = useCallback(
     (id: string, title: string) => {
-      collections.markdownLayers.update(id, { title })
+      ops.patch("markdownLayers", id, { title })
     },
-    [collections],
+    [ops],
   )
 
   /** Rename a document from outside the editor (sidebar, agent tool). Writes
@@ -1923,13 +1853,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
    *  editor view updates, then mirrors onto the cache. */
   const setDocumentLayerTitle = useCallback(
     (id: string, title: string) => {
-      collections.transact(() => {
-        if (!collections.markdownLayers.has(id)) return
-        setFragmentTitle(documentFragment(collections.doc, id), title)
-        collections.markdownLayers.update(id, { title })
-      })
+      ops.renameDocument(id, title)
     },
-    [collections],
+    [ops],
   )
 
   const removeDocumentLayers = useCallback(
@@ -1945,9 +1871,9 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const updateAgentInStorage = useCallback(
     (id: string, data: Partial<AgentData>) => {
-      collections.agents.update(id, data)
+      ops.patch("agents", id, data)
     },
-    [collections],
+    [ops],
   )
 
   const removeAgentFromStorage = useCallback(
@@ -1962,23 +1888,23 @@ export function Canvas({ roomId, projectName, hasThumbnail, parentFolderName = "
 
   const addChatSession = useCallback(
     (id: string, data: ChatSessionData) => {
-      collections.chatSessions.set(id, data)
+      ops.addChatSession(id, data)
     },
-    [collections],
+    [ops],
   )
 
   const updateChatSession = useCallback(
     (id: string, data: Partial<ChatSessionData>) => {
-      collections.chatSessions.update(id, data)
+      ops.patch("chatSessions", id, data)
     },
-    [collections],
+    [ops],
   )
 
   const removeChatSession = useCallback(
     (id: string) => {
-      collections.chatSessions.delete(id)
+      ops.removeChatSession(id)
     },
-    [collections],
+    [ops],
   )
 
   // --- Handlers ---
