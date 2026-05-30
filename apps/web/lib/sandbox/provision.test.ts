@@ -285,8 +285,8 @@ describe("cloneSandbox", () => {
       username: "x-access-token",
       password: "tok123",
     })
-    // Devserver port + its proxy port are both forwarded.
-    expect(fake.createCalls[0]!.ports).toEqual([3000, 4000])
+    // Devserver port, its proxy port, and the BYO-terminal daemon port are forwarded.
+    expect(fake.createCalls[0]!.ports).toEqual([3000, 4000, 7681])
   })
 
   it("clones a public repo without auth when no token is available", async () => {
