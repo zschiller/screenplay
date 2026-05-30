@@ -8,7 +8,7 @@ import type {
   MarkdownLayerData,
   PlanData,
   ViewportData,
-  WorkspaceData,
+  RepoData,
 } from "@/lib/types"
 
 /**
@@ -20,7 +20,7 @@ import type {
  */
 
 export const COLLECTION_KEYS = {
-  workspaces: "workspaces",
+  repos: "repos",
   agents: "sandboxes",
   iframeLayers: "iframeLayers",
   iframeLayerGroups: "iframeLayerGroups",
@@ -219,7 +219,7 @@ export type CommentPosition = { x: number; y: number }
 
 export type RoomCollections = {
   doc: Y.Doc
-  workspaces: YjsCollection<WorkspaceData>
+  repos: YjsCollection<RepoData>
   agents: YjsCollection<AgentData>
   iframeLayers: YjsCollection<IframeLayerData>
   iframeLayerGroups: YjsCollection<IframeLayerGroupData>
@@ -241,9 +241,9 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
   const meta = doc.getMap(META_KEY) as AnyMap
   const collections: RoomCollections = {
     doc,
-    workspaces: new YjsCollection<WorkspaceData>(
+    repos: new YjsCollection<RepoData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.workspaces),
+      ensureCollection(doc, COLLECTION_KEYS.repos),
     ),
     agents: new YjsCollection<AgentData>(
       doc,

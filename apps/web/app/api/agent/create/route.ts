@@ -12,7 +12,7 @@ import {
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
-import type { AgentData, WorkspaceData } from "@/lib/types"
+import type { AgentData, RepoData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 
 export const runtime = "nodejs"
@@ -24,7 +24,7 @@ interface CreateRequest {
   agentId: string
   sandboxName: string
   branch: string
-  workspaceId: string
+  repoId: string
   sourceBranch?: string
 }
 
@@ -42,11 +42,11 @@ async function updateAgent(
   })
 }
 
-async function getWorkspaceFromStorage(
+async function getRepoFromStorage(
   roomId: string,
-  workspaceId: string,
-): Promise<WorkspaceData | null> {
-  return readRoomDoc(roomId, ({ workspaces }) => workspaces.get(workspaceId) ?? null)
+  repoId: string,
+): Promise<RepoData | null> {
+  return readRoomDoc(roomId, ({ repos }) => repos.get(repoId) ?? null)
 }
 
 
@@ -90,16 +90,16 @@ function markError(roomId: string, agentId: string, error?: string) {
 
 async function runNewOrFromBranchPipeline(
   req: CreateRequest,
-  workspace: WorkspaceData,
+  repo: RepoData,
   ghToken: string,
 ) {
   const { flow, roomId, agentId, sandboxName, branch } = req
-  const env = parseEnvVars(workspace.envVars)
+  const env = parseEnvVars(repo.envVars)
   const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
 
   // Step 1: Create branch (skip for from-branch flow)
   if (flow === "new") {
-    const branchResult = await createAgentBranch(workspace, branch, undefined, ghToken)
+    const branchResult = await createAgentBranch(repo, branch, undefined, ghToken)
     if (!branchResult.success) {
       await markError(roomId, agentId, branchResult.error || "Failed to create branch")
       return
@@ -108,7 +108,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 2: Clone repo into sandbox
   await updateAgent(roomId, agentId, { statusMessage: "Cloning repository…" })
-  const cloneResult = await cloneSandbox(sandboxName, workspace.cloneUrl, branch, workspace.devServerPort, envOrUndefined, ghToken)
+  const cloneResult = await cloneSandbox(sandboxName, repo.cloneUrl, branch, repo.devServerPort, envOrUndefined, ghToken)
   if (!cloneResult.success) {
     await markError(roomId, agentId, cloneResult.error)
     return
@@ -121,7 +121,7 @@ async function runNewOrFromBranchPipeline(
   // action still reports failure truthfully; this caller chooses to swallow it).
   await updateAgent(roomId, agentId, { statusMessage: "Installing dependencies…" })
   const [installResult] = await Promise.all([
-    installDependencies(clonedSandboxName, workspace.setupScript),
+    installDependencies(clonedSandboxName, repo.setupScript),
     installClaudeCode(clonedSandboxName),
     installRipgrep(clonedSandboxName),
   ])
@@ -132,7 +132,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 4: Start dev server
   await updateAgent(roomId, agentId, { statusMessage: "Starting dev server…" })
-  const serverResult = await startDevServer(clonedSandboxName, workspace.devServerPort, workspace.devScript)
+  const serverResult = await startDevServer(clonedSandboxName, repo.devServerPort, repo.devScript)
   if (!serverResult.success) {
     await markError(roomId, agentId, serverResult.error)
     return
@@ -140,7 +140,7 @@ async function runNewOrFromBranchPipeline(
 
   // Step 5: Configure git
   await updateAgent(roomId, agentId, { statusMessage: "Configuring git…" })
-  const gitResult = await configureAgentGit(clonedSandboxName, workspace, branch)
+  const gitResult = await configureAgentGit(clonedSandboxName, repo, branch)
   if (!gitResult.success) {
     await markError(roomId, agentId, gitResult.error)
     return
@@ -166,7 +166,7 @@ async function runNewOrFromBranchPipeline(
 
 async function runDuplicateBranchPipeline(
   req: CreateRequest,
-  workspace: WorkspaceData,
+  repo: RepoData,
   ghToken: string,
 ) {
   const { roomId, agentId, sourceBranch } = req
@@ -177,7 +177,7 @@ async function runDuplicateBranchPipeline(
   }
 
   // Step 1: Create a new branch from the source branch
-  const branchResult = await createAgentBranch(workspace, req.branch, sourceBranch, ghToken)
+  const branchResult = await createAgentBranch(repo, req.branch, sourceBranch, ghToken)
   if (!branchResult.success) {
     await markError(roomId, agentId, branchResult.error || "Failed to create branch")
     return
@@ -187,7 +187,7 @@ async function runDuplicateBranchPipeline(
   // "from-branch" since the branch we just created already exists.
   await runNewOrFromBranchPipeline(
     { ...req, flow: "from-branch" },
-    workspace,
+    repo,
     ghToken,
   )
 }
@@ -211,7 +211,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CreateRequest
-  const { flow, roomId, agentId, workspaceId } = body
+  const { flow, roomId, agentId, repoId } = body
 
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
   const lock = await kv.acquireLock(`agent-create:${agentId}`, 300)
@@ -222,16 +222,16 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      const workspace = await getWorkspaceFromStorage(roomId, workspaceId)
-      if (!workspace) {
+      const repo = await getRepoFromStorage(roomId, repoId)
+      if (!repo) {
         await markError(roomId, agentId, "Workspace not found")
         return
       }
 
       if (flow === "duplicate-branch") {
-        await runDuplicateBranchPipeline(body, workspace, ghToken)
+        await runDuplicateBranchPipeline(body, repo, ghToken)
       } else {
-        await runNewOrFromBranchPipeline(body, workspace, ghToken)
+        await runNewOrFromBranchPipeline(body, repo, ghToken)
       }
     } catch (e) {
       await markError(

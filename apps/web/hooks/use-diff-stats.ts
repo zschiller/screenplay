@@ -12,19 +12,19 @@ const POLL_INTERVAL = 30_000
  * Returns a map of agentId -> { additions, deletions }.
  */
 export function useDiffStats(
-  agents: Array<{ id: string; branch: string; status: string; workspaceId: string }>,
-  workspaces: Array<{ id: string; repoOwner: string; repoName: string; defaultBranch: string }>,
+  agents: Array<{ id: string; branch: string; status: string; repoId: string }>,
+  repos: Array<{ id: string; repoOwner: string; repoName: string; defaultBranch: string }>,
 ): Map<string, DiffStats> {
   const [statsMap, setStatsMap] = useState<Map<string, DiffStats>>(new Map())
   const agentsRef = useRef(agents)
-  const workspacesRef = useRef(workspaces)
+  const reposRef = useRef(repos)
   agentsRef.current = agents
-  workspacesRef.current = workspaces
+  reposRef.current = repos
 
   const fetchAll = useCallback(async () => {
     const currentAgents = agentsRef.current
-    const currentWorkspaces = workspacesRef.current
-    const workspaceMap = new Map(currentWorkspaces.map((w) => [w.id, w]))
+    const currentRepos = reposRef.current
+    const repoMap = new Map(currentRepos.map((w) => [w.id, w]))
 
     const running = currentAgents.filter((a) => a.status === "running" && a.branch)
     if (running.length === 0) {
@@ -34,7 +34,7 @@ export function useDiffStats(
 
     const entries = await Promise.all(
       running.map(async (agent) => {
-        const ws = workspaceMap.get(agent.workspaceId)
+        const ws = repoMap.get(agent.repoId)
         if (!ws || agent.branch === ws.defaultBranch) return null
         const stats = await compareBranch(ws.repoOwner, ws.repoName, ws.defaultBranch, agent.branch)
         if (!stats) return null

@@ -33,7 +33,7 @@ import { documentFragment, fragmentBodyToPlainText } from "@/lib/yjs/fragment-te
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
   loadContext(roomId: string, target: TTarget): Promise<TContext | null>
-  buildSystemPrompt(ctx: TContext, opts: { workspaceSystemPrompt?: string }): string
+  buildSystemPrompt(ctx: TContext, opts: { repoSystemPrompt?: string }): string
   buildTools(roomId: string, target: TTarget, sandbox?: ToolContext): Record<string, Tool>
   decorateUserMessage?(message: string, opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }): string
 }
@@ -61,25 +61,25 @@ export interface AgentTarget {
 }
 
 interface AgentContext {
-  workspaceSystemPrompt: string | undefined
+  repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
 }
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
   async loadContext(roomId, target) {
-    const [workspaceSystemPrompt, layerDirectory] = await Promise.all([
-      readRoomDoc(roomId, ({ agents, workspaces }) => {
+    const [repoSystemPrompt, layerDirectory] = await Promise.all([
+      readRoomDoc(roomId, ({ agents, repos }) => {
         const agent = agents.toArray().find((a) => a.sandboxName === target.sandboxName)
         if (!agent) return undefined
-        return workspaces.get(agent.workspaceId)?.systemPrompt
+        return repos.get(agent.repoId)?.systemPrompt
       }).catch(() => undefined),
       loadLayerDirectory(roomId),
     ])
-    return { workspaceSystemPrompt, layerDirectory }
+    return { repoSystemPrompt, layerDirectory }
   },
   buildSystemPrompt(ctx) {
-    return buildAgentSystemPrompt(ctx.workspaceSystemPrompt ?? undefined, ctx.layerDirectory)
+    return buildAgentSystemPrompt(ctx.repoSystemPrompt ?? undefined, ctx.layerDirectory)
   },
   buildTools(roomId, _target, sandbox) {
     if (!sandbox) {

@@ -8,7 +8,7 @@ import {
   baseChat,
   baseDoc,
   baseLayer,
-  baseWorkspace,
+  baseRepo,
   findEmptyGroups,
   makeHarness,
   seedGroup,
@@ -217,13 +217,13 @@ describe("removeAgent", () => {
   })
 })
 
-describe("removeWorkspace", () => {
-  it("cascades across every agent in the workspace, leaving no orphans or empty Groups", () => {
+describe("removeRepo", () => {
+  it("cascades across every agent in the repo, leaving no orphans or empty Groups", () => {
     const { ops, collections } = makeHarness()
-    collections.workspaces.set("ws-1", baseWorkspace("ws-1"))
-    collections.agents.set("agent-1", baseAgent("agent-1", { workspaceId: "ws-1" }))
-    collections.agents.set("agent-2", baseAgent("agent-2", { workspaceId: "ws-1" }))
-    collections.agents.set("agent-keep", baseAgent("agent-keep", { workspaceId: "ws-other" }))
+    collections.repos.set("ws-1", baseRepo("ws-1"))
+    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
+    collections.agents.set("agent-2", baseAgent("agent-2", { repoId: "ws-1" }))
+    collections.agents.set("agent-keep", baseAgent("agent-keep", { repoId: "ws-other" }))
     collections.iframeLayers.set("layer-1", baseLayer("layer-1", { sandboxId: "agent-1" }))
     collections.iframeLayers.set("layer-2", baseLayer("layer-2", { sandboxId: "agent-2" }))
     collections.iframeLayers.set("layer-keep", baseLayer("layer-keep", { sandboxId: "agent-keep" }))
@@ -235,16 +235,16 @@ describe("removeWorkspace", () => {
     ])
     seedGroup(collections, "group-keep", [{ kind: "iframe-layer", id: "layer-keep" }])
 
-    const { removedChatIds } = ops.removeWorkspace("ws-1")
+    const { removedChatIds } = ops.removeRepo("ws-1")
 
-    expect(collections.workspaces.has("ws-1")).toBe(false)
+    expect(collections.repos.has("ws-1")).toBe(false)
     expect(collections.agents.has("agent-1")).toBe(false)
     expect(collections.agents.has("agent-2")).toBe(false)
     expect(collections.iframeLayers.has("layer-1")).toBe(false)
     expect(collections.iframeLayers.has("layer-2")).toBe(false)
     expect(removedChatIds.sort()).toEqual(["chat-1", "chat-2"])
     expect(collections.iframeLayerGroups.has("group-1")).toBe(false)
-    // Another workspace's agent, layer, and Group are untouched.
+    // Another repo's agent, layer, and Group are untouched.
     expect(collections.agents.has("agent-keep")).toBe(true)
     expect(collections.iframeLayers.has("layer-keep")).toBe(true)
     expect(collections.iframeLayerGroups.has("group-keep")).toBe(true)
@@ -425,13 +425,13 @@ describe("createBlankFrame", () => {
 })
 
 describe("createFrameForAgent", () => {
-  it("creates an agent-bound Iframe Layer in a fresh Group, sized from the workspace preset", () => {
+  it("creates an agent-bound Iframe Layer in a fresh Group, sized from the repo preset", () => {
     const { ops, collections } = makeHarness()
-    collections.workspaces.set(
+    collections.repos.set(
       "ws-1",
-      baseWorkspace("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
+      baseRepo("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
     )
-    collections.agents.set("agent-1", baseAgent("agent-1", { workspaceId: "ws-1" }))
+    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
 
     const { layerId, groupId } = ops.createFrameForAgent(
       "agent-1",
@@ -558,15 +558,15 @@ describe("saveViewport", () => {
   })
 })
 
-describe("createWorkspace", () => {
-  it("writes the workspace record under the canvas-ops origin", () => {
+describe("createRepo", () => {
+  it("writes the repo record under the canvas-ops origin", () => {
     const { ops, collections, doc } = makeHarness()
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
-    ops.createWorkspace("ws-1", baseWorkspace("ws-1", { name: "My app" }))
+    ops.createRepo("ws-1", baseRepo("ws-1", { name: "My app" }))
 
-    expect(collections.workspaces.get("ws-1")?.name).toBe("My app")
+    expect(collections.repos.get("ws-1")?.name).toBe("My app")
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
   })
 })
@@ -796,7 +796,7 @@ describe("renameDocument", () => {
 
 describe("createAgent", () => {
   const spec = {
-    workspaceId: "ws-1",
+    repoId: "ws-1",
     sandboxName: "sp-1",
     gitUrl: "https://example.com/repo.git",
     branch: "main",
@@ -812,7 +812,7 @@ describe("createAgent", () => {
     const { agentId, chatId } = ops.createAgent({ agent: spec })
 
     const agent = collections.agents.get(agentId)
-    expect(agent?.workspaceId).toBe("ws-1")
+    expect(agent?.repoId).toBe("ws-1")
     expect(agent?.branch).toBe("main")
     // createAgent owns the deferred-seed flag (parent decision 7).
     expect(agent?.pendingIframeLayerSeed).toBe(true)
@@ -875,13 +875,13 @@ describe("createFrameForAgent", () => {
     expect(findEmptyGroups(collections)).toEqual([])
   })
 
-  it("sizes the frame from the agent's workspace size preset", () => {
+  it("sizes the frame from the agent's repo size preset", () => {
     const { ops, collections } = makeHarness()
-    collections.workspaces.set(
+    collections.repos.set(
       "ws-1",
-      baseWorkspace("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
+      baseRepo("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
     )
-    collections.agents.set("agent-1", baseAgent("agent-1", { workspaceId: "ws-1" }))
+    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
 
     const { layerId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
 
@@ -936,28 +936,28 @@ describe("findEmptyGroups (invariant sweep)", () => {
   })
 })
 
-describe("reorderWorkspaces", () => {
-  it("renumbers each workspace's sidebarOrder to its index in the given order", () => {
+describe("reorderRepos", () => {
+  it("renumbers each repo's sidebarOrder to its index in the given order", () => {
     const { ops, collections } = makeHarness()
-    collections.workspaces.set("ws-a", baseWorkspace("ws-a"))
-    collections.workspaces.set("ws-b", baseWorkspace("ws-b"))
-    collections.workspaces.set("ws-c", baseWorkspace("ws-c"))
+    collections.repos.set("ws-a", baseRepo("ws-a"))
+    collections.repos.set("ws-b", baseRepo("ws-b"))
+    collections.repos.set("ws-c", baseRepo("ws-c"))
 
-    ops.reorderWorkspaces(["ws-c", "ws-a", "ws-b"])
+    ops.reorderRepos(["ws-c", "ws-a", "ws-b"])
 
-    expect(collections.workspaces.get("ws-c")?.sidebarOrder).toBe(0)
-    expect(collections.workspaces.get("ws-a")?.sidebarOrder).toBe(1)
-    expect(collections.workspaces.get("ws-b")?.sidebarOrder).toBe(2)
+    expect(collections.repos.get("ws-c")?.sidebarOrder).toBe(0)
+    expect(collections.repos.get("ws-a")?.sidebarOrder).toBe(1)
+    expect(collections.repos.get("ws-b")?.sidebarOrder).toBe(2)
   })
 
   it("commits the renumber as one transaction under the canvas-ops origin", () => {
     const { doc, ops, collections } = makeHarness()
-    collections.workspaces.set("ws-a", baseWorkspace("ws-a"))
-    collections.workspaces.set("ws-b", baseWorkspace("ws-b"))
+    collections.repos.set("ws-a", baseRepo("ws-a"))
+    collections.repos.set("ws-b", baseRepo("ws-b"))
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
-    ops.reorderWorkspaces(["ws-b", "ws-a"])
+    ops.reorderRepos(["ws-b", "ws-a"])
 
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
   })
@@ -966,9 +966,9 @@ describe("reorderWorkspaces", () => {
 describe("reorderAgents", () => {
   it("renumbers each agent's sidebarOrder to its index in the given order", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
-    collections.agents.set("ag-c", baseAgent("ag-c", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
+    collections.agents.set("ag-c", baseAgent("ag-c", { repoId: "ws-1" }))
 
     ops.reorderAgents("ws-1", ["ag-c", "ag-a", "ag-b"])
 
@@ -977,13 +977,13 @@ describe("reorderAgents", () => {
     expect(collections.agents.get("ag-b")?.sidebarOrder).toBe(2)
   })
 
-  it("never touches an agent that belongs to a different workspace", () => {
+  it("never touches an agent that belongs to a different repo", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
-    // An agent of another Workspace, plus a stray id pointing at it sneaking
+    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
+    // An agent of another Repo, plus a stray id pointing at it sneaking
     // into ws-1's reorder — both must be left alone.
-    collections.agents.set("other", baseAgent("other", { workspaceId: "ws-2" }))
+    collections.agents.set("other", baseAgent("other", { repoId: "ws-2" }))
 
     ops.reorderAgents("ws-1", ["ag-b", "other", "ag-a"])
 
@@ -994,8 +994,8 @@ describe("reorderAgents", () => {
 
   it("commits the renumber as one transaction under the canvas-ops origin", () => {
     const { doc, ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { workspaceId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { workspaceId: "ws-1" }))
+    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
+    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 

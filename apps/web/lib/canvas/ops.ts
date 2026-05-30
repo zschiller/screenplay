@@ -25,7 +25,7 @@ import type {
   MarkdownLayerData,
   PlanData,
   ViewportData,
-  WorkspaceData,
+  RepoData,
 } from "@/lib/types"
 import type {
   CommentPosition,
@@ -55,7 +55,7 @@ export const CANVAS_OPS_ORIGIN = Symbol("canvas-ops")
 
 /** The keyed collections `patch` can write, mapped to their record type. */
 type RecordByKey = {
-  workspaces: WorkspaceData
+  repos: RepoData
   agents: AgentData
   iframeLayers: IframeLayerData
   iframeLayerGroups: IframeLayerGroupData
@@ -101,11 +101,11 @@ export type CanvasOps = {
    */
   saveViewport(viewport: ViewportData): void
   /**
-   * Create a Workspace record. Composes under one {@link batch} with
-   * {@link createAgent} so a workspace and its first agent land as a single
+   * Create a Repo record. Composes under one {@link batch} with
+   * {@link createAgent} so a repo and its first agent land as a single
    * undo step; a thin verb because `patch` only updates existing records.
    */
-  createWorkspace(id: string, data: WorkspaceData): void
+  createRepo(id: string, data: RepoData): void
   /**
    * Create a Chat Session identity record (the standalone chat-tab lifecycle:
    * new tab, reopen-as-new, plan submit). The conversation itself lives in the
@@ -131,7 +131,7 @@ export type CanvasOps = {
   ): string
   /**
    * Create an Iframe Layer bound to `agentId` in a fresh single-member Group,
-   * sized from the agent's workspace preset. `anchor` is the viewport center
+   * sized from the agent's repo preset. `anchor` is the viewport center
    * (canvas-space); the verb reads the live Group snapshot inside its
    * transaction and places the Group beside the existing ones (the
    * placement-race guard). Returns the new layer and Group ids.
@@ -251,27 +251,27 @@ export type CanvasOps = {
    */
   removeAgent(agentId: string): { removedChatIds: string[] }
   /**
-   * Remove a workspace and cascade across every agent it owns — their Iframe
+   * Remove a repo and cascade across every agent it owns — their Iframe
    * Layers, Chat Sessions, and Members (pruning Groups emptied by the cascade)
    * — atomically. Returns the `removedChatIds` for the client mirror.
    */
-  removeWorkspace(id: string): { removedChatIds: string[] }
+  removeRepo(id: string): { removedChatIds: string[] }
   /**
-   * Reorder the in-room sidebar's repo list: renumber each Workspace's
+   * Reorder the in-room sidebar's repo list: renumber each Repo's
    * `sidebarOrder` to its index in `orderedIds`, in one batch under the
    * canvas-ops origin. Makes the manual order the shared source of truth from
    * the first drag on. Mirrors {@link reorderAgents} and the Canvas section's
    * group reorder.
    */
-  reorderWorkspaces(orderedIds: string[]): void
+  reorderRepos(orderedIds: string[]): void
   /**
-   * Reorder the branch list within a single Workspace: renumber the
+   * Reorder the branch list within a single Repo: renumber the
    * `sidebarOrder` of each Agent in `orderedIds` to its index, in one batch
-   * under the canvas-ops origin. Ids not belonging to `workspaceId` are
-   * ignored, so reordering one Workspace's branches never touches another's —
+   * under the canvas-ops origin. Ids not belonging to `repoId` are
+   * ignored, so reordering one Repo's branches never touches another's —
    * the within-repo constraint lives here, not just in the UI.
    */
-  reorderAgents(workspaceId: string, orderedIds: string[]): void
+  reorderAgents(repoId: string, orderedIds: string[]): void
   /**
    * Move the Member with `layerId` out of whatever Group holds it and into
    * `targetGroupId` at `index` (appended when `index` is omitted), pruning the
@@ -358,9 +358,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     })
   }
 
-  function createWorkspace(id: string, data: WorkspaceData): void {
+  function createRepo(id: string, data: RepoData): void {
     batch(() => {
-      collections.workspaces.set(id, data)
+      collections.repos.set(id, data)
     })
   }
 
@@ -379,12 +379,12 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   // --- Create verbs ---
 
   // Default frame size for a new Iframe Layer bound to `agentId`: the size
-  // preset configured on the agent's workspace, falling back to the default
+  // preset configured on the agent's repo, falling back to the default
   // preset. React-free and Y.Doc-only, so it lives behind the seam.
   function defaultSizeForAgent(agentId: string): { width: number; height: number } {
     const agent = collections.agents.get(agentId)
-    const workspace = agent ? collections.workspaces.get(agent.workspaceId) : undefined
-    const preset = getIframeLayerSizePreset(workspace?.defaultIframeLayerSizeId)
+    const repo = agent ? collections.repos.get(agent.repoId) : undefined
+    const preset = getIframeLayerSizePreset(repo?.defaultIframeLayerSizeId)
     return { width: preset.width, height: preset.height }
   }
 
@@ -728,13 +728,13 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { removedChatIds }
   }
 
-  function removeWorkspace(id: string): { removedChatIds: string[] } {
+  function removeRepo(id: string): { removedChatIds: string[] } {
     const removedChatIds: string[] = []
     batch(() => {
-      collections.workspaces.delete(id)
+      collections.repos.delete(id)
       const agentIds = new Set<string>()
       for (const agent of collections.agents.toArray()) {
-        if (agent.workspaceId === id) {
+        if (agent.repoId === id) {
           collections.agents.delete(agent.id)
           agentIds.add(agent.id)
         }
@@ -759,22 +759,22 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { removedChatIds }
   }
 
-  function reorderWorkspaces(orderedIds: string[]): void {
+  function reorderRepos(orderedIds: string[]): void {
     batch(() => {
       orderedIds.forEach((id, index) => {
-        collections.workspaces.update(id, { sidebarOrder: index })
+        collections.repos.update(id, { sidebarOrder: index })
       })
     })
   }
 
-  function reorderAgents(workspaceId: string, orderedIds: string[]): void {
+  function reorderAgents(repoId: string, orderedIds: string[]): void {
     batch(() => {
       orderedIds.forEach((id, index) => {
-        // Confine the renumber to this Workspace's own branches: an id that
+        // Confine the renumber to this Repo's own branches: an id that
         // isn't one of its Agents is skipped, so a stray cross-repo id can
-        // never reorder a sibling Workspace's branches.
+        // never reorder a sibling Repo's branches.
         const agent = collections.agents.get(id)
-        if (!agent || agent.workspaceId !== workspaceId) return
+        if (!agent || agent.repoId !== repoId) return
         collections.agents.update(id, { sidebarOrder: index })
       })
     })
@@ -874,7 +874,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     batch,
     patch,
     saveViewport,
-    createWorkspace,
+    createRepo,
     addChatSession,
     removeChatSession,
     createBlankFrame,
@@ -889,8 +889,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     removeLayers,
     removeDocuments,
     removeAgent,
-    removeWorkspace,
-    reorderWorkspaces,
+    removeRepo,
+    reorderRepos,
     reorderAgents,
     moveLayerToGroup,
     mergeGroups,

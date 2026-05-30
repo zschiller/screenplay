@@ -38,11 +38,11 @@ export function PlayerChatHost({
   const allChatSessions = useChatSessions()
   const agent = agents.find((a) => a.id === agentId)
   const chatSessions = allChatSessions.filter((c) => c.agentId === agentId)
-  const workspace = agent
-    ? collections.workspaces.toMap().get(agent.workspaceId)
+  const repo = agent
+    ? collections.repos.toMap().get(agent.repoId)
     : undefined
-  const diffStats = useDiffStats(agents, workspace ? [workspace] : [])
-  const branchPrs = useBranchPrs(agents, workspace ? [workspace] : [])
+  const diffStats = useDiffStats(agents, repo ? [repo] : [])
+  const branchPrs = useBranchPrs(agents, repo ? [repo] : [])
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
 
@@ -176,7 +176,7 @@ export function PlayerChatHost({
 
   const handleBranchRename = useCallback(
     async (newBranchRaw: string) => {
-      if (!agent || !workspace) return
+      if (!agent || !repo) return
       const newBranch = newBranchRaw
         .toLowerCase()
         .replace(/[^a-z0-9/_-]/g, "-")
@@ -195,14 +195,14 @@ export function PlayerChatHost({
       const previousBranch = agent.branch
       updateAgent(agent.id, { branch: newBranch })
       const result = await renameAgentBranch(
-        workspace,
+        repo,
         agent.sandboxName,
         previousBranch,
         newBranch,
       )
       if (!result.success) updateAgent(agent.id, { branch: previousBranch })
     },
-    [agent, workspace, updateAgent],
+    [agent, repo, updateAgent],
   )
 
   if (!agent) {
