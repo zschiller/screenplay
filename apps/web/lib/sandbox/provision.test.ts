@@ -72,6 +72,7 @@ import {
   installBridge,
   installClaudeCode,
   installDependencies,
+  installRipgrep,
   startDevServer,
 } from "@/lib/sandbox/provision"
 
@@ -235,6 +236,30 @@ describe("installClaudeCode", () => {
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
+  })
+})
+
+describe("installRipgrep", () => {
+  it("attempts a ripgrep install", async () => {
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      }),
+    )
+
+    await installRipgrep("sandbox-a")
+
+    expect(seen.some((c) => c.includes("ripgrep"))).toBe(true)
+  })
+
+  it("reports success even when the install fails — it's best-effort", async () => {
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 1, stderr: "no package manager" })))
+
+    const result = await installRipgrep("sandbox-a")
+
+    expect(result).toEqual({ success: true, value: undefined })
   })
 })
 

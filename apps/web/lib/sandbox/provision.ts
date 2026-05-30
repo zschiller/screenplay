@@ -103,6 +103,34 @@ export async function installDependencies(
 }
 
 /**
+ * Best-effort install of ripgrep so the agent's `grep` tool runs `rg` (fast,
+ * .gitignore-aware) instead of its portable `grep -rn` fallback. Tries the
+ * package managers across our base images (dnf/yum on Amazon Linux, apt on
+ * Debian); the `|| true` makes a box with no matching manager (or no network)
+ * still succeed.
+ *
+ * Deliberately never throws: ripgrep is an optimization, not a requirement —
+ * the `grep` tool already falls back to plain `grep` when `rg` is absent — so a
+ * failed install must not fail provisioning. Idempotent (no-ops when rg is
+ * already present), so it's safe to run on every provision.
+ */
+export async function installRipgrep(
+  sandboxName: string,
+): Promise<SandboxActionResult<void>> {
+  return runSandboxAction(sandboxName, async (sandbox) => {
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        "command -v rg >/dev/null 2>&1 || dnf install -y ripgrep || " +
+          "yum install -y ripgrep || (apt-get update && apt-get install -y ripgrep) || true",
+      ],
+      sudo: true,
+    })
+  })
+}
+
+/**
  * Install the Claude Code CLI globally so `sandbox ssh <name>` lands in a box
  * where `claude` just works, then pre-seed the onboarding state, a user-level
  * CLAUDE.md, and the per-command git credential helper.
