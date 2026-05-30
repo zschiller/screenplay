@@ -35,6 +35,7 @@ function fakeRuns() {
     string,
     { chatId: string; status: RunStatus; endedAt: Date | null }
   >()
+  const pendings = new Map<string, { runId: string; status: string }>()
   let seq = 0
   const repo: RunStateRepo = {
     async loadStatus(id) {
@@ -52,6 +53,20 @@ function fakeRuns() {
       rows.set(id, { chatId, status: "running", endedAt: null })
       return id
     },
+    async pauseForPlan(runId, planCall) {
+      const row = rows.get(runId)
+      if (!row) throw new Error(`unknown run ${runId}`)
+      row.status = "paused_for_plan"
+      pendings.set(planCall.toolCallId, { runId, status: "pending" })
+    },
+    async resolvePlan(planId, resolution) {
+      const pending = pendings.get(planId)
+      if (!pending || pending.status !== "pending") return null
+      pending.status = resolution.approved ? "approved" : "rejected"
+      const row = rows.get(pending.runId)
+      if (row) row.status = "superseded"
+      return { runId: pending.runId }
+    },
   }
   return {
     runState: createRunState(repo),
@@ -62,18 +77,38 @@ function fakeRuns() {
       return id
     },
     statusOf: (id: string) => rows.get(id)?.status,
+    pendingOf: (toolCallId: string) => pendings.get(toolCallId),
   }
 }
 
-/** Capture the `error` messages the loop broadcast via the Y.Doc channel. */
-function errorBroadcasts(): string[] {
+/** All chat-stream events of a given `type` the loop broadcast via the Y.Doc. */
+function eventsOfType(type: string): Record<string, unknown>[] {
   return vi
     .mocked(broadcastChatEventViaDoc)
     .mock.calls.map(([, msg]) => msg as Record<string, unknown>)
     .filter((msg) => msg.type === "chat-stream")
-    .map((msg) => msg.event as { type?: string; message?: string })
-    .filter((event) => event.type === "error")
-    .map((event) => event.message ?? "")
+    .map((msg) => msg.event as Record<string, unknown>)
+    .filter((event) => event.type === type)
+}
+
+/** Capture the `error` messages the loop broadcast via the Y.Doc channel. */
+function errorBroadcasts(): string[] {
+  return eventsOfType("error").map((event) => (event.message as string) ?? "")
+}
+
+/**
+ * A stream driver that finishes having emitted a `submit_plan` tool call —
+ * the hasToolCall halt the loop pivots into pending-plan mode on.
+ */
+function finishesWithPlan(toolCallId: string, plan: string): StreamDriver {
+  return finishesWith([
+    {
+      role: "assistant",
+      content: [
+        { type: "tool-call", toolCallId, toolName: "submit_plan", input: { plan } },
+      ],
+    },
+  ])
 }
 
 /** A stream driver that finishes cleanly with the given final messages. */
@@ -141,6 +176,27 @@ describe("runAgentLoop outcomes", () => {
     })
 
     expect(runs.statusOf(runId)).toBe("completed")
+  })
+
+  it("pauses the run for a submitted plan and broadcasts plan_submitted", async () => {
+    const runs = fakeRuns()
+    const runId = runs.seed("running")
+
+    await runAgentLoop({
+      ...baseOpts(),
+      runId,
+      runState: runs.runState,
+      startStream: finishesWithPlan("call_plan", "the plan"),
+    })
+
+    // The run is paused (not completed) and its pending plan is recorded —
+    // both through the atomic pauseForPlan path.
+    expect(runs.statusOf(runId)).toBe("paused_for_plan")
+    expect(runs.pendingOf("call_plan")?.status).toBe("pending")
+    // The client is told a plan is awaiting approval, keyed by the tool-call id.
+    const submitted = eventsOfType("plan_submitted")
+    expect(submitted).toHaveLength(1)
+    expect(submitted[0]?.planId).toBe("call_plan")
   })
 
   it("records a thrown error as failed and broadcasts the real error", async () => {
