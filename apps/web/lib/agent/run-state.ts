@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { db as defaultDb } from "@/lib/db"
 import type { DB } from "@/lib/db"
-import { agentRun } from "@/lib/db/schema"
+import { agentPendingToolCall, agentRun } from "@/lib/db/schema"
 
 /**
  * The truthful set of run states. Unlike the legacy `running | paused_for_plan
@@ -26,6 +26,26 @@ const TERMINAL: ReadonlySet<RunStatus> = new Set<RunStatus>([
   "aborted",
   "superseded",
 ])
+
+/**
+ * A tool call halting a run for human approval (currently only `submit_plan`).
+ * Carries the verbatim AI-SDK tool-call id, which becomes the pending row's
+ * primary key — the same value the `plan_submitted` broadcast and the
+ * history-route reconstruction key off, so a client's planId always resolves
+ * back to this row.
+ */
+export interface PendingPlanCall {
+  toolCallId: string
+  chatId: string
+  toolName: string
+  input: Record<string, unknown>
+}
+
+/** The human decision on a pending plan. */
+export interface PlanResolution {
+  approved: boolean
+  feedback?: string
+}
 
 // Legal forward edges. Terminal states have no outgoing edges, which is what
 // makes a late transition onto a finished run a no-op rather than a clobber.
@@ -62,12 +82,34 @@ export interface RunStateRepo {
   supersedeActiveRuns(chatId: string): Promise<void>
   /** Insert a fresh `running` run for a chat and return its id. */
   insertRunning(chatId: string): Promise<string>
+  /**
+   * Atomically pause a run for human plan approval: move it
+   * `running → paused_for_plan` **and** insert its pending tool-call row in a
+   * single transaction. A failure inside (e.g. a duplicate tool-call id) rolls
+   * back both — neither write lands, so the two tables can never desync.
+   */
+  pauseForPlan(runId: string, planCall: PendingPlanCall): Promise<void>
+  /**
+   * Atomically resolve a pending plan: mark its tool-call `approved`/`rejected`
+   * **and** move the owning run `→ superseded`, in a single transaction. A
+   * failure rolls back both. Returns the affected run id, or null when there
+   * was no still-pending plan under `planId`.
+   */
+  resolvePlan(
+    planId: string,
+    resolution: PlanResolution,
+  ): Promise<{ runId: string } | null>
 }
 
 export interface RunState {
   transition(runId: string, to: RunStatus): Promise<void>
   startRun(chatId: string): Promise<string>
   isRunActive(runId: string): Promise<boolean>
+  pauseForPlan(runId: string, planCall: PendingPlanCall): Promise<void>
+  resolvePlan(
+    planId: string,
+    resolution: PlanResolution,
+  ): Promise<{ runId: string } | null>
 }
 
 /**
@@ -101,7 +143,35 @@ export function createRunState(repo: RunStateRepo): RunState {
     return (await repo.loadStatus(runId)) === "running"
   }
 
-  return { transition, startRun, isRunActive }
+  async function pauseForPlan(
+    runId: string,
+    planCall: PendingPlanCall,
+  ): Promise<void> {
+    const current = await repo.loadStatus(runId)
+    if (current === null) {
+      throw new Error(`Cannot pause unknown run ${runId}`)
+    }
+    // The run already finished (a /stop or a superseding message landed while
+    // the model was still emitting the plan). Inserting a pending row now would
+    // orphan it against a terminal run, so stand down rather than pause.
+    if (TERMINAL.has(current)) return
+    if (!LEGAL_EDGES[current].has("paused_for_plan")) {
+      throw new Error(`Illegal run transition: ${current} → paused_for_plan`)
+    }
+    await repo.pauseForPlan(runId, planCall)
+  }
+
+  async function resolvePlan(
+    planId: string,
+    resolution: PlanResolution,
+  ): Promise<{ runId: string } | null> {
+    // The pending-status and run-supersede guards live in the atomic repo
+    // write itself (one transaction), so there is no read-then-write window
+    // for the two tables to drift apart.
+    return repo.resolvePlan(planId, resolution)
+  }
+
+  return { transition, startRun, isRunActive, pauseForPlan, resolvePlan }
 }
 
 /**
@@ -141,15 +211,80 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
       await database.insert(agentRun).values({ id, chatId, status: "running" })
       return id
     },
+    async pauseForPlan(runId, planCall) {
+      // `batch` runs both statements inside one Postgres transaction — the only
+      // atomic primitive the neon-http driver exposes (it rejects interactive
+      // `transaction()`). A failure on either (e.g. the insert hitting the
+      // tool-call id's primary key) rolls the whole batch back, so the run
+      // status change and the pending row are all-or-nothing.
+      await database.batch([
+        database
+          .update(agentRun)
+          .set({ status: "paused_for_plan" })
+          .where(eq(agentRun.id, runId)),
+        database.insert(agentPendingToolCall).values({
+          id: planCall.toolCallId,
+          runId,
+          chatId: planCall.chatId,
+          toolName: planCall.toolName,
+          input: planCall.input,
+        }),
+      ])
+    },
+    async resolvePlan(planId, resolution) {
+      // Read the owning run first — the pending row carries it. The two writes
+      // that follow are what must stay atomic; this read only decides whether
+      // there's anything still pending to resolve.
+      const [pending] = await database
+        .select({
+          runId: agentPendingToolCall.runId,
+          status: agentPendingToolCall.status,
+        })
+        .from(agentPendingToolCall)
+        .where(eq(agentPendingToolCall.id, planId))
+        .limit(1)
+      if (!pending || pending.status !== "pending") return null
+
+      // Both updates in one transaction. The status guards in the WHERE clauses
+      // keep this idempotent and keep it from clobbering a run a concurrent
+      // /stop already aborted.
+      await database.batch([
+        database
+          .update(agentPendingToolCall)
+          .set({
+            status: resolution.approved ? "approved" : "rejected",
+            feedback: resolution.feedback ?? null,
+            resolvedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(agentPendingToolCall.id, planId),
+              eq(agentPendingToolCall.status, "pending"),
+            ),
+          ),
+        database
+          .update(agentRun)
+          .set({ status: "superseded", endedAt: new Date() })
+          .where(
+            and(
+              eq(agentRun.id, pending.runId),
+              inArray(agentRun.status, ["running", "paused_for_plan"]),
+            ),
+          ),
+      ])
+      return { runId: pending.runId }
+    },
   }
 }
 
-// Default machine bound to the live database. Wiring the engine and routes onto
-// these (and retiring the legacy helpers) is the contract half of the
-// migration (#168–#170); for now they live alongside the old persistence
-// helpers, which keep working unchanged.
+// Default machine bound to the live database. The engine and the agent routes
+// drive every run transition through these. The final contract slice (#170)
+// retires the legacy `ended` status value and the `aborted` boolean column the
+// old persistence helpers wrote.
 const defaultRunState = createRunState(drizzleRepo())
 
 export const transition = defaultRunState.transition
 export const startRun = defaultRunState.startRun
 export const isRunActive = defaultRunState.isRunActive
+export const pauseForPlan = defaultRunState.pauseForPlan
+export const resolvePlan = defaultRunState.resolvePlan

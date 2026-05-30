@@ -11,12 +11,10 @@ import {
 } from "@/lib/agent/engine"
 import {
   appendMessage,
-  endRun,
   findPendingToolCall,
   loadChatHistoryForModel,
-  resolvePendingToolCall,
-  startRun,
 } from "@/lib/agent/persistence"
+import { resolvePlan, startRun, transition } from "@/lib/agent/run-state"
 import {
   broadcastEvent,
   broadcastSignal,
@@ -52,7 +50,10 @@ export async function POST(req: Request) {
     return new Response("Plan/chat mismatch", { status: 400 })
   }
 
-  await resolvePendingToolCall(planId, { approved, feedback })
+  // Resolve the plan and supersede its run atomically: the tool-call is marked
+  // approved/rejected and the paused run moves to `superseded` in one
+  // transaction. Starting the continuation is a separate `startRun` below.
+  await resolvePlan(planId, { approved, feedback })
 
   // Look up the chat's recorded model + system prompt so the resume call uses
   // the same agent configuration as the original run.
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
       try {
         await broadcastEvent(roomId, chatId, { type: "error", message: msg })
       } finally {
-        await endRun(runId, "ended").catch(() => {})
+        await transition(runId, "failed").catch(() => {})
         await broadcastSignal(roomId, chatId, "chat-stream-end")
       }
     }

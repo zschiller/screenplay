@@ -1,5 +1,6 @@
 import { getUserId } from "@/lib/auth-helpers"
-import { abortRun, findActiveRun } from "@/lib/agent/persistence"
+import { findActiveRun } from "@/lib/agent/persistence"
+import { transition } from "@/lib/agent/run-state"
 import { broadcastSignal } from "@/lib/agent/broadcast"
 
 export const runtime = "nodejs"
@@ -21,10 +22,12 @@ export async function POST(req: Request) {
 
   const active = await findActiveRun(chatId)
   if (active) {
-    // The streamText loop polls this flag every ABORT_POLL_INTERVAL_MS and
-    // calls AbortController.abort() when it flips to true. Marking the run
-    // ended here too keeps stop idempotent — a duplicate stop is a no-op.
-    await abortRun(active.id)
+    // Record the user's stop as `aborted` — the one outcome that means "the
+    // user halted this with no continuation", distinct from the `superseded`
+    // an approved/rejected plan or a new message records. The loop's watchdog
+    // polls `isRunActive` every ABORT_POLL_INTERVAL_MS and aborts once this
+    // lands; the machine's terminal guard keeps a duplicate /stop a no-op.
+    await transition(active.id, "aborted")
   }
 
   // Always end the streaming UI state, mirroring v1's stop semantics: the

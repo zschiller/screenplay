@@ -1,7 +1,7 @@
 import "server-only"
 
 import type { ModelMessage } from "ai"
-import { and, asc, desc, eq, ne } from "drizzle-orm"
+import { and, asc, desc, eq, inArray } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { db } from "@/lib/db"
 import {
@@ -192,54 +192,12 @@ export async function appendMessages(
   )
 }
 
-export async function startRun(chatId: string): Promise<string> {
-  // Abort any still-active runs for this chat before inserting the new one.
-  // Without this, a user who clicks Stop and immediately resends a message
-  // would have the old loop still emitting chunks while the new loop runs,
-  // and `findActiveRun` would return whichever was inserted most recently,
-  // letting /stop target the wrong run.
-  await db
-    .update(agentRun)
-    .set({ aborted: true, status: "ended", endedAt: new Date() })
-    .where(and(eq(agentRun.chatId, chatId), ne(agentRun.status, "ended")))
-  const id = nanoid()
-  await db.insert(agentRun).values({ id, chatId, status: "running" })
-  return id
-}
-
-export async function isRunAborted(runId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ aborted: agentRun.aborted })
-    .from(agentRun)
-    .where(eq(agentRun.id, runId))
-    .limit(1)
-  return row?.aborted ?? false
-}
-
-export async function abortRun(runId: string): Promise<void> {
-  await db
-    .update(agentRun)
-    .set({ aborted: true, status: "ended", endedAt: new Date() })
-    .where(eq(agentRun.id, runId))
-}
-
-export async function endRun(
-  runId: string,
-  status: "ended" | "paused_for_plan" = "ended",
-): Promise<void> {
-  await db
-    .update(agentRun)
-    .set({
-      status,
-      ...(status === "ended" ? { endedAt: new Date() } : {}),
-    })
-    .where(eq(agentRun.id, runId))
-}
-
 /**
- * Most recent run for a chat that hasn't ended yet — i.e. running or paused
- * for plan approval. Used by /stop to find what to abort and by /plan to
- * know which loop to resume.
+ * Most recent run for a chat that is still active — i.e. `running` or
+ * `paused_for_plan`. Used by /stop to find what to abort and by /heal to know
+ * whether the chat is still doing something. Run lifecycle transitions
+ * themselves go through the run-state machine (`run-state.ts`); this is a
+ * read-only lookup.
  */
 export async function findActiveRun(
   chatId: string,
@@ -247,34 +205,16 @@ export async function findActiveRun(
   const [row] = await db
     .select({ id: agentRun.id, status: agentRun.status })
     .from(agentRun)
-    .where(and(eq(agentRun.chatId, chatId), ne(agentRun.status, "ended")))
+    .where(
+      and(
+        eq(agentRun.chatId, chatId),
+        inArray(agentRun.status, ["running", "paused_for_plan"]),
+      ),
+    )
     .orderBy(desc(agentRun.startedAt))
     .limit(1)
   if (!row) return null
   return { id: row.id, status: row.status as "running" | "paused_for_plan" }
-}
-
-/**
- * Persist a tool call that's waiting on a human decision. The row's primary
- * key IS the AI SDK tool-call id — same value used for the `plan_submitted`
- * broadcast and the history-route reconstruction, so the client's planId
- * always resolves back to this row.
- */
-export async function savePendingToolCall(params: {
-  runId: string
-  chatId: string
-  toolCallId: string
-  toolName: string
-  input: Record<string, unknown>
-}): Promise<string> {
-  await db.insert(agentPendingToolCall).values({
-    id: params.toolCallId,
-    runId: params.runId,
-    chatId: params.chatId,
-    toolName: params.toolName,
-    input: params.input,
-  })
-  return params.toolCallId
 }
 
 export async function findPendingToolCall(
@@ -328,23 +268,4 @@ export async function findPendingPlanForChat(chatId: string): Promise<{
     .orderBy(desc(agentPendingToolCall.createdAt))
     .limit(1)
   return row ?? null
-}
-
-export async function resolvePendingToolCall(
-  pendingId: string,
-  resolution: { approved: boolean; feedback?: string },
-): Promise<void> {
-  await db
-    .update(agentPendingToolCall)
-    .set({
-      status: resolution.approved ? "approved" : "rejected",
-      feedback: resolution.feedback ?? null,
-      resolvedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(agentPendingToolCall.id, pendingId),
-        eq(agentPendingToolCall.status, "pending"),
-      ),
-    )
 }

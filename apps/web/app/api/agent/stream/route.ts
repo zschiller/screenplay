@@ -14,14 +14,12 @@ import {
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
   appendMessage,
-  endRun,
   findPendingPlanForChat,
   loadChatHistory,
   loadChatHistoryForModel,
-  resolvePendingToolCall,
-  startRun,
   upsertChat,
 } from "@/lib/agent/persistence"
+import { resolvePlan, startRun, transition } from "@/lib/agent/run-state"
 import {
   broadcastEvent,
   broadcastSignal,
@@ -143,7 +141,7 @@ export async function POST(req: Request) {
         try {
           await broadcastEvent(roomId, chatId, { type: "error", message: msg })
         } finally {
-          await endRun(runId, "ended").catch(() => {})
+          await transition(runId, "failed").catch(() => {})
           await broadcastSignal(roomId, chatId, "chat-stream-end")
         }
       }
@@ -228,7 +226,9 @@ export async function POST(req: Request) {
   // tool_result").
   const pendingPlan = await findPendingPlanForChat(chatId)
   if (pendingPlan) {
-    await resolvePendingToolCall(pendingPlan.id, {
+    // The follow-up message is an implicit rejection: resolve the plan and
+    // supersede its paused run atomically before the new run starts.
+    await resolvePlan(pendingPlan.id, {
       approved: false,
       feedback: message,
     })
@@ -286,7 +286,7 @@ export async function POST(req: Request) {
       try {
         await broadcastEvent(roomId, chatId, { type: "error", message: msg })
       } finally {
-        await endRun(runId, "ended").catch(() => {})
+        await transition(runId, "failed").catch(() => {})
         await broadcastSignal(roomId, chatId, "chat-stream-end")
       }
     }
