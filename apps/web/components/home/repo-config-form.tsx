@@ -8,29 +8,29 @@ import { Label } from "@workspace/ui/components/label"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { RepoPicker } from "@/components/repo-picker"
-import { upsertWorkspaceConfig } from "@/lib/workspace-configs-actions"
-import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
+import { upsertRepoConfig } from "@/lib/repo-configs-actions"
+import type { RepoConfig } from "@/lib/repo-configs.types"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 
-interface WorkspaceConfigFormProps {
-  initial?: WorkspaceConfig
-  existingConfigs: WorkspaceConfig[]
-  onSaved: (updated: WorkspaceConfig[]) => void
+interface RepoConfigFormProps {
+  initial?: RepoConfig
+  existingConfigs: RepoConfig[]
+  onSaved: (updated: RepoConfig[]) => void
   onCancel: () => void
 }
 
 type RepoIdentity = Pick<
-  WorkspaceConfig,
+  RepoConfig,
   "repoFullName" | "repoOwner" | "repoName" | "defaultBranch" | "cloneUrl" | "private"
 >
 
-export function WorkspaceConfigForm({
+export function RepoConfigForm({
   initial,
   existingConfigs,
   onSaved,
   onCancel,
-}: WorkspaceConfigFormProps) {
+}: RepoConfigFormProps) {
   const [repo, setRepo] = useState<RepoIdentity | null>(
     initial
       ? {
@@ -79,7 +79,7 @@ export function WorkspaceConfigForm({
     setSaving(true)
     setError(null)
     const now = Date.now()
-    const config: WorkspaceConfig = {
+    const config: RepoConfig = {
       id: initial?.id ?? nanoid(),
       name: trimmedName,
       repoFullName: repo.repoFullName,
@@ -98,7 +98,7 @@ export function WorkspaceConfigForm({
       updatedAt: now,
     }
     try {
-      const updated = await upsertWorkspaceConfig(config)
+      const updated = await upsertRepoConfig(config)
       onSaved(updated)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save")

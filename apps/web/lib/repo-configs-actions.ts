@@ -3,17 +3,17 @@
 import { adjectives, animals, colors, uniqueNamesGenerator } from "unique-names-generator"
 import { requireUserId } from "@/lib/auth-helpers"
 import { createBranch } from "./github-actions"
-import { getConfigs, saveConfigs } from "./workspace-configs-store"
-import type { WorkspaceConfig } from "./workspace-configs.types"
+import { getConfigs, saveConfigs } from "./repo-configs-store"
+import type { RepoConfig } from "./repo-configs.types"
 
-export async function listWorkspaceConfigs(): Promise<WorkspaceConfig[]> {
+export async function listRepoConfigs(): Promise<RepoConfig[]> {
   const userId = await requireUserId()
   return getConfigs(userId)
 }
 
-export async function upsertWorkspaceConfig(
-  config: WorkspaceConfig,
-): Promise<WorkspaceConfig[]> {
+export async function upsertRepoConfig(
+  config: RepoConfig,
+): Promise<RepoConfig[]> {
   const userId = await requireUserId()
   const list = await getConfigs(userId)
 
@@ -31,7 +31,7 @@ export async function upsertWorkspaceConfig(
 
   const idx = list.findIndex((c) => c.id === config.id)
   const isNew = idx === -1
-  const next: WorkspaceConfig[] =
+  const next: RepoConfig[] =
     isNew ? [...list, config] : list.map((c) => (c.id === config.id ? config : c))
 
   await saveConfigs(userId, next)
@@ -58,9 +58,9 @@ export async function upsertWorkspaceConfig(
   return next
 }
 
-export async function deleteWorkspaceConfig(
+export async function deleteRepoConfig(
   id: string,
-): Promise<WorkspaceConfig[]> {
+): Promise<RepoConfig[]> {
   const userId = await requireUserId()
   const list = await getConfigs(userId)
   const next = list.filter((c) => c.id !== id)

@@ -55,7 +55,7 @@ import { DeleteProjectDialog } from "@/components/delete-project-dialog"
 import { ShareProjectDialog } from "@/components/share-project-dialog"
 import { FileActionMenu } from "./file-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
-import { WorkspaceConfigsDialog } from "./workspace-configs-dialog"
+import { RepoConfigsDialog } from "./repo-configs-dialog"
 import type { ProjectSummary } from "@/lib/projects-actions"
 import type { Folder as FolderType } from "@/lib/organization"
 
@@ -128,7 +128,7 @@ function UserHeader() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <WorkspaceConfigsDialog
+      <RepoConfigsDialog
         open={configsOpen}
         onOpenChange={setConfigsOpen}
       />

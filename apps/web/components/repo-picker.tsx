@@ -12,14 +12,14 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
-import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
+import type { RepoConfig } from "@/lib/repo-configs.types"
 
 export type RepoPickerSelection =
   | { kind: "repo"; repo: GitHubRepo }
-  | { kind: "config"; config: WorkspaceConfig }
+  | { kind: "config"; config: RepoConfig }
 
 interface RepoPickerProps {
-  configs?: WorkspaceConfig[]
+  configs?: RepoConfig[]
   onSelect: (pick: RepoPickerSelection) => void
 }
 
@@ -43,7 +43,7 @@ export function RepoPicker({ configs, onSelect }: RepoPickerProps) {
     }
   }, [])
 
-  const configsByRepo = new Map<string, WorkspaceConfig[]>()
+  const configsByRepo = new Map<string, RepoConfig[]>()
   for (const c of configs ?? []) {
     const list = configsByRepo.get(c.repoFullName) ?? []
     list.push(c)
