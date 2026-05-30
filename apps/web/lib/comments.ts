@@ -3,6 +3,10 @@ import "server-only"
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
+import {
+  bumpCommentsRead,
+  bumpCommentsRevision,
+} from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 
@@ -89,16 +93,21 @@ function toComment(
 }
 
 /**
- * Bumps the room's comments revision counter inside the Y.Doc. Connected
- * clients observe the change and refetch the thread list. Server-side only
- * so we never trust client-bumped versions.
+ * Rings the room-global content doorbell: every connected client refetches
+ * the thread list. Used for create/edit/delete/resolve. Server-side only so
+ * we never trust client-bumped versions.
  */
-async function bumpCommentsRevision(roomId: string) {
-  await mutateRoomDoc(roomId, ({ doc }) => {
-    const meta = doc.getMap("meta")
-    const current = (meta.get("commentsRevision") as number | undefined) ?? 0
-    meta.set("commentsRevision", current + 1)
-  })
+async function signalContentChange(roomId: string) {
+  await mutateRoomDoc(roomId, ({ doc }) => bumpCommentsRevision(doc))
+}
+
+/**
+ * Rings the per-user read doorbell: only the acting user's own tabs recompute
+ * unread. Used for mark-read/mark-unread, which happen constantly and so must
+ * not force a room-wide refetch storm.
+ */
+async function signalReadChange(roomId: string, userId: string) {
+  await mutateRoomDoc(roomId, ({ doc }) => bumpCommentsRead(doc, userId))
 }
 
 /**
@@ -263,7 +272,7 @@ export async function createThreadWithFirstComment(opts: {
     lastReadAt: now,
   })
 
-  await bumpCommentsRevision(opts.roomId)
+  await signalContentChange(opts.roomId)
 
   const [author] = await getUsersByIds([opts.authorId])
   return {
@@ -296,7 +305,7 @@ export async function appendComment(opts: {
     .set({ updatedAt: new Date() })
     .where(eq(schema.thread.id, opts.threadId))
     .returning({ roomId: schema.thread.roomId })
-  if (threadRow) await bumpCommentsRevision(threadRow.roomId)
+  if (threadRow) await signalContentChange(threadRow.roomId)
 
   const [author] = await getUsersByIds([opts.authorId])
   return toComment(row, author ? { name: author.name, image: author.image } : null)
@@ -324,7 +333,7 @@ export async function editComment(opts: {
     .from(schema.thread)
     .where(eq(schema.thread.id, row.threadId))
     .limit(1)
-  if (threadRow) await bumpCommentsRevision(threadRow.roomId)
+  if (threadRow) await signalContentChange(threadRow.roomId)
 }
 
 export async function deleteComment(opts: {
@@ -352,7 +361,7 @@ export async function deleteComment(opts: {
       .delete(schema.thread)
       .where(eq(schema.thread.id, row.threadId))
       .returning({ roomId: schema.thread.roomId })
-    if (threadRow) await bumpCommentsRevision(threadRow.roomId)
+    if (threadRow) await signalContentChange(threadRow.roomId)
     return
   }
   const [threadRow] = await db
@@ -360,7 +369,7 @@ export async function deleteComment(opts: {
     .from(schema.thread)
     .where(eq(schema.thread.id, row.threadId))
     .limit(1)
-  if (threadRow) await bumpCommentsRevision(threadRow.roomId)
+  if (threadRow) await signalContentChange(threadRow.roomId)
 }
 
 export async function setThreadResolved(opts: {
@@ -376,7 +385,7 @@ export async function setThreadResolved(opts: {
     })
     .where(eq(schema.thread.id, opts.threadId))
     .returning({ roomId: schema.thread.roomId })
-  if (row) await bumpCommentsRevision(row.roomId)
+  if (row) await signalContentChange(row.roomId)
 }
 
 export async function deleteThread(threadId: string): Promise<void> {
@@ -384,7 +393,7 @@ export async function deleteThread(threadId: string): Promise<void> {
     .delete(schema.thread)
     .where(eq(schema.thread.id, threadId))
     .returning({ roomId: schema.thread.roomId })
-  if (row) await bumpCommentsRevision(row.roomId)
+  if (row) await signalContentChange(row.roomId)
 }
 
 export async function markThreadRead(opts: {
@@ -402,6 +411,14 @@ export async function markThreadRead(opts: {
       target: [schema.threadRead.threadId, schema.threadRead.userId],
       set: { lastReadAt: sql`now()` },
     })
+  // Ring only this user's read doorbell so their other tabs recompute unread,
+  // without forcing every client in the room to refetch.
+  const [row] = await db
+    .select({ roomId: schema.thread.roomId })
+    .from(schema.thread)
+    .where(eq(schema.thread.id, opts.threadId))
+    .limit(1)
+  if (row) await signalReadChange(row.roomId, opts.userId)
 }
 
 export async function markThreadUnread(opts: {
@@ -416,12 +433,13 @@ export async function markThreadUnread(opts: {
         eq(schema.threadRead.userId, opts.userId),
       ),
     )
-  // Bump revision so other tabs/clients re-fetch and refresh their unread
-  // counts (mostly relevant when the same user has the room open elsewhere).
+  // Per-user doorbell: only the acting user's tabs refresh their unread counts
+  // (relevant when the same user has the room open elsewhere). A read-state
+  // change is not a content change, so the room counter stays put.
   const [row] = await db
     .select({ roomId: schema.thread.roomId })
     .from(schema.thread)
     .where(eq(schema.thread.id, opts.threadId))
     .limit(1)
-  if (row) await bumpCommentsRevision(row.roomId)
+  if (row) await signalReadChange(row.roomId, opts.userId)
 }

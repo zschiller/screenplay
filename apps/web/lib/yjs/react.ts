@@ -410,3 +410,28 @@ export function useCommentsRevision(): number {
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
+
+/**
+ * Subscribes to the acting user's read-state revision — server-bumped on any
+ * mark-read/mark-unread by that user. Use the returned number as a refetch
+ * trigger so a user's own read changes refresh their other tabs without
+ * forcing every client in the room to refetch. Returns 0 when no user id is
+ * known.
+ */
+export function useCommentsReadRevision(userId: string | null): number {
+  const { doc } = useYjs()
+  const read = useMemo(() => doc.getMap("commentsRead"), [doc])
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      const handler = () => cb()
+      read.observe(handler)
+      return () => read.unobserve(handler)
+    },
+    [read],
+  )
+  const getSnapshot = useCallback(
+    () => (userId ? ((read.get(userId) as number | undefined) ?? 0) : 0),
+    [read, userId],
+  )
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
