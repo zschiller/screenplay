@@ -15,6 +15,13 @@ export const SANDBOX_VCPUS = 1
 // dev script running multiple apps in-sandbox can't collide with the proxy.
 export const PROXY_PORT_OFFSET = 1000
 
+// Forwarded port the BYO-harness web-terminal daemon (ttyd) listens on. Fixed
+// (not derived from the dev port) and far from the dev/proxy pair so a user's
+// dev script can't collide with it. Must be in the `ports` a sandbox is created
+// with for `domain(TERMINAL_PORT)` to be reachable. 7681 is ttyd's conventional
+// port.
+export const TERMINAL_PORT = 7681
+
 export const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 // Pidfiles for the dev server and proxy. Both are launched under `setsid` so
 // their PID equals their PGID — the stop path uses these to SIGKILL the whole
