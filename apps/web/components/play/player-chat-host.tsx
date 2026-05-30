@@ -6,7 +6,7 @@ import { ChatPanel } from "@/components/agent/chat-panel"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import { chatStore } from "@/lib/chat-store"
 import {
-  useAgents,
+  useBranches,
   useChatSessions,
   useChatStreamEvents,
   useRoomCollections,
@@ -34,10 +34,10 @@ export function PlayerChatHost({
   onCollapse,
 }: PlayerChatHostProps) {
   const collections = useRoomCollections()
-  const agents = useAgents()
+  const agents = useBranches()
   const allChatSessions = useChatSessions()
   const agent = agents.find((a) => a.id === agentId)
-  const chatSessions = allChatSessions.filter((c) => c.agentId === agentId)
+  const chatSessions = allChatSessions.filter((c) => c.branchId === agentId)
   const repo = agent
     ? collections.repos.toMap().get(agent.repoId)
     : undefined
@@ -69,7 +69,7 @@ export function PlayerChatHost({
 
   const updateAgent = useCallback(
     (id: string, data: Partial<typeof agents[number]>) => {
-      collections.agents.update(id, data)
+      collections.branches.update(id, data)
     },
     [collections],
   )
@@ -111,7 +111,7 @@ export function PlayerChatHost({
     const id = nanoid()
     addChatSession(id, {
       id,
-      agentId: agent.id,
+      branchId: agent.id,
       label: "Untitled",
       createdAt: Date.now(),
     })
@@ -138,7 +138,7 @@ export function PlayerChatHost({
         const newId = nanoid()
         addChatSession(newId, {
           id: newId,
-          agentId: chat.agentId,
+          branchId: chat.branchId,
           label: "Untitled",
           createdAt: Date.now(),
         })
@@ -185,22 +185,22 @@ export function PlayerChatHost({
       if (
         !newBranch ||
         !agent.sandboxName ||
-        !agent.branch ||
-        agent.branch === newBranch
+        !agent.ref ||
+        agent.ref === newBranch
       )
         return
       // Optimistic local rename — the sandbox roundtrip can take several
       // seconds and leaving the old name on screen feels broken. Roll back
       // if the sandbox rejects.
-      const previousBranch = agent.branch
-      updateAgent(agent.id, { branch: newBranch })
+      const previousBranch = agent.ref
+      updateAgent(agent.id, { ref: newBranch })
       const result = await renameAgentBranch(
         repo,
         agent.sandboxName,
         previousBranch,
         newBranch,
       )
-      if (!result.success) updateAgent(agent.id, { branch: previousBranch })
+      if (!result.success) updateAgent(agent.id, { ref: previousBranch })
     },
     [agent, repo, updateAgent],
   )

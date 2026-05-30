@@ -5,7 +5,7 @@ import { listBranchThreads } from "@/lib/comments"
 import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
-import type { AgentData, IframeLayerData, RepoData } from "@/lib/types"
+import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
 export async function generateMetadata({
@@ -46,8 +46,8 @@ export default async function PlayPage({
 
   const docSnapshot = await readRoomDoc(
     roomId,
-    ({ agents, iframeLayers, repos }) => {
-      const agent = agents.get(agentId) as AgentData | undefined
+    ({ branches, iframeLayers, repos }) => {
+      const agent = branches.get(agentId) as BranchData | undefined
       const iframeLayerId = search["iframe-layer"]
       const iframeLayer = iframeLayerId
         ? (iframeLayers.get(iframeLayerId) as IframeLayerData | undefined)
@@ -65,8 +65,8 @@ export default async function PlayPage({
   const initialKnobValues = decodeKnobValues(search.k) ?? iframeLayer?.knobValues ?? {}
   const initialRoute = search.route ?? iframeLayer?.route ?? "/"
   const initialSharedState = (iframeLayer?.sharedState ?? {}) as Record<string, unknown>
-  const initialThreads = agent.branch
-    ? await listBranchThreads(roomId, userId, agent.branch).catch(() => [])
+  const initialThreads = agent.ref
+    ? await listBranchThreads(roomId, userId, agent.ref).catch(() => [])
     : []
 
   return (
@@ -82,7 +82,7 @@ export default async function PlayPage({
         roomId={roomId}
         roomName={room.name}
         agentId={agent.id}
-        branch={agent.branch}
+        branch={agent.ref}
         previewDomain={agent.previewDomain}
         initialRoute={initialRoute}
         initialKnobValues={initialKnobValues}

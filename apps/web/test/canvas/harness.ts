@@ -2,7 +2,7 @@ import * as Y from "yjs"
 import { createCanvasOps, type CanvasOps } from "@/lib/canvas/ops"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import type {
-  AgentData,
+  BranchData,
   ChatSessionData,
   GroupMember,
   IframeLayerData,
@@ -46,17 +46,17 @@ export function baseLayer(
   return { id, width: 400, height: 300, label: "Frame", iframeState: {}, ...overrides }
 }
 
-/** A minimal valid Agent record for seeding cascade-removal tests. */
-export function baseAgent(
+/** A minimal valid Branch record for seeding cascade-removal tests. */
+export function baseBranch(
   id: string,
-  overrides: Partial<AgentData> = {},
-): AgentData {
+  overrides: Partial<BranchData> = {},
+): BranchData {
   return {
     id,
     repoId: "repo-1",
     sandboxName: `sandbox-${id}`,
     gitUrl: "https://example.com/repo.git",
-    branch: "main",
+    ref: "main",
     previewDomain: "",
     port: 3000,
     status: "running",
@@ -73,7 +73,7 @@ export function baseDoc(
   return { id, width: 300, height: 200, title: "", ...overrides }
 }
 
-/** A minimal valid Chat Session record. Pass `agentId` or `markdownLayerId` to set its target. */
+/** A minimal valid Chat Session record. Pass `branchId` or `markdownLayerId` to set its target. */
 export function baseChat(
   id: string,
   overrides: Partial<ChatSessionData> = {},

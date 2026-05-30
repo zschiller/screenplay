@@ -106,7 +106,7 @@ import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type {
-  AgentData,
+  BranchData,
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
@@ -284,7 +284,7 @@ function DropLine({ side }: { side: "before" | "after" }) {
 
 /**
  * A whole-row sortable for the "Branches" section — repos at the
- * top level, branches (Agents) nested inside each repo. Same interaction as
+ * top level, Branches nested inside each repo. Same interaction as
  * the Canvas section's `SortableRow` (drag the whole row, source goes
  * transparent, the `<DragOverlay>` paints the floating preview, a static
  * `<DropLine>` marks the target) but with the simpler before/after-only
@@ -358,10 +358,10 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
   )
 }
 
-interface AgentSidebarProps {
+interface RoomSidebarProps {
   repos: RepoData[]
-  agents: AgentData[]
-  iframeLayers: Array<Pick<IframeLayerData, "id" | "sandboxId" | "label" | "route">>
+  branches: BranchData[]
+  iframeLayers: Array<Pick<IframeLayerData, "id" | "branchId" | "label" | "route">>
   markdownLayers: Array<Pick<MarkdownLayerData, "id" | "title">>
   /** Already sorted by sidebarOrder. */
   iframeLayerGroups: IframeLayerGroupData[]
@@ -370,29 +370,29 @@ interface AgentSidebarProps {
   selectedDocumentLayerIds: Set<string>
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onZoomToGroup: (groupId: string) => void
-  onSelectAgent: (id: string, options?: { expandPanel?: boolean }) => void
+  onSelectBranch: (id: string, options?: { expandPanel?: boolean }) => void
   onCreateRepo: (pick: RepoPickerSelection) => void
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
     options: { deleteBranchesOnRemote: boolean },
   ) => void | Promise<void>
-  onCreateAgent: (repoId: string) => void
-  onCreateAgentFromBranch: (repoId: string, branch: string) => void
-  onCreateParallelAgents: (repoId: string, specs: ParallelAgentSpec[]) => void
+  onCreateBranch: (repoId: string) => void
+  onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
+  onCreateParallelBranches: (repoId: string, specs: ParallelAgentSpec[]) => void
   onDuplicateBranch: (repoId: string, branch: string) => void
-  onForkAgent: (agentId: string) => void
-  onRebaseOnDefault: (agentId: string) => void
-  onRefreshAgent: (id: string) => void
-  onRemoveAgent: (
+  onForkBranch: (branchId: string) => void
+  onRebaseOnDefault: (branchId: string) => void
+  onRefreshBranch: (id: string) => void
+  onRemoveBranch: (
     id: string,
     options: { deleteOnRemote: boolean },
   ) => void | Promise<void>
-  onAddIframeLayer: (agentId: string) => void
-  onPlayAgent: (agentId: string) => void
-  onShowRoutes: (agentId: string) => void
-  onUpdateAgent: (id: string, data: Partial<AgentData>) => void
-  onRenameBranch: (agentId: string, newBranch: string) => void
+  onAddIframeLayer: (branchId: string) => void
+  onPlayBranch: (branchId: string) => void
+  onShowRoutes: (branchId: string) => void
+  onUpdateBranch: (id: string, data: Partial<BranchData>) => void
+  onRenameBranch: (branchId: string, newBranch: string) => void
   onSelectIframeLayer: (iframeLayerId: string, shiftKey: boolean) => void
   onZoomToIframeLayer: (iframeLayerId: string) => void
   onRenameIframeLayer: (id: string, label: string) => void
@@ -404,8 +404,8 @@ interface AgentSidebarProps {
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
   /** Persist the room-shared order of the repo list. */
   onReorderRepos: (orderedIds: string[]) => void
-  /** Persist the room-shared order of one repo's branch (Agent) list. */
-  onReorderAgents: (repoId: string, orderedIds: string[]) => void
+  /** Persist the room-shared order of one repo's Branch list. */
+  onReorderBranches: (repoId: string, orderedIds: string[]) => void
   /**
    * Move a single member across (or within) groups. `target` either points
    * into an existing group at a specific index, or asks for a new
@@ -420,9 +420,9 @@ interface AgentSidebarProps {
   onRenameIframeLayerGroup: (groupId: string, name: string) => void
   onRemoveIframeLayerGroup: (groupId: string) => void
   onCollapseSidebar?: () => void
-  activeAgentIds?: Set<string>
-  chatPanelAgentId?: string | null
-  /** GitHub-polled PR state per agent. Lifted to the parent so the sidebar
+  activeBranchIds?: Set<string>
+  chatPanelBranchId?: string | null
+  /** GitHub-polled PR state per branch. Lifted to the parent so the sidebar
    *  and chat panel share one poller and can't disagree about whether a PR
    *  exists for a branch. */
   branchPrs: Map<string, BranchPrInfo>
@@ -437,9 +437,9 @@ function sanitizeBranchName(raw: string): string {
     .replace(/^-|-$/g, "")
 }
 
-export function AgentSidebar({
+export function RoomSidebar({
   repos,
-  agents,
+  branches,
   iframeLayers,
   markdownLayers,
   iframeLayerGroups,
@@ -448,22 +448,22 @@ export function AgentSidebar({
   selectedDocumentLayerIds,
   onSelectGroup,
   onZoomToGroup,
-  onSelectAgent,
+  onSelectBranch,
   onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
-  onCreateAgent,
-  onCreateAgentFromBranch,
-  onCreateParallelAgents,
+  onCreateBranch,
+  onCreateBranchFromGitBranch,
+  onCreateParallelBranches,
   onDuplicateBranch,
-  onForkAgent,
+  onForkBranch,
   onRebaseOnDefault,
-  onRefreshAgent,
-  onRemoveAgent,
+  onRefreshBranch,
+  onRemoveBranch,
   onAddIframeLayer,
-  onPlayAgent,
+  onPlayBranch,
   onShowRoutes,
-  onUpdateAgent,
+  onUpdateBranch,
   onRenameBranch,
   onSelectIframeLayer,
   onZoomToIframeLayer,
@@ -475,20 +475,20 @@ export function AgentSidebar({
   onRemoveDocument,
   onReorderIframeLayerGroups,
   onReorderRepos,
-  onReorderAgents,
+  onReorderBranches,
   onMoveMember,
   onRenameIframeLayerGroup,
   onRemoveIframeLayerGroup,
   onCollapseSidebar,
-  activeAgentIds,
-  chatPanelAgentId,
+  activeBranchIds,
+  chatPanelBranchId,
   branchPrs,
-}: AgentSidebarProps) {
+}: RoomSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(null)
   const [parallelRepoId, setParallelRepoId] = useState<string | null>(null)
-  const [pendingDeleteAgentId, setPendingDeleteAgentId] = useState<string | null>(null)
+  const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<string | null>(null)
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
@@ -496,22 +496,22 @@ export function AgentSidebar({
   // render of a repo and refreshed whenever the repo list changes.
   // Used to block inline-renames that would collide with an existing branch.
   const [remoteBranchesByRepo, setRemoteBranchesByRepo] = useState<Map<string, Set<string>>>(new Map())
-  const diffStats = useDiffStats(agents, repos)
+  const diffStats = useDiffStats(branches, repos)
   const iframeLayersById = useMemo(() => {
-    const m = new Map<string, AgentSidebarProps["iframeLayers"][number]>()
+    const m = new Map<string, RoomSidebarProps["iframeLayers"][number]>()
     for (const a of iframeLayers) m.set(a.id, a)
     return m
   }, [iframeLayers])
   const documentsById = useMemo(() => {
-    const m = new Map<string, AgentSidebarProps["markdownLayers"][number]>()
+    const m = new Map<string, RoomSidebarProps["markdownLayers"][number]>()
     for (const d of markdownLayers) m.set(d.id, d)
     return m
   }, [markdownLayers])
-  const agentsById = useMemo(() => {
-    const m = new Map<string, AgentData>()
-    for (const a of agents) m.set(a.id, a)
+  const branchesById = useMemo(() => {
+    const m = new Map<string, BranchData>()
+    for (const a of branches) m.set(a.id, a)
     return m
-  }, [agents])
+  }, [branches])
 
   // Fetch each repo's remote branch list once (per repo add). This
   // powers the inline-rename collision check below; without it we'd silently
@@ -544,8 +544,8 @@ export function AgentSidebar({
    * below picks the right components automatically.
    */
   const IframeLayerRow = useMemo(
-    () => makeIframeLayerRow({ agentsById }),
-    [agentsById],
+    () => makeIframeLayerRow({ branchesById }),
+    [branchesById],
   )
   type AnyRowDispatcher = {
     Row: React.ComponentType<import("./layer-rows/types").LayerRowProps<unknown>>
@@ -653,20 +653,20 @@ export function AgentSidebar({
   )
 
   const branchFallback = useCallback(
-    (a: AgentData, b: AgentData) => a.createdAt - b.createdAt,
+    (a: BranchData, b: BranchData) => a.createdAt - b.createdAt,
     [],
   )
-  const agentsByRepo = useCallback(
+  const branchesByRepo = useCallback(
     (repoId: string) =>
       sortForSidebar(
-        agents.filter((a) => a.repoId === repoId),
+        branches.filter((a) => a.repoId === repoId),
         branchFallback,
       ),
-    [agents, branchFallback],
+    [branches, branchFallback],
   )
 
   const [activeBranchesDrag, setActiveBranchesDrag] = useState<
-    { kind: "repo"; repo: RepoData } | { kind: "branch"; agent: AgentData } | null
+    { kind: "repo"; repo: RepoData } | { kind: "branch"; branch: BranchData } | null
   >(null)
 
   const handleBranchesDragStart = useCallback(
@@ -676,11 +676,11 @@ export function AgentSidebar({
         const ws = repos.find((w) => w.id === id.slice(5))
         setActiveBranchesDrag(ws ? { kind: "repo", repo: ws } : null)
       } else if (id.startsWith("branch:")) {
-        const ag = agents.find((a) => a.id === id.slice(7))
-        setActiveBranchesDrag(ag ? { kind: "branch", agent: ag } : null)
+        const ag = branches.find((a) => a.id === id.slice(7))
+        setActiveBranchesDrag(ag ? { kind: "branch", branch: ag } : null)
       }
     },
-    [repos, agents],
+    [repos, branches],
   )
 
   const handleBranchesDragCancel = useCallback(() => {
@@ -714,12 +714,12 @@ export function AgentSidebar({
         const overWs = (over.data.current as { repoId?: string } | undefined)
           ?.repoId
         if (!activeWs || activeWs !== overWs) return
-        const currentIds = agentsByRepo(activeWs).map((a) => a.id)
+        const currentIds = branchesByRepo(activeWs).map((a) => a.id)
         const newOrder = reorderedIds(currentIds, activeId.slice(7), overId.slice(7))
-        if (newOrder.join(",") !== currentIds.join(",")) onReorderAgents(activeWs, newOrder)
+        if (newOrder.join(",") !== currentIds.join(",")) onReorderBranches(activeWs, newOrder)
       }
     },
-    [sortedRepos, agentsByRepo, onReorderRepos, onReorderAgents],
+    [sortedRepos, branchesByRepo, onReorderRepos, onReorderBranches],
   )
 
   /**
@@ -929,22 +929,22 @@ export function AgentSidebar({
     }
   }, [showPicker])
 
-  // Auto-select agents when they finish creating. onSelectAgent is stored in
-  // a ref so this effect only depends on `agents` — otherwise the caller's
+  // Auto-select branches when they finish creating. onSelectBranch is stored in
+  // a ref so this effect only depends on `branches` — otherwise the caller's
   // unstable callback reference causes it to fire every render and loops.
   const prevStatusRef = useRef<Map<string, string>>(new Map())
-  const onSelectAgentRef = useRef(onSelectAgent)
-  onSelectAgentRef.current = onSelectAgent
+  const onSelectBranchRef = useRef(onSelectBranch)
+  onSelectBranchRef.current = onSelectBranch
   useEffect(() => {
     const prev = prevStatusRef.current
-    for (const agent of agents) {
-      const was = prev.get(agent.id)
-      if ((was === "creating" || was === "starting") && agent.status === "running") {
-        onSelectAgentRef.current(agent.id)
+    for (const branch of branches) {
+      const was = prev.get(branch.id)
+      if ((was === "creating" || was === "starting") && branch.status === "running") {
+        onSelectBranchRef.current(branch.id)
       }
     }
-    prevStatusRef.current = new Map(agents.map((a) => [a.id, a.status]))
-  }, [agents])
+    prevStatusRef.current = new Map(branches.map((a) => [a.id, a.status]))
+  }, [branches])
 
   return (
     <SidebarProvider className="flex h-full flex-col select-none bg-sidebar text-sidebar-foreground">
@@ -999,7 +999,7 @@ export function AgentSidebar({
               >
               {sortedRepos
                 .map((repo) => {
-                  const repoAgents = agentsByRepo(repo.id)
+                  const repoBranches = branchesByRepo(repo.id)
                   return (
                     <Collapsible
                       key={repo.id}
@@ -1058,14 +1058,14 @@ export function AgentSidebar({
                           <SidebarMenuAction
                             className="right-[3.25rem] md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
                             onClick={(e) => { e.stopPropagation(); setParallelRepoId(repo.id) }}
-                            title="Spin up parallel agents"
+                            title="Spin up parallel branches"
                           >
                             <Rows3 />
                           </SidebarMenuAction>
                           <SidebarMenuAction
                             className="right-7 md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100"
                             onClick={(e) => { e.stopPropagation(); setBranchPickerRepoId(repo.id) }}
-                            title="New agent from branch"
+                            title="New branch from branch"
                           >
                             <GitBranch />
                           </SidebarMenuAction>
@@ -1082,7 +1082,7 @@ export function AgentSidebar({
                                 repo={repo.repoName}
                                 onSelect={(branch) => {
                                   setBranchPickerRepoId(null)
-                                  onCreateAgentFromBranch(repo.id, branch)
+                                  onCreateBranchFromGitBranch(repo.id, branch)
                                 }}
                                 onDuplicate={(branch) => {
                                   setBranchPickerRepoId(null)
@@ -1093,8 +1093,8 @@ export function AgentSidebar({
                           </Dialog>
                           <SidebarMenuAction
                             className="md:opacity-0 group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100"
-                            onClick={(e) => { e.stopPropagation(); onCreateAgent(repo.id) }}
-                            title="New agent"
+                            onClick={(e) => { e.stopPropagation(); onCreateBranch(repo.id) }}
+                            title="New branch"
                           >
                             <Plus />
                           </SidebarMenuAction>
@@ -1103,19 +1103,19 @@ export function AgentSidebar({
                         <CollapsibleContent>
                           <SidebarMenuSub>
                             <SortableContext
-                              items={repoAgents.map((a) => `branch:${a.id}`)}
+                              items={repoBranches.map((a) => `branch:${a.id}`)}
                               strategy={verticalListSortingStrategy}
                             >
-                            {repoAgents.map((agent) => {
-                              const isLoading = agent.status === "creating" || agent.status === "starting"
-                              const isActive = activeAgentIds?.has(agent.id) ?? false
-                              const isPanelActive = chatPanelAgentId === agent.id
-                              const pr = branchPrs.get(agent.id)
+                            {repoBranches.map((branch) => {
+                              const isLoading = branch.status === "creating" || branch.status === "starting"
+                              const isActive = activeBranchIds?.has(branch.id) ?? false
+                              const isPanelActive = chatPanelBranchId === branch.id
+                              const pr = branchPrs.get(branch.id)
 
                               return (
                                 <BranchesSortableRow
-                                  key={agent.id}
-                                  id={`branch:${agent.id}`}
+                                  key={branch.id}
+                                  id={`branch:${branch.id}`}
                                   kind="branch"
                                   repoId={repo.id}
                                   className="cursor-grab active:cursor-grabbing"
@@ -1123,16 +1123,16 @@ export function AgentSidebar({
                                 <Collapsible
                                   asChild
                                   defaultOpen
-                                  className="group/collapsible-agent"
+                                  className="group/collapsible-branch"
                                 >
                                   <SidebarMenuItem>
                                     <WithEditableRef>
-                                      {({ ref: branchRef, triggerEdit: triggerBranchRename, onCloseAutoFocus: onAgentMenuCloseAutoFocus }) => (
+                                      {({ ref: branchRef, triggerEdit: triggerBranchRename, onCloseAutoFocus: onBranchMenuCloseAutoFocus }) => (
                                       <>
                                         <div
-                                          className={`group/agent-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
-                                          onClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id, { expandPanel: false }) }}
-                                          onDoubleClick={(e) => { e.stopPropagation(); onSelectAgent(agent.id) }}
+                                          className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
+                                          onClick={(e) => { e.stopPropagation(); onSelectBranch(branch.id, { expandPanel: false }) }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); onSelectBranch(branch.id) }}
                                         >
                                           <SidebarMenuSubButton
                                             asChild
@@ -1140,7 +1140,7 @@ export function AgentSidebar({
                                             isActive={false}
                                           >
                                             <div
-                                              title={isLoading ? (agent.statusMessage || "Starting…") : undefined}
+                                              title={isLoading ? (branch.statusMessage || "Starting…") : undefined}
                                             >
                                               {isLoading || isActive ? (
                                                 <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
@@ -1153,23 +1153,23 @@ export function AgentSidebar({
                                               ) : (
                                                 <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                                               )}
-                                              {agent.branch ? (
+                                              {branch.ref ? (
                                                 <BranchBadge
                                                   ref={branchRef}
-                                                  branch={agent.branch}
-                                                  colorKey={agent.id}
-                                                  colorIndex={agent.colorIndex}
+                                                  branch={branch.ref}
+                                                  colorKey={branch.id}
+                                                  colorIndex={branch.colorIndex}
                                                   className="text-[11px] py-0 px-1.5"
                                                   onRename={(next) => {
                                                     const sanitized = sanitizeBranchName(next)
                                                     if (!sanitized) return
-                                                    if (sanitized === agent.branch) return
+                                                    if (sanitized === branch.ref) return
                                                     const remote = remoteBranchesByRepo.get(repo.id)
-                                                    const localTaken = repoAgents.some(
-                                                      (a) => a.id !== agent.id && a.branch === sanitized,
+                                                    const localTaken = repoBranches.some(
+                                                      (a) => a.id !== branch.id && a.ref === sanitized,
                                                     )
                                                     if (localTaken || remote?.has(sanitized)) return
-                                                    onRenameBranch(agent.id, sanitized)
+                                                    onRenameBranch(branch.id, sanitized)
                                                   }}
                                                 />
                                               ) : (
@@ -1179,29 +1179,29 @@ export function AgentSidebar({
                                           </SidebarMenuSubButton>
                                           <div className="group/slot flex items-center shrink-0 pl-2 pr-1">
                                             {(() => {
-                                              const stats = diffStats.get(agent.id)
+                                              const stats = diffStats.get(branch.id)
                                               const hasStats = stats && (stats.additions > 0 || stats.deletions > 0)
                                               return (
                                                 <>
                                                   {hasStats && (
-                                                    <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/agent-row:hidden md:group-focus-within/agent-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                                                    <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-hover/branch-row:hidden md:group-focus-within/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                       <span className="text-green-700 dark:text-green-300">+{stats.additions}</span>
                                                       <span className="text-red-700 dark:text-red-300">-{stats.deletions}</span>
                                                     </span>
                                                   )}
-                                                  <AgentDropdownSlot
+                                                  <BranchDropdownSlot
                                                     menuContent={
-                                                      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onAgentMenuCloseAutoFocus}>
+                                                      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onBranchMenuCloseAutoFocus}>
                                                         <DropdownMenuItem
-                                                          disabled={!agent.previewDomain}
-                                                          onClick={() => onPlayAgent(agent.id)}
+                                                          disabled={!branch.previewDomain}
+                                                          onClick={() => onPlayBranch(branch.id)}
                                                         >
                                                           <Play />
                                                           Open prototype player
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
-                                                          disabled={!agent.branch}
+                                                          disabled={!branch.ref}
                                                           onClick={triggerBranchRename}
                                                         >
                                                           <Pencil />
@@ -1214,8 +1214,8 @@ export function AgentSidebar({
                                                           </DropdownMenuSubTrigger>
                                                           <DropdownMenuSubContent className="w-40">
                                                             <DropdownMenuRadioGroup
-                                                              value={agent.colorIndex !== undefined ? String(agent.colorIndex) : ""}
-                                                              onValueChange={(v) => onUpdateAgent(agent.id, { colorIndex: Number(v) })}
+                                                              value={branch.colorIndex !== undefined ? String(branch.colorIndex) : ""}
+                                                              onValueChange={(v) => onUpdateBranch(branch.id, { colorIndex: Number(v) })}
                                                             >
                                                               {BRANCH_COLORS.map((c, i) => (
                                                                 <DropdownMenuRadioItem key={c.name} value={String(i)}>
@@ -1226,36 +1226,36 @@ export function AgentSidebar({
                                                             </DropdownMenuRadioGroup>
                                                             <DropdownMenuSeparator />
                                                             <DropdownMenuItem
-                                                              disabled={agent.colorIndex === undefined}
-                                                              onClick={() => onUpdateAgent(agent.id, { colorIndex: undefined })}
+                                                              disabled={branch.colorIndex === undefined}
+                                                              onClick={() => onUpdateBranch(branch.id, { colorIndex: undefined })}
                                                             >
                                                               Reset to default
                                                             </DropdownMenuItem>
                                                           </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
-                                                        <DropdownMenuItem onClick={() => onForkAgent(agent.id)}>
+                                                        <DropdownMenuItem onClick={() => onForkBranch(branch.id)}>
                                                           <GitBranchPlus />
                                                           Duplicate branch
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => onRefreshAgent(agent.id)}>
+                                                        <DropdownMenuItem onClick={() => onRefreshBranch(branch.id)}>
                                                           <RefreshCw />
                                                           Restart
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
-                                                          disabled={!agent.discoveredRoutes || agent.discoveredRoutes.length === 0}
-                                                          onClick={() => onShowRoutes(agent.id)}
+                                                          disabled={!branch.discoveredRoutes || branch.discoveredRoutes.length === 0}
+                                                          onClick={() => onShowRoutes(branch.id)}
                                                         >
                                                           <Route />
                                                           Show all routes
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
-                                                          disabled={!agent.sandboxName}
+                                                          disabled={!branch.sandboxName}
                                                           onClick={() => {
-                                                            if (!agent.sandboxName) return
+                                                            if (!branch.sandboxName) return
                                                             const parts = ["sandbox run"]
                                                             if (sandboxCliContext.scope) parts.push(`--scope ${sandboxCliContext.scope}`)
                                                             if (sandboxCliContext.project) parts.push(`--project ${sandboxCliContext.project}`)
-                                                            parts.push(`--name ${agent.sandboxName}`)
+                                                            parts.push(`--name ${branch.sandboxName}`)
                                                             parts.push("-i", "-t", "--", "claude")
                                                             navigator.clipboard.writeText(parts.join(" "))
                                                           }}
@@ -1265,17 +1265,17 @@ export function AgentSidebar({
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
-                                                          disabled={!agent.sandboxName || !agent.branch}
-                                                          onClick={() => onRebaseOnDefault(agent.id)}
+                                                          disabled={!branch.sandboxName || !branch.ref}
+                                                          onClick={() => onRebaseOnDefault(branch.id)}
                                                         >
                                                           <GitMerge />
                                                           Rebase on {repo.defaultBranch}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
-                                                          disabled={!agent.branch}
+                                                          disabled={!branch.ref}
                                                           onClick={() => {
-                                                            if (!agent.branch) return
-                                                            const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(agent.branch)}`
+                                                            if (!branch.ref) return
+                                                            const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(branch.ref)}`
                                                             window.open(url, "_blank", "noopener,noreferrer")
                                                           }}
                                                         >
@@ -1283,7 +1283,7 @@ export function AgentSidebar({
                                                           Open branch on GitHub
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteAgentId(agent.id)}>
+                                                        <DropdownMenuItem variant="destructive" onClick={() => setPendingDeleteBranchId(branch.id)}>
                                                           <Trash2 />
                                                           Delete
                                                         </DropdownMenuItem>
@@ -1296,8 +1296,8 @@ export function AgentSidebar({
                                           </div>
                                         </div>
 
-                                        {agent.error && (
-                                          <p className="px-2 pb-1 text-[10px] text-red-500">{agent.error}</p>
+                                        {branch.error && (
+                                          <p className="px-2 pb-1 text-[10px] text-red-500">{branch.error}</p>
                                         )}
                                       </>
                                       )}
@@ -1338,11 +1338,11 @@ export function AgentSidebar({
                 <SidebarMenuSubButton asChild isActive={false}>
                   <div>
                     <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                    {activeBranchesDrag.agent.branch ? (
+                    {activeBranchesDrag.branch.ref ? (
                       <BranchBadge
-                        branch={activeBranchesDrag.agent.branch}
-                        colorKey={activeBranchesDrag.agent.id}
-                        colorIndex={activeBranchesDrag.agent.colorIndex}
+                        branch={activeBranchesDrag.branch.ref}
+                        colorKey={activeBranchesDrag.branch.id}
+                        colorIndex={activeBranchesDrag.branch.colorIndex}
                         className="text-[11px] py-0 px-1.5"
                       />
                     ) : (
@@ -1545,20 +1545,20 @@ export function AgentSidebar({
         </DndContext>
       </div>
       {(() => {
-        const agent = pendingDeleteAgentId
-          ? agents.find((a) => a.id === pendingDeleteAgentId)
+        const branch = pendingDeleteBranchId
+          ? branches.find((a) => a.id === pendingDeleteBranchId)
           : null
         return (
           <DeleteBranchDialog
-            open={!!agent}
+            open={!!branch}
             onOpenChange={(open) => {
-              if (!open) setPendingDeleteAgentId(null)
+              if (!open) setPendingDeleteBranchId(null)
             }}
-            branchName={agent?.branch ?? ""}
+            branchName={branch?.ref ?? ""}
             onConfirm={async ({ deleteOnRemote }) => {
-              if (!agent) return
-              await onRemoveAgent(agent.id, { deleteOnRemote })
-              setPendingDeleteAgentId(null)
+              if (!branch) return
+              await onRemoveBranch(branch.id, { deleteOnRemote })
+              setPendingDeleteBranchId(null)
             }}
           />
         )
@@ -1576,7 +1576,7 @@ export function AgentSidebar({
             repoOwner={repo.repoOwner}
             repoName={repo.repoName}
             defaultBranch={repo.defaultBranch}
-            onSubmit={(specs) => onCreateParallelAgents(repo.id, specs)}
+            onSubmit={(specs) => onCreateParallelBranches(repo.id, specs)}
           />
         ) : null
       })()}
@@ -1585,9 +1585,9 @@ export function AgentSidebar({
           ? repos.find((w) => w.id === pendingDeleteRepoId)
           : null
         const repoBranches = repo
-          ? agents
-              .filter((a) => a.repoId === repo.id && a.branch)
-              .map((a) => a.branch)
+          ? branches
+              .filter((a) => a.repoId === repo.id && a.ref)
+              .map((a) => a.ref)
           : []
         return (
           <DeleteRepoDialog
@@ -1689,7 +1689,7 @@ function MemberEntry({
   )
 }
 
-function AgentDropdownSlot({ menuContent, children }: { menuContent: React.ReactNode; children?: React.ReactNode }) {
+function BranchDropdownSlot({ menuContent, children }: { menuContent: React.ReactNode; children?: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuClosing, setMenuClosing] = useState(false)
   const handleOpenChange = useCallback((open: boolean) => {
@@ -1703,7 +1703,7 @@ function AgentDropdownSlot({ menuContent, children }: { menuContent: React.React
   return (
     <span
       data-menu-visible={menuOpen || menuClosing || undefined}
-      className="md:hidden md:group-hover/agent-row:flex md:group-focus-within/agent-row:flex md:data-[menu-visible]:flex flex items-center"
+      className="md:hidden md:group-hover/branch-row:flex md:group-focus-within/branch-row:flex md:data-[menu-visible]:flex flex items-center"
     >
       <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
@@ -1878,7 +1878,7 @@ function RepoSettings({
         <textarea
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
-          placeholder="Optional. Extra instructions for the agent (e.g. monorepo context)."
+          placeholder="Optional. Extra instructions for the branch (e.g. monorepo context)."
           className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-1 focus:ring-sidebar-ring"
           rows={3}
         />

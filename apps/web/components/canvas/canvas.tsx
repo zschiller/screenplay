@@ -9,7 +9,7 @@ import {
 import { nanoid } from "nanoid"
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
 import {
-  useAgents,
+  useBranches,
   useIframeLayerGroups,
   useIframeLayers,
   useChatSessions,
@@ -75,7 +75,7 @@ import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
-import { AgentSidebar } from "@/components/panels/agent-sidebar"
+import { RoomSidebar } from "@/components/panels/room-sidebar"
 import { ChatPanel, type ChatPanelTarget } from "@/components/agent/chat-panel"
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
@@ -88,7 +88,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { AgentData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData } from "@/lib/types"
+import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData } from "@/lib/types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -994,7 +994,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     return ids
   }, [selectedIframeLayerIds, selectedDocumentLayerIds])
   const repos = useRepos()
-  const agents = useAgents()
+  const agents = useBranches()
 
   const diffStats = useDiffStats(agents, repos)
   const branchPrs = useBranchPrs(agents, repos)
@@ -1036,7 +1036,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (agent.previewDomain) {
         domains[agent.id] = {
           previewDomain: agent.previewDomain,
-          branch: agent.branch,
+          branch: agent.ref,
           discoveredRoutes: agent.discoveredRoutes,
         }
       }
@@ -1091,7 +1091,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   /** Add an iframeLayer — used by the manual "add screen" button. Always creates a fresh group. */
   const addIframeLayer = useCallback(
     (agentId: string, label: string): string | undefined => {
-      const agent = collections.agents.get(agentId)
+      const agent = collections.branches.get(agentId)
       if (!agent || agent.status !== "running") return
       const { cx, cy } = getViewportCenter()
       return ops.createFrameForAgent(agentId, { x: cx, y: cy }, label).layerId
@@ -1143,12 +1143,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         : undefined
       let width: number
       let height: number
-      let sandboxId: string | undefined
+      let branchId: string | undefined
       let route: string | undefined
       if (lastIframeLayer) {
         width = lastIframeLayer.width
         height = lastIframeLayer.height
-        sandboxId = lastIframeLayer.sandboxId
+        branchId = lastIframeLayer.branchId
         route = lastIframeLayer.route
       } else {
         const lastMember = members[members.length - 1]!
@@ -1160,8 +1160,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       return ops.addFrameToGroup(groupId, {
         width,
         height,
-        label: sandboxId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
-        ...(sandboxId ? { sandboxId } : {}),
+        label: branchId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
+        ...(branchId ? { branchId } : {}),
         ...(route ? { route } : {}),
       })
     },
@@ -1737,7 +1737,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
   const assignAgentToIframeLayer = useCallback(
     (iframeLayerId: string, agentId: string) => {
-      ops.patch("iframeLayers", iframeLayerId, { sandboxId: agentId })
+      ops.patch("iframeLayers", iframeLayerId, { branchId: agentId })
     },
     [ops],
   )
@@ -1870,15 +1870,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // --- Agent mutations ---
 
   const updateAgentInStorage = useCallback(
-    (id: string, data: Partial<AgentData>) => {
-      ops.patch("agents", id, data)
+    (id: string, data: Partial<BranchData>) => {
+      ops.patch("branches", id, data)
     },
     [ops],
   )
 
   const removeAgentFromStorage = useCallback(
     (id: string) => {
-      const { removedChatIds } = ops.removeAgent(id)
+      const { removedChatIds } = ops.removeBranch(id)
       for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
     [ops],
@@ -1985,7 +1985,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const agent = agents.find((a) => a.id === agentId)
       if (!agent || agent.status !== "running") return
       const existing = iframeLayers.filter(
-        (a) => a.sandboxId === agentId,
+        (a) => a.branchId === agentId,
       )
       const newId = addIframeLayer(
         agentId,
@@ -2030,7 +2030,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const handlePlayIframeLayer = useCallback(
     (iframeLayerId: string) => {
       const iframeLayer = iframeLayers.find((a) => a.id === iframeLayerId)
-      if (!iframeLayer?.sandboxId) return
+      if (!iframeLayer?.branchId) return
       const params = new URLSearchParams()
       params.set("iframe-layer", iframeLayerId)
       if (iframeLayer.route) params.set("route", iframeLayer.route)
@@ -2044,7 +2044,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           params.set("k", encodeURIComponent(b64))
         } catch {}
       }
-      const url = `/play/${roomId}/${iframeLayer.sandboxId}?${params.toString()}`
+      const url = `/play/${roomId}/${iframeLayer.branchId}?${params.toString()}`
       window.open(url, "_blank", "noopener,noreferrer")
     },
     [iframeLayers, roomId],
@@ -2070,7 +2070,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // Restore remembered chat or fall back to first open
       const rememberedChat = selectedChatByAgentRef.current[agentId]
       const agentChats = chatSessions
-        .filter((c) => c.agentId === agentId && !c.closedAt)
+        .filter((c) => c.branchId === agentId && !c.closedAt)
         .sort((a, b) => a.createdAt - b.createdAt)
       if (rememberedChat && agentChats.some((c) => c.id === rememberedChat)) {
         setSelectedChatId(rememberedChat)
@@ -2095,7 +2095,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const id = nanoid()
       const data: ChatSessionData = {
         id,
-        agentId,
+        branchId: agentId,
         label: "Untitled",
         createdAt: Date.now(),
       }
@@ -2132,14 +2132,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const handleSubmitAsPlan = useCallback(
     (text: string, agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.branch) return
+      if (!agent?.sandboxName || !agent.ref) return
 
       const chatId = nanoid()
-      const isFirstChat = !chatSessions.some((c) => c.agentId === agentId)
+      const isFirstChat = !chatSessions.some((c) => c.branchId === agentId)
 
       addChatSession(chatId, {
         id: chatId,
-        agentId,
+        branchId: agentId,
         label: "Untitled",
         createdAt: Date.now(),
         planMode: true,
@@ -2149,13 +2149,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         roomId,
         chatId,
         sandboxName: agent.sandboxName,
-        branch: agent.branch,
+        branch: agent.ref,
         message: text,
         isFirstChat,
         autoNamedBranch: agent.autoNamedBranch,
         planMode: true,
         onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
+          updateAgentInStorage(agentId, { ref: branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
@@ -2168,14 +2168,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const handleRebaseOnDefault = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.branch) return
+      if (!agent?.sandboxName || !agent.ref) return
       const repo = repos.find((w) => w.id === agent.repoId)
       if (!repo) return
 
       const message = `Rebase this branch onto the latest \`origin/${repo.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
 
       const existingChats = chatSessions
-        .filter((c) => c.agentId === agentId && !c.closedAt)
+        .filter((c) => c.branchId === agentId && !c.closedAt)
         .sort((a, b) => a.createdAt - b.createdAt)
       const remembered = selectedChatByAgentRef.current[agentId]
       const targetChat =
@@ -2192,7 +2192,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         chatId = nanoid()
         addChatSession(chatId, {
           id: chatId,
-          agentId,
+          branchId: agentId,
           label: "Untitled",
           createdAt: Date.now(),
         })
@@ -2203,21 +2203,21 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
 
       const isFirstChat = !chatSessions.some(
-        (c) => c.agentId === agentId && c.id !== chatId,
+        (c) => c.branchId === agentId && c.id !== chatId,
       )
 
       chatStore.sendMessage({
         roomId,
         chatId,
         sandboxName: agent.sandboxName,
-        branch: agent.branch,
+        branch: agent.ref,
         message,
         isFirstChat,
         autoNamedBranch: agent.autoNamedBranch,
         planMode,
         model,
         onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, { branch, autoNamedBranch: false }),
+          updateAgentInStorage(agentId, { ref: branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
@@ -2241,8 +2241,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // doc chat would match every other doc chat (all share an undefined
       // agentId), and replacement chats would lose their document target.
       const sameTarget = (c: ChatSessionData) =>
-        chat?.agentId
-          ? c.agentId === chat.agentId
+        chat?.branchId
+          ? c.branchId === chat.branchId
           : chat?.markdownLayerId
             ? c.markdownLayerId === chat.markdownLayerId
             : false
@@ -2256,7 +2256,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const newId = nanoid()
         addChatSession(newId, {
           id: newId,
-          agentId: chat.agentId,
+          branchId: chat.branchId,
           markdownLayerId: chat.markdownLayerId,
           label: "Untitled",
           createdAt: Date.now(),
@@ -2411,7 +2411,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (!selectedChatId) return
       const currentChat = chatSessions.find((c) => c.id === selectedChatId)
       const agent = currentChat
-        ? agents.find((a) => a.id === currentChat.agentId)
+        ? agents.find((a) => a.id === currentChat.branchId)
         : null
       const iframeLayer = ctx.iframeLayerId
         ? iframeLayers.find((a) => a.id === ctx.iframeLayerId)
@@ -2419,7 +2419,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const route = iframeLayer?.route || "/"
       const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
       const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
-      if (currentChat && agent?.sandboxName && agent.branch) {
+      if (currentChat && agent?.sandboxName && agent.ref) {
         const currentBusy =
           chatStore.getSnapshot(currentChat.id).isStreaming ||
           currentChat.isStreaming === true
@@ -2432,20 +2432,20 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           model = undefined
           addChatSession(chatId, {
             id: chatId,
-            agentId: currentChat.agentId,
+            branchId: currentChat.branchId,
             label: "Untitled",
             createdAt: Date.now(),
           })
           setSelectedChatId(chatId)
         }
         const isFirstChat = !chatSessions.some(
-          (c) => c.agentId === currentChat.agentId && c.id !== chatId,
+          (c) => c.branchId === currentChat.branchId && c.id !== chatId,
         )
         chatStore.sendMessage({
           roomId,
           chatId,
           sandboxName: agent.sandboxName,
-          branch: agent.branch,
+          branch: agent.ref,
           message: text,
           isFirstChat,
           autoNamedBranch: agent.autoNamedBranch,
@@ -2477,8 +2477,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const chat = chatSessions.find((c) => c.id === chatId)
         if (chat) {
           const sameTarget = (c: ChatSessionData) =>
-            chat.agentId
-              ? c.agentId === chat.agentId
+            chat.branchId
+              ? c.branchId === chat.branchId
               : chat.markdownLayerId
                 ? c.markdownLayerId === chat.markdownLayerId
                 : false
@@ -2509,9 +2509,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (!chat) return
-        if (chat.agentId) {
-          setSelectedAgentId(chat.agentId)
-          selectedChatByAgentRef.current[chat.agentId] = chatId
+        if (chat.branchId) {
+          setSelectedAgentId(chat.branchId)
+          selectedChatByAgentRef.current[chat.branchId] = chatId
         }
         if (chat.markdownLayerId) {
           setSelectedDocumentChatTargetId(chat.markdownLayerId)
@@ -2569,19 +2569,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       let agentId = ""
       ops.batch(() => {
         addRepoToStorage(id, data)
-        agentId = ops.createAgent({
-          agent: {
+        agentId = ops.createBranch({
+          branch: {
             repoId: id,
             sandboxName,
             gitUrl: data.cloneUrl,
-            branch,
+            ref: branch,
             previewDomain: "",
             port: data.devServerPort ?? 3000,
             status: "creating",
             statusMessage: "Creating branch…",
             createdAt: Date.now(),
           },
-        }).agentId
+        }).branchId
       })
       setPendingAgentIds((prev) =>
         prev.includes(agentId) ? prev : [...prev, agentId],
@@ -2615,12 +2615,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         length: 3,
       })
 
-      const { agentId: id } = ops.createAgent({
-        agent: {
+      const { branchId: id } = ops.createBranch({
+        branch: {
           repoId,
           sandboxName,
           gitUrl: repo.cloneUrl,
-          branch,
+          ref: branch,
           previewDomain: "",
           port: repo.devServerPort ?? 3000,
           status: "creating",
@@ -2653,12 +2653,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       const sandboxName = `sp-${nanoid(10)}`
 
-      const { agentId: id } = ops.createAgent({
-        agent: {
+      const { branchId: id } = ops.createBranch({
+        branch: {
           repoId,
           sandboxName,
           gitUrl: repo.cloneUrl,
-          branch,
+          ref: branch,
           previewDomain: "",
           port: repo.devServerPort ?? 3000,
           status: "creating",
@@ -2697,12 +2697,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         length: 3,
       })
 
-      const { agentId: id } = ops.createAgent({
-        agent: {
+      const { branchId: id } = ops.createBranch({
+        branch: {
           repoId,
           sandboxName,
           gitUrl: repo.cloneUrl,
-          branch: newBranch,
+          ref: newBranch,
           previewDomain: "",
           port: repo.devServerPort ?? 3000,
           status: "creating",
@@ -2732,8 +2732,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const handleForkAgent = useCallback(
     (agentId: string) => {
       const sourceAgent = agents.find((a) => a.id === agentId)
-      if (!sourceAgent?.branch || !sourceAgent.sandboxName) return
-      handleDuplicateBranch(sourceAgent.repoId, sourceAgent.branch)
+      if (!sourceAgent?.ref || !sourceAgent.sandboxName) return
+      handleDuplicateBranch(sourceAgent.repoId, sourceAgent.ref)
     },
     [agents, handleDuplicateBranch],
   )
@@ -2816,12 +2816,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           // pre-creates the chat targeting it, so the queued prompt has a
           // stable chatId before the agent finishes provisioning. The server's
           // ensureChatForAgent skips creation when a chat already exists.
-          const { agentId: id, chatId } = ops.createAgent({
-            agent: {
+          const { branchId: id, chatId } = ops.createBranch({
+            branch: {
               repoId,
               sandboxName,
               gitUrl: repo.cloneUrl,
-              branch,
+              ref: branch,
               previewDomain: "",
               port: repo.devServerPort ?? 3000,
               status: "creating",
@@ -2883,7 +2883,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
 
-      const result = await restartSandbox(agent.sandboxName, repo, agent.branch)
+      const result = await restartSandbox(agent.sandboxName, repo, agent.ref)
       if (result.success) {
         updateAgentInStorage(id, {
           sandboxName: result.value.sandboxName,
@@ -2907,7 +2907,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     async (agentId: string, rawBranch: string) => {
       const newBranch = rawBranch.toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
       const agent = agents.find((a) => a.id === agentId)
-      if (!newBranch || !agent?.sandboxName || !agent.branch || agent.branch === newBranch) return
+      if (!newBranch || !agent?.sandboxName || !agent.ref || agent.ref === newBranch) return
 
       const repo = repos.find((w) => w.id === agent.repoId)
       if (!repo) return
@@ -2916,9 +2916,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // resume + `git branch -m` + GitHub call can take several seconds and
       // the badge sitting on the old name in the meantime feels broken.
       // Roll back if the sandbox rejects (e.g. branch already exists).
-      const previousBranch = agent.branch
+      const previousBranch = agent.ref
       const previousAutoNamed = agent.autoNamedBranch
-      updateAgentInStorage(agentId, { branch: newBranch, autoNamedBranch: false })
+      updateAgentInStorage(agentId, { ref: newBranch, autoNamedBranch: false })
 
       const result = await renameAgentBranch(
         repo,
@@ -2927,7 +2927,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         newBranch,
       )
       if (!result.success) {
-        updateAgentInStorage(agentId, { branch: previousBranch, autoNamedBranch: previousAutoNamed })
+        updateAgentInStorage(agentId, { ref: previousBranch, autoNamedBranch: previousAutoNamed })
       }
     },
     [agents, repos, updateAgentInStorage],
@@ -2958,19 +2958,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         pendingPromptsRef.current.delete(agent.id)
         continue
       }
-      if (agent.status !== "running" || !agent.sandboxName || !agent.branch) continue
+      if (agent.status !== "running" || !agent.sandboxName || !agent.ref) continue
       pendingPromptsRef.current.delete(agent.id)
       chatStore.sendMessage({
         roomId,
         chatId: queued.chatId,
         sandboxName: agent.sandboxName,
-        branch: agent.branch,
+        branch: agent.ref,
         message: queued.prompt,
         isFirstChat: true,
         autoNamedBranch: agent.autoNamedBranch,
         model: queued.model,
         onBranchRename: (branch) =>
-          updateAgentInStorage(agent.id, { branch, autoNamedBranch: false }),
+          updateAgentInStorage(agent.id, { ref: branch, autoNamedBranch: false }),
         onChatRename: (label) => updateChatSession(queued.chatId, { label }),
       })
     }
@@ -2985,7 +2985,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         a.pendingIframeLayerSeed === true &&
         a.status === "running" &&
         a.previewDomain &&
-        !iframeLayers.some((ab) => ab.sandboxId === a.id),
+        !iframeLayers.some((ab) => ab.branchId === a.id),
     )
     if (pending.length === 0) return
     const { cx, cy } = getViewportCenter()
@@ -3066,7 +3066,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             roomId,
             agentId: agent.id,
             sandboxName: agent.sandboxName,
-            branch: agent.branch,
+            branch: agent.ref,
             repoId: agent.repoId,
           }),
         })
@@ -3106,7 +3106,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           statusMessage: "Recreating expired sandbox…",
           error: "",
         })
-        restartSandbox(sandboxName, repo, agent.branch).then((restartResult) => {
+        restartSandbox(sandboxName, repo, agent.ref).then((restartResult) => {
           if (restartResult.success) {
             updateAgentInStorage(agent.id, {
               sandboxName: restartResult.value.sandboxName,
@@ -4109,9 +4109,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           }
         }}
       >
-        <AgentSidebar
+        <RoomSidebar
           repos={repos}
-          agents={agents}
+          branches={agents}
           iframeLayers={iframeLayers}
           markdownLayers={markdownLayers}
           iframeLayerGroups={sortedIframeLayerGroups}
@@ -4124,7 +4124,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           onZoomToDocument={handleZoomToDocument}
           onRenameDocument={setDocumentLayerTitle}
           onRemoveDocument={(id) => removeDocumentLayers([id])}
-          onSelectAgent={handleSelectAgent}
+          onSelectBranch={handleSelectAgent}
           onCreateRepo={handleCreateRepo}
           onUpdateRepo={updateRepoInStorage}
           onRemoveRepo={async (id, { deleteBranchesOnRemote }) => {
@@ -4132,8 +4132,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
               const repo = repos.find((w) => w.id === id)
               if (repo) {
                 const branches = agents
-                  .filter((a) => a.repoId === id && a.branch)
-                  .map((a) => a.branch)
+                  .filter((a) => a.repoId === id && a.ref)
+                  .map((a) => a.ref)
                 const results = await Promise.all(
                   branches.map((branch) =>
                     deleteBranch(repo.repoOwner, repo.repoName, branch),
@@ -4150,24 +4150,24 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             }
             removeRepoFromStorage(id)
           }}
-          onCreateAgent={handleCreateAgent}
-          onCreateAgentFromBranch={handleCreateAgentFromBranch}
-          onCreateParallelAgents={handleCreateParallelAgents}
+          onCreateBranch={handleCreateAgent}
+          onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
+          onCreateParallelBranches={handleCreateParallelAgents}
           onDuplicateBranch={handleDuplicateBranch}
-          onForkAgent={handleForkAgent}
+          onForkBranch={handleForkAgent}
           onRebaseOnDefault={handleRebaseOnDefault}
-          onRefreshAgent={handleRefreshAgent}
-          onRemoveAgent={async (id, { deleteOnRemote }) => {
+          onRefreshBranch={handleRefreshAgent}
+          onRemoveBranch={async (id, { deleteOnRemote }) => {
             if (deleteOnRemote) {
               const agent = agents.find((a) => a.id === id)
               const repo = agent
                 ? repos.find((w) => w.id === agent.repoId)
                 : undefined
-              if (agent?.branch && repo) {
+              if (agent?.ref && repo) {
                 const result = await deleteBranch(
                   repo.repoOwner,
                   repo.repoName,
-                  agent.branch,
+                  agent.ref,
                 )
                 if (!result.success) {
                   throw new Error(
@@ -4186,9 +4186,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             removeAgentFromStorage(id)
           }}
           onAddIframeLayer={handleAddIframeLayerForAgent}
-          onPlayAgent={handlePlayAgent}
+          onPlayBranch={handlePlayAgent}
           onShowRoutes={handleShowRoutesForAgent}
-          onUpdateAgent={updateAgentInStorage}
+          onUpdateBranch={updateAgentInStorage}
           onRenameBranch={handleBranchRename}
           onSelectIframeLayer={handleIframeLayerSelect}
           onZoomToIframeLayer={handleSelectIframeLayer}
@@ -4196,13 +4196,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           onRemoveIframeLayer={removeIframeLayer}
           onReorderIframeLayerGroups={reorderIframeLayerGroups}
           onReorderRepos={ops.reorderRepos}
-          onReorderAgents={ops.reorderAgents}
+          onReorderBranches={ops.reorderBranches}
           onMoveMember={moveMember}
           onRenameIframeLayerGroup={renameIframeLayerGroup}
           onRemoveIframeLayerGroup={removeIframeLayerGroup}
           onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-          activeAgentIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt && c.agentId).map((c) => c.agentId as string))}
-          chatPanelAgentId={chatCollapsed ? null : selectedAgentId}
+          activeBranchIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt && c.branchId).map((c) => c.branchId as string))}
+          chatPanelBranchId={chatCollapsed ? null : selectedAgentId}
           branchPrs={branchPrs}
         />
       </ResizablePanel>
@@ -4459,7 +4459,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
                       const iframeLayer = iframeLayers.find((a) => a.id === member.id)
                       if (!iframeLayer) return null
-                      const agentInfo = iframeLayer.sandboxId ? agentDomains[iframeLayer.sandboxId] : undefined
+                      const agentInfo = iframeLayer.branchId ? agentDomains[iframeLayer.branchId] : undefined
                       return (
                         <IframeLayer
                           key={iframeLayer.id}
@@ -4499,7 +4499,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           onKnobsDeclared={updateIframeLayerKnobs}
                           onKnobValuesChange={updateIframeLayerKnobValues}
                           onSharedStateChanged={updateIframeLayerSharedState}
-                          onPlay={iframeLayer.sandboxId ? handlePlayIframeLayer : undefined}
+                          onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
                           onFitToContent={fitIframeLayerToContent}
                           onSetSize={fitIframeLayerToContent}
                           multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
@@ -4507,8 +4507,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           commentMode={commentMode}
                           onHover={handleInspectHover}
                           onDomReady={handleIframeLayerDomReady}
-                          assignableAgents={agents}
-                          onAssignAgent={assignAgentToIframeLayer}
+                          assignableBranches={agents}
+                          onAssignBranch={assignAgentToIframeLayer}
                           discoveredRoutes={agentInfo?.discoveredRoutes}
                           onSelectRoute={updateIframeLayerRoute}
                           groupLabel={index === 0 ? groupLabel : undefined}
@@ -4978,7 +4978,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                 : null
           if (!target) return null
           const filteredSessions = chatSessions.filter((c) => {
-            if (target.kind === "agent") return c.agentId === target.agent.id
+            if (target.kind === "agent") return c.branchId === target.agent.id
             // Layer targets: per-kind state lives on the chat session
             // under different fields.
             if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id

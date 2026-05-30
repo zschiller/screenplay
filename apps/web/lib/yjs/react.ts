@@ -13,7 +13,7 @@ import {
   type YjsSingleton,
 } from "@/lib/yjs/schema"
 import type {
-  AgentData,
+  BranchData,
   IframeLayerData,
   IframeLayerGroupData,
   ChatSessionData,
@@ -77,8 +77,8 @@ export function useRepos(): Array<RepoData> {
   return useCollectionArray(useRoomCollections().repos)
 }
 
-export function useAgents(): Array<AgentData> {
-  return useCollectionArray(useRoomCollections().agents)
+export function useBranches(): Array<BranchData> {
+  return useCollectionArray(useRoomCollections().branches)
 }
 
 export function useChatSessions(): Array<ChatSessionData> {
@@ -106,7 +106,7 @@ export function useYjsHistory() {
     const mgr = new UndoManager(
       [
         doc.getMap(COLLECTION_KEYS.repos),
-        doc.getMap(COLLECTION_KEYS.agents),
+        doc.getMap(COLLECTION_KEYS.branches),
         doc.getMap(COLLECTION_KEYS.iframeLayers),
         doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
         doc.getMap(COLLECTION_KEYS.markdownLayers),

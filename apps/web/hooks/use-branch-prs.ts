@@ -10,7 +10,7 @@ const POLL_INTERVAL = 60_000
  * Returns a map of agentId -> BranchPrInfo.
  */
 export function useBranchPrs(
-  agents: Array<{ id: string; branch: string; repoId: string }>,
+  agents: Array<{ id: string; ref: string; repoId: string }>,
   repos: Array<{ id: string; repoOwner: string; repoName: string; defaultBranch: string }>,
 ): Map<string, BranchPrInfo> {
   const [prMap, setPrMap] = useState<Map<string, BranchPrInfo>>(new Map())
@@ -24,7 +24,7 @@ export function useBranchPrs(
     const currentRepos = reposRef.current
     const repoMap = new Map(currentRepos.map((w) => [w.id, w]))
 
-    const candidates = currentAgents.filter((a) => a.branch)
+    const candidates = currentAgents.filter((a) => a.ref)
     if (candidates.length === 0) {
       setPrMap(new Map())
       return
@@ -33,8 +33,8 @@ export function useBranchPrs(
     const entries = await Promise.all(
       candidates.map(async (agent) => {
         const ws = repoMap.get(agent.repoId)
-        if (!ws || agent.branch === ws.defaultBranch) return null
-        const pr = await listBranchPullRequest(ws.repoOwner, ws.repoName, agent.branch)
+        if (!ws || agent.ref === ws.defaultBranch) return null
+        const pr = await listBranchPullRequest(ws.repoOwner, ws.repoName, agent.ref)
         if (!pr) return null
         return [agent.id, pr] as const
       }),

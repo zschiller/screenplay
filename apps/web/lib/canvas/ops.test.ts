@@ -4,7 +4,7 @@ import { MIN_IFRAME_LAYER_HEIGHT, MIN_IFRAME_LAYER_WIDTH } from "@/lib/constants
 import { routeToLabel } from "@/lib/route-utils"
 import { documentFragment, getFragmentTitle } from "@/lib/yjs/fragment-text"
 import {
-  baseAgent,
+  baseBranch,
   baseChat,
   baseDoc,
   baseLayer,
@@ -174,21 +174,21 @@ describe("removeDocuments", () => {
   })
 })
 
-describe("removeAgent", () => {
+describe("removeBranch", () => {
   it("cascades: deletes the agent, its Iframe Layers and Chat Sessions, leaving no orphans or empty Groups", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
-    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { sandboxId: "agent-1" }))
-    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { sandboxId: "agent-1" }))
-    collections.chatSessions.set("chat-1", baseChat("chat-1", { agentId: "agent-1" }))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { branchId: "agent-1" }))
+    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { branchId: "agent-1" }))
+    collections.chatSessions.set("chat-1", baseChat("chat-1", { branchId: "agent-1" }))
     seedGroup(collections, "group-1", [
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "iframe-layer", id: "layer-2" },
     ])
 
-    const { removedChatIds } = ops.removeAgent("agent-1")
+    const { removedChatIds } = ops.removeBranch("agent-1")
 
-    expect(collections.agents.has("agent-1")).toBe(false)
+    expect(collections.branches.has("agent-1")).toBe(false)
     expect(collections.iframeLayers.has("layer-1")).toBe(false)
     expect(collections.iframeLayers.has("layer-2")).toBe(false)
     expect(removedChatIds).toEqual(["chat-1"])
@@ -200,15 +200,15 @@ describe("removeAgent", () => {
 
   it("preserves a sibling Iframe Layer that belongs to a different agent", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
-    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { sandboxId: "agent-1" }))
-    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { sandboxId: "agent-2" }))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { branchId: "agent-1" }))
+    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { branchId: "agent-2" }))
     seedGroup(collections, "group-1", [
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "iframe-layer", id: "layer-2" },
     ])
 
-    ops.removeAgent("agent-1")
+    ops.removeBranch("agent-1")
 
     expect(collections.iframeLayers.has("layer-2")).toBe(true)
     expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
@@ -221,14 +221,14 @@ describe("removeRepo", () => {
   it("cascades across every agent in the repo, leaving no orphans or empty Groups", () => {
     const { ops, collections } = makeHarness()
     collections.repos.set("ws-1", baseRepo("ws-1"))
-    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
-    collections.agents.set("agent-2", baseAgent("agent-2", { repoId: "ws-1" }))
-    collections.agents.set("agent-keep", baseAgent("agent-keep", { repoId: "ws-other" }))
-    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { sandboxId: "agent-1" }))
-    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { sandboxId: "agent-2" }))
-    collections.iframeLayers.set("layer-keep", baseLayer("layer-keep", { sandboxId: "agent-keep" }))
-    collections.chatSessions.set("chat-1", baseChat("chat-1", { agentId: "agent-1" }))
-    collections.chatSessions.set("chat-2", baseChat("chat-2", { agentId: "agent-2" }))
+    collections.branches.set("agent-1", baseBranch("agent-1", { repoId: "ws-1" }))
+    collections.branches.set("agent-2", baseBranch("agent-2", { repoId: "ws-1" }))
+    collections.branches.set("agent-keep", baseBranch("agent-keep", { repoId: "ws-other" }))
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1", { branchId: "agent-1" }))
+    collections.iframeLayers.set("layer-2", baseLayer("layer-2", { branchId: "agent-2" }))
+    collections.iframeLayers.set("layer-keep", baseLayer("layer-keep", { branchId: "agent-keep" }))
+    collections.chatSessions.set("chat-1", baseChat("chat-1", { branchId: "agent-1" }))
+    collections.chatSessions.set("chat-2", baseChat("chat-2", { branchId: "agent-2" }))
     seedGroup(collections, "group-1", [
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "iframe-layer", id: "layer-2" },
@@ -238,14 +238,14 @@ describe("removeRepo", () => {
     const { removedChatIds } = ops.removeRepo("ws-1")
 
     expect(collections.repos.has("ws-1")).toBe(false)
-    expect(collections.agents.has("agent-1")).toBe(false)
-    expect(collections.agents.has("agent-2")).toBe(false)
+    expect(collections.branches.has("agent-1")).toBe(false)
+    expect(collections.branches.has("agent-2")).toBe(false)
     expect(collections.iframeLayers.has("layer-1")).toBe(false)
     expect(collections.iframeLayers.has("layer-2")).toBe(false)
     expect(removedChatIds.sort()).toEqual(["chat-1", "chat-2"])
     expect(collections.iframeLayerGroups.has("group-1")).toBe(false)
     // Another repo's agent, layer, and Group are untouched.
-    expect(collections.agents.has("agent-keep")).toBe(true)
+    expect(collections.branches.has("agent-keep")).toBe(true)
     expect(collections.iframeLayers.has("layer-keep")).toBe(true)
     expect(collections.iframeLayerGroups.has("group-keep")).toBe(true)
     expect(findEmptyGroups(collections)).toEqual([])
@@ -404,7 +404,7 @@ describe("createBlankFrame", () => {
     expect(layer?.width).toBe(500)
     expect(layer?.height).toBe(400)
     // A blank frame is bound to no agent.
-    expect(layer?.sandboxId).toBeUndefined()
+    expect(layer?.branchId).toBeUndefined()
 
     const group = collections.iframeLayerGroups.toArray()[0]
     expect(group?.x).toBe(120)
@@ -431,7 +431,7 @@ describe("createFrameForAgent", () => {
       "ws-1",
       baseRepo("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
     )
-    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
+    collections.branches.set("agent-1", baseBranch("agent-1", { repoId: "ws-1" }))
 
     const { layerId, groupId } = ops.createFrameForAgent(
       "agent-1",
@@ -440,7 +440,7 @@ describe("createFrameForAgent", () => {
     )
 
     const layer = collections.iframeLayers.get(layerId)
-    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.branchId).toBe("agent-1")
     expect(layer?.label).toBe("Home")
     // iphone-se preset is 375 × 667.
     expect(layer?.width).toBe(375)
@@ -453,7 +453,7 @@ describe("createFrameForAgent", () => {
 
   it("places the new Group to the right of an existing Group, reading the live snapshot", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
     // An existing group spanning [0, 400] on x; the new frame must clear it.
     collections.iframeLayers.set("layer-0", baseLayer("layer-0", { width: 400 }))
     seedGroup(collections, "existing", [{ kind: "iframe-layer", id: "layer-0" }])
@@ -468,7 +468,7 @@ describe("createFrameForAgent", () => {
 describe("createFramesForRoutes", () => {
   it("creates one agent-bound Iframe Layer per route in a single Group, returning the first", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
 
     const result = ops.createFramesForRoutes(
       "agent-1",
@@ -486,7 +486,7 @@ describe("createFramesForRoutes", () => {
     expect(group?.members[0]).toEqual({ kind: "iframe-layer", id: firstLayerId })
 
     const first = collections.iframeLayers.get(firstLayerId)
-    expect(first?.sandboxId).toBe("agent-1")
+    expect(first?.branchId).toBe("agent-1")
     expect(first?.route).toBe("/")
     expect(first?.label).toBe("Home")
     // A blank label falls back to a label derived from the route.
@@ -497,7 +497,7 @@ describe("createFramesForRoutes", () => {
 
   it("is a no-op for an empty route list", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
 
     expect(ops.createFramesForRoutes("agent-1", [], { x: 0, y: 0 })).toBeUndefined()
     expect(collections.iframeLayers.toArray()).toEqual([])
@@ -577,9 +577,9 @@ describe("addChatSession", () => {
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
-    ops.addChatSession("chat-1", baseChat("chat-1", { agentId: "agent-1" }))
+    ops.addChatSession("chat-1", baseChat("chat-1", { branchId: "agent-1" }))
 
-    expect(collections.chatSessions.get("chat-1")?.agentId).toBe("agent-1")
+    expect(collections.chatSessions.get("chat-1")?.branchId).toBe("agent-1")
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
   })
 })
@@ -601,10 +601,10 @@ describe("removeChatSession", () => {
 describe("navigateRoute", () => {
   it("updates the frame's route and registers it on the agent's discoveredRoutes", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
     collections.iframeLayers.set(
       "layer-1",
-      baseLayer("layer-1", { sandboxId: "agent-1", route: "/" }),
+      baseLayer("layer-1", { branchId: "agent-1", route: "/" }),
     )
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
 
@@ -613,7 +613,7 @@ describe("navigateRoute", () => {
     })
 
     expect(collections.iframeLayers.get("layer-1")?.route).toBe("/about")
-    expect(collections.agents.get("agent-1")?.discoveredRoutes).toEqual([
+    expect(collections.branches.get("agent-1")?.discoveredRoutes).toEqual([
       { route: "/about", label: routeToLabel("/about") },
     ])
     // No clone trail → no member added and no viewport pan.
@@ -623,31 +623,31 @@ describe("navigateRoute", () => {
 
   it("does not duplicate a route already on the agent", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set(
+    collections.branches.set(
       "agent-1",
-      baseAgent("agent-1", {
+      baseBranch("agent-1", {
         discoveredRoutes: [{ route: "/about", label: "About" }],
       }),
     )
     collections.iframeLayers.set(
       "layer-1",
-      baseLayer("layer-1", { sandboxId: "agent-1", route: "/" }),
+      baseLayer("layer-1", { branchId: "agent-1", route: "/" }),
     )
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
 
     ops.navigateRoute("layer-1", "/about", { cloneTrail: false })
 
-    expect(collections.agents.get("agent-1")?.discoveredRoutes).toEqual([
+    expect(collections.branches.get("agent-1")?.discoveredRoutes).toEqual([
       { route: "/about", label: "About" },
     ])
   })
 
   it("drops a clone of the previous route into the group when trailing, returning the pan width", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
     collections.iframeLayers.set(
       "layer-1",
-      baseLayer("layer-1", { sandboxId: "agent-1", route: "/", width: 400 }),
+      baseLayer("layer-1", { branchId: "agent-1", route: "/", width: 400 }),
     )
     collections.iframeLayerGroups.set("group-1", {
       id: "group-1",
@@ -701,14 +701,14 @@ describe("addFrameToGroup", () => {
       width: 420,
       height: 320,
       label: "Frame 2",
-      sandboxId: "agent-1",
+      branchId: "agent-1",
       route: "/about",
     })
 
     expect(id).toBeDefined()
     const layer = collections.iframeLayers.get(id!)
     expect(layer?.width).toBe(420)
-    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.branchId).toBe("agent-1")
     expect(layer?.route).toBe("/about")
     // Appended after the existing sibling, preserving row order.
     expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
@@ -717,7 +717,7 @@ describe("addFrameToGroup", () => {
     ])
   })
 
-  it("omits sandboxId and route for a blank frame", () => {
+  it("omits branchId and route for a blank frame", () => {
     const { ops, collections } = makeHarness()
     collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
@@ -729,7 +729,7 @@ describe("addFrameToGroup", () => {
     })
 
     const layer = collections.iframeLayers.get(id!)
-    expect(layer?.sandboxId).toBeUndefined()
+    expect(layer?.branchId).toBeUndefined()
     expect(layer?.route).toBeUndefined()
   })
 
@@ -794,43 +794,43 @@ describe("renameDocument", () => {
   })
 })
 
-describe("createAgent", () => {
+describe("createBranch", () => {
   const spec = {
     repoId: "ws-1",
     sandboxName: "sp-1",
     gitUrl: "https://example.com/repo.git",
-    branch: "main",
+    ref: "main",
     previewDomain: "",
     port: 3000,
     status: "creating" as const,
     createdAt: 0,
   }
 
-  it("writes the agent with the deferred-seed flag set, and no chat when none is requested", () => {
+  it("writes the Branch with the deferred-seed flag set, and no chat when none is requested", () => {
     const { ops, collections } = makeHarness()
 
-    const { agentId, chatId } = ops.createAgent({ agent: spec })
+    const { branchId, chatId } = ops.createBranch({ branch: spec })
 
-    const agent = collections.agents.get(agentId)
-    expect(agent?.repoId).toBe("ws-1")
-    expect(agent?.branch).toBe("main")
-    // createAgent owns the deferred-seed flag (parent decision 7).
-    expect(agent?.pendingIframeLayerSeed).toBe(true)
+    const branch = collections.branches.get(branchId)
+    expect(branch?.repoId).toBe("ws-1")
+    expect(branch?.ref).toBe("main")
+    // createBranch owns the deferred-seed flag (parent decision 7).
+    expect(branch?.pendingIframeLayerSeed).toBe(true)
     expect(chatId).toBeUndefined()
     expect(collections.chatSessions.toArray()).toEqual([])
   })
 
-  it("pre-creates a Chat Session targeting the agent when a chat spec is given", () => {
+  it("pre-creates a Chat Session targeting the Branch when a chat spec is given", () => {
     const { ops, collections } = makeHarness()
 
-    const { agentId, chatId } = ops.createAgent({
-      agent: spec,
+    const { branchId, chatId } = ops.createBranch({
+      branch: spec,
       chat: { label: "Build login", model: "claude-x" },
     })
 
     expect(chatId).toBeDefined()
     const chat = collections.chatSessions.get(chatId!)
-    expect(chat?.agentId).toBe(agentId)
+    expect(chat?.branchId).toBe(branchId)
     expect(chat?.label).toBe("Build login")
     expect(chat?.model).toBe("claude-x")
   })
@@ -839,21 +839,21 @@ describe("createAgent", () => {
 describe("seedFrameForAgent", () => {
   it("creates the frame and clears pendingIframeLayerSeed in one transaction", () => {
     const { ops, collections, doc } = makeHarness()
-    collections.agents.set(
+    collections.branches.set(
       "agent-1",
-      baseAgent("agent-1", { pendingIframeLayerSeed: true }),
+      baseBranch("agent-1", { pendingIframeLayerSeed: true }),
     )
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
     const { layerId, groupId } = ops.seedFrameForAgent("agent-1", { x: 0, y: 0 })
 
-    expect(collections.iframeLayers.get(layerId)?.sandboxId).toBe("agent-1")
+    expect(collections.iframeLayers.get(layerId)?.branchId).toBe("agent-1")
     expect(collections.iframeLayerGroups.has(groupId)).toBe(true)
     // The flag clears atomically with the layer write — exactly one committed
     // transaction under the canvas-ops origin, so a later frame delete can't
     // race a re-seed.
-    expect(collections.agents.get("agent-1")?.pendingIframeLayerSeed).toBe(false)
+    expect(collections.branches.get("agent-1")?.pendingIframeLayerSeed).toBe(false)
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
     expect(findEmptyGroups(collections)).toEqual([])
   })
@@ -862,12 +862,12 @@ describe("seedFrameForAgent", () => {
 describe("createFrameForAgent", () => {
   it("binds a fresh frame to the agent in its own Group with a default label", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
 
     const { layerId, groupId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
 
     const layer = collections.iframeLayers.get(layerId)
-    expect(layer?.sandboxId).toBe("agent-1")
+    expect(layer?.branchId).toBe("agent-1")
     expect(layer?.label).toBe("Frame 1")
     expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
       { kind: "iframe-layer", id: layerId },
@@ -881,7 +881,7 @@ describe("createFrameForAgent", () => {
       "ws-1",
       baseRepo("ws-1", { defaultIframeLayerSizeId: "iphone-se" }),
     )
-    collections.agents.set("agent-1", baseAgent("agent-1", { repoId: "ws-1" }))
+    collections.branches.set("agent-1", baseBranch("agent-1", { repoId: "ws-1" }))
 
     const { layerId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
 
@@ -892,7 +892,7 @@ describe("createFrameForAgent", () => {
 
   it("places the new Group to the right of an existing one (placement-race guard)", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
     collections.iframeLayers.set("existing", baseLayer("existing", { width: 400 }))
     collections.iframeLayerGroups.set("g0", {
       id: "g0",
@@ -911,7 +911,7 @@ describe("createFrameForAgent", () => {
 
   it("honors an explicit label", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("agent-1", baseAgent("agent-1"))
+    collections.branches.set("agent-1", baseBranch("agent-1"))
 
     const { layerId } = ops.createFrameForAgent("agent-1", { x: 0, y: 0 }, "Home")
 
@@ -963,43 +963,43 @@ describe("reorderRepos", () => {
   })
 })
 
-describe("reorderAgents", () => {
+describe("reorderBranches", () => {
   it("renumbers each agent's sidebarOrder to its index in the given order", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
-    collections.agents.set("ag-c", baseAgent("ag-c", { repoId: "ws-1" }))
+    collections.branches.set("ag-a", baseBranch("ag-a", { repoId: "ws-1" }))
+    collections.branches.set("ag-b", baseBranch("ag-b", { repoId: "ws-1" }))
+    collections.branches.set("ag-c", baseBranch("ag-c", { repoId: "ws-1" }))
 
-    ops.reorderAgents("ws-1", ["ag-c", "ag-a", "ag-b"])
+    ops.reorderBranches("ws-1", ["ag-c", "ag-a", "ag-b"])
 
-    expect(collections.agents.get("ag-c")?.sidebarOrder).toBe(0)
-    expect(collections.agents.get("ag-a")?.sidebarOrder).toBe(1)
-    expect(collections.agents.get("ag-b")?.sidebarOrder).toBe(2)
+    expect(collections.branches.get("ag-c")?.sidebarOrder).toBe(0)
+    expect(collections.branches.get("ag-a")?.sidebarOrder).toBe(1)
+    expect(collections.branches.get("ag-b")?.sidebarOrder).toBe(2)
   })
 
   it("never touches an agent that belongs to a different repo", () => {
     const { ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
+    collections.branches.set("ag-a", baseBranch("ag-a", { repoId: "ws-1" }))
+    collections.branches.set("ag-b", baseBranch("ag-b", { repoId: "ws-1" }))
     // An agent of another Repo, plus a stray id pointing at it sneaking
     // into ws-1's reorder — both must be left alone.
-    collections.agents.set("other", baseAgent("other", { repoId: "ws-2" }))
+    collections.branches.set("other", baseBranch("other", { repoId: "ws-2" }))
 
-    ops.reorderAgents("ws-1", ["ag-b", "other", "ag-a"])
+    ops.reorderBranches("ws-1", ["ag-b", "other", "ag-a"])
 
-    expect(collections.agents.get("other")?.sidebarOrder).toBeUndefined()
-    expect(collections.agents.get("ag-b")?.sidebarOrder).toBe(0)
-    expect(collections.agents.get("ag-a")?.sidebarOrder).toBe(2)
+    expect(collections.branches.get("other")?.sidebarOrder).toBeUndefined()
+    expect(collections.branches.get("ag-b")?.sidebarOrder).toBe(0)
+    expect(collections.branches.get("ag-a")?.sidebarOrder).toBe(2)
   })
 
   it("commits the renumber as one transaction under the canvas-ops origin", () => {
     const { doc, ops, collections } = makeHarness()
-    collections.agents.set("ag-a", baseAgent("ag-a", { repoId: "ws-1" }))
-    collections.agents.set("ag-b", baseAgent("ag-b", { repoId: "ws-1" }))
+    collections.branches.set("ag-a", baseBranch("ag-a", { repoId: "ws-1" }))
+    collections.branches.set("ag-b", baseBranch("ag-b", { repoId: "ws-1" }))
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
-    ops.reorderAgents("ws-1", ["ag-b", "ag-a"])
+    ops.reorderBranches("ws-1", ["ag-b", "ag-a"])
 
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
   })

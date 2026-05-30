@@ -3,20 +3,20 @@
 import { GitFork, RefreshCw, Trash2, Loader2, Plus, Monitor } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { BranchBadge } from "@/components/branch-badge"
-import type { AgentData, IframeLayerData } from "@/lib/types"
+import type { BranchData, IframeLayerData } from "@/lib/types"
 
-interface AgentCardProps {
-  agent: AgentData
+interface BranchCardProps {
+  branch: BranchData
   selected: boolean
   iframeLayers: Array<Pick<IframeLayerData, "id" | "label">>
   onSelect: (id: string) => void
   onFork: (id: string) => void
   onRefresh: (id: string) => void
   onRemove: (id: string) => void
-  onAddIframeLayer: (agentId: string) => void
+  onAddIframeLayer: (branchId: string) => void
 }
 
-const statusColors: Record<AgentData["status"], string> = {
+const statusColors: Record<BranchData["status"], string> = {
   creating: "bg-yellow-400",
   starting: "bg-yellow-400",
   running: "bg-green-400",
@@ -24,8 +24,8 @@ const statusColors: Record<AgentData["status"], string> = {
   stopped: "bg-zinc-400",
 }
 
-export function AgentCard({
-  agent,
+export function BranchCard({
+  branch,
   selected,
   iframeLayers,
   onSelect,
@@ -33,9 +33,9 @@ export function AgentCard({
   onRefresh,
   onRemove,
   onAddIframeLayer,
-}: AgentCardProps) {
+}: BranchCardProps) {
   const isLoading =
-    agent.status === "creating" || agent.status === "starting"
+    branch.status === "creating" || branch.status === "starting"
 
   return (
     <div
@@ -44,15 +44,15 @@ export function AgentCard({
           ? "border-primary bg-primary/5"
           : "border-border bg-card hover:bg-muted/50"
       }`}
-      onClick={(e) => { e.stopPropagation(); onSelect(agent.id) }}
+      onClick={(e) => { e.stopPropagation(); onSelect(branch.id) }}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${statusColors[agent.status]}`}
+            className={`h-2 w-2 shrink-0 rounded-full ${statusColors[branch.status]}`}
           />
-          {agent.branch ? (
-            <BranchBadge branch={agent.branch} colorKey={agent.id} colorIndex={agent.colorIndex} className="text-[11px] py-0 px-1.5" />
+          {branch.ref ? (
+            <BranchBadge branch={branch.ref} colorKey={branch.id} colorIndex={branch.colorIndex} className="text-[11px] py-0 px-1.5" />
           ) : (
             <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
           )}
@@ -63,8 +63,8 @@ export function AgentCard({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => onAddIframeLayer(agent.id)}
-            disabled={agent.status !== "running"}
+            onClick={() => onAddIframeLayer(branch.id)}
+            disabled={branch.status !== "running"}
             title="Add iframeLayer"
           >
             <Plus className="h-3 w-3" />
@@ -73,9 +73,9 @@ export function AgentCard({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => onFork(agent.id)}
-            disabled={!agent.branch}
-            title="Fork agent"
+            onClick={() => onFork(branch.id)}
+            disabled={!branch.ref}
+            title="Fork branch"
           >
             <GitFork className="h-3 w-3" />
           </Button>
@@ -83,7 +83,7 @@ export function AgentCard({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => onRefresh(agent.id)}
+            onClick={() => onRefresh(branch.id)}
             disabled={isLoading}
             title="Restart sandbox"
           >
@@ -97,23 +97,23 @@ export function AgentCard({
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-muted-foreground hover:text-destructive"
-            onClick={() => onRemove(agent.id)}
-            title="Remove agent"
+            onClick={() => onRemove(branch.id)}
+            title="Remove branch"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
       </div>
 
-      {isLoading && agent.statusMessage && (
+      {isLoading && branch.statusMessage && (
         <p className="mt-1 text-[10px] text-muted-foreground pl-4 flex items-center gap-1">
           <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
-          {agent.statusMessage}
+          {branch.statusMessage}
         </p>
       )}
 
-      {agent.error && (
-        <p className="mt-1 text-[10px] text-red-500 pl-4">{agent.error}</p>
+      {branch.error && (
+        <p className="mt-1 text-[10px] text-red-500 pl-4">{branch.error}</p>
       )}
 
       {iframeLayers.length > 0 && (
