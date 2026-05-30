@@ -85,6 +85,12 @@ class AnthropicProvider implements ModelProvider {
   resolve(modelId: string) {
     return anthropic(modelId)
   }
+
+  egress() {
+    const key = process.env.ANTHROPIC_API_KEY
+    if (!key) return null
+    return { host: "api.anthropic.com", headers: { "x-api-key": key } }
+  }
 }
 
 export function getAnthropicProvider(): ModelProvider {

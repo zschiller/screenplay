@@ -75,4 +75,18 @@ export interface ModelProvider {
    * — the caller already validated the prefix.
    */
   resolve(modelId: string): LanguageModel
+
+  /**
+   * Egress descriptor used to broker this provider's API auth at the sandbox
+   * firewall: the provider's API `host` plus the auth `headers` to inject on
+   * outgoing requests to it. The firewall applies these as an **overwrite**
+   * (not append), so a harness's own dummy/empty auth header is replaced by
+   * the injected real one and the sandbox never holds the key.
+   *
+   * Returns `null` when the provider isn't configured, or when its auth can't
+   * be brokered through a header (e.g. query-param auth). `buildNetworkPolicy`
+   * (`lib/sandbox/network-policy.ts`) folds this over the registry, so adding
+   * a provider extends egress coverage for free.
+   */
+  egress(): { host: string; headers: Record<string, string> } | null
 }

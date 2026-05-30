@@ -47,6 +47,11 @@ const fake = vi.hoisted(() => {
 
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
+// These actions fold the provider registry into the sandbox network policy.
+// Stub it to an empty set — the egress policy is covered by
+// network-policy.test.ts, and the real registry drags in the kv/db chain.
+vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
+
 // cloneSandbox falls back to the session's GitHub token and persists workspace
 // env vars. Both need a request context / KV we don't have under plain Node —
 // stub them so the action's create + result shaping is what's under test.

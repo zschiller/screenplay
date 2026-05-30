@@ -57,6 +57,17 @@ class VercelAIGatewayProvider implements ModelProvider {
     return this.client()(modelId)
   }
 
+  egress() {
+    const key = process.env.AI_GATEWAY_API_KEY
+    if (!key) return null
+    // The gateway SDK routes through https://ai-gateway.vercel.sh; broker the
+    // Bearer token at that host so a sandbox harness reaches it keyless.
+    return {
+      host: "ai-gateway.vercel.sh",
+      headers: { authorization: `Bearer ${key}` },
+    }
+  }
+
   private client(): GatewayClient {
     if (this.cached) return this.cached
     this.cached = createGateway()

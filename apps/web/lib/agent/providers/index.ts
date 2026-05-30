@@ -35,6 +35,15 @@ const PROVIDERS_BY_KEY = new Map<string, ModelProvider>(
 )
 
 /**
+ * The configured provider registry, in picker order. Exposed so the sandbox
+ * egress-policy builder (`lib/sandbox/network-policy.ts`) can fold over it.
+ * Returns the shared instances — treat them as read-only.
+ */
+export function getModelProviders(): ModelProvider[] {
+  return PROVIDERS
+}
+
+/**
  * Default model used when a caller doesn't pass one. Override per
  * deployment via `AGENT_DEFAULT_MODEL`. The value is a fully-qualified
  * `<provider>:<model>` id — there's no implicit provider, so a deployment
