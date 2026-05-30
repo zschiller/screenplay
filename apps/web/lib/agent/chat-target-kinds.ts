@@ -6,10 +6,8 @@ import {
   buildMarkdownLayerSystemPrompt,
   type LayerDirectory,
 } from "./config"
-import { buildAgentTools } from "./tools"
-import { buildMarkdownLayerTools } from "./markdown-layer-tools"
-import { buildLayerReadTools } from "./layer-read-tools"
-import type { ToolContext } from "./tool-executor"
+import { toolsetFor } from "./toolset"
+import type { ToolContext } from "./tools"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { documentFragment, fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
 
@@ -87,10 +85,7 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
     if (!sandbox) {
       throw new Error("agent chat target requires a sandbox ToolContext")
     }
-    return {
-      ...buildAgentTools(sandbox),
-      ...buildLayerReadTools({ roomId }),
-    }
+    return toolsetFor({ kind: "sandbox", roomId, sandbox })
   },
   decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
     const planPrefix = planMode ? "[plan mode: enabled] " : ""
@@ -142,10 +137,11 @@ export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, Markdo
     })
   },
   buildTools(roomId, target) {
-    return {
-      ...buildMarkdownLayerTools({ roomId, markdownLayerId: target.markdownLayerId }),
-      ...buildLayerReadTools({ roomId }),
-    }
+    return toolsetFor({
+      kind: "markdown-layer",
+      roomId,
+      markdownLayerId: target.markdownLayerId,
+    })
   },
   decorateUserMessage(message, { planMode }) {
     return planMode ? `[plan mode: enabled] ${message}` : message
