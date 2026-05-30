@@ -6,12 +6,12 @@ import {
   getGitHubToken,
   createAgentBranch,
   cloneSandbox,
-  crawlRoutes,
   installDependencies,
   installClaudeCode,
   startDevServer,
   configureAgentGit,
 } from "@/lib/sandbox-actions"
+import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
 import type { AgentData, WorkspaceData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
@@ -155,7 +155,7 @@ async function runNewOrFromBranchPipeline(
   // the user (or model) needing to trigger discovery.
   crawlRoutes(cloneResult.sandboxName).then((result) => {
     if (result.success) {
-      return updateAgent(roomId, agentId, { discoveredRoutes: result.routes })
+      return updateAgent(roomId, agentId, { discoveredRoutes: result.value })
     }
   }).catch(() => {})
 }
