@@ -176,8 +176,8 @@ export function createRunState(repo: RunStateRepo): RunState {
 
 /**
  * Drizzle-backed port over the `agent_run` table. An "active" run is one that
- * has not finished — during the expand phase that means `running` or
- * `paused_for_plan` (the legacy `ended` and the new terminals are both done).
+ * has not finished — i.e. `running` or `paused_for_plan`; every terminal state
+ * (`completed | failed | aborted | superseded`) is done.
  */
 function drizzleRepo(database: DB = defaultDb): RunStateRepo {
   return {
@@ -278,9 +278,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
 }
 
 // Default machine bound to the live database. The engine and the agent routes
-// drive every run transition through these. The final contract slice (#170)
-// retires the legacy `ended` status value and the `aborted` boolean column the
-// old persistence helpers wrote.
+// drive every run transition through these — there are no legacy persistence
+// helpers left; this machine is the only writer of `agent_run.status`.
 const defaultRunState = createRunState(drizzleRepo())
 
 export const transition = defaultRunState.transition
