@@ -1,11 +1,13 @@
 "use server"
 
+import { getModelProviders } from "@/lib/agent/providers"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
 import { sandboxProvider } from "@/lib/sandbox"
 import type { SandboxSource } from "@/lib/sandbox"
 import { configureAgentGit } from "@/lib/sandbox/git"
+import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import { installClaudeCode } from "@/lib/sandbox/provision"
 import {
   BROKERED_ANTHROPIC_ENV,
@@ -14,7 +16,6 @@ import {
   SANDBOX_VCPUS,
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
-  buildNetworkPolicy,
   launchDevAndProxy,
   runLogged,
 } from "@/lib/sandbox/provision-internals"
@@ -159,7 +160,7 @@ export async function restartSandbox(
       } catch {}
     } catch {}
 
-    const networkPolicy = buildNetworkPolicy()
+    const networkPolicy = buildNetworkPolicy(getModelProviders())
     const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
     const source: SandboxSource = snapshotId
       ? { type: "snapshot", snapshotId }

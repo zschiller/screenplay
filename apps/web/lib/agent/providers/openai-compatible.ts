@@ -74,6 +74,21 @@ class OpenAICompatibleProviderImpl implements ModelProvider {
     return this.client()(modelId)
   }
 
+  egress() {
+    const baseURL = process.env.OPENAI_COMPATIBLE_BASE_URL
+    const key = process.env.OPENAI_COMPATIBLE_API_KEY
+    // Nothing to broker without a key — unauthenticated local servers (LM
+    // Studio, vLLM) carry no secret the firewall needs to inject.
+    if (!baseURL || !key) return null
+    let host: string
+    try {
+      host = new URL(baseURL).hostname
+    } catch {
+      return null
+    }
+    return { host, headers: { authorization: `Bearer ${key}` } }
+  }
+
   private client(): OpenAICompatibleProvider {
     if (this.cached) return this.cached
     const baseURL = process.env.OPENAI_COMPATIBLE_BASE_URL
