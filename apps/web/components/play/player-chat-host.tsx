@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { nanoid } from "nanoid"
 import { ChatPanel } from "@/components/agent/chat-panel"
-import { renameAgentBranch } from "@/lib/sandbox-actions"
+import { renameAgentBranch } from "@/lib/sandbox/git"
 import { chatStore } from "@/lib/chat-store"
 import {
   useAgents,

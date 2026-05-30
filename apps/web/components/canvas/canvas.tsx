@@ -95,8 +95,8 @@ import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
 import { useDiffStats } from "@/hooks/use-diff-stats"
+import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
-  renameAgentBranch,
   restartSandbox,
   reconnectSandbox,
   keepAliveSandbox,
