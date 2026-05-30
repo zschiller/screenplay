@@ -104,10 +104,10 @@ export async function POST(req: Request) {
 
   const generated = await Promise.all(prompts.map((p) => generateOne(p.trim())))
 
-  const repo = await readRoomDoc(roomId, ({ workspaces }) => {
-    const ws = workspaces.toArray()[0]
-    if (!ws) return null
-    return { repoOwner: ws.repoOwner, repoName: ws.repoName }
+  const repo = await readRoomDoc(roomId, ({ repos }) => {
+    const firstRepo = repos.toArray()[0]
+    if (!firstRepo) return null
+    return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
   }).catch(() => null)
   const token = await getGitHubTokenForUser(userId)
 

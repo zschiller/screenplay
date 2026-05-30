@@ -15,21 +15,21 @@ import { buttonVariants } from "@workspace/ui/components/button"
 import { Switch } from "@workspace/ui/components/switch"
 import { Label } from "@workspace/ui/components/label"
 
-type DeleteWorkspaceDialogProps = {
+type DeleteRepoDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceName: string
+  repoName: string
   branches: string[]
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
-export function DeleteWorkspaceDialog({
+export function DeleteRepoDialog({
   open,
   onOpenChange,
-  workspaceName,
+  repoName,
   branches,
   onConfirm,
-}: DeleteWorkspaceDialogProps) {
+}: DeleteRepoDialogProps) {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(true)
@@ -56,7 +56,7 @@ export function DeleteWorkspaceDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Remove workspace?</AlertDialogTitle>
           <AlertDialogDescription>
-            <span className="font-mono">{workspaceName}</span> and all of its
+            <span className="font-mono">{repoName}</span> and all of its
             agents will be removed from this canvas.
           </AlertDialogDescription>
         </AlertDialogHeader>

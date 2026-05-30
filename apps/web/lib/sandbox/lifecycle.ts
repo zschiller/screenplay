@@ -21,7 +21,7 @@ import {
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
-import type { WorkspaceData } from "@/lib/types"
+import type { RepoData } from "@/lib/types"
 
 /**
  * Check if a sandbox preview URL is responding with real content. The sandbox
@@ -133,14 +133,14 @@ export async function reconnectSandbox(
  */
 export async function restartSandbox(
   sandboxName: string,
-  workspace: WorkspaceData,
+  repo: RepoData,
   branch: string,
   ghToken?: string,
 ): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
     const safeEnv = await getEnvVars(sandboxName)
-    const port = workspace.devServerPort
+    const port = repo.devServerPort
 
     // Force a snapshot of the existing sandbox before deleting it so the new
     // VM can boot from the same filesystem state. snapshot() stops the VM as a
@@ -165,8 +165,8 @@ export async function restartSandbox(
     const source: SandboxSource = snapshotId
       ? { type: "snapshot", snapshotId }
       : ghToken
-        ? { type: "git", url: workspace.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
-        : { type: "git", url: workspace.cloneUrl, revision: branch }
+        ? { type: "git", url: repo.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
+        : { type: "git", url: repo.cloneUrl, revision: branch }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source,
@@ -183,14 +183,14 @@ export async function restartSandbox(
       // helper, and the working tree (uncommitted changes included) all
       // survived. Skip the setup/install/configure pipeline and just relaunch
       // the dev server.
-      const previewDomain = await launchDevAndProxy(sandbox, port, workspace.devScript, safeEnv)
+      const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
       return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
     }
 
     // No snapshot available — fresh provision. Mirror the create pipeline:
     // deps + Claude Code in parallel, then git setup, then dev launch. Claude
     // Code is best-effort — the create route ignores its result, and so do we.
-    const setup = workspace.setupScript?.trim() || "npm install"
+    const setup = repo.setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     const [setupResult] = await Promise.all([
       runLogged(sandbox, setupCmd, setupArgs),
@@ -200,12 +200,12 @@ export async function restartSandbox(
       throw new Error(`Setup script failed (exit ${setupResult.exitCode})`)
     }
 
-    const gitResult = await configureAgentGit(sandbox.name, workspace, branch)
+    const gitResult = await configureAgentGit(sandbox.name, repo, branch)
     if (!gitResult.success) {
       throw new Error(gitResult.error ?? "Failed to configure git")
     }
 
-    const previewDomain = await launchDevAndProxy(sandbox, port, workspace.devScript, safeEnv)
+    const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
     return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
   } catch (e) {
     return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }

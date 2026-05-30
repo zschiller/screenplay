@@ -78,10 +78,10 @@ export async function deduplicateBranchName(
   userId: string,
 ): Promise<string> {
   try {
-    const repo = await readRoomDoc(roomId, ({ workspaces }) => {
-      const ws = workspaces.toArray()[0]
-      if (!ws) return null
-      return { repoOwner: ws.repoOwner, repoName: ws.repoName }
+    const repo = await readRoomDoc(roomId, ({ repos }) => {
+      const firstRepo = repos.toArray()[0]
+      if (!firstRepo) return null
+      return { repoOwner: firstRepo.repoOwner, repoName: firstRepo.repoName }
     })
     if (!repo) return branchName
 

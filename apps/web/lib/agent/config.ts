@@ -126,12 +126,12 @@ Keep your responses concise. Show the user what you changed and why.`
  * instructions — the same metadata-then-body progressive disclosure native
  * Anthropic skills use, just routed through our custom tool.
  *
- * `workspaceSystemPrompt` is appended after the tail so per-workspace
+ * `repoSystemPrompt` is appended after the tail so per-repo
  * context (e.g. "this config targets apps/web in the monorepo") is part of
- * every chat under that workspace without leaking into siblings.
+ * every chat under that repo without leaking into siblings.
  */
 export function buildAgentSystemPrompt(
-  workspaceSystemPrompt: string | undefined,
+  repoSystemPrompt: string | undefined,
   layerDirectory: LayerDirectory,
 ): string {
   const skills = getSkillIndex()
@@ -146,15 +146,15 @@ export function buildAgentSystemPrompt(
           "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
         ].join("\n")
-  const workspaceBlock = workspaceSystemPrompt?.trim()
-    ? `\n\nWorkspace context:\n${workspaceSystemPrompt.trim()}`
+  const repoBlock = repoSystemPrompt?.trim()
+    ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
   const directoryBlock = renderLayerDirectory(layerDirectory)
   return (
     AGENT_SYSTEM_PROMPT_BASE +
     skillsBlock +
     AGENT_SYSTEM_PROMPT_TAIL +
-    workspaceBlock +
+    repoBlock +
     (directoryBlock ? `\n${directoryBlock}` : "")
   )
 }

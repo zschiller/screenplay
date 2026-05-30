@@ -164,19 +164,19 @@ export async function POST(req: Request) {
   const effectiveModel = model || DEFAULT_MODEL
   const toolCtx: ToolContext = { sandboxName, roomId, userId }
 
-  // Workspace-scoped optional system prompt — appended to the live skill
-  // index so each (workspace, model) pair sees the right persona.
-  const [workspaceSystemPrompt, layerDirectory] = await Promise.all([
-    readRoomDoc(roomId, ({ agents, workspaces }) => {
+  // Repo-scoped optional system prompt — appended to the live skill
+  // index so each (repo, model) pair sees the right persona.
+  const [repoSystemPrompt, layerDirectory] = await Promise.all([
+    readRoomDoc(roomId, ({ agents, repos }) => {
       const agent = agents.toArray().find((a) => a.sandboxName === sandboxName)
       if (!agent) return undefined
-      return workspaces.get(agent.workspaceId)?.systemPrompt
+      return repos.get(agent.repoId)?.systemPrompt
     }).catch(() => undefined),
     loadLayerDirectory(roomId),
   ])
 
   const systemPrompt = buildAgentSystemPrompt(
-    workspaceSystemPrompt ?? undefined,
+    repoSystemPrompt ?? undefined,
     layerDirectory,
   )
 

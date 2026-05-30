@@ -36,7 +36,7 @@ interface PrototypePlayerProps {
    *  all converge on the same snapshot. */
   iframeLayerId?: string
   initialThreads: ThreadWithComments[]
-  /** Workspace's default iframeLayer size id — seeds mobile/tablet preview if it's a non-desktop preset. */
+  /** Repo's default iframeLayer size id — seeds mobile/tablet preview if it's a non-desktop preset. */
   initialDeviceSizeId?: string
 }
 
@@ -96,7 +96,7 @@ export function PrototypePlayer({
   }, [knobValues])
 
   // Device preview state. Initial value prefers a previously-saved choice for
-  // this session, then the workspace default, then desktop full-bleed.
+  // this session, then the repo default, then desktop full-bleed.
   const [deviceSizeId, setDeviceSizeId] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem(STORAGE_KEY_DEVICE)

@@ -20,7 +20,7 @@ import type {
   MarkdownLayerData,
   PlanData,
   ViewportData,
-  WorkspaceData,
+  RepoData,
 } from "@/lib/types"
 
 export function useRoomCollections(): RoomCollections {
@@ -73,8 +73,8 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
   return useCollectionArray(useRoomCollections().markdownLayers)
 }
 
-export function useWorkspaces(): Array<WorkspaceData> {
-  return useCollectionArray(useRoomCollections().workspaces)
+export function useRepos(): Array<RepoData> {
+  return useCollectionArray(useRoomCollections().repos)
 }
 
 export function useAgents(): Array<AgentData> {
@@ -105,7 +105,7 @@ export function useYjsHistory() {
   useEffect(() => {
     const mgr = new UndoManager(
       [
-        doc.getMap(COLLECTION_KEYS.workspaces),
+        doc.getMap(COLLECTION_KEYS.repos),
         doc.getMap(COLLECTION_KEYS.agents),
         doc.getMap(COLLECTION_KEYS.iframeLayers),
         doc.getMap(COLLECTION_KEYS.iframeLayerGroups),

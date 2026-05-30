@@ -15,7 +15,7 @@ export type SandboxStatus =
   | "error"
   | "stopped"
 
-export type WorkspaceData = {
+export type RepoData = {
   id: string
   name: string
   repoFullName: string
@@ -29,7 +29,7 @@ export type WorkspaceData = {
   envVars: string
   /** Preset id from `lib/iframe-layer-sizes`. Falls back to the default preset when unset. */
   defaultIframeLayerSizeId?: string
-  /** Extra workspace-specific instructions appended to the agent's system prompt. */
+  /** Extra repo-specific instructions appended to the agent's system prompt. */
   systemPrompt?: string
   createdAt: number
   /** Display order in the in-room sidebar's repo list. Lower values render
@@ -39,7 +39,7 @@ export type WorkspaceData = {
 
 export type AgentData = {
   id: string
-  workspaceId: string
+  repoId: string
   sandboxName: string
   gitUrl: string
   branch: string
@@ -58,7 +58,7 @@ export type AgentData = {
   pendingIframeLayerSeed?: boolean
   /** Manual override into `BRANCH_COLORS`. When unset, the badge color is hashed from `id`. */
   colorIndex?: number
-  /** Display order within its Workspace's branch list in the in-room sidebar.
+  /** Display order within its Repo's branch list in the in-room sidebar.
    *  Lower values render first; unset falls back to `createdAt` (oldest-first). */
   sidebarOrder?: number
 }

@@ -5,7 +5,7 @@ import type {
   SandboxInstance,
   SandboxProvider,
 } from "@/lib/sandbox/types"
-import type { WorkspaceData } from "@/lib/types"
+import type { RepoData } from "@/lib/types"
 
 // The git actions resolve the live instance through the provider seam (via the
 // runner). A fake provider — scripted, no real VM — stands in for Vercel
@@ -54,11 +54,11 @@ import {
   renameAgentBranch,
 } from "@/lib/sandbox/git"
 
-const workspace = {
+const repo = {
   repoOwner: "octocat",
   repoName: "hello-world",
   defaultBranch: "main",
-} as WorkspaceData
+} as RepoData
 
 /**
  * Builds a fake {@link SandboxInstance} whose `runCommand` is scripted by
@@ -109,7 +109,7 @@ describe("configureAgentGit", () => {
   it("returns success when every git command exits 0", async () => {
     fake.setInstance(fakeSandbox(() => ({ exitCode: 0 })))
 
-    const result = await configureAgentGit("sandbox-a", workspace, "feature")
+    const result = await configureAgentGit("sandbox-a", repo, "feature")
 
     expect(result).toEqual({ success: true, value: undefined })
   })
@@ -124,7 +124,7 @@ describe("configureAgentGit", () => {
       ),
     )
 
-    const result = await configureAgentGit("sandbox-a", workspace, "feature")
+    const result = await configureAgentGit("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -138,7 +138,7 @@ describe("renameAgentBranch", () => {
     fake.setInstance(fakeSandbox(() => ({ exitCode: 0 })))
     renameBranch.mockResolvedValue({ success: false, error: "Branch not found" })
 
-    const result = await renameAgentBranch(workspace, "sandbox-a", "old", "new")
+    const result = await renameAgentBranch(repo, "sandbox-a", "old", "new")
 
     expect(result).toEqual({ success: true, value: undefined })
     expect(renameBranch).toHaveBeenCalledWith("octocat", "hello-world", "old", "new")
@@ -147,7 +147,7 @@ describe("renameAgentBranch", () => {
   it("returns a failure result when the in-sandbox rename exits non-zero", async () => {
     fake.setInstance(fakeSandbox(() => ({ exitCode: 128, stderr: "branch already exists" })))
 
-    const result = await renameAgentBranch(workspace, "sandbox-a", "old", "new")
+    const result = await renameAgentBranch(repo, "sandbox-a", "old", "new")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -199,7 +199,7 @@ describe("createAgentBranch", () => {
   it("maps a successful GitHub branch creation to the result contract", async () => {
     createBranch.mockResolvedValue({ success: true })
 
-    const result = await createAgentBranch(workspace, "feature")
+    const result = await createAgentBranch(repo, "feature")
 
     expect(result).toEqual({ success: true, value: undefined })
     expect(createBranch).toHaveBeenCalledWith(
@@ -211,10 +211,10 @@ describe("createAgentBranch", () => {
     )
   })
 
-  it("falls back to the workspace default branch when no source branch is given", async () => {
+  it("falls back to the repo default branch when no source branch is given", async () => {
     createBranch.mockResolvedValue({ success: true })
 
-    await createAgentBranch(workspace, "feature", undefined, "tok")
+    await createAgentBranch(repo, "feature", undefined, "tok")
 
     expect(createBranch).toHaveBeenCalledWith("octocat", "hello-world", "feature", "main", "tok")
   })
@@ -223,7 +223,7 @@ describe("createAgentBranch", () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     createBranch.mockResolvedValue({ success: false, error: `auth failed for ${token}` })
 
-    const result = await createAgentBranch(workspace, "feature")
+    const result = await createAgentBranch(repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
