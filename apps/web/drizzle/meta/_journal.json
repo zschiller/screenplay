@@ -92,6 +92,13 @@
       "when": 1779840000000,
       "tag": "0012_rename_thread_artboard_id",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780166824694,
+      "tag": "0013_retire_ended_drop_aborted",
+      "breakpoints": true
     }
   ]
 }
