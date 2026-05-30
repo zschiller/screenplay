@@ -104,15 +104,29 @@ beforeEach(() => {
 })
 
 describe("read_file", () => {
-  it("returns the file's contents as text", async () => {
-    fake.setInstance(fakeSandbox({ files: { "src/App.tsx": "export const App = () => null" } }))
+  it("returns the file's contents with cat -n-style line numbers", async () => {
+    fake.setInstance(fakeSandbox({ files: { "src/App.tsx": "line one\nline two" } }))
 
     const out = await buildSandboxTools(ctx).read_file.execute!(
       { path: "src/App.tsx" },
       {} as never,
     )
 
-    expect(out).toBe("export const App = () => null")
+    expect(out).toBe("     1\tline one\n     2\tline two")
+  })
+
+  it("windows to offset/limit and notes there is more to read", async () => {
+    fake.setInstance(fakeSandbox({ files: { "a.ts": "l1\nl2\nl3\nl4" } }))
+
+    const out = await buildSandboxTools(ctx).read_file.execute!(
+      { path: "a.ts", offset: 2, limit: 1 },
+      {} as never,
+    )
+
+    expect(out).toContain("     2\tl2")
+    expect(out).not.toContain("\tl1")
+    expect(out).not.toContain("\tl3")
+    expect(out).toContain("4 lines")
   })
 
   it("reports a missing file rather than throwing", async () => {
@@ -139,7 +153,7 @@ describe("write_file", () => {
     expect(written).toBe("Written 5 bytes to a.txt")
 
     const back = await tools.read_file.execute!({ path: "a.txt" }, {} as never)
-    expect(back).toBe("hello")
+    expect(back).toContain("\thello")
   })
 })
 
@@ -154,7 +168,7 @@ describe("edit_file", () => {
     )
 
     const back = await tools.read_file.execute!({ path: "a.ts" }, {} as never)
-    expect(back).toBe("const x = 2")
+    expect(back).toContain("\tconst x = 2")
   })
 
   it("reports when old_string is absent instead of editing", async () => {
@@ -166,6 +180,39 @@ describe("edit_file", () => {
     )
 
     expect(out).toContain("old_string not found")
+  })
+
+  it("refuses an ambiguous edit, reports the count, and leaves the file unchanged", async () => {
+    fake.setInstance(fakeSandbox({ files: { "a.ts": "x\nx\nx" } }))
+    const tools = buildSandboxTools(ctx)
+
+    const out = await tools.edit_file.execute!(
+      { path: "a.ts", old_string: "x", new_string: "y" },
+      {} as never,
+    )
+
+    expect(out).toContain("3")
+    expect(out).toMatch(/ambiguous|matches/i)
+
+    const back = await tools.read_file.execute!({ path: "a.ts" }, {} as never)
+    expect(back).toContain("\tx")
+    expect(back).not.toContain("\ty")
+  })
+
+  it("replaces every occurrence under replace_all and reports the count", async () => {
+    fake.setInstance(fakeSandbox({ files: { "a.ts": "x\nx\nx" } }))
+    const tools = buildSandboxTools(ctx)
+
+    const out = await tools.edit_file.execute!(
+      { path: "a.ts", old_string: "x", new_string: "y", replace_all: true },
+      {} as never,
+    )
+
+    expect(out).toContain("3")
+
+    const back = await tools.read_file.execute!({ path: "a.ts" }, {} as never)
+    expect(back).toContain("\ty")
+    expect(back).not.toContain("\tx")
   })
 })
 
@@ -211,6 +258,60 @@ describe("list_files", () => {
     const out = await buildSandboxTools(ctx).list_files.execute!({}, {} as never)
 
     expect(out).toBe("./a.ts\n./b.ts")
+  })
+})
+
+describe("grep", () => {
+  it("returns ripgrep matches", async () => {
+    fake.setInstance(
+      fakeSandbox({
+        command: (cmd) =>
+          cmd === "rg" ? { exitCode: 0, stdout: "a.ts:1:useState(0)" } : { exitCode: 1 },
+      }),
+    )
+
+    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "useState" }, {} as never)
+
+    expect(out).toContain("a.ts:1:useState(0)")
+  })
+
+  it("falls back to grep when ripgrep is not installed (exit 127)", async () => {
+    fake.setInstance(
+      fakeSandbox({
+        command: (cmd) => {
+          if (cmd === "rg") return { exitCode: 127, stderr: "rg: command not found" }
+          if (cmd === "grep") return { exitCode: 0, stdout: "b.ts:2:useState(1)" }
+          return { exitCode: 1 }
+        },
+      }),
+    )
+
+    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "useState" }, {} as never)
+
+    expect(out).toContain("b.ts:2:useState(1)")
+  })
+
+  it("reports no matches rather than returning an empty string", async () => {
+    fake.setInstance(fakeSandbox({ command: () => ({ exitCode: 1, stdout: "" }) }))
+
+    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "nope" }, {} as never)
+
+    expect(out).toMatch(/no matches/i)
+  })
+})
+
+describe("glob", () => {
+  it("returns the matching file paths from find", async () => {
+    fake.setInstance(
+      fakeSandbox({
+        command: (cmd) =>
+          cmd === "find" ? { exitCode: 0, stdout: "./a.tsx\n./b.tsx" } : { exitCode: 1 },
+      }),
+    )
+
+    const out = await buildSandboxTools(ctx).glob.execute!({ pattern: "**/*.tsx" }, {} as never)
+
+    expect(out).toBe("./a.tsx\n./b.tsx")
   })
 })
 

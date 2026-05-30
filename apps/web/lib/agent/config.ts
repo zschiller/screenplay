@@ -102,6 +102,11 @@ IMPORTANT run_command rules:
 - Do NOT chain commands with && or || — each command must be a separate run_command call.
 - For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
+Reading, searching, and editing files:
+- read_file output is line-numbered in \`cat -n\` style (a right-aligned line number, a tab, then the line). That prefix is for reference only — you MUST strip it before reusing a line as edit_file's old_string, or the edit won't match.
+- edit_file requires old_string to match exactly once. If it reports the match is ambiguous, add surrounding context to make it unique, or pass replace_all to change every occurrence.
+- Use grep to search file contents (returns file:line: text) and glob to find files by name (e.g. \`**/*.tsx\`) instead of shelling out with run_command.
+
 Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 

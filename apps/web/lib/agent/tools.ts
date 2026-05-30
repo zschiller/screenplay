@@ -8,6 +8,13 @@ import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { getSkill, getSkillIndex } from "@/lib/skills"
+import { applyTextEdit } from "@/lib/agent/edit"
+import { renderFileWindow } from "@/lib/agent/render"
+import {
+  buildGlobInvocation,
+  buildGrepInvocation,
+  truncateOutput,
+} from "@/lib/agent/search"
 
 /**
  * Everything a sandbox tool needs to act on behalf of the acting collaborator:
@@ -20,9 +27,6 @@ export interface ToolContext {
   roomId: string
   userId: string
 }
-
-/** Max characters to keep from command stdout/stderr to avoid bloating session history */
-const MAX_OUTPUT_LENGTH = 20_000
 
 /**
  * The sandbox-backed toolset for an agent chat target. Each tool follows the
@@ -45,17 +49,24 @@ export function buildSandboxTools(ctx: ToolContext) {
   return {
     read_file: tool({
       description:
-        "Read the contents of a file from the project. Returns the full file content as text. Use this to understand existing code before making changes.",
+        "Read the contents of a file from the project. Output is line-numbered in `cat -n` style (a right-aligned line number, a tab, then the line). Reads up to 2000 lines by default; pass `offset` (1-based line to start at) and `limit` to window a large file. Use this to understand existing code before making changes. NOTE: the line-number + tab prefix is display only — strip it before reusing a line as `edit_file`'s `old_string`.",
       inputSchema: z.object({
         path: z
           .string()
           .describe("Path to the file relative to the project root, e.g. 'src/App.tsx'"),
+        offset: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("1-based line number to start reading from"),
+        limit: z.number().int().positive().optional().describe("Maximum number of lines to read"),
       }),
-      execute: async ({ path }) => {
+      execute: async ({ path, offset, limit }) => {
         const sandbox = await getSandbox(ctx)
         const buf = await sandbox.readFileToBuffer({ path })
         if (!buf) return `File not found: ${path}`
-        return buf.toString("utf-8") || "(empty file)"
+        return renderFileWindow({ content: buf.toString("utf-8"), offset, limit })
       },
     }),
 
@@ -75,25 +86,38 @@ export function buildSandboxTools(ctx: ToolContext) {
 
     edit_file: tool({
       description:
-        "Perform a find-and-replace edit in a file. The old_string must match exactly (including whitespace and indentation). Use this for targeted changes to existing files.",
+        "Perform a find-and-replace edit in a file. The old_string must match exactly (including whitespace and indentation) and must be UNIQUE — if it matches more than once the edit is rejected with the match count, so add surrounding context to disambiguate, or pass replace_all to change every occurrence. If you copied the old_string from read_file, first strip the leading line-number + tab prefix. Use this for targeted changes to existing files.",
       inputSchema: z.object({
         path: z.string(),
         old_string: z.string(),
         new_string: z.string(),
+        replace_all: z
+          .boolean()
+          .optional()
+          .describe("Replace every occurrence instead of requiring a unique match"),
       }),
-      execute: async ({ path, old_string, new_string }) => {
+      execute: async ({ path, old_string, new_string, replace_all }) => {
         const sandbox = await getSandbox(ctx)
         const buf = await sandbox.readFileToBuffer({ path })
         if (!buf) return `File not found: ${path}`
 
-        const content = buf.toString("utf-8")
-        if (!content.includes(old_string)) {
-          return `old_string not found in ${path}. Make sure it matches exactly including whitespace.`
+        const result = applyTextEdit({
+          content: buf.toString("utf-8"),
+          oldString: old_string,
+          newString: new_string,
+          replaceAll: replace_all,
+        })
+
+        if (!result.ok) {
+          if (result.reason === "not_found") {
+            return `old_string not found in ${path}. Make sure it matches exactly including whitespace, and strip any line-number prefix from read_file.`
+          }
+          return `old_string is ambiguous in ${path}: found ${result.count} matches. Add surrounding context to make it unique, or pass replace_all to change every occurrence.`
         }
 
-        const updated = content.replace(old_string, new_string)
-        await sandbox.writeFiles([{ path, content: updated }])
-        return `Edited ${path}: replaced ${old_string.length} chars with ${new_string.length} chars`
+        await sandbox.writeFiles([{ path, content: result.content }])
+        const occurrences = result.replacements === 1 ? "1 occurrence" : `${result.replacements} occurrences`
+        return `Edited ${path}: replaced ${occurrences}.`
       },
     }),
 
@@ -123,6 +147,50 @@ export function buildSandboxTools(ctx: ToolContext) {
         const result = await sandbox.runCommand("find", args)
         const stdout = await result.stdout()
         return stdout || "(no files found)"
+      },
+    }),
+
+    grep: tool({
+      description:
+        "Search file contents across the project. Returns matching lines as `file:line: text`. Prefers ripgrep and falls back to grep automatically. Use `include` to restrict to a file-glob (e.g. '*.ts'), `path` to restrict to a directory, and `case_insensitive` for a case-insensitive search. Skips node_modules and .git.",
+      inputSchema: z.object({
+        pattern: z.string().describe("The regular expression / text to search for"),
+        path: z.string().optional().describe("Directory to search in (defaults to the project root)"),
+        include: z.string().optional().describe("Restrict to files matching this glob, e.g. '*.tsx'"),
+        case_insensitive: z.boolean().optional(),
+      }),
+      execute: async ({ pattern, path, include, case_insensitive }) => {
+        const sandbox = await getSandbox(ctx)
+        const opts = { pattern, path, include, ignoreCase: case_insensitive }
+
+        const rg = buildGrepInvocation({ ...opts, useRipgrep: true })
+        let result = await sandbox.runCommand(rg.cmd, rg.args)
+        // Exit 127 = ripgrep isn't installed in this image; retry with grep.
+        if (result.exitCode === 127) {
+          const fallback = buildGrepInvocation({ ...opts, useRipgrep: false })
+          result = await sandbox.runCommand(fallback.cmd, fallback.args)
+        }
+
+        const stdout = await result.stdout()
+        if (!stdout.trim()) return "(no matches found)"
+        return truncateOutput(stdout)
+      },
+    }),
+
+    glob: tool({
+      description:
+        "Find files by name pattern (e.g. '**/*.tsx'). Returns matching file paths. Skips node_modules and .git. Prefer this over list_files for enumerating files of a kind.",
+      inputSchema: z.object({
+        pattern: z.string().describe("A file-matching glob, e.g. '**/*.tsx'"),
+        path: z.string().optional().describe("Directory to search in (defaults to the project root)"),
+      }),
+      execute: async ({ pattern, path }) => {
+        const sandbox = await getSandbox(ctx)
+        const { cmd, args } = buildGlobInvocation({ pattern, path })
+        const result = await sandbox.runCommand(cmd, args)
+        const stdout = await result.stdout()
+        if (!stdout.trim()) return "(no files found)"
+        return truncateOutput(stdout)
       },
     }),
 
@@ -230,20 +298,10 @@ async function runCommand(
   // Redaction is applied uniformly at the assembly point (withRedactedOutput),
   // so this only frames and truncates; it never scrubs secrets itself.
   const parts: string[] = []
-  let stdout = await result.stdout()
-  let stderr = await result.stderr()
-  if (stdout) {
-    if (stdout.length > MAX_OUTPUT_LENGTH) {
-      stdout = stdout.slice(0, MAX_OUTPUT_LENGTH) + `\n...(truncated ${stdout.length - MAX_OUTPUT_LENGTH} chars)`
-    }
-    parts.push(`stdout:\n${stdout}`)
-  }
-  if (stderr) {
-    if (stderr.length > MAX_OUTPUT_LENGTH) {
-      stderr = stderr.slice(0, MAX_OUTPUT_LENGTH) + `\n...(truncated ${stderr.length - MAX_OUTPUT_LENGTH} chars)`
-    }
-    parts.push(`stderr:\n${stderr}`)
-  }
+  const stdout = await result.stdout()
+  const stderr = await result.stderr()
+  if (stdout) parts.push(`stdout:\n${truncateOutput(stdout)}`)
+  if (stderr) parts.push(`stderr:\n${truncateOutput(stderr)}`)
   parts.push(`exit code: ${result.exitCode}`)
   return parts.join("\n\n")
 }
