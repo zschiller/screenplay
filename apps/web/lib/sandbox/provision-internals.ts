@@ -1,6 +1,6 @@
 import "server-only"
 
-import type { SandboxInstance, SandboxNetworkPolicy } from "@/lib/sandbox"
+import type { SandboxInstance } from "@/lib/sandbox"
 
 // 30 minutes — keep sandboxes alive only while actively used.
 // sandboxProvider.get with resume:true will reboot the VM when a user returns.
@@ -47,23 +47,6 @@ const LOG_ENV = [
   "PNPM_CONFIG_REPORTER=append-only",
   "NPM_CONFIG_PROGRESS=false",
 ].join(" ")
-
-/**
- * Brokers Anthropic auth at the firewall: the sandbox never sees the real key.
- * The "*": [] rule lets everything else pass through end-to-end unchanged.
- * Returns undefined if the server has no key, so sandboxes still boot on
- * `allow-all` in that case rather than failing creation.
- */
-export function buildNetworkPolicy(): SandboxNetworkPolicy | undefined {
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key) return undefined
-  return {
-    allow: {
-      "api.anthropic.com": [{ transform: [{ headers: { "x-api-key": key } }] }],
-      "*": [],
-    },
-  }
-}
 
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`

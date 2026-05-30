@@ -103,6 +103,13 @@ class GoogleProvider implements ModelProvider {
   resolve(modelId: string) {
     return google(modelId)
   }
+
+  egress() {
+    // Google authenticates via a `?key=` query param, not an auth header, so
+    // there's no header for the firewall to overwrite — its key can't be
+    // brokered through the egress transform.
+    return null
+  }
 }
 
 export function getGoogleProvider(): ModelProvider {

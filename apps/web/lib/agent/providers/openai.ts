@@ -131,6 +131,12 @@ class OpenAIProvider implements ModelProvider {
   resolve(modelId: string) {
     return openai(modelId)
   }
+
+  egress() {
+    const key = process.env.OPENAI_API_KEY
+    if (!key) return null
+    return { host: "api.openai.com", headers: { authorization: `Bearer ${key}` } }
+  }
 }
 
 export function getOpenAIProvider(): ModelProvider {

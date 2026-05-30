@@ -1,9 +1,11 @@
 "use server"
 
+import { getModelProviders } from "@/lib/agent/providers"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { storeEnvVars } from "@/lib/env-store"
 import { sandboxProvider } from "@/lib/sandbox"
+import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   BROKERED_ANTHROPIC_ENV,
   PROXY_PORT_OFFSET,
@@ -11,7 +13,6 @@ import {
   SANDBOX_VCPUS,
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
-  buildNetworkPolicy,
   launchDevAndProxy,
   runLogged,
   writeBridgeFiles,
@@ -37,7 +38,7 @@ export async function cloneSandbox(
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
 
-    const networkPolicy = buildNetworkPolicy()
+    const networkPolicy = buildNetworkPolicy(getModelProviders())
     const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(env ?? {}) }
 
     const sandbox = await sandboxProvider.create({
