@@ -114,6 +114,7 @@ import type {
   WorkspaceData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/iframe-layer-layout"
+import { reorderedIds, sortForSidebar } from "@/lib/sidebar-order"
 import {
   IframeLayerRowMenu,
   makeIframeLayerRow,
@@ -282,6 +283,65 @@ function DropLine({ side }: { side: "before" | "after" }) {
 }
 
 /**
+ * A whole-row sortable for the "Branches" section — repos (Workspaces) at the
+ * top level, branches (Agents) nested inside each repo. Same interaction as
+ * the Canvas section's `SortableRow` (drag the whole row, source goes
+ * transparent, the `<DragOverlay>` paints the floating preview, a static
+ * `<DropLine>` marks the target) but with the simpler before/after-only
+ * semantics this section needs — there is no "into" nesting here.
+ *
+ * Drops are only valid between rows of the *same kind*, and for branches only
+ * within the *same repo* (`workspaceId`): the indicator stays dark unless the
+ * dragged row is a compatible target, which is what visually enforces the
+ * within-repo constraint.
+ */
+function BranchesSortableRow({
+  id,
+  kind,
+  workspaceId,
+  className,
+  children,
+  ...rest
+}: {
+  id: string
+  kind: "repo" | "branch"
+  /** Owning repo, for branch rows — used to confine branch drops to one repo. */
+  workspaceId?: string
+  className?: string
+  children: React.ReactNode
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
+  const { attributes, listeners, setNodeRef, isDragging, isOver, over, active } =
+    useSortable({ id, data: { kind, workspaceId } })
+  let indicator: "before" | "after" | null = null
+  if (isOver && over && active && String(active.id) !== id) {
+    const activeData = active.data.current as
+      | { kind?: string; workspaceId?: string }
+      | undefined
+    const compatible =
+      activeData?.kind === kind &&
+      (kind === "repo" || activeData?.workspaceId === workspaceId)
+    if (compatible) {
+      const activeInitialTop = active.rect.current.initial?.top ?? 0
+      const overTop = over.rect.top
+      indicator = activeInitialTop < overTop ? "after" : "before"
+    }
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ opacity: isDragging ? 0 : undefined }}
+      className={cn("relative", className)}
+      {...attributes}
+      {...listeners}
+      {...rest}
+    >
+      {children}
+      {indicator ? <DropLine side={indicator} /> : null}
+    </div>
+  )
+}
+
+/**
  * Droppable slot between (and around) the top-level groups. Stays a fixed
  * thin height regardless of drag state so dropping it in doesn't shove
  * the rest of the list around — the cursor itself drives `isOver`, which
@@ -342,6 +402,10 @@ interface AgentSidebarProps {
   onRenameDocument: (id: string, title: string) => void
   onRemoveDocument: (id: string) => void
   onReorderIframeLayerGroups: (orderedIds: string[]) => void
+  /** Persist the room-shared order of the repo (Workspace) list. */
+  onReorderWorkspaces: (orderedIds: string[]) => void
+  /** Persist the room-shared order of one repo's branch (Agent) list. */
+  onReorderAgents: (workspaceId: string, orderedIds: string[]) => void
   /**
    * Move a single member across (or within) groups. `target` either points
    * into an existing group at a specific index, or asks for a new
@@ -410,6 +474,8 @@ export function AgentSidebar({
   onRenameDocument,
   onRemoveDocument,
   onReorderIframeLayerGroups,
+  onReorderWorkspaces,
+  onReorderAgents,
   onMoveMember,
   onRenameIframeLayerGroup,
   onRemoveIframeLayerGroup,
@@ -570,6 +636,91 @@ export function AgentSidebar({
   const handleDragCancel = useCallback(() => {
     setActiveDragRow(null)
   }, [])
+
+  // --- "Branches" section drag (repos + their branches) ---
+
+  /**
+   * Repos in effective sidebar order: manual `sidebarOrder` wins, falling back
+   * to alphabetical by repo full name for any repo never dragged. The branch
+   * lists sort the same way per repo, by `createdAt`, at render time.
+   */
+  const sortedWorkspaces = useMemo(
+    () =>
+      sortForSidebar(workspaces, (a, b) =>
+        a.repoFullName.localeCompare(b.repoFullName),
+      ),
+    [workspaces],
+  )
+
+  const branchFallback = useCallback(
+    (a: AgentData, b: AgentData) => a.createdAt - b.createdAt,
+    [],
+  )
+  const agentsByWorkspace = useCallback(
+    (workspaceId: string) =>
+      sortForSidebar(
+        agents.filter((a) => a.workspaceId === workspaceId),
+        branchFallback,
+      ),
+    [agents, branchFallback],
+  )
+
+  const [activeBranchesDrag, setActiveBranchesDrag] = useState<
+    { kind: "repo"; workspace: WorkspaceData } | { kind: "branch"; agent: AgentData } | null
+  >(null)
+
+  const handleBranchesDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const id = String(event.active.id)
+      if (id.startsWith("repo:")) {
+        const ws = workspaces.find((w) => w.id === id.slice(5))
+        setActiveBranchesDrag(ws ? { kind: "repo", workspace: ws } : null)
+      } else if (id.startsWith("branch:")) {
+        const ag = agents.find((a) => a.id === id.slice(7))
+        setActiveBranchesDrag(ag ? { kind: "branch", agent: ag } : null)
+      }
+    },
+    [workspaces, agents],
+  )
+
+  const handleBranchesDragCancel = useCallback(() => {
+    setActiveBranchesDrag(null)
+  }, [])
+
+  const handleBranchesDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveBranchesDrag(null)
+      const { active, over } = event
+      if (!over) return
+      const activeId = String(active.id)
+      const overId = String(over.id)
+      if (activeId === overId) return
+
+      // Top-level repo reorder — first drag stamps explicit `sidebarOrder` on
+      // every repo (the ops verb renumbers 0..n), so manual order takes over.
+      if (activeId.startsWith("repo:") && overId.startsWith("repo:")) {
+        const currentIds = sortedWorkspaces.map((w) => w.id)
+        const newOrder = reorderedIds(currentIds, activeId.slice(5), overId.slice(5))
+        if (newOrder.join(",") !== currentIds.join(",")) onReorderWorkspaces(newOrder)
+        return
+      }
+
+      // Branch reorder — confined to a single repo. A drop whose source and
+      // target repos differ (or a drop onto a repo row) is ignored, so a
+      // branch can never be filed under a repo it doesn't belong to.
+      if (activeId.startsWith("branch:") && overId.startsWith("branch:")) {
+        const activeWs = (active.data.current as { workspaceId?: string } | undefined)
+          ?.workspaceId
+        const overWs = (over.data.current as { workspaceId?: string } | undefined)
+          ?.workspaceId
+        if (!activeWs || activeWs !== overWs) return
+        const currentIds = agentsByWorkspace(activeWs).map((a) => a.id)
+        const newOrder = reorderedIds(currentIds, activeId.slice(7), overId.slice(7))
+        if (newOrder.join(",") !== currentIds.join(",")) onReorderAgents(activeWs, newOrder)
+      }
+    },
+    [sortedWorkspaces, agentsByWorkspace, onReorderWorkspaces, onReorderAgents],
+  )
 
   /**
    * Slot the source group into the sidebar at `sidebarIndex` (gap-space
@@ -815,6 +966,13 @@ export function AgentSidebar({
         </TooltipProvider>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleBranchesDragStart}
+          onDragEnd={handleBranchesDragEnd}
+          onDragCancel={handleBranchesDragCancel}
+        >
         <SidebarGroup className="pt-0">
           <SidebarGroupLabel>Branches</SidebarGroupLabel>
           <Popover open={showPicker} onOpenChange={setShowPicker}>
@@ -835,12 +993,13 @@ export function AgentSidebar({
           </Popover>
           <SidebarGroupContent>
             <SidebarMenu className="gap-3">
-              {workspaces
-                .sort((a, b) => a.repoFullName.localeCompare(b.repoFullName))
+              <SortableContext
+                items={sortedWorkspaces.map((w) => `repo:${w.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+              {sortedWorkspaces
                 .map((workspace) => {
-                  const workspaceAgents = agents
-                    .filter((a) => a.workspaceId === workspace.id)
-                    .sort((a, b) => a.createdAt - b.createdAt)
+                  const workspaceAgents = agentsByWorkspace(workspace.id)
                   return (
                     <Collapsible
                       key={workspace.id}
@@ -849,8 +1008,10 @@ export function AgentSidebar({
                       className="group/collapsible"
                     >
                       <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
-                        <div
-                          className="group/workspace-row relative"
+                        <BranchesSortableRow
+                          id={`repo:${workspace.id}`}
+                          kind="repo"
+                          className="group/workspace-row cursor-grab active:cursor-grabbing"
                           data-settings-open={settingsWorkspaceId === workspace.id || undefined}
                         >
                           <SidebarMenuButton className="!pr-2 !transition-[width,height] group-hover/workspace-row:!pr-[6.5rem] group-focus-within/workspace-row:!pr-[6.5rem] group-data-[settings-open]/workspace-row:!pr-[6.5rem]" onClick={(e) => e.stopPropagation()}>
@@ -937,10 +1098,14 @@ export function AgentSidebar({
                           >
                             <Plus />
                           </SidebarMenuAction>
-                        </div>
+                        </BranchesSortableRow>
 
                         <CollapsibleContent>
                           <SidebarMenuSub>
+                            <SortableContext
+                              items={workspaceAgents.map((a) => `branch:${a.id}`)}
+                              strategy={verticalListSortingStrategy}
+                            >
                             {workspaceAgents.map((agent) => {
                               const isLoading = agent.status === "creating" || agent.status === "starting"
                               const isActive = activeAgentIds?.has(agent.id) ?? false
@@ -948,8 +1113,14 @@ export function AgentSidebar({
                               const pr = branchPrs.get(agent.id)
 
                               return (
-                                <Collapsible
+                                <BranchesSortableRow
                                   key={agent.id}
+                                  id={`branch:${agent.id}`}
+                                  kind="branch"
+                                  workspaceId={workspace.id}
+                                  className="cursor-grab active:cursor-grabbing"
+                                >
+                                <Collapsible
                                   asChild
                                   defaultOpen
                                   className="group/collapsible-agent"
@@ -1133,15 +1304,17 @@ export function AgentSidebar({
                                     </WithEditableRef>
                                   </SidebarMenuItem>
                                 </Collapsible>
+                                </BranchesSortableRow>
                               )
                             })}
-
+                            </SortableContext>
                           </SidebarMenuSub>
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
                   )
                 })}
+              </SortableContext>
             </SidebarMenu>
 
             {workspaces.length === 0 && !showPicker && (
@@ -1151,6 +1324,39 @@ export function AgentSidebar({
             )}
           </SidebarGroupContent>
         </SidebarGroup>
+        <DragOverlay dropAnimation={null}>
+          {activeBranchesDrag ? (
+            <div className="rounded-md bg-sidebar shadow-lg ring-1 ring-sidebar-border opacity-95">
+              {activeBranchesDrag.kind === "repo" ? (
+                <SidebarMenuButton className="!pr-2">
+                  <Folder className="text-sidebar-foreground/70" />
+                  <span className="truncate font-medium text-sidebar-foreground/70">
+                    {activeBranchesDrag.workspace.repoFullName}
+                  </span>
+                </SidebarMenuButton>
+              ) : (
+                <SidebarMenuSubButton asChild isActive={false}>
+                  <div>
+                    <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                    {activeBranchesDrag.agent.branch ? (
+                      <BranchBadge
+                        branch={activeBranchesDrag.agent.branch}
+                        colorKey={activeBranchesDrag.agent.id}
+                        colorIndex={activeBranchesDrag.agent.colorIndex}
+                        className="text-[11px] py-0 px-1.5"
+                      />
+                    ) : (
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        creating...
+                      </span>
+                    )}
+                  </div>
+                </SidebarMenuSubButton>
+              )}
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
 
         <DndContext
           sensors={sensors}
