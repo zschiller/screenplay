@@ -1,4 +1,4 @@
-export type WorkspaceConfig = {
+export type RepoConfig = {
   id: string
   name: string
   repoFullName: string

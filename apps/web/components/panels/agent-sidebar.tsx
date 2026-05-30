@@ -125,8 +125,8 @@ import {
 } from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
 import { getSandboxCliContext } from "@/lib/sandbox-cli-context"
-import type { WorkspaceConfig } from "@/lib/workspace-configs.types"
-import { listWorkspaceConfigs } from "@/lib/workspace-configs-actions"
+import type { RepoConfig } from "@/lib/repo-configs.types"
+import { listRepoConfigs } from "@/lib/repo-configs-actions"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
@@ -490,7 +490,7 @@ export function AgentSidebar({
   const [parallelWorkspaceId, setParallelWorkspaceId] = useState<string | null>(null)
   const [pendingDeleteAgentId, setPendingDeleteAgentId] = useState<string | null>(null)
   const [pendingDeleteWorkspaceId, setPendingDeleteWorkspaceId] = useState<string | null>(null)
-  const [savedConfigs, setSavedConfigs] = useState<WorkspaceConfig[]>([])
+  const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
   const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   // Per-workspace cache of remote branch names, fetched lazily on first
   // render of a workspace and refreshed whenever the workspace list changes.
@@ -921,7 +921,7 @@ export function AgentSidebar({
   useEffect(() => {
     if (!showPicker) return
     let cancelled = false
-    listWorkspaceConfigs().then((list) => {
+    listRepoConfigs().then((list) => {
       if (!cancelled) setSavedConfigs(list)
     })
     return () => {
