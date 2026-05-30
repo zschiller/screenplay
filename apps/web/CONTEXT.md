@@ -52,6 +52,13 @@ A capability the model can call during a chat turn (read_file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
 _Avoid_: function, action (action = server action), command.
 
+**Engine** (Agent Loop):
+The owned, server-side turn loop that drives a Chat Session against a model
+via the AI SDK — it replays the persisted conversation, runs Tools, and
+broadcasts deltas to every client in the room. The app owns this loop; it is
+deliberately **not** an external coding harness (Claude Code, Codex, …).
+_Avoid_: harness (reserve that word for an external/BYO agent tool), runtime.
+
 **Canvas Operation**:
 A verb that mutates committed canvas state across one or more collections while
 preserving canvas invariants (e.g. Group pruning). The deep module fronting the
