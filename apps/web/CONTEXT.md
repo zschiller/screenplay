@@ -122,8 +122,42 @@ broadcasts deltas to every client in the room. The app owns this loop; it is
 deliberately **not** an external coding harness (Claude Code, Codex, …).
 _Avoid_: harness (reserve that word for an external/BYO agent tool), runtime.
 
+**Message Markers**:
+The wire format that encodes a chat turn's metadata into the user-message
+string the Engine replays. The server prepends `[plan mode: enabled]` and
+`[branch: <ref>]`; the composer serializes a `/`-Skill as `[skill: <name>]`, an
+`@`-Layer as `[@<label>](mention:<id>)`, and appends a `Referenced documents:`
+footer. One isomorphic codec (`lib/agent/message-markers.ts`) owns both encode
+(composer, stream route) and decode (history route, message renderer), so the
+format lives in exactly one place and the system prompt references the codec's
+exported tokens rather than restating them.
+_Avoid_: prefix, tag, annotation; re-deriving the format with ad-hoc regex at a
+call site.
+
 **Canvas Operation**:
 A verb that mutates committed canvas state across one or more collections while
 preserving canvas invariants (e.g. Group pruning). The deep module fronting the
 generic `YjsCollection` CRDT wrapper.
 _Avoid_: handler, mutation helper; "action" means a server action.
+
+**Canvas Layout**:
+The derived geometry of the Canvas — per-Group/Member placements and bounding
+boxes, the effective (mid-drag) layout shown while a Member is being moved, the
+placeholder rect of where a dragged Member will land, and the gap/reorder
+handles. Computed from plain Canvas snapshots by a React-free, Yjs-free module
+(`lib/canvas/layout.ts`) so it is unit-testable against plain numbers. The
+derive-side counterpart to the Canvas Operation write seam: derive layout →
+gesture → commit via a Canvas Operation.
+_Avoid_: positions, coordinates (too vague); computing this geometry inline in a
+component.
+
+**Snap**:
+Gesture-time alignment on the Canvas, computed by a React-free module
+(`lib/canvas/snap.ts`): move-snap (a dragged rect aligns to its peers' edges,
+emitting **Snap Guides** — the alignment lines drawn during the drag),
+merge-snap (a Group dragged close enough to another goes "hot" to merge into
+it), and resize-snap (an Iframe Layer's size clamps to a standard device size).
+Pure functions of plain geometry with the threshold as a parameter, so snapping
+is pinned by fixtures and runs off the React render path.
+_Avoid_: magnet, guide (reserve "Snap Guide" for the drawn line); folding snap
+math into drag event handlers.
