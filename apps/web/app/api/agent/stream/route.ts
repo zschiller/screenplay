@@ -8,6 +8,7 @@ import type { ToolContext } from "@/lib/agent/tools"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
+  agentChatTarget,
   loadLayerDirectory,
   markdownLayerChatTarget,
   prepareChatTarget,
@@ -252,12 +253,15 @@ export async function POST(req: Request) {
     })
   }
 
-  // Append the user message with the same plan/branch prefixes the agent's
-  // system prompt looks for.
-  const planPrefix = planMode ? "[plan mode: enabled] " : ""
-  const branchPrefix =
-    isNewChat && effectiveBranch ? `[branch: ${effectiveBranch}] ` : ""
-  const userText = `${planPrefix}${branchPrefix}${message}`
+  // Append the user message with the plan/branch prefixes the agent's system
+  // prompt looks for. The Chat Target spec owns the policy (branch only on
+  // the first message) and delegates the format to the Message Markers codec
+  // — there is exactly one encode path.
+  const userText = agentChatTarget.decorateUserMessage!(message, {
+    planMode,
+    branch: effectiveBranch,
+    isFirstMessage: isNewChat,
+  })
   const userMessage: ModelMessage = { role: "user", content: userText }
   await appendMessage(chatId, userMessage)
 

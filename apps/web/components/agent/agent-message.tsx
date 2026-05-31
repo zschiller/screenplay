@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
+import { parseUserMessage } from "@/lib/agent/message-markers"
 import { chatStore } from "@/lib/chat-store"
 
 const toolIcons: Record<string, typeof FileText> = {
@@ -259,8 +260,10 @@ function PlanMessage({
 export function AgentMessageItem({ message, toolResult, roomId, chatId }: { message: AgentMessage; toolResult?: AgentMessage & { role: "tool_result" }; roomId?: string; chatId?: string }) {
   switch (message.role) {
     case "user": {
-      const displayContent = message.content
-        .replace(/^\[branch: [^\]]+\] /, "")
+      // Strip the server turn prefixes via the Message Markers codec; the
+      // footer + skill-pill transforms below stay local until a later slice
+      // moves them into the codec too.
+      const displayContent = parseUserMessage(message.content).body
         .replace(/\n\n---\n\nReferenced documents:[\s\S]*$/, "")
         // Recover the `/`-skill chip: the composer serializes it as a
         // `[skill: <name>]` marker; render it back as a pill the same way
