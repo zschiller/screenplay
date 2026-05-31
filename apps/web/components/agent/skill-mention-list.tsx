@@ -10,13 +10,13 @@ import { Sparkles } from "lucide-react"
 
 /**
  * Item shape for the `/` skill picker. `origin` is shown as a tag on each row
- * so the collaborator can tell where a Skill comes from — every row is "App"
- * (bundled) in this slice; Repo Skills land in a later slice.
+ * so the collaborator can tell where a Skill comes from: "App" for a bundled
+ * Skill, "Repo" for one the Branch ships in its own `.claude/skills/`.
  */
 export interface SkillMentionItem {
   name: string
   description: string
-  origin: "app"
+  origin: "app" | "repo"
 }
 
 export interface SkillMentionListHandle {
@@ -27,10 +27,13 @@ export interface SkillMentionListHandle {
 interface SkillMentionListProps {
   items: SkillMentionItem[]
   command: (item: { id: string; label: string }) => void
+  /** True while the index is still being fetched — drives the empty state. */
+  loading?: boolean
 }
 
 const ORIGIN_LABEL: Record<SkillMentionItem["origin"], string> = {
   app: "App",
+  repo: "Repo",
 }
 
 /**
@@ -42,7 +45,7 @@ const ORIGIN_LABEL: Record<SkillMentionItem["origin"], string> = {
 export const SkillMentionList = forwardRef<
   SkillMentionListHandle,
   SkillMentionListProps
->(function SkillMentionList({ items, command }, ref) {
+>(function SkillMentionList({ items, command, loading = false }, ref) {
   const [selected, setSelected] = useState(0)
 
   useEffect(() => {
@@ -76,9 +79,11 @@ export const SkillMentionList = forwardRef<
   }))
 
   if (items.length === 0) {
+    // While the per-Branch index is still loading, say so rather than "No
+    // skills found" — the menu shouldn't look broken the instant it opens.
     return (
       <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
-        No skills found
+        {loading ? "Loading skills…" : "No skills found"}
       </div>
     )
   }

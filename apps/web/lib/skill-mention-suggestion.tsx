@@ -22,6 +22,8 @@ import {
  */
 export function buildSkillMentionSuggestion(opts: {
   getSkills: () => SkillMentionItem[]
+  /** True while the per-Branch index is still being fetched. */
+  getLoading?: () => boolean
   /** Optional anchor element for clamping the popover horizontally. */
   getAnchorRect?: () => DOMRect | null
   /** Notified when the popover opens (true) or closes (false). */
@@ -83,7 +85,11 @@ export function buildSkillMentionSuggestion(opts: {
       return {
         onStart: (props) => {
           component = new ReactRenderer(SkillMentionList, {
-            props: { items: props.items, command: props.command },
+            props: {
+              items: props.items,
+              command: props.command,
+              loading: opts.getLoading?.() ?? false,
+            },
             editor: props.editor,
           })
           containerEl = document.createElement("div")
@@ -100,6 +106,7 @@ export function buildSkillMentionSuggestion(opts: {
           component?.updateProps({
             items: props.items,
             command: props.command,
+            loading: opts.getLoading?.() ?? false,
           })
           positionContainer(props.clientRect ? props.clientRect() : null)
         },
