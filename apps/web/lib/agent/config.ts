@@ -1,5 +1,6 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { MarkdownLayerData } from "@/lib/types"
+import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -80,7 +81,7 @@ const AGENT_SYSTEM_PROMPT_BASE = `You are a skilled UI developer working inside 
 
 When the user asks you to make changes:
 1. First read relevant files to understand the current code
-2. If the user's message starts with [plan mode: enabled], you MUST call submit_plan with a markdown plan before making ANY file changes. The plan should describe:
+2. If the user's message starts with ${PLAN_MODE_MARKER}, you MUST call submit_plan with a markdown plan before making ANY file changes. The plan should describe:
    - What files you will change and why
    - What specific changes you will make in each file
    - Any dependencies to install or commands to run
