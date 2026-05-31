@@ -2,6 +2,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { join } from "node:path"
 
+import { parseFrontmatter, type SkillMetadata } from "./frontmatter"
+
+export type { SkillMetadata }
+
 /**
  * Skills are markdown documents that teach the agent how to use a particular
  * screenplay-side feature. Each lives at `lib/skills/<name>/SKILL.md` and
@@ -23,11 +27,6 @@ import { join } from "node:path"
  */
 
 const dir = join(process.cwd(), "lib", "skills")
-
-export interface SkillMetadata {
-  name: string
-  description: string
-}
 
 interface LoadedSkill {
   metadata: SkillMetadata
@@ -78,33 +77,6 @@ function loadSkillFromDir(skillDir: string): LoadedSkill | null {
   }
   const { metadata, body } = parseFrontmatter(raw, skillMd)
   return { metadata, body, rawSource: raw }
-}
-
-function parseFrontmatter(
-  raw: string,
-  origin: string,
-): { metadata: SkillMetadata; body: string } {
-  const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
-  if (!match) {
-    throw new Error(`Skill ${origin} is missing a YAML frontmatter block.`)
-  }
-  const [, frontmatter = "", body = ""] = match
-  const fields: Record<string, string> = {}
-  for (const line of frontmatter.split("\n")) {
-    const m = line.match(/^([a-zA-Z_][\w-]*)\s*:\s*(.*)$/)
-    if (!m) continue
-    const [, key = "", value = ""] = m
-    fields[key] = value.trim().replace(/^"(.*)"$/, "$1")
-  }
-  if (!fields.name || !fields.description) {
-    throw new Error(
-      `Skill ${origin} frontmatter must declare both "name" and "description".`,
-    )
-  }
-  return {
-    metadata: { name: fields.name, description: fields.description },
-    body,
-  }
 }
 
 export function getSkillIndex(): SkillMetadata[] {

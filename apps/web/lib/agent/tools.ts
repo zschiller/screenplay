@@ -8,6 +8,17 @@ import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { getSkill, getSkillIndex } from "@/lib/skills"
+import {
+  enumerateRepoSkills,
+  readRepoSkillBody,
+  sandboxRepoSkillFs,
+  type RepoSkillFs,
+} from "@/lib/skills/repo-skills"
+import {
+  formatMergedListing,
+  mergeSkillIndexes,
+  resolveSkillBody,
+} from "@/lib/skills/merged"
 import { applyTextEdit } from "@/lib/agent/edit"
 import { renderFileWindow } from "@/lib/agent/render"
 import {
@@ -222,12 +233,20 @@ export function buildSandboxTools(ctx: ToolContext) {
         "Load the full instructions for a skill listed in your skills index. Returns markdown — read it carefully before making changes.",
       inputSchema: z.object({ name: z.string() }),
       execute: async ({ name }) => {
-        const content = getSkill(name)
+        // Resolve sandbox-first (a Repo Skill in `.claude/skills/` overrides a
+        // bundled App Skill of the same name), then fall back to the App Skill.
+        const fs = await getRepoSkillFs(ctx)
+        const content = await resolveSkillBody(name, {
+          readRepoBody: (n) =>
+            fs ? readRepoSkillBody(fs, n) : Promise.resolve(null),
+          readAppBody: (n) => getSkill(n),
+        })
         if (content) return content
-        const available = getSkillIndex()
-          .map((s) => `- ${s.name}: ${s.description}`)
-          .join("\n")
-        return `Unknown skill: "${name}". Available skills:\n${available || "(none)"}`
+        // Unknown name → list the merged set (App ∪ Repo) so the model can
+        // pick a real one.
+        const repo = fs ? await enumerateRepoSkills(fs).catch(() => []) : []
+        const merged = mergeSkillIndexes(getSkillIndex(), repo)
+        return `Unknown skill: "${name}". Available skills:\n${formatMergedListing(merged)}`
       },
     }),
 
@@ -245,6 +264,19 @@ export type SandboxTools = ReturnType<typeof buildSandboxTools>
 
 async function getSandbox(ctx: ToolContext): Promise<SandboxInstance> {
   return sandboxProvider.get({ name: ctx.sandboxName })
+}
+
+/**
+ * A Repo-Skill filesystem port backed by this chat's sandbox, or `null` when
+ * the sandbox is unreachable. Lets `read_skill` degrade to App-Skill-only
+ * resolution instead of failing the whole tool call when the VM is down.
+ */
+async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
+  try {
+    return sandboxRepoSkillFs(await getSandbox(ctx))
+  } catch {
+    return null
+  }
 }
 
 /**
