@@ -21,7 +21,7 @@ export const maxDuration = 300
 interface CreateRequest {
   flow: "new" | "from-branch" | "duplicate-branch"
   roomId: string
-  agentId: string
+  branchId: string
   sandboxName: string
   branch: string
   repoId: string
@@ -32,13 +32,13 @@ interface CreateRequest {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function updateAgent(
+async function updateBranch(
   roomId: string,
-  agentId: string,
+  branchId: string,
   data: Partial<BranchData>,
 ) {
   await mutateRoomDoc(roomId, ({ branches }) => {
-    branches.update(agentId, data)
+    branches.update(branchId, data)
   })
 }
 
@@ -51,23 +51,23 @@ async function getRepoFromStorage(
 
 
 /**
- * Ensure a chat session exists for the agent. IframeLayers + groups are
- * pre-created on the client at agent-creation time (see
+ * Ensure a chat session exists for the branch. IframeLayers + groups are
+ * pre-created on the client at branch-creation time (see
  * `seedIframeLayerForAgent` in canvas.tsx) — doing layout server-side raced
  * across parallel pipelines because each `mutateRoomDoc` call is a
  * snapshot-then-write rather than a serialized transaction. Chats stay
- * server-created for single-agent flows that don't pre-seed them.
+ * server-created for single-branch flows that don't pre-seed them.
  */
-async function ensureChatForAgent(roomId: string, agentId: string) {
+async function ensureChatForBranch(roomId: string, branchId: string) {
   await mutateRoomDoc(roomId, ({ branches, chatSessions, transact }) => {
-    if (!branches.get(agentId)) return
+    if (!branches.get(branchId)) return
     transact(() => {
-      const hasChat = chatSessions.toArray().some((cs) => cs.branchId === agentId)
+      const hasChat = chatSessions.toArray().some((cs) => cs.branchId === branchId)
       if (!hasChat) {
         const chatId = nanoid()
         chatSessions.set(chatId, {
           id: chatId,
-          branchId: agentId,
+          branchId,
           label: "Untitled",
           createdAt: Date.now(),
         })
@@ -76,8 +76,8 @@ async function ensureChatForAgent(roomId: string, agentId: string) {
   })
 }
 
-function markError(roomId: string, agentId: string, error?: string) {
-  return updateAgent(roomId, agentId, {
+function markError(roomId: string, branchId: string, error?: string) {
+  return updateBranch(roomId, branchId, {
     status: "error",
     statusMessage: undefined,
     error: error || "Unknown error",
@@ -93,7 +93,7 @@ async function runNewOrFromBranchPipeline(
   repo: RepoData,
   ghToken: string,
 ) {
-  const { flow, roomId, agentId, sandboxName, branch } = req
+  const { flow, roomId, branchId, sandboxName, branch } = req
   const env = parseEnvVars(repo.envVars)
   const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
 
@@ -101,16 +101,16 @@ async function runNewOrFromBranchPipeline(
   if (flow === "new") {
     const branchResult = await createAgentBranch(repo, branch, undefined, ghToken)
     if (!branchResult.success) {
-      await markError(roomId, agentId, branchResult.error || "Failed to create branch")
+      await markError(roomId, branchId, branchResult.error || "Failed to create branch")
       return
     }
   }
 
   // Step 2: Clone repo into sandbox
-  await updateAgent(roomId, agentId, { statusMessage: "Cloning repository…" })
+  await updateBranch(roomId, branchId, { statusMessage: "Cloning repository…" })
   const cloneResult = await cloneSandbox(sandboxName, repo.cloneUrl, branch, repo.devServerPort, envOrUndefined, ghToken)
   if (!cloneResult.success) {
-    await markError(roomId, agentId, cloneResult.error)
+    await markError(roomId, branchId, cloneResult.error)
     return
   }
   const clonedSandboxName = cloneResult.value.sandboxName
@@ -119,46 +119,46 @@ async function runNewOrFromBranchPipeline(
   // Claude Code and ripgrep are best-effort — their results are intentionally
   // ignored here so a failed CLI/tool install doesn't fail the pipeline (each
   // action still reports failure truthfully; this caller chooses to swallow it).
-  await updateAgent(roomId, agentId, { statusMessage: "Installing dependencies…" })
+  await updateBranch(roomId, branchId, { statusMessage: "Installing dependencies…" })
   const [installResult] = await Promise.all([
     installDependencies(clonedSandboxName, repo.setupScript),
     installClaudeCode(clonedSandboxName),
     installRipgrep(clonedSandboxName),
   ])
   if (!installResult.success) {
-    await markError(roomId, agentId, installResult.error)
+    await markError(roomId, branchId, installResult.error)
     return
   }
 
   // Step 4: Start dev server
-  await updateAgent(roomId, agentId, { statusMessage: "Starting dev server…" })
+  await updateBranch(roomId, branchId, { statusMessage: "Starting dev server…" })
   const serverResult = await startDevServer(clonedSandboxName, repo.devServerPort, repo.devScript)
   if (!serverResult.success) {
-    await markError(roomId, agentId, serverResult.error)
+    await markError(roomId, branchId, serverResult.error)
     return
   }
 
   // Step 5: Configure git
-  await updateAgent(roomId, agentId, { statusMessage: "Configuring git…" })
+  await updateBranch(roomId, branchId, { statusMessage: "Configuring git…" })
   const gitResult = await configureAgentGit(clonedSandboxName, repo, branch)
   if (!gitResult.success) {
-    await markError(roomId, agentId, gitResult.error)
+    await markError(roomId, branchId, gitResult.error)
     return
   }
 
   // Done
-  await updateAgent(roomId, agentId, {
+  await updateBranch(roomId, branchId, {
     previewDomain: serverResult.value.previewDomain,
     status: "running",
     statusMessage: undefined,
   })
-  await ensureChatForAgent(roomId, agentId)
+  await ensureChatForBranch(roomId, branchId)
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
   crawlRoutes(clonedSandboxName).then((result) => {
     if (result.success) {
-      return updateAgent(roomId, agentId, { discoveredRoutes: result.value })
+      return updateBranch(roomId, branchId, { discoveredRoutes: result.value })
     }
   }).catch(() => {})
 }
@@ -169,17 +169,17 @@ async function runDuplicateBranchPipeline(
   repo: RepoData,
   ghToken: string,
 ) {
-  const { roomId, agentId, sourceBranch } = req
+  const { roomId, branchId, sourceBranch } = req
 
   if (!sourceBranch) {
-    await markError(roomId, agentId, "Source branch not specified")
+    await markError(roomId, branchId, "Source branch not specified")
     return
   }
 
   // Step 1: Create a new branch from the source branch
   const branchResult = await createAgentBranch(repo, req.branch, sourceBranch, ghToken)
   if (!branchResult.success) {
-    await markError(roomId, agentId, branchResult.error || "Failed to create branch")
+    await markError(roomId, branchId, branchResult.error || "Failed to create branch")
     return
   }
 
@@ -211,12 +211,12 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CreateRequest
-  const { flow, roomId, agentId, repoId } = body
+  const { flow, roomId, branchId, repoId } = body
 
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
-  const lock = await kv.acquireLock(`agent-create:${agentId}`, 300)
+  const lock = await kv.acquireLock(`branch-create:${branchId}`, 300)
   if (!lock) {
-    // Another instance is already handling this agent's creation
+    // Another instance is already handling this branch's creation
     return NextResponse.json({ ok: true })
   }
 
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
     try {
       const repo = await getRepoFromStorage(roomId, repoId)
       if (!repo) {
-        await markError(roomId, agentId, "Workspace not found")
+        await markError(roomId, branchId, "Repository not found")
         return
       }
 
@@ -236,7 +236,7 @@ export async function POST(request: Request) {
     } catch (e) {
       await markError(
         roomId,
-        agentId,
+        branchId,
         e instanceof Error ? e.message : "Unexpected error during sandbox creation",
       ).catch(() => {})
     } finally {
