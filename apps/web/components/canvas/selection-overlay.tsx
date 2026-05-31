@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import type { IframeLayerLayoutMap } from "@/lib/iframe-layer-layout"
+import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import type { SnapGuide } from "@/lib/iframe-layer-move-snap"
 
 interface OtherSelection {

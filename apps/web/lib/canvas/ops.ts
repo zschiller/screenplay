@@ -8,7 +8,7 @@ import {
   getGroupMembers,
   nextGroupNumber,
   placeNewIframeLayerGroup,
-} from "@/lib/iframe-layer-layout"
+} from "@/lib/canvas/layout"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import {
