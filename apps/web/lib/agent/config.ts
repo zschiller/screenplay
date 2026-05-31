@@ -144,6 +144,8 @@ export function buildAgentSystemPrompt(
           "Skills available:",
           "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
           "",
+          "MANDATORY — explicit skill invocation: if the user's message contains a marker of the form `[skill: <name>]`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call `read_skill` with `<name>` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.",
+          "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
         ].join("\n")
   const repoBlock = repoSystemPrompt?.trim()

@@ -14,6 +14,8 @@ import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 import type { JSONContent } from "@tiptap/core"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
+import { buildSkillMentionSuggestion } from "@/lib/skill-mention-suggestion"
+import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import {
   InputGroup,
   InputGroupAddon,
@@ -79,20 +81,24 @@ function groupModelsByProvider(models: ModelInfo[]) {
 
 /**
  * Walk a TipTap JSON document and return:
- *  - `text`: plain-text rendering, with each mention serialized as
- *    `[@<label>](mention:<id>)` so the user-message renderer can recover it
- *    as a chip.
- *  - `mentions`: deduplicated `{ id }` list.
+ *  - `text`: plain-text rendering, with each `@` layer mention serialized as
+ *    `[@<label>](mention:<id>)` and the single optional `/` skill chip
+ *    serialized as a `[skill: <name>]` marker, so the user-message renderer
+ *    can recover them and the agent loop can act on the explicit invocation.
+ *  - `mentions`: deduplicated `{ id }` list (layer mentions only).
+ *  - `skill`: the picked Skill name, if any (at most one per message).
  * Block boundaries (paragraphs, headings, list items) become newlines.
  */
 function extractTextAndMentions(json: JSONContent | undefined): {
   text: string
   mentions: Array<{ id: string }>
+  skill?: string
 } {
   if (!json) return { text: "", mentions: [] }
   const out: string[] = []
   const mentions: Array<{ id: string }> = []
   const seen = new Set<string>()
+  let skill: string | undefined
 
   const visit = (node: JSONContent, depth: number) => {
     if (node.type === "text") {
@@ -102,6 +108,15 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     if (node.type === "mention") {
       const id = node.attrs?.id as string | undefined
       const label = (node.attrs?.label as string | undefined) ?? id ?? ""
+      // `/`-picked skills share the Mention node type but carry a `/`
+      // suggestion char. They serialize to a `[skill: <name>]` marker the
+      // agent prompt treats as a mandatory `read_skill` invocation.
+      if (node.attrs?.mentionSuggestionChar === "/") {
+        const name = id ?? label
+        if (name && skill === undefined) skill = name
+        out.push(`[skill: ${name}]`)
+        return
+      }
       out.push(`[@${label}](mention:${id ?? ""})`)
       if (id && !seen.has(id)) {
         seen.add(id)
@@ -130,7 +145,7 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     }
   }
   visit(json, 0)
-  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentions }
+  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentions, skill }
 }
 
 interface AgentChatProps {
@@ -185,17 +200,32 @@ export function AgentChat({
 
   const markdownLayers = useMarkdownLayers()
 
+  // The `/` skill menu is scoped to sandbox-backed Agent chats: Document /
+  // Markdown-Layer chats have no sandbox to enumerate, no `read_skill` tool,
+  // and their toolset is editorial — so `/` stays a literal slash there.
+  const isAgentChat = !markdownLayerId
+  const composerPlaceholder = isAgentChat
+    ? "Ask the agent... (@ document, / skill)"
+    : "Ask the agent... (@ to mention a document)"
+
   // The Mention extension's `suggestion.items` callback runs inside a closure
   // captured at editor-construction time, so it can't read these arrays
   // directly — funnel through refs so the latest list is always visible.
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
   markdownLayersRef.current = markdownLayers
 
+  // App Skill index for the `/` menu, fetched once per session (see effect
+  // below) and read through a ref for the same closure reason as above.
+  const skillsRef = useRef<SkillMenuItem[]>([])
+
   // Tracks whether the mention popover is currently open. ProseMirror checks
   // direct `editorProps.handleKeyDown` before plugin props, so without this
   // flag our submit-on-Enter handler would fire before the Mention suggestion
   // plugin could consume the key to pick a doc.
   const mentionOpenRef = useRef(false)
+  // Same idea for the `/` skill popover — Enter should pick the highlighted
+  // skill, not submit the draft.
+  const skillMentionOpenRef = useRef(false)
 
   useEffect(() => {
     setStoredModel(readStoredModel())
@@ -251,6 +281,20 @@ export function AgentChat({
     }
   }, [])
 
+  // Load the App Skill index once for the `/` menu (Agent chats only).
+  useEffect(() => {
+    if (!isAgentChat) return undefined
+    let cancelled = false
+    getSkillMenuItems()
+      .then((skills) => {
+        if (!cancelled) skillsRef.current = skills
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isAgentChat])
+
   // Build the editor once. The mention extension's suggestion handler reads
   // through refs so it always sees the latest markdownLayers and submit handler.
   const editor = useEditor({
@@ -275,22 +319,53 @@ export function AgentChat({
         },
         renderText({ node }) {
           const label = (node.attrs.label as string | undefined) ?? node.attrs.id
+          if (node.attrs.mentionSuggestionChar === "/") return `[skill: ${label}]`
           return `@${label}`
         },
         renderHTML({ options, node }) {
           const label =
             (node.attrs.label as string | undefined) ?? (node.attrs.id as string)
+          if (node.attrs.mentionSuggestionChar === "/") {
+            return [
+              "span",
+              {
+                ...options.HTMLAttributes,
+                class:
+                  "mention-skill-pill inline-flex items-center gap-1 rounded bg-violet-500/15 px-1 py-0.5 font-medium text-violet-600 dark:text-violet-300",
+              },
+              `/${label}`,
+            ]
+          }
           return ["span", options.HTMLAttributes, label]
         },
         deleteTriggerWithBackspace: true,
-        suggestion: buildLayerMentionSuggestion({
-          getMarkdownLayers: () => markdownLayersRef.current,
-          getAnchorRect: () =>
-            editorContainerRef.current?.getBoundingClientRect() ?? null,
-          onOpenChange: (open) => {
-            mentionOpenRef.current = open
-          },
-        }),
+        // Two pickers on one extension: `@` for canvas docs (fires anywhere)
+        // and, in Agent chats only, `/` for explicit Skill invocation
+        // (start-of-input, one per message). v3 tags each node with the
+        // matching `mentionSuggestionChar` so the renderers above can tell
+        // them apart.
+        suggestions: [
+          buildLayerMentionSuggestion({
+            getMarkdownLayers: () => markdownLayersRef.current,
+            getAnchorRect: () =>
+              editorContainerRef.current?.getBoundingClientRect() ?? null,
+            onOpenChange: (open) => {
+              mentionOpenRef.current = open
+            },
+          }),
+          ...(isAgentChat
+            ? [
+                buildSkillMentionSuggestion({
+                  getSkills: () => skillsRef.current,
+                  getAnchorRect: () =>
+                    editorContainerRef.current?.getBoundingClientRect() ?? null,
+                  onOpenChange: (open) => {
+                    skillMentionOpenRef.current = open
+                  },
+                }),
+              ]
+            : []),
+        ],
       }),
     ],
     immediatelyRender: false,
@@ -298,7 +373,7 @@ export function AgentChat({
       attributes: {
         class:
           "tiptap min-h-[40px] max-h-48 overflow-y-auto px-3 py-2 text-xs focus:outline-none",
-        "data-placeholder": "Ask the agent... (@ to mention a document)",
+        "data-placeholder": composerPlaceholder,
       },
       handleKeyDown(_view, event) {
         if (event.key !== "Enter" || event.shiftKey) return false
@@ -306,7 +381,7 @@ export function AgentChat({
         // mention suggestion plugin hasn't had a chance to consume Enter
         // yet — bail so it can pick the highlighted doc instead of us
         // submitting the draft with a literal `@query` token.
-        if (mentionOpenRef.current) return false
+        if (mentionOpenRef.current || skillMentionOpenRef.current) return false
         event.preventDefault()
         submitRef.current()
         return true
@@ -455,7 +530,7 @@ export function AgentChat({
       {/* Input */}
       <div ref={editorContainerRef} className="relative border-t border-border p-3">
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
-          <EmptyAwarePlaceholder editor={editor} />
+          <EmptyAwarePlaceholder editor={editor} text={composerPlaceholder} />
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end">
             <DropdownMenu>
@@ -540,7 +615,13 @@ export function AgentChat({
  * subscription to the editor's `update` event since the placeholder
  * extension's CSS approach doesn't compose with the prose styles.
  */
-function EmptyAwarePlaceholder({ editor }: { editor: Editor | null }) {
+function EmptyAwarePlaceholder({
+  editor,
+  text,
+}: {
+  editor: Editor | null
+  text: string
+}) {
   const [empty, setEmpty] = useState(true)
 
   useEffect(() => {
@@ -558,7 +639,7 @@ function EmptyAwarePlaceholder({ editor }: { editor: Editor | null }) {
   if (!empty) return null
   return (
     <div className="pointer-events-none absolute left-0 top-0 px-3 py-2 text-xs text-muted-foreground">
-      Ask the agent... (@ to mention a document)
+      {text}
     </div>
   )
 }
