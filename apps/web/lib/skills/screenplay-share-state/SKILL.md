@@ -1,5 +1,5 @@
 ---
-name: state
+name: screenplay-share-state
 description: Bridge a piece of the prototype's UI state to the screenplay canvas so it syncs across every viewer in the room (and into the prototype player). The canvas shows a tiny indicator on the route pill — read-only at the canvas surface, hover for the JSON. Use whenever the user asks to expose internal app state to the screenplay session ("share the current user", "sync the cart across viewers", "let me see what mode this is in", "expose this to the editor").
 ---
 

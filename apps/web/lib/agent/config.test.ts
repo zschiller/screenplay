@@ -10,8 +10,8 @@ describe("buildAgentSystemPrompt — skills block", () => {
 
     expect(prompt).toContain("Skills available:")
     // The two bundled App Skills shipped in lib/skills/.
-    expect(prompt).toMatch(/- \*\*knobs\*\*:/)
-    expect(prompt).toMatch(/- \*\*state\*\*:/)
+    expect(prompt).toMatch(/- \*\*screenplay-add-knob\*\*:/)
+    expect(prompt).toMatch(/- \*\*screenplay-share-state\*\*:/)
   })
 
   it("makes read_skill mandatory when the message carries a [skill: …] marker", () => {
