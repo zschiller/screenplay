@@ -65,21 +65,34 @@ export type BranchData = {
 }
 
 /**
- * A chat session targets exactly one of:
- *  - a *branch* (the existing flow): edits files in the Branch's sandbox,
- *    drives a git branch, etc. — `branchId` is set.
- *  - a *markdown layer*: edits the layer's body / title via doc-mutation
- *    tools — `markdownLayerId` is set.
+ * A tab in the agent panel is one of two *kinds*:
+ *  - `"chat"` (the default — absent `kind` reads as chat for backward
+ *    compatibility): the durable Engine conversation. Targets exactly one of
+ *    a *Branch* (`branchId` set) or a *markdown layer* (`markdownLayerId` set),
+ *    and its scrollback is persisted + shared.
+ *  - `"terminal"`: a BYO-harness in-sandbox web terminal (#187). Runs against
+ *    the Branch's sandbox (`branchId` set) but is **not** a Chat Session — its
+ *    scrollback never enters the chat-store, Postgres, or the Y.Doc
+ *    conversation model. Only its tab identity (`terminalSessionId`) is shared
+ *    so collaborators can co-view one live PTY.
  *
- * Multiple chat tabs can target the same layer (or Branch), so a user can
- * keep parallel conversations going against the same target.
+ * Multiple tabs can target the same Branch (or layer), so a user can keep
+ * parallel conversations — and parallel terminals — going against one target.
  */
+export type TabKind = "chat" | "terminal"
+
 export type ChatSessionData = {
   id: string
+  /** Tab kind. Absent means `"chat"` (the durable Engine) — never written for
+   *  existing chat tabs, so legacy data keeps working unchanged. */
+  kind?: TabKind
   /** Set when the chat targets a Branch. Mutually exclusive with the layer ids. */
   branchId?: string
   /** Set when the chat targets a markdown layer. */
   markdownLayerId?: string
+  /** Shared live-view identity of a terminal tab — the key collaborators
+   *  co-view against. Set only when `kind === "terminal"`. */
+  terminalSessionId?: string
   label: string
   createdAt: number
   isStreaming?: boolean
