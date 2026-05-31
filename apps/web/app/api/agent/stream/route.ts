@@ -2,6 +2,7 @@ import { after } from "next/server"
 import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
+import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import { toolsetFor } from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
@@ -164,21 +165,25 @@ export async function POST(req: Request) {
   const effectiveModel = model || DEFAULT_MODEL
   const toolCtx: ToolContext = { sandboxName, roomId, userId }
 
-  // Repo-scoped optional system prompt — appended to the live skill
-  // index so each (repo, model) pair sees the right persona.
-  const [repoSystemPrompt, layerDirectory] = await Promise.all([
+  // Repo-scoped optional system prompt + the merged App∪Repo Skill index. The
+  // Skill index is enumerated once here, at chat init, from this Branch's
+  // sandbox (`.claude/skills/`) and baked into the per-Agent prompt — one
+  // sandbox round-trip per new chat.
+  const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
     readRoomDoc(roomId, ({ branches, repos }) => {
       const branch = branches.toArray().find((a) => a.sandboxName === sandboxName)
       if (!branch) return undefined
       return repos.get(branch.repoId)?.systemPrompt
     }).catch(() => undefined),
     loadLayerDirectory(roomId),
+    getMergedSkillIndexForSandbox(sandboxName),
   ])
 
-  const systemPrompt = buildAgentSystemPrompt(
-    repoSystemPrompt ?? undefined,
+  const systemPrompt = buildAgentSystemPrompt({
+    repoSystemPrompt: repoSystemPrompt ?? undefined,
     layerDirectory,
-  )
+    skills,
+  })
 
   await upsertChat({
     chatId,
