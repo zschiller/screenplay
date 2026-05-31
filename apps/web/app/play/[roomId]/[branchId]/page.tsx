@@ -11,7 +11,7 @@ import { PrototypePlayer } from "@/components/play/prototype-player"
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ roomId: string; agentId: string }>
+  params: Promise<{ roomId: string; branchId: string }>
 }): Promise<Metadata> {
   const { roomId } = await params
   const room = await getRoom(roomId)
@@ -28,15 +28,15 @@ export default async function PlayPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ roomId: string; agentId: string }>
+  params: Promise<{ roomId: string; branchId: string }>
   searchParams: Promise<SearchParams>
 }) {
-  const { roomId, agentId } = await params
+  const { roomId, branchId } = await params
   const search = await searchParams
 
   const userId = await getUserId()
   if (!userId) {
-    const dest = `/play/${roomId}/${agentId}`
+    const dest = `/play/${roomId}/${branchId}`
     redirect(`/sign-in?redirect=${encodeURIComponent(dest)}`)
   }
 
@@ -47,7 +47,7 @@ export default async function PlayPage({
   const docSnapshot = await readRoomDoc(
     roomId,
     ({ branches, iframeLayers, repos }) => {
-      const agent = branches.get(agentId) as BranchData | undefined
+      const agent = branches.get(branchId) as BranchData | undefined
       const iframeLayerId = search["iframe-layer"]
       const iframeLayer = iframeLayerId
         ? (iframeLayers.get(iframeLayerId) as IframeLayerData | undefined)

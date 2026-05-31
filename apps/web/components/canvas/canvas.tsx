@@ -2021,8 +2021,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   )
 
   const handlePlayAgent = useCallback(
-    (agentId: string) => {
-      window.open(`/play/${roomId}/${agentId}`, "_blank", "noopener,noreferrer")
+    (branchId: string) => {
+      window.open(`/play/${roomId}/${branchId}`, "_blank", "noopener,noreferrer")
     },
     [roomId],
   )
