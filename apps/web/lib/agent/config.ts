@@ -1,4 +1,4 @@
-import { getSkillIndex } from "@/lib/skills"
+import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { MarkdownLayerData } from "@/lib/types"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
@@ -120,21 +120,28 @@ The project is a Node.js app running on port 3000 with \`npm run dev\`. The prev
 Keep your responses concise. Show the user what you changed and why.`
 
 /**
- * Build the agent's system prompt with the live skill index baked in.
- * Each skill contributes its name + description so the model can recognize
- * when one applies and call \`read_skill(name)\` to load the full
- * instructions — the same metadata-then-body progressive disclosure native
- * Anthropic skills use, just routed through our custom tool.
+ * Build the agent's system prompt with the Branch's merged Skill index baked
+ * in. Each Skill — App or Repo — contributes its name + description so the
+ * model can recognize when one applies and call \`read_skill(name)\` to load
+ * the full instructions: the same metadata-then-body progressive disclosure
+ * native Anthropic skills use, just routed through our custom tool.
  *
- * `repoSystemPrompt` is appended after the tail so per-repo
- * context (e.g. "this config targets apps/web in the monorepo") is part of
- * every chat under that repo without leaking into siblings.
+ * `skills` is the merged, origin-tagged index (App ∪ Repo, Repo-wins on a
+ * collision), enumerated once per Agent at chat init. Folding the Repo Skills
+ * into the prompt text is what makes the prompt per-Agent: it embeds the
+ * Branch's `.claude/skills/` metadata, so editing a Repo Skill rolls a fresh
+ * prompt for that Branch's next chat (the persisted prompt is the cache key).
+ *
+ * `repoSystemPrompt` is appended after the tail so per-repo context (e.g.
+ * "this config targets apps/web in the monorepo") is part of every chat under
+ * that repo without leaking into siblings.
  */
-export function buildAgentSystemPrompt(
-  repoSystemPrompt: string | undefined,
-  layerDirectory: LayerDirectory,
-): string {
-  const skills = getSkillIndex()
+export function buildAgentSystemPrompt(opts: {
+  repoSystemPrompt?: string
+  layerDirectory: LayerDirectory
+  skills: OriginTaggedSkill[]
+}): string {
+  const { repoSystemPrompt, layerDirectory, skills } = opts
   const skillsBlock =
     skills.length === 0
       ? ""

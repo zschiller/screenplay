@@ -8,6 +8,8 @@ import {
 } from "./config"
 import { toolsetFor } from "./toolset"
 import type { ToolContext } from "./tools"
+import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
+import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { documentFragment, fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
 
@@ -63,23 +65,30 @@ export interface AgentTarget {
 interface AgentContext {
   repoSystemPrompt: string | undefined
   layerDirectory: LayerDirectory
+  /** Merged App ∪ Repo Skill index, enumerated once from this Branch's sandbox. */
+  skills: OriginTaggedSkill[]
 }
 
 export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   kind: "agent",
   async loadContext(roomId, target) {
-    const [repoSystemPrompt, layerDirectory] = await Promise.all([
+    const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
       readRoomDoc(roomId, ({ branches, repos }) => {
         const branch = branches.toArray().find((a) => a.sandboxName === target.sandboxName)
         if (!branch) return undefined
         return repos.get(branch.repoId)?.systemPrompt
       }).catch(() => undefined),
       loadLayerDirectory(roomId),
+      getMergedSkillIndexForSandbox(target.sandboxName),
     ])
-    return { repoSystemPrompt, layerDirectory }
+    return { repoSystemPrompt, layerDirectory, skills }
   },
   buildSystemPrompt(ctx) {
-    return buildAgentSystemPrompt(ctx.repoSystemPrompt ?? undefined, ctx.layerDirectory)
+    return buildAgentSystemPrompt({
+      repoSystemPrompt: ctx.repoSystemPrompt ?? undefined,
+      layerDirectory: ctx.layerDirectory,
+      skills: ctx.skills,
+    })
   },
   buildTools(roomId, _target, sandbox) {
     if (!sandbox) {
