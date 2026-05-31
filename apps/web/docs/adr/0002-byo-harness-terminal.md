@@ -103,3 +103,62 @@ the build slices (#187's #2–#5) rest on.
   `xterm.js` (or an embedded `domain(port)` iframe), and no change to the Engine.
 - A future multi-tenant mode is the one trigger that reopens the egress-injection
   and no-metering decisions above.
+
+## Addendum (2026-05-31): transport, security, and co-view as built (slice #5)
+
+Building the capstone tab (#200) on the real deployment target forced two of the
+options above into their fallback positions. Recording them here so the gap
+between the original decision and the shipped code is explicit, not silent.
+
+- **Transport: the server WS proxy is infeasible on the deployment target, so we
+  ship the named fallback — a room-membership-gated signed link + embedded
+  iframe.** The app deploys to Vercel and must stay one-click-hostable there by
+  any operator. Vercel serverless functions can't hold a persistent connection,
+  and the App Router has no WebSocket-upgrade hook, so the app cannot sit in the
+  middle of the terminal socket — the "proxy through the server, re-validate on
+  connect" decision is simply not buildable without standing up a separate
+  long-running service (which breaks "host it on Vercel"). We therefore took the
+  fallback this ADR already sanctioned: `POST /api/terminal/url` gates on
+  `room_member` (via `issueTerminalCredential` → `canAccess`), calls
+  `ensureTerminal`, and returns the daemon's public `domain(port)` URL, which the
+  client embeds in an iframe (`referrerpolicy="no-referrer"`). The #198 HMAC
+  credential is still minted and bound (room+session+user, 60s TTL), ready for a
+  real proxy to verify if one is ever built; today it gates *issuance* of the URL.
+
+- **Resulting trust model: the daemon URL is a secret bearer link.** `domain(port)`
+  is a public `*.vercel.run` URL and ttyd runs unauthenticated, so anyone holding
+  the URL reaches the shell — membership gates *getting* the URL, not the URL
+  itself. This is acceptable **only** under the self-hosted / single-trusted-
+  operator boundary this ADR already fixes; the hardening is to keep the link
+  from leaking (`no-referrer`, no logging) and rely on its unguessable random
+  subdomain + the sandbox's ephemerality. A real proxy (or a daemon-side
+  credential) is the path to closing this if the boundary ever changes — the
+  same multi-tenant trigger that reopens egress injection reopens this.
+
+- **Blast radius is bounded — the git token is *not* in the terminal shell.** The
+  scary case ("a leaked terminal hands over the operator's GitHub identity") does
+  not hold: `provision.ts` injects `SCREENPLAY_GH_TOKEN` per-`runCommand` for the
+  Engine's git operations only; the ttyd daemon is launched with no token in its
+  env, and the credential helper returns nothing when the var is unset. So a
+  terminal user cannot `git push` as the operator. What a leaked terminal *does*
+  expose, for one ephemeral sandbox's lifetime: model-API spend on the operator's
+  keys (the accepted no-metering tradeoff — keys are injected at the firewall,
+  usable but not readable), the checked-out repo source, any secrets in the
+  repo's `envVars`, and general egress/compute. Residual escalation: a same-OS-
+  user shell could read a concurrent Engine git command's token from
+  `/proc/<pid>/environ` during the window it runs — narrow, requires active
+  snooping, noted not fixed.
+
+- **Co-view is deferred; terminal tabs are local-per-client, not shared.** The
+  original surface stored the terminal tab in the shared `chatSessions` Y.Doc so
+  collaborators could co-view one live PTY. Two problems surfaced: (1) ttyd forks
+  a *new* shell per browser connection, so a shared tab did **not** yield a shared
+  PTY — true co-view needs ttyd running a shared `tmux` session (and `tmux` in the
+  image, which it isn't), and (2) a shared tab over unshared PTYs is incoherent UX.
+  Rather than carry that, terminal tabs now live in **client-local state**, never
+  entering the Y.Doc. This makes the non-persistence guarantee *structural*
+  (terminals aren't in the conversation collection at all) and means a terminal
+  appears only in the browser that opened it. Co-view (#200's "second client can
+  co-view" criterion) is parked and may not be pursued; if revived, the shape is
+  shared `tmux` session + creator-writable / watchers-read-only (`tmux attach -r`),
+  whose main rough edge is cross-client terminal sizing.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs } from "lucide-react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs, SquareTerminal } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
@@ -30,6 +30,8 @@ import {
 } from "@workspace/ui/components/command"
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
+import { TerminalTab } from "./terminal-tab"
+import { isTerminalTab } from "@/lib/canvas/tab-kind"
 import { BranchBadge } from "@/components/branch-badge"
 import type { BranchData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
@@ -105,6 +107,21 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
 }
 
 /**
+ * Tab label for a terminal tab. Visibly distinct from chat tabs — a terminal
+ * glyph and a monospace label — so it's obvious which guarantees apply
+ * (ephemeral + BYO harness, not durable + shared chat). Reads no chat-store
+ * status: a terminal tab has no streaming/unread conversation state.
+ */
+function TerminalTabLabel({ chat }: { chat: ChatSessionData }) {
+  return (
+    <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
+      <SquareTerminal className="size-3 shrink-0" />
+      <span className="truncate max-w-[100px] font-mono">{chat.label}</span>
+    </span>
+  )
+}
+
+/**
  * The chat panel can target one of two top-level kinds:
  *  - an *agent* (sandbox-backed flow): file editing, git, PR creation, logs.
  *  - a *layer* of any kind whose `LayerKindDescriptor.canBeChatTarget` is
@@ -133,6 +150,9 @@ interface ChatPanelProps {
   roomId: string
   onSelectChat: (chatId: string | null) => void
   onCreateChat: () => void
+  /** Open a new terminal tab against the current agent's sandbox. Absent for
+   *  non-agent (layer) targets, which have no sandbox to attach a terminal to. */
+  onCreateTerminal?: () => void
   onRenameChat: (chatId: string, label: string) => void
   onRemoveChat: (chatId: string) => void
   onCloseChat: (chatId: string) => void
@@ -165,6 +185,7 @@ export function ChatPanel({
   roomId,
   onSelectChat,
   onCreateChat,
+  onCreateTerminal,
   onRenameChat,
   onRemoveChat,
   onCloseChat,
@@ -362,7 +383,11 @@ export function ChatPanel({
                 value={chat.id}
                 className="group/tab relative min-w-[100px] text-xs px-2 pr-2 py-1"
               >
-                <ChatTabLabel chat={chat} />
+                {isTerminalTab(chat) ? (
+                  <TerminalTabLabel chat={chat} />
+                ) : (
+                  <ChatTabLabel chat={chat} />
+                )}
                 <div className="absolute right-0 top-0 bottom-0 flex items-center pr-0.5 opacity-0 group-hover/tab:opacity-100 transition-opacity bg-[var(--background)]">
                   <div className="absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)] pointer-events-none" />
                   <span
@@ -418,6 +443,19 @@ export function ChatPanel({
             >
               <Plus className="size-3" />
             </Button>
+            {onCreateTerminal && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 ml-0.5"
+                onClick={onCreateTerminal}
+                disabled={isAgentBusy}
+                title={isAgentBusy ? "Sandbox still starting…" : "New terminal"}
+                aria-label="New terminal"
+              >
+                <SquareTerminal className="size-3" />
+              </Button>
+            )}
           </TabsList>
         </ScrollArea>
         {closedChats.length > 0 && (
@@ -460,6 +498,26 @@ export function ChatPanel({
       )}
 
       {openChats.map((chat) => {
+        // A terminal tab renders the in-sandbox web terminal, not the Engine
+        // chat — its scrollback never enters the conversation model. It's keyed
+        // by its own id (the shared live-view session) so a second client in
+        // the room co-views the same live PTY.
+        if (isTerminalTab(chat)) {
+          return (
+            <TabsContent
+              key={chat.id}
+              value={chat.id}
+              className="flex-1 overflow-hidden data-[state=inactive]:hidden"
+              forceMount
+            >
+              <TerminalTab
+                sessionId={chat.terminalSessionId ?? chat.id}
+                roomId={roomId}
+                sandboxName={agent?.sandboxName}
+              />
+            </TabsContent>
+          )
+        }
         // First chat for this target — drives auto branch/chat naming on the
         // agent flow; for doc chats it's just used to skip naming logic.
         const isFirst = !chatSessions.some(
