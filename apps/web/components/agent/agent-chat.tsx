@@ -214,9 +214,12 @@ export function AgentChat({
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
   markdownLayersRef.current = markdownLayers
 
-  // App Skill index for the `/` menu, fetched once per session (see effect
-  // below) and read through a ref for the same closure reason as above.
+  // Merged App ∪ Repo Skill index for the `/` menu, fetched once on chat open
+  // (see effect below) and read through a ref for the same closure reason as
+  // above. `skillsLoadingRef` drives the menu's loading state until the
+  // per-Branch index lands.
   const skillsRef = useRef<SkillMenuItem[]>([])
+  const skillsLoadingRef = useRef(true)
 
   // Tracks whether the mention popover is currently open. ProseMirror checks
   // direct `editorProps.handleKeyDown` before plugin props, so without this
@@ -281,19 +284,25 @@ export function AgentChat({
     }
   }, [])
 
-  // Load the App Skill index once for the `/` menu (Agent chats only).
+  // Load the merged App ∪ Repo Skill index once on chat open (Agent chats
+  // only). Keyed by sandbox so reopening after editing a Repo Skill refetches
+  // the Branch's current list.
   useEffect(() => {
     if (!isAgentChat) return undefined
     let cancelled = false
-    getSkillMenuItems()
+    skillsLoadingRef.current = true
+    getSkillMenuItems(sandboxName)
       .then((skills) => {
         if (!cancelled) skillsRef.current = skills
       })
       .catch(() => {})
+      .finally(() => {
+        if (!cancelled) skillsLoadingRef.current = false
+      })
     return () => {
       cancelled = true
     }
-  }, [isAgentChat])
+  }, [isAgentChat, sandboxName])
 
   // Build the editor once. The mention extension's suggestion handler reads
   // through refs so it always sees the latest markdownLayers and submit handler.
@@ -357,6 +366,7 @@ export function AgentChat({
             ? [
                 buildSkillMentionSuggestion({
                   getSkills: () => skillsRef.current,
+                  getLoading: () => skillsLoadingRef.current,
                   getAnchorRect: () =>
                     editorContainerRef.current?.getBoundingClientRect() ?? null,
                   onOpenChange: (open) => {
