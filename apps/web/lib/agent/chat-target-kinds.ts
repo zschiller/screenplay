@@ -7,6 +7,7 @@ import {
   type LayerDirectory,
 } from "./config"
 import { toolsetFor } from "./toolset"
+import { prependTurnMarkers } from "./message-markers"
 import type { ToolContext } from "./tools"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
@@ -97,9 +98,12 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
     return toolsetFor({ kind: "sandbox", roomId, sandbox })
   },
   decorateUserMessage(message, { planMode, branch, isFirstMessage }) {
-    const planPrefix = planMode ? "[plan mode: enabled] " : ""
-    const branchPrefix = isFirstMessage && branch ? `[branch: ${branch}] ` : ""
-    return `${planPrefix}${branchPrefix}${message}`
+    // Policy lives here (branch only on the first message); the codec owns
+    // the format.
+    return prependTurnMarkers(message, {
+      planMode,
+      branch: isFirstMessage ? branch : undefined,
+    })
   },
 }
 
@@ -153,7 +157,7 @@ export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, Markdo
     })
   },
   decorateUserMessage(message, { planMode }) {
-    return planMode ? `[plan mode: enabled] ${message}` : message
+    return prependTurnMarkers(message, { planMode })
   },
 }
 

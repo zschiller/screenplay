@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { agentPendingToolCall } from "@/lib/db/schema"
 import type { AgentMessage, CustomToolName } from "@/lib/agent/types"
 import { loadChatHistory } from "@/lib/agent/persistence"
+import { parseUserMessage } from "@/lib/agent/message-markers"
 
 export const runtime = "nodejs"
 
@@ -68,10 +69,8 @@ function convertMessage(
       const text = stringifyContent(m.content)
       // Strip the [plan mode: enabled] / [branch: ...] prefixes the stream
       // route prepends — they're routing metadata for the model, not for the
-      // UI.
-      const cleaned = text
-        .replace(/^\[plan mode: enabled\]\s*/, "")
-        .replace(/^\[branch: [^\]]+\]\s*/, "")
+      // UI. The Message Markers codec is the one decoder for this format.
+      const { body: cleaned } = parseUserMessage(text)
       if (cleaned) out.push({ role: "user", content: cleaned })
       break
     }
