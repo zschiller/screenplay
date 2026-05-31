@@ -119,7 +119,7 @@ import {
   groupContentWidth,
   groupGap,
   placeNewIframeLayerGroup,
-} from "@/lib/iframe-layer-layout"
+} from "@/lib/canvas/layout"
 import {
   anchorCornerForEdge,
   computeDeviceSnap,

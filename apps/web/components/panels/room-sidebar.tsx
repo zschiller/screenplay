@@ -113,7 +113,7 @@ import type {
   GroupMember,
   RepoData,
 } from "@/lib/types"
-import { getGroupMembers } from "@/lib/iframe-layer-layout"
+import { getGroupMembers } from "@/lib/canvas/layout"
 import { reorderedIds, sortForSidebar } from "@/lib/sidebar-order"
 import {
   IframeLayerRowMenu,

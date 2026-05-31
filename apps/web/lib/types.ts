@@ -141,7 +141,7 @@ export type IframeLayerData = {
  * Tagged reference to a child of a group. Designed to be open-ended so new
  * layer kinds (images, embeds, etc.) can drop in without rewriting groups —
  * each new kind just adds its case here and registers a sizer in
- * `iframe-layer-layout.ts`.
+ * `lib/canvas/layout.ts`.
  */
 export type GroupMemberKind = "iframe-layer" | "markdown-layer"
 export type GroupMember = {

@@ -8,7 +8,7 @@ import type { ComponentType, ReactNode } from "react"
  *
  *   1. Add a new entry to `GroupMemberKind` in `lib/types.ts`.
  *   2. Add a Yjs collection + migration step in `lib/yjs/schema.ts`.
- *   3. Add a width/height resolver case in `lib/iframe-layer-layout.ts`.
+ *   3. Add a width/height resolver case in `lib/canvas/layout.ts`.
  *   4. Build the canvas component (mirror `MarkdownLayer`).
  *   5. Wire that component into the canvas's group-render switch.
  *   6. Ship a `LayerKindDescriptor` and register it in `LAYER_KINDS`.

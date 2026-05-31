@@ -4,7 +4,7 @@ import { getRoom } from "@/lib/rooms"
 import { verifyRenderToken } from "@/lib/thumbnail/token"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { documentFragment } from "@/lib/yjs/fragment-text"
-import { computeIframeLayerLayouts } from "@/lib/iframe-layer-layout"
+import { computeIframeLayerLayouts } from "@/lib/canvas/layout"
 import { RenderCanvas } from "./render-canvas"
 import type { RenderIframeLayer } from "./render-canvas"
 
