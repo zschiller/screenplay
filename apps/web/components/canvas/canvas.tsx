@@ -24,6 +24,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
+import { createTerminalTab, persistsConversation } from "@/lib/canvas/tab-kind"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -190,6 +191,17 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // so agents from Liveblocks can be a new reference every render safely.
   const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  // Terminal tabs are deliberately *local*, not stored in the shared
+  // `chatSessions` Y.Doc collection: they're ephemeral, BYO-harness shells that
+  // shouldn't appear in collaborators' tab strips and shouldn't enter the
+  // conversation model. They live only in this client's state and are lost on
+  // refresh (the sandbox daemon is ephemeral too). Co-view across clients is a
+  // deliberate non-goal for now — see ADR 0002 / follow-up.
+  const [localTerminals, setLocalTerminals] = useState<ChatSessionData[]>([])
+  const isLocalTerminal = useCallback(
+    (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
+    [localTerminals],
+  )
   // Per-repo / per-agent memory so switching back restores prior selection
   const selectedAgentByRepoRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
@@ -995,6 +1007,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }, [selectedIframeLayerIds, selectedDocumentLayerIds])
   const repos = useRepos()
   const agents = useBranches()
+
+  // Drop local terminal tabs whose branch no longer exists (branch deleted),
+  // so they don't linger in state pointing at a gone sandbox. Functional +
+  // identity-guarded so it only fires a state update when something actually
+  // needs pruning.
+  useEffect(() => {
+    const branchIds = new Set(agents.map((a) => a.id))
+    setLocalTerminals((prev) => {
+      const kept = prev.filter((t) => !t.branchId || branchIds.has(t.branchId))
+      return kept.length === prev.length ? prev : kept
+    })
+  }, [agents])
 
   const diffStats = useDiffStats(agents, repos)
   const branchPrs = useBranchPrs(agents, repos)
@@ -2107,6 +2131,46 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   )
 
   /**
+   * Create a new terminal tab against `agentId`'s sandbox. Unlike
+   * `handleCreateChat` it stamps `kind: "terminal"` (and uses the tab id as the
+   * shared live-view `terminalSessionId`), so the panel mounts a terminal body
+   * instead of the Engine chat and the conversation model never sees it.
+   */
+  const handleCreateTerminal = useCallback(
+    (agentId: string) => {
+      const id = nanoid()
+      setLocalTerminals((prev) => [
+        ...prev,
+        createTerminalTab({ id, branchId: agentId, createdAt: Date.now() }),
+      ])
+      setSelectedAgentId(agentId)
+      setSelectedChatId(id)
+    },
+    [],
+  )
+
+  // Close a local terminal tab: it's ephemeral, so closing simply drops it
+  // (no closed-chats archive, no replacement Untitled tab). If it was selected,
+  // fall back to a sibling terminal for the same branch, else clear selection
+  // so the panel's auto-select picks an open chat tab.
+  const handleCloseTerminal = useCallback(
+    (id: string) => {
+      setLocalTerminals((prev) => {
+        const closing = prev.find((t) => t.id === id)
+        const remaining = prev.filter((t) => t.id !== id)
+        if (selectedChatId === id) {
+          const sibling = remaining
+            .filter((t) => t.branchId === closing?.branchId)
+            .sort((a, b) => a.createdAt - b.createdAt)[0]
+          setSelectedChatId(sibling?.id ?? null)
+        }
+        return remaining
+      })
+    },
+    [selectedChatId],
+  )
+
+  /**
    * Create a new chat tab targeting a document layer. Mirrors
    * `handleCreateChat` but stamps `markdownLayerId` instead of `agentId` so the
    * server picks the doc-targeted flow when this chat first sends a
@@ -2235,6 +2299,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
   const handleCloseChat = useCallback(
     (chatId: string) => {
+      if (isLocalTerminal(chatId)) {
+        handleCloseTerminal(chatId)
+        return
+      }
       const chat = chatSessions.find((c) => c.id === chatId)
       // Filter siblings by the *same* target — agent chats and doc chats
       // each form their own pool. Without the markdownLayerId branch, every
@@ -2269,7 +2337,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedChatId(siblings[0]?.id ?? null)
       }
     },
-    [selectedChatId, chatSessions, updateChatSession, addChatSession],
+    [selectedChatId, chatSessions, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal],
   )
 
   const handleReopenChat = useCallback(
@@ -2473,6 +2541,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
   const handleRemoveChat = useCallback(
     (chatId: string) => {
+      if (isLocalTerminal(chatId)) {
+        handleCloseTerminal(chatId)
+        return
+      }
       if (selectedChatId === chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (chat) {
@@ -2493,20 +2565,34 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
-    [selectedChatId, chatSessions, removeChatSession],
+    [selectedChatId, chatSessions, removeChatSession, isLocalTerminal, handleCloseTerminal],
   )
 
   const handleRenameChat = useCallback(
     (chatId: string, label: string) => {
+      if (isLocalTerminal(chatId)) {
+        setLocalTerminals((prev) =>
+          prev.map((t) => (t.id === chatId ? { ...t, label } : t)),
+        )
+        return
+      }
       updateChatSession(chatId, { label })
     },
-    [updateChatSession],
+    [updateChatSession, isLocalTerminal],
   )
 
   const handleSelectChat = useCallback(
     (chatId: string | null) => {
       setSelectedChatId(chatId)
       if (chatId) {
+        const terminal = localTerminals.find((t) => t.id === chatId)
+        if (terminal) {
+          // Local terminals aren't in the Y.Doc; just track their branch so
+          // the agent target stays selected. No per-target "remember" ref —
+          // they don't survive a remount anyway.
+          if (terminal.branchId) setSelectedAgentId(terminal.branchId)
+          return
+        }
         const chat = chatSessions.find((c) => c.id === chatId)
         if (!chat) return
         if (chat.branchId) {
@@ -2519,7 +2605,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [chatSessions],
+    [chatSessions, localTerminals],
   )
 
   const handleCreateRepo = useCallback(
@@ -2939,9 +3025,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }
 
   // Load history for all chat sessions so other clients can see past
-  // messages for chats they haven't opened yet.
+  // messages for chats they haven't opened yet. Terminal tabs are excluded:
+  // they carry no persisted conversation, so fetching history for one would
+  // pull an empty record into the chat-store conversation model it must never
+  // enter (`persistsConversation`).
   useEffect(() => {
     for (const cs of chatSessions) {
+      if (!persistsConversation(cs)) continue
       chatStore.loadHistory(cs.id)
     }
   }, [chatSessions])
@@ -4984,6 +5074,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id
             return false
           })
+          // Merge this client's local terminal tabs for an agent target into
+          // the strip. They're not in the shared Y.Doc, so they show only
+          // here and never reach the conversation model.
+          if (target.kind === "agent") {
+            filteredSessions.push(
+              ...localTerminals.filter((t) => t.branchId === target.agent.id),
+            )
+          }
           return (
             <ChatPanel
               target={target}
@@ -5011,6 +5109,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                 else if (target.layerKind === "markdown-layer")
                   handleCreateDocumentChat(target.layer.id)
               }}
+              onCreateTerminal={
+                target.kind === "agent"
+                  ? () => handleCreateTerminal(target.agent.id)
+                  : undefined
+              }
               onRenameChat={handleRenameChat}
               onRemoveChat={handleRemoveChat}
               onCloseChat={handleCloseChat}
