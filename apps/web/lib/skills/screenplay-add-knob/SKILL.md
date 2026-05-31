@@ -1,5 +1,5 @@
 ---
-name: knobs
+name: screenplay-add-knob
 description: Add interactive controls (sliders, switches, selects, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
 ---
 
