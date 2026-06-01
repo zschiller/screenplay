@@ -3,6 +3,7 @@ import type { MarkdownLayerData } from "@/lib/types"
 import {
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
+  REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
 } from "@/lib/agent/message-markers"
 
@@ -70,6 +71,7 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "Following mentions to other docs:",
     `- The user's message may contain \`${MENTION_MARKER_TOKEN}\` markers, and any document body you fetch may contain free-text \`@<title>\` references.`,
     "- Look up the title in the layer directory below to get the id, then call `read_document(id)` to load it.",
+    `- Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the user's message, pairing each id with its title so you can \`read_document(id)\` directly.`,
     "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
     "",
@@ -116,7 +118,7 @@ Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 
 Following \`${MENTION_MARKER_TOKEN}\` mentions:
-The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
+The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. Mentioned docs are also listed under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer at the end of the message, pairing each id with its title. These reads are live — they always return the current state, not a snapshot.`
 
 const AGENT_SYSTEM_PROMPT_TAIL = `
 

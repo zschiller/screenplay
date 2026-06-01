@@ -17,9 +17,9 @@
  * `skillMarkersToPills` — and the `[@…](mention:…)` Layer mention, encoded
  * by `serializeMention`. Mention tokens stay inline in the parsed `body`,
  * so the renderer recovers them as doc-icon pills straight from the
- * markdown-link form. The `Referenced documents:` footer lands in a later
- * slice; `parseUserMessage` reserves `hadReferencedDocs` for that, but does
- * not act on it yet.
+ * markdown-link form. The `Referenced documents:` footer is built by
+ * `buildReferencedDocsFooter` and stripped by `parseUserMessage`, which sets
+ * `hadReferencedDocs` and recovers the original body exactly.
  *
  * The codec owns **format, not policy**: callers still decide *when* a
  * marker applies (e.g. branch only on the first message of a chat). This
@@ -96,6 +96,46 @@ export function serializeMention(label: string, id: string): string {
 }
 
 /**
+ * The canonical token that opens the referenced-documents footer. It is the
+ * single source of truth for both the build side (`buildReferencedDocsFooter`)
+ * and the strip side (`parseUserMessage`), so the composer and renderer can
+ * never drift apart on it again.
+ */
+export const REFERENCED_DOCS_FOOTER_TOKEN = "Referenced documents:"
+
+/** A canvas doc referenced by an `@`-mention, paired with its display title. */
+export interface ReferencedDoc {
+  id: string
+  title?: string
+}
+
+/**
+ * Build the referenced-documents footer for a set of `@`-mentioned docs,
+ * returned as a suffix to append to the user message body. Bodies are NOT
+ * inlined — the footer only pairs each id with its title, since the agent
+ * loop can `read_document(id)` for the live state on demand. This keeps chat
+ * history bounded and avoids stale snapshots when a mentioned layer is later
+ * edited.
+ *
+ * Returns an empty string when there are no docs, so callers can append
+ * unconditionally. The footer opens with `REFERENCED_DOCS_FOOTER_TOKEN`, which
+ * `parseUserMessage` keys off to strip it back out — `body + footer` then
+ * round-trips through `parseUserMessage` to the original `body` exactly.
+ */
+export function buildReferencedDocsFooter(docs: ReferencedDoc[]): string {
+  if (docs.length === 0) return ""
+  const lines = docs.map((d) => `- markdown-layer ${d.id}: ${d.title || "Untitled"}`)
+  return [
+    "",
+    "",
+    "---",
+    "",
+    `${REFERENCED_DOCS_FOOTER_TOKEN} (call \`read_document\` with the id to load contents)`,
+    ...lines,
+  ].join("\n")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body, plan before
  * branch. Each prefix is emitted only when its input is present, so a turn
  * with neither marker returns `body` unchanged.
@@ -122,8 +162,8 @@ export interface ParsedUserMessage {
    */
   body: string
   /**
-   * Whether a `Referenced documents:` footer was detected. Reserved for a
-   * later slice — populated for completeness but not stripped here.
+   * Whether a referenced-documents footer was detected and stripped from
+   * `body`. The footer is the suffix `buildReferencedDocsFooter` appends.
    */
   hadReferencedDocs: boolean
 }
@@ -134,7 +174,12 @@ export interface ParsedUserMessage {
 // contain spaces and brackets while still parsing back exactly.
 const PLAN_PREFIX_RE = /^\[plan mode: enabled\] /
 const BRANCH_PREFIX_RE = /^\[branch: (.*?)\] /
-const REFERENCED_DOCS_RE = /\n\n---\n\nReferenced documents:/
+// Built from the canonical token so build and strip can't drift. The footer
+// runs from its `\n\n---\n\n` separator to the end of the message, so a single
+// strip recovers the original body exactly.
+const REFERENCED_DOCS_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${REFERENCED_DOCS_FOOTER_TOKEN}[\\s\\S]*$`,
+)
 
 /**
  * Parse a wire user message back into its turn metadata and clean body.
@@ -157,10 +202,15 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
     body = body.replace(BRANCH_PREFIX_RE, "")
   }
 
+  const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
+  if (hadReferencedDocs) {
+    body = body.replace(REFERENCED_DOCS_FOOTER_RE, "")
+  }
+
   return {
     planMode,
     branch,
     body,
-    hadReferencedDocs: REFERENCED_DOCS_RE.test(body),
+    hadReferencedDocs,
   }
 }

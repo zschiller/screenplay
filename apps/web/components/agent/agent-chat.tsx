@@ -32,7 +32,11 @@ import {
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
-import { serializeMention, serializeSkill } from "@/lib/agent/message-markers"
+import {
+  buildReferencedDocsFooter,
+  serializeMention,
+  serializeSkill,
+} from "@/lib/agent/message-markers"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
@@ -419,45 +423,25 @@ export function AgentChat({
     [onModelChange],
   )
 
-  /**
-   * Append a "Referenced layers" footer to the user message listing each
-   * `@<title>` mention's id. Bodies are NOT inlined — the agent loop has the
-   * `read_document` tool available across every chat target, so the model
-   * fetches the live state on demand. This keeps chat history bounded and
-   * avoids stale snapshots when a layer the user mentioned earlier is later
-   * edited.
-   */
-  const formatMentionFooter = useCallback(
-    (text: string, mentions: Array<{ id: string }>): string => {
-      if (mentions.length === 0) return text
-      const lines: string[] = []
-      for (const m of mentions) {
-        const title = markdownLayersRef.current.find((d) => d.id === m.id)?.title
-        lines.push(`- markdown-layer ${m.id}: ${title || "Untitled"}`)
-      }
-      return [
-        text,
-        "",
-        "---",
-        "",
-        "Referenced layers (call `read_document` with the id to load contents):",
-        ...lines,
-      ].join("\n")
-    },
-    [],
-  )
-
   const handleSubmit = useCallback(() => {
     if (!editor || isStreaming) return
     if (editor.isEmpty) return
     const json = editor.getJSON()
     const { text, mentions } = extractTextAndMentions(json)
     if (!text.trim()) return
-    const decorated = formatMentionFooter(text.trim(), mentions)
+    // Resolve each `@<title>` mention to its current title, then let the
+    // Message Markers codec build the referenced-documents footer (a no-op
+    // suffix when there are no mentions). Bodies are NOT inlined — the agent
+    // loop fetches live state via `read_document(id)` on demand.
+    const docs = mentions.map((m) => ({
+      id: m.id,
+      title: markdownLayersRef.current.find((d) => d.id === m.id)?.title,
+    }))
+    const decorated = text.trim() + buildReferencedDocsFooter(docs)
     sendMessage(decorated, { model: effectiveModel })
     editor.commands.clearContent()
     setHasContent(false)
-  }, [editor, isStreaming, sendMessage, effectiveModel, formatMentionFooter])
+  }, [editor, isStreaming, sendMessage, effectiveModel])
 
   // Stash the latest submit handler in a ref so the editor's
   // `handleKeyDown` (registered once at construction) always calls the
