@@ -343,7 +343,8 @@ export function IframeLayer({
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   // Floating action toolbar only mounts when the frame itself is selected.
-  // Feature gates (Fit/Play/Reload) still hide buttons that don't apply.
+  // Feature gates (Fit/Play) still hide buttons that don't apply. Reload is
+  // always available; it just highlights (default variant) when HMR drops.
   const showToolbar = selected
 
   // Portal target is created in canvas.tsx at z-30 (above the SelectionOverlay
@@ -657,16 +658,18 @@ export function IframeLayer({
                 </TooltipContent>
               </Tooltip>
             )}
-            {showReload && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="icon-xxs" variant="default" onClick={reloadIframe}>
-                    <RotateCw />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">Reload</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon-xxs"
+                  variant={showReload ? "default" : "ghost"}
+                  onClick={reloadIframe}
+                >
+                  <RotateCw />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Reload</TooltipContent>
+            </Tooltip>
           </TooltipProvider>
         </div>,
         toolbarPortalTarget,

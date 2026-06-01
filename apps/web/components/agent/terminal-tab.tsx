@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { SquareTerminal } from "lucide-react"
 import { Spinner } from "@workspace/ui/components/spinner"
 
 interface TerminalTabProps {
@@ -73,10 +72,6 @@ export function TerminalTab({ sessionId, roomId, sandboxName }: TerminalTabProps
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center gap-1.5 border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
-        <SquareTerminal className="size-3 shrink-0 text-emerald-700 dark:text-emerald-300" />
-        <span>Ephemeral terminal — not saved to chat history.</span>
-      </div>
       <div className="relative flex-1 overflow-hidden">
         {state.status === "ready" ? (
           <iframe

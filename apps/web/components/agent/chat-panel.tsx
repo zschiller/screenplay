@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, Check, GitPullRequest, ArrowUpRight, Logs, SquareTerminal } from "lucide-react"
+import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, ChevronDown, Check, GitPullRequest, ArrowUpRight, Logs, MessageCircle, SquareTerminal } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Button } from "@workspace/ui/components/button"
+import { ButtonGroup } from "@workspace/ui/components/button-group"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
@@ -33,13 +34,36 @@ import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { isTerminalTab } from "@/lib/canvas/tab-kind"
 import { BranchBadge } from "@/components/branch-badge"
-import type { BranchData, ChatSessionData, MarkdownLayerData } from "@/lib/types"
+import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
+
+// Per-user pref backing the sticky "+" new-tab button: it repeats whichever
+// kind (chat or terminal) was created last. Stored in localStorage so the
+// choice survives reloads. Mirrors the `agent-last-model` pref in agent-chat.
+const LAST_TAB_KIND_STORAGE_KEY = "agent-last-tab-kind"
+
+function readLastTabKind(): TabKind {
+  if (typeof window === "undefined") return "chat"
+  try {
+    return window.localStorage.getItem(LAST_TAB_KIND_STORAGE_KEY) === "terminal"
+      ? "terminal"
+      : "chat"
+  } catch {
+    return "chat"
+  }
+}
+
+function writeLastTabKind(kind: TabKind) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(LAST_TAB_KIND_STORAGE_KEY, kind)
+  } catch {}
+}
 
 function useLatestPr(chatId: string): { url: string; number: string } | null {
   const messages = useSyncExternalStore(
@@ -114,9 +138,8 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
  */
 function TerminalTabLabel({ chat }: { chat: ChatSessionData }) {
   return (
-    <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
-      <SquareTerminal className="size-3 shrink-0" />
-      <span className="truncate max-w-[100px] font-mono">{chat.label}</span>
+    <span className="flex items-center gap-1.5">
+      <span className="truncate max-w-[100px]">{chat.label}</span>
     </span>
   )
 }
@@ -242,6 +265,27 @@ export function ChatPanel({
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
+
+  // Sticky new-tab action. Initialised to null and hydrated from localStorage
+  // in an effect so server and first client render agree (no hydration warn).
+  // `onCreateTerminal` is absent for layer targets, so the sticky kind can
+  // only ever be "terminal" when terminals are actually creatable here.
+  const [lastTabKind, setLastTabKind] = useState<TabKind | null>(null)
+  useEffect(() => {
+    setLastTabKind(readLastTabKind())
+  }, [])
+  const stickyTabKind: TabKind =
+    onCreateTerminal && lastTabKind === "terminal" ? "terminal" : "chat"
+
+  const createTab = useCallback(
+    (kind: TabKind) => {
+      setLastTabKind(kind)
+      writeLastTabKind(kind)
+      if (kind === "terminal") onCreateTerminal?.()
+      else onCreateChat()
+    },
+    [onCreateChat, onCreateTerminal],
+  )
 
   // Reset the logs-visible flag whenever the chat target changes so a
   // freshly-selected target (whose LogsPanel is still fetching, if any)
@@ -433,27 +477,70 @@ export function ChatPanel({
                 </div>
               </TabsTrigger>
             ))}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0 ml-1"
-              onClick={onCreateChat}
-              disabled={isAgentBusy}
-              title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
-            >
-              <Plus className="size-3" />
-            </Button>
-            {onCreateTerminal && (
+            {onCreateTerminal ? (
+              <ButtonGroup className="group/newtab ml-1 shrink-0">
+                <TooltipProvider delayDuration={500}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="in-data-[slot=button-group]:rounded-md group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                        onClick={() => createTab(stickyTabKind)}
+                        disabled={isAgentBusy}
+                        aria-label={
+                          stickyTabKind === "terminal"
+                            ? "New terminal"
+                            : "New chat"
+                        }
+                      >
+                        <Plus className="size-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {isAgentBusy
+                        ? "Sandbox still starting…"
+                        : stickyTabKind === "terminal"
+                          ? "New terminal"
+                          : "New chat"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="w-4 min-w-0 px-0 opacity-0 in-data-[slot=button-group]:rounded-md group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground group-focus-within/newtab:opacity-100 aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                      disabled={isAgentBusy}
+                      title="New chat or terminal"
+                      aria-label="New chat or terminal"
+                    >
+                      <ChevronDown className="size-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onSelect={() => createTab("chat")}>
+                      <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
+                      New chat
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => createTab("terminal")}>
+                      <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
+                      New terminal
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </ButtonGroup>
+            ) : (
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="shrink-0 ml-0.5"
-                onClick={onCreateTerminal}
+                className="shrink-0 ml-1"
+                onClick={onCreateChat}
                 disabled={isAgentBusy}
-                title={isAgentBusy ? "Sandbox still starting…" : "New terminal"}
-                aria-label="New terminal"
+                title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
               >
-                <SquareTerminal className="size-3" />
+                <Plus className="size-3" />
               </Button>
             )}
           </TabsList>
