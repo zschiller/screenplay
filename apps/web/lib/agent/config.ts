@@ -1,6 +1,6 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { MarkdownLayerData } from "@/lib/types"
-import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
+import { PLAN_MODE_MARKER, SKILL_MARKER_TOKEN } from "@/lib/agent/message-markers"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -152,7 +152,7 @@ export function buildAgentSystemPrompt(opts: {
           "Skills available:",
           "When a user request matches one of the skills below, call \`read_skill\` with the skill name to load its full instructions before making changes. Do not guess — read the skill first.",
           "",
-          "MANDATORY — explicit skill invocation: if the user's message contains a marker of the form `[skill: <name>]`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call `read_skill` with `<name>` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.",
+          `MANDATORY — explicit skill invocation: if the user's message contains a marker of the form \`${SKILL_MARKER_TOKEN}\`, the collaborator has explicitly invoked that skill. Before taking ANY other action (including reading other files or making edits), you MUST call \`read_skill\` with \`<name>\` and follow its instructions for this turn. This is not optional — treat it as a direct instruction, not a hint.`,
           "",
           ...skills.map((s) => `- **${s.name}**: ${s.description}`),
         ].join("\n")
