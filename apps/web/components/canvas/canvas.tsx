@@ -24,7 +24,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { createTerminalTab, persistsConversation } from "@/lib/canvas/tab-kind"
+import { createTerminalTab } from "@/lib/canvas/tab-kind"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -96,7 +96,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData } from "@/lib/types"
+import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData, TerminalTabData } from "@/lib/types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -198,7 +198,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // conversation model. They live only in this client's state and are lost on
   // refresh (the sandbox daemon is ephemeral too). Co-view across clients is a
   // deliberate non-goal for now — see ADR 0002 / follow-up.
-  const [localTerminals, setLocalTerminals] = useState<ChatSessionData[]>([])
+  const [localTerminals, setLocalTerminals] = useState<TerminalTabData[]>([])
   const isLocalTerminal = useCallback(
     (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
     [localTerminals],
@@ -820,7 +820,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   useEffect(() => {
     const branchIds = new Set(agents.map((a) => a.id))
     setLocalTerminals((prev) => {
-      const kept = prev.filter((t) => !t.branchId || branchIds.has(t.branchId))
+      const kept = prev.filter((t) => branchIds.has(t.branchId))
       return kept.length === prev.length ? prev : kept
     })
   }, [agents])
@@ -2040,9 +2040,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
   /**
    * Create a new terminal tab against `agentId`'s sandbox. Unlike
-   * `handleCreateChat` it stamps `kind: "terminal"` (and uses the tab id as the
-   * shared live-view `terminalSessionId`), so the panel mounts a terminal body
-   * instead of the Engine chat and the conversation model never sees it.
+   * `handleCreateChat` it builds a `TerminalTabData` (using the tab id as the
+   * shared live-view `terminalSessionId`) held in the client-local
+   * `localTerminals` collection — never in `chatSessions` — so the panel mounts
+   * a terminal body instead of the Engine chat and the conversation model can
+   * never, by type, see it.
    */
   const handleCreateTerminal = useCallback(
     (agentId: string) => {
@@ -2960,13 +2962,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }
 
   // Load history for all chat sessions so other clients can see past
-  // messages for chats they haven't opened yet. Terminal tabs are excluded:
-  // they carry no persisted conversation, so fetching history for one would
-  // pull an empty record into the chat-store conversation model it must never
-  // enter (`persistsConversation`).
+  // messages for chats they haven't opened yet. Terminal tabs can't reach this
+  // loop by construction — they're a distinct type in `localTerminals`, never
+  // in `chatSessions` — so terminal scrollback never enters the chat-store.
   useEffect(() => {
     for (const cs of chatSessions) {
-      if (!persistsConversation(cs)) continue
       chatStore.loadHistory(cs.id)
     }
   }, [chatSessions])
@@ -5013,14 +5013,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id
             return false
           })
-          // Merge this client's local terminal tabs for an agent target into
-          // the strip. They're not in the shared Y.Doc, so they show only
-          // here and never reach the conversation model.
-          if (target.kind === "agent") {
-            filteredSessions.push(
-              ...localTerminals.filter((t) => t.branchId === target.agent.id),
-            )
-          }
+          // This client's local terminal tabs for an agent target. Passed as a
+          // separate collection (never merged into `chatSessions`), so a
+          // terminal can't structurally reach the conversation model.
+          const terminalTabs =
+            target.kind === "agent"
+              ? localTerminals.filter((t) => t.branchId === target.agent.id)
+              : []
           return (
             <ChatPanel
               target={target}
@@ -5040,6 +5039,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                 }
               }}
               chatSessions={filteredSessions}
+              terminalTabs={terminalTabs}
               selectedChatId={selectedChatId}
               roomId={roomId}
               onSelectChat={handleSelectChat}
