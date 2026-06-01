@@ -99,11 +99,21 @@ export function decodeServerMessage(data: Uint8Array): TtydServerMessage {
  * Turn the membership-gated daemon URL (`sandbox.domain(TERMINAL_PORT)`, an
  * `https://…vercel.run` origin) into the `wss://…/ws` endpoint ttyd serves its
  * WebSocket on.
+ *
+ * `commandArg` is appended as ttyd's `?arg=` URL argument (the daemon runs with
+ * `--url-arg`): ttyd appends it as a single argv to its base command
+ * `tmux new -A -s`, yielding the tab's per-session attach-or-create
+ * `tmux new -A -s screenplay-<tabId>` (#259). Omit it and the bare `/ws`
+ * endpoint is returned.
  */
-export function terminalWebSocketUrl(httpUrl: string): string {
+export function terminalWebSocketUrl(
+  httpUrl: string,
+  commandArg?: string,
+): string {
   const url = new URL(httpUrl)
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
   url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`
+  if (commandArg) url.searchParams.set("arg", commandArg)
   return url.toString()
 }
 

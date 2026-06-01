@@ -28,6 +28,7 @@ import { createTerminalTab } from "@/lib/canvas/tab-kind"
 import {
   createTerminalTabAction,
   deleteTerminalTabAction,
+  killTerminalSessionAction,
   listTerminalTabsAction,
 } from "@/lib/terminal-tabs-actions"
 import { useSession } from "@/lib/auth-client"
@@ -2148,6 +2149,20 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       deleteTerminalTabAction({ roomId, id }).catch((err) => {
         console.error("Failed to delete terminal tab", err)
       })
+      // …and kills the tab's tmux session so its shell + any running process
+      // (e.g. a harness) actually stops, not just the tab UI. Separate from the
+      // row delete so a down sandbox can't keep the tab around. Best-effort: a
+      // session that's already gone resolves fine.
+      const sandboxName = agents.find((a) => a.id === branchId)?.sandboxName
+      if (closing && sandboxName) {
+        killTerminalSessionAction({
+          roomId,
+          sandboxName,
+          terminalSessionId: closing.terminalSessionId,
+        }).catch((err) => {
+          console.error("Failed to kill terminal session", err)
+        })
+      }
       // The auto-created replacement is a brand-new tab — persist it too.
       if (replacement && branchId) {
         createTerminalTabAction({
@@ -2161,7 +2176,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [selectedChatId, chatSessions, localTerminals, roomId],
+    [selectedChatId, chatSessions, localTerminals, roomId, agents],
   )
 
   /**

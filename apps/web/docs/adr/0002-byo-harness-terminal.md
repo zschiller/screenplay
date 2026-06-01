@@ -236,3 +236,56 @@ committed to — flagged here, not yet resolved.
 
 The spike code is throwaway and lives only under `.context/` (gitignored); none
 of it is on a production path.
+
+## Addendum (2026-06-01): per-tab persistent `tmux` sessions — bundled binary + `--url-arg` transport (slice #259)
+
+The reattach slice (#259) makes each terminal tab back onto its own persistent
+`tmux` session so a running harness survives a page reload. Two decisions here
+that the build rests on:
+
+- **Bundle a pinned static `tmux`, mirroring the ttyd install — the base image
+  ships none.** The 2026-06-01 spike addendum above flagged that
+  `command -v tmux` is missing in the `@vercel/sandbox` base image (re-confirmed
+  on the live image below, which reported `node v22.22.2` — the "node24" label
+  in the earlier entries is stale, but `tmux` is a static binary so the runtime
+  version is moot). So
+  `lib/sandbox/terminal.ts` now provisions `tmux` the same way it provisions
+  ttyd: an idempotent fetch into `/tmp/screenplay` (present binary
+  short-circuits), guarded by `[ -x … ]`. We pin the official **`tmux/tmux-builds`
+  musl-static `x86_64`** release (`v3.6b`,
+  `tmux-<v>-linux-x86_64.tar.gz`) — the upstream-maintained static build rather
+  than a third-party one. Unlike ttyd's raw-binary asset, this asset is a flat
+  tarball, so the install step downloads, `tar -xzf`-extracts the single `tmux`
+  member, `chmod +x`es it, and removes the archive.
+
+  > **Live-image confirmation — done (2026-06-01).** This ADR's discipline (and
+  > #259's first acceptance criterion) is to confirm a working static `tmux`
+  > actually runs in *this* image (`new`/`attach`/`kill` succeed) before building
+  > the UX on it. That confirmation isn't runnable from CI, so it was run against
+  > a live `@vercel/sandbox` (the same way #255 ran its ttyd/transport spike):
+  > the base image ships no system `tmux`; the exact `ensureTmuxInstalled` script
+  > installs the pin and `tmux -V` reports `tmux 3.6b`; `tmux new -A -s` creates
+  > a session and re-running it reattaches without spawning a duplicate;
+  > `kill-session` removes it and is a clean no-op on an already-gone session.
+  > All three operations succeed, so the pin is confirmed good for this image.
+
+- **Per-tab session naming flows through ttyd's `--url-arg`, not a daemon per
+  tab.** ttyd is one daemon on the one forwarded `TERMINAL_PORT`, so the per-tab
+  variation can't come from a per-tab command. We launch ttyd `--writable
+  --url-arg` with the base command `tmux new -A -s` (attach-or-create), and each
+  client appends its session name as `?arg=screenplay-<tabId>`; ttyd forwards it
+  as the final argv, yielding `tmux new -A -s screenplay-<tabId>` per
+  connection. The name is derived from the tab's `terminalSessionId` via the
+  pure `lib/terminal/session.ts:tmuxSessionName` so client (URL arg) and server
+  (kill) agree. Consequences: a reload reattaches to the same session (running
+  process intact, current output redrawn by `tmux attach`); two tabs on one
+  Branch get isolated sessions instead of sharing a PTY; and closing a tab (X)
+  now also runs `tmux kill-session -t screenplay-<tabId>` to terminate the
+  shell + its process, not just drop the tab row.
+
+  `--url-arg` lets a client pass arbitrary argv to the base command. This does
+  **not** widen the trust boundary already fixed above: the daemon serves a
+  `--writable` shell to anyone holding the bearer URL regardless, so the
+  single-trusted-operator constraint is unchanged. Fresh-shell-on-rebuild and
+  orphan-session cleanup are explicitly out of this slice (a follow-up), which
+  assumes the sandbox is still alive across the reload.
