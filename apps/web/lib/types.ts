@@ -65,40 +65,56 @@ export type BranchData = {
 }
 
 /**
- * A tab in the agent panel is one of two *kinds*:
- *  - `"chat"` (the default — absent `kind` reads as chat for backward
- *    compatibility): the durable Engine conversation. Targets exactly one of
- *    a *Branch* (`branchId` set) or a *markdown layer* (`markdownLayerId` set),
- *    and its scrollback is persisted + shared.
- *  - `"terminal"`: a BYO-harness in-sandbox web terminal (#187). Runs against
- *    the Branch's sandbox (`branchId` set) but is **not** a Chat Session — its
- *    scrollback never enters the chat-store, Postgres, or the Y.Doc
- *    conversation model. Only its tab identity (`terminalSessionId`) is shared
- *    so collaborators can co-view one live PTY.
- *
- * Multiple tabs can target the same Branch (or layer), so a user can keep
- * parallel conversations — and parallel terminals — going against one target.
+ * Which kind of tab the "+" new-tab control creates. Purely a UI-level
+ * selection — it is *not* a discriminant stored on any tab. The two kinds are
+ * distinct domain types: a chat tab is a {@link ChatSessionData}, a terminal
+ * tab is a {@link TerminalTabData}.
  */
 export type TabKind = "chat" | "terminal"
 
+/**
+ * A chat tab: the durable Engine conversation. Targets exactly one of a
+ * *Branch* (`branchId` set) or a *markdown layer* (`markdownLayerId` set), and
+ * its scrollback is persisted + shared. Multiple chats can target the same
+ * Branch (or layer), so a user can keep parallel conversations going.
+ *
+ * Chat sessions live in the shared `chatSessions` Y.Doc collection. Terminal
+ * tabs are deliberately *not* `ChatSessionData` (see {@link TerminalTabData}),
+ * so a terminal can never — by type — enter chat history, the Postgres
+ * conversation tables, or the conversation Y.Doc.
+ */
 export type ChatSessionData = {
   id: string
-  /** Tab kind. Absent means `"chat"` (the durable Engine) — never written for
-   *  existing chat tabs, so legacy data keeps working unchanged. */
-  kind?: TabKind
   /** Set when the chat targets a Branch. Mutually exclusive with the layer ids. */
   branchId?: string
   /** Set when the chat targets a markdown layer. */
   markdownLayerId?: string
-  /** Shared live-view identity of a terminal tab — the key collaborators
-   *  co-view against. Set only when `kind === "terminal"`. */
-  terminalSessionId?: string
   label: string
   createdAt: number
   isStreaming?: boolean
   closedAt?: number
   planMode?: boolean
   model?: string
+}
+
+/**
+ * A terminal tab: a BYO-harness in-sandbox web terminal (#187). Runs against a
+ * Branch's sandbox (`branchId`) but is **not** a Chat Session — its scrollback
+ * never enters the chat-store, Postgres, or the Y.Doc conversation model. This
+ * is guaranteed *structurally*: terminal tabs are their own type held in a
+ * client-local collection, never in `chatSessions`.
+ *
+ * `terminalSessionId` is the shared live-view identity collaborators co-view
+ * against (today it equals the tab's own `id`).
+ */
+export type TerminalTabData = {
+  id: string
+  /** The Branch whose sandbox this terminal runs against. */
+  branchId: string
+  /** Shared live-view identity — the key collaborators co-view one PTY against. */
+  terminalSessionId: string
+  label: string
+  createdAt: number
 }
 
 export type PlanData = {

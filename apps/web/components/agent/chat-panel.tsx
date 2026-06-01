@@ -32,9 +32,8 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
-import { isTerminalTab } from "@/lib/canvas/tab-kind"
 import { BranchBadge } from "@/components/branch-badge"
-import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind } from "@/lib/types"
+import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind, TerminalTabData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -136,13 +135,24 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
  * (ephemeral + BYO harness, not durable + shared chat). Reads no chat-store
  * status: a terminal tab has no streaming/unread conversation state.
  */
-function TerminalTabLabel({ chat }: { chat: ChatSessionData }) {
+function TerminalTabLabel({ terminal }: { terminal: TerminalTabData }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="truncate max-w-[100px]">{chat.label}</span>
+      <span className="truncate max-w-[100px]">{terminal.label}</span>
     </span>
   )
 }
+
+/**
+ * One entry in the panel's tab strip. A tagged union over the two distinct tab
+ * types so the strip can render both in a single createdAt-ordered row while
+ * the underlying chat/terminal collections stay separate. `id`, `label`, and
+ * `createdAt` are lifted out so ordering and the shared tab chrome (rename,
+ * close) don't have to branch on `kind`.
+ */
+type OpenTab =
+  | { kind: "chat"; id: string; label: string; createdAt: number; chat: ChatSessionData }
+  | { kind: "terminal"; id: string; label: string; createdAt: number; terminal: TerminalTabData }
 
 /**
  * The chat panel can target one of two top-level kinds:
@@ -169,6 +179,10 @@ interface ChatPanelProps {
    *  ("markdown-layer", future kinds, …) and the layer id. */
   onSelectLayer: (layerKind: string, layerId: string) => void
   chatSessions: ChatSessionData[]
+  /** This client's local terminal tabs for the current target. Held in their
+   *  own collection (never `chatSessions`), so a terminal can't enter the
+   *  conversation model. Empty/absent for non-agent (layer) targets. */
+  terminalTabs?: TerminalTabData[]
   selectedChatId: string | null
   roomId: string
   onSelectChat: (chatId: string | null) => void
@@ -204,6 +218,7 @@ export function ChatPanel({
   onSelectAgent,
   onSelectLayer,
   chatSessions,
+  terminalTabs,
   selectedChatId,
   roomId,
   onSelectChat,
@@ -229,13 +244,32 @@ export function ChatPanel({
   // picker entry) reads icon/label from there so future kinds light up
   // without changes to this file.
   const layerTarget = target.kind === "layer" ? target : null
-  const openChats = useMemo(
-    () =>
-      [...chatSessions]
+
+  // The tab strip interleaves two distinct tab types — durable chats and
+  // ephemeral terminals — in one createdAt-ordered row. We model each as a
+  // tagged item rather than a shared base type so the conversation model can
+  // never structurally hold a terminal.
+  const openTabs = useMemo<OpenTab[]>(() => {
+    const items: OpenTab[] = [
+      ...chatSessions
         .filter((c) => !c.closedAt)
-        .sort((a, b) => a.createdAt - b.createdAt),
-    [chatSessions],
-  )
+        .map((c) => ({
+          kind: "chat" as const,
+          id: c.id,
+          label: c.label,
+          createdAt: c.createdAt,
+          chat: c,
+        })),
+      ...(terminalTabs ?? []).map((t) => ({
+        kind: "terminal" as const,
+        id: t.id,
+        label: t.label,
+        createdAt: t.createdAt,
+        terminal: t,
+      })),
+    ]
+    return items.sort((a, b) => a.createdAt - b.createdAt)
+  }, [chatSessions, terminalTabs])
 
   const closedChats = useMemo(
     () =>
@@ -245,14 +279,14 @@ export function ChatPanel({
     [chatSessions],
   )
 
-  // Auto-select first open chat if none selected
+  // Auto-select the first open tab (chat or terminal) if none selected
   useEffect(() => {
-    if (!selectedChatId && openChats.length > 0) {
-      onSelectChat(openChats[0].id)
+    if (!selectedChatId && openTabs.length > 0) {
+      onSelectChat(openTabs[0].id)
     }
-  }, [selectedChatId, openChats, onSelectChat])
+  }, [selectedChatId, openTabs, onSelectChat])
 
-  const activeTab = selectedChatId ?? openChats[0]?.id ?? ""
+  const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
   const chatHistoryPr = useLatestPr(activeTab)
   const displayPr: { url: string; number: string } | null =
     chatHistoryPr ??
@@ -421,16 +455,16 @@ export function ChatPanel({
                 <Logs className="size-3.5" />
               </TabsTrigger>
             )}
-            {openChats.map((chat) => (
+            {openTabs.map((tab) => (
               <TabsTrigger
-                key={chat.id}
-                value={chat.id}
+                key={tab.id}
+                value={tab.id}
                 className="group/tab relative min-w-[100px] text-xs px-2 pr-2 py-1"
               >
-                {isTerminalTab(chat) ? (
-                  <TerminalTabLabel chat={chat} />
+                {tab.kind === "terminal" ? (
+                  <TerminalTabLabel terminal={tab.terminal} />
                 ) : (
-                  <ChatTabLabel chat={chat} />
+                  <ChatTabLabel chat={tab.chat} />
                 )}
                 <div className="absolute right-0 top-0 bottom-0 flex items-center pr-0.5 opacity-0 group-hover/tab:opacity-100 transition-opacity bg-[var(--background)]">
                   <div className="absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)] pointer-events-none" />
@@ -441,15 +475,15 @@ export function ChatPanel({
                     className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation()
-                      const newLabel = prompt("Rename chat", chat.label)
-                      if (newLabel?.trim()) onRenameChat(chat.id, newLabel.trim())
+                      const newLabel = prompt("Rename chat", tab.label)
+                      if (newLabel?.trim()) onRenameChat(tab.id, newLabel.trim())
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         e.stopPropagation()
-                        const newLabel = prompt("Rename chat", chat.label)
-                        if (newLabel?.trim()) onRenameChat(chat.id, newLabel.trim())
+                        const newLabel = prompt("Rename chat", tab.label)
+                        if (newLabel?.trim()) onRenameChat(tab.id, newLabel.trim())
                       }
                     }}
                   >
@@ -462,13 +496,13 @@ export function ChatPanel({
                     className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onCloseChat(chat.id)
+                      onCloseChat(tab.id)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         e.stopPropagation()
-                        onCloseChat(chat.id)
+                        onCloseChat(tab.id)
                       }
                     }}
                   >
@@ -584,27 +618,28 @@ export function ChatPanel({
         </TabsContent>
       )}
 
-      {openChats.map((chat) => {
+      {openTabs.map((tab) => {
         // A terminal tab renders the in-sandbox web terminal, not the Engine
         // chat — its scrollback never enters the conversation model. It's keyed
         // by its own id (the shared live-view session) so a second client in
         // the room co-views the same live PTY.
-        if (isTerminalTab(chat)) {
+        if (tab.kind === "terminal") {
           return (
             <TabsContent
-              key={chat.id}
-              value={chat.id}
+              key={tab.id}
+              value={tab.id}
               className="flex-1 overflow-hidden data-[state=inactive]:hidden"
               forceMount
             >
               <TerminalTab
-                sessionId={chat.terminalSessionId ?? chat.id}
+                sessionId={tab.terminal.terminalSessionId}
                 roomId={roomId}
                 sandboxName={agent?.sandboxName}
               />
             </TabsContent>
           )
         }
+        const chat = tab.chat
         // First chat for this target — drives auto branch/chat naming on the
         // agent flow; for doc chats it's just used to skip naming logic.
         const isFirst = !chatSessions.some(
