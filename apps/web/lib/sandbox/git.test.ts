@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type {
+  HibernatingSandbox,
   SandboxCommandResult,
   SandboxInstance,
   SandboxProvider,
@@ -30,7 +31,13 @@ const fake = vi.hoisted(() => {
   }
 })
 
-vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
+// Keep the real portable-liveness predicate (it keys on the fake's isRunning),
+// mirroring `lib/sandbox/types.ts`; faking it would defeat the branch under test.
+vi.mock("@/lib/sandbox", () => ({
+  sandboxProvider: fake.provider,
+  isSandboxRunning: (s: { isRunning?: () => boolean }) =>
+    typeof s?.isRunning === "function" ? s.isRunning() : true,
+}))
 
 // `getDiffStats` reads the acting user to attach a git credential env for its
 // best-effort fetch. That session lookup needs a request context we don't have
@@ -61,9 +68,11 @@ const repo = {
 } as RepoData
 
 /**
- * Builds a fake {@link SandboxInstance} whose `runCommand` is scripted by
- * `respond(cmd, args)`. Only the surface the runner touches is implemented;
- * everything else throws so an accidental dependency is loud, not silent.
+ * Builds a fake hibernating {@link SandboxInstance} (mirroring Vercel) whose
+ * `runCommand` is scripted by `respond(cmd, args)`. It carries `isRunning()`
+ * derived from `status` so the portable {@link isSandboxRunning} predicate the
+ * git actions use resolves correctly. Only the surface the runner touches is
+ * implemented; everything else throws so an accidental dependency is loud.
  */
 function fakeSandbox(
   respond: (cmd: string, args: string[]) => { exitCode: number; stdout?: string; stderr?: string },
@@ -88,19 +97,18 @@ function fakeSandbox(
     }
     return Promise.resolve(result)
   }
-  return {
+  const sandbox: SandboxInstance = {
     name: "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/root",
-    status,
     domain: notUsed("domain") as never,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
     readFileToBuffer: notUsed("readFileToBuffer") as never,
-    extendTimeout: async () => {},
-    snapshot: notUsed("snapshot") as never,
     delete: async () => {},
   }
+  ;(sandbox as HibernatingSandbox).isRunning = () => status === "running"
+  return sandbox
 }
 
 beforeEach(() => {

@@ -1,5 +1,5 @@
 import { getUserId } from "@/lib/auth-helpers"
-import { sandboxProvider } from "@/lib/sandbox"
+import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
 
 export const runtime = "nodejs"
@@ -24,7 +24,7 @@ export async function GET(
   } catch {
     return new Response("Sandbox not found", { status: 404 })
   }
-  if (sandbox.status !== "running") {
+  if (!isSandboxRunning(sandbox)) {
     return new Response("Sandbox not running", { status: 409 })
   }
 

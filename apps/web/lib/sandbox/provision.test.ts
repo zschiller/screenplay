@@ -95,7 +95,6 @@ type RecordedCall = { cmd: string; args: string[]; env?: Record<string, string> 
 function fakeSandbox(
   respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 }),
   opts: {
-    status?: string
     written?: SandboxFile[]
     writeError?: string
     worktreePath?: string
@@ -132,7 +131,6 @@ function fakeSandbox(
     name: "fake-sandbox",
     worktreePath: opts.worktreePath ?? "/vercel/sandbox",
     homeDir: opts.homeDir ?? "/root",
-    status: opts.status ?? "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async (files: SandboxFile[]) => {
@@ -140,8 +138,6 @@ function fakeSandbox(
       if (opts.written) opts.written.push(...files)
     },
     readFileToBuffer: notUsed("readFileToBuffer") as never,
-    extendTimeout: async () => {},
-    snapshot: notUsed("snapshot") as never,
     delete: async () => {},
   }
 }
