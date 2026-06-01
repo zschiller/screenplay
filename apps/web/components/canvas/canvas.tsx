@@ -2058,24 +2058,39 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   )
 
   // Close a local terminal tab: it's ephemeral, so closing simply drops it
-  // (no closed-chats archive, no replacement Untitled tab). If it was selected,
-  // fall back to a sibling terminal for the same branch, else clear selection
-  // so the panel's auto-select picks an open chat tab.
+  // (no closed-chats archive). The panel must keep at least one tab of *either*
+  // kind per agent, so if this terminal is the last tab on its branch — no
+  // sibling terminal and no open chat — recreate a terminal (the kind just
+  // closed, i.e. the most recently used tab). This parallels the replacement
+  // chat in handleCloseChat. Otherwise, if it was selected, fall back to a
+  // sibling terminal, then an open chat, then clear selection.
   const handleCloseTerminal = useCallback(
     (id: string) => {
+      const closing = localTerminals.find((t) => t.id === id)
+      const branchId = closing?.branchId
+      const terminalSiblings = localTerminals
+        .filter((t) => t.id !== id && t.branchId === branchId)
+        .sort((a, b) => a.createdAt - b.createdAt)
+      const chatSiblings = branchId
+        ? chatSessions
+            .filter((c) => c.branchId === branchId && !c.closedAt)
+            .sort((a, b) => a.createdAt - b.createdAt)
+        : []
+      const replacement =
+        branchId && terminalSiblings.length === 0 && chatSiblings.length === 0
+          ? createTerminalTab({ id: nanoid(), branchId, createdAt: Date.now() })
+          : null
       setLocalTerminals((prev) => {
-        const closing = prev.find((t) => t.id === id)
         const remaining = prev.filter((t) => t.id !== id)
-        if (selectedChatId === id) {
-          const sibling = remaining
-            .filter((t) => t.branchId === closing?.branchId)
-            .sort((a, b) => a.createdAt - b.createdAt)[0]
-          setSelectedChatId(sibling?.id ?? null)
-        }
-        return remaining
+        return replacement ? [...remaining, replacement] : remaining
       })
+      if (replacement) {
+        setSelectedChatId(replacement.id)
+      } else if (selectedChatId === id) {
+        setSelectedChatId(terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null)
+      }
     },
-    [selectedChatId],
+    [selectedChatId, chatSessions, localTerminals],
   )
 
   /**
@@ -2227,8 +2242,20 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
         : []
+      // An open terminal on the same agent counts as a surviving tab too, so
+      // closing the last chat next to a terminal no longer force-spawns a new
+      // chat — the panel just keeps the terminal. (Doc chats have no terminals,
+      // so this is only ever non-empty for agent targets.)
+      const terminalSiblings = chat?.branchId
+        ? localTerminals
+            .filter((t) => t.branchId === chat.branchId)
+            .sort((a, b) => a.createdAt - b.createdAt)
+        : []
       updateChatSession(chatId, { closedAt: Date.now() })
-      if (chat && siblings.length === 0) {
+      if (chat && siblings.length === 0 && terminalSiblings.length === 0) {
+        // No tab of either kind survives on this target — recreate a chat (the
+        // kind just closed, i.e. the most recently used tab) so the panel is
+        // never left empty.
         const newId = nanoid()
         addChatSession(newId, {
           id: newId,
@@ -2242,10 +2269,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           selectedChatByDocumentRef.current[chat.markdownLayerId] = newId
         }
       } else if (selectedChatId === chatId) {
-        setSelectedChatId(siblings[0]?.id ?? null)
+        setSelectedChatId(siblings[0]?.id ?? terminalSiblings[0]?.id ?? null)
       }
     },
-    [selectedChatId, chatSessions, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal],
+    [selectedChatId, chatSessions, localTerminals, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal],
   )
 
   const handleReopenChat = useCallback(
