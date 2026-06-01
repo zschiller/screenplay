@@ -635,6 +635,7 @@ export function ChatPanel({
                 sessionId={tab.terminal.terminalSessionId}
                 roomId={roomId}
                 sandboxName={agent?.sandboxName}
+                sandboxStatus={agent?.status}
               />
             </TabsContent>
           )
