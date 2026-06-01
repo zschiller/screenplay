@@ -3200,8 +3200,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // sandbox first, so it won't recreate one that's already running.
       const repo = repos.find((w) => w.id === agent.repoId)
       const sandboxName = agent.sandboxName
-      // Both the reconnect (its reclone fallback) and the restart path need a
-      // source to provision from, so bail early if the workspace is gone.
+      // The restart fallback below needs a source to provision from, so bail
+      // early if the workspace is gone.
       if (!repo) {
         updateAgentInStorage(agent.id, {
           status: "stopped",
@@ -3210,7 +3210,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
         continue
       }
-      reconnectSandbox(sandboxName, repo, agent.ref).then((result) => {
+      reconnectSandbox(sandboxName, repo).then((result) => {
         if (result.success) {
           updateAgentInStorage(agent.id, {
             previewDomain: result.value.previewDomain,

@@ -3,7 +3,7 @@
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { createBranch, renameBranch } from "@/lib/github-actions"
-import { sandboxProvider } from "@/lib/sandbox"
+import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -90,7 +90,7 @@ export async function getDiffStats(
 ): Promise<{ additions: number; deletions: number } | null> {
   try {
     const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
-    if (sandbox.status !== "running") return null
+    if (!isSandboxRunning(sandbox)) return null
 
     // Try fetching silently — may fail on private repos without token, that's ok
     try {

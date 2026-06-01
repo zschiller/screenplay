@@ -61,13 +61,10 @@ function fakeSandboxReturning(content: string): SandboxInstance {
     name: "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/root",
-    status: "running",
     domain: notUsed("domain") as never,
     runCommand: (async () => cmd) as SandboxInstance["runCommand"],
     writeFiles: async () => {},
     readFileToBuffer: async () => Buffer.from(content, "utf-8"),
-    extendTimeout: async () => {},
-    snapshot: notUsed("snapshot") as never,
     delete: async () => {},
   }
 }

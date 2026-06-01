@@ -1,5 +1,6 @@
 "use server"
 
+import { isSandboxRunning } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 
@@ -14,7 +15,7 @@ export async function getSandboxLogs(
   maxLines: number = 1000,
 ): Promise<SandboxActionResult<string>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    if (sandbox.status !== "running") return ""
+    if (!isSandboxRunning(sandbox)) return ""
     const result = await step(sandbox, "sh", [
       "-c",
       `tail -n ${maxLines} ${SANDBOX_LOG_PATH} 2>/dev/null || true`,

@@ -57,7 +57,12 @@ export interface SandboxCreateOptions {
 
 export interface SandboxGetOptions {
   name: string
-  /** When true, reboot a stopped sandbox from its snapshot. */
+  /**
+   * When true, reboot a stopped sandbox from its snapshot. Only a hibernating
+   * provider (see {@link HibernatingSandbox}) can honor this — booting a stopped
+   * VM is the resume affordance of that capability. A portable backend has no
+   * stopped-but-present state to wake, so it ignores the flag.
+   */
   resume?: boolean
 }
 
@@ -89,14 +94,21 @@ export interface SandboxFile {
 }
 
 /**
- * The server-facing surface of a live sandbox VM. Concrete providers (Vercel
- * Sandbox, E2B, Modal, a local Docker container, etc.) return instances of
- * this shape from {@link SandboxProvider.create} / {@link SandboxProvider.get}.
+ * The portable core surface of a live sandbox VM — only the operations every
+ * backend (Vercel Sandbox, E2B, Modal, a local Docker container, etc.) can
+ * honor. Concrete providers return instances of this shape from
+ * {@link SandboxProvider.create} / {@link SandboxProvider.get}.
+ *
+ * Deliberately small: no `status`, `snapshot`, or `extendTimeout`. Those are the
+ * **hibernation** capability and live on {@link HibernatingSandbox}, reachable
+ * only by narrowing through {@link supportsHibernation}. Liveness is read with
+ * the portable {@link isSandboxRunning} predicate, never a stringly-typed
+ * `status === "running"` comparison. Keeping the core this lean is what forces a
+ * provider to either implement hibernation completely or fall through to the
+ * reclone path — a half-implementation no longer type-checks.
  */
 export interface SandboxInstance {
   readonly name: string
-  /** Lifecycle state. Callers compare against `"running"`. */
-  readonly status: string
   /**
    * Absolute path the repo is checked out into — the agent's working directory
    * and the project root the harness trusts. `/vercel/sandbox` on Vercel.
@@ -118,15 +130,6 @@ export interface SandboxInstance {
   writeFiles(files: SandboxFile[]): Promise<void>
   /** Returns `null` if the file does not exist. */
   readFileToBuffer(opts: { path: string }): Promise<Buffer | null>
-  /** Extend the auto-stop timer by `ms` milliseconds. */
-  extendTimeout(ms: number): Promise<void>
-  /**
-   * Capture a filesystem snapshot of the running sandbox. The sandbox stops as
-   * a side effect — no further commands can run on this instance afterwards.
-   * The returned `snapshotId` can be passed to {@link SandboxProvider.create}
-   * via a {@link SandboxSnapshotSource} to boot a new VM from this state.
-   */
-  snapshot(opts?: { expiration?: number }): Promise<{ snapshotId: string }>
   /** Delete the sandbox. After deletion the instance is inert. */
   delete(): Promise<void>
 }
@@ -147,12 +150,9 @@ export interface SandboxInstance {
  * provider that can't hibernate degrades to recloning rather than calling
  * methods that mean nothing to it.
  *
- * Transitional note: the core {@link SandboxInstance} above still re-declares
- * `snapshot()` and `extendTimeout()` so existing call sites keep compiling.
- * Conceptually those belong to this capability — *removing* them from the core
- * (so the types make hibernation unreachable without the guard, and `status`
- * gives way to `isRunning()`) is the follow-up tightening step. For now the
- * guard discriminates on `isRunning`, the one method the core does not carry.
+ * `snapshot()` and `extendTimeout()` live here, not on the core, so they are
+ * unreachable without narrowing through the guard — the compiler now enforces
+ * that a provider either supplies the whole capability or none of it.
  */
 export interface HibernatingSandbox extends SandboxInstance {
   /** True while the VM is up and serving — the portable liveness predicate. */
@@ -167,12 +167,23 @@ export interface HibernatingSandbox extends SandboxInstance {
  * capabilities bag — is the decision: hibernation methods are unreachable
  * without narrowing through it, so the reclone-fresh fallback can't be silently
  * forgotten and a half-implementing provider can't slip through. Detects the
- * capability by the presence of `isRunning`, the one method the core does not
- * carry, so it stays a reliable discriminator even while `snapshot()` /
- * `extendTimeout()` still live on the core during the transition.
+ * capability by the presence of `isRunning`; with `snapshot()` / `extendTimeout()`
+ * now off the core, that method is the sole discriminator the core never carries.
  */
 export function supportsHibernation(s: SandboxInstance): s is HibernatingSandbox {
   return typeof (s as Partial<HibernatingSandbox>).isRunning === "function"
+}
+
+/**
+ * Portable liveness predicate, replacing the stringly-typed
+ * `status === "running"` checks that assumed a Vercel-shaped `status` field on
+ * every instance. A hibernating sandbox can be stopped while its handle still
+ * exists, so its own {@link HibernatingSandbox.isRunning} is authoritative; a
+ * portable instance has no stopped-but-present state, so it is live for as long
+ * as the handle does — the provider returning it is proof enough.
+ */
+export function isSandboxRunning(s: SandboxInstance): boolean {
+  return supportsHibernation(s) ? s.isRunning() : true
 }
 
 /**

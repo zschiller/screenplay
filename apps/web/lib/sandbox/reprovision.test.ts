@@ -120,15 +120,12 @@ function fakeSandbox(
     name: opts.name ?? "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/root",
-    status: "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
       if (opts.writeError) throw new Error(opts.writeError)
     },
     readFileToBuffer: notUsed("readFileToBuffer") as never,
-    extendTimeout: async () => {},
-    snapshot: notUsed("snapshot") as never,
     delete: async () => {},
   }
 }
