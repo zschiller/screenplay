@@ -40,14 +40,30 @@ const TTYD_PIDFILE = "/tmp/screenplay/terminal.pid"
 // ADR 0002's 2026-06-01 addendum, which also records that `new`/`attach`/`kill`
 // run against this pin), so the reattach UX must bundle one the same way it
 // bundles ttyd.
-// tmux/tmux-builds publishes musl-static x86_64 release tarballs; the archive
-// is flat (a single `tmux` binary at its root). Lives under /tmp/screenplay
-// alongside ttyd because that's where the unprivileged `vercel-sandbox` user
-// can write without sudo.
+// tmux/tmux-builds publishes musl-static release tarballs per architecture,
+// named tmux-<ver>-linux-<arch>; each archive is flat (a single `tmux` binary
+// at its root). Lives under /tmp/screenplay alongside ttyd because that's where
+// the unprivileged `vercel-sandbox` user can write without sudo.
 const TMUX_VERSION = "3.6b"
 const TMUX_BIN = "/tmp/screenplay/tmux"
 const TMUX_TARBALL = "/tmp/screenplay/tmux.tar.gz"
-const TMUX_URL = `https://github.com/tmux/tmux-builds/releases/download/v${TMUX_VERSION}/tmux-${TMUX_VERSION}-linux-x86_64.tar.gz`
+
+// Map the sandbox's `uname -m` machine name to tmux-builds' own arch token.
+// Unlike ttyd (whose assets ARE the `uname -m` names), tmux-builds calls the
+// arm asset `arm64`, not `aarch64` — so this is a translation, not an identity.
+// Keep both fetches architecture-aware rather than baking in x86_64 (#268).
+const TMUX_ASSET_ARCH_BY_MACHINE: Record<string, string> = {
+  x86_64: "x86_64",
+  aarch64: "arm64",
+}
+
+function tmuxUrl(arch: string): string {
+  const assetArch = TMUX_ASSET_ARCH_BY_MACHINE[arch]
+  if (!assetArch) {
+    throw new Error(`unsupported sandbox architecture for tmux: ${arch || "unknown"}`)
+  }
+  return `https://github.com/tmux/tmux-builds/releases/download/v${TMUX_VERSION}/tmux-${TMUX_VERSION}-linux-${assetArch}.tar.gz`
+}
 
 /**
  * Ensure the BYO-harness web-terminal daemon is running inside the sandbox on
@@ -67,8 +83,11 @@ export async function ensureTerminal(
   sandboxName: string,
 ): Promise<SandboxActionResult<{ url: string }>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    await ensureTtydInstalled(sandbox)
-    await ensureTmuxInstalled(sandbox)
+    // Detect the architecture once and key both binary fetches off it, so the
+    // terminal stops assuming the x86_64 Vercel image (#268).
+    const arch = await detectArch(sandbox)
+    await ensureTtydInstalled(sandbox, arch)
+    await ensureTmuxInstalled(sandbox, arch)
     if (!(await isTerminalRunning(sandbox))) {
       await launchTerminal(sandbox)
     }
@@ -103,16 +122,24 @@ export async function killTerminalSession(
 }
 
 /**
- * Fetch the static ttyd binary if it isn't already on disk, then mark it
- * executable. Detects the sandbox architecture (`uname -m`) and downloads the
- * matching release asset rather than assuming x86_64 (#268). Idempotent — a
- * present binary short-circuits the download — so it's safe to call on every
- * `ensureTerminal`. A download failure exits non-zero, which `step` turns into
- * a redacted failure result.
+ * Detect the sandbox CPU architecture via `uname -m` (e.g. "x86_64",
+ * "aarch64"). Both binary fetches key their release asset off this so the
+ * terminal stops assuming the x86_64 Vercel image (#268).
  */
-async function ensureTtydInstalled(sandbox: SandboxInstance): Promise<void> {
+async function detectArch(sandbox: SandboxInstance): Promise<string> {
   const probe = await step(sandbox, "sh", ["-c", "uname -m"])
-  const url = ttydUrl((await probe.stdout()).trim())
+  return (await probe.stdout()).trim()
+}
+
+/**
+ * Fetch the static ttyd binary if it isn't already on disk, then mark it
+ * executable. Downloads the release asset matching the detected `arch` rather
+ * than assuming x86_64 (#268). Idempotent — a present binary short-circuits the
+ * download — so it's safe to call on every `ensureTerminal`. A download failure
+ * exits non-zero, which `step` turns into a redacted failure result.
+ */
+async function ensureTtydInstalled(sandbox: SandboxInstance, arch: string): Promise<void> {
+  const url = ttydUrl(arch)
   await step(sandbox, "sh", [
     "-c",
     `mkdir -p /tmp/screenplay && ` +
@@ -124,18 +151,19 @@ async function ensureTtydInstalled(sandbox: SandboxInstance): Promise<void> {
 /**
  * Fetch the static `tmux` binary if it isn't already on disk, then mark it
  * executable. Mirrors {@link ensureTtydInstalled} — the base image has no
- * `tmux` — but the asset is a tarball, so we download it, extract the single
- * `tmux` member into /tmp/screenplay, and clean up the archive. Idempotent: a
- * present binary short-circuits the whole pipeline, so it's safe on every
- * `ensureTerminal`. Any failure exits non-zero, which `step` turns into a
- * redacted failure result.
+ * `tmux` — but the asset is a tarball, so we download the one matching the
+ * detected `arch`, extract the single `tmux` member into /tmp/screenplay, and
+ * clean up the archive. Idempotent: a present binary short-circuits the whole
+ * pipeline, so it's safe on every `ensureTerminal`. Any failure exits non-zero,
+ * which `step` turns into a redacted failure result.
  */
-async function ensureTmuxInstalled(sandbox: SandboxInstance): Promise<void> {
+async function ensureTmuxInstalled(sandbox: SandboxInstance, arch: string): Promise<void> {
+  const url = tmuxUrl(arch)
   await step(sandbox, "sh", [
     "-c",
     `mkdir -p /tmp/screenplay && ` +
       `{ [ -x ${TMUX_BIN} ] || ` +
-      `{ curl -fsSL ${TMUX_URL} -o ${TMUX_TARBALL} && ` +
+      `{ curl -fsSL ${url} -o ${TMUX_TARBALL} && ` +
       `tar -xzf ${TMUX_TARBALL} -C /tmp/screenplay tmux && ` +
       `chmod +x ${TMUX_BIN} && rm -f ${TMUX_TARBALL}; }; }`,
   ])
