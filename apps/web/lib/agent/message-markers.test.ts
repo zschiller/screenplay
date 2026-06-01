@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
+  REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
+  buildReferencedDocsFooter,
   parseUserMessage,
   prependTurnMarkers,
   serializeMention,
@@ -152,6 +154,60 @@ describe("skillMarkersToPills", () => {
     expect(parsed.planMode).toBe(true)
     expect(parsed.branch).toBe("feat/x")
     expect(skillMarkersToPills(parsed.body)).toBe("[/tdd](skill:tdd)")
+  })
+})
+
+describe("buildReferencedDocsFooter", () => {
+  it("returns an empty string when there are no docs", () => {
+    expect(buildReferencedDocsFooter([])).toBe("")
+  })
+
+  it("opens with the canonical footer token and lists each doc by id", () => {
+    const footer = buildReferencedDocsFooter([
+      { id: "doc-1", title: "Spec" },
+      { id: "doc-2", title: "Plan" },
+    ])
+
+    expect(footer).toContain(REFERENCED_DOCS_FOOTER_TOKEN)
+    expect(footer).toContain("- markdown-layer doc-1: Spec")
+    expect(footer).toContain("- markdown-layer doc-2: Plan")
+  })
+
+  it("falls back to Untitled when a doc has no title", () => {
+    expect(buildReferencedDocsFooter([{ id: "doc-9" }])).toContain(
+      "- markdown-layer doc-9: Untitled",
+    )
+  })
+
+  it("round-trips: build → parse strips the footer and recovers the body exactly", () => {
+    const body = "please review these docs"
+    const wire =
+      body + buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }])
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.body).toBe(body)
+    expect(parsed.hadReferencedDocs).toBe(true)
+  })
+
+  it("reports hadReferencedDocs false when no footer was appended", () => {
+    const wire = "just a message" + buildReferencedDocsFooter([])
+
+    expect(parseUserMessage(wire).hadReferencedDocs).toBe(false)
+  })
+
+  it("strips the footer even alongside server turn prefixes", () => {
+    const wire = prependTurnMarkers(
+      "ship it" + buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]),
+      { planMode: true, branch: "feat/x" },
+    )
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.planMode).toBe(true)
+    expect(parsed.branch).toBe("feat/x")
+    expect(parsed.body).toBe("ship it")
+    expect(parsed.hadReferencedDocs).toBe(true)
   })
 })
 
