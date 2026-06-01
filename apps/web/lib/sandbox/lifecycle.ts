@@ -2,13 +2,9 @@
 
 import { getModelProviders } from "@/lib/agent/providers"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import { getGitHubToken } from "@/lib/auth-helpers"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
 import { sandboxProvider } from "@/lib/sandbox"
-import type { SandboxSource } from "@/lib/sandbox"
-import { configureAgentGit } from "@/lib/sandbox/git"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
-import { installClaudeCode } from "@/lib/sandbox/provision"
 import {
   BROKERED_ANTHROPIC_ENV,
   PROXY_PORT_OFFSET,
@@ -17,8 +13,8 @@ import {
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
   launchDevAndProxy,
-  runLogged,
 } from "@/lib/sandbox/provision-internals"
+import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -138,7 +134,6 @@ export async function restartSandbox(
   ghToken?: string,
 ): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
   try {
-    if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
     const safeEnv = await getEnvVars(sandboxName)
     const port = repo.devServerPort
 
@@ -146,8 +141,8 @@ export async function restartSandbox(
     // VM can boot from the same filesystem state. snapshot() stops the VM as a
     // side effect — we still delete() afterwards so the name is free for the
     // new sandbox to claim. Either step may fail (sandbox missing, snapshot
-    // expired, provider hiccup); the create below falls back to a git source
-    // when no snapshotId is captured.
+    // expired, provider hiccup); we fall back to a fresh git clone when no
+    // snapshotId is captured.
     let snapshotId: string | undefined
     try {
       const old = await sandboxProvider.get({ name: sandboxName, resume: false })
@@ -160,16 +155,22 @@ export async function restartSandbox(
       } catch {}
     } catch {}
 
+    if (!snapshotId) {
+      // No snapshot available — reclone fresh from git. reprovisionFromGit owns
+      // that whole path (create-from-git through dev launch) and returns the
+      // uniform redacted contract, so we hand back its result directly.
+      return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
+    }
+
+    // Restored from snapshot — node_modules, git config, the credential helper,
+    // and the working tree (uncommitted changes included) all survived. Boot a
+    // new VM from the snapshot and just relaunch the dev server, skipping the
+    // setup/install/configure pipeline entirely.
     const networkPolicy = buildNetworkPolicy(getModelProviders())
     const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
-    const source: SandboxSource = snapshotId
-      ? { type: "snapshot", snapshotId }
-      : ghToken
-        ? { type: "git", url: repo.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
-        : { type: "git", url: repo.cloneUrl, revision: branch }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      source,
+      source: { type: "snapshot", snapshotId },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
@@ -177,33 +178,6 @@ export async function restartSandbox(
       env: mergedEnv,
       networkPolicy,
     })
-
-    if (snapshotId) {
-      // Restored from snapshot — node_modules, git config, the credential
-      // helper, and the working tree (uncommitted changes included) all
-      // survived. Skip the setup/install/configure pipeline and just relaunch
-      // the dev server.
-      const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
-      return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
-    }
-
-    // No snapshot available — fresh provision. Mirror the create pipeline:
-    // deps + Claude Code in parallel, then git setup, then dev launch. Claude
-    // Code is best-effort — the create route ignores its result, and so do we.
-    const setup = repo.setupScript?.trim() || "npm install"
-    const [setupCmd, ...setupArgs] = setup.split(/\s+/)
-    const [setupResult] = await Promise.all([
-      runLogged(sandbox, setupCmd, setupArgs),
-      installClaudeCode(sandbox.name),
-    ])
-    if (setupResult.exitCode !== 0) {
-      throw new Error(`Setup script failed (exit ${setupResult.exitCode})`)
-    }
-
-    const gitResult = await configureAgentGit(sandbox.name, repo, branch)
-    if (!gitResult.success) {
-      throw new Error(gitResult.error ?? "Failed to configure git")
-    }
 
     const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
     return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
