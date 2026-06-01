@@ -3200,7 +3200,17 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // sandbox first, so it won't recreate one that's already running.
       const repo = repos.find((w) => w.id === agent.repoId)
       const sandboxName = agent.sandboxName
-      reconnectSandbox(sandboxName, agent.port, repo?.devScript).then((result) => {
+      // Both the reconnect (its reclone fallback) and the restart path need a
+      // source to provision from, so bail early if the workspace is gone.
+      if (!repo) {
+        updateAgentInStorage(agent.id, {
+          status: "stopped",
+          statusMessage: "",
+          error: "Workspace not found — click refresh to retry",
+        })
+        continue
+      }
+      reconnectSandbox(sandboxName, repo, agent.ref).then((result) => {
         if (result.success) {
           updateAgentInStorage(agent.id, {
             previewDomain: result.value.previewDomain,
@@ -3213,14 +3223,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         // Resume failed — likely the snapshot has fully expired (>24h) and
         // been deleted. Auto-recreate from git instead of stranding the user
         // at "stopped" waiting to click refresh.
-        if (!repo) {
-          updateAgentInStorage(agent.id, {
-            status: "stopped",
-            statusMessage: "",
-            error: "Workspace not found — click refresh to retry",
-          })
-          return
-        }
         updateAgentInStorage(agent.id, {
           status: "starting",
           statusMessage: "Recreating expired sandbox…",

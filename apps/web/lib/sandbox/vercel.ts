@@ -2,6 +2,7 @@ import "server-only"
 
 import { Sandbox, type NetworkPolicy } from "@vercel/sandbox"
 import type {
+  HibernatingSandbox,
   SandboxCreateOptions,
   SandboxGetOptions,
   SandboxInstance,
@@ -17,24 +18,30 @@ const VERCEL_WORKTREE_PATH = "/vercel/sandbox"
 const VERCEL_HOME_DIR = "/root"
 
 /**
- * The SDK `Sandbox` structurally satisfies most of {@link SandboxInstance} but
- * carries neither `worktreePath` nor `homeDir` — those are our path seams, not
- * the SDK's concept. Attach the Vercel-fixed values in place (preserving the
- * instance's prototype methods and `this` binding) and surface it as the
- * portable interface.
+ * Adapts an `@vercel/sandbox` `Sandbox` to {@link HibernatingSandbox}. The SDK
+ * `Sandbox` structurally satisfies most of the core {@link SandboxInstance} but
+ * carries neither the `worktreePath` / `homeDir` path seams (our concept, not
+ * the SDK's) nor the hibernation capability's `isRunning()` predicate. Attach
+ * all three in place — preserving the instance's prototype methods and `this`
+ * binding — so the returned object both supplies the portable path values and
+ * advertises hibernation through {@link supportsHibernation}. Vercel Sandbox is
+ * a full hibernating backend: snapshot/restore, resume of a stopped VM, and the
+ * auto-stop timeout all map straight through the SDK.
  */
-function adaptVercelSandbox(sandbox: Sandbox): SandboxInstance {
+function adaptVercelSandbox(sandbox: Sandbox): HibernatingSandbox {
   return Object.assign(sandbox, {
     worktreePath: VERCEL_WORKTREE_PATH,
     homeDir: VERCEL_HOME_DIR,
-  }) as unknown as SandboxInstance
+    isRunning: () => sandbox.status === "running",
+  }) as unknown as HibernatingSandbox
 }
 
 /**
  * Vercel Sandbox implementation of {@link SandboxProvider}. A thin adapter over
  * `@vercel/sandbox`'s static `Sandbox.create` / `Sandbox.get` — the SDK already
  * returns instances that structurally satisfy most of {@link SandboxInstance};
- * {@link adaptVercelSandbox} only attaches the provider-supplied path seams.
+ * {@link adaptVercelSandbox} attaches the provider-supplied path seams and the
+ * hibernation capability.
  *
  * Auth: `@vercel/sandbox` authenticates via the OIDC token Vercel injects
  * automatically in production (and that `vercel env pull` writes to
