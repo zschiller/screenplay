@@ -64,8 +64,10 @@ import { SelectionOverlay } from "./selection-overlay"
 import {
   anchorCornerForEdge,
   computeDeviceSnap,
+  computeMergeSnap,
   computeMoveSnap,
   type AnchorCorner,
+  type MergeSnapCandidate,
   type ResizeEdge,
   type SnapCandidate,
   type SnapGuide,
@@ -340,8 +342,22 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     appliedSnap: { x: number; y: number }
   } | null>(null)
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([])
-  /** Tracks cmd/meta during a group drag so we can suppress the snap preview live. */
-  const [groupDragMetaKey, setGroupDragMetaKey] = useState(false)
+  /**
+   * Merge-snap state for the current group drag. The merge targets (every
+   * other group's trailing "+ frame" slot) and the dragged group's member
+   * sizes are stationary for the gesture, so they're captured once at drag
+   * start; only the source's live position changes, which `applyMergeSnap`
+   * reads each heartbeat. `null` whenever the drag can't merge (multi-group
+   * drag, or no source group).
+   */
+  const mergeSnapStateRef = useRef<{
+    sourceContentW: number
+    sourceContentH: number
+    memberSizes: Array<{ width: number; height: number }>
+    candidates: MergeSnapCandidate[]
+  } | null>(null)
+  /** World-space highlight rects for the merge preview — drives `GroupMergeUnderlay`. */
+  const [groupDragSnapRects, setGroupDragSnapRects] = useState<MoveSnapRect[] | null>(null)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
   const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
   /** True while the user is holding the meta/cmd key during a reorder drag —
@@ -362,21 +378,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     }
   }, [reorderDraggingIframeLayerId])
 
-  // Same idea for a group-merge drag — flip the snap suppression instantly
-  // when the user presses or releases cmd between mouse moves.
-  useEffect(() => {
-    if (!draggingSourceGroupId) {
-      setGroupDragMetaKey(false)
-      return
-    }
-    const onKey = (ev: KeyboardEvent) => setGroupDragMetaKey(ev.metaKey)
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("keyup", onKey)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("keyup", onKey)
-    }
-  }, [draggingSourceGroupId])
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -733,71 +734,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     return names
   }, [sortedIframeLayerGroups])
 
-  /**
-   * Group-merge snap detection. While a single source group is being dragged,
-   * picks the nearest other group whose trailing-edge "+ frame" placeholder
-   * slot is closest to the source's leading edge. Holding meta/cmd disables
-   * the snap (the user can drop freely as a plain move). The threshold is a
-   * constant screen-pixel distance so the snap window feels the same at any
-   * zoom. Derived via `useMemo` so the rect and the ref stay in lockstep with
-   * the live group positions — no extra render passes.
-   */
-  const groupDragSnap = useMemo(() => {
-    if (!draggingSourceGroupId || groupDragMetaKey) return null
-    const source = iframeLayerGroups.find((g) => g.id === draggingSourceGroupId)
-    if (!source) return null
-    const sourceContentW = groupContentWidth(source, iframeLayers, markdownLayers)
-    const sourceContentH = groupContentHeight(source, iframeLayers, markdownLayers)
-    if (sourceContentW === 0 || sourceContentH === 0) return null
-    // Fixed world-space snap radius so the zone stays proportional to the
-    // content at any zoom level.
-    const snapDistance = 150
-    let best:
-      | { groupId: string; dist: number; x: number; y: number; gap: number }
-      | null = null
-    for (const target of iframeLayerGroups) {
-      if (target.id === source.id) continue
-      const members = getGroupMembers(target)
-      if (members.length === 0) continue
-      const targetContentW = groupContentWidth(target, iframeLayers, markdownLayers)
-      const gap = groupGap(target)
-      const placeholderX = target.x + targetContentW + gap
-      const placeholderY = target.y
-      const dx = source.x - placeholderX
-      const dy = source.y - placeholderY
-      const dist = Math.hypot(dx, dy)
-      if (dist < snapDistance && (!best || dist < best.dist)) {
-        best = { groupId: target.id, dist, x: placeholderX, y: placeholderY, gap }
-      }
-    }
-    if (!best) return null
-    // One rect per source member, laid out at the positions they'd occupy in
-    // the merged target row. The target's gap is used between them so the
-    // preview matches the actual post-merge layout.
-    const sourceMembers = getGroupMembers(source)
-    const rects: Array<{ x: number; y: number; width: number; height: number }> = []
-    let cursorX = best.x
-    for (const m of sourceMembers) {
-      const size =
-        m.kind === "iframe-layer"
-          ? collections.iframeLayers.get(m.id)
-          : collections.markdownLayers.get(m.id)
-      if (!size) continue
-      rects.push({ x: cursorX, y: best.y, width: size.width, height: size.height })
-      cursorX += size.width + best.gap
-    }
-    if (rects.length === 0) return null
-    return { targetGroupId: best.groupId, rects }
-  }, [draggingSourceGroupId, groupDragMetaKey, iframeLayerGroups, iframeLayers, markdownLayers, zoom, collections])
-
-  // Mirror the live snap into a ref so the drag-end handler (called from the
-  // layer's pointerup, outside this component's render) can read the latest
-  // target without subscribing to renders.
-  useEffect(() => {
-    groupDragTargetRef.current = groupDragSnap?.targetGroupId ?? null
-  }, [groupDragSnap])
-  const groupDragSnapRects = groupDragSnap?.rects ?? null
-
   // World-space rects for each group's trailing "add frame" placeholder, the
   // inter-member gap handles, and the per-member reorder dots — all derived by
   // the layout module from the effective layout above and the live selection.
@@ -1130,6 +1066,60 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [collections],
   )
 
+  /**
+   * Recompute the group merge-snap from the source group's *live* position and
+   * publish the result: the hot target into `groupDragTargetRef` (read by the
+   * drag-end handler) and the highlight rects into state (drawn by
+   * `GroupMergeUnderlay`). No-op when the drag can't merge (multi-group drag,
+   * no captured state) or when meta/cmd is held to drop freely. Called off the
+   * render path — at drag start, from the move heartbeat after the move is
+   * applied, and from the meta-key listener so the preview flips the instant
+   * cmd is pressed or released between moves.
+   */
+  const applyMergeSnap = useCallback(
+    (metaKey: boolean) => {
+      const state = mergeSnapStateRef.current
+      const sourceId = groupDragSourceRef.current
+      if (!state || !sourceId || metaKey) {
+        groupDragTargetRef.current = null
+        setGroupDragSnapRects(null)
+        return
+      }
+      const source = collections.iframeLayerGroups.get(sourceId)
+      if (!source) {
+        groupDragTargetRef.current = null
+        setGroupDragSnapRects(null)
+        return
+      }
+      const result = computeMergeSnap({
+        rect: {
+          x: source.x,
+          y: source.y,
+          width: state.sourceContentW,
+          height: state.sourceContentH,
+        },
+        memberSizes: state.memberSizes,
+        candidates: state.candidates,
+      })
+      groupDragTargetRef.current = result?.targetId ?? null
+      setGroupDragSnapRects(result?.rects ?? null)
+    },
+    [collections],
+  )
+
+  // Flip the merge-snap preview the instant cmd/meta is pressed or released
+  // between moves — meta held drops the group freely instead of merging.
+  useEffect(() => {
+    if (!draggingSourceGroupId) return
+    const onKey = (ev: KeyboardEvent) => applyMergeSnap(ev.metaKey)
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [draggingSourceGroupId, applyMergeSnap])
+
   const handleLayerGroupDragStart = useCallback(
     (layerId: string) => {
       layerDraggingRef.current = true
@@ -1147,6 +1137,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (groupIds.size !== 1) {
         groupDragSourceRef.current = null
         groupDragTargetRef.current = null
+        mergeSnapStateRef.current = null
+        setGroupDragSnapRects(null)
         setDraggingSourceGroupId(null)
         return
       }
@@ -1154,6 +1146,51 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       groupDragSourceRef.current = sourceId
       groupDragTargetRef.current = null
       setDraggingSourceGroupId(sourceId)
+
+      // Merge-snap setup. The merge targets are every *other* non-empty group's
+      // trailing "+ frame" slot; those don't move during this drag, so capture
+      // them — along with the dragged group's member sizes — once here. The
+      // source's live position is read each heartbeat in `applyMergeSnap`.
+      mergeSnapStateRef.current = null
+      setGroupDragSnapRects(null)
+      const sourceGroup = collections.iframeLayerGroups.get(sourceId)
+      if (sourceGroup) {
+        const abArr = collections.iframeLayers.toArray()
+        const docArr = collections.markdownLayers.toArray()
+        const memberSizes: Array<{ width: number; height: number }> = []
+        for (const m of getGroupMembers(sourceGroup)) {
+          const size =
+            m.kind === "iframe-layer"
+              ? collections.iframeLayers.get(m.id)
+              : collections.markdownLayers.get(m.id)
+          if (size) memberSizes.push({ width: size.width, height: size.height })
+        }
+        const mergeCandidates: MergeSnapCandidate[] = []
+        for (const target of collections.iframeLayerGroups.toArray()) {
+          if (target.id === sourceId) continue
+          if (getGroupMembers(target).length === 0) continue
+          mergeCandidates.push({
+            id: target.id,
+            rect: {
+              x: target.x,
+              y: target.y,
+              width: groupContentWidth(target, abArr, docArr),
+              height: groupContentHeight(target, abArr, docArr),
+            },
+            gap: groupGap(target),
+          })
+        }
+        mergeSnapStateRef.current = {
+          sourceContentW: groupContentWidth(sourceGroup, abArr, docArr),
+          sourceContentH: groupContentHeight(sourceGroup, abArr, docArr),
+          memberSizes,
+          candidates: mergeCandidates,
+        }
+        // Seed the preview from the resting position so a drag that begins
+        // already over a target's slot goes hot immediately, matching the
+        // previous render-path memo.
+        applyMergeSnap(false)
+      }
 
       // Edge-snap setup. Compute the union bbox of every layer that will move
       // (all members of the affected groups) and collect the rects of every
@@ -1194,7 +1231,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         dragSnapStateRef.current = null
       }
     },
-    [collections],
+    [collections, applyMergeSnap],
   )
 
   /**
@@ -1208,7 +1245,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (metaKey: boolean) => {
       layerDraggingRef.current = false
       dragSnapStateRef.current = null
+      mergeSnapStateRef.current = null
       setSnapGuides([])
+      setGroupDragSnapRects(null)
       const sourceId = groupDragSourceRef.current
       const targetId = groupDragTargetRef.current
       groupDragSourceRef.current = null
@@ -3811,8 +3850,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
       if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
+      // Source position has moved — recompute the merge preview off-render.
+      applyMergeSnap(metaKey)
     },
-    [moveIframeLayersByDelta, applyMoveSnap],
+    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap],
   )
 
   /**
@@ -3831,8 +3872,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     ) => {
       const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
       moveIframeLayersByDelta([layerId], adjDx, adjDy)
+      // Source position has moved — recompute the merge preview off-render.
+      applyMergeSnap(metaKey)
     },
-    [moveIframeLayersByDelta, applyMoveSnap],
+    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap],
   )
 
   const handlePointerMove = useCallback(

@@ -1,5 +1,5 @@
 /**
- * Canvas snapping — the two pure snap kinds that fire during canvas
+ * Canvas snapping — the three pure snap kinds that fire during canvas
  * interactions, co-located next to `ops.ts` and the Canvas Layout module:
  *
  *   - **move-snap** (`computeMoveSnap`): a dragged rect aligns to its peers'
@@ -7,10 +7,12 @@
  *     the Snap Guides drawn during the drag.
  *   - **resize-snap** (`computeDeviceSnap`): an Iframe Layer's size clamps to
  *     the nearest standard device size within a threshold.
+ *   - **merge-snap** (`computeMergeSnap`): a dragged Group goes "hot" against
+ *     the nearest other Group whose trailing "+ frame" slot is within a
+ *     threshold, returning the hot target plus the rects to highlight for the
+ *     merged-row preview.
  *
- * Both are React-free and Yjs-free, with the threshold as a parameter.
- * Group merge-snap is intentionally not here — it is still inline in
- * `canvas.tsx`.
+ * All three are React-free and Yjs-free, with the threshold as a parameter.
  */
 
 import {
@@ -411,4 +413,91 @@ export function rectFromAnchor(
     case "br":
       return { x: anchorX - width, y: anchorY - height }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Merge-snap
+//
+// Group merge detection during a single-group drag: the dragged Group goes
+// "hot" against the nearest other Group whose trailing "+ frame" placeholder
+// slot lands within a fixed world-space radius of the dragged Group's leading
+// (top-left) corner. Each candidate carries its own content rect and gap; the
+// trailing slot sits at `rect.x + rect.width + gap`, top-aligned with the
+// candidate (`rect.y`). On a hit we lay out one highlight rect per source
+// member starting at that slot, flexed left-to-right with the target's gap, so
+// the preview matches the post-merge layout.
+//
+// Distances are world-space (not screen pixels) so the snap zone stays
+// proportional to the content at any zoom — the same convention the inline
+// implementation used before it moved here.
+// ---------------------------------------------------------------------------
+
+/** A Group the dragged Group could merge into. */
+export interface MergeSnapCandidate {
+  /** Identifier echoed back as the hot target. */
+  id: string
+  /** The candidate Group's content rect in world space. */
+  rect: Rect
+  /** The candidate's inter-member gap — positions the trailing slot and spaces the preview. */
+  gap: number
+}
+
+export interface MergeSnapResult {
+  /** The Group the dragged Group would merge into. */
+  targetId: string
+  /** One highlight rect per source member, laid out in the merged target row. */
+  rects: Rect[]
+}
+
+/** A Group goes hot within this many *world* units of a target's trailing slot. */
+export const MERGE_SNAP_THRESHOLD = 150
+
+/**
+ * Pick the nearest merge target for a dragged Group, or `null` when none is
+ * within threshold (or the dragged Group has no extent / no laid-out members).
+ *
+ * `rect` is the dragged Group's content rect; only its top-left corner drives
+ * detection, while its width/height guard against degenerate (zero-size)
+ * groups. `memberSizes` are the dragged Group's member box sizes in member
+ * order — used to build the highlight preview at the chosen slot.
+ */
+export function computeMergeSnap(opts: {
+  rect: Rect
+  memberSizes: readonly { width: number; height: number }[]
+  candidates: readonly MergeSnapCandidate[]
+  threshold?: number
+}): MergeSnapResult | null {
+  const { rect, memberSizes, candidates } = opts
+  const threshold = opts.threshold ?? MERGE_SNAP_THRESHOLD
+
+  // Degenerate source (no resolvable members) can't merge into anything.
+  if (rect.width === 0 || rect.height === 0) return null
+
+  let best:
+    | { id: string; dist: number; x: number; y: number; gap: number }
+    | null = null
+  for (const c of candidates) {
+    const placeholderX = c.rect.x + c.rect.width + c.gap
+    const placeholderY = c.rect.y
+    const dx = rect.x - placeholderX
+    const dy = rect.y - placeholderY
+    const dist = Math.hypot(dx, dy)
+    if (dist < threshold && (!best || dist < best.dist)) {
+      best = { id: c.id, dist, x: placeholderX, y: placeholderY, gap: c.gap }
+    }
+  }
+  if (!best) return null
+
+  // One rect per source member, laid out at the positions they'd occupy in the
+  // merged target row. The target's gap is used between them so the preview
+  // matches the actual post-merge layout.
+  const rects: Rect[] = []
+  let cursorX = best.x
+  for (const size of memberSizes) {
+    rects.push({ x: cursorX, y: best.y, width: size.width, height: size.height })
+    cursorX += size.width + best.gap
+  }
+  if (rects.length === 0) return null
+
+  return { targetId: best.id, rects }
 }
