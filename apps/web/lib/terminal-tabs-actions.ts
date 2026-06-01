@@ -2,6 +2,7 @@
 
 import { requireUserId } from "@/lib/auth-helpers"
 import { requireMember } from "@/lib/rooms"
+import { killTerminalSession } from "@/lib/sandbox/terminal"
 import {
   deleteTerminalTab as deleteTerminalTabFn,
   insertTerminalTab,
@@ -51,4 +52,22 @@ export async function deleteTerminalTabAction(opts: {
   const userId = await requireUserId()
   await requireMember(opts.roomId, userId)
   await deleteTerminalTabFn({ id: opts.id, userId })
+}
+
+/**
+ * Kill a closed tab's `tmux` session, ending its shell and any running process
+ * (e.g. a Claude Code harness) — the second half of clicking X (#259), separate
+ * from {@link deleteTerminalTabAction}'s row removal so a sandbox that's down
+ * never blocks the tab from going away. Gated on room membership; the session
+ * name is derived server-side from `terminalSessionId`. A missing session (the
+ * sandbox was reclaimed, say) resolves successfully.
+ */
+export async function killTerminalSessionAction(opts: {
+  roomId: string
+  sandboxName: string
+  terminalSessionId: string
+}): Promise<void> {
+  const userId = await requireUserId()
+  await requireMember(opts.roomId, userId)
+  await killTerminalSession(opts.sandboxName, opts.terminalSessionId)
 }

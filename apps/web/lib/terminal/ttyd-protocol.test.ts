@@ -107,4 +107,10 @@ describe("terminalWebSocketUrl", () => {
       "wss://abc-7681.vercel.run/ws",
     )
   })
+
+  it("appends the tmux session as ttyd's ?arg= when given a command arg", () => {
+    expect(
+      terminalWebSocketUrl("https://abc-7681.vercel.run", "screenplay-tab1"),
+    ).toBe("wss://abc-7681.vercel.run/ws?arg=screenplay-tab1")
+  })
 })
