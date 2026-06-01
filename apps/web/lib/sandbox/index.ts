@@ -3,7 +3,9 @@ import "server-only"
 import { getVercelSandboxProvider } from "@/lib/sandbox/vercel"
 import type { SandboxProvider } from "@/lib/sandbox/types"
 
+export { supportsHibernation } from "@/lib/sandbox/types"
 export type {
+  HibernatingSandbox,
   SandboxCommandResult,
   SandboxCreateOptions,
   SandboxFile,

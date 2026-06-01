@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type {
+  HibernatingSandbox,
   SandboxCommandResult,
   SandboxCreateOptions,
   SandboxGetOptions,
@@ -63,7 +64,14 @@ const fake = vi.hoisted(() => {
   }
 })
 
-vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
+// The mock replaces the provider singleton with the fake but keeps the real
+// `supportsHibernation` guard — the branching under test keys on it, so faking
+// the guard would defeat the point. Its detection (presence of `isRunning`)
+// mirrors `lib/sandbox/types.ts`.
+vi.mock("@/lib/sandbox", () => ({
+  sandboxProvider: fake.provider,
+  supportsHibernation: (s: { isRunning?: unknown }) => typeof s?.isRunning === "function",
+}))
 
 // restartSandbox folds the provider registry into the sandbox network policy.
 // Stub it to an empty set — the egress policy is covered by
@@ -114,11 +122,18 @@ type Scripted = { exitCode: number; stdout?: string; stderr?: string }
  * `snapshot` returns a scripted id (or throws); `extendTimeout` is a spy so the
  * keep-alive path can be asserted. Only the surface the actions touch is
  * implemented — everything else throws so an accidental dependency is loud.
+ *
+ * `hibernating` (default `true`, mirroring Vercel) controls whether the
+ * instance advertises the hibernation capability: a hibernating fake carries
+ * `isRunning()` (which {@link supportsHibernation} keys on); a non-hibernating
+ * one omits it and wires `snapshot`/`extendTimeout` to throw, so the tests can
+ * prove those hibernation methods are never called on the portable path.
  */
 function fakeSandbox(
   opts: {
     name?: string
     status?: string
+    hibernating?: boolean
     respond?: (cmd: string, args: string[]) => Scripted
     snapshotId?: string
     snapshotError?: boolean
@@ -126,6 +141,8 @@ function fakeSandbox(
     extendTimeout?: (ms: number) => void
   } = {},
 ): SandboxInstance {
+  const hibernating = opts.hibernating ?? true
+  const status = opts.status ?? "running"
   const respond: (cmd: string, args: string[]) => Scripted = opts.respond ?? (() => ({ exitCode: 0 }))
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
@@ -146,26 +163,35 @@ function fakeSandbox(
     }
     return Promise.resolve(result)
   }
-  return {
+  const sandbox: SandboxInstance = {
     name: opts.name ?? "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/root",
-    status: opts.status ?? "running",
+    status,
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
       if (opts.writeError) throw new Error(opts.writeError)
     },
     readFileToBuffer: notUsed("readFileToBuffer") as never,
-    extendTimeout: async (ms: number) => {
-      opts.extendTimeout?.(ms)
-    },
-    snapshot: async () => {
-      if (opts.snapshotError) throw new Error("snapshot failed")
-      return { snapshotId: opts.snapshotId ?? "snap-1" }
-    },
+    // On the portable (non-hibernating) path these must never be reached.
+    extendTimeout: hibernating
+      ? async (ms: number) => {
+          opts.extendTimeout?.(ms)
+        }
+      : (notUsed("extendTimeout") as never),
+    snapshot: hibernating
+      ? async () => {
+          if (opts.snapshotError) throw new Error("snapshot failed")
+          return { snapshotId: opts.snapshotId ?? "snap-1" }
+        }
+      : (notUsed("snapshot") as never),
     delete: async () => {},
   }
+  if (hibernating) {
+    ;(sandbox as HibernatingSandbox).isRunning = () => sandbox.status === "running"
+  }
+  return sandbox
 }
 
 const GH_TOKEN = "ghp_0123456789abcdefABCDEF0123456789abcd"
@@ -220,6 +246,16 @@ describe("keepAliveSandbox", () => {
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
+  })
+
+  it("is a clean no-op on a non-hibernating provider (no timer to extend)", async () => {
+    // The fake's extendTimeout throws if reached — success here proves keep-alive
+    // never touched a hibernation method on the portable provider.
+    fake.setGet(fakeSandbox({ hibernating: false, status: "running" }))
+
+    const result = await keepAliveSandbox("sandbox-a")
+
+    expect(result).toEqual({ success: true, value: undefined })
   })
 })
 
@@ -292,13 +328,35 @@ describe("restartSandbox", () => {
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
   })
+
+  it("reclones fresh on a non-hibernating provider without ever snapshotting", async () => {
+    // The old instance can't hibernate (its snapshot() throws if reached), so the
+    // restart skips snapshot/restore and reclones from git instead.
+    fake.setGet(fakeSandbox({ hibernating: false }))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+
+    const result = await restartSandbox("sandbox-a", repo, "feature")
+
+    expect(result).toEqual({
+      success: true,
+      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+    })
+    // Took the reclone-fresh branch: created from a git source and ran the
+    // full provision pipeline rather than booting from a snapshot.
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "git",
+      url: "https://github.com/octocat/hello-world.git",
+      revision: "feature",
+    })
+    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
+  })
 })
 
 describe("reconnectSandbox", () => {
   it("returns the running preview without relaunching when the sandbox is already up", async () => {
     fake.setGet(fakeSandbox({ status: "running" }))
 
-    const result = await reconnectSandbox("sandbox-a", 3000)
+    const result = await reconnectSandbox("sandbox-a", repo, "feature")
 
     // Preview points at the proxy port (devserver port + 1000), and the action
     // took the early branch — a single resume:false probe, no second resolve to
@@ -311,18 +369,41 @@ describe("reconnectSandbox", () => {
     expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
   })
 
-  it("resumes and relaunches the dev server when the sandbox has stopped", async () => {
+  it("resumes and relaunches the dev server when a hibernating sandbox has stopped", async () => {
     fake.setGet(fakeSandbox({ status: "stopped" }))
 
-    const result = await reconnectSandbox("sandbox-a", 3000)
+    const result = await reconnectSandbox("sandbox-a", repo, "feature")
 
     expect(result).toEqual({
       success: true,
       value: { sandboxName: "fake-sandbox", previewDomain: "https://fake-4000.example.com" },
     })
-    // Probed without resuming, then resolved again to relaunch.
+    // Probed without resuming, then resolved again to relaunch — no reclone.
     expect(fake.getCalls).toHaveLength(2)
     expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
+    expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("reclones fresh when a non-hibernating sandbox is not running", async () => {
+    // Stopped + no hibernation capability: there's no VM to resume, so reconnect
+    // provisions a fresh clone from git rather than calling a resume that means
+    // nothing to the provider.
+    fake.setGet(fakeSandbox({ status: "stopped", hibernating: false }))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+
+    const result = await reconnectSandbox("sandbox-a", repo, "feature")
+
+    expect(result).toEqual({
+      success: true,
+      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+    })
+    // The reclone-fresh path created a VM from a git source and provisioned it.
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "git",
+      url: "https://github.com/octocat/hello-world.git",
+      revision: "feature",
+    })
+    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
   })
 
   it("returns a redacted failure when the resume + relaunch throws", async () => {
@@ -330,7 +411,7 @@ describe("reconnectSandbox", () => {
     // the dev server, and that relaunch throws with a token in the message.
     fake.setGet(fakeSandbox({ status: "stopped", writeError: `relaunch failed using ${GH_TOKEN}` }))
 
-    const result = await reconnectSandbox("sandbox-a", 3000)
+    const result = await reconnectSandbox("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -341,7 +422,7 @@ describe("reconnectSandbox", () => {
   it("returns a redacted failure when the initial probe throws", async () => {
     fake.setGetError(new Error(`resolve failed using ${GH_TOKEN}`))
 
-    const result = await reconnectSandbox("sandbox-a", 3000)
+    const result = await reconnectSandbox("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
