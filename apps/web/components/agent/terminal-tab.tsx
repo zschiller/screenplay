@@ -11,6 +11,7 @@ import {
   terminalWebSocketUrl,
   TTYD_SUBPROTOCOL,
 } from "@/lib/terminal/ttyd-protocol"
+import { tmuxSessionName } from "@/lib/terminal/session"
 
 interface TerminalTabProps {
   /** Shared live-view identity — collaborators opening the same id co-view one PTY. */
@@ -151,7 +152,13 @@ export function TerminalTab({ sessionId, roomId, sandboxName }: TerminalTabProps
       })
 
       // 3. Connect straight to the daemon's WebSocket and speak ttyd's protocol.
-      const ws = new WebSocket(terminalWebSocketUrl(url), [TTYD_SUBPROTOCOL])
+      //    The tab's tmux session name rides along as ttyd's `?arg=`, so the
+      //    daemon attaches-or-creates this tab's own persistent session — a
+      //    reload reattaches to the same shell with its process still running.
+      const ws = new WebSocket(
+        terminalWebSocketUrl(url, tmuxSessionName(sessionId)),
+        [TTYD_SUBPROTOCOL],
+      )
       ws.binaryType = "arraybuffer"
 
       ws.onopen = () => {

@@ -39,7 +39,8 @@ const fake = vi.hoisted(() => {
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
 import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
-import { ensureTerminal } from "@/lib/sandbox/terminal"
+import { ensureTerminal, killTerminalSession } from "@/lib/sandbox/terminal"
+import { tmuxSessionName } from "@/lib/terminal/session"
 
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 type Issued = { cmd: string; args: string[]; detached: boolean }
@@ -107,6 +108,11 @@ function isLaunch(issued: Issued): boolean {
   return issued.detached && issued.args.some((a) => a.includes("setsid"))
 }
 
+/** The single command string of an issued `sh -c …` invocation. */
+function script(issued: Issued): string {
+  return issued.args.join(" ")
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -141,6 +147,38 @@ describe("ensureTerminal", () => {
     expect(issued.some(isLaunch)).toBe(false)
   })
 
+  it("provisions a static tmux binary (the base image ships none)", async () => {
+    const { sandbox, issued } = fakeSandbox(REPORTS_RUNNING)
+    fake.setInstance(sandbox)
+
+    await ensureTerminal("sandbox-a")
+
+    // One install step fetches the tmux tarball and extracts the binary.
+    const install = issued.find(
+      (i) => script(i).includes("/tmp/screenplay/tmux") && script(i).includes("curl"),
+    )
+    expect(install).toBeDefined()
+    expect(script(install!)).toContain("tmux-builds")
+    expect(script(install!)).toContain("tar -xzf")
+    // Idempotent: a present binary short-circuits the download.
+    expect(script(install!)).toContain("[ -x /tmp/screenplay/tmux ]")
+  })
+
+  it("launches ttyd with --url-arg and tmux attach-or-create as its command", async () => {
+    const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
+    fake.setInstance(sandbox)
+
+    await ensureTerminal("sandbox-a")
+
+    const launch = issued.find(isLaunch)
+    expect(launch).toBeDefined()
+    const cmd = script(launch!)
+    // --url-arg lets each client append its per-tab session name as ?arg=…
+    expect(cmd).toContain("--url-arg")
+    // Base command is the bundled tmux attaching-or-creating a named session.
+    expect(cmd).toContain("/tmp/screenplay/tmux new -A -s")
+  })
+
   it("returns a redacted failure when a step fails, without spilling a token", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     // The install step exits non-zero with a token in its stderr.
@@ -151,6 +189,40 @@ describe("ensureTerminal", () => {
     fake.setInstance(sandbox)
 
     const result = await ensureTerminal("sandbox-a")
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).not.toContain(token)
+    expect(result.error).toContain("[REDACTED]")
+  })
+})
+
+describe("killTerminalSession", () => {
+  it("kills the tab's namespaced tmux session, tolerating a missing one", async () => {
+    const { sandbox, issued } = fakeSandbox()
+    fake.setInstance(sandbox)
+
+    const result = await killTerminalSession("sandbox-a", "tab-1")
+
+    expect(result).toEqual({ success: true, value: undefined })
+    const kill = issued.find((i) => script(i).includes("kill-session"))
+    expect(kill).toBeDefined()
+    const cmd = script(kill!)
+    expect(cmd).toContain(`kill-session -t ${tmuxSessionName("tab-1")}`)
+    expect(cmd).toContain("/tmp/screenplay/tmux")
+    // `|| true` keeps closing an already-ended tab from failing.
+    expect(cmd).toContain("|| true")
+  })
+
+  it("surfaces a redacted failure when the kill step errors", async () => {
+    const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
+    const { sandbox } = fakeSandbox(() => ({
+      exitCode: 1,
+      stderr: `boom ${token}`,
+    }))
+    fake.setInstance(sandbox)
+
+    const result = await killTerminalSession("sandbox-a", "tab-1")
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
