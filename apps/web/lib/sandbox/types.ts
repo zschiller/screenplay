@@ -132,10 +132,56 @@ export interface SandboxInstance {
 }
 
 /**
+ * The optional **hibernation** capability: snapshot / resume / auto-stop-timeout.
+ * Extends the portable core with the operations only a backend that can freeze
+ * and thaw a VM can honor:
+ *
+ * - `snapshot()` — capture the filesystem and stop the VM.
+ * - `extendTimeout()` — push back the auto-stop timer (the keep-alive heartbeat).
+ * - `isRunning()` — liveness, replacing a stringly-typed `status === "running"`.
+ * - the **resume affordance** — booting a stopped VM back up, reached through
+ *   {@link SandboxProvider.get} with `resume: true`.
+ *
+ * Reached only by narrowing a core instance through {@link supportsHibernation};
+ * the guard's `else` branch is always the portable "reclone fresh" path. A
+ * provider that can't hibernate degrades to recloning rather than calling
+ * methods that mean nothing to it.
+ *
+ * Transitional note: the core {@link SandboxInstance} above still re-declares
+ * `snapshot()` and `extendTimeout()` so existing call sites keep compiling.
+ * Conceptually those belong to this capability — *removing* them from the core
+ * (so the types make hibernation unreachable without the guard, and `status`
+ * gives way to `isRunning()`) is the follow-up tightening step. For now the
+ * guard discriminates on `isRunning`, the one method the core does not carry.
+ */
+export interface HibernatingSandbox extends SandboxInstance {
+  /** True while the VM is up and serving — the portable liveness predicate. */
+  isRunning(): boolean
+  snapshot(opts?: { expiration?: number }): Promise<{ snapshotId: string }>
+  extendTimeout(ms: number): Promise<void>
+}
+
+/**
+ * Type guard narrowing a core {@link SandboxInstance} to a
+ * {@link HibernatingSandbox}. This guard — not optional methods, not a
+ * capabilities bag — is the decision: hibernation methods are unreachable
+ * without narrowing through it, so the reclone-fresh fallback can't be silently
+ * forgotten and a half-implementing provider can't slip through. Detects the
+ * capability by the presence of `isRunning`, the one method the core does not
+ * carry, so it stays a reliable discriminator even while `snapshot()` /
+ * `extendTimeout()` still live on the core during the transition.
+ */
+export function supportsHibernation(s: SandboxInstance): s is HibernatingSandbox {
+  return typeof (s as Partial<HibernatingSandbox>).isRunning === "function"
+}
+
+/**
  * A factory for sandbox VMs. Implementations are interchangeable as long as
  * the returned {@link SandboxInstance} objects honor the contract above — the
  * higher-level sandbox workflows in `lib/sandbox/*` are written against this
- * interface, not any specific SDK.
+ * interface, not any specific SDK. A provider whose instances also satisfy
+ * {@link HibernatingSandbox} additionally supports snapshot/resume/timeout;
+ * one whose instances do not falls through to the portable reclone path.
  */
 export interface SandboxProvider {
   create(opts: SandboxCreateOptions): Promise<SandboxInstance>

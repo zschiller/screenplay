@@ -3,7 +3,7 @@
 import { getModelProviders } from "@/lib/agent/providers"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
-import { sandboxProvider } from "@/lib/sandbox"
+import { sandboxProvider, supportsHibernation } from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   BROKERED_ANTHROPIC_ENV,
@@ -57,13 +57,21 @@ export async function removeSandboxEnv(sandboxName: string): Promise<void> {
  * plan maximum (5 hours Pro). Resolves with `resume:false` so a stopped sandbox
  * stays stopped — the keep-alive heartbeat must never wake a VM the user has
  * walked away from — and reports that as a failure rather than reviving it.
+ *
+ * The auto-stop timer is a hibernation concern: a provider with no such timer
+ * has nothing to extend, so on the non-hibernating path keep-alive is a clean
+ * no-op (success) rather than an error.
  */
 export async function keepAliveSandbox(
   sandboxName: string,
 ): Promise<SandboxActionResult<void>> {
   try {
     const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
-    if (sandbox.status !== "running") {
+    if (!supportsHibernation(sandbox)) {
+      // No auto-stop timer to push back — nothing to keep alive.
+      return { success: true, value: undefined }
+    }
+    if (!sandbox.isRunning()) {
       return { success: false, error: "Sandbox is not running" }
     }
     await sandbox.extendTimeout(SANDBOX_TIMEOUT)
@@ -77,20 +85,29 @@ export async function keepAliveSandbox(
 /**
  * Reconnect to a sandbox after a page reload. Probes the current state with
  * `resume:false` first: if the VM is still running, returns its preview domain
- * straight away rather than relaunching a dev server that's already up. If it
- * has timed out, resumes it and relaunches the dev + proxy through the runner.
- * Returns the uniform contract — success/failure is the discriminant, so the
- * old `status` field is gone.
+ * straight away rather than relaunching a dev server that's already up.
+ *
+ * When the VM is no longer running the recovery branches on the hibernation
+ * capability: a hibernating provider resumes the stopped VM and relaunches the
+ * dev + proxy (preserving the in-VM working tree); a non-hibernating provider
+ * has no resume affordance, so it reclones fresh from git via
+ * {@link reprovisionFromGit} — un-pushed edits are lost, an accepted
+ * degradation. Takes the repo + branch so the reclone path has a source to
+ * provision from. Returns the uniform contract — success/failure is the
+ * discriminant, so the old `status` field is gone.
  */
 export async function reconnectSandbox(
   sandboxName: string,
-  port: number = 3000,
-  devScript?: string,
+  repo: RepoData,
+  branch: string,
+  ghToken?: string,
 ): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
+  const port = repo.devServerPort
+  let check
   try {
     // Check current status without resuming — a running sandbox is left
     // untouched so we don't spawn a duplicate dev server.
-    const check = await sandboxProvider.get({ name: sandboxName, resume: false })
+    check = await sandboxProvider.get({ name: sandboxName, resume: false })
     if (check.status === "running") {
       return {
         success: true,
@@ -104,11 +121,19 @@ export async function reconnectSandbox(
     return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }
   }
 
-  // Timed out — resume it and restart the dev server. The runner resolves the
-  // instance (resuming it) and redacts any failure on the way out.
+  const safeEnv = await getEnvVars(sandboxName)
+
+  // Not running. A non-hibernating provider can't resume a stopped VM — it
+  // reclones fresh, the portable fallback.
+  if (!supportsHibernation(check)) {
+    return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
+  }
+
+  // Hibernating provider — resume the stopped VM and relaunch the dev server.
+  // The runner resolves the instance (resuming it) and redacts any failure on
+  // the way out.
   return runSandboxAction(sandboxName, async (sandbox) => {
-    const safeEnv = await getEnvVars(sandboxName)
-    const previewDomain = await launchDevAndProxy(sandbox, port, devScript, safeEnv)
+    const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
     return { sandboxName: sandbox.name, previewDomain }
   })
 }
@@ -120,6 +145,10 @@ export async function reconnectSandbox(
  * dev server, port forwards). Doesn't fetch from the remote: this is a pure
  * restart, not a sync. Falls back to a clean git clone if the old sandbox is
  * gone or snapshotting fails.
+ *
+ * Snapshot/restore is the hibernation path. A non-hibernating provider can't
+ * snapshot, so it skips straight to the reclone-fresh branch (working-tree
+ * preservation is the accepted degradation there).
  *
  * Creates a VM rather than resolving an existing one, so it can't ride the
  * `get`-based runner — it builds the uniform contract itself and redacts the
@@ -146,10 +175,14 @@ export async function restartSandbox(
     let snapshotId: string | undefined
     try {
       const old = await sandboxProvider.get({ name: sandboxName, resume: false })
-      try {
-        const snap = await old.snapshot({ expiration: SNAPSHOT_EXPIRATION })
-        snapshotId = snap.snapshotId
-      } catch {}
+      // Only a hibernating provider can capture a snapshot; a portable one
+      // leaves snapshotId unset and falls through to the reclone path below.
+      if (supportsHibernation(old)) {
+        try {
+          const snap = await old.snapshot({ expiration: SNAPSHOT_EXPIRATION })
+          snapshotId = snap.snapshotId
+        } catch {}
+      }
       try {
         await old.delete()
       } catch {}
