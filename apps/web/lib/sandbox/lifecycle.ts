@@ -3,7 +3,7 @@
 import { getModelProviders } from "@/lib/agent/providers"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
-import { sandboxProvider, supportsHibernation } from "@/lib/sandbox"
+import { isSandboxRunning, sandboxProvider, supportsHibernation } from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   BROKERED_ANTHROPIC_ENV,
@@ -84,54 +84,48 @@ export async function keepAliveSandbox(
 
 /**
  * Reconnect to a sandbox after a page reload. Probes the current state with
- * `resume:false` first: if the VM is still running, returns its preview domain
+ * `resume:false` first: if the sandbox is live, returns its preview domain
  * straight away rather than relaunching a dev server that's already up.
  *
- * When the VM is no longer running the recovery branches on the hibernation
- * capability: a hibernating provider resumes the stopped VM and relaunches the
- * dev + proxy (preserving the in-VM working tree); a non-hibernating provider
- * has no resume affordance, so it reclones fresh from git via
- * {@link reprovisionFromGit} — un-pushed edits are lost, an accepted
- * degradation. Takes the repo + branch so the reclone path has a source to
- * provision from. Returns the uniform contract — success/failure is the
- * discriminant, so the old `status` field is gone.
+ * Liveness is read through the portable {@link isSandboxRunning} predicate, not
+ * a `status === "running"` literal. A portable backend has no stopped-but-present
+ * state — its handle is live for as long as it exists — so a successful probe
+ * always lands in the reuse branch. Only a hibernating provider can observe a
+ * stopped-but-present VM; it resumes the VM (the runner's `get` wakes it) and
+ * relaunches the dev + proxy, preserving the in-VM working tree.
+ *
+ * If the probe throws (the sandbox is gone), the failure surfaces and the caller
+ * recreates from git via {@link restartSandbox} — so reconnect itself never needs
+ * a reclone branch or a git source. Returns the uniform contract.
  */
 export async function reconnectSandbox(
   sandboxName: string,
   repo: RepoData,
-  branch: string,
-  ghToken?: string,
 ): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
   const port = repo.devServerPort
   let check
   try {
-    // Check current status without resuming — a running sandbox is left
-    // untouched so we don't spawn a duplicate dev server.
+    // Check current state without resuming — a live sandbox is left untouched so
+    // we don't spawn a duplicate dev server.
     check = await sandboxProvider.get({ name: sandboxName, resume: false })
-    if (check.status === "running") {
-      return {
-        success: true,
-        value: {
-          sandboxName: check.name,
-          previewDomain: check.domain(port + PROXY_PORT_OFFSET),
-        },
-      }
-    }
   } catch (e) {
     return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }
   }
 
-  const safeEnv = await getEnvVars(sandboxName)
-
-  // Not running. A non-hibernating provider can't resume a stopped VM — it
-  // reclones fresh, the portable fallback.
-  if (!supportsHibernation(check)) {
-    return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
+  if (isSandboxRunning(check)) {
+    return {
+      success: true,
+      value: {
+        sandboxName: check.name,
+        previewDomain: check.domain(port + PROXY_PORT_OFFSET),
+      },
+    }
   }
 
-  // Hibernating provider — resume the stopped VM and relaunch the dev server.
-  // The runner resolves the instance (resuming it) and redacts any failure on
-  // the way out.
+  // Present but stopped — reachable only on a hibernating provider. Resume the
+  // VM and relaunch the dev server. The runner resolves the instance (resuming
+  // it) and redacts any failure on the way out.
+  const safeEnv = await getEnvVars(sandboxName)
   return runSandboxAction(sandboxName, async (sandbox) => {
     const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
     return { sandboxName: sandbox.name, previewDomain }

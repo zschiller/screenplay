@@ -81,13 +81,10 @@ function fakeSandbox(
     name: "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/root",
-    status: "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
     readFileToBuffer: notUsed("readFileToBuffer") as never,
-    extendTimeout: async () => {},
-    snapshot: notUsed("snapshot") as never,
     delete: async () => {},
   }
   return { sandbox, issued }
