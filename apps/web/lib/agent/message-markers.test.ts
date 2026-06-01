@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
   SKILL_MARKER_TOKEN,
   parseUserMessage,
   prependTurnMarkers,
+  serializeMention,
   serializeSkill,
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
@@ -150,5 +152,47 @@ describe("skillMarkersToPills", () => {
     expect(parsed.planMode).toBe(true)
     expect(parsed.branch).toBe("feat/x")
     expect(skillMarkersToPills(parsed.body)).toBe("[/tdd](skill:tdd)")
+  })
+})
+
+describe("serializeMention", () => {
+  it("renders the inline mention marker as a markdown link", () => {
+    expect(serializeMention("Spec", "doc-7")).toBe("[@Spec](mention:doc-7)")
+  })
+
+  it("matches the exported token's shape", () => {
+    expect(serializeMention("<title>", "<id>")).toBe(MENTION_MARKER_TOKEN)
+  })
+
+  it("leaves the mention token inline in the parsed body for the renderer", () => {
+    const wire = serializeMention("Design Notes", "doc-42")
+
+    // Mentions ride the markdown-link form straight through — no prefix to
+    // strip, no separate pill transform — so the renderer recovers the pill
+    // from `body` directly.
+    expect(parseUserMessage(wire).body).toBe("[@Design Notes](mention:doc-42)")
+  })
+
+  it("round-trips id and label exactly through parseUserMessage", () => {
+    const wire = serializeMention("Quarterly Plan", "layer-abc123")
+
+    const { body } = parseUserMessage(wire)
+    const match = body.match(/^\[@(.*)\]\(mention:(.*)\)$/)
+
+    expect(match?.[1]).toBe("Quarterly Plan")
+    expect(match?.[2]).toBe("layer-abc123")
+  })
+
+  it("survives server turn prefixes, leaving the mention token in the body", () => {
+    const wire = prependTurnMarkers(serializeMention("Spec", "doc-7"), {
+      planMode: true,
+      branch: "feat/x",
+    })
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.planMode).toBe(true)
+    expect(parsed.branch).toBe("feat/x")
+    expect(parsed.body).toBe("[@Spec](mention:doc-7)")
   })
 })

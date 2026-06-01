@@ -12,11 +12,14 @@
  *   - `[plan mode: enabled]` — flags the Engine to submit a plan first.
  *   - `[branch: <ref>]`      — attaches the chat's working branch.
  *
- * plus the composer's inline `[skill: <name>]` marker — encoded by
+ * plus the composer's inline markers: `[skill: <name>]` — encoded by
  * `serializeSkill` and recovered into its renderer pill by
- * `skillMarkersToPills`. The `[@…](mention:…)` serialization and the
- * `Referenced documents:` footer land in a later slice; `parseUserMessage`
- * reserves `hadReferencedDocs` for that, but does not act on it yet.
+ * `skillMarkersToPills` — and the `[@…](mention:…)` Layer mention, encoded
+ * by `serializeMention`. Mention tokens stay inline in the parsed `body`,
+ * so the renderer recovers them as doc-icon pills straight from the
+ * markdown-link form. The `Referenced documents:` footer lands in a later
+ * slice; `parseUserMessage` reserves `hadReferencedDocs` for that, but does
+ * not act on it yet.
  *
  * The codec owns **format, not policy**: callers still decide *when* a
  * marker applies (e.g. branch only on the first message of a chat). This
@@ -74,6 +77,25 @@ export function skillMarkersToPills(body: string): string {
 }
 
 /**
+ * The Layer mention marker's prose template, `[@<title>](mention:<id>)`, as
+ * referenced by the system prompt. The `<title>` and `<id>` placeholders are
+ * literal — this is the wire shape the model is told to look for, not a marker
+ * rendered for a concrete Layer (use `serializeMention` for that).
+ */
+export const MENTION_MARKER_TOKEN = `[@<title>](mention:<id>)`
+
+/**
+ * Serialize an `@`-Layer mention into its inline `[@<label>](mention:<id>)`
+ * markdown-link marker. The composer emits this in the wire body; the Engine
+ * resolves the title to its id and reads the doc, and the message renderer
+ * recovers it as a doc-icon pill directly from the markdown-link form (no
+ * separate pill transform is needed — the token *is* the pill markup).
+ */
+export function serializeMention(label: string, id: string): string {
+  return `[@${label}](mention:${id})`
+}
+
+/**
  * Prepend the server turn prefixes to a user message body, plan before
  * branch. Each prefix is emitted only when its input is present, so a turn
  * with neither marker returns `body` unchanged.
@@ -94,8 +116,9 @@ export interface ParsedUserMessage {
   branch?: string
   /**
    * The message with the server prefixes stripped. Inline `[skill: <name>]`
-   * and mention tokens are retained so the renderer can recover their pills
-   * (skill via `skillMarkersToPills`; mentions in a later slice).
+   * and `[@…](mention:…)` tokens are retained so the renderer can recover
+   * their pills (skill via `skillMarkersToPills`; mentions straight from the
+   * inline markdown-link form).
    */
   body: string
   /**

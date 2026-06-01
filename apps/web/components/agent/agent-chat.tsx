@@ -32,7 +32,7 @@ import {
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
-import { serializeSkill } from "@/lib/agent/message-markers"
+import { serializeMention, serializeSkill } from "@/lib/agent/message-markers"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
@@ -82,10 +82,10 @@ function groupModelsByProvider(models: ModelInfo[]) {
 
 /**
  * Walk a TipTap JSON document and return:
- *  - `text`: plain-text rendering, with each `@` layer mention serialized as
- *    `[@<label>](mention:<id>)` and the single optional `/` skill chip
- *    serialized as a `[skill: <name>]` marker, so the user-message renderer
- *    can recover them and the agent loop can act on the explicit invocation.
+ *  - `text`: plain-text rendering, with each `@` layer mention serialized via
+ *    `serializeMention` and the single optional `/` skill chip serialized via
+ *    `serializeSkill`, so the user-message renderer can recover them and the
+ *    agent loop can act on the explicit invocation.
  *  - `mentions`: deduplicated `{ id }` list (layer mentions only).
  *  - `skill`: the picked Skill name, if any (at most one per message).
  * Block boundaries (paragraphs, headings, list items) become newlines.
@@ -118,7 +118,7 @@ function extractTextAndMentions(json: JSONContent | undefined): {
         out.push(serializeSkill(name))
         return
       }
-      out.push(`[@${label}](mention:${id ?? ""})`)
+      out.push(serializeMention(label, id ?? ""))
       if (id && !seen.has(id)) {
         seen.add(id)
         mentions.push({ id })
