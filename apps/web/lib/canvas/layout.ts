@@ -194,6 +194,304 @@ export function placeNewIframeLayerGroup(
   return { x: maxRight + IFRAME_LAYER_GROUP_GAP, y: minY }
 }
 
+// ─── Whole-Canvas geometry derivation ──────────────────────────────────────
+//
+// These derivations turn a plain Canvas snapshot into the geometry the canvas
+// draws and hit-tests each gesture frame: the effective (mid-drag) layout, the
+// trailing "+ frame" placeholder rects, and the gap- and reorder-handle
+// positions. They are pure — no React state, refs, or Yjs — so `canvas.tsx`
+// can call them every frame and `layout.test.ts` can exercise them with plain
+// fixtures.
+
+/** World-space rect for a group's trailing "+ frame" placeholder slot. */
+export type PlaceholderRect = {
+  groupId: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * World-space geometry for one inter-member gap in a selected group.
+ * `centerX` is the visual line position; `left`/`right` bound the full gap
+ * area used for hover hit-testing; `top`/`bottom` clamp the handle to the
+ * shared height of the two adjacent members.
+ */
+export type GapHandle = {
+  groupId: string
+  gapIndex: number
+  centerX: number
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
+/** World-space center of a member's reorder dot. */
+export type ReorderHandle = {
+  iframeLayerId: string
+  centerX: number
+  centerY: number
+}
+
+/** Selection snapshot the geometry derivation reads to decide what to draw. */
+export type CanvasSelection = {
+  iframeLayerIds: ReadonlySet<string>
+  documentLayerIds: ReadonlySet<string>
+  groupIds: ReadonlySet<string>
+}
+
+/**
+ * A reorder drag in its "popped" phase: `memberId` floats at `cursor` offset
+ * by `grabOffset` (the point inside the member the user grabbed at drag-start).
+ * `grabOffset` may be `null`, in which case the member is centered under the
+ * cursor.
+ */
+export type ActiveReorderDrag = {
+  memberId: string
+  cursor: { x: number; y: number }
+  grabOffset: { x: number; y: number } | null
+}
+
+/**
+ * Layouts as the user sees them mid-gesture. Identical to `base` unless a
+ * reorder drag has popped a member out of its group: the popped member floats
+ * at `drag.cursor - grabOffset` and its former siblings reflow left-to-right to
+ * close the gap. Pure — the caller passes plain snapshots each gesture frame.
+ */
+export function computeEffectiveLayouts(
+  base: IframeLayerLayoutMap,
+  groups: readonly IframeLayerGroupData[],
+  iframeLayers: readonly IframeLayerData[],
+  markdownLayers: readonly MarkdownLayerData[],
+  drag: ActiveReorderDrag | null,
+): IframeLayerLayoutMap {
+  if (!drag) return base
+  const popped = base.get(drag.memberId)
+  if (!popped) return base
+  const sourceGroup = groups.find((g) => g.id === popped.groupId)
+  if (!sourceGroup) return base
+
+  const abById = new Map(iframeLayers.map((a) => [a.id, a]))
+  const docById = new Map(markdownLayers.map((d) => [d.id, d]))
+  const result = new Map(base)
+
+  // Override the popped member so it sits at `cursor - grab`, matching the
+  // grab offset captured at drag-start (the member stays under the exact spot
+  // the user grabbed, not centered) unless no offset was recorded.
+  const grab = drag.grabOffset ?? { x: popped.width / 2, y: popped.height / 2 }
+  result.set(drag.memberId, {
+    ...popped,
+    x: drag.cursor.x - grab.x,
+    y: drag.cursor.y - grab.y,
+  })
+
+  // Reflow the source group's remaining members to close the gap.
+  const remainingMembers = getGroupMembers(sourceGroup).filter(
+    (m) => m.id !== drag.memberId,
+  )
+  const gap = groupGap(sourceGroup)
+  let cursorX = sourceGroup.x
+  for (let i = 0; i < remainingMembers.length; i++) {
+    const m = remainingMembers[i]!
+    const size = getMemberSize(m, abById, docById)
+    if (!size) continue
+    result.set(m.id, {
+      id: m.id,
+      kind: m.kind,
+      groupId: sourceGroup.id,
+      index: i,
+      isLast: i === remainingMembers.length - 1,
+      x: cursorX,
+      y: sourceGroup.y,
+      width: size.width,
+      height: size.height,
+    })
+    cursorX += size.width + gap
+  }
+  return result
+}
+
+/**
+ * Trailing "+ frame" placeholder rect for every group that contains a selected
+ * member (selecting the whole group hides it). When a member is popped out for
+ * reorder, the placeholder anchors on the new last remaining member so its
+ * outline tracks the reflowed row instead of staying at the original edge.
+ */
+export function computePlaceholderRects(
+  groups: readonly IframeLayerGroupData[],
+  layouts: IframeLayerLayoutMap,
+  selection: CanvasSelection,
+  poppedMemberId: string | null,
+): PlaceholderRect[] {
+  const rects: PlaceholderRect[] = []
+  for (const g of groups) {
+    const allMembers = getGroupMembers(g)
+    if (allMembers.length === 0) continue
+    if (selection.groupIds.has(g.id)) continue
+    // The affordance is "add another frame next to this one" — shown when any
+    // member (iframe or markdown layer) in the group is individually selected.
+    const hasSelected = allMembers.some((m) =>
+      m.kind === "iframe-layer"
+        ? selection.iframeLayerIds.has(m.id)
+        : selection.documentLayerIds.has(m.id),
+    )
+    if (!hasSelected) continue
+    const members =
+      poppedMemberId && allMembers.some((m) => m.id === poppedMemberId)
+        ? allMembers.filter((m) => m.id !== poppedMemberId)
+        : allMembers
+    if (members.length === 0) continue
+    const lastMember = members[members.length - 1]!
+    const lastLayout = layouts.get(lastMember.id)
+    if (!lastLayout) continue
+    rects.push({
+      groupId: g.id,
+      x: lastLayout.x + lastLayout.width + groupGap(g),
+      y: lastLayout.y,
+      width: lastLayout.width,
+      height: lastLayout.height,
+    })
+  }
+  return rects
+}
+
+/**
+ * One handle per inter-member gap in every selected group. While a member is
+ * popped out for reorder, the gaps adjacent to it don't make sense, so it's
+ * filtered out before pairing neighbors.
+ */
+export function computeGapHandles(
+  groups: readonly IframeLayerGroupData[],
+  layouts: IframeLayerLayoutMap,
+  selectedGroupIds: ReadonlySet<string>,
+  poppedMemberId: string | null,
+): GapHandle[] {
+  const handles: GapHandle[] = []
+  if (selectedGroupIds.size === 0) return handles
+  for (const g of groups) {
+    if (!selectedGroupIds.has(g.id)) continue
+    const allMembers = getGroupMembers(g)
+    const visibleIds = poppedMemberId
+      ? allMembers.filter((m) => m.id !== poppedMemberId).map((m) => m.id)
+      : allMembers.map((m) => m.id)
+    if (visibleIds.length < 2) continue
+    for (let i = 1; i < visibleIds.length; i++) {
+      const prev = layouts.get(visibleIds[i - 1]!)
+      const next = layouts.get(visibleIds[i]!)
+      if (!prev || !next) continue
+      const top = Math.max(prev.y, next.y)
+      const bottom = Math.min(prev.y + prev.height, next.y + next.height)
+      const left = prev.x + prev.width
+      const right = next.x
+      handles.push({
+        groupId: g.id,
+        gapIndex: i,
+        centerX: (left + right) / 2,
+        left,
+        right,
+        top,
+        bottom,
+      })
+    }
+  }
+  return handles
+}
+
+/**
+ * One reorder dot per member in every selected group with 2+ members. The dot
+ * center is the member's box center; the canvas draws it at constant pixel size
+ * and starts a within-group reorder drag when one is pressed.
+ */
+export function computeReorderHandles(
+  groups: readonly IframeLayerGroupData[],
+  layouts: IframeLayerLayoutMap,
+  selectedGroupIds: ReadonlySet<string>,
+): ReorderHandle[] {
+  const handles: ReorderHandle[] = []
+  if (selectedGroupIds.size === 0) return handles
+  for (const g of groups) {
+    if (!selectedGroupIds.has(g.id)) continue
+    const members = getGroupMembers(g)
+    if (members.length < 2) continue
+    for (const m of members) {
+      const layout = layouts.get(m.id)
+      if (!layout) continue
+      handles.push({
+        iframeLayerId: m.id,
+        centerX: layout.x + layout.width / 2,
+        centerY: layout.y + layout.height / 2,
+      })
+    }
+  }
+  return handles
+}
+
+export type CanvasLayout = {
+  /** Effective (mid-gesture) member layouts — see `computeEffectiveLayouts`. */
+  layouts: IframeLayerLayoutMap
+  placeholderRects: PlaceholderRect[]
+  gapHandles: GapHandle[]
+  reorderHandles: ReorderHandle[]
+}
+
+export type DeriveCanvasLayoutInput = {
+  groups: readonly IframeLayerGroupData[]
+  iframeLayers: readonly IframeLayerData[]
+  markdownLayers: readonly MarkdownLayerData[]
+  selection: CanvasSelection
+  /** Active reorder drag, if a member is currently floating at the cursor. */
+  activeReorderDrag: ActiveReorderDrag | null
+  /**
+   * The member popped out of its group for placeholder/handle geometry.
+   * Distinct from `activeReorderDrag.memberId` because the popped affordances
+   * update the instant a member lifts, before the cursor has moved.
+   */
+  poppedMemberId: string | null
+}
+
+/**
+ * Whole-Canvas geometry for one gesture frame: the effective layout plus the
+ * placeholder rects and gap/reorder handle positions derived from it. The
+ * single entry point `canvas.tsx` calls each frame, keeping all geometry in
+ * this tested, React-free module.
+ */
+export function deriveCanvasLayout(input: DeriveCanvasLayoutInput): CanvasLayout {
+  const {
+    groups,
+    iframeLayers,
+    markdownLayers,
+    selection,
+    activeReorderDrag,
+    poppedMemberId,
+  } = input
+  const base = computeIframeLayerLayouts(groups, iframeLayers, markdownLayers)
+  const layouts = computeEffectiveLayouts(
+    base,
+    groups,
+    iframeLayers,
+    markdownLayers,
+    activeReorderDrag,
+  )
+  return {
+    layouts,
+    placeholderRects: computePlaceholderRects(
+      groups,
+      layouts,
+      selection,
+      poppedMemberId,
+    ),
+    gapHandles: computeGapHandles(
+      groups,
+      layouts,
+      selection.groupIds,
+      poppedMemberId,
+    ),
+    reorderHandles: computeReorderHandles(groups, layouts, selection.groupIds),
+  }
+}
+
 /**
  * Next "Group N" number for a freshly-created group. Picks `max(N) + 1` over
  * existing group names so reordering or deleting earlier groups never causes

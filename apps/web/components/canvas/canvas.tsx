@@ -113,6 +113,7 @@ import {
 } from "@/lib/constants"
 import {
   computeIframeLayerLayouts,
+  deriveCanvasLayout,
   getGroupMemberIds,
   getGroupMembers,
   groupContentHeight,
@@ -653,63 +654,53 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // without re-binding on every layout change.
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
   iframeLayerLayoutsRef.current = iframeLayerLayouts
-  /**
-   * Layouts as the user sees them right now — diverges from `iframeLayerLayouts`
-   * only while a reorder drag has the meta key held: the dragged iframeLayer is
-   * pulled out of its source group's flex flow and floats at the cursor, so
-   * its siblings close the gap. Used by the selection overlay, hit-tests, and
-   * everything else that draws or interacts with on-screen positions.
-   */
   const reorderDragRef_iframeLayerId = reorderDraggingIframeLayerId
-  const effectiveIframeLayerLayouts = useMemo(() => {
-    if (!reorderDragPopped || !reorderDragRef_iframeLayerId || !reorderDragCursor) {
-      return iframeLayerLayouts
-    }
-    const popped = iframeLayerLayouts.get(reorderDragRef_iframeLayerId)
-    if (!popped) return iframeLayerLayouts
-    const sourceGroup = iframeLayerGroups.find((g) => g.id === popped.groupId)
-    if (!sourceGroup) return iframeLayerLayouts
-    const result = new Map(iframeLayerLayouts)
-    // Override the popped iframeLayer so it sits at `cursor - grab`, matching
-    // the grab offset captured at drag-start (the frame stays under the
-    // exact spot the user grabbed, not centered).
-    const grab = reorderDragRef.current?.grabOffset ?? {
-      x: popped.width / 2,
-      y: popped.height / 2,
-    }
-    result.set(reorderDragRef_iframeLayerId, {
-      ...popped,
-      x: reorderDragCursor.x - grab.x,
-      y: reorderDragCursor.y - grab.y,
-    })
-    // Reflow the source group's remaining members to close the gap.
-    const remainingMembers = getGroupMembers(sourceGroup).filter(
-      (m) => m.id !== reorderDragRef_iframeLayerId,
-    )
-    const gap = groupGap(sourceGroup)
-    let cursorX = sourceGroup.x
-    for (let i = 0; i < remainingMembers.length; i++) {
-      const m = remainingMembers[i]!
-      const size =
-        m.kind === "iframe-layer"
-          ? iframeLayers.find((a) => a.id === m.id)
-          : markdownLayers.find((d) => d.id === m.id)
-      if (!size) continue
-      result.set(m.id, {
-        id: m.id,
-        kind: m.kind,
-        groupId: sourceGroup.id,
-        index: i,
-        isLast: i === remainingMembers.length - 1,
-        x: cursorX,
-        y: sourceGroup.y,
-        width: size.width,
-        height: size.height,
-      })
-      cursorX += size.width + gap
-    }
-    return result
-  }, [iframeLayerLayouts, reorderDragPopped, reorderDragRef_iframeLayerId, reorderDragCursor, iframeLayerGroups, iframeLayers, markdownLayers])
+  /**
+   * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
+   * layout plus the placeholder rects and gap/reorder handle positions derived
+   * from it. All the math lives in the React-free `lib/canvas/layout` module;
+   * this component is a consumer that feeds it plain snapshots of state and
+   * renders the result. The effective layout diverges from `iframeLayerLayouts`
+   * only while a reorder drag has popped a member out of its group's flex flow.
+   */
+  // Grab offset captured at drag-start, read once here so the geometry memo
+  // stays a pure function of plain values (the ref isn't a render input).
+  const reorderGrabOffset = reorderDragRef.current?.grabOffset ?? null
+  const canvasLayout = useMemo(
+    () =>
+      deriveCanvasLayout({
+        groups: iframeLayerGroups,
+        iframeLayers,
+        markdownLayers,
+        selection: {
+          iframeLayerIds: selectedIframeLayerIds,
+          documentLayerIds: selectedDocumentLayerIds,
+          groupIds: selectedGroupIds,
+        },
+        activeReorderDrag:
+          reorderDragPopped && reorderDragRef_iframeLayerId && reorderDragCursor
+            ? {
+                memberId: reorderDragRef_iframeLayerId,
+                cursor: reorderDragCursor,
+                grabOffset: reorderGrabOffset,
+              }
+            : null,
+        poppedMemberId: reorderDragPopped ? reorderDragRef_iframeLayerId : null,
+      }),
+    [
+      iframeLayerGroups,
+      iframeLayers,
+      markdownLayers,
+      selectedIframeLayerIds,
+      selectedDocumentLayerIds,
+      selectedGroupIds,
+      reorderDragPopped,
+      reorderDragRef_iframeLayerId,
+      reorderDragCursor,
+      reorderGrabOffset,
+    ],
+  )
+  const effectiveIframeLayerLayouts = canvasLayout.layouts
   const sortedIframeLayerGroups = useMemo(() => {
     return [...iframeLayerGroups].sort((a, b) => {
       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
@@ -809,138 +800,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }, [groupDragSnap])
   const groupDragSnapRects = groupDragSnap?.rects ?? null
 
-  /**
-   * World-space rects for the trailing "add frame" placeholder of every group
-   * that contains a currently-selected iframeLayer. Selecting the whole group
-   * hides it. Drawn by `PlaceholderRectsUnderlay` (behind world content) so
-   * the border stays 1px crisp regardless of zoom. The transparent click
-   * target is rendered from these same rects in the flat member layer.
-   */
-  const placeholderRects = useMemo(() => {
-    const rects: Array<{ groupId: string; x: number; y: number; width: number; height: number }> = []
-    const poppedId = reorderDragPopped ? reorderDragRef_iframeLayerId : null
-    for (const g of iframeLayerGroups) {
-      const allMembers = getGroupMembers(g)
-      if (allMembers.length === 0) continue
-      if (selectedGroupIds.has(g.id)) continue
-      // Placeholder appears when any member (iframeLayer or document) in the group
-      // is selected — the affordance is "add another frame next to this one".
-      const hasSelected = allMembers.some((m) =>
-        m.kind === "iframe-layer"
-          ? selectedIframeLayerIds.has(m.id)
-          : selectedDocumentLayerIds.has(m.id),
-      )
-      if (!hasSelected) continue
-      // While meta-dragging a frame out, the popped frame floats at the cursor
-      // and the source group's remaining siblings close the gap. Anchor on the
-      // new last remaining member so the placeholder's overlay border tracks
-      // the reflowed row instead of staying at the original right edge.
-      const members =
-        poppedId && allMembers.some((m) => m.id === poppedId)
-          ? allMembers.filter((m) => m.id !== poppedId)
-          : allMembers
-      if (members.length === 0) continue
-      const lastMember = members[members.length - 1]!
-      const lastLayout = effectiveIframeLayerLayouts.get(lastMember.id)
-      if (!lastLayout) continue
-      rects.push({
-        groupId: g.id,
-        x: lastLayout.x + lastLayout.width + groupGap(g),
-        y: lastLayout.y,
-        width: lastLayout.width,
-        height: lastLayout.height,
-      })
-    }
-    return rects
-  }, [
-    iframeLayerGroups,
-    effectiveIframeLayerLayouts,
-    selectedIframeLayerIds,
-    selectedDocumentLayerIds,
-    selectedGroupIds,
-    reorderDragPopped,
-    reorderDragRef_iframeLayerId,
-  ])
-
-  /**
-   * One handle per inter-iframeLayer gap in every selected group. Stored in
-   * world-space; `SelectionOverlay` projects them to screen-space so the
-   * handle stays a constant pixel size at any zoom. `left`/`right` define
-   * the full gap area (used for hover hit-testing); `centerX` is the visual
-   * line position.
-   */
-  const gapHandles = useMemo(() => {
-    const handles: Array<{
-      groupId: string
-      gapIndex: number
-      centerX: number
-      left: number
-      right: number
-      top: number
-      bottom: number
-    }> = []
-    if (selectedGroupIds.size === 0) return handles
-    for (const g of iframeLayerGroups) {
-      if (!selectedGroupIds.has(g.id)) continue
-      // While the popped preview is showing, gap handles between the popped
-      // member and its (former) neighbors don't make sense — skip them.
-      const allMembers = getGroupMembers(g)
-      const visibleIds = reorderDragPopped && reorderDragRef_iframeLayerId
-        ? allMembers.filter((m) => m.id !== reorderDragRef_iframeLayerId).map((m) => m.id)
-        : allMembers.map((m) => m.id)
-      if (visibleIds.length < 2) continue
-      for (let i = 1; i < visibleIds.length; i++) {
-        const prev = effectiveIframeLayerLayouts.get(visibleIds[i - 1]!)
-        const next = effectiveIframeLayerLayouts.get(visibleIds[i]!)
-        if (!prev || !next) continue
-        const top = Math.max(prev.y, next.y)
-        const bottom = Math.min(prev.y + prev.height, next.y + next.height)
-        const left = prev.x + prev.width
-        const right = next.x
-        handles.push({
-          groupId: g.id,
-          gapIndex: i,
-          centerX: (left + right) / 2,
-          left,
-          right,
-          top,
-          bottom,
-        })
-      }
-    }
-    return handles
-  }, [iframeLayerGroups, effectiveIframeLayerLayouts, selectedGroupIds, reorderDragPopped, reorderDragRef_iframeLayerId])
+  // World-space rects for each group's trailing "add frame" placeholder, the
+  // inter-member gap handles, and the per-member reorder dots — all derived by
+  // the layout module from the effective layout above and the live selection.
+  // Drawn by `PlaceholderRectsUnderlay`, `SelectionOverlay`, and the flat
+  // member layer, which project these world-space values to screen-space.
+  const placeholderRects = canvasLayout.placeholderRects
+  const gapHandles = canvasLayout.gapHandles
 
   const gapHandlesRef = useRef(gapHandles)
   gapHandlesRef.current = gapHandles
 
-  /**
-   * Centers of every iframeLayer in selected groups with 2+ iframeLayers. Drawn at
-   * constant pixel size by the selection overlay; pressing on one starts a
-   * drag that reorders the iframeLayers inside the group.
-   */
-  const reorderHandles = useMemo(() => {
-    const handles: Array<{ iframeLayerId: string; centerX: number; centerY: number }> = []
-    if (selectedGroupIds.size === 0) return handles
-    for (const g of iframeLayerGroups) {
-      if (!selectedGroupIds.has(g.id)) continue
-      // Reorder dots target every member (iframeLayer or document). The drag
-      // logic looks up by id in `effectiveIframeLayerLayouts`, which already
-      // holds both kinds, so the handle is kind-agnostic.
-      const members = getGroupMembers(g)
-      if (members.length < 2) continue
-      for (const m of members) {
-        const layout = effectiveIframeLayerLayouts.get(m.id)
-        if (!layout) continue
-        handles.push({
-          iframeLayerId: m.id,
-          centerX: layout.x + layout.width / 2,
-          centerY: layout.y + layout.height / 2,
-        })
-      }
-    }
-    return handles
-  }, [iframeLayerGroups, effectiveIframeLayerLayouts, selectedGroupIds])
+  const reorderHandles = canvasLayout.reorderHandles
 
   const reorderHandlesRef = useRef(reorderHandles)
   reorderHandlesRef.current = reorderHandles

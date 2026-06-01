@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
+  computeEffectiveLayouts,
   computeIframeLayerLayouts,
+  deriveCanvasLayout,
   groupContentHeight,
   groupContentWidth,
   placeNewIframeLayerGroup,
+  type CanvasSelection,
 } from "@/lib/canvas/layout"
 import { IFRAME_LAYER_GROUP_GAP } from "@/lib/constants"
 import type {
@@ -213,5 +216,199 @@ describe("placeNewIframeLayerGroup", () => {
       x: 500 + 150 + IFRAME_LAYER_GROUP_GAP,
       y: 40,
     })
+  })
+})
+
+const G = IFRAME_LAYER_GROUP_GAP
+
+function selection(over: Partial<CanvasSelection> = {}): CanvasSelection {
+  return {
+    iframeLayerIds: new Set(),
+    documentLayerIds: new Set(),
+    groupIds: new Set(),
+    ...over,
+  }
+}
+
+describe("computeEffectiveLayouts", () => {
+  const groups = [
+    group("g1", 0, 0, [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+      { kind: "iframe-layer", id: "c" },
+    ]),
+  ]
+  const iframeLayers = [
+    layer("a", 100, 50),
+    layer("b", 200, 60),
+    layer("c", 80, 40),
+  ]
+  const base = computeIframeLayerLayouts(groups, iframeLayers)
+
+  it("returns the base layout untouched when no drag is active", () => {
+    expect(computeEffectiveLayouts(base, groups, iframeLayers, [], null)).toBe(
+      base,
+    )
+  })
+
+  it("floats the dragged member at cursor - grab and reflows its former siblings", () => {
+    const effective = computeEffectiveLayouts(base, groups, iframeLayers, [], {
+      memberId: "b",
+      cursor: { x: 1000, y: 980 },
+      grabOffset: { x: 10, y: 20 },
+    })
+
+    // The popped member sits exactly where the user is holding it.
+    expect(effective.get("b")).toMatchObject({ x: 990, y: 960 })
+    // a stays at the origin; c slides left to close b's gap (now second in row).
+    expect(effective.get("a")).toMatchObject({ x: 0, index: 0, isLast: false })
+    expect(effective.get("c")).toMatchObject({
+      x: 100 + G,
+      y: 0,
+      index: 1,
+      isLast: true,
+    })
+  })
+
+  it("centers the dragged member under the cursor when no grab offset is recorded", () => {
+    const effective = computeEffectiveLayouts(base, groups, iframeLayers, [], {
+      memberId: "b",
+      cursor: { x: 500, y: 300 },
+      grabOffset: null,
+    })
+
+    // b is 200x60, so its center lands on the cursor.
+    expect(effective.get("b")).toMatchObject({ x: 500 - 100, y: 300 - 30 })
+  })
+})
+
+describe("deriveCanvasLayout", () => {
+  const groups = [
+    group("g1", 100, 200, [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+      { kind: "iframe-layer", id: "c" },
+    ]),
+  ]
+  const iframeLayers = [
+    layer("a", 300, 400),
+    layer("b", 150, 250),
+    layer("c", 100, 100),
+  ]
+
+  it("places one gap handle per inter-member gap of a selected group", () => {
+    const { gapHandles } = deriveCanvasLayout({
+      groups,
+      iframeLayers,
+      markdownLayers: [],
+      selection: selection({ groupIds: new Set(["g1"]) }),
+      activeReorderDrag: null,
+      poppedMemberId: null,
+    })
+
+    expect(gapHandles).toHaveLength(2)
+    // Gap between a (ends at 400) and b (starts at 400 + G); clamped to the
+    // shorter member's overlap in y.
+    expect(gapHandles[0]).toEqual({
+      groupId: "g1",
+      gapIndex: 1,
+      centerX: 400 + G / 2,
+      left: 400,
+      right: 400 + G,
+      top: 200,
+      bottom: 200 + 250,
+    })
+    // Gap between b and c.
+    expect(gapHandles[1]).toMatchObject({
+      gapIndex: 2,
+      left: 400 + G + 150,
+      right: 400 + G + 150 + G,
+      bottom: 200 + 100,
+    })
+  })
+
+  it("places one reorder handle at the center of each member of a selected group", () => {
+    const { reorderHandles } = deriveCanvasLayout({
+      groups,
+      iframeLayers,
+      markdownLayers: [],
+      selection: selection({ groupIds: new Set(["g1"]) }),
+      activeReorderDrag: null,
+      poppedMemberId: null,
+    })
+
+    expect(reorderHandles).toEqual([
+      { iframeLayerId: "a", centerX: 100 + 150, centerY: 200 + 200 },
+      { iframeLayerId: "b", centerX: 400 + G + 75, centerY: 200 + 125 },
+      { iframeLayerId: "c", centerX: 400 + G + 150 + G + 50, centerY: 200 + 50 },
+    ])
+  })
+
+  it("anchors a trailing placeholder rect on the last member when a member is selected", () => {
+    const { placeholderRects } = deriveCanvasLayout({
+      groups,
+      iframeLayers,
+      markdownLayers: [],
+      selection: selection({ iframeLayerIds: new Set(["a"]) }),
+      activeReorderDrag: null,
+      poppedMemberId: null,
+    })
+
+    const cX = 400 + G + 150 + G // c's x
+    expect(placeholderRects).toEqual([
+      {
+        groupId: "g1",
+        x: cX + 100 + G, // one width + one gap past the last member (c)
+        y: 200,
+        width: 100,
+        height: 100,
+      },
+    ])
+  })
+
+  it("hides the placeholder and gap handles when the whole group is selected", () => {
+    const { placeholderRects, reorderHandles } = deriveCanvasLayout({
+      groups,
+      iframeLayers,
+      markdownLayers: [],
+      // Group is selected, plus an individual member — placeholder still hidden.
+      selection: selection({
+        iframeLayerIds: new Set(["a"]),
+        groupIds: new Set(["g1"]),
+      }),
+      activeReorderDrag: null,
+      poppedMemberId: null,
+    })
+
+    expect(placeholderRects).toEqual([])
+    // Reorder handles still show for the selected group.
+    expect(reorderHandles).toHaveLength(3)
+  })
+
+  it("reflects the effective reflow in handle and placeholder geometry mid-reorder", () => {
+    const { layouts, placeholderRects, gapHandles } = deriveCanvasLayout({
+      groups,
+      iframeLayers,
+      markdownLayers: [],
+      selection: selection({
+        iframeLayerIds: new Set(["a"]),
+        groupIds: new Set(["g1"]),
+      }),
+      activeReorderDrag: {
+        memberId: "b",
+        cursor: { x: 2000, y: 2000 },
+        grabOffset: { x: 0, y: 0 },
+      },
+      poppedMemberId: "b",
+    })
+
+    // b floats at the cursor; a and c reflow as a two-member row.
+    expect(layouts.get("b")).toMatchObject({ x: 2000, y: 2000 })
+    expect(layouts.get("c")).toMatchObject({ x: 100 + 300 + G, y: 200 })
+    // The popped member is excluded, so only the a–c gap remains.
+    expect(gapHandles).toHaveLength(1)
+    expect(gapHandles[0]).toMatchObject({ left: 400, right: 400 + G })
+    // Whole group is selected, so no placeholder regardless of the reflow.
+    expect(placeholderRects).toEqual([])
   })
 })
