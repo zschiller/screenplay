@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   PLAN_MODE_MARKER,
+  SKILL_MARKER_TOKEN,
   parseUserMessage,
   prependTurnMarkers,
+  serializeSkill,
+  skillMarkersToPills,
 } from "@/lib/agent/message-markers"
 
 describe("prependTurnMarkers", () => {
@@ -96,5 +99,56 @@ describe("parseUserMessage", () => {
     const wire = prependTurnMarkers("body", { branch: "release-[2024]" })
 
     expect(parseUserMessage(wire).branch).toBe("release-[2024]")
+  })
+})
+
+describe("serializeSkill", () => {
+  it("renders the inline skill marker", () => {
+    expect(serializeSkill("tdd")).toBe("[skill: tdd]")
+  })
+
+  it("matches the exported token's shape", () => {
+    expect(serializeSkill("<name>")).toBe(SKILL_MARKER_TOKEN)
+  })
+})
+
+describe("skillMarkersToPills", () => {
+  it("rewrites an inline skill marker to its pill link", () => {
+    expect(skillMarkersToPills("[skill: tdd]")).toBe("[/tdd](skill:tdd)")
+  })
+
+  it("tolerates a missing space after the colon", () => {
+    expect(skillMarkersToPills("[skill:tdd]")).toBe("[/tdd](skill:tdd)")
+  })
+
+  it("rewrites every marker in a body, leaving other text intact", () => {
+    expect(skillMarkersToPills("run [skill: tdd] then [skill: diagnose] now")).toBe(
+      "run [/tdd](skill:tdd) then [/diagnose](skill:diagnose) now",
+    )
+  })
+
+  it("is a no-op on a body with no skill markers", () => {
+    expect(skillMarkersToPills("just a normal message")).toBe("just a normal message")
+  })
+
+  it("round-trips serializeSkill through parseUserMessage back to the pill", () => {
+    const wire = serializeSkill("tdd")
+
+    const pill = skillMarkersToPills(parseUserMessage(wire).body)
+
+    expect(pill).toBe("[/tdd](skill:tdd)")
+  })
+
+  it("recovers the pill even alongside server turn prefixes", () => {
+    const wire = prependTurnMarkers(serializeSkill("tdd"), {
+      planMode: true,
+      branch: "feat/x",
+    })
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.planMode).toBe(true)
+    expect(parsed.branch).toBe("feat/x")
+    expect(skillMarkersToPills(parsed.body)).toBe("[/tdd](skill:tdd)")
   })
 })

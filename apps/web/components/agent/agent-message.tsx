@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
-import { parseUserMessage } from "@/lib/agent/message-markers"
+import { parseUserMessage, skillMarkersToPills } from "@/lib/agent/message-markers"
 import { chatStore } from "@/lib/chat-store"
 
 const toolIcons: Record<string, typeof FileText> = {
@@ -260,15 +260,17 @@ function PlanMessage({
 export function AgentMessageItem({ message, toolResult, roomId, chatId }: { message: AgentMessage; toolResult?: AgentMessage & { role: "tool_result" }; roomId?: string; chatId?: string }) {
   switch (message.role) {
     case "user": {
-      // Strip the server turn prefixes via the Message Markers codec; the
-      // footer + skill-pill transforms below stay local until a later slice
-      // moves them into the codec too.
-      const displayContent = parseUserMessage(message.content).body
-        .replace(/\n\n---\n\nReferenced documents:[\s\S]*$/, "")
-        // Recover the `/`-skill chip: the composer serializes it as a
-        // `[skill: <name>]` marker; render it back as a pill the same way
-        // `@`-mentions are recovered below.
-        .replace(/\[skill:\s*([^\]]+)\]/g, (_m, name) => `[/${name}](skill:${name})`)
+      // Strip the server turn prefixes via the Message Markers codec, then
+      // recover the `/`-skill chip through the codec's `skillMarkersToPills`
+      // — the same `[skill: <name>]` marker the composer's `serializeSkill`
+      // emits, rendered back as a pill. The footer transform stays local
+      // until a later slice moves it into the codec too.
+      const displayContent = skillMarkersToPills(
+        parseUserMessage(message.content).body.replace(
+          /\n\n---\n\nReferenced documents:[\s\S]*$/,
+          "",
+        ),
+      )
       return (
         <div className="flex justify-end">
           <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground prose prose-sm prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-primary-foreground/10 prose-pre:border-0 [--tw-prose-body:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)]">

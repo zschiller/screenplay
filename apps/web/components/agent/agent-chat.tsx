@@ -32,6 +32,7 @@ import {
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
+import { serializeSkill } from "@/lib/agent/message-markers"
 import { inputStore } from "@/lib/input-store"
 import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
@@ -114,7 +115,7 @@ function extractTextAndMentions(json: JSONContent | undefined): {
       if (node.attrs?.mentionSuggestionChar === "/") {
         const name = id ?? label
         if (name && skill === undefined) skill = name
-        out.push(`[skill: ${name}]`)
+        out.push(serializeSkill(name))
         return
       }
       out.push(`[@${label}](mention:${id ?? ""})`)
@@ -328,7 +329,7 @@ export function AgentChat({
         },
         renderText({ node }) {
           const label = (node.attrs.label as string | undefined) ?? node.attrs.id
-          if (node.attrs.mentionSuggestionChar === "/") return `[skill: ${label}]`
+          if (node.attrs.mentionSuggestionChar === "/") return serializeSkill(label)
           return `@${label}`
         },
         renderHTML({ options, node }) {
