@@ -18,9 +18,11 @@ const TTYD_URL = `https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSI
 // launch is needed.
 const TTYD_PIDFILE = "/tmp/screenplay/terminal.pid"
 
-// Pin a known-good static `tmux` build. The base @vercel/sandbox node24 image
-// ships NO `tmux` (confirmed by spike #255 — see ADR 0002's 2026-06-01
-// addendum), so the reattach UX must bundle one the same way it bundles ttyd.
+// Pin a known-good static `tmux` build. The base @vercel/sandbox image ships
+// NO `tmux` (confirmed by spike #255 and re-confirmed on a live sandbox — see
+// ADR 0002's 2026-06-01 addendum, which also records that `new`/`attach`/`kill`
+// run against this pin), so the reattach UX must bundle one the same way it
+// bundles ttyd.
 // tmux/tmux-builds publishes musl-static x86_64 release tarballs; the archive
 // is flat (a single `tmux` binary at its root). Lives under /tmp/screenplay
 // alongside ttyd because that's where the unprivileged `vercel-sandbox` user

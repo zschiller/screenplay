@@ -245,7 +245,10 @@ that the build rests on:
 
 - **Bundle a pinned static `tmux`, mirroring the ttyd install — the base image
   ships none.** The 2026-06-01 spike addendum above flagged that
-  `command -v tmux` is missing in the `@vercel/sandbox` node24 image. So
+  `command -v tmux` is missing in the `@vercel/sandbox` base image (re-confirmed
+  on the live image below, which reported `node v22.22.2` — the "node24" label
+  in the earlier entries is stale, but `tmux` is a static binary so the runtime
+  version is moot). So
   `lib/sandbox/terminal.ts` now provisions `tmux` the same way it provisions
   ttyd: an idempotent fetch into `/tmp/screenplay` (present binary
   short-circuits), guarded by `[ -x … ]`. We pin the official **`tmux/tmux-builds`
@@ -255,14 +258,16 @@ that the build rests on:
   tarball, so the install step downloads, `tar -xzf`-extracts the single `tmux`
   member, `chmod +x`es it, and removes the archive.
 
-  > **Live-image confirmation is still owed.** This ADR's discipline (and #259's
-  > first acceptance criterion) is to confirm a working static `tmux` actually
-  > runs in *this* image (`new`/`attach`/`kill` succeed) before building the UX
-  > on it — escalating if none runs. That confirmation requires a live
-  > `@vercel/sandbox` and is **not** runnable from CI; the pin is the
-  > upstream-official build and the install mirrors the validated ttyd path, but
-  > the in-image smoke test must be run against a live sandbox (the same way
-  > #255 ran its ttyd/transport spike) before this is considered closed.
+  > **Live-image confirmation — done (2026-06-01).** This ADR's discipline (and
+  > #259's first acceptance criterion) is to confirm a working static `tmux`
+  > actually runs in *this* image (`new`/`attach`/`kill` succeed) before building
+  > the UX on it. That confirmation isn't runnable from CI, so it was run against
+  > a live `@vercel/sandbox` (the same way #255 ran its ttyd/transport spike):
+  > the base image ships no system `tmux`; the exact `ensureTmuxInstalled` script
+  > installs the pin and `tmux -V` reports `tmux 3.6b`; `tmux new -A -s` creates
+  > a session and re-running it reattaches without spawning a duplicate;
+  > `kill-session` removes it and is a clean no-op on an already-gone session.
+  > All three operations succeed, so the pin is confirmed good for this image.
 
 - **Per-tab session naming flows through ttyd's `--url-arg`, not a daemon per
   tab.** ttyd is one daemon on the one forwarded `TERMINAL_PORT`, so the per-tab
