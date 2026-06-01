@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
+import type {
+  GapHandle,
+  IframeLayerLayoutMap,
+  ReorderHandle,
+} from "@/lib/canvas/layout"
 import type { SnapGuide } from "@/lib/iframe-layer-move-snap"
 
 interface OtherSelection {
@@ -41,25 +45,20 @@ interface SelectionOverlayProps {
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
   /**
-   * One handle per inter-iframeLayer gap in selected groups. World-space
-   * `centerX` is the gap's midpoint; `top`/`bottom` clamp the handle to the
-   * shared height of the two adjacent iframeLayers. Drawn at constant screen-pixel
-   * size so the grab target doesn't change with zoom.
+   * One handle per inter-iframeLayer gap in selected groups, as produced by the
+   * `lib/canvas/layout` module. World-space `centerX` is the gap's midpoint;
+   * `top`/`bottom` clamp the handle to the shared height of the two adjacent
+   * iframeLayers. Drawn at constant screen-pixel size so the grab target
+   * doesn't change with zoom.
    */
-  gapHandles?: Array<{
-    groupId: string
-    gapIndex: number
-    centerX: number
-    top: number
-    bottom: number
-  }>
+  gapHandles?: GapHandle[]
   /**
-   * One reorder handle per iframeLayer in a selected multi-iframeLayer group. The
-   * world-space center is projected to screen and drawn as a small dot at
-   * constant pixel size. Pressing one starts a drag that reorders the
-   * iframeLayers in the group.
+   * One reorder handle per iframeLayer in a selected multi-iframeLayer group,
+   * as produced by the `lib/canvas/layout` module. The world-space center is
+   * projected to screen and drawn as a small dot at constant pixel size.
+   * Pressing one starts a drag that reorders the iframeLayers in the group.
    */
-  reorderHandles?: Array<{ iframeLayerId: string; centerX: number; centerY: number }>
+  reorderHandles?: ReorderHandle[]
   /** When the cursor is over a reorder dot, render that one filled instead of hollow. */
   hoveredReorderIframeLayerId?: string | null
   /**
