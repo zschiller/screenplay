@@ -6,7 +6,7 @@ import type {
   IframeLayerLayoutMap,
   ReorderHandle,
 } from "@/lib/canvas/layout"
-import type { SnapGuide } from "@/lib/iframe-layer-move-snap"
+import type { SnapGuide } from "@/lib/canvas/snap"
 
 interface OtherSelection {
   selectedIframeLayerIds: string[]
