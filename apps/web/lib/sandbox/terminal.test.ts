@@ -124,6 +124,12 @@ function isTtydInstall(issued: Issued): boolean {
   return cmd.includes("/tmp/screenplay/ttyd") && cmd.includes("curl")
 }
 
+/** The tmux install is the step that curls + extracts the tarball. */
+function isTmuxInstall(issued: Issued): boolean {
+  const cmd = script(issued)
+  return cmd.includes("/tmp/screenplay/tmux") && cmd.includes("curl")
+}
+
 /** The launch is the one detached command that spawns the daemon under setsid. */
 function isLaunch(issued: Issued): boolean {
   return issued.detached && issued.args.some((a) => a.includes("setsid"))
@@ -175,9 +181,7 @@ describe("ensureTerminal", () => {
     await ensureTerminal("sandbox-a")
 
     // One install step fetches the tmux tarball and extracts the binary.
-    const install = issued.find(
-      (i) => script(i).includes("/tmp/screenplay/tmux") && script(i).includes("curl"),
-    )
+    const install = issued.find(isTmuxInstall)
     expect(install).toBeDefined()
     expect(script(install!)).toContain("tmux-builds")
     expect(script(install!)).toContain("tar -xzf")
@@ -228,6 +232,34 @@ describe("ensureTerminal", () => {
     },
   )
 
+  it.each([
+    // tmux-builds names the arm asset `arm64`, NOT the `uname -m` `aarch64`, so
+    // this proves the machine→asset translation, not just an identity copy.
+    ["x86_64", "tmux-3.6b-linux-x86_64.tar.gz", "arm64"],
+    ["aarch64", "tmux-3.6b-linux-arm64.tar.gz", "aarch64"],
+  ])(
+    "downloads the tmux asset matching the sandbox arch (%s)",
+    async (arch, expectedAsset, otherToken) => {
+      const { sandbox, issued } = fakeSandbox((cmd, args) =>
+        isArchProbe(args)
+          ? { exitCode: 0, stdout: `${arch}\n` }
+          : isCheck(args)
+            ? { exitCode: 0, stdout: "running\n" }
+            : { exitCode: 0 },
+      )
+      fake.setInstance(sandbox)
+
+      await ensureTerminal("sandbox-a")
+
+      const install = issued.find(isTmuxInstall)
+      expect(install).toBeDefined()
+      const cmd = script(install!)
+      expect(cmd).toContain(expectedAsset)
+      // The other arch's token (incl. the wrong `aarch64`/`arm64` naming) never leaks in.
+      expect(cmd).not.toContain(otherToken)
+    },
+  )
+
   it("fails (redacted) rather than defaulting to x86_64 on an unknown arch", async () => {
     const { sandbox, issued } = fakeSandbox((cmd, args) =>
       isArchProbe(args)
@@ -241,8 +273,9 @@ describe("ensureTerminal", () => {
     const result = await ensureTerminal("sandbox-a")
 
     expect(result.success).toBe(false)
-    // The unsupported arch short-circuits before any ttyd download is attempted.
+    // The unsupported arch short-circuits before any binary download is attempted.
     expect(issued.some(isTtydInstall)).toBe(false)
+    expect(issued.some(isTmuxInstall)).toBe(false)
   })
 
   it("yields a fresh shell on a rebuilt sandbox rather than erroring", async () => {
