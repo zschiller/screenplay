@@ -97,6 +97,20 @@ export interface SandboxInstance {
   readonly name: string
   /** Lifecycle state. Callers compare against `"running"`. */
   readonly status: string
+  /**
+   * Absolute path the repo is checked out into — the agent's working directory
+   * and the project root the harness trusts. `/vercel/sandbox` on Vercel.
+   * Provider-supplied so workflow code never hardcodes a backend's layout (e.g.
+   * the pre-seeded `.claude.json` project key is derived from this).
+   */
+  readonly worktreePath: string
+  /**
+   * Absolute path to the home directory commands run against (`$HOME`). `/root`
+   * on Vercel. User-level config (`.claude.json`, `.claude/CLAUDE.md`, the git
+   * credential helper) is seeded here, so the writable-home location is
+   * provider-supplied rather than an assumed `/tmp`-vs-`$HOME` split.
+   */
+  readonly homeDir: string
   /** Public URL for the given forwarded port. */
   domain(port: number): string
   runCommand(opts: SandboxRunCommandOptions): Promise<SandboxCommandResult>

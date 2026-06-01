@@ -73,6 +73,8 @@ function fakeSandbox(
   }
   return {
     name: "fake-sandbox",
+    worktreePath: "/vercel/sandbox",
+    homeDir: "/root",
     status,
     domain: notUsed("domain") as never,
     runCommand: runCommand as SandboxInstance["runCommand"],
