@@ -162,3 +162,77 @@ between the original decision and the shipped code is explicit, not silent.
   co-view" criterion) is parked and may not be pursued; if revived, the shape is
   shared `tmux` session + creator-writable / watchers-read-only (`tmux attach -r`),
   whose main rough edge is cross-client terminal sizing.
+
+## Addendum (2026-06-01): ttyd wire protocol validated — transport is direct-to-daemon (spike #255)
+
+The PRD for xterm-rendered persistent terminal tabs (#253) reverses this ADR's
+iframe rendering decision: render with our own `xterm.js` in React, connecting
+**directly to the in-sandbox ttyd daemon's WebSocket** rather than embedding the
+daemon's bundled web UI in an `<iframe>`. Before writing any production client,
+#255 spiked the open transport question — *can a custom `xterm.js` client drive
+the existing ttyd daemon directly over WebSocket, or does ttyd's framing/auth
+model force us to stand up our own PTY/WebSocket server?*
+
+**Decision: connect `xterm.js` straight to the ttyd daemon over its WebSocket.
+No custom PTY/WS server is needed.** A throwaway harness
+(`.context/ttyd-protocol-spike.mts`) booted a live `@vercel/sandbox`, installed
+the same pinned ttyd `1.7.7` static binary prod uses, launched it `--writable`,
+and connected a **raw** WebSocket client — no ttyd web UI, no xterm — driving the
+protocol by hand. Every leg round-tripped on the first try:
+
+- **Connect:** `wss://<domain(7681)>/ws`, WebSocket subprotocol `tty` (the server
+  selects `tty` back); all frames are **binary**.
+- **INPUT → OUTPUT** round-trip confirmed (sent a marker via `echo`, read it back
+  in an OUTPUT frame).
+- **RESIZE → real PTY resize** confirmed: after a RESIZE frame, `stty size` inside
+  the shell reported the new `40 120` geometry — the resize reaches the PTY, not
+  just xterm's local view.
+
+This is unsurprising in hindsight — ttyd's *own* frontend is `xterm.js` speaking
+this same protocol — but it is now proven against our exact binary and target
+image, so the rendering slice is unblocked: swap the iframe for `xterm.js` +
+`@xterm/addon-fit` and a small codec, no server-side transport to build.
+
+The auth/trust model is **unchanged** from the 2026-05-31 addendum: ttyd runs
+unauthenticated and the `*.vercel.run` `domain(port)` URL is a secret bearer
+link, gated at *issuance* by `room_member`. Going browser-direct (vs. the
+iframe, which was already browser-direct to the same URL) does not move this
+boundary. A real WS proxy / daemon-side credential remains infeasible on Vercel
+and remains the path to close the bearer-link gap if the single-trusted-operator
+boundary ever changes (the same multi-tenant trigger as everything else here).
+
+### ttyd 1.7.7 wire codec (pinned from observed bytes)
+
+Enough to implement the client codec the PRD calls for. Each frame is
+`[1 command byte][UTF-8 payload]`, binary.
+
+- **Handshake — the first client message is JSON_DATA.** Before ttyd spawns the
+  PTY it waits for one JSON message whose first byte is `{` (`0x7b`, which *is*
+  ttyd's `JSON_DATA` command marker): `{"AuthToken":"<tok>","columns":C,"rows":R}`.
+  `AuthToken` may be `""` when ttyd runs without `--credential` (our case). The
+  spike confirmed the PTY only starts after this frame.
+- **Client → server:**
+  - `INPUT` = `'0'` (`0x30`): payload = raw keystroke bytes.
+  - `RESIZE_TERMINAL` = `'1'` (`0x31`): payload = JSON `{"columns":C,"rows":R}`.
+  - `PAUSE` = `'2'`, `RESUME` = `'3'`: flow control, optional.
+- **Server → client:**
+  - `OUTPUT` = `'0'` (`0x30`): raw PTY bytes (UTF-8 + xterm escape sequences) —
+    feed directly to `term.write()`.
+  - `SET_WINDOW_TITLE` = `'1'` (`0x31`): title string (observed: `bash -l (…)`).
+  - `SET_PREFERENCES` = `'2'` (`0x32`): JSON of ttyd's client prefs (observed:
+    `{ }`) — a custom client can ignore it.
+
+### Carried risk surfaced: `tmux` is NOT in the base sandbox image
+
+The spike's bonus probe found **no `tmux`** in the `@vercel/sandbox` node24 image
+(`command -v tmux` → missing). This is the parent PRD's single carried
+feasibility risk (the reattach UX depends on a working multiplexer). It does
+**not** affect the transport decision above, but it means the reattach slice must
+**bundle a static `tmux`** the same way `lib/sandbox/terminal.ts` bundles ttyd
+(fetch a pinned static binary into `/tmp/screenplay`, launch ttyd with
+`tmux new -A -s screenplay-<tabId>` as its command). Confirming a working static
+`tmux` binary in this image is its own small spike before the reattach UX is
+committed to — flagged here, not yet resolved.
+
+The spike code is throwaway and lives only under `.context/` (gitignored); none
+of it is on a production path.
