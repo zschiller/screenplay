@@ -1,6 +1,10 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { MarkdownLayerData } from "@/lib/types"
-import { PLAN_MODE_MARKER, SKILL_MARKER_TOKEN } from "@/lib/agent/message-markers"
+import {
+  MENTION_MARKER_TOKEN,
+  PLAN_MODE_MARKER,
+  SKILL_MARKER_TOKEN,
+} from "@/lib/agent/message-markers"
 
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
@@ -63,8 +67,8 @@ export function buildMarkdownLayerSystemPrompt(opts: {
     "4. To rename the doc, call `set_document_title`.",
     "5. After editing, give the user a short summary of what you changed.",
     "",
-    "Following `@<title>` mentions:",
-    "- The user's message and any document body you fetch may contain `@<title>` references to other docs.",
+    "Following mentions to other docs:",
+    `- The user's message may contain \`${MENTION_MARKER_TOKEN}\` markers, and any document body you fetch may contain free-text \`@<title>\` references.`,
     "- Look up the title in the layer directory below to get the id, then call `read_document(id)` to load it.",
     "",
     `Current title: ${opts.currentTitle || "(untitled)"}`,
@@ -111,8 +115,8 @@ Reading, searching, and editing files:
 Opening a pull request:
 When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.
 
-Following \`@<title>\` mentions:
-The user's messages may reference docs that live on the canvas (separate from the sandbox project). Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
+Following \`${MENTION_MARKER_TOKEN}\` mentions:
+The user's messages may reference docs that live on the canvas (separate from the sandbox project) as \`${MENTION_MARKER_TOKEN}\` markers. Look up the title in the layer directory at the bottom of this prompt, then call \`read_document(id)\` to fetch the contents. These reads are live — they always return the current state, not a snapshot.`
 
 const AGENT_SYSTEM_PROMPT_TAIL = `
 
