@@ -91,6 +91,20 @@ Layer (a document). The target decides the system prompt and which Tools the
 model is given.
 _Avoid_: subject, destination.
 
+**Terminal Tab**:
+A BYO-harness shell surfaced as a tab in the agent panel, attached to one
+Branch's sandbox and rendered with xterm.js in our own React, connecting to the
+in-sandbox daemon's websocket directly (no iframe). Its identity — id, label,
+target Branch — is persisted **per User** in Postgres (the `terminalTab` table)
+and reattaches on reload to a per-tab in-sandbox **tmux session**, so a
+still-running harness survives a page refresh; its *scrollback* is never
+persisted and dies with the sandbox. Explicitly **not** a Chat Session: nothing
+here enters the chat-store, the conversation tables, or the Y.Doc, and it is
+modeled by its own `TerminalTabData`, never `ChatSessionData`.
+_Avoid_: chat tab; terminal session (reserve "tmux session" for the in-sandbox
+multiplexer, "Terminal Tab" for the UI surface); harness (that's the tool the
+operator runs *inside* the tab — see Engine for why the app's own loop isn't one).
+
 **Tool**:
 A capability the model can call during a chat turn (read_file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
