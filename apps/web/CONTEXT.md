@@ -43,6 +43,28 @@ rendered in the sidebar by that branch's name. Lives in the room's Y.Doc as the
 _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
 
+**Sandbox**:
+The ephemeral VM a Branch's repo is checked out into — where the agent reads
+and edits files, runs commands, and serves the dev-server previews the Iframe
+Layers point at. One per Branch, provisioned on demand and reclaimed when idle;
+its contents are never durable, so work worth keeping is committed and pushed. A
+Sandbox may preserve its working tree across a restart (see Sandbox Provider)
+but never outlives its Branch.
+_Avoid_: VM, container, box (the backend's words); workspace (the UI label for a
+Repo); using "sandbox" to mean the Branch itself.
+
+**Sandbox Provider**:
+The swappable backend that creates and reconnects Sandboxes — Vercel today, and
+the only one. The surface is split into a **portable core** (the operations
+every conceivable backend can honor) and an optional **Hibernation** capability:
+freezing a Sandbox's filesystem when it goes idle and thawing it on return,
+which is what preserves uncommitted work across a restart. A provider that can't
+hibernate is not disqualified — it degrades to recloning the repo fresh, a
+working Sandbox with un-pushed edits lost. The split exists so the seam tells the
+truth about what a second provider would actually cost.
+_Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
+guaranteed (it is an optional capability, not part of the core).
+
 **Agent**:
 The AI runtime that operates inside a Branch — concretely the Engine (the agent
 loop), its tools, providers, and persisted runs (`lib/agent/`, the
