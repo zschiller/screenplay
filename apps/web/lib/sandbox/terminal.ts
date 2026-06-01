@@ -7,12 +7,29 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
 import { tmuxSessionName } from "@/lib/terminal/session"
 
 // Pin a known-good static ttyd build (the spike validated 1.7.7's prebuilt
-// x86_64 binary in the @vercel/sandbox image). The binary lives under
+// binaries in the @vercel/sandbox image). The binary lives under
 // /tmp/screenplay because sandbox commands run as the unprivileged
 // `vercel-sandbox` user, which can write there without sudo.
 const TTYD_VERSION = "1.7.7"
 const TTYD_BIN = "/tmp/screenplay/ttyd"
-const TTYD_URL = `https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64`
+
+// ttyd publishes one static binary per architecture, each asset named
+// `ttyd.<machine>` where <machine> is the `uname -m` value. Map the sandbox's
+// reported architecture to its asset rather than hardcoding x86_64, which
+// silently baked the current Vercel image's arch into the seam (#268). An
+// unknown arch is a loud failure, not a silent x86_64 fallback.
+const TTYD_ASSET_BY_ARCH: Record<string, string> = {
+  x86_64: "ttyd.x86_64",
+  aarch64: "ttyd.aarch64",
+}
+
+function ttydUrl(arch: string): string {
+  const asset = TTYD_ASSET_BY_ARCH[arch]
+  if (!asset) {
+    throw new Error(`unsupported sandbox architecture for ttyd: ${arch || "unknown"}`)
+  }
+  return `https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/${asset}`
+}
 // Pidfile for the daemon. Written under `setsid` so the recorded PID equals the
 // process-group leader, and read back by the liveness probe to decide whether a
 // launch is needed.
@@ -87,16 +104,20 @@ export async function killTerminalSession(
 
 /**
  * Fetch the static ttyd binary if it isn't already on disk, then mark it
- * executable. Idempotent — a present binary short-circuits the download — so
- * it's safe to call on every `ensureTerminal`. A download failure exits
- * non-zero, which `step` turns into a redacted failure result.
+ * executable. Detects the sandbox architecture (`uname -m`) and downloads the
+ * matching release asset rather than assuming x86_64 (#268). Idempotent — a
+ * present binary short-circuits the download — so it's safe to call on every
+ * `ensureTerminal`. A download failure exits non-zero, which `step` turns into
+ * a redacted failure result.
  */
 async function ensureTtydInstalled(sandbox: SandboxInstance): Promise<void> {
+  const probe = await step(sandbox, "sh", ["-c", "uname -m"])
+  const url = ttydUrl((await probe.stdout()).trim())
   await step(sandbox, "sh", [
     "-c",
     `mkdir -p /tmp/screenplay && ` +
       `{ [ -x ${TTYD_BIN} ] || ` +
-      `{ curl -fsSL ${TTYD_URL} -o ${TTYD_BIN} && chmod +x ${TTYD_BIN}; }; }`,
+      `{ curl -fsSL ${url} -o ${TTYD_BIN} && chmod +x ${TTYD_BIN}; }; }`,
   ])
 }
 
