@@ -92,15 +92,36 @@ function fakeSandbox(
 }
 
 // The action probes whether a daemon is already running by reading the stdout
-// of its check command. These scripts model the two outcomes.
+// of its check command, and probes the sandbox architecture (`uname -m`) to
+// pick the ttyd asset. These scripts model the running/stopped outcomes and
+// report an x86_64 sandbox for the arch probe.
 const REPORTS_RUNNING = (cmd: string, args: string[]): Scripted =>
-  isCheck(args) ? { exitCode: 0, stdout: "running\n" } : { exitCode: 0 }
+  isArchProbe(args)
+    ? { exitCode: 0, stdout: "x86_64\n" }
+    : isCheck(args)
+      ? { exitCode: 0, stdout: "running\n" }
+      : { exitCode: 0 }
 const REPORTS_STOPPED = (cmd: string, args: string[]): Scripted =>
-  isCheck(args) ? { exitCode: 0, stdout: "stopped\n" } : { exitCode: 0 }
+  isArchProbe(args)
+    ? { exitCode: 0, stdout: "x86_64\n" }
+    : isCheck(args)
+      ? { exitCode: 0, stdout: "stopped\n" }
+      : { exitCode: 0 }
 
 /** The liveness probe is the one command that inspects the pidfile. */
 function isCheck(args: string[]): boolean {
   return args.some((a) => a.includes("kill -0"))
+}
+
+/** The architecture probe is the one command that runs `uname -m`. */
+function isArchProbe(args: string[]): boolean {
+  return args.some((a) => a.includes("uname -m"))
+}
+
+/** The ttyd install is the step that curls the binary into /tmp/screenplay. */
+function isTtydInstall(issued: Issued): boolean {
+  const cmd = script(issued)
+  return cmd.includes("/tmp/screenplay/ttyd") && cmd.includes("curl")
 }
 
 /** The launch is the one detached command that spawns the daemon under setsid. */
@@ -177,6 +198,51 @@ describe("ensureTerminal", () => {
     expect(cmd).toContain("--url-arg")
     // Base command is the bundled tmux attaching-or-creating a named session.
     expect(cmd).toContain("/tmp/screenplay/tmux new -A -s")
+  })
+
+  it.each([
+    ["x86_64", "ttyd.x86_64", "ttyd.aarch64"],
+    ["aarch64", "ttyd.aarch64", "ttyd.x86_64"],
+  ])(
+    "downloads the ttyd asset matching the sandbox arch (%s)",
+    async (arch, expectedAsset, otherAsset) => {
+      // Report the sandbox arch for `uname -m`; daemon already running so the
+      // run reduces to the install steps.
+      const { sandbox, issued } = fakeSandbox((cmd, args) =>
+        isArchProbe(args)
+          ? { exitCode: 0, stdout: `${arch}\n` }
+          : isCheck(args)
+            ? { exitCode: 0, stdout: "running\n" }
+            : { exitCode: 0 },
+      )
+      fake.setInstance(sandbox)
+
+      await ensureTerminal("sandbox-a")
+
+      const install = issued.find(isTtydInstall)
+      expect(install).toBeDefined()
+      const cmd = script(install!)
+      expect(cmd).toContain(`/releases/download/1.7.7/${expectedAsset}`)
+      // Not the hardcoded-x86_64 bug: the other arch's asset never leaks in.
+      expect(cmd).not.toContain(otherAsset)
+    },
+  )
+
+  it("fails (redacted) rather than defaulting to x86_64 on an unknown arch", async () => {
+    const { sandbox, issued } = fakeSandbox((cmd, args) =>
+      isArchProbe(args)
+        ? { exitCode: 0, stdout: "riscv64\n" }
+        : isCheck(args)
+          ? { exitCode: 0, stdout: "running\n" }
+          : { exitCode: 0 },
+    )
+    fake.setInstance(sandbox)
+
+    const result = await ensureTerminal("sandbox-a")
+
+    expect(result.success).toBe(false)
+    // The unsupported arch short-circuits before any ttyd download is attempted.
+    expect(issued.some(isTtydInstall)).toBe(false)
   })
 
   it("returns a redacted failure when a step fails, without spilling a token", async () => {
