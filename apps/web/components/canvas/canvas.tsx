@@ -25,6 +25,11 @@ import {
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createTerminalTab } from "@/lib/canvas/tab-kind"
+import {
+  createTerminalTabAction,
+  deleteTerminalTabAction,
+  listTerminalTabsAction,
+} from "@/lib/terminal-tabs-actions"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -192,17 +197,51 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // so agents from Liveblocks can be a new reference every render safely.
   const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
-  // Terminal tabs are deliberately *local*, not stored in the shared
-  // `chatSessions` Y.Doc collection: they're ephemeral, BYO-harness shells that
-  // shouldn't appear in collaborators' tab strips and shouldn't enter the
-  // conversation model. They live only in this client's state and are lost on
-  // refresh (the sandbox daemon is ephemeral too). Co-view across clients is a
-  // deliberate non-goal for now — see ADR 0002 / follow-up.
+  // Terminal tabs are deliberately kept out of the shared `chatSessions` Y.Doc
+  // collection: they're per-user, BYO-harness shells that must never appear in
+  // collaborators' tab strips or enter the conversation model. They live in
+  // this client's state, but their identity/metadata is persisted per
+  // user+room+branch in Postgres (#258, the `terminal_tab` table) — so a reload
+  // restores them and they follow the User across devices. Only the tab
+  // identity is stored, never scrollback. Co-view across clients is still a
+  // deliberate non-goal — see ADR 0002 / follow-up.
   const [localTerminals, setLocalTerminals] = useState<TerminalTabData[]>([])
   const isLocalTerminal = useCallback(
     (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
     [localTerminals],
   )
+  // Restore this User's persisted terminal tabs for the whole room on load, so
+  // a reload reopens them and they follow the User across devices (#258). We
+  // fetch every Branch's tabs in one round-trip and group by `branchId` when
+  // handing them to the panel, so switching Branches is instant. Merge rather
+  // than replace, so a tab the user opened before this resolved isn't dropped.
+  useEffect(() => {
+    let cancelled = false
+    listTerminalTabsAction({ roomId })
+      .then((rows) => {
+        if (cancelled) return
+        const restored = rows.map((r) =>
+          createTerminalTab({
+            id: r.id,
+            branchId: r.branch,
+            createdAt: r.createdAt,
+            label: r.label,
+          }),
+        )
+        setLocalTerminals((prev) => {
+          const localOnly = prev.filter(
+            (t) => !restored.some((r) => r.id === t.id),
+          )
+          return [...restored, ...localOnly]
+        })
+      })
+      .catch((err) => {
+        console.error("Failed to restore terminal tabs", err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [roomId])
   // Per-repo / per-agent memory so switching back restores prior selection
   const selectedAgentByRepoRef = useRef<Record<string, string>>({})
   const selectedChatByAgentRef = useRef<Record<string, string>>({})
@@ -2049,14 +2088,28 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const handleCreateTerminal = useCallback(
     (agentId: string) => {
       const id = nanoid()
-      setLocalTerminals((prev) => [
-        ...prev,
-        createTerminalTab({ id, branchId: agentId, createdAt: Date.now() }),
-      ])
+      const tab = createTerminalTab({
+        id,
+        branchId: agentId,
+        createdAt: Date.now(),
+      })
+      setLocalTerminals((prev) => [...prev, tab])
       setSelectedAgentId(agentId)
       setSelectedChatId(id)
+      // Persist so the tab survives reload and follows the User across devices.
+      // Optimistic: the tab is already in local state; a failed write only
+      // means it won't be restored next load.
+      createTerminalTabAction({
+        roomId,
+        branch: agentId,
+        id: tab.id,
+        label: tab.label,
+        createdAt: tab.createdAt,
+      }).catch((err) => {
+        console.error("Failed to persist terminal tab", err)
+      })
     },
-    [],
+    [roomId],
   )
 
   // Close a local terminal tab: it's ephemeral, so closing simply drops it
@@ -2091,8 +2144,24 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       } else if (selectedChatId === id) {
         setSelectedChatId(terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null)
       }
+      // Closing an X permanently deletes the row (a reload alone never does).
+      deleteTerminalTabAction({ roomId, id }).catch((err) => {
+        console.error("Failed to delete terminal tab", err)
+      })
+      // The auto-created replacement is a brand-new tab — persist it too.
+      if (replacement && branchId) {
+        createTerminalTabAction({
+          roomId,
+          branch: branchId,
+          id: replacement.id,
+          label: replacement.label,
+          createdAt: replacement.createdAt,
+        }).catch((err) => {
+          console.error("Failed to persist replacement terminal tab", err)
+        })
+      }
     },
-    [selectedChatId, chatSessions, localTerminals],
+    [selectedChatId, chatSessions, localTerminals, roomId],
   )
 
   /**
