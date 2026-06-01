@@ -302,4 +302,34 @@ export const agentPendingToolCall = pgTable(
   ],
 )
 
+// Persisted terminal tabs (#258). One row per open terminal tab, keyed by
+// user + room + branch so the tab strip can restore a User's tabs on reload
+// and follow them across devices. Terminal tabs are deliberately *not* part of
+// the conversation model — this table holds only tab identity/metadata (id,
+// label, ordering timestamp), never scrollback or any conversation content
+// (per ADR 0002 and the dedicated `TerminalTabData` type from #256). Tabs are
+// private to their owner (`user_id`), so they never surface in a collaborator's
+// tab strip. The tab's `id` doubles as its shared live-view terminalSessionId
+// on the client.
+export const terminalTab = pgTable(
+  "terminal_tab",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    // The Branch (agent) id whose sandbox this terminal runs against. A plain
+    // text column — Branches live in the room's Y.Doc, not Postgres — so it is
+    // intentionally not a foreign key.
+    branch: text("branch").notNull(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("terminal_tab_user_room_branch_idx").on(t.userId, t.roomId, t.branch),
+  ],
+)
 
