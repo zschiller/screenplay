@@ -148,6 +148,8 @@ function fakeSandbox(
   }
   return {
     name: opts.name ?? "fake-sandbox",
+    worktreePath: "/vercel/sandbox",
+    homeDir: "/root",
     status: opts.status ?? "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],

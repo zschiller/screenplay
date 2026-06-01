@@ -79,6 +79,8 @@ function fakeSandbox(
   }
   const sandbox: SandboxInstance = {
     name: "fake-sandbox",
+    worktreePath: "/vercel/sandbox",
+    homeDir: "/root",
     status: "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],

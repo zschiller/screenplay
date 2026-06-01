@@ -160,15 +160,20 @@ export async function installClaudeCode(
       throw new SandboxStepError("npm install -g @anthropic-ai/claude-code", install.exitCode, stderr)
     }
 
+    // The checkout location and the writable home are provider-supplied, so the
+    // onboarding seed follows the actual sandbox layout instead of a hardcoded
+    // backend path. On Vercel these are /vercel/sandbox and /root.
+    const { worktreePath, homeDir } = sandbox
+
     // Pre-seed ~/.claude.json so the user lands in an already-onboarded state:
     // theme set, API-key prompt approved for our "brokered" placeholder, and
-    // /vercel/sandbox pre-trusted.
+    // the checked-out worktree pre-trusted.
     const claudeConfig = JSON.stringify({
       theme: "auto",
       hasCompletedOnboarding: true,
       customApiKeyResponses: { approved: ["brokered"], rejected: [] },
       projects: {
-        "/vercel/sandbox": {
+        [worktreePath]: {
           hasTrustDialogAccepted: true,
           projectOnboardingSeenCount: 1,
           allowedTools: [],
@@ -181,13 +186,13 @@ export async function installClaudeCode(
     })
     await sandbox.runCommand({
       cmd: "sh",
-      args: ["-c", `printf '%s' "$CLAUDE_CONFIG" > "$HOME/.claude.json"`],
+      args: ["-c", `printf '%s' "$CLAUDE_CONFIG" > "${homeDir}/.claude.json"`],
       env: { CLAUDE_CONFIG: claudeConfig },
     })
 
     // User-level CLAUDE.md so every session in this sandbox inherits the
-    // always-commit-and-push rule. Lives in $HOME (not the cloned repo) so it
-    // doesn't pollute the user's git history.
+    // always-commit-and-push rule. Lives in the home dir (not the cloned repo)
+    // so it doesn't pollute the user's git history.
     const claudeMd = [
       "# Screenplay sandbox rules",
       "",
@@ -206,7 +211,7 @@ export async function installClaudeCode(
       cmd: "sh",
       args: [
         "-c",
-        `mkdir -p "$HOME/.claude" && printf '%s' "$CLAUDE_MD" > "$HOME/.claude/CLAUDE.md"`,
+        `mkdir -p "${homeDir}/.claude" && printf '%s' "$CLAUDE_MD" > "${homeDir}/.claude/CLAUDE.md"`,
       ],
       env: { CLAUDE_MD: claudeMd },
     })
@@ -229,7 +234,7 @@ export async function installClaudeCode(
       cmd: "sh",
       args: [
         "-c",
-        `mkdir -p "$HOME/.screenplay" && printf '%s' "$HELPER" > "$HOME/.screenplay/git-credential-helper.sh" && chmod +x "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.helper "$HOME/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
+        `mkdir -p "${homeDir}/.screenplay" && printf '%s' "$HELPER" > "${homeDir}/.screenplay/git-credential-helper.sh" && chmod +x "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.helper "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
       ],
       env: { HELPER: credentialHelper },
     })

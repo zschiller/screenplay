@@ -83,6 +83,9 @@ import {
 
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 
+/** A `runCommand` invocation captured by the fake sandbox for path-seam asserts. */
+type RecordedCall = { cmd: string; args: string[]; env?: Record<string, string> }
+
 /**
  * Builds a fake {@link SandboxInstance} whose `runCommand` is scripted by
  * `respond(cmd, args)`. `writeFiles` records what it was asked to write so a
@@ -91,7 +94,15 @@ type Scripted = { exitCode: number; stdout?: string; stderr?: string }
  */
 function fakeSandbox(
   respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 }),
-  opts: { status?: string; written?: SandboxFile[]; writeError?: string } = {},
+  opts: {
+    status?: string
+    written?: SandboxFile[]
+    writeError?: string
+    worktreePath?: string
+    homeDir?: string
+    /** Records every `runCommand` (including its `env`) for path-seam asserts. */
+    calls?: RecordedCall[]
+  } = {},
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
@@ -102,6 +113,11 @@ function fakeSandbox(
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
         : ((cmdOrOpts as { args?: string[] }).args ?? [])
+    const env =
+      typeof cmdOrOpts === "string"
+        ? undefined
+        : (cmdOrOpts as { env?: Record<string, string> }).env
+    opts.calls?.push({ cmd, args, env })
     const scripted = respond(cmd, args)
     const result: SandboxCommandResult = {
       exitCode: scripted.exitCode,
@@ -114,6 +130,8 @@ function fakeSandbox(
   }
   return {
     name: "fake-sandbox",
+    worktreePath: opts.worktreePath ?? "/vercel/sandbox",
+    homeDir: opts.homeDir ?? "/root",
     status: opts.status ?? "running",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
@@ -241,6 +259,42 @@ describe("installClaudeCode", () => {
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
+  })
+
+  // Path-seam regression: the onboarding seed must follow the provider-supplied
+  // `worktreePath` / `homeDir` rather than the hardcoded Vercel literals. Drive
+  // a mock whose paths differ from the Vercel defaults and assert the emitted
+  // commands and config track the mock — so a second provider with a different
+  // filesystem layout seeds itself correctly.
+  it("derives the .claude.json project key and home-dir writes from the sandbox paths", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 0 }), {
+        worktreePath: "/workspace/repo",
+        homeDir: "/home/agent",
+        calls,
+      }),
+    )
+
+    const result = await installClaudeCode("sandbox-a")
+    expect(result).toEqual({ success: true, value: undefined })
+
+    // The .claude.json write is the `sh -c` whose env carries CLAUDE_CONFIG.
+    const configCall = calls.find((c) => c.env?.CLAUDE_CONFIG)
+    expect(configCall).toBeDefined()
+    const config = JSON.parse(configCall!.env!.CLAUDE_CONFIG!)
+    // The pre-trusted project key tracks the mock worktree, not /vercel/sandbox.
+    expect(Object.keys(config.projects)).toEqual(["/workspace/repo"])
+    // …and the file lands in the mock home dir, not /root or a shell $HOME.
+    expect(configCall!.args.at(-1)).toContain('"/home/agent/.claude.json"')
+
+    // The CLAUDE.md and credential-helper writes target the same home dir.
+    const shArgs = calls.map((c) => c.args.join(" ")).join("\n")
+    expect(shArgs).toContain("/home/agent/.claude/CLAUDE.md")
+    expect(shArgs).toContain("/home/agent/.screenplay/git-credential-helper.sh")
+    // No Vercel default leaks through once the provider supplies its own paths.
+    expect(shArgs).not.toContain("/vercel/sandbox")
+    expect(shArgs).not.toContain("/root/")
   })
 })
 
