@@ -62,10 +62,15 @@ import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
 import {
+  anchorCornerForEdge,
+  computeDeviceSnap,
   computeMoveSnap,
+  type AnchorCorner,
+  type ResizeEdge,
+  type SnapCandidate,
   type SnapGuide,
   type Rect as MoveSnapRect,
-} from "@/lib/iframe-layer-move-snap"
+} from "@/lib/canvas/snap"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
@@ -121,13 +126,6 @@ import {
   groupGap,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
-import {
-  anchorCornerForEdge,
-  computeDeviceSnap,
-  type AnchorCorner,
-  type ResizeEdge,
-  type SnapCandidate,
-} from "@/lib/iframe-layer-snap"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"

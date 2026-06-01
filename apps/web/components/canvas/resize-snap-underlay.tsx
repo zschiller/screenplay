@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from "react"
 import { Monitor, type LucideIcon } from "lucide-react"
-import type { AnchorCorner, SnapCandidate } from "@/lib/iframe-layer-snap"
+import type { AnchorCorner, SnapCandidate } from "@/lib/canvas/snap"
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
   type IframeLayerSizeCategory,
 } from "@/lib/iframe-layer-sizes"
-import { rectFromAnchor } from "@/lib/iframe-layer-snap"
+import { rectFromAnchor } from "@/lib/canvas/snap"
 
 function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
