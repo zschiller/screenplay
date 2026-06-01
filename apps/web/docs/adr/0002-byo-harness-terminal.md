@@ -289,3 +289,38 @@ that the build rests on:
   single-trusted-operator constraint is unchanged. Fresh-shell-on-rebuild and
   orphan-session cleanup are explicitly out of this slice (a follow-up), which
   assumes the sandbox is still alive across the reload.
+
+## Addendum (2026-06-01): fresh-shell-on-rebuild + lazy orphan-tab pruning (slice #260)
+
+The follow-up the #259 addendum named — the two "the world changed underneath
+the tab" cases the reattach slice assumed away (a rebuilt sandbox, a deleted
+Branch). Both fall out of mechanisms already in place; the slice is mostly
+making them transparent and adding feedback, not new transport.
+
+- **Fresh shell on a rebuilt sandbox is the `-A` flag doing its job — no new
+  reconnect path.** A rebuilt VM boots from a filesystem snapshot but with no
+  running processes, so the ttyd daemon (and its `tmux` sessions, which are
+  processes, not files) are gone. `ensureTerminal` is already idempotent: the
+  liveness probe reports stopped, so it re-fetches the bundled `ttyd`/`tmux`
+  binaries and relaunches with `tmux new -A -s screenplay-<tabId>`. The `-A`
+  attaches-or-creates, so a VM with no session transparently gets a fresh
+  working shell rather than an error. The terminal does **not** initiate a
+  rebuild itself (that needs repo + branch + git token — the agent reconnect
+  flow's job); it assumes the rebuild already happened and just attaches.
+
+- **Provisioning feedback is status-gated, which also suppresses a spurious
+  error during boot.** `TerminalTab` now takes the Branch's sandbox `status`:
+  while it's `creating`/`starting` the tab shows "Waiting for the sandbox to
+  start…" and holds off connecting, so the operator sees clear provisioning
+  feedback instead of a dead/blank pane or a transient 502 from
+  `/api/terminal/url` racing a still-booting daemon. The connect effect re-runs
+  when the status flips to `running`.
+
+- **Orphan pruning is lazy and now deletes the row, not just the tab.** When a
+  tab's Branch no longer exists, the canvas drops it from the tab strip **and**
+  deletes its `terminalTab` row, so it can't resurrect on the next load. This is
+  safe to do destructively because the canvas only renders post-Yjs-initial-sync
+  (`liveblocks-client.tsx` gates render on `synced`), so an absent branch id is a
+  genuinely deleted Branch, not an unhydrated collection. Pruning runs on
+  load/connect off the branch + local-terminal state — no background job — and
+  the delete is best-effort/idempotent (deleting an already-gone row is a no-op).

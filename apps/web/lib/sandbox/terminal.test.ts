@@ -245,6 +245,30 @@ describe("ensureTerminal", () => {
     expect(issued.some(isTtydInstall)).toBe(false)
   })
 
+  it("yields a fresh shell on a rebuilt sandbox rather than erroring", async () => {
+    // A rebuilt VM (the old sandbox was reclaimed) boots from a snapshot of the
+    // filesystem but with no running processes — so the ttyd daemon is gone and
+    // its tmux session with it. The liveness probe therefore reports "stopped".
+    const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
+    fake.setInstance(sandbox)
+
+    const result = await ensureTerminal("sandbox-rebuilt")
+
+    // No error surfaces — reconnect transparently re-provisions the daemon…
+    expect(result.success).toBe(true)
+    // …re-fetching the bundled binaries the fresh image lacks…
+    expect(
+      issued.some(
+        (i) => script(i).includes("/tmp/screenplay/tmux") && script(i).includes("curl"),
+      ),
+    ).toBe(true)
+    // …and relaunching ttyd with tmux attach-or-create, so the operator lands in
+    // a fresh working shell (the `-A` creates the session the rebuilt VM lacks).
+    const launch = issued.find(isLaunch)
+    expect(launch).toBeDefined()
+    expect(script(launch!)).toContain("/tmp/screenplay/tmux new -A -s")
+  })
+
   it("returns a redacted failure when a step fails, without spilling a token", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     // The install step exits non-zero with a token in its stderr.
