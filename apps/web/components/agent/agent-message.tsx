@@ -260,16 +260,12 @@ function PlanMessage({
 export function AgentMessageItem({ message, toolResult, roomId, chatId }: { message: AgentMessage; toolResult?: AgentMessage & { role: "tool_result" }; roomId?: string; chatId?: string }) {
   switch (message.role) {
     case "user": {
-      // Strip the server turn prefixes via the Message Markers codec, then
-      // recover the `/`-skill chip through the codec's `skillMarkersToPills`
-      // — the same `[skill: <name>]` marker the composer's `serializeSkill`
-      // emits, rendered back as a pill. The footer transform stays local
-      // until a later slice moves it into the codec too.
+      // Strip the server turn prefixes and the referenced-documents footer
+      // via the Message Markers codec, then recover the `/`-skill chip through
+      // the codec's `skillMarkersToPills` — the same `[skill: <name>]` marker
+      // the composer's `serializeSkill` emits, rendered back as a pill.
       const displayContent = skillMarkersToPills(
-        parseUserMessage(message.content).body.replace(
-          /\n\n---\n\nReferenced documents:[\s\S]*$/,
-          "",
-        ),
+        parseUserMessage(message.content).body,
       )
       return (
         <div className="flex justify-end">
