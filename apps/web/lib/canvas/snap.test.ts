@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
   computeDeviceSnap,
+  computeMergeSnap,
   computeMoveSnap,
+  MERGE_SNAP_THRESHOLD,
   MOVE_SNAP_THRESHOLD_PX,
   SNAP_THRESHOLD_PX,
+  type MergeSnapCandidate,
   type Rect,
 } from "@/lib/canvas/snap"
 import type { IframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
@@ -169,5 +172,120 @@ describe("computeDeviceSnap", () => {
     expect(result.candidates).toEqual([])
     expect(result.width).toBe(406)
     expect(result.snappedPresetId).toBeNull()
+  })
+})
+
+describe("computeMergeSnap", () => {
+  // The dragged group always has two members; only its top-left corner
+  // (rect.x / rect.y) drives detection, with width/height guarding against a
+  // degenerate (zero-extent) source.
+  const rect: Rect = { x: 0, y: 0, width: 100, height: 80 }
+  const memberSizes = [
+    { width: 50, height: 40 },
+    { width: 60, height: 40 },
+  ]
+
+  // A candidate at the origin with width 100 and gap 20 → its trailing "+
+  // frame" slot sits at world (120, 0).
+  const candidate = (id: string, x: number, y: number): MergeSnapCandidate => ({
+    id,
+    rect: { x, y, width: 100, height: 80 },
+    gap: 20,
+  })
+
+  it("goes hot and previews the merged row when the source sits on the slot", () => {
+    // Source top-left exactly on the candidate's trailing slot (120, 0).
+    const result = computeMergeSnap({
+      rect: { ...rect, x: 120, y: 0 },
+      memberSizes,
+      candidates: [candidate("target", 0, 0)],
+    })
+
+    expect(result).not.toBeNull()
+    expect(result!.targetId).toBe("target")
+    // One rect per member, laid out from the slot with the target's 20px gap:
+    // first at the slot, second at 120 + 50 + 20 = 190.
+    expect(result!.rects).toEqual([
+      { x: 120, y: 0, width: 50, height: 40 },
+      { x: 190, y: 0, width: 60, height: 40 },
+    ])
+  })
+
+  it("picks the nearest target among several", () => {
+    // Source at (120, 30). The "near" slot is at (120, 0) → 30 away; the "far"
+    // slot is at (120, 100) → 70 away. Both are within the default radius, so
+    // the tie-break is pure distance.
+    const result = computeMergeSnap({
+      rect: { ...rect, x: 120, y: 30 },
+      candidates: [candidate("far", 0, 100), candidate("near", 0, 0)],
+      memberSizes,
+    })
+
+    expect(result!.targetId).toBe("near")
+  })
+
+  it("stays cold when every target is beyond threshold", () => {
+    // Source is 300 world units below the only slot — outside the default 150.
+    const result = computeMergeSnap({
+      rect: { ...rect, x: 120, y: 300 },
+      candidates: [candidate("target", 0, 0)],
+      memberSizes,
+    })
+
+    expect(result).toBeNull()
+  })
+
+  it("goes hot just below the threshold but not at or beyond it", () => {
+    const threshold = 100
+    // Slot is at (120, 0); push the source down the y axis so distance == |dy|.
+    const at = (dy: number) =>
+      computeMergeSnap({
+        rect: { ...rect, x: 120, y: dy },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+        threshold,
+      })
+
+    // Just below → hot.
+    expect(at(threshold - 0.1)?.targetId).toBe("target")
+    // Exactly at the threshold → cold (detection uses a strict `<`).
+    expect(at(threshold)).toBeNull()
+    // Just above → cold.
+    expect(at(threshold + 0.1)).toBeNull()
+  })
+
+  it("uses MERGE_SNAP_THRESHOLD as the default radius", () => {
+    // Just inside the default radius along y.
+    expect(
+      computeMergeSnap({
+        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD - 1 },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+      })?.targetId,
+    ).toBe("target")
+    // Just outside it.
+    expect(
+      computeMergeSnap({
+        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD + 1 },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+      }),
+    ).toBeNull()
+  })
+
+  it("returns null for a degenerate (zero-extent) source", () => {
+    expect(
+      computeMergeSnap({
+        rect: { x: 120, y: 0, width: 0, height: 0 },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+      }),
+    ).toBeNull()
+  })
+
+  it("returns null when there are no candidates", () => {
+    expect(
+      computeMergeSnap({ rect, candidates: [], memberSizes }),
+    ).toBeNull()
   })
 })
