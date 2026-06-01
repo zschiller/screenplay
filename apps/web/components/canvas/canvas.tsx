@@ -31,6 +31,7 @@ import {
   killTerminalSessionAction,
   listTerminalTabsAction,
 } from "@/lib/terminal-tabs-actions"
+import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -853,17 +854,27 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const repos = useRepos()
   const agents = useBranches()
 
-  // Drop local terminal tabs whose branch no longer exists (branch deleted),
-  // so they don't linger in state pointing at a gone sandbox. Functional +
-  // identity-guarded so it only fires a state update when something actually
-  // needs pruning.
+  // Lazily prune terminal tabs whose Branch no longer exists (branch deleted),
+  // so a dead terminal never lingers pointing at a gone sandbox (#260). We get
+  // here only post-sync (render is gated on the Yjs initial sync), so an absent
+  // branch is a genuinely deleted one — not an unhydrated collection — making it
+  // safe to also delete the persisted row, not just drop the tab from the strip.
+  // Depends on `localTerminals` too so a row restored from Postgres for an
+  // already-deleted branch is pruned on connect/load, with no background job.
   useEffect(() => {
     const branchIds = new Set(agents.map((a) => a.id))
-    setLocalTerminals((prev) => {
-      const kept = prev.filter((t) => branchIds.has(t.branchId))
-      return kept.length === prev.length ? prev : kept
-    })
-  }, [agents])
+    const { orphaned } = partitionTerminalsByBranch(localTerminals, branchIds)
+    if (orphaned.length === 0) return
+    // Drop the orphans from the tab strip…
+    setLocalTerminals((prev) => prev.filter((t) => branchIds.has(t.branchId)))
+    // …and delete their `terminalTab` rows so they don't resurrect next load.
+    // Best-effort + idempotent: deleting an already-gone row is a no-op.
+    for (const orphan of orphaned) {
+      deleteTerminalTabAction({ roomId, id: orphan.id }).catch((err) => {
+        console.error("Failed to prune orphaned terminal tab", err)
+      })
+    }
+  }, [agents, localTerminals, roomId])
 
   const diffStats = useDiffStats(agents, repos)
   const branchPrs = useBranchPrs(agents, repos)

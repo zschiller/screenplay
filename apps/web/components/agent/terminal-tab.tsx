@@ -12,6 +12,7 @@ import {
   TTYD_SUBPROTOCOL,
 } from "@/lib/terminal/ttyd-protocol"
 import { tmuxSessionName } from "@/lib/terminal/session"
+import type { SandboxStatus } from "@/lib/types"
 
 interface TerminalTabProps {
   /** Shared live-view identity — collaborators opening the same id co-view one PTY. */
@@ -20,10 +21,15 @@ interface TerminalTabProps {
   /** The agent's sandbox the terminal attaches to. Undefined while the sandbox
    *  is still provisioning, in which case there's nothing to attach to yet. */
   sandboxName?: string
+  /** The Branch's sandbox lifecycle status. While it's booting/resuming (e.g. a
+   *  rebuilt VM after the old one was reclaimed) we hold off connecting and show
+   *  provisioning feedback; once it's "running" we connect (#260). */
+  sandboxStatus?: SandboxStatus
 }
 
 type State =
   | { status: "idle" }
+  | { status: "provisioning" }
   | { status: "loading" }
   | { status: "ready" }
   | { status: "error"; message: string }
@@ -56,13 +62,27 @@ function resolveColor(value: string, fallback: string): string {
  * Postgres, or the Y.Doc conversation model — the scrollback lives only in the
  * running daemon and is lost when the sandbox is reclaimed.
  */
-export function TerminalTab({ sessionId, roomId, sandboxName }: TerminalTabProps) {
+export function TerminalTab({
+  sessionId,
+  roomId,
+  sandboxName,
+  sandboxStatus,
+}: TerminalTabProps) {
   const [state, setState] = useState<State>({ status: "idle" })
   const hostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!sandboxName) {
       setState({ status: "idle" })
+      return
+    }
+    // The sandbox is still booting/resuming (e.g. a rebuilt VM after the old one
+    // was reclaimed). Show provisioning feedback rather than a dead/blank
+    // terminal or a spurious connection error, and wait: the effect re-runs when
+    // the status flips to "running", at which point we connect and the daemon's
+    // `tmux new -A` hands back a fresh working shell (#260).
+    if (sandboxStatus === "creating" || sandboxStatus === "starting") {
+      setState({ status: "provisioning" })
       return
     }
     const host = hostRef.current
@@ -219,7 +239,7 @@ export function TerminalTab({ sessionId, roomId, sandboxName }: TerminalTabProps
       cancelled = true
       cleanup?.()
     }
-  }, [roomId, sessionId, sandboxName])
+  }, [roomId, sessionId, sandboxName, sandboxStatus])
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -233,6 +253,10 @@ export function TerminalTab({ sessionId, roomId, sandboxName }: TerminalTabProps
             {state.status === "loading" ? (
               <span className="flex items-center gap-2">
                 <Spinner className="size-4" /> Starting terminal…
+              </span>
+            ) : state.status === "provisioning" ? (
+              <span className="flex items-center gap-2">
+                <Spinner className="size-4" /> Waiting for the sandbox to start…
               </span>
             ) : state.status === "error" ? (
               <span>{state.message}</span>
