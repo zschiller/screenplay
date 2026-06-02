@@ -169,7 +169,7 @@ function fakeSandbox(
   const sandbox: SandboxInstance = {
     name: opts.name ?? "fake-sandbox",
     worktreePath: "/vercel/sandbox",
-    homeDir: "/root",
+    homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {

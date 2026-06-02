@@ -117,10 +117,14 @@ export interface SandboxInstance {
    */
   readonly worktreePath: string
   /**
-   * Absolute path to the home directory commands run against (`$HOME`). `/root`
-   * on Vercel. User-level config (`.claude.json`, `.claude/CLAUDE.md`, the git
-   * credential helper) is seeded here, so the writable-home location is
-   * provider-supplied rather than an assumed `/tmp`-vs-`$HOME` split.
+   * Absolute path to the home directory of the unprivileged user that ordinary
+   * (non-`sudo`) commands and the interactive terminal shell run as — i.e. the
+   * `$HOME` that `claude` resolves in the tmux session. `/home/vercel-sandbox`
+   * on Vercel (NOT `/root`, which only `sudo`/root commands see and which the
+   * sandbox user can't even read). User-level config (`.claude.json`,
+   * `.claude/CLAUDE.md`, the git credential helper) is seeded here, so the
+   * writable-home location is provider-supplied rather than an assumed
+   * `/tmp`-vs-`$HOME` split.
    */
   readonly homeDir: string
   /** Public URL for the given forwarded port. */

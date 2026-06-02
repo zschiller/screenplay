@@ -10,12 +10,19 @@ import type {
 } from "@/lib/sandbox/types"
 
 // Vercel Sandbox's fixed filesystem layout. The repo is cloned into the
-// working directory `/vercel/sandbox`, and commands run with `HOME=/root`
-// (per Vercel's system specifications). These are the concrete values behind
-// the `worktreePath` / `homeDir` seams every other provider would supply for
-// itself — the SDK object doesn't carry them, so the adapter attaches them.
+// working directory `/vercel/sandbox`, and ordinary (non-`sudo`) commands run as
+// the unprivileged `vercel-sandbox` user, whose home is `/home/vercel-sandbox`
+// (only `sudo` commands run as root with `HOME=/root`, and that user has no
+// access to `/root`). The terminal's tmux login shell — where the user actually
+// runs `claude` — is one of those unprivileged shells, so the writable home that
+// user-level config must be seeded into is `/home/vercel-sandbox`, NOT `/root`.
+// Seeding under `/root` silently fails (no write permission) and is unreadable
+// by the shell anyway, which is what regressed the pre-seeded onboarding (#267).
+// These are the concrete values behind the `worktreePath` / `homeDir` seams
+// every other provider would supply for itself — the SDK object doesn't carry
+// them, so the adapter attaches them.
 const VERCEL_WORKTREE_PATH = "/vercel/sandbox"
-const VERCEL_HOME_DIR = "/root"
+const VERCEL_HOME_DIR = "/home/vercel-sandbox"
 
 /**
  * Adapts an `@vercel/sandbox` `Sandbox` to {@link HibernatingSandbox}. The SDK

@@ -80,7 +80,7 @@ function fakeSandbox(
   const sandbox: SandboxInstance = {
     name: "fake-sandbox",
     worktreePath: "/vercel/sandbox",
-    homeDir: "/root",
+    homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
@@ -199,8 +199,27 @@ describe("ensureTerminal", () => {
     const cmd = script(launch!)
     // --url-arg lets each client append its per-tab session name as ?arg=…
     expect(cmd).toContain("--url-arg")
-    // Base command is the bundled tmux attaching-or-creating a named session.
-    expect(cmd).toContain("/tmp/screenplay/tmux new -A -s")
+    // Base command is the bundled tmux attaching-or-creating a named session,
+    // with `-u` forcing UTF-8 so box-drawing glyphs aren't mangled and `-f`
+    // loading the config that hides the status bar.
+    expect(cmd).toContain("/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s")
+    // The status bar is disabled via that config file.
+    expect(cmd).toContain("set -g status off")
+  })
+
+  it("keeps the daemon's output out of the shared sandbox log", async () => {
+    const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
+    fake.setInstance(sandbox)
+
+    await ensureTerminal("sandbox-a")
+
+    const launch = issued.find(isLaunch)
+    expect(launch).toBeDefined()
+    const cmd = script(launch!)
+    // ttyd's connection/diagnostic chatter lands in its own terminal log…
+    expect(cmd).toContain("/tmp/screenplay/terminal.log")
+    // …never the shared sandbox log the logs tab streams.
+    expect(cmd).not.toContain("/tmp/screenplay/sandbox.log")
   })
 
   it.each([
@@ -298,7 +317,7 @@ describe("ensureTerminal", () => {
     // a fresh working shell (the `-A` creates the session the rebuilt VM lacks).
     const launch = issued.find(isLaunch)
     expect(launch).toBeDefined()
-    expect(script(launch!)).toContain("/tmp/screenplay/tmux new -A -s")
+    expect(script(launch!)).toContain("/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s")
   })
 
   it("returns a redacted failure when a step fails, without spilling a token", async () => {
