@@ -128,6 +128,7 @@ type RecordedCall = {
   cmd: string
   args: string[]
   env?: Record<string, string>
+  detached?: boolean
 }
 
 /**
@@ -163,7 +164,11 @@ function fakeSandbox(
       typeof cmdOrOpts === "string"
         ? undefined
         : (cmdOrOpts as { env?: Record<string, string> }).env
-    opts.calls?.push({ cmd, args, env })
+    const detached =
+      typeof cmdOrOpts === "string"
+        ? undefined
+        : (cmdOrOpts as { detached?: boolean }).detached
+    opts.calls?.push({ cmd, args, env, detached })
     const scripted = respond(cmd, args)
     const result: SandboxCommandResult = {
       exitCode: scripted.exitCode,
@@ -576,6 +581,50 @@ describe("startDevServer", () => {
         previewDomain: "https://fake-4000.example.com",
       },
     })
+  })
+
+  // The dev launch is the one detached command that records the dev pidfile.
+  // (The proxy launch records proxy.pid; everything else is foreground.)
+  const findDevLaunch = (calls: RecordedCall[]) =>
+    calls.find((c) => c.detached && c.args.join(" ").includes("dev.pid"))
+
+  it("supervises the dev server with a restart-on-crash loop, like the proxy", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { calls }))
+
+    await startDevServer("sandbox-a", 3000, "pnpm dev")
+
+    const devLaunch = findDevLaunch(calls)
+    expect(devLaunch).toBeDefined()
+    const devSh = devLaunch!.args.join(" ")
+    // A crashed dev server relaunches on its own: the supervisor wraps the dev
+    // command in the same `while true; … sleep 1; done` loop the proxy uses, so
+    // a dead dev server comes back without any reload or reconnect.
+    expect(devSh).toContain("while true")
+    expect(devSh).toContain("pnpm dev")
+    expect(devSh).toContain("sleep 1")
+    // No `exec` — exec'ing the dev command would replace the supervisor shell
+    // and break the relaunch loop.
+    expect(devSh).not.toContain("exec ")
+  })
+
+  it("records the supervisor PID under setsid so the stop path group-kills the whole tree", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { calls }))
+
+    await startDevServer("sandbox-a", 3000)
+
+    const devLaunch = findDevLaunch(calls)
+    expect(devLaunch).toBeDefined()
+    const devSh = devLaunch!.args.join(" ")
+    // setsid makes the supervisor its own session leader, so the recorded PID
+    // equals its PGID — the stop path's `kill -KILL -<pid>` then takes down the
+    // supervisor loop, its current dev child, and that child's grandchildren
+    // (Next workers, esbuild) in a single group kill, leaving no orphans.
+    expect(devSh).toContain("setsid")
+    // The PID recorded for the stop path is the backgrounded supervisor's `$!`,
+    // written to the dev pidfile — i.e. the loop, not the transient dev child.
+    expect(devSh).toContain("echo $! > /tmp/screenplay/dev.pid")
   })
 
   it("returns a failure result when the bridge install fails", async () => {

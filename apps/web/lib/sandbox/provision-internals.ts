@@ -111,14 +111,19 @@ export async function launchDevAndProxy(
 
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
-  // Launch the dev server under `setsid` so it becomes the leader of a new
-  // session and its PID equals its PGID. We capture that PID — the stop path
-  // uses `kill -KILL -<pid>` to take down the whole process group, which is
-  // the only reliable way to catch every child the dev server spawns
-  // (Next compile workers, esbuild, etc.). `& disown` returns the outer
-  // shell immediately while the dev tree keeps running.
+  // Launch the dev server under a restart-on-crash supervisor, mirroring the
+  // proxy below, so a crashed dev server comes back on its own without any
+  // reload or reconnect. `setsid` makes the supervisor the leader of a new
+  // session, so the PID we record equals its PGID — the stop path uses
+  // `kill -KILL -<pid>` to take down the whole process group (the supervisor
+  // loop, its current dev child, and that child's own children: Next compile
+  // workers, esbuild, etc.) in one shot. That's the only reliable way to catch
+  // every descendant a port-based kill would miss. We deliberately don't
+  // `exec` the dev command — exec'ing would replace the supervisor shell and
+  // break the relaunch loop. `& disown` returns the outer shell immediately
+  // while the dev tree keeps running.
   const devInner = shellQuote(
-    `export ${LOG_ENV}; exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`
+    `export ${LOG_ENV}; while true; do ${dev} >> ${SANDBOX_LOG_PATH} 2>&1; sleep 1; done`
   )
   await sandbox.runCommand({
     cmd: "sh",
