@@ -269,11 +269,3 @@ export function buildPlanToolResultMessage(opts: {
     ],
   }
 }
-
-/**
- * Build a fresh user ModelMessage for the initial stream call.
- * `id` is generated separately by callers that need to track it.
- */
-export function buildUserMessage(text: string): ModelMessage {
-  return { role: "user", content: text }
-}
