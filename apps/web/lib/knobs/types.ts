@@ -93,10 +93,6 @@ export function isKnobDef(value: unknown): value is KnobDef {
   }
 }
 
-export function defaultValueFor(def: KnobDef): KnobValue {
-  return def.default
-}
-
 /** Coerce a JsonValue stored in Yjs into a KnobValue, falling back to the default. */
 export function coerceKnobValue(
   def: KnobDef,

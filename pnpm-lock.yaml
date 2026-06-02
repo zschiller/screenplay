@@ -29,9 +29,6 @@ importers:
 
   apps/docs:
     dependencies:
-      '@screenplay.space/state':
-        specifier: ^0.1.2
-        version: 0.1.2(react@19.2.5)
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -96,12 +93,6 @@ importers:
       '@dnd-kit/sortable':
         specifier: ^10.0.0
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
-      '@dnd-kit/utilities':
-        specifier: ^3.2.2
-        version: 3.2.2(react@19.2.5)
-      '@liveblocks/client':
-        specifier: ^3.18.3
-        version: 3.18.4(@types/json-schema@7.0.15)
       '@liveblocks/node':
         specifier: ^3.18.3
         version: 3.18.4(@types/json-schema@7.0.15)
@@ -309,9 +300,6 @@ importers:
 
   packages/ui:
     dependencies:
-      '@radix-ui/react-slot':
-        specifier: ^1.1.2
-        version: 1.2.4(@types/react@19.2.14)(react@19.2.5)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -324,9 +312,6 @@ importers:
       lucide-react:
         specifier: ^1.8.0
         version: 1.8.0(react@19.2.5)
-      next-themes:
-        specifier: ^0.4.6
-        version: 0.4.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       radix-ui:
         specifier: ^1.4.3
         version: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -2376,11 +2361,6 @@ packages:
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
-
-  '@screenplay.space/state@0.1.2':
-    resolution: {integrity: sha512-u6LSU+9qS24SfH+qUlozLaCU1RlRXKIecIAoZdCbi6hHLUcEAlDVy4n6+84l+twGX4LWEVif7dUngfkSJUtpdA==}
-    peerDependencies:
-      react: '>=17'
 
   '@sec-ant/readable-stream@0.4.1':
     resolution: {integrity: sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==}
@@ -7993,10 +7973,6 @@ snapshots:
   '@rolldown/pluginutils@1.0.1': {}
 
   '@rtsao/scc@1.1.0': {}
-
-  '@screenplay.space/state@0.1.2(react@19.2.5)':
-    dependencies:
-      react: 19.2.5
 
   '@sec-ant/readable-stream@0.4.1': {}
 

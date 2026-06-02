@@ -30,11 +30,6 @@ const HARNESSES_BY_KEY = new Map<string, Harness>(
   HARNESSES.map((h) => [h.key, h])
 )
 
-/** The catalog, read-only. */
-export function getHarnesses(): Harness[] {
-  return HARNESSES
-}
-
 /**
  * Argv that launches the harness CLI for `key` in an interactive terminal tab
  * (binary + boot flags), or `null` when `key` names no catalog entry. The

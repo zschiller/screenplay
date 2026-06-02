@@ -7,7 +7,6 @@ import {
   createThreadWithFirstComment,
   deleteComment as deleteCommentFn,
   deleteThread as deleteThreadFn,
-  editComment as editCommentFn,
   listBranchThreads as listBranchThreadsFn,
   listThreads as listThreadsFn,
   markThreadRead as markThreadReadFn,
@@ -116,20 +115,6 @@ export async function appendCommentAction(opts: {
   if (!trimmed) throw new Error("Comment body is required")
   return appendComment({
     threadId: opts.threadId,
-    authorId: userId,
-    body: trimmed,
-  })
-}
-
-export async function editCommentAction(opts: {
-  commentId: string
-  body: string
-}): Promise<void> {
-  const userId = await requireUserId()
-  const trimmed = opts.body.trim()
-  if (!trimmed) throw new Error("Comment body is required")
-  await editCommentFn({
-    commentId: opts.commentId,
     authorId: userId,
     body: trimmed,
   })
