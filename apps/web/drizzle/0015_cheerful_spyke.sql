@@ -1,0 +1,1 @@
+ALTER TABLE "terminal_tab" ADD COLUMN "harness_key" text;

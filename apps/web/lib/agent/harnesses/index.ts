@@ -119,3 +119,27 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
   }
   return env
 }
+
+/**
+ * Resolve a terminal tab's stored `harnessKey` → the launch argv ttyd appends
+ * after the tmux session name, against the set of harnesses actually installed
+ * in the sandbox (`installable`). The harness is wrapped as
+ * `sh -c '<launchCommand>; exec $SHELL'` so quitting it (Ctrl-D) drops the
+ * operator into a normal shell in the same persistent tmux session rather than
+ * killing the tab.
+ *
+ * Returns `[]` (a plain login shell — ttyd's base `tmux new -A -s <session>`
+ * with no command) when the tab has no `harnessKey` (a row created before
+ * harness auto-launch, #285) or when its key isn't installed (an operator
+ * dropped it from `SANDBOX_HARNESSES`, or its broker provider is unconfigured).
+ * That graceful fall-through, not an error, is the tracer-bullet's safety net.
+ */
+export function resolveLaunchArgv(
+  harnessKey: string | null | undefined,
+  installable: Harness[],
+): string[] {
+  if (!harnessKey) return []
+  const harness = installable.find((h) => h.key === harnessKey)
+  if (!harness) return []
+  return ["sh", "-c", `${harness.launchCommand}; exec $SHELL`]
+}

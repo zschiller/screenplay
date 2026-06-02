@@ -4,6 +4,7 @@ import type { ModelProvider } from "@/lib/agent/providers"
 import {
   BROKERED_VALUE,
   buildBrokeredEnv,
+  resolveLaunchArgv,
   selectHarnesses,
   type Harness,
 } from "@/lib/agent/harnesses"
@@ -149,6 +150,7 @@ describe("buildBrokeredEnv", () => {
     key: "fake",
     label: "Fake",
     installPackage: "fake-cli",
+    launchCommand: "fake",
     brokerProviderKey: "fake-provider",
     gateEnvVar: "FAKE_API_KEY",
     baseUrlEnv: { name: "FAKE_BASE_URL", value: "https://broker.example/v1" },
@@ -178,5 +180,31 @@ describe("buildBrokeredEnv", () => {
       FAKE_API_KEY: BROKERED_VALUE,
       FAKE_BASE_URL: "https://broker.example/v1",
     })
+  })
+})
+
+describe("resolveLaunchArgv", () => {
+  const installable = selectHarnesses("claude-code", [anthropicConfigured]).installable
+
+  it("resolves an installed harness key → its launch command wrapped for Ctrl-D-to-shell", () => {
+    // The harness is wrapped so quitting it (Ctrl-D) `exec`s a login shell in
+    // the same tmux session rather than ending the session (#285).
+    expect(resolveLaunchArgv("claude-code", installable)).toEqual([
+      "sh",
+      "-c",
+      "claude; exec $SHELL",
+    ])
+  })
+
+  it("opens a plain shell (empty argv) for a null/undefined key — a pre-#285 tab", () => {
+    expect(resolveLaunchArgv(null, installable)).toEqual([])
+    expect(resolveLaunchArgv(undefined, installable)).toEqual([])
+  })
+
+  it("opens a plain shell when the stored key isn't in the installed set", () => {
+    // The harness was dropped from SANDBOX_HARNESSES (or its provider went
+    // unconfigured): fall through to a shell, never an error.
+    expect(resolveLaunchArgv("claude-code", [])).toEqual([])
+    expect(resolveLaunchArgv("ghost", installable)).toEqual([])
   })
 })

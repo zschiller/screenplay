@@ -200,10 +200,15 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
 /**
  * Launch ttyd detached on the forwarded terminal port, serving a per-tab
  * persistent `tmux` session. The base command is `tmux new -A -s`
- * (attach-or-create); `--url-arg` lets each client append the session name as
- * `?arg=screenplay-<tabId>`, which ttyd passes as the final argv — so a reload
- * reattaches to the same session (running harness intact) and two tabs against
- * one Branch get isolated sessions instead of colliding on a single PTY (#259).
+ * (attach-or-create); `--url-arg` lets each client append argv as `?arg=`s,
+ * which ttyd forwards in order: first the session name (`screenplay-<tabId>`),
+ * then — for a tab launching into a harness — the resolved launch command
+ * (`sh -c '<harness>; exec $SHELL'`, #285). So a reload reattaches to the same
+ * session (running harness intact; `tmux new -A` ignores the command on
+ * attach), a rebuilt sandbox relaunches the harness on create, and two tabs
+ * against one Branch get isolated sessions instead of colliding on a single PTY
+ * (#259). The harness key → launch argv resolution lives server-side in
+ * `/api/terminal/url`; this daemon stays harness-agnostic.
  *
  * `setsid` makes the daemon its own session leader so the recorded PID is the
  * process group; `& disown` returns the outer shell immediately while the

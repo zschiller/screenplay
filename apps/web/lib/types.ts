@@ -113,6 +113,10 @@ export type TerminalTabData = {
   branchId: string
   /** Shared live-view identity — the key collaborators co-view one PTY against. */
   terminalSessionId: string
+  /** The harness this tab launches into (`Harness.key`, e.g. "claude-code"),
+   *  resolved server-side → the launch argv at connect time. Omitted on tabs
+   *  created before harness auto-launch (#285), which open a plain shell. */
+  harnessKey?: string
   label: string
   createdAt: number
 }

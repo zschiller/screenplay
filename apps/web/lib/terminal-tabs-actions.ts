@@ -30,6 +30,7 @@ export async function createTerminalTabAction(opts: {
   branch: string
   id: string
   label: string
+  harnessKey?: string | null
   createdAt: number
 }): Promise<TerminalTabRecord> {
   const userId = await requireUserId()
@@ -40,6 +41,7 @@ export async function createTerminalTabAction(opts: {
     roomId: opts.roomId,
     branch: opts.branch,
     label: opts.label,
+    harnessKey: opts.harnessKey ?? null,
     createdAt: new Date(opts.createdAt),
   })
 }

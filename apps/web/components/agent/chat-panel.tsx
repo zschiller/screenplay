@@ -626,6 +626,7 @@ export function ChatPanel({
                 roomId={roomId}
                 sandboxName={agent?.sandboxName}
                 sandboxStatus={agent?.status}
+                harnessKey={tab.terminal.harnessKey}
               />
             </TabsContent>
           )
