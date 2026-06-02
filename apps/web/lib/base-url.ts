@@ -24,7 +24,7 @@ export function getBaseURL(): string {
 export function getProductionURL(): string {
   if (!process.env.BETTER_AUTH_PRODUCTION_URL) {
     throw new Error(
-      "BETTER_AUTH_PRODUCTION_URL is not set. Set it to the URL registered with the GitHub OAuth app (e.g. https://build.screenplay.space).",
+      "BETTER_AUTH_PRODUCTION_URL is not set. Set it to the URL registered with the GitHub OAuth app (e.g. https://build.screenplay.space)."
     )
   }
   return process.env.BETTER_AUTH_PRODUCTION_URL

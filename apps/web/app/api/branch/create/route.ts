@@ -44,7 +44,7 @@ interface CreateRequest {
 async function updateBranch(
   roomId: string,
   branchId: string,
-  data: Partial<BranchData>,
+  data: Partial<BranchData>
 ) {
   await mutateRoomDoc(roomId, ({ branches }) => {
     branches.update(branchId, data)
@@ -53,11 +53,10 @@ async function updateBranch(
 
 async function getRepoFromStorage(
   roomId: string,
-  repoId: string,
+  repoId: string
 ): Promise<RepoData | null> {
   return readRoomDoc(roomId, ({ repos }) => repos.get(repoId) ?? null)
 }
-
 
 /**
  * Ensure a chat session exists for the branch. IframeLayers + groups are
@@ -71,7 +70,9 @@ async function ensureChatForBranch(roomId: string, branchId: string) {
   await mutateRoomDoc(roomId, ({ branches, chatSessions, transact }) => {
     if (!branches.get(branchId)) return
     transact(() => {
-      const hasChat = chatSessions.toArray().some((cs) => cs.branchId === branchId)
+      const hasChat = chatSessions
+        .toArray()
+        .some((cs) => cs.branchId === branchId)
       if (!hasChat) {
         const chatId = nanoid()
         chatSessions.set(chatId, {
@@ -100,7 +101,7 @@ function markError(roomId: string, branchId: string, error?: string) {
 async function runNewOrFromBranchPipeline(
   req: CreateRequest,
   repo: RepoData,
-  ghToken: string,
+  ghToken: string
 ) {
   const { flow, roomId, branchId, sandboxName, branch } = req
   const env = parseEnvVars(repo.envVars)
@@ -108,16 +109,32 @@ async function runNewOrFromBranchPipeline(
 
   // Step 1: Create branch (skip for from-branch flow)
   if (flow === "new") {
-    const branchResult = await createAgentBranch(repo, branch, undefined, ghToken)
+    const branchResult = await createAgentBranch(
+      repo,
+      branch,
+      undefined,
+      ghToken
+    )
     if (!branchResult.success) {
-      await markError(roomId, branchId, branchResult.error || "Failed to create branch")
+      await markError(
+        roomId,
+        branchId,
+        branchResult.error || "Failed to create branch"
+      )
       return
     }
   }
 
   // Step 2: Clone repo into sandbox
   await updateBranch(roomId, branchId, { statusMessage: "Cloning repository…" })
-  const cloneResult = await cloneSandbox(sandboxName, repo.cloneUrl, branch, repo.devServerPort, envOrUndefined, ghToken)
+  const cloneResult = await cloneSandbox(
+    sandboxName,
+    repo.cloneUrl,
+    branch,
+    repo.devServerPort,
+    envOrUndefined,
+    ghToken
+  )
   if (!cloneResult.success) {
     await markError(roomId, branchId, cloneResult.error)
     return
@@ -129,7 +146,9 @@ async function runNewOrFromBranchPipeline(
   // intentionally ignored here so a failed CLI/tool install doesn't fail the
   // pipeline (each action still reports failure truthfully; this caller chooses
   // to swallow it). The harness keys come from SANDBOX_HARNESSES; unset → none.
-  await updateBranch(roomId, branchId, { statusMessage: "Installing dependencies…" })
+  await updateBranch(roomId, branchId, {
+    statusMessage: "Installing dependencies…",
+  })
   const harnessKeys = parseHarnessKeys(process.env.SANDBOX_HARNESSES)
   const [installResult] = await Promise.all([
     installDependencies(clonedSandboxName, repo.setupScript),
@@ -142,8 +161,14 @@ async function runNewOrFromBranchPipeline(
   }
 
   // Step 4: Start dev server
-  await updateBranch(roomId, branchId, { statusMessage: "Starting dev server…" })
-  const serverResult = await startDevServer(clonedSandboxName, repo.devServerPort, repo.devScript)
+  await updateBranch(roomId, branchId, {
+    statusMessage: "Starting dev server…",
+  })
+  const serverResult = await startDevServer(
+    clonedSandboxName,
+    repo.devServerPort,
+    repo.devScript
+  )
   if (!serverResult.success) {
     await markError(roomId, branchId, serverResult.error)
     return
@@ -171,18 +196,21 @@ async function runNewOrFromBranchPipeline(
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
-  crawlRoutes(clonedSandboxName).then((result) => {
-    if (result.success) {
-      return updateBranch(roomId, branchId, { discoveredRoutes: result.value })
-    }
-  }).catch(() => {})
+  crawlRoutes(clonedSandboxName)
+    .then((result) => {
+      if (result.success) {
+        return updateBranch(roomId, branchId, {
+          discoveredRoutes: result.value,
+        })
+      }
+    })
+    .catch(() => {})
 }
-
 
 async function runDuplicateBranchPipeline(
   req: CreateRequest,
   repo: RepoData,
-  ghToken: string,
+  ghToken: string
 ) {
   const { roomId, branchId, sourceBranch } = req
 
@@ -192,9 +220,18 @@ async function runDuplicateBranchPipeline(
   }
 
   // Step 1: Create a new branch from the source branch
-  const branchResult = await createAgentBranch(repo, req.branch, sourceBranch, ghToken)
+  const branchResult = await createAgentBranch(
+    repo,
+    req.branch,
+    sourceBranch,
+    ghToken
+  )
   if (!branchResult.success) {
-    await markError(roomId, branchId, branchResult.error || "Failed to create branch")
+    await markError(
+      roomId,
+      branchId,
+      branchResult.error || "Failed to create branch"
+    )
     return
   }
 
@@ -203,7 +240,7 @@ async function runDuplicateBranchPipeline(
   await runNewOrFromBranchPipeline(
     { ...req, flow: "from-branch" },
     repo,
-    ghToken,
+    ghToken
   )
 }
 
@@ -221,7 +258,7 @@ export async function POST(request: Request) {
   if (!ghToken) {
     return NextResponse.json(
       { error: "No GitHub token — please re-authenticate with GitHub" },
-      { status: 401 },
+      { status: 401 }
     )
   }
 
@@ -252,7 +289,9 @@ export async function POST(request: Request) {
       await markError(
         roomId,
         branchId,
-        e instanceof Error ? e.message : "Unexpected error during sandbox creation",
+        e instanceof Error
+          ? e.message
+          : "Unexpected error during sandbox creation"
       ).catch(() => {})
     } finally {
       await lock.release().catch(() => {})

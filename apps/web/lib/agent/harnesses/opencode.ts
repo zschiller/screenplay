@@ -120,7 +120,7 @@ export const opencodeGatewayHarness: Harness = {
         "openai/gpt-4o": { name: "GPT-4o" },
       },
       defaultModel: "gateway/anthropic/claude-sonnet-4-6",
-    }),
+    })
   ),
 }
 
@@ -156,6 +156,6 @@ export const opencodeCompatHarness: Harness = {
       providerLabel: "OpenAI-compatible",
       baseUrlEnv: "OPENAI_COMPATIBLE_BASE_URL",
       apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY",
-    }),
+    })
   ),
 }

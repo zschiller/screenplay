@@ -65,7 +65,7 @@ describe("verifyTerminalCredential", () => {
     const mintedAt = 1_000_000
     const credential = await issueTerminalCredential(
       { roomId: "room-1", sessionId: "term-1", userId: "user-1" },
-      mintedAt,
+      mintedAt
     )
 
     // The credential is short-lived: valid moments after minting…
@@ -73,8 +73,8 @@ describe("verifyTerminalCredential", () => {
       verifyTerminalCredential(
         credential!.token,
         { roomId: "room-1", sessionId: "term-1" },
-        mintedAt + 1_000,
-      ),
+        mintedAt + 1_000
+      )
     ).toEqual({ ok: true, userId: "user-1" })
 
     // …but refused once its expiry has passed.
@@ -82,8 +82,8 @@ describe("verifyTerminalCredential", () => {
       verifyTerminalCredential(
         credential!.token,
         { roomId: "room-1", sessionId: "term-1" },
-        credential!.expiresAt + 1,
-      ),
+        credential!.expiresAt + 1
+      )
     ).toEqual({ ok: false })
   })
 
@@ -99,7 +99,7 @@ describe("verifyTerminalCredential", () => {
       verifyTerminalCredential("not-a-real-token", {
         roomId: "room-1",
         sessionId: "term-1",
-      }),
+      })
     ).toEqual({ ok: false })
 
     // Right structure, forged signature — can't be minted without the secret.
@@ -107,7 +107,7 @@ describe("verifyTerminalCredential", () => {
       verifyTerminalCredential("room-1.term-1.user-1.9999999999999.deadbeef", {
         roomId: "room-1",
         sessionId: "term-1",
-      }),
+      })
     ).toEqual({ ok: false })
 
     // A genuine credential, but presented for a different room or session.
@@ -115,13 +115,13 @@ describe("verifyTerminalCredential", () => {
       verifyTerminalCredential(credential!.token, {
         roomId: "room-2",
         sessionId: "term-1",
-      }),
+      })
     ).toEqual({ ok: false })
     expect(
       verifyTerminalCredential(credential!.token, {
         roomId: "room-1",
         sessionId: "term-2",
-      }),
+      })
     ).toEqual({ ok: false })
   })
 })

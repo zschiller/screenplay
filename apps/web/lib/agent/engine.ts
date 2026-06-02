@@ -1,17 +1,17 @@
 import "server-only"
 
-import {
-  hasToolCall,
-  stepCountIs,
-  streamText,
-  type ModelMessage,
-} from "ai"
+import { hasToolCall, stepCountIs, streamText, type ModelMessage } from "ai"
 import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "./tools"
 import { toolsetFor } from "./toolset"
 import { appendMessages } from "./persistence"
-import { isRunActive, pauseForPlan, transition, type RunState } from "./run-state"
+import {
+  isRunActive,
+  pauseForPlan,
+  transition,
+  type RunState,
+} from "./run-state"
 import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
 
 const MAX_STEPS = 20
@@ -33,11 +33,15 @@ export type EngineRunState = Pick<
  * config and returns something we can drain. Injectable so tests can simulate a
  * clean finish or a thrown error without a live model.
  */
-export type StreamDriver = (
-  config: Parameters<typeof streamText>[0],
-) => { consumeStream: () => Promise<void> }
+export type StreamDriver = (config: Parameters<typeof streamText>[0]) => {
+  consumeStream: () => Promise<void>
+}
 
-const defaultRunState: EngineRunState = { transition, isRunActive, pauseForPlan }
+const defaultRunState: EngineRunState = {
+  transition,
+  isRunActive,
+  pauseForPlan,
+}
 
 export interface RunAgentLoopOptions {
   chatId: string
@@ -90,7 +94,9 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
     (toolCtx
       ? toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx })
       : (() => {
-          throw new Error("runAgentLoop: either `tools` or `toolCtx` must be provided")
+          throw new Error(
+            "runAgentLoop: either `tools` or `toolCtx` must be provided"
+          )
         })())
 
   // Watchdog: poll the abort flag and trigger AbortController if /stop has
@@ -138,7 +144,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
 
       onError: async ({ error }) => {
         await broadcaster.onError(
-          error instanceof Error ? error.message : String(error),
+          error instanceof Error ? error.message : String(error)
         )
       },
 
@@ -218,7 +224,7 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
  * `hasToolCall('submit_plan')` halt and pivot into pending-plan mode.
  */
 function findSubmitPlanCall(
-  messages: ModelMessage[],
+  messages: ModelMessage[]
 ): { toolCallId: string; input: unknown } | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
@@ -271,4 +277,3 @@ export function buildPlanToolResultMessage(opts: {
 export function buildUserMessage(text: string): ModelMessage {
   return { role: "user", content: text }
 }
-

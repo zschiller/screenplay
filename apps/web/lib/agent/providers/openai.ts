@@ -38,7 +38,8 @@ function isChatCapable(id: string): boolean {
     lc.includes("babbage") ||
     lc.includes("davinci") ||
     lc.includes("instruct")
-  ) return false
+  )
+    return false
   return /^(gpt-|o\d|chatgpt-)/.test(lc)
 }
 
@@ -135,7 +136,10 @@ class OpenAIProvider implements ModelProvider {
   egress() {
     const key = process.env.OPENAI_API_KEY
     if (!key) return null
-    return { host: "api.openai.com", headers: { authorization: `Bearer ${key}` } }
+    return {
+      host: "api.openai.com",
+      headers: { authorization: `Bearer ${key}` },
+    }
   }
 }
 

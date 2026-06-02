@@ -25,7 +25,7 @@ const MIN_REFRESH_GAP_MS = 5_000
  */
 export function useThumbnailHeartbeat(
   roomId: string,
-  hasThumbnail: boolean,
+  hasThumbnail: boolean
 ): void {
   const { doc } = useYjs()
 

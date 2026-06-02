@@ -6,12 +6,23 @@ export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw"
 
 interface UseResizeOptions {
   zoom: number
-  onResize: (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => void
+  onResize: (
+    edge: ResizeEdge,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
+  ) => void
   onResizeStart?: (edge: ResizeEdge) => void
   onResizeEnd?: () => void
 }
 
-export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEnd }: UseResizeOptions) {
+export function useIframeLayerResize({
+  zoom,
+  onResize,
+  onResizeStart,
+  onResizeEnd,
+}: UseResizeOptions) {
   const dragging = useRef(false)
   const edge = useRef<ResizeEdge | null>(null)
   const lastPos = useRef({ x: 0, y: 0 })
@@ -27,7 +38,7 @@ export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEn
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
       onResizeStart?.(side)
     },
-    [onResizeStart],
+    [onResizeStart]
   )
 
   const onPointerMove = useCallback(
@@ -37,17 +48,26 @@ export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEn
       const rawDy = (e.clientY - lastPos.current.y) / zoom
       lastPos.current = { x: e.clientX, y: e.clientY }
 
-      let dx = 0, dy = 0, dw = 0, dh = 0
+      let dx = 0,
+        dy = 0,
+        dw = 0,
+        dh = 0
       const dir = edge.current
 
       if (dir.includes("e")) dw = rawDx
-      if (dir.includes("w")) { dx = rawDx; dw = -rawDx }
+      if (dir.includes("w")) {
+        dx = rawDx
+        dw = -rawDx
+      }
       if (dir.includes("s")) dh = rawDy
-      if (dir.includes("n")) { dy = rawDy; dh = -rawDy }
+      if (dir.includes("n")) {
+        dy = rawDy
+        dh = -rawDy
+      }
 
       onResize(dir, dx, dy, dw, dh)
     },
-    [zoom, onResize],
+    [zoom, onResize]
   )
 
   const onPointerUp = useCallback(
@@ -58,7 +78,7 @@ export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEn
       ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
       onResizeEnd?.()
     },
-    [onResizeEnd],
+    [onResizeEnd]
   )
 
   const makeHandleProps = useCallback(
@@ -67,7 +87,7 @@ export function useIframeLayerResize({ zoom, onResize, onResizeStart, onResizeEn
       onPointerMove,
       onPointerUp,
     }),
-    [startResize, onPointerMove, onPointerUp],
+    [startResize, onPointerMove, onPointerUp]
   )
 
   return { makeHandleProps }

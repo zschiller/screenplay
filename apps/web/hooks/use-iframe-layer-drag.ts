@@ -18,7 +18,7 @@ interface UseDragOptions {
     dy: number,
     totalDx: number,
     totalDy: number,
-    metaKey: boolean,
+    metaKey: boolean
   ) => void
   /** Fires once per gesture, the first time the cursor crosses the move threshold. */
   onDragStart?: () => void
@@ -38,24 +38,21 @@ export function useIframeLayerDrag({
   const lastPos = useRef({ x: 0, y: 0 })
   const totalDelta = useRef({ x: 0, y: 0 })
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return
-      e.stopPropagation()
-      e.preventDefault()
-      dragging.current = true
-      didMove.current = false
-      lastPos.current = { x: e.clientX, y: e.clientY }
-      totalDelta.current = { x: 0, y: 0 }
-      // Capture on currentTarget (the element with the move/up listeners) not
-      // e.target — pointerdown often lands on an inner child (e.g. the frame
-      // name span has its own onPointerDown for instant-select). If selection
-      // triggers a re-render mid-gesture, listeners on the outer div are
-      // replaced; capturing on the leaf can drop the first pointermove.
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    },
-    [],
-  )
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.preventDefault()
+    dragging.current = true
+    didMove.current = false
+    lastPos.current = { x: e.clientX, y: e.clientY }
+    totalDelta.current = { x: 0, y: 0 }
+    // Capture on currentTarget (the element with the move/up listeners) not
+    // e.target — pointerdown often lands on an inner child (e.g. the frame
+    // name span has its own onPointerDown for instant-select). If selection
+    // triggers a re-render mid-gesture, listeners on the outer div are
+    // replaced; capturing on the leaf can drop the first pointermove.
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }, [])
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -78,7 +75,7 @@ export function useIframeLayerDrag({
       totalDelta.current.y += dy
       onDrag(dx, dy, totalDelta.current.x, totalDelta.current.y, e.metaKey)
     },
-    [zoom, onDrag, onDragStart],
+    [zoom, onDrag, onDragStart]
   )
 
   const onPointerUp = useCallback(
@@ -92,7 +89,7 @@ export function useIframeLayerDrag({
         onDragEnd?.(e.metaKey)
       }
     },
-    [onDragEnd, onClick],
+    [onDragEnd, onClick]
   )
 
   return { onPointerDown, onPointerMove, onPointerUp }

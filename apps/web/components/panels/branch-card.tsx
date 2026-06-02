@@ -1,6 +1,13 @@
 "use client"
 
-import { GitFork, RefreshCw, Trash2, Loader2, Plus, Monitor } from "lucide-react"
+import {
+  GitFork,
+  RefreshCw,
+  Trash2,
+  Loader2,
+  Plus,
+  Monitor,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { BranchBadge } from "@/components/branch-badge"
 import type { BranchData, IframeLayerData } from "@/lib/types"
@@ -34,31 +41,43 @@ export function BranchCard({
   onRemove,
   onAddIframeLayer,
 }: BranchCardProps) {
-  const isLoading =
-    branch.status === "creating" || branch.status === "starting"
+  const isLoading = branch.status === "creating" || branch.status === "starting"
 
   return (
     <div
-      className={`rounded-lg border p-2 cursor-pointer transition-colors ${
+      className={`cursor-pointer rounded-lg border p-2 transition-colors ${
         selected
           ? "border-primary bg-primary/5"
           : "border-border bg-card hover:bg-muted/50"
       }`}
-      onClick={(e) => { e.stopPropagation(); onSelect(branch.id) }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(branch.id)
+      }}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${statusColors[branch.status]}`}
           />
           {branch.ref ? (
-            <BranchBadge branch={branch.ref} colorKey={branch.id} colorIndex={branch.colorIndex} className="text-[11px] py-0 px-1.5" />
+            <BranchBadge
+              branch={branch.ref}
+              colorKey={branch.id}
+              colorIndex={branch.colorIndex}
+              className="px-1.5 py-0 text-[11px]"
+            />
           ) : (
-            <span className="truncate font-mono text-xs text-muted-foreground">creating...</span>
+            <span className="truncate font-mono text-xs text-muted-foreground">
+              creating...
+            </span>
           )}
         </div>
 
-        <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="flex shrink-0 items-center gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -106,20 +125,23 @@ export function BranchCard({
       </div>
 
       {isLoading && branch.statusMessage && (
-        <p className="mt-1 text-[10px] text-muted-foreground pl-4 flex items-center gap-1">
-          <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+        <p className="mt-1 flex items-center gap-1 pl-4 text-[10px] text-muted-foreground">
+          <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" />
           {branch.statusMessage}
         </p>
       )}
 
       {branch.error && (
-        <p className="mt-1 text-[10px] text-red-500 pl-4">{branch.error}</p>
+        <p className="mt-1 pl-4 text-[10px] text-red-500">{branch.error}</p>
       )}
 
       {iframeLayers.length > 0 && (
-        <div className="mt-1.5 pl-4 space-y-0.5">
+        <div className="mt-1.5 space-y-0.5 pl-4">
           {iframeLayers.map((ab) => (
-            <div key={ab.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <div
+              key={ab.id}
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+            >
               <Monitor className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate">{ab.label}</span>
             </div>

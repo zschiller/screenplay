@@ -2,15 +2,12 @@ import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 
 // Routes reachable without a session. Everything else bounces to /sign-in.
-const PUBLIC_PATHS = [
-  "/",
-  "/sign-in",
-  "/api/auth",
-  "/api/yjs/auth",
-]
+const PUBLIC_PATHS = ["/", "/sign-in", "/api/auth", "/api/yjs/auth"]
 
 function isPublic(pathname: string): boolean {
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
     return true
   }
   // Thumbnail render route: /[roomId]/render. Auth is enforced by the HMAC

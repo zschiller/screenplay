@@ -12,7 +12,7 @@ const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
  */
 export async function getSandboxLogs(
   sandboxName: string,
-  maxLines: number = 1000,
+  maxLines: number = 1000
 ): Promise<SandboxActionResult<string>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     if (!isSandboxRunning(sandbox)) return ""
@@ -29,25 +29,38 @@ export async function getSandboxLogs(
  * them. Best-effort: the caller decides what to do when discovery fails.
  */
 export async function crawlRoutes(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<SandboxActionResult<{ route: string; label: string }[]>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     // Get a broad file listing for the LLM to analyze
     const result = await step(sandbox, "find", [
-      ".", "-maxdepth", "5", "-type", "f",
-      "!", "-path", "*/node_modules/*",
-      "!", "-path", "*/.git/*",
-      "!", "-path", "*/.next/*",
-      "!", "-path", "*/dist/*",
-      "!", "-path", "*/.nuxt/*",
+      ".",
+      "-maxdepth",
+      "5",
+      "-type",
+      "f",
+      "!",
+      "-path",
+      "*/node_modules/*",
+      "!",
+      "-path",
+      "*/.git/*",
+      "!",
+      "-path",
+      "*/.next/*",
+      "!",
+      "-path",
+      "*/dist/*",
+      "!",
+      "-path",
+      "*/.nuxt/*",
     ])
     const fileList = (await result.stdout()).trim()
     if (!fileList) return [{ route: "/", label: "Home" }]
 
     const { generateText } = await import("ai")
-    const { resolveLanguageModel, DEFAULT_MODEL } = await import(
-      "@/lib/agent/providers"
-    )
+    const { resolveLanguageModel, DEFAULT_MODEL } =
+      await import("@/lib/agent/providers")
 
     const res = await generateText({
       model: resolveLanguageModel(DEFAULT_MODEL),

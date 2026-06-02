@@ -63,7 +63,7 @@ describe("computeMoveSnap", () => {
         rect,
         candidates: [{ x: threshold - 0.1, y: 5000, width: 1000, height: 10 }],
         zoom: 1,
-      }).snapDx,
+      }).snapDx
     ).toBeCloseTo(threshold - 0.1)
 
     // Exactly at the threshold (distPx <= thresholdPx) → still snaps.
@@ -72,7 +72,7 @@ describe("computeMoveSnap", () => {
         rect,
         candidates: [{ x: threshold, y: 5000, width: 1000, height: 10 }],
         zoom: 1,
-      }).snapDx,
+      }).snapDx
     ).toBe(threshold)
 
     // Just above: delta 6.1px → no snap, no guides.
@@ -89,7 +89,7 @@ describe("computeMoveSnap", () => {
     // At 2× zoom a 4px world delta is 8 screen px — beyond the 6px threshold.
     const candidate: Rect = { x: 4, y: 5000, width: 1000, height: 10 }
     expect(
-      computeMoveSnap({ rect, candidates: [candidate], zoom: 2 }).snapDx,
+      computeMoveSnap({ rect, candidates: [candidate], zoom: 2 }).snapDx
     ).toBe(0)
   })
 })
@@ -132,7 +132,7 @@ describe("computeDeviceSnap", () => {
         rawHeight: preset.height,
         zoom: 1,
         presets: [preset],
-      }).snappedPresetId,
+      }).snappedPresetId
     ).toBe("test-device")
 
     // Exactly at the threshold (distancePx <= SNAP_THRESHOLD_PX) → snaps.
@@ -143,7 +143,7 @@ describe("computeDeviceSnap", () => {
         rawHeight: preset.height,
         zoom: 1,
         presets: [preset],
-      }).snappedPresetId,
+      }).snappedPresetId
     ).toBe("test-device")
 
     // Just above: 9px away → no snap. Still a candidate (within fade radius),
@@ -261,7 +261,7 @@ describe("computeMergeSnap", () => {
         rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD - 1 },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
-      })?.targetId,
+      })?.targetId
     ).toBe("target")
     // Just outside it.
     expect(
@@ -269,7 +269,7 @@ describe("computeMergeSnap", () => {
         rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD + 1 },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
-      }),
+      })
     ).toBeNull()
   })
 
@@ -279,13 +279,11 @@ describe("computeMergeSnap", () => {
         rect: { x: 120, y: 0, width: 0, height: 0 },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
-      }),
+      })
     ).toBeNull()
   })
 
   it("returns null when there are no candidates", () => {
-    expect(
-      computeMergeSnap({ rect, candidates: [], memberSizes }),
-    ).toBeNull()
+    expect(computeMergeSnap({ rect, candidates: [], memberSizes })).toBeNull()
   })
 })

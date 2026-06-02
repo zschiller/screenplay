@@ -73,7 +73,10 @@ const SKILL_MARKER_RE = /\[skill:\s*([^\]]+)\]/g
  * draws as a Sparkles chip. All other text is left untouched.
  */
 export function skillMarkersToPills(body: string): string {
-  return body.replace(SKILL_MARKER_RE, (_m, name) => `[/${name}](skill:${name})`)
+  return body.replace(
+    SKILL_MARKER_RE,
+    (_m, name) => `[/${name}](skill:${name})`
+  )
 }
 
 /**
@@ -124,7 +127,9 @@ export interface ReferencedDoc {
  */
 export function buildReferencedDocsFooter(docs: ReferencedDoc[]): string {
   if (docs.length === 0) return ""
-  const lines = docs.map((d) => `- markdown-layer ${d.id}: ${d.title || "Untitled"}`)
+  const lines = docs.map(
+    (d) => `- markdown-layer ${d.id}: ${d.title || "Untitled"}`
+  )
   return [
     "",
     "",
@@ -142,7 +147,7 @@ export function buildReferencedDocsFooter(docs: ReferencedDoc[]): string {
  */
 export function prependTurnMarkers(
   body: string,
-  opts: { planMode?: boolean; branch?: string },
+  opts: { planMode?: boolean; branch?: string }
 ): string {
   const planPrefix = opts.planMode ? `${PLAN_MODE_MARKER} ` : ""
   const branchPrefix = opts.branch ? `${branchMarker(opts.branch)} ` : ""
@@ -178,7 +183,7 @@ const BRANCH_PREFIX_RE = /^\[branch: (.*?)\] /
 // runs from its `\n\n---\n\n` separator to the end of the message, so a single
 // strip recovers the original body exactly.
 const REFERENCED_DOCS_FOOTER_RE = new RegExp(
-  `\\n\\n---\\n\\n${REFERENCED_DOCS_FOOTER_TOKEN}[\\s\\S]*$`,
+  `\\n\\n---\\n\\n${REFERENCED_DOCS_FOOTER_TOKEN}[\\s\\S]*$`
 )
 
 /**

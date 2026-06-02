@@ -128,10 +128,7 @@ function UserHeader() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <RepoConfigsDialog
-        open={configsOpen}
-        onOpenChange={setConfigsOpen}
-      />
+      <RepoConfigsDialog open={configsOpen} onOpenChange={setConfigsOpen} />
     </>
   )
 }
@@ -157,7 +154,7 @@ function SidebarFileItem({ file }: { file: RoomSummary }) {
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
         >
-          <SidebarMenuAction className="md:opacity-0 group-hover/sub-row:opacity-100 group-focus-within/sub-row:opacity-100 aria-expanded:opacity-100">
+          <SidebarMenuAction className="group-focus-within/sub-row:opacity-100 group-hover/sub-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
             <MoreHorizontal />
           </SidebarMenuAction>
         </FileActionMenu>
@@ -199,11 +196,7 @@ function readStoredOpen(storageKey: string): boolean {
   return window.localStorage.getItem(storageKey) === "1"
 }
 
-function SidebarFolderItem({
-  folder,
-}: {
-  folder: FolderType
-}) {
+function SidebarFolderItem({ folder }: { folder: FolderType }) {
   const {
     filesInFolder,
     selectedId,
@@ -231,7 +224,7 @@ function SidebarFolderItem({
       setOpen(next)
       window.localStorage.setItem(storageKey, next ? "1" : "0")
     },
-    [storageKey],
+    [storageKey]
   )
 
   return (
@@ -264,7 +257,7 @@ function SidebarFolderItem({
             onRename={() => setRenameOpen(true)}
             onDelete={() => setDeleteOpen(true)}
           >
-            <SidebarMenuAction className="md:opacity-0 group-hover/folder-row:opacity-100 group-focus-within/folder-row:opacity-100 aria-expanded:opacity-100">
+            <SidebarMenuAction className="group-focus-within/folder-row:opacity-100 group-hover/folder-row:opacity-100 aria-expanded:opacity-100 md:opacity-0">
               <MoreHorizontal />
             </SidebarMenuAction>
           </FolderActionMenu>

@@ -56,15 +56,19 @@ export default async function PlayPage({
         ? (repos.get(agent.repoId) as RepoData | undefined)
         : undefined
       return { agent, iframeLayer, repo }
-    },
+    }
   )
 
   const { agent, iframeLayer, repo } = docSnapshot
   if (!agent) notFound()
 
-  const initialKnobValues = decodeKnobValues(search.k) ?? iframeLayer?.knobValues ?? {}
+  const initialKnobValues =
+    decodeKnobValues(search.k) ?? iframeLayer?.knobValues ?? {}
   const initialRoute = search.route ?? iframeLayer?.route ?? "/"
-  const initialSharedState = (iframeLayer?.sharedState ?? {}) as Record<string, unknown>
+  const initialSharedState = (iframeLayer?.sharedState ?? {}) as Record<
+    string,
+    unknown
+  >
   const initialThreads = agent.ref
     ? await listBranchThreads(roomId, userId, agent.ref).catch(() => [])
     : []
@@ -96,7 +100,7 @@ export default async function PlayPage({
 }
 
 function decodeKnobValues(
-  raw: string | undefined,
+  raw: string | undefined
 ): Record<string, unknown> | undefined {
   if (!raw) return undefined
   try {

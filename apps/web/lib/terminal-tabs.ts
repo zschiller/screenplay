@@ -22,7 +22,7 @@ export type TerminalTabRecord = {
 }
 
 function toRecord(
-  row: typeof schema.terminalTab.$inferSelect,
+  row: typeof schema.terminalTab.$inferSelect
 ): TerminalTabRecord {
   return {
     id: row.id,
@@ -104,7 +104,7 @@ export async function deleteTerminalTab(opts: {
     .where(
       and(
         eq(schema.terminalTab.id, opts.id),
-        eq(schema.terminalTab.userId, opts.userId),
-      ),
+        eq(schema.terminalTab.userId, opts.userId)
+      )
     )
 }

@@ -32,7 +32,9 @@ export function renderFileWindow(opts: {
 
   const body = lines
     .slice(startIdx, endIdx)
-    .map((line, i) => `${String(startIdx + i + 1).padStart(GUTTER_WIDTH)}\t${line}`)
+    .map(
+      (line, i) => `${String(startIdx + i + 1).padStart(GUTTER_WIDTH)}\t${line}`
+    )
     .join("\n")
 
   const windowed = startIdx > 0 || endIdx < total

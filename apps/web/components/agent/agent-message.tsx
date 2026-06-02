@@ -21,7 +21,10 @@ import {
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
-import { parseUserMessage, skillMarkersToPills } from "@/lib/agent/message-markers"
+import {
+  parseUserMessage,
+  skillMarkersToPills,
+} from "@/lib/agent/message-markers"
 import { chatStore } from "@/lib/chat-store"
 
 const toolIcons: Record<string, typeof FileText> = {
@@ -53,7 +56,10 @@ const toolLabels: Record<string, string> = {
 }
 
 function formatToolName(name: string): string {
-  return toolLabels[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+  return (
+    toolLabels[name] ??
+    name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  )
 }
 
 function CreatePrIndicator({
@@ -70,9 +76,11 @@ function CreatePrIndicator({
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
         <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-foreground truncate">{title}</div>
-          <div className="text-[11px] text-muted-foreground">Opening pull request…</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-foreground">{title}</div>
+          <div className="text-[11px] text-muted-foreground">
+            Opening pull request…
+          </div>
         </div>
       </div>
     )
@@ -87,9 +95,9 @@ function CreatePrIndicator({
     return (
       <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-medium">Couldn&apos;t open pull request</div>
-          <div className="mt-0.5 text-[11px] opacity-90 break-words">
+          <div className="mt-0.5 text-[11px] break-words opacity-90">
             {output.replace(/^Failed to create PR:\s*/i, "")}
           </div>
         </div>
@@ -108,8 +116,8 @@ function CreatePrIndicator({
         className="group flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs transition-colors hover:border-foreground/20 hover:bg-muted"
       >
         <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-green-700 dark:text-green-300" />
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-foreground truncate">{title}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-foreground">{title}</div>
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             {number && <span>#{number}</span>}
             {number && <span>·</span>}
@@ -154,16 +162,18 @@ function ToolIndicator({
   const newTitle = isSetTitle ? (input.title as string | undefined) : null
 
   return (
-    <button
-      onClick={() => setExpanded(!expanded)}
-      className="w-full text-left"
-    >
+    <button onClick={() => setExpanded(!expanded)} className="w-full text-left">
       <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted">
         <Icon className="h-3 w-3 shrink-0" />
         <span className="flex-1 truncate">
           {formatToolName(message.name)}
           {isRunCommand && command ? (
-            <> <code className="font-mono text-[11px] align-baseline">{command}</code></>
+            <>
+              {" "}
+              <code className="align-baseline font-mono text-[11px]">
+                {command}
+              </code>
+            </>
           ) : isReadSkill && skillName ? (
             ` ${skillName}`
           ) : isSetTitle && newTitle ? (
@@ -229,12 +239,14 @@ function PlanMessage({
         <span className="text-xs font-medium text-muted-foreground">Plan</span>
         {statusBadge}
         {isRejected && (
-          <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`} />
+          <ChevronDown
+            className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`}
+          />
         )}
       </button>
       {expanded && (
         <>
-          <div className="mt-2 text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-code:text-foreground prose-pre:bg-background prose-pre:text-foreground prose-pre:border prose-pre:border-border max-w-none">
+          <div className="prose prose-sm mt-2 max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
             <Markdown>{message.content}</Markdown>
           </div>
           {message.status === "pending" && (
@@ -257,7 +269,17 @@ function PlanMessage({
   )
 }
 
-export function AgentMessageItem({ message, toolResult, roomId, chatId }: { message: AgentMessage; toolResult?: AgentMessage & { role: "tool_result" }; roomId?: string; chatId?: string }) {
+export function AgentMessageItem({
+  message,
+  toolResult,
+  roomId,
+  chatId,
+}: {
+  message: AgentMessage
+  toolResult?: AgentMessage & { role: "tool_result" }
+  roomId?: string
+  chatId?: string
+}) {
   switch (message.role) {
     case "user": {
       // Strip the server turn prefixes and the referenced-documents footer
@@ -265,11 +287,11 @@ export function AgentMessageItem({ message, toolResult, roomId, chatId }: { mess
       // the codec's `skillMarkersToPills` — the same `[skill: <name>]` marker
       // the composer's `serializeSkill` emits, rendered back as a pill.
       const displayContent = skillMarkersToPills(
-        parseUserMessage(message.content).body,
+        parseUserMessage(message.content).body
       )
       return (
         <div className="flex justify-end">
-          <div className="max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground prose prose-sm prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-pre:bg-primary-foreground/10 prose-pre:border-0 [--tw-prose-body:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)]">
+          <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
             <Markdown
               urlTransform={(url) => url}
               components={{
@@ -317,7 +339,7 @@ export function AgentMessageItem({ message, toolResult, roomId, chatId }: { mess
 
     case "assistant":
       return (
-        <div className="text-sm prose prose-sm prose-neutral dark:prose-invert prose-p:my-1 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-headings:my-1.5 prose-code:text-xs prose-code:text-foreground prose-pre:bg-background prose-pre:text-foreground prose-pre:border prose-pre:border-border max-w-none">
+        <div className="prose prose-sm max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
           <Markdown>{message.content}</Markdown>
         </div>
       )

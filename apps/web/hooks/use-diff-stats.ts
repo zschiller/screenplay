@@ -13,7 +13,12 @@ const POLL_INTERVAL = 30_000
  */
 export function useDiffStats(
   agents: Array<{ id: string; ref: string; status: string; repoId: string }>,
-  repos: Array<{ id: string; repoOwner: string; repoName: string; defaultBranch: string }>,
+  repos: Array<{
+    id: string
+    repoOwner: string
+    repoName: string
+    defaultBranch: string
+  }>
 ): Map<string, DiffStats> {
   const [statsMap, setStatsMap] = useState<Map<string, DiffStats>>(new Map())
   const agentsRef = useRef(agents)
@@ -40,10 +45,15 @@ export function useDiffStats(
       running.map(async (agent) => {
         const ws = repoMap.get(agent.repoId)
         if (!ws || agent.ref === ws.defaultBranch) return null
-        const stats = await compareBranch(ws.repoOwner, ws.repoName, ws.defaultBranch, agent.ref)
+        const stats = await compareBranch(
+          ws.repoOwner,
+          ws.repoName,
+          ws.defaultBranch,
+          agent.ref
+        )
         if (!stats) return null
         return [agent.id, stats] as const
-      }),
+      })
     )
     const next = new Map<string, DiffStats>()
     for (const entry of entries) {

@@ -27,10 +27,7 @@ import {
   broadcastSignal,
   StreamBroadcaster,
 } from "@/lib/agent/broadcast"
-import {
-  deduplicateBranchName,
-  generateChatNames,
-} from "@/lib/agent/naming"
+import { deduplicateBranchName, generateChatNames } from "@/lib/agent/naming"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -71,28 +68,28 @@ export async function POST(req: Request) {
     return new Response("Missing required fields", { status: 400 })
   }
   if (!markdownLayerId && !sandboxName) {
-    return new Response(
-      "Missing target: markdownLayerId or sandboxName",
-      { status: 400 },
-    )
+    return new Response("Missing target: markdownLayerId or sandboxName", {
+      status: 400,
+    })
   }
 
   // Layer-targeted chats defer all of their kind-specific bits — system
   // prompt, tools, message decoration — to a registered `ChatTargetSpec`.
   // Adding a new chat-targetable kind means shipping a spec and a route
   // branch; the surrounding agent loop is unchanged.
-  const layerChat:
-    | { spec: typeof markdownLayerChatTarget; target: { markdownLayerId: string } }
-    | null = markdownLayerId
-      ? { spec: markdownLayerChatTarget, target: { markdownLayerId } }
-      : null
+  const layerChat: {
+    spec: typeof markdownLayerChatTarget
+    target: { markdownLayerId: string }
+  } | null = markdownLayerId
+    ? { spec: markdownLayerChatTarget, target: { markdownLayerId } }
+    : null
   if (layerChat) {
     const prepared = await prepareChatTarget(
       roomId,
       // The discriminating union above keeps spec/target paired; cast through
       // `never` so prepareChatTarget's generic doesn't try to unify them.
       layerChat.spec as unknown as Parameters<typeof prepareChatTarget>[1],
-      layerChat.target as unknown as never,
+      layerChat.target as unknown as never
     )
     if (!prepared) return new Response("Layer not found", { status: 404 })
 
@@ -155,7 +152,9 @@ export async function POST(req: Request) {
   // Below this line: agent-targeted (sandbox) flow. `sandboxName` is
   // guaranteed by the early-return above.
   if (!sandboxName) {
-    return new Response("Missing sandboxName for agent-targeted chat", { status: 400 })
+    return new Response("Missing sandboxName for agent-targeted chat", {
+      status: 400,
+    })
   }
 
   // First-message check: a chat is "new" if it has no prior messages. More
@@ -172,7 +171,9 @@ export async function POST(req: Request) {
   // sandbox round-trip per new chat.
   const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
     readRoomDoc(roomId, ({ branches, repos }) => {
-      const branch = branches.toArray().find((a) => a.sandboxName === sandboxName)
+      const branch = branches
+        .toArray()
+        .find((a) => a.sandboxName === sandboxName)
       if (!branch) return undefined
       return repos.get(branch.repoId)?.systemPrompt
     }).catch(() => undefined),
@@ -244,7 +245,7 @@ export async function POST(req: Request) {
         toolCallId: pendingPlan.id,
         approved: false,
         feedback: message,
-      }),
+      })
     )
     await broadcastEvent(roomId, chatId, {
       type: "plan_rejected",

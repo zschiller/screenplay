@@ -13,7 +13,7 @@ export const maxDuration = 60
 
 export async function POST(
   _req: Request,
-  { params }: { params: Promise<{ roomId: string }> },
+  { params }: { params: Promise<{ roomId: string }> }
 ) {
   const { roomId } = await params
 

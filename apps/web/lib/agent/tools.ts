@@ -64,20 +64,31 @@ export function buildSandboxTools(ctx: ToolContext) {
       inputSchema: z.object({
         path: z
           .string()
-          .describe("Path to the file relative to the project root, e.g. 'src/App.tsx'"),
+          .describe(
+            "Path to the file relative to the project root, e.g. 'src/App.tsx'"
+          ),
         offset: z
           .number()
           .int()
           .positive()
           .optional()
           .describe("1-based line number to start reading from"),
-        limit: z.number().int().positive().optional().describe("Maximum number of lines to read"),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Maximum number of lines to read"),
       }),
       execute: async ({ path, offset, limit }) => {
         const sandbox = await getSandbox(ctx)
         const buf = await sandbox.readFileToBuffer({ path })
         if (!buf) return `File not found: ${path}`
-        return renderFileWindow({ content: buf.toString("utf-8"), offset, limit })
+        return renderFileWindow({
+          content: buf.toString("utf-8"),
+          offset,
+          limit,
+        })
       },
     }),
 
@@ -105,7 +116,9 @@ export function buildSandboxTools(ctx: ToolContext) {
         replace_all: z
           .boolean()
           .optional()
-          .describe("Replace every occurrence instead of requiring a unique match"),
+          .describe(
+            "Replace every occurrence instead of requiring a unique match"
+          ),
       }),
       execute: async ({ path, old_string, new_string, replace_all }) => {
         const sandbox = await getSandbox(ctx)
@@ -127,7 +140,10 @@ export function buildSandboxTools(ctx: ToolContext) {
         }
 
         await sandbox.writeFiles([{ path, content: result.content }])
-        const occurrences = result.replacements === 1 ? "1 occurrence" : `${result.replacements} occurrences`
+        const occurrences =
+          result.replacements === 1
+            ? "1 occurrence"
+            : `${result.replacements} occurrences`
         return `Edited ${path}: replaced ${occurrences}.`
       },
     }),
@@ -165,9 +181,17 @@ export function buildSandboxTools(ctx: ToolContext) {
       description:
         "Search file contents across the project. Returns matching lines as `file:line: text`. Prefers ripgrep and falls back to grep automatically. Use `include` to restrict to a file-glob (e.g. '*.ts'), `path` to restrict to a directory, and `case_insensitive` for a case-insensitive search. Skips node_modules and .git.",
       inputSchema: z.object({
-        pattern: z.string().describe("The regular expression / text to search for"),
-        path: z.string().optional().describe("Directory to search in (defaults to the project root)"),
-        include: z.string().optional().describe("Restrict to files matching this glob, e.g. '*.tsx'"),
+        pattern: z
+          .string()
+          .describe("The regular expression / text to search for"),
+        path: z
+          .string()
+          .optional()
+          .describe("Directory to search in (defaults to the project root)"),
+        include: z
+          .string()
+          .optional()
+          .describe("Restrict to files matching this glob, e.g. '*.tsx'"),
         case_insensitive: z.boolean().optional(),
       }),
       execute: async ({ pattern, path, include, case_insensitive }) => {
@@ -193,7 +217,10 @@ export function buildSandboxTools(ctx: ToolContext) {
         "Find files by name pattern (e.g. '**/*.tsx'). Returns matching file paths. Skips node_modules and .git. Prefer this over list_files for enumerating files of a kind.",
       inputSchema: z.object({
         pattern: z.string().describe("A file-matching glob, e.g. '**/*.tsx'"),
-        path: z.string().optional().describe("Directory to search in (defaults to the project root)"),
+        path: z
+          .string()
+          .optional()
+          .describe("Directory to search in (defaults to the project root)"),
       }),
       execute: async ({ pattern, path }) => {
         const sandbox = await getSandbox(ctx)
@@ -285,7 +312,9 @@ async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
  * every push from this turn is attributed to whichever collaborator triggered
  * the command — not to whoever first provisioned the (shared) sandbox.
  */
-async function buildAgentGitEnv(ctx: ToolContext): Promise<Record<string, string> | undefined> {
+async function buildAgentGitEnv(
+  ctx: ToolContext
+): Promise<Record<string, string> | undefined> {
   try {
     const token = await getGitHubTokenForUser(ctx.userId)
     return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
@@ -300,7 +329,7 @@ const SHELL_OPERATORS = /[&&|;><$`(){}]/
 async function runCommand(
   ctx: ToolContext,
   command: string,
-  inputArgs: string[] | undefined,
+  inputArgs: string[] | undefined
 ): Promise<string> {
   let cmd: string
   let args: string[]

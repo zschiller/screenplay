@@ -7,7 +7,7 @@ class VercelBlobStore implements BlobStore {
   async put(
     key: string,
     body: Buffer | Uint8Array,
-    opts: PutOptions,
+    opts: PutOptions
   ): Promise<PutResult> {
     const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body)
     const blob = await put(key, buffer, {

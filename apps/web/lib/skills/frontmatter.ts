@@ -32,7 +32,7 @@ export interface SkillMetadata {
  */
 export function parseFrontmatter(
   raw: string,
-  origin: string,
+  origin: string
 ): { metadata: SkillMetadata; body: string } {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
   if (!match) {
@@ -48,7 +48,7 @@ export function parseFrontmatter(
   }
   if (!fields.name || !fields.description) {
     throw new Error(
-      `Skill ${origin} frontmatter must declare both "name" and "description".`,
+      `Skill ${origin} frontmatter must declare both "name" and "description".`
     )
   }
   return {

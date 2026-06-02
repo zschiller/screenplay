@@ -15,7 +15,7 @@ export async function getConfigs(userId: string): Promise<RepoConfig[]> {
 
 export async function saveConfigs(
   userId: string,
-  list: RepoConfig[],
+  list: RepoConfig[]
 ): Promise<void> {
   const encrypted = encrypt(JSON.stringify(list))
   await kv.set(`${PREFIX}${userId}`, encrypted)

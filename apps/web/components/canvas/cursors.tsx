@@ -39,17 +39,17 @@ export function Cursors({ viewport }: CursorsProps) {
             </svg>
             {message !== null ? (
               <div
-                className="ml-3 mt-1 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs text-white shadow-md"
+                className="mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs text-white shadow-md"
                 style={{ backgroundColor: presence.color }}
               >
                 <div className="text-[10px] font-medium opacity-80">{name}</div>
-                <div className="whitespace-pre-wrap break-words leading-snug">
+                <div className="leading-snug break-words whitespace-pre-wrap">
                   {message || " "}
                 </div>
               </div>
             ) : (
               <span
-                className="ml-3 mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white"
+                className="mt-1 ml-3 rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap text-white"
                 style={{ backgroundColor: presence.color }}
               >
                 {name}

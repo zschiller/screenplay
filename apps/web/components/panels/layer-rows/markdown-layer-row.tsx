@@ -47,7 +47,7 @@ export function DocumentRow({
   if (variant === "flat") {
     return (
       <SidebarMenuButton
-        className="w-full !pr-2 !transition-[width,height] group-hover/frame-row:!pr-7 group-focus-within/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+        className="w-full !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
         isActive={selected}
         onClick={(e) => {
           e.stopPropagation()
@@ -94,32 +94,47 @@ export function DocumentRowMenu({
   // the menu's focus trap is fully torn down before we focus the inline
   // input, otherwise the trap steals focus back.
   const pendingEditRef = useRef(false)
-  const onCloseAutoFocus = useCallback((e: Event) => {
-    if (!pendingEditRef.current) return
-    pendingEditRef.current = false
-    e.preventDefault()
-    editableRef?.current?.startEditing()
-  }, [editableRef])
+  const onCloseAutoFocus = useCallback(
+    (e: Event) => {
+      if (!pendingEditRef.current) return
+      pendingEditRef.current = false
+      e.preventDefault()
+      editableRef?.current?.startEditing()
+    },
+    [editableRef]
+  )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           className={
             isSub
-              ? "!top-1/2 -translate-y-1/2 md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
-              : "md:opacity-0 group-hover/frame-row:opacity-100 group-focus-within/frame-row:opacity-100 aria-expanded:opacity-100"
+              ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+              : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
           }
         >
           <MoreHorizontal />
         </SidebarMenuAction>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start" className="w-48" onCloseAutoFocus={onCloseAutoFocus}>
-        <DropdownMenuItem onClick={() => { pendingEditRef.current = true }}>
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        className="w-48"
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        <DropdownMenuItem
+          onClick={() => {
+            pendingEditRef.current = true
+          }}
+        >
           <Pencil />
           Rename
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => onRemove(item.id)}>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => onRemove(item.id)}
+        >
           <Trash2 />
           Delete
         </DropdownMenuItem>

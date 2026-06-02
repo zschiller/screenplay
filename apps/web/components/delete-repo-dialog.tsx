@@ -61,8 +61,8 @@ export function DeleteRepoDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Remove workspace?</AlertDialogTitle>
           <AlertDialogDescription>
-            <span className="font-mono">{repoName}</span> and all of its
-            agents will be removed from this canvas.
+            <span className="font-mono">{repoName}</span> and all of its agents
+            will be removed from this canvas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {branchCount > 0 && (
@@ -87,7 +87,7 @@ export function DeleteRepoDialog({
                 disabled={deleting}
               />
             </div>
-            <ul className="max-h-32 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 text-xs font-mono">
+            <ul className="max-h-32 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
               {branches.map((b) => (
                 <li key={b} className="truncate text-muted-foreground">
                   {b}
@@ -112,7 +112,7 @@ export function DeleteRepoDialog({
                 setError(
                   err instanceof Error
                     ? err.message
-                    : "Failed to remove workspace",
+                    : "Failed to remove workspace"
                 )
                 setDeleting(false)
               }

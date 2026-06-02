@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { buildGlobInvocation, buildGrepInvocation, truncateOutput } from "@/lib/agent/search"
+import {
+  buildGlobInvocation,
+  buildGrepInvocation,
+  truncateOutput,
+} from "@/lib/agent/search"
 
 describe("buildGrepInvocation (ripgrep)", () => {
   it("builds an rg invocation that prints file:line and skips node_modules/.git", () => {
-    const { cmd, args } = buildGrepInvocation({ pattern: "useState", useRipgrep: true })
+    const { cmd, args } = buildGrepInvocation({
+      pattern: "useState",
+      useRipgrep: true,
+    })
 
     expect(cmd).toBe("rg")
     expect(args).toContain("-n")
@@ -30,7 +37,10 @@ describe("buildGrepInvocation (ripgrep)", () => {
 
 describe("buildGrepInvocation (grep fallback)", () => {
   it("falls back to grep -rn excluding node_modules/.git when ripgrep is absent", () => {
-    const { cmd, args } = buildGrepInvocation({ pattern: "useState", useRipgrep: false })
+    const { cmd, args } = buildGrepInvocation({
+      pattern: "useState",
+      useRipgrep: false,
+    })
 
     expect(cmd).toBe("grep")
     expect(args).toContain("-rn")

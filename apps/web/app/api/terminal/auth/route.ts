@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (!roomId || !sessionId) {
     return NextResponse.json(
       { error: "room and session are required" },
-      { status: 400 },
+      { status: 400 }
     )
   }
 

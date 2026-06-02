@@ -59,7 +59,9 @@ export function ShareRoomDialog({
     if (!open) return
     listCollaborators(roomId)
       .then(setCollaborators)
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : String(err))
+      )
       .finally(() => setLoading(false))
   }, [open, roomId])
 
@@ -114,7 +116,9 @@ export function ShareRoomDialog({
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="flex flex-col gap-1">
-          <div className="text-xs font-medium text-muted-foreground">People with access</div>
+          <div className="text-xs font-medium text-muted-foreground">
+            People with access
+          </div>
           {loading ? (
             <div className="flex items-center gap-2 py-2">
               <Spinner className="size-4 text-muted-foreground" />
@@ -130,7 +134,9 @@ export function ShareRoomDialog({
                   <div className="min-w-0">
                     <div className="truncate text-sm">{c.name}</div>
                     {c.email && (
-                      <div className="truncate text-xs text-muted-foreground">{c.email}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {c.email}
+                      </div>
                     )}
                   </div>
                   {c.isOwner ? (

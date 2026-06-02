@@ -23,7 +23,10 @@ export function groupGap(group: IframeLayerGroupData): number {
 export function getGroupMembers(group: IframeLayerGroupData): GroupMember[] {
   if (group.members && group.members.length > 0) return group.members
   if (group.iframeLayerIds && group.iframeLayerIds.length > 0) {
-    return group.iframeLayerIds.map((id) => ({ kind: "iframe-layer" as const, id }))
+    return group.iframeLayerIds.map((id) => ({
+      kind: "iframe-layer" as const,
+      id,
+    }))
   }
   return []
 }
@@ -31,7 +34,7 @@ export function getGroupMembers(group: IframeLayerGroupData): GroupMember[] {
 /** Helper to filter to a single kind — handy for sandbox-only operations. */
 export function getGroupMemberIds(
   group: IframeLayerGroupData,
-  kind: GroupMemberKind,
+  kind: GroupMemberKind
 ): string[] {
   return getGroupMembers(group)
     .filter((m) => m.kind === kind)
@@ -46,7 +49,7 @@ export function getGroupMemberIds(
 export function getMemberSize(
   member: GroupMember,
   iframeLayers: ReadonlyMap<string, IframeLayerData>,
-  markdownLayers: ReadonlyMap<string, MarkdownLayerData>,
+  markdownLayers: ReadonlyMap<string, MarkdownLayerData>
 ): { width: number; height: number } | null {
   if (member.kind === "iframe-layer") {
     const ab = iframeLayers.get(member.id)
@@ -92,7 +95,7 @@ export type IframeLayerLayoutMap = ReadonlyMap<string, GroupMemberLayout>
 export function computeIframeLayerLayouts(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = [],
+  markdownLayers: readonly MarkdownLayerData[] = []
 ): IframeLayerLayoutMap {
   const abById = new Map<string, IframeLayerData>()
   for (const ab of iframeLayers) abById.set(ab.id, ab)
@@ -130,7 +133,7 @@ export function computeIframeLayerLayouts(
 export function groupContentWidth(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = [],
+  markdownLayers: readonly MarkdownLayerData[] = []
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
   const docById = new Map(markdownLayers.map((d) => [d.id, d]))
@@ -150,7 +153,7 @@ export function groupContentWidth(
 export function groupContentHeight(
   group: IframeLayerGroupData,
   iframeLayers: readonly IframeLayerData[],
-  markdownLayers: readonly MarkdownLayerData[] = [],
+  markdownLayers: readonly MarkdownLayerData[] = []
 ): number {
   const abById = new Map(iframeLayers.map((a) => [a.id, a]))
   const docById = new Map(markdownLayers.map((d) => [d.id, d]))
@@ -176,7 +179,7 @@ export function placeNewIframeLayerGroup(
   viewportCenter: { x: number; y: number },
   width: number,
   height: number,
-  markdownLayers: readonly MarkdownLayerData[] = [],
+  markdownLayers: readonly MarkdownLayerData[] = []
 ): { x: number; y: number } {
   if (groups.length === 0) {
     return {
@@ -265,7 +268,7 @@ export function computeEffectiveLayouts(
   groups: readonly IframeLayerGroupData[],
   iframeLayers: readonly IframeLayerData[],
   markdownLayers: readonly MarkdownLayerData[],
-  drag: ActiveReorderDrag | null,
+  drag: ActiveReorderDrag | null
 ): IframeLayerLayoutMap {
   if (!drag) return base
   const popped = base.get(drag.memberId)
@@ -289,7 +292,7 @@ export function computeEffectiveLayouts(
 
   // Reflow the source group's remaining members to close the gap.
   const remainingMembers = getGroupMembers(sourceGroup).filter(
-    (m) => m.id !== drag.memberId,
+    (m) => m.id !== drag.memberId
   )
   const gap = groupGap(sourceGroup)
   let cursorX = sourceGroup.x
@@ -323,7 +326,7 @@ export function computePlaceholderRects(
   groups: readonly IframeLayerGroupData[],
   layouts: IframeLayerLayoutMap,
   selection: CanvasSelection,
-  poppedMemberId: string | null,
+  poppedMemberId: string | null
 ): PlaceholderRect[] {
   const rects: PlaceholderRect[] = []
   for (const g of groups) {
@@ -335,7 +338,7 @@ export function computePlaceholderRects(
     const hasSelected = allMembers.some((m) =>
       m.kind === "iframe-layer"
         ? selection.iframeLayerIds.has(m.id)
-        : selection.documentLayerIds.has(m.id),
+        : selection.documentLayerIds.has(m.id)
     )
     if (!hasSelected) continue
     const members =
@@ -366,7 +369,7 @@ export function computeGapHandles(
   groups: readonly IframeLayerGroupData[],
   layouts: IframeLayerLayoutMap,
   selectedGroupIds: ReadonlySet<string>,
-  poppedMemberId: string | null,
+  poppedMemberId: string | null
 ): GapHandle[] {
   const handles: GapHandle[] = []
   if (selectedGroupIds.size === 0) return handles
@@ -407,7 +410,7 @@ export function computeGapHandles(
 export function computeReorderHandles(
   groups: readonly IframeLayerGroupData[],
   layouts: IframeLayerLayoutMap,
-  selectedGroupIds: ReadonlySet<string>,
+  selectedGroupIds: ReadonlySet<string>
 ): ReorderHandle[] {
   const handles: ReorderHandle[] = []
   if (selectedGroupIds.size === 0) return handles
@@ -457,7 +460,9 @@ export type DeriveCanvasLayoutInput = {
  * single entry point `canvas.tsx` calls each frame, keeping all geometry in
  * this tested, React-free module.
  */
-export function deriveCanvasLayout(input: DeriveCanvasLayoutInput): CanvasLayout {
+export function deriveCanvasLayout(
+  input: DeriveCanvasLayoutInput
+): CanvasLayout {
   const {
     groups,
     iframeLayers,
@@ -472,7 +477,7 @@ export function deriveCanvasLayout(input: DeriveCanvasLayoutInput): CanvasLayout
     groups,
     iframeLayers,
     markdownLayers,
-    activeReorderDrag,
+    activeReorderDrag
   )
   return {
     layouts,
@@ -480,13 +485,13 @@ export function deriveCanvasLayout(input: DeriveCanvasLayoutInput): CanvasLayout
       groups,
       layouts,
       selection,
-      poppedMemberId,
+      poppedMemberId
     ),
     gapHandles: computeGapHandles(
       groups,
       layouts,
       selection.groupIds,
-      poppedMemberId,
+      poppedMemberId
     ),
     reorderHandles: computeReorderHandles(groups, layouts, selection.groupIds),
   }
@@ -497,7 +502,9 @@ export function deriveCanvasLayout(input: DeriveCanvasLayoutInput): CanvasLayout
  * existing group names so reordering or deleting earlier groups never causes
  * a future group to collide with an existing name.
  */
-export function nextGroupNumber(groups: readonly IframeLayerGroupData[]): number {
+export function nextGroupNumber(
+  groups: readonly IframeLayerGroupData[]
+): number {
   let max = 0
   for (const g of groups) {
     if (!g.name) continue

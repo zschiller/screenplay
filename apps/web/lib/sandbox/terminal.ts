@@ -26,7 +26,9 @@ const TTYD_ASSET_BY_ARCH: Record<string, string> = {
 function ttydUrl(arch: string): string {
   const asset = TTYD_ASSET_BY_ARCH[arch]
   if (!asset) {
-    throw new Error(`unsupported sandbox architecture for ttyd: ${arch || "unknown"}`)
+    throw new Error(
+      `unsupported sandbox architecture for ttyd: ${arch || "unknown"}`
+    )
   }
   return `https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/${asset}`
 }
@@ -75,7 +77,9 @@ const TMUX_ASSET_ARCH_BY_MACHINE: Record<string, string> = {
 function tmuxUrl(arch: string): string {
   const assetArch = TMUX_ASSET_ARCH_BY_MACHINE[arch]
   if (!assetArch) {
-    throw new Error(`unsupported sandbox architecture for tmux: ${arch || "unknown"}`)
+    throw new Error(
+      `unsupported sandbox architecture for tmux: ${arch || "unknown"}`
+    )
   }
   return `https://github.com/tmux/tmux-builds/releases/download/v${TMUX_VERSION}/tmux-${TMUX_VERSION}-linux-${assetArch}.tar.gz`
 }
@@ -95,7 +99,7 @@ function tmuxUrl(arch: string): string {
  * error string rather than a thrown exception that could spill a token.
  */
 export async function ensureTerminal(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<SandboxActionResult<{ url: string }>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     // Detect the architecture once and key both binary fetches off it, so the
@@ -123,7 +127,7 @@ export async function ensureTerminal(
  */
 export async function killTerminalSession(
   sandboxName: string,
-  terminalSessionId: string,
+  terminalSessionId: string
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     const session = tmuxSessionName(terminalSessionId)
@@ -153,7 +157,10 @@ async function detectArch(sandbox: SandboxInstance): Promise<string> {
  * download — so it's safe to call on every `ensureTerminal`. A download failure
  * exits non-zero, which `step` turns into a redacted failure result.
  */
-async function ensureTtydInstalled(sandbox: SandboxInstance, arch: string): Promise<void> {
+async function ensureTtydInstalled(
+  sandbox: SandboxInstance,
+  arch: string
+): Promise<void> {
   const url = ttydUrl(arch)
   await step(sandbox, "sh", [
     "-c",
@@ -172,7 +179,10 @@ async function ensureTtydInstalled(sandbox: SandboxInstance, arch: string): Prom
  * pipeline, so it's safe on every `ensureTerminal`. Any failure exits non-zero,
  * which `step` turns into a redacted failure result.
  */
-async function ensureTmuxInstalled(sandbox: SandboxInstance, arch: string): Promise<void> {
+async function ensureTmuxInstalled(
+  sandbox: SandboxInstance,
+  arch: string
+): Promise<void> {
   const url = tmuxUrl(arch)
   await step(sandbox, "sh", [
     "-c",

@@ -43,7 +43,7 @@ export interface RepoSkillFs {
  * mismatch throws. An absent `.claude/skills/` yields an empty list.
  */
 export async function enumerateRepoSkills(
-  fs: RepoSkillFs,
+  fs: RepoSkillFs
 ): Promise<OriginTaggedSkill[]> {
   const entries = await fs.list(SKILLS_DIR)
   if (!entries) return []
@@ -56,7 +56,7 @@ export async function enumerateRepoSkills(
     const { metadata } = parseFrontmatter(raw, skillMd)
     if (metadata.name !== entry) {
       throw new Error(
-        `Repo Skill at ${skillMd} declares name="${metadata.name}" but lives in directory "${entry}". Names must match.`,
+        `Repo Skill at ${skillMd} declares name="${metadata.name}" but lives in directory "${entry}". Names must match.`
       )
     }
     out.push({ ...metadata, origin: "repo" })
@@ -72,7 +72,7 @@ export async function enumerateRepoSkills(
  */
 export async function readRepoSkillBody(
   fs: RepoSkillFs,
-  name: string,
+  name: string
 ): Promise<string | null> {
   return fs.read(`${SKILLS_DIR}/${name}/SKILL.md`)
 }

@@ -20,7 +20,7 @@ import {
  */
 function provider(
   key: string,
-  egress: ReturnType<ModelProvider["egress"]>,
+  egress: ReturnType<ModelProvider["egress"]>
 ): ModelProvider {
   return {
     key,
@@ -47,7 +47,10 @@ type RecordedCall = {
  * `homeDir` differs from any backend default to prove the seed follows the
  * provider-supplied path. Everything the seed doesn't touch throws.
  */
-function fakeSandbox(calls: RecordedCall[], homeDir = "/home/agent"): SandboxInstance {
+function fakeSandbox(
+  calls: RecordedCall[],
+  homeDir = "/home/agent"
+): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
@@ -167,16 +170,16 @@ describe("opencodeConfigJson", () => {
         baseUrlEnv: "OPENCODE_GATEWAY_BASE_URL",
         apiKeyEnv: "AI_GATEWAY_API_KEY",
         defaultModel: "gateway/anthropic/claude-sonnet-4-6",
-      }),
+      })
     )
 
     expect(config.provider.gateway.npm).toBe("@ai-sdk/openai-compatible")
     expect(config.provider.gateway.options.baseURL).toBe(
-      "{env:OPENCODE_GATEWAY_BASE_URL}",
+      "{env:OPENCODE_GATEWAY_BASE_URL}"
     )
     // The API key is an env ref to the dummy gate var — never a real secret.
     expect(config.provider.gateway.options.apiKey).toBe(
-      "{env:AI_GATEWAY_API_KEY}",
+      "{env:AI_GATEWAY_API_KEY}"
     )
     expect(config.model).toBe("gateway/anthropic/claude-sonnet-4-6")
   })
@@ -188,14 +191,14 @@ describe("opencodeConfigJson", () => {
         providerLabel: "OpenAI-compatible",
         baseUrlEnv: "OPENAI_COMPATIBLE_BASE_URL",
         apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY",
-      }),
+      })
     )
 
     expect(config.provider.compat.options.baseURL).toBe(
-      "{env:OPENAI_COMPATIBLE_BASE_URL}",
+      "{env:OPENAI_COMPATIBLE_BASE_URL}"
     )
     expect(config.provider.compat.options.apiKey).toBe(
-      "{env:OPENAI_COMPATIBLE_API_KEY}",
+      "{env:OPENAI_COMPATIBLE_API_KEY}"
     )
     expect(config).not.toHaveProperty("model")
   })
@@ -209,18 +212,18 @@ describe("seedOpencode", () => {
     const configCall = calls.find((c) => c.env?.OPENCODE_CONFIG)
     expect(configCall).toBeDefined()
     expect(configCall!.args.at(-1)).toContain(
-      '"/home/agent/.config/opencode/opencode.json"',
+      '"/home/agent/.config/opencode/opencode.json"'
     )
     // The seeded config points opencode at the slot's endpoint via env refs.
     const config = JSON.parse(configCall!.env!.OPENCODE_CONFIG!)
     expect(config.provider.gateway.options.baseURL).toBe(
-      "{env:OPENCODE_GATEWAY_BASE_URL}",
+      "{env:OPENCODE_GATEWAY_BASE_URL}"
     )
 
     const agentsCall = calls.find((c) => c.env?.OPENCODE_AGENTS_MD)
     expect(agentsCall).toBeDefined()
     expect(agentsCall!.args.at(-1)).toContain(
-      '"/home/agent/.config/opencode/AGENTS.md"',
+      '"/home/agent/.config/opencode/AGENTS.md"'
     )
   })
 

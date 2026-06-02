@@ -46,10 +46,7 @@ export interface YjsHost {
    */
   syncRoomMembers(roomId: string, members: RoomMemberInput[]): Promise<void>
 
-  updateRoomMetadata(
-    roomId: string,
-    metadata: { name?: string },
-  ): Promise<void>
+  updateRoomMetadata(roomId: string, metadata: { name?: string }): Promise<void>
 
   mutateDoc<T>(roomId: string, fn: (doc: Y.Doc) => T | Promise<T>): Promise<T>
 

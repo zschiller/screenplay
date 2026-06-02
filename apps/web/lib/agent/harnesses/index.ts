@@ -27,7 +27,7 @@ const HARNESSES: Harness[] = [
 ]
 
 const HARNESSES_BY_KEY = new Map<string, Harness>(
-  HARNESSES.map((h) => [h.key, h]),
+  HARNESSES.map((h) => [h.key, h])
 )
 
 /** The catalog, read-only. */
@@ -73,7 +73,7 @@ export function parseHarnessKeys(raw: string | undefined): string[] {
  */
 export function resolveHarnesses(
   keys: string[],
-  providers: ModelProvider[],
+  providers: ModelProvider[]
 ): HarnessSelection {
   const providersByKey = new Map(providers.map((p) => [p.key, p]))
   const installable: Harness[] = []
@@ -104,7 +104,7 @@ export function resolveHarnesses(
  */
 export function selectHarnesses(
   sandboxHarnesses: string | undefined,
-  providers: ModelProvider[],
+  providers: ModelProvider[]
 ): HarnessSelection {
   return resolveHarnesses(parseHarnessKeys(sandboxHarnesses), providers)
 }
@@ -142,7 +142,7 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
  */
 export function resolveLaunchArgv(
   harnessKey: string | null | undefined,
-  installable: Harness[],
+  installable: Harness[]
 ): string[] {
   if (!harnessKey) return []
   const harness = installable.find((h) => h.key === harnessKey)

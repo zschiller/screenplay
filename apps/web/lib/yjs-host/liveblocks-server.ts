@@ -46,7 +46,7 @@ class LiveblocksYjsHost implements YjsHost {
 
   async syncRoomMembers(
     roomId: string,
-    members: RoomMemberInput[],
+    members: RoomMemberInput[]
   ): Promise<void> {
     // Liveblocks `updateRoom` MERGES `usersAccesses`. To make this method
     // declarative ("after this call, the room has exactly these members"),
@@ -58,7 +58,9 @@ class LiveblocksYjsHost implements YjsHost {
     for (const m of members) {
       next.add(m.userId)
       usersAccesses[m.userId] =
-        m.role === "viewer" ? ["room:read", "room:presence:write"] : ["room:write"]
+        m.role === "viewer"
+          ? ["room:read", "room:presence:write"]
+          : ["room:write"]
     }
     for (const existingId of Object.keys(room.usersAccesses)) {
       if (!next.has(existingId)) usersAccesses[existingId] = null
@@ -68,14 +70,14 @@ class LiveblocksYjsHost implements YjsHost {
 
   async updateRoomMetadata(
     roomId: string,
-    metadata: { name?: string },
+    metadata: { name?: string }
   ): Promise<void> {
     await this.client.updateRoom(roomId, { metadata })
   }
 
   async mutateDoc<T>(
     roomId: string,
-    fn: (doc: Y.Doc) => T | Promise<T>,
+    fn: (doc: Y.Doc) => T | Promise<T>
   ): Promise<T> {
     const initial = await this.client.getYjsDocumentAsBinaryUpdate(roomId)
     const doc = new Y.Doc()
@@ -99,7 +101,7 @@ class LiveblocksYjsHost implements YjsHost {
 
   async readDoc<T>(
     roomId: string,
-    fn: (doc: Y.Doc) => T | Promise<T>,
+    fn: (doc: Y.Doc) => T | Promise<T>
   ): Promise<T> {
     const initial = await this.client.getYjsDocumentAsBinaryUpdate(roomId)
     const doc = new Y.Doc()
@@ -114,11 +116,10 @@ class LiveblocksYjsHost implements YjsHost {
   async issueToken(input: IssueTokenInput): Promise<IssueTokenResult> {
     const { status, body } = await this.client.identifyUser(
       { userId: input.userId, groupIds: [] },
-      { userInfo: input.userInfo },
+      { userInfo: input.userInfo }
     )
     return { status, body }
   }
-
 }
 
 let cached: LiveblocksYjsHost | null = null

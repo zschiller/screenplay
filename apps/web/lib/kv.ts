@@ -32,7 +32,9 @@ export const kv: KV = {
     if (!row) return null
     if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
       // Lazily evict expired rows so callers don't see stale data.
-      db.delete(kvStore).where(eq(kvStore.key, key)).catch(() => {})
+      db.delete(kvStore)
+        .where(eq(kvStore.key, key))
+        .catch(() => {})
       return null
     }
     return row.value as T
@@ -81,8 +83,8 @@ export const kv: KV = {
           .where(
             and(
               eq(kvStore.key, key),
-              sql`${kvStore.value}->>'lockToken' = ${token}`,
-            ),
+              sql`${kvStore.value}->>'lockToken' = ${token}`
+            )
           )
           .returning({ key: kvStore.key })
         return deleted.length > 0

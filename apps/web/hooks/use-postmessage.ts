@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import type { RefObject } from "react"
-import type { HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
+import type {
+  HmrStatus,
+  JsonObject,
+  JsonValue,
+} from "@/lib/postmessage-protocol"
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 
 interface UsePostMessageOptions {
@@ -45,7 +49,7 @@ export function usePostMessage({
   const scrollRef = useRef<{ x: number; y: number } | null>(
     iframeScrollX !== undefined || iframeScrollY !== undefined
       ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
-      : null,
+      : null
   )
   // Last scroll position we either received from or applied to the iframe.
   // Used to avoid looping remote scrolls back to the iframe when Yjs echoes
@@ -77,43 +81,55 @@ export function usePostMessage({
   })
 
   const sendMessage = useCallback(
-    (type: "screenplay:init" | "screenplay:state-update", state: JsonObject) => {
+    (
+      type: "screenplay:init" | "screenplay:state-update",
+      state: JsonObject
+    ) => {
       const iframe = iframeRef.current
       if (!iframe?.contentWindow) return
       iframe.contentWindow.postMessage({ type, state }, "*")
     },
-    [iframeRef],
+    [iframeRef]
   )
 
-  const sendKnobValues = useCallback((values: JsonObject) => {
-    const iframe = iframeRef.current
-    if (!iframe?.contentWindow) return
-    iframe.contentWindow.postMessage(
-      { type: "screenplay:knob-values", values },
-      "*",
-    )
-  }, [iframeRef])
+  const sendKnobValues = useCallback(
+    (values: JsonObject) => {
+      const iframe = iframeRef.current
+      if (!iframe?.contentWindow) return
+      iframe.contentWindow.postMessage(
+        { type: "screenplay:knob-values", values },
+        "*"
+      )
+    },
+    [iframeRef]
+  )
 
-  const sendSharedState = useCallback((state: JsonObject) => {
-    const iframe = iframeRef.current
-    if (!iframe?.contentWindow) return
-    iframe.contentWindow.postMessage(
-      { type: "screenplay:shared-state-apply", state },
-      "*",
-    )
-  }, [iframeRef])
+  const sendSharedState = useCallback(
+    (state: JsonObject) => {
+      const iframe = iframeRef.current
+      if (!iframe?.contentWindow) return
+      iframe.contentWindow.postMessage(
+        { type: "screenplay:shared-state-apply", state },
+        "*"
+      )
+    },
+    [iframeRef]
+  )
 
-  const sendScrollTo = useCallback((x: number, y: number) => {
-    const iframe = iframeRef.current
-    if (!iframe?.contentWindow) return
-    const last = lastScrollRef.current
-    if (last && last.x === x && last.y === y) return
-    lastScrollRef.current = { x, y }
-    iframe.contentWindow.postMessage(
-      { type: "screenplay:scroll-to", scrollX: x, scrollY: y },
-      "*",
-    )
-  }, [iframeRef])
+  const sendScrollTo = useCallback(
+    (x: number, y: number) => {
+      const iframe = iframeRef.current
+      if (!iframe?.contentWindow) return
+      const last = lastScrollRef.current
+      if (last && last.x === x && last.y === y) return
+      lastScrollRef.current = { x, y }
+      iframe.contentWindow.postMessage(
+        { type: "screenplay:scroll-to", scrollX: x, scrollY: y },
+        "*"
+      )
+    },
+    [iframeRef]
+  )
 
   // Push scroll changes from Yjs down into the iframe.
   useEffect(() => {
@@ -185,7 +201,16 @@ export function usePostMessage({
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [iframeRef, iframeLayerId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
+  }, [
+    iframeRef,
+    iframeLayerId,
+    onStateChanged,
+    onNavigation,
+    onScroll,
+    sendMessage,
+    sendScrollTo,
+    sendKnobValues,
+  ])
 
   return { iframeRef, sendMessage }
 }

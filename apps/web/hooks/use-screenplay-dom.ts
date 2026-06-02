@@ -55,7 +55,7 @@ export function useScreenplayDom(
     onPanEnd,
     onSpaceDown,
     onSpaceUp,
-  }: Options = {},
+  }: Options = {}
 ) {
   const pending = useRef(new Map<string, Pending>())
   const seq = useRef(0)
@@ -83,7 +83,7 @@ export function useScreenplayDom(
   })
 
   const request = useCallback(
-    <T,>(msg: {
+    <T>(msg: {
       type:
         | "screenplay:dom-query"
         | "screenplay:pick-start"
@@ -98,11 +98,13 @@ export function useScreenplayDom(
       y?: number
     }): Promise<T> => {
       const iframe = iframeRef.current
-      if (!iframe?.contentWindow) return Promise.reject(new Error("iframe not mounted"))
+      if (!iframe?.contentWindow)
+        return Promise.reject(new Error("iframe not mounted"))
       const id = "q_" + seq.current++
       return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
-          if (pending.current.delete(id)) reject(new Error("screenplay bridge timeout"))
+          if (pending.current.delete(id))
+            reject(new Error("screenplay bridge timeout"))
         }, REQUEST_TIMEOUT_MS)
         pending.current.set(id, {
           resolve: resolve as (v: unknown) => void,
@@ -112,7 +114,7 @@ export function useScreenplayDom(
         iframe.contentWindow!.postMessage({ ...msg, id }, "*")
       })
     },
-    [iframeRef],
+    [iframeRef]
   )
 
   useEffect(() => {
@@ -216,6 +218,6 @@ export function useScreenplayDom(
       setForwardInput: (enabled: boolean) =>
         request<null>({ type: "screenplay:set-forward-input", enabled }),
     }),
-    [request],
+    [request]
   )
 }

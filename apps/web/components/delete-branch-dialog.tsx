@@ -58,8 +58,8 @@ export function DeleteBranchDialog({
           <AlertDialogTitle>Delete branch?</AlertDialogTitle>
           <AlertDialogDescription>
             The agent and its frames will be removed. The local branch{" "}
-            <span className="font-mono">{branchName}</span> stays in your sandbox
-            unless you also delete it on the remote.
+            <span className="font-mono">{branchName}</span> stays in your
+            sandbox unless you also delete it on the remote.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex items-center justify-between rounded-md border p-3">
@@ -90,7 +90,7 @@ export function DeleteBranchDialog({
                 await onConfirm({ deleteOnRemote })
               } catch (err) {
                 setError(
-                  err instanceof Error ? err.message : "Failed to delete branch",
+                  err instanceof Error ? err.message : "Failed to delete branch"
                 )
                 setDeleting(false)
               }

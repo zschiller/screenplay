@@ -7,7 +7,12 @@ import {
   type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch"
 import { nanoid } from "nanoid"
-import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator"
+import {
+  uniqueNamesGenerator,
+  adjectives,
+  colors,
+  animals,
+} from "unique-names-generator"
 import {
   useBranches,
   useIframeLayerGroups,
@@ -24,7 +29,11 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { createTerminalTab, DEFAULT_HARNESS_KEY, readLastTabKind } from "@/lib/canvas/tab-kind"
+import {
+  createTerminalTab,
+  DEFAULT_HARNESS_KEY,
+  readLastTabKind,
+} from "@/lib/canvas/tab-kind"
 import {
   createTerminalTabAction,
   deleteTerminalTabAction,
@@ -34,7 +43,18 @@ import {
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useSession } from "@/lib/auth-client"
-import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
+import {
+  ChevronDown,
+  FileText,
+  Frame,
+  MessageSquare,
+  MousePointer2,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -44,7 +64,12 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@workspace/ui/components/breadcrumb"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
 import {
   DropdownMenu,
@@ -100,11 +125,17 @@ import {
   ResizableHandle,
 } from "@workspace/ui/components/resizable"
 import { type PanelImperativeHandle } from "react-resizable-panels"
-import {
-  type PanelLayout,
-  writePanelLayout,
-} from "@/lib/panel-layout"
-import type { BranchData, IframeLayerGroupData, ChatSessionData, GroupMember, ViewportData, RepoData, TabKind, TerminalTabData } from "@/lib/types"
+import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
+import type {
+  BranchData,
+  IframeLayerGroupData,
+  ChatSessionData,
+  GroupMember,
+  ViewportData,
+  RepoData,
+  TabKind,
+  TerminalTabData,
+} from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -140,11 +171,16 @@ import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 
-
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
 // streaming logs — otherwise flipping selection now shows an empty chat panel.
-function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () => void }) {
+function LogProbe({
+  sandboxName,
+  onReady,
+}: {
+  sandboxName: string
+  onReady: () => void
+}) {
   const onReadyRef = useRef(onReady)
   useEffect(() => {
     onReadyRef.current = onReady
@@ -156,14 +192,18 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
         try {
           const res = await fetch(
             `/api/sandbox/${encodeURIComponent(sandboxName)}/logs`,
-            { signal: abort.signal, cache: "no-store" },
+            { signal: abort.signal, cache: "no-store" }
           )
           if (res.ok) {
-            try { await res.body?.cancel() } catch {}
+            try {
+              await res.body?.cancel()
+            } catch {}
             onReadyRef.current()
             return
           }
-          try { await res.body?.cancel() } catch {}
+          try {
+            await res.body?.cancel()
+          } catch {}
         } catch (e) {
           if ((e as Error).name === "AbortError") return
         }
@@ -175,7 +215,23 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads, initialTerminalTabs }: { roomId: string; roomName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[]; initialTerminalTabs?: TerminalTabRecord[] }) {
+export function Canvas({
+  roomId,
+  roomName,
+  hasThumbnail,
+  parentFolderName = "Drafts",
+  initialLayout,
+  initialThreads,
+  initialTerminalTabs,
+}: {
+  roomId: string
+  roomName: string
+  hasThumbnail: boolean
+  parentFolderName?: string
+  initialLayout?: PanelLayout
+  initialThreads?: ThreadWithComments[]
+  initialTerminalTabs?: TerminalTabRecord[]
+}) {
   const router = useRouter()
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -184,10 +240,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const [renaming, setRenaming] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
-  const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<string | null>(null)
+  const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<
+    string | null
+  >(null)
   // IframeLayer currently in Create Flow mode. Mutually exclusive with
   // `focusedIframeLayerId` — toggling one clears the other.
-  const [createFlowIframeLayerId, setCreateFlowIframeLayerId] = useState<string | null>(null)
+  const [createFlowIframeLayerId, setCreateFlowIframeLayerId] = useState<
+    string | null
+  >(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   /**
    * When a chat tab is targeting a document layer (instead of an agent's
@@ -195,7 +255,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    * pill, the tools are doc-mutation tools, etc. Mutually exclusive with
    * `selectedAgentId` from the panel's POV.
    */
-  const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] = useState<string | null>(null)
+  const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] =
+    useState<string | null>(null)
   // Agents created this session whose sandbox isn't streaming logs yet.
   // A LogProbe is rendered for each; on ready we flip selection and drop
   // the id. No cleanup effect — filtering in render handles deletions,
@@ -222,12 +283,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         createdAt: r.createdAt,
         label: r.label,
         harnessKey: r.harnessKey ?? undefined,
-      }),
-    ),
+      })
+    )
   )
   const isLocalTerminal = useCallback(
     (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
-    [localTerminals],
+    [localTerminals]
   )
   // Re-fetch this User's persisted terminal tabs for the room (#258): keeps the
   // seeded set fresh on client-side Branch/room navigation (when the component
@@ -246,11 +307,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             createdAt: r.createdAt,
             label: r.label,
             harnessKey: r.harnessKey ?? undefined,
-          }),
+          })
         )
         setLocalTerminals((prev) => {
           const localOnly = prev.filter(
-            (t) => !restored.some((r) => r.id === t.id),
+            (t) => !restored.some((r) => r.id === t.id)
           )
           return [...restored, ...localOnly]
         })
@@ -271,7 +332,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
   }>({ branchRename: () => {}, renameChat: () => {} })
-  const [followingConnectionId, setFollowingConnectionId] = useState<number | null>(null)
+  const [followingConnectionId, setFollowingConnectionId] = useState<
+    number | null
+  >(null)
   // Per-iframeLayer iframe DOM accessor registry. IframeLayers register on mount and
   // unregister on unmount; selector-anchored comments use it to query element
   // rects in the right iframe.
@@ -284,17 +347,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       else map.delete(id)
       setIframeLayerDomsVersion((v) => v + 1)
     },
-    [],
+    []
   )
   const getIframeLayerDom = useCallback(
-    (id: string): ScreenplayDom | undefined => iframeLayerDomsRef.current.get(id),
-    [],
+    (id: string): ScreenplayDom | undefined =>
+      iframeLayerDomsRef.current.get(id),
+    []
   )
   // Same registry pattern as iframe DOMs, but for doc-layer TipTap editors.
   // Inline-comment threads use this to push highlight ranges into the
   // editor and to compute where to anchor each thread's canvas pin.
   const documentEditorsRef = useRef(
-    new Map<string, import("@tiptap/core").Editor>(),
+    new Map<string, import("@tiptap/core").Editor>()
   )
   const [documentEditorsVersion, setDocumentEditorsVersion] = useState(0)
   const handleDocumentEditorReady = useCallback(
@@ -304,12 +368,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       else map.delete(id)
       setDocumentEditorsVersion((v) => v + 1)
     },
-    [],
+    []
   )
   const getDocumentEditor = useCallback(
     (id: string): import("@tiptap/core").Editor | undefined =>
       documentEditorsRef.current.get(id),
-    [],
+    []
   )
   const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{
@@ -335,21 +399,70 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   } | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
-  const [selectedIframeLayerIds, setSelectedIframeLayerIds] = useState<Set<string>>(new Set())
-  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
-  const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<Set<string>>(new Set())
-  const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<string | null>(null)
-  const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const marqueeRef = useRef<{ startX: number; startY: number; shiftKey: boolean; baseIframeLayers: Set<string>; baseDocumentLayers: Set<string> } | null>(null)
+  const [selectedIframeLayerIds, setSelectedIframeLayerIds] = useState<
+    Set<string>
+  >(new Set())
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(
+    new Set()
+  )
+  const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<
+    Set<string>
+  >(new Set())
+  const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<
+    string | null
+  >(null)
+  const [marquee, setMarquee] = useState<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
+  const marqueeRef = useRef<{
+    startX: number
+    startY: number
+    shiftKey: boolean
+    baseIframeLayers: Set<string>
+    baseDocumentLayers: Set<string>
+  } | null>(null)
   const [documentMode, setDocumentMode] = useState(false)
-  const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<string | null>(null)
-  const [documentDraft, setDocumentDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const documentDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
+  const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<
+    string | null
+  >(null)
+  const [documentDraft, setDocumentDraft] = useState<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
+  const documentDraftRef = useRef<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
   const [frameMode, setFrameMode] = useState(false)
-  const [frameDraft, setFrameDraft] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const frameDraftRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null)
-  const gapDragRef = useRef<{ groupId: string; gapIndex: number; startGap: number; startCanvasX: number } | null>(null)
-  const [activeGapHandle, setActiveGapHandle] = useState<{ groupId: string; gapIndex: number } | null>(null)
+  const [frameDraft, setFrameDraft] = useState<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
+  const frameDraftRef = useRef<{
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null>(null)
+  const gapDragRef = useRef<{
+    groupId: string
+    gapIndex: number
+    startGap: number
+    startCanvasX: number
+  } | null>(null)
+  const [activeGapHandle, setActiveGapHandle] = useState<{
+    groupId: string
+    gapIndex: number
+  } | null>(null)
   const reorderDragRef = useRef<{
     groupId: string
     iframeLayerId: string
@@ -369,7 +482,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
      *  this `false` since the dot itself isn't a selection affordance. */
     selectOnNoMove: boolean
   } | null>(null)
-  const [reorderDraggingIframeLayerId, setReorderDraggingIframeLayerId] = useState<string | null>(null)
+  const [reorderDraggingIframeLayerId, setReorderDraggingIframeLayerId] =
+    useState<string | null>(null)
   /**
    * In-flight group-merge state. `sourceGroupId` is set when a layer drag
    * begins translating exactly one group; mirrored into `groupDragSourceRef`
@@ -379,7 +493,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    */
   const groupDragSourceRef = useRef<string | null>(null)
   const groupDragTargetRef = useRef<string | null>(null)
-  const [draggingSourceGroupId, setDraggingSourceGroupId] = useState<string | null>(null)
+  const [draggingSourceGroupId, setDraggingSourceGroupId] = useState<
+    string | null
+  >(null)
   /** True while any layer (frame or group) is being dragged — used to
    *  suppress the hover outline so sweeping over sibling frames during a
    *  drag doesn't paint a hover rect on each one in turn. */
@@ -416,13 +532,21 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     candidates: MergeSnapCandidate[]
   } | null>(null)
   /** World-space highlight rects for the merge preview — drives `GroupMergeUnderlay`. */
-  const [groupDragSnapRects, setGroupDragSnapRects] = useState<MoveSnapRect[] | null>(null)
+  const [groupDragSnapRects, setGroupDragSnapRects] = useState<
+    MoveSnapRect[] | null
+  >(null)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
-  const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
+  const [reorderDragCursor, setReorderDragCursor] = useState<{
+    x: number
+    y: number
+  } | null>(null)
   /** Grab offset for the active reorder drag, mirrored into state (set
    *  alongside `reorderDragRef` at drag-start) so layout math can read it
    *  during render without touching the ref. Constant for a drag's duration. */
-  const [reorderGrabOffset, setReorderGrabOffset] = useState<{ x: number; y: number } | null>(null)
+  const [reorderGrabOffset, setReorderGrabOffset] = useState<{
+    x: number
+    y: number
+  } | null>(null)
   /** True while the user is holding the meta/cmd key during a reorder drag —
    * pops the iframeLayer out of its source group as a preview. The pop is only
    * committed (new group created, source group updated) on pointer-up if the
@@ -465,7 +589,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   useEffect(() => {
     if (!session?.user) return
     if (!colorRef.current) {
-      const palette = ["#E57373", "#64B5F6", "#81C784", "#FFB74D", "#BA68C8", "#4DD0E1", "#FF8A65", "#A1887F"]
+      const palette = [
+        "#E57373",
+        "#64B5F6",
+        "#81C784",
+        "#FFB74D",
+        "#BA68C8",
+        "#4DD0E1",
+        "#FF8A65",
+        "#A1887F",
+      ]
       colorRef.current = palette[Math.floor(Math.random() * palette.length)]
     }
     setPresence({
@@ -483,7 +616,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // position at the moment '/' is pressed so the bubble stays put while the
   // user types instead of jittering with every micro-mouse-move. Live message
   // text lives in awareness so peers see each keystroke (`presence.message`).
-  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(
+    null
+  )
   const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
   const selfMessageRef = useRef<string | null>(null)
   const closeCursorChat = useCallback(() => {
@@ -525,7 +660,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   useEffect(() => {
     const isEditing = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
-      return tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (e.target as HTMLElement)?.isContentEditable
+      )
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -610,7 +749,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           else panel.collapse()
         }
       }
-      if ((e.key === "i" || e.key === "I") && e.metaKey && !e.altKey && !e.ctrlKey && !isEditing(e)) {
+      if (
+        (e.key === "i" || e.key === "I") &&
+        e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !isEditing(e)
+      ) {
         e.preventDefault()
         const panel = chatPanelRef.current
         if (panel) {
@@ -619,7 +764,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
       // Toggle both side panels: Cmd+.
-      if (e.key === "." && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+      if (
+        e.key === "." &&
+        e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey
+      ) {
         e.preventDefault()
         const sidebarPanel = sidebarPanelRef.current
         const chatPanel = chatPanelRef.current
@@ -627,7 +778,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           (sidebarPanel && !sidebarPanel.isCollapsed()) ||
           (chatPanel && !chatPanel.isCollapsed())
         if (anyOpen) {
-          if (sidebarPanel && !sidebarPanel.isCollapsed()) sidebarPanel.collapse()
+          if (sidebarPanel && !sidebarPanel.isCollapsed())
+            sidebarPanel.collapse()
           if (chatPanel && !chatPanel.isCollapsed()) chatPanel.collapse()
         } else {
           if (sidebarPanel) sidebarPanel.expand()
@@ -677,7 +829,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
               }
             }
             removeIframeLayersRef.current(Array.from(allIframeLayerIds))
-            setSelectedIframeLayerIds(nextSelected ? new Set([nextSelected]) : new Set())
+            setSelectedIframeLayerIds(
+              nextSelected ? new Set([nextSelected]) : new Set()
+            )
             setSelectedGroupIds(new Set())
           }
           if (allDocumentIds.size > 0) {
@@ -687,12 +841,22 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
       // Undo: Cmd/Ctrl+Z
-      if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isEditing(e)) {
+      if (
+        e.key === "z" &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !isEditing(e)
+      ) {
         e.preventDefault()
         history.undo()
       }
       // Redo: Cmd/Ctrl+Shift+Z
-      if (e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey && !isEditing(e)) {
+      if (
+        e.key === "z" &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        !isEditing(e)
+      ) {
         e.preventDefault()
         history.redo()
       }
@@ -708,14 +872,28 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat, collections])
+  }, [
+    commentMode,
+    newCommentPos,
+    focusedIframeLayerId,
+    createFlowIframeLayerId,
+    history,
+    openCursorChat,
+    closeCursorChat,
+    collections,
+  ])
 
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
   const iframeLayerLayouts = useMemo(
-    () => computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, markdownLayers),
-    [iframeLayerGroups, iframeLayers, markdownLayers],
+    () =>
+      computeIframeLayerLayouts(
+        iframeLayerGroups,
+        iframeLayers,
+        markdownLayers
+      ),
+    [iframeLayerGroups, iframeLayers, markdownLayers]
   )
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
@@ -765,7 +943,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       reorderDragRef_iframeLayerId,
       reorderDragCursor,
       reorderGrabOffset,
-    ],
+    ]
   )
   const effectiveIframeLayerLayouts = canvasLayout.layouts
   const sortedIframeLayerGroups = useMemo(() => {
@@ -821,7 +999,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     gapHandlesRef.current = gapHandles
     reorderHandlesRef.current = reorderHandles
   })
-  const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] = useState<string | null>(null)
+  const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] =
+    useState<string | null>(null)
 
   /**
    * Hit-test the reorder dots in screen-space — the visual is 12px across at
@@ -837,7 +1016,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
       return null
     },
-    [],
+    []
   )
 
   /**
@@ -852,12 +1031,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const padCanvas = 6 / currentZoom
       for (const h of gapHandlesRef.current) {
         if (canvasY < h.top || canvasY > h.bottom) continue
-        if (canvasX < h.left - padCanvas || canvasX > h.right + padCanvas) continue
+        if (canvasX < h.left - padCanvas || canvasX > h.right + padCanvas)
+          continue
         return h
       }
       return null
     },
-    [],
+    []
   )
 
   /** Set of iframeLayer ids whose parent group is currently selected. */
@@ -921,16 +1101,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (vp: ViewportData) => {
       ops.saveViewport(vp)
     },
-    [ops],
+    [ops]
   )
 
-  const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
   const saveViewportDebounced = useCallback(
     (vp: ViewportData) => {
-      if (saveViewportTimerRef.current) clearTimeout(saveViewportTimerRef.current)
+      if (saveViewportTimerRef.current)
+        clearTimeout(saveViewportTimerRef.current)
       saveViewportTimerRef.current = setTimeout(() => saveViewport(vp), 500)
     },
-    [saveViewport],
+    [saveViewport]
   )
 
   useEffect(() => {
@@ -946,7 +1129,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }, [savedViewport, setPresence])
 
   const agentDomains = useMemo(() => {
-    const domains: Record<string, { previewDomain: string; branch: string; discoveredRoutes?: { route: string; label: string }[] }> = {}
+    const domains: Record<
+      string,
+      {
+        previewDomain: string
+        branch: string
+        discoveredRoutes?: { route: string; label: string }[]
+      }
+    > = {}
     for (const agent of agents) {
       if (agent.previewDomain) {
         domains[agent.id] = {
@@ -980,14 +1170,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (id: string, data: RepoData) => {
       ops.createRepo(id, data)
     },
-    [ops],
+    [ops]
   )
 
   const updateRepoInStorage = useCallback(
     (id: string, data: Partial<RepoData>) => {
       ops.patch("repos", id, data)
     },
-    [ops],
+    [ops]
   )
 
   const removeRepoFromStorage = useCallback(
@@ -998,7 +1188,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // client-side).
       for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [ops],
+    [ops]
   )
 
   // --- IframeLayer mutations ---
@@ -1011,7 +1201,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const { cx, cy } = getViewportCenter()
       return ops.createFrameForAgent(agentId, { x: cx, y: cy }, label).layerId
     },
-    [collections, getViewportCenter, ops],
+    [collections, getViewportCenter, ops]
   )
 
   /** Add an empty frame not associated with any agent/branch/route. Creates a new single-iframeLayer group. */
@@ -1019,7 +1209,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (x: number, y: number, width: number, height: number): string => {
       return ops.createBlankFrame({ x, y }, { width, height })
     },
-    [ops],
+    [ops]
   )
 
   /**
@@ -1029,15 +1219,22 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    * its first iframeLayer (handy for zooming after the DOM updates).
    */
   const addRoutesGroupForAgent = useCallback(
-    (agentId: string, routes: { route: string; label: string }[]):
-      | { groupId: string; firstIframeLayerId: string }
-      | undefined => {
+    (
+      agentId: string,
+      routes: { route: string; label: string }[]
+    ): { groupId: string; firstIframeLayerId: string } | undefined => {
       const { cx, cy } = getViewportCenter()
-      const result = ops.createFramesForRoutes(agentId, routes, { x: cx, y: cy })
+      const result = ops.createFramesForRoutes(agentId, routes, {
+        x: cx,
+        y: cy,
+      })
       if (!result) return
-      return { groupId: result.groupId, firstIframeLayerId: result.firstLayerId }
+      return {
+        groupId: result.groupId,
+        firstIframeLayerId: result.firstLayerId,
+      }
     },
-    [getViewportCenter, ops],
+    [getViewportCenter, ops]
   )
 
   /** Append a new iframeLayer to an existing group, mirroring the last sibling iframeLayer's size and agent. */
@@ -1080,7 +1277,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         ...(route ? { route } : {}),
       })
     },
-    [collections, ops],
+    [collections, ops]
   )
 
   /** Translate the groups containing any of the given iframeLayers/markdownLayers by (dx, dy). */
@@ -1095,7 +1292,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       })
     },
-    [collections, ops],
+    [collections, ops]
   )
 
   /**
@@ -1117,9 +1314,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    */
   const requestReorderDrag = useCallback(
     (iframeLayerId: string, e: React.PointerEvent): boolean => {
-      const group = collections.iframeLayerGroups.toArray().find((g) =>
-        getGroupMembers(g).some((m) => m.id === iframeLayerId),
-      )
+      const group = collections.iframeLayerGroups
+        .toArray()
+        .find((g) => getGroupMembers(g).some((m) => m.id === iframeLayerId))
       if (!group) return false
       if (getGroupMembers(group).length < 2) return false
       const wrapper = canvasWrapperRef.current
@@ -1151,7 +1348,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       e.preventDefault()
       return true
     },
-    [collections],
+    [collections]
   )
 
   /**
@@ -1192,7 +1389,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       groupDragTargetRef.current = result?.targetId ?? null
       setGroupDragSnapRects(result?.rects ?? null)
     },
-    [collections],
+    [collections]
   )
 
   // Flip the merge-snap preview the instant cmd/meta is pressed or released
@@ -1220,7 +1417,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         : new Set<string>([layerId])
       const groupIds = new Set<string>()
       for (const g of collections.iframeLayerGroups.toArray()) {
-        if (getGroupMembers(g).some((m) => involved.has(m.id))) groupIds.add(g.id)
+        if (getGroupMembers(g).some((m) => involved.has(m.id)))
+          groupIds.add(g.id)
       }
       if (groupIds.size !== 1) {
         groupDragSourceRef.current = null
@@ -1319,7 +1517,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         dragSnapStateRef.current = null
       }
     },
-    [collections, applyMergeSnap],
+    [collections, applyMergeSnap]
   )
 
   /**
@@ -1361,7 +1559,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       setSelectedIframeLayerIds(draggedIframeIds)
       setSelectedDocumentLayerIds(draggedDocumentIds)
     },
-    [collections, ops],
+    [collections, ops]
   )
 
   /**
@@ -1422,7 +1620,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         rawDh: 0,
       }
     },
-    [collections],
+    [collections]
   )
 
   const handleResizeEnd = useCallback(() => {
@@ -1441,14 +1639,24 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    *   underlay state used to render their ghosts.
    */
   const resizeIframeLayerEdge = useCallback(
-    (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
+    (
+      id: string,
+      edge: ResizeEdge,
+      dx: number,
+      dy: number,
+      dw: number,
+      dh: number
+    ) => {
       ops.batch(() => {
         const a = collections.iframeLayers.get(id)
         if (!a) return
 
         // Initialize raw state lazily if startResize didn't fire — defensive
         // against any future call sites that bypass the gesture lifecycle.
-        if (!resizeRawRef.current || resizeRawRef.current.iframeLayerId !== id) {
+        if (
+          !resizeRawRef.current ||
+          resizeRawRef.current.iframeLayerId !== id
+        ) {
           resizeRawRef.current = {
             iframeLayerId: id,
             edge,
@@ -1462,8 +1670,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const rs = resizeRawRef.current
         rs.rawDw += dw
         rs.rawDh += dh
-        const rawWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, rs.initialWidth + rs.rawDw)
-        const rawHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, rs.initialHeight + rs.rawDh)
+        const rawWidth = Math.max(
+          MIN_IFRAME_LAYER_WIDTH,
+          rs.initialWidth + rs.rawDw
+        )
+        const rawHeight = Math.max(
+          MIN_IFRAME_LAYER_HEIGHT,
+          rs.initialHeight + rs.rawDh
+        )
 
         // Cmd/meta held → bypass snap entirely (no candidates, no lock).
         const snap = resizeMetaHeldRef.current
@@ -1510,14 +1724,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       })
     },
-    [collections, ops, zoom],
+    [collections, ops, zoom]
   )
 
   const renameIframeLayer = useCallback(
     (id: string, label: string) => {
       ops.patch("iframeLayers", id, { label })
     },
-    [ops],
+    [ops]
   )
 
   const fitIframeLayerToContent = useCallback(
@@ -1529,14 +1743,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
       ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
     },
-    [ops],
+    [ops]
   )
 
   const removeIframeLayers = useCallback(
     (ids: string[]) => {
       ops.removeLayers(ids)
     },
-    [ops],
+    [ops]
   )
   useEffect(() => {
     removeIframeLayersRef.current = removeIframeLayers
@@ -1558,7 +1772,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
       return null
     },
-    [collections],
+    [collections]
   )
 
   const removeIframeLayer = useCallback(
@@ -1573,7 +1787,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedIframeLayerIds(new Set())
       }
     },
-    [computeNextSelectionAfterDelete, removeIframeLayers],
+    [computeNextSelectionAfterDelete, removeIframeLayers]
   )
 
   // Use a ref so the route handler (passed as a stable callback to many
@@ -1598,11 +1812,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const ref = transformRef.current
         if (ref) {
           const { positionX, positionY, scale } = ref.state
-          ref.setTransform(positionX - viewportShift * scale, positionY, scale, 0)
+          ref.setTransform(
+            positionX - viewportShift * scale,
+            positionY,
+            scale,
+            0
+          )
         }
       }
     },
-    [ops],
+    [ops]
   )
 
   /** Reorder groups in the sidebar Frames list. */
@@ -1614,7 +1833,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       })
     },
-    [ops],
+    [ops]
   )
 
   /**
@@ -1626,7 +1845,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (groupId: string, orderedMembers: GroupMember[]) => {
       ops.patch("iframeLayerGroups", groupId, { members: orderedMembers })
     },
-    [ops],
+    [ops]
   )
 
   /**
@@ -1642,11 +1861,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       member: GroupMember,
       target:
         | { kind: "into-group"; groupId: string; index: number }
-        | { kind: "new-group"; sidebarIndex: number },
+        | { kind: "new-group"; sidebarIndex: number }
     ) => {
       const allGroups = collections.iframeLayerGroups.toArray()
       const sourceGroup = allGroups.find((g) =>
-        getGroupMembers(g).some((m) => m.kind === member.kind && m.id === member.id),
+        getGroupMembers(g).some(
+          (m) => m.kind === member.kind && m.id === member.id
+        )
       )
       if (!sourceGroup) return
 
@@ -1677,18 +1898,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       const sourceWillEmpty =
         getGroupMembers(sourceGroup).filter(
-          (m) => !(m.kind === member.kind && m.id === member.id),
+          (m) => !(m.kind === member.kind && m.id === member.id)
         ).length === 0
       const { cx, cy } = getViewportCenter()
       const groupsForPlacement = allGroups.filter(
-        (g) => g.id !== sourceGroup.id || !sourceWillEmpty,
+        (g) => g.id !== sourceGroup.id || !sourceWillEmpty
       )
       const { x, y } = placeNewIframeLayerGroup(
         groupsForPlacement,
         collections.iframeLayers.toArray(),
         { x: cx, y: cy },
         memberSize.width,
-        memberSize.height,
+        memberSize.height
       )
 
       // One batch so the split + sidebar renumber land as a single undo step.
@@ -1702,7 +1923,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           .filter((g) => g.id !== newGroupId)
           .sort((a, b) => (a.sidebarOrder ?? 0) - (b.sidebarOrder ?? 0))
           .map((g) => g.id)
-        const clamped = Math.max(0, Math.min(target.sidebarIndex, orderedIds.length))
+        const clamped = Math.max(
+          0,
+          Math.min(target.sidebarIndex, orderedIds.length)
+        )
         const finalOrder = [
           ...orderedIds.slice(0, clamped),
           newGroupId,
@@ -1713,21 +1937,21 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       })
     },
-    [collections, getViewportCenter, ops],
+    [collections, getViewportCenter, ops]
   )
 
   const renameIframeLayerGroup = useCallback(
     (groupId: string, name: string) => {
       ops.patch("iframeLayerGroups", groupId, { name })
     },
-    [ops],
+    [ops]
   )
 
   const setGroupGap = useCallback(
     (groupId: string, gap: number) => {
       ops.patch("iframeLayerGroups", groupId, { gap: Math.max(0, gap) })
     },
-    [ops],
+    [ops]
   )
 
   /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
@@ -1736,8 +1960,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const g = collections.iframeLayerGroups.get(groupId)
       if (!g) return
       const members = getGroupMembers(g)
-      const iframeLayerIds = members.filter((m) => m.kind === "iframe-layer").map((m) => m.id)
-      const documentIds = members.filter((m) => m.kind === "markdown-layer").map((m) => m.id)
+      const iframeLayerIds = members
+        .filter((m) => m.kind === "iframe-layer")
+        .map((m) => m.id)
+      const documentIds = members
+        .filter((m) => m.kind === "markdown-layer")
+        .map((m) => m.id)
       // Compose both removal verbs under one batch so the group teardown is a
       // single transaction (one undo step). Each verb prunes the group as its
       // last member of that kind leaves.
@@ -1756,49 +1984,49 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         return next
       })
     },
-    [collections, ops],
+    [collections, ops]
   )
 
   const assignAgentToIframeLayer = useCallback(
     (iframeLayerId: string, agentId: string) => {
       ops.patch("iframeLayers", iframeLayerId, { branchId: agentId })
     },
-    [ops],
+    [ops]
   )
 
   const updateIframeLayerState = useCallback(
     (id: string, state: JsonObject) => {
       ops.patch("iframeLayers", id, { iframeState: state })
     },
-    [ops],
+    [ops]
   )
 
   const updateIframeLayerScroll = useCallback(
     (id: string, scrollX: number, scrollY: number) => {
       ops.patch("iframeLayers", id, { scrollX, scrollY })
     },
-    [ops],
+    [ops]
   )
 
   const updateIframeLayerKnobs = useCallback(
     (id: string, knobs: JsonValue[]) => {
       ops.patch("iframeLayers", id, { knobs })
     },
-    [ops],
+    [ops]
   )
 
   const updateIframeLayerKnobValues = useCallback(
     (id: string, knobValues: JsonObject) => {
       ops.patch("iframeLayers", id, { knobValues })
     },
-    [ops],
+    [ops]
   )
 
   const updateIframeLayerSharedState = useCallback(
     (id: string, sharedState: JsonObject) => {
       ops.patch("iframeLayers", id, { sharedState })
     },
-    [ops],
+    [ops]
   )
 
   // --- Document layer mutations ---
@@ -1809,15 +2037,20 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    * "create at canvas position" entry points.
    */
   const addDocumentLayer = useCallback(
-    (canvasX: number, canvasY: number, width: number, height: number): string => {
+    (
+      canvasX: number,
+      canvasY: number,
+      width: number,
+      height: number
+    ): string => {
       const { docId, chatId } = ops.createDocument(
         { x: canvasX, y: canvasY },
-        { width, height },
+        { width, height }
       )
       selectedChatByDocumentRef.current[docId] = chatId
       return docId
     },
-    [ops],
+    [ops]
   )
 
   /**
@@ -1858,7 +2091,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       })
     },
-    [collections, ops],
+    [collections, ops]
   )
 
   /** Mirror the editor's first-heading text onto the cached `title` field.
@@ -1869,7 +2102,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (id: string, title: string) => {
       ops.patch("markdownLayers", id, { title })
     },
-    [ops],
+    [ops]
   )
 
   /** Rename a document from outside the editor (sidebar, agent tool). Writes
@@ -1879,7 +2112,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (id: string, title: string) => {
       ops.renameDocument(id, title)
     },
-    [ops],
+    [ops]
   )
 
   const removeDocumentLayers = useCallback(
@@ -1887,7 +2120,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const { removedChatIds } = ops.removeDocuments(ids)
       for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [ops],
+    [ops]
   )
   useEffect(() => {
     removeDocumentLayersRef.current = removeDocumentLayers
@@ -1899,7 +2132,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (id: string, data: Partial<BranchData>) => {
       ops.patch("branches", id, data)
     },
-    [ops],
+    [ops]
   )
 
   const removeAgentFromStorage = useCallback(
@@ -1907,7 +2140,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const { removedChatIds } = ops.removeBranch(id)
       for (const chatId of removedChatIds) chatStore.cleanup(chatId)
     },
-    [ops],
+    [ops]
   )
 
   // --- Chat session mutations ---
@@ -1916,21 +2149,21 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     (id: string, data: ChatSessionData) => {
       ops.addChatSession(id, data)
     },
-    [ops],
+    [ops]
   )
 
   const updateChatSession = useCallback(
     (id: string, data: Partial<ChatSessionData>) => {
       ops.patch("chatSessions", id, data)
     },
-    [ops],
+    [ops]
   )
 
   const removeChatSession = useCallback(
     (id: string) => {
       ops.removeChatSession(id)
     },
-    [ops],
+    [ops]
   )
 
   // --- Handlers ---
@@ -1939,12 +2172,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     const ref = transformRef.current
     if (!ref) return
     const padding = 20
-    const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-    const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+    const wrapperW =
+      ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+    const wrapperH =
+      ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
     const scale = Math.min(
       (wrapperW - padding * 2) / el.offsetWidth,
       (wrapperH - padding * 2) / el.offsetHeight,
-      ZOOM_MAX,
+      ZOOM_MAX
     )
     ref.zoomToElement(el, scale, 300)
   }, [])
@@ -1954,7 +2189,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const el = document.getElementById(`iframe-layer-${iframeLayerId}`)
       if (el) zoomToDomElement(el)
     },
-    [zoomToDomElement],
+    [zoomToDomElement]
   )
 
   const handleZoomToDocument = useCallback(
@@ -1962,7 +2197,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const el = document.getElementById(`markdown-layer-${markdownLayerId}`)
       if (el) zoomToDomElement(el)
     },
-    [zoomToDomElement],
+    [zoomToDomElement]
   )
 
   const handleZoomToGroup = useCallback(
@@ -1990,12 +2225,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const worldH = maxY - minY
       if (worldW <= 0 || worldH <= 0) return
       const padding = 20
-      const wrapperW = ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-      const wrapperH = ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const wrapperW =
+        ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH =
+        ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
       const scale = Math.min(
         (wrapperW - padding * 2) / worldW,
         (wrapperH - padding * 2) / worldH,
-        ZOOM_MAX,
+        ZOOM_MAX
       )
       const centerX = (minX + maxX) / 2
       const centerY = (minY + maxY) / 2
@@ -2003,20 +2240,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const positionY = wrapperH / 2 - centerY * scale
       ref.setTransform(positionX, positionY, scale, 300)
     },
-    [iframeLayerGroups, effectiveIframeLayerLayouts],
+    [iframeLayerGroups, effectiveIframeLayerLayouts]
   )
 
   const handleAddIframeLayerForAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
       if (!agent || agent.status !== "running") return
-      const existing = iframeLayers.filter(
-        (a) => a.branchId === agentId,
-      )
-      const newId = addIframeLayer(
-        agentId,
-        `Frame ${existing.length + 1}`,
-      )
+      const existing = iframeLayers.filter((a) => a.branchId === agentId)
+      const newId = addIframeLayer(agentId, `Frame ${existing.length + 1}`)
       if (newId) {
         // Wait for DOM to render the new iframeLayer, then zoom to it
         requestAnimationFrame(() => {
@@ -2024,7 +2256,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [agents, iframeLayers, addIframeLayer, handleSelectIframeLayer],
+    [agents, iframeLayers, addIframeLayer, handleSelectIframeLayer]
   )
 
   const handleShowRoutesForAgent = useCallback(
@@ -2043,14 +2275,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [agents, addRoutesGroupForAgent, handleSelectIframeLayer],
+    [agents, addRoutesGroupForAgent, handleSelectIframeLayer]
   )
 
   const handlePlayAgent = useCallback(
     (branchId: string) => {
-      window.open(`/play/${roomId}/${branchId}`, "_blank", "noopener,noreferrer")
+      window.open(
+        `/play/${roomId}/${branchId}`,
+        "_blank",
+        "noopener,noreferrer"
+      )
     },
-    [roomId],
+    [roomId]
   )
 
   const handlePlayIframeLayer = useCallback(
@@ -2060,7 +2296,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const params = new URLSearchParams()
       params.set("iframe-layer", iframeLayerId)
       if (iframeLayer.route) params.set("route", iframeLayer.route)
-      if (iframeLayer.knobValues && Object.keys(iframeLayer.knobValues).length > 0) {
+      if (
+        iframeLayer.knobValues &&
+        Object.keys(iframeLayer.knobValues).length > 0
+      ) {
         try {
           const json = JSON.stringify(iframeLayer.knobValues)
           const b64 =
@@ -2073,7 +2312,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const url = `/play/${roomId}/${iframeLayer.branchId}?${params.toString()}`
       window.open(url, "_blank", "noopener,noreferrer")
     },
-    [iframeLayers, roomId],
+    [iframeLayers, roomId]
   )
 
   const handleSelectAgent = useCallback(
@@ -2113,7 +2352,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [agents, chatSessions, selectedAgentId, selectedChatId],
+    [agents, chatSessions, selectedAgentId, selectedChatId]
   )
 
   const handleCreateChat = useCallback(
@@ -2129,7 +2368,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       setSelectedAgentId(agentId)
       setSelectedChatId(id)
     },
-    [addChatSession],
+    [addChatSession]
   )
 
   /**
@@ -2167,7 +2406,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         console.error("Failed to persist terminal tab", err)
       })
     },
-    [roomId],
+    [roomId]
   )
 
   /**
@@ -2213,7 +2452,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (select) setSelectedChatId(id)
       return id
     },
-    [roomId, addChatSession],
+    [roomId, addChatSession]
   )
 
   /**
@@ -2229,7 +2468,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       createDefaultTabForBranch(branchId, "terminal", { select: false })
       return false
     },
-    [createDefaultTabForBranch],
+    [createDefaultTabForBranch]
   )
 
   // Close a local terminal tab: it's ephemeral, so closing simply drops it
@@ -2259,7 +2498,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         // persists it when it's a terminal), so no inline add/select here.
         createDefaultTabForBranch(branchId, readLastTabKind())
       } else if (selectedChatId === id) {
-        setSelectedChatId(terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null)
+        setSelectedChatId(
+          terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null
+        )
       }
       // Closing an X permanently deletes the row (a reload alone never does).
       deleteTerminalTabAction({ roomId, id }).catch((err) => {
@@ -2280,7 +2521,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [selectedChatId, chatSessions, localTerminals, roomId, agents, createDefaultTabForBranch],
+    [
+      selectedChatId,
+      chatSessions,
+      localTerminals,
+      roomId,
+      agents,
+      createDefaultTabForBranch,
+    ]
   )
 
   /**
@@ -2303,7 +2551,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       setSelectedChatId(id)
       selectedChatByDocumentRef.current[markdownLayerId] = id
     },
-    [addChatSession],
+    [addChatSession]
   )
 
   const handleRebaseOnDefault = useCallback(
@@ -2326,7 +2574,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       let planMode: boolean | undefined
       let model: string | undefined
       const targetBusy = targetChat
-        ? chatStore.getSnapshot(targetChat.id).isStreaming || targetChat.isStreaming === true
+        ? chatStore.getSnapshot(targetChat.id).isStreaming ||
+          targetChat.isStreaming === true
         : false
 
       if (!targetChat || targetBusy) {
@@ -2344,7 +2593,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
 
       const isFirstChat = !chatSessions.some(
-        (c) => c.branchId === agentId && c.id !== chatId,
+        (c) => c.branchId === agentId && c.id !== chatId
       )
 
       chatStore.sendMessage({
@@ -2358,7 +2607,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         planMode,
         model,
         onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, { ref: branch, autoNamedBranch: false }),
+          updateAgentInStorage(agentId, {
+            ref: branch,
+            autoNamedBranch: false,
+          }),
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
@@ -2371,7 +2623,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         if (inPixels < 480) panel.resize(480)
       }
     },
-    [agents, repos, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
+    [
+      agents,
+      repos,
+      chatSessions,
+      roomId,
+      addChatSession,
+      updateChatSession,
+      updateAgentInStorage,
+    ]
   )
 
   const handleCloseChat = useCallback(
@@ -2430,7 +2690,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedChatId(siblings[0]?.id ?? terminalSiblings[0]?.id ?? null)
       }
     },
-    [selectedChatId, chatSessions, localTerminals, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal, createDefaultTabForBranch],
+    [
+      selectedChatId,
+      chatSessions,
+      localTerminals,
+      updateChatSession,
+      addChatSession,
+      isLocalTerminal,
+      handleCloseTerminal,
+      createDefaultTabForBranch,
+    ]
   )
 
   const handleReopenChat = useCallback(
@@ -2438,7 +2707,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       updateChatSession(chatId, { closedAt: 0 })
       setSelectedChatId(chatId)
     },
-    [updateChatSession],
+    [updateChatSession]
   )
 
   const handleInspectHover = useCallback(
@@ -2449,7 +2718,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setInspectHover({ iframeLayerId, rect })
       }
     },
-    [],
+    []
   )
 
   // The user clicked the inline "Comment" button on a text selection inside
@@ -2472,7 +2741,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         lineTo: draft.lineTo,
       })
     },
-    [iframeLayerLayouts],
+    [iframeLayerLayouts]
   )
 
   // The user clicked an existing inline-comment highlight inside a doc.
@@ -2509,7 +2778,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         : undefined
       if (docLayer) {
         const messageBody =
-          ctx.quotedText && ctx.lineFrom !== null && ctx.lineFrom !== undefined && ctx.lineTo !== null && ctx.lineTo !== undefined
+          ctx.quotedText &&
+          ctx.lineFrom !== null &&
+          ctx.lineFrom !== undefined &&
+          ctx.lineTo !== null &&
+          ctx.lineTo !== undefined
             ? `${formatQuoteForChat({
                 quotedText: ctx.quotedText,
                 lineFrom: ctx.lineFrom,
@@ -2552,7 +2825,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedChatId(chatId)
         selectedChatByDocumentRef.current[docLayer.id] = chatId
         const isFirstChat = !chatSessions.some(
-          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId,
+          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId
         )
         chatStore.sendMessage({
           roomId,
@@ -2600,7 +2873,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           setSelectedChatId(chatId)
         }
         const isFirstChat = !chatSessions.some(
-          (c) => c.branchId === currentChat.branchId && c.id !== chatId,
+          (c) => c.branchId === currentChat.branchId && c.id !== chatId
         )
         chatStore.sendMessage({
           roomId,
@@ -2612,8 +2885,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           autoNamedBranch: agent.autoNamedBranch,
           planMode,
           model,
-          onBranchRename: (branch) => inspectHandlersRef.current.branchRename(agent.id, branch),
-          onChatRename: (label) => inspectHandlersRef.current.renameChat(chatId, label),
+          onBranchRename: (branch) =>
+            inspectHandlersRef.current.branchRename(agent.id, branch),
+          onChatRename: (label) =>
+            inspectHandlersRef.current.renameChat(chatId, label),
         })
       } else {
         inputStore.append(selectedChatId, text)
@@ -2628,7 +2903,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       iframeLayers,
       roomId,
       addChatSession,
-    ],
+    ]
   )
 
   const handleRemoveChat = useCallback(
@@ -2657,20 +2932,26 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
-    [selectedChatId, chatSessions, removeChatSession, isLocalTerminal, handleCloseTerminal],
+    [
+      selectedChatId,
+      chatSessions,
+      removeChatSession,
+      isLocalTerminal,
+      handleCloseTerminal,
+    ]
   )
 
   const handleRenameChat = useCallback(
     (chatId: string, label: string) => {
       if (isLocalTerminal(chatId)) {
         setLocalTerminals((prev) =>
-          prev.map((t) => (t.id === chatId ? { ...t, label } : t)),
+          prev.map((t) => (t.id === chatId ? { ...t, label } : t))
         )
         return
       }
       updateChatSession(chatId, { label })
     },
-    [updateChatSession, isLocalTerminal],
+    [updateChatSession, isLocalTerminal]
   )
 
   const handleSelectChat = useCallback(
@@ -2697,7 +2978,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [chatSessions, localTerminals],
+    [chatSessions, localTerminals]
   )
 
   const handleCreateRepo = useCallback(
@@ -2762,7 +3043,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }).branchId
       })
       setPendingAgentIds((prev) =>
-        prev.includes(agentId) ? prev : [...prev, agentId],
+        prev.includes(agentId) ? prev : [...prev, agentId]
       )
       const seedChat = seedDefaultTabForNewBranch(agentId)
 
@@ -2780,7 +3061,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }),
       })
     },
-    [addRepoToStorage, ops, roomId, seedDefaultTabForNewBranch],
+    [addRepoToStorage, ops, roomId, seedDefaultTabForNewBranch]
   )
 
   const handleCreateAgent = useCallback(
@@ -2825,7 +3106,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }),
       })
     },
-    [repos, ops, roomId, seedDefaultTabForNewBranch],
+    [repos, ops, roomId, seedDefaultTabForNewBranch]
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -2866,7 +3147,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }),
       })
     },
-    [repos, ops, roomId, seedDefaultTabForNewBranch],
+    [repos, ops, roomId, seedDefaultTabForNewBranch]
   )
 
   const handleDuplicateBranch = useCallback(
@@ -2912,7 +3193,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }),
       })
     },
-    [repos, ops, roomId, seedDefaultTabForNewBranch],
+    [repos, ops, roomId, seedDefaultTabForNewBranch]
   )
 
   const handleForkAgent = useCallback(
@@ -2921,7 +3202,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (!sourceAgent?.ref || !sourceAgent.sandboxName) return
       handleDuplicateBranch(sourceAgent.repoId, sourceAgent.ref)
     },
-    [agents, handleDuplicateBranch],
+    [agents, handleDuplicateBranch]
   )
 
   // Prompts queued by handleCreateParallelAgents that should fire as soon as
@@ -2951,10 +3232,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const res = await fetch("/api/agent/generate-names", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, prompts: trimmedSpecs.map((s) => s.prompt) }),
+          body: JSON.stringify({
+            roomId,
+            prompts: trimmedSpecs.map((s) => s.prompt),
+          }),
         })
         if (res.ok) {
-          const data = (await res.json()) as { results: Array<{ branch: string; label: string }> }
+          const data = (await res.json()) as {
+            results: Array<{ branch: string; label: string }>
+          }
           nameResults = data.results ?? []
         }
       } catch {
@@ -2996,7 +3282,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           // The "new" flow creates a fresh branch off the repo default.
           // For any other base, we use "duplicate-branch" so the API forks
           // the named source into our generated branch name.
-          const flow: "new" | "duplicate-branch" = isDefault ? "new" : "duplicate-branch"
+          const flow: "new" | "duplicate-branch" = isDefault
+            ? "new"
+            : "duplicate-branch"
 
           // createAgent owns the agent record (with the deferred-seed flag) and
           // pre-creates the chat targeting it, so the queued prompt has a
@@ -3031,7 +3319,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             sandboxName,
             branch,
             flow,
-            sourceBranch: flow === "duplicate-branch" ? spec.baseBranch : undefined,
+            sourceBranch:
+              flow === "duplicate-branch" ? spec.baseBranch : undefined,
           })
         })
       })
@@ -3050,10 +3339,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             sourceBranch: d.sourceBranch,
           }),
         })
-        setPendingAgentIds((prev) => (prev.includes(d.id) ? prev : [...prev, d.id]))
+        setPendingAgentIds((prev) =>
+          prev.includes(d.id) ? prev : [...prev, d.id]
+        )
       }
     },
-    [repos, ops, roomId],
+    [repos, ops, roomId]
   )
 
   const handleRefreshAgent = useCallback(
@@ -3063,11 +3354,17 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       const repo = repos.find((w) => w.id === agent.repoId)
       if (!repo) {
-        updateAgentInStorage(id, { status: "error", error: "Workspace not found" })
+        updateAgentInStorage(id, {
+          status: "error",
+          error: "Workspace not found",
+        })
         return
       }
 
-      updateAgentInStorage(id, { status: "starting", statusMessage: "Restarting sandbox…" })
+      updateAgentInStorage(id, {
+        status: "starting",
+        statusMessage: "Restarting sandbox…",
+      })
 
       const result = await restartSandbox(agent.sandboxName, repo, agent.ref)
       if (result.success) {
@@ -3086,14 +3383,24 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [agents, repos, updateAgentInStorage],
+    [agents, repos, updateAgentInStorage]
   )
 
   const handleBranchRename = useCallback(
     async (agentId: string, rawBranch: string) => {
-      const newBranch = rawBranch.toLowerCase().replace(/[^a-z0-9/_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+      const newBranch = rawBranch
+        .toLowerCase()
+        .replace(/[^a-z0-9/_-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
       const agent = agents.find((a) => a.id === agentId)
-      if (!newBranch || !agent?.sandboxName || !agent.ref || agent.ref === newBranch) return
+      if (
+        !newBranch ||
+        !agent?.sandboxName ||
+        !agent.ref ||
+        agent.ref === newBranch
+      )
+        return
 
       const repo = repos.find((w) => w.id === agent.repoId)
       if (!repo) return
@@ -3110,13 +3417,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         repo,
         agent.sandboxName,
         previousBranch,
-        newBranch,
+        newBranch
       )
       if (!result.success) {
-        updateAgentInStorage(agentId, { ref: previousBranch, autoNamedBranch: previousAutoNamed })
+        updateAgentInStorage(agentId, {
+          ref: previousBranch,
+          autoNamedBranch: previousAutoNamed,
+        })
       }
     },
-    [agents, repos, updateAgentInStorage],
+    [agents, repos, updateAgentInStorage]
   )
 
   useEffect(() => {
@@ -3148,7 +3458,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         pendingPromptsRef.current.delete(agent.id)
         continue
       }
-      if (agent.status !== "running" || !agent.sandboxName || !agent.ref) continue
+      if (agent.status !== "running" || !agent.sandboxName || !agent.ref)
+        continue
       pendingPromptsRef.current.delete(agent.id)
       chatStore.sendMessage({
         roomId,
@@ -3160,7 +3471,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         autoNamedBranch: agent.autoNamedBranch,
         model: queued.model,
         onBranchRename: (branch) =>
-          updateAgentInStorage(agent.id, { ref: branch, autoNamedBranch: false }),
+          updateAgentInStorage(agent.id, {
+            ref: branch,
+            autoNamedBranch: false,
+          }),
         onChatRename: (label) => updateChatSession(queued.chatId, { label }),
       })
     }
@@ -3175,7 +3489,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         a.pendingIframeLayerSeed === true &&
         a.status === "running" &&
         a.previewDomain &&
-        !iframeLayers.some((ab) => ab.branchId === a.id),
+        !iframeLayers.some((ab) => ab.branchId === a.id)
     )
     if (pending.length === 0) return
     const { cx, cy } = getViewportCenter()
@@ -3307,7 +3621,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           if (restartResult.success) {
             updateAgentInStorage(agent.id, {
               sandboxName: restartResult.value.sandboxName,
-              previewDomain: restartResult.value.previewDomain || agent.previewDomain,
+              previewDomain:
+                restartResult.value.previewDomain || agent.previewDomain,
               status: "running",
               statusMessage: "",
               error: "",
@@ -3316,7 +3631,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             updateAgentInStorage(agent.id, {
               status: "stopped",
               statusMessage: "",
-              error: restartResult.error || "Sandbox could not be restarted — click refresh to retry",
+              error:
+                restartResult.error ||
+                "Sandbox could not be restarted — click refresh to retry",
             })
           }
         })
@@ -3356,9 +3673,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // Follow another user's viewport
   useEffect(() => {
     if (followingConnectionId === null) return
-    const followed = others.find(
-      (o) => o.clientId === followingConnectionId,
-    )
+    const followed = others.find((o) => o.clientId === followingConnectionId)
     // If the user we're following disconnected, stop following. Reacting to
     // another client leaving (external presence data) is a legitimate effect
     // sync, not an avoidable render cascade.
@@ -3402,7 +3717,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     if (!el) return
 
     const transformWrapper = el.querySelector<HTMLElement>(
-      ".react-transform-wrapper",
+      ".react-transform-wrapper"
     )
 
     const pin = (e: Event) => {
@@ -3457,15 +3772,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   }, [focusedIframeLayerId, createFlowIframeLayerId, followingConnectionId])
 
   // Convert screen coordinates to canvas coordinates
-  const screenToCanvas = useCallback((clientX: number, clientY: number, rect: DOMRect) => {
-    const ref = transformRef.current
-    if (!ref) return { x: 0, y: 0 }
-    const { positionX, positionY, scale } = ref.state
-    return {
-      x: (clientX - rect.left - positionX) / scale,
-      y: (clientY - rect.top - positionY) / scale,
-    }
-  }, [])
+  const screenToCanvas = useCallback(
+    (clientX: number, clientY: number, rect: DOMRect) => {
+      const ref = transformRef.current
+      if (!ref) return { x: 0, y: 0 }
+      const { positionX, positionY, scale } = ref.state
+      return {
+        x: (clientX - rect.left - positionX) / scale,
+        y: (clientY - rect.top - positionY) / scale,
+      }
+    },
+    []
+  )
 
   /**
    * Gap-handle hit test runs in the *capture* phase so it fires before the
@@ -3490,7 +3808,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const reorderHit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
         if (reorderHit) {
           const group = iframeLayerGroups.find((g) =>
-            getGroupMembers(g).some((m) => m.id === reorderHit.iframeLayerId),
+            getGroupMembers(g).some((m) => m.id === reorderHit.iframeLayerId)
           )
           if (group) {
             const layout = iframeLayerLayouts.get(reorderHit.iframeLayerId)
@@ -3531,7 +3849,20 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups, iframeLayerLayouts],
+    [
+      spaceHeld,
+      focusedIframeLayerId,
+      commentMode,
+      documentMode,
+      frameMode,
+      screenToCanvas,
+      hitTestGapHandle,
+      hitTestReorderHandle,
+      zoom,
+      collections,
+      iframeLayerGroups,
+      iframeLayerLayouts,
+    ]
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -3547,13 +3878,24 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // do here — the early-return below would have skipped it anyway.
       if (gapDragRef.current) return
 
-      if (target.closest("[data-iframe-layer]") || target.closest("[data-markdown-layer]") || target.closest("button") || target.closest("a")) return
+      if (
+        target.closest("[data-iframe-layer]") ||
+        target.closest("[data-markdown-layer]") ||
+        target.closest("button") ||
+        target.closest("a")
+      )
+        return
 
       // Document tool: start a draft rectangle (click for default size, drag for custom bounds)
       if (documentMode) {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        documentDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
+        documentDraftRef.current = {
+          startX: canvas.x,
+          startY: canvas.y,
+          currentX: canvas.x,
+          currentY: canvas.y,
+        }
         setDocumentDraft(documentDraftRef.current)
         e.currentTarget.setPointerCapture(e.pointerId)
         return
@@ -3563,7 +3905,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (frameMode) {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        frameDraftRef.current = { startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y }
+        frameDraftRef.current = {
+          startX: canvas.x,
+          startY: canvas.y,
+          currentX: canvas.x,
+          currentY: canvas.y,
+        }
         setFrameDraft(frameDraftRef.current)
         e.currentTarget.setPointerCapture(e.pointerId)
         return
@@ -3572,7 +3919,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (commentMode) return
       // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
       const wrapperRect = e.currentTarget.getBoundingClientRect()
-      if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8) return
+      if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8)
+        return
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
@@ -3583,7 +3931,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         baseIframeLayers: new Set(selectedIframeLayerIds),
         baseDocumentLayers: new Set(selectedDocumentLayerIds),
       }
-      setMarquee({ startX: canvas.x, startY: canvas.y, currentX: canvas.x, currentY: canvas.y })
+      setMarquee({
+        startX: canvas.x,
+        startY: canvas.y,
+        currentX: canvas.x,
+        currentY: canvas.y,
+      })
       setSelectedGroupIds(new Set())
       if (!e.shiftKey) {
         setSelectedIframeLayerIds(new Set())
@@ -3591,7 +3944,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds],
+    [
+      spaceHeld,
+      commentMode,
+      focusedIframeLayerId,
+      frameMode,
+      documentMode,
+      screenToCanvas,
+      selectedIframeLayerIds,
+      selectedDocumentLayerIds,
+    ]
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3614,7 +3976,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         const group = collections.iframeLayerGroups.get(drag.groupId)
         if (!group) return
         const members = getGroupMembers(group)
-        const currentIndex = members.findIndex((m) => m.id === drag.iframeLayerId)
+        const currentIndex = members.findIndex(
+          (m) => m.id === drag.iframeLayerId
+        )
         if (currentIndex < 0) return
 
         const gap = groupGap(group)
@@ -3665,7 +4029,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (documentDraftRef.current) {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const next = { ...documentDraftRef.current, currentX: canvas.x, currentY: canvas.y }
+        const next = {
+          ...documentDraftRef.current,
+          currentX: canvas.x,
+          currentY: canvas.y,
+        }
         documentDraftRef.current = next
         setDocumentDraft(next)
         return
@@ -3675,7 +4043,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       if (frameDraftRef.current) {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const next = { ...frameDraftRef.current, currentX: canvas.x, currentY: canvas.y }
+        const next = {
+          ...frameDraftRef.current,
+          currentX: canvas.x,
+          currentY: canvas.y,
+        }
         frameDraftRef.current = next
         setFrameDraft(next)
         return
@@ -3685,7 +4057,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       const start = marqueeRef.current
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      setMarquee((m) => m ? { ...m, currentX: canvas.x, currentY: canvas.y } : null)
+      setMarquee((m) =>
+        m ? { ...m, currentX: canvas.x, currentY: canvas.y } : null
+      )
 
       // Live hit-testing during drag
       const left = Math.min(start.startX, canvas.x)
@@ -3739,7 +4113,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedDocumentLayerIds(docHits)
       }
     },
-    [screenToCanvas, iframeLayerLayouts, markdownLayers, setGroupGap, collections, reorderGroupMembers],
+    [
+      screenToCanvas,
+      iframeLayerLayouts,
+      markdownLayers,
+      setGroupGap,
+      collections,
+      reorderGroupMembers,
+    ]
   )
 
   const handleCanvasPointerUp = useCallback(
@@ -3770,7 +4151,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         if (!moved && drag.selectOnNoMove) {
           const sourceGroup = collections.iframeLayerGroups.get(drag.groupId)
           const memberKind = sourceGroup
-            ? getGroupMembers(sourceGroup).find((m) => m.id === drag.iframeLayerId)?.kind
+            ? getGroupMembers(sourceGroup).find(
+                (m) => m.id === drag.iframeLayerId
+              )?.kind
             : undefined
           // Inline selection — mirrors `handleIframeLayerSelect` /
           // `handleDocumentLayerSelect` below but avoids the forward reference
@@ -3780,7 +4163,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             if (drag.startShiftKey) {
               setSelectedDocumentLayerIds((prev) => {
                 const next = new Set(prev)
-                if (next.has(drag.iframeLayerId)) next.delete(drag.iframeLayerId)
+                if (next.has(drag.iframeLayerId))
+                  next.delete(drag.iframeLayerId)
                 else next.add(drag.iframeLayerId)
                 return next
               })
@@ -3792,7 +4176,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             if (drag.startShiftKey) {
               setSelectedIframeLayerIds((prev) => {
                 const next = new Set(prev)
-                if (next.has(drag.iframeLayerId)) next.delete(drag.iframeLayerId)
+                if (next.has(drag.iframeLayerId))
+                  next.delete(drag.iframeLayerId)
                 else next.add(drag.iframeLayerId)
                 return next
               })
@@ -3812,7 +4197,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             // continue with the rest of pointer-up
           } else {
             const sourceMembers = getGroupMembers(sourceGroup)
-            const popped = sourceMembers.find((m) => m.id === drag.iframeLayerId)
+            const popped = sourceMembers.find(
+              (m) => m.id === drag.iframeLayerId
+            )
             const ab =
               popped?.kind === "iframe-layer"
                 ? collections.iframeLayers.get(drag.iframeLayerId)
@@ -3844,7 +4231,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         gapDragRef.current = null
         return
       }
-
 
       // Document-tool: release creates a new document layer with a fixed
       // container. Click-without-drag uses a sensible default size; drag
@@ -3926,7 +4312,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom, collections, ops],
+    [
+      screenToCanvas,
+      addDocumentLayer,
+      addFrame,
+      hitTestReorderHandle,
+      zoom,
+      collections,
+      ops,
+    ]
   )
 
   // Click on iframeLayer to select. Clicking a child frame whose parent group is
@@ -3948,7 +4342,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedDocumentLayerIds(new Set())
       }
     },
-    [],
+    []
   )
 
   const handleGroupSelect = useCallback(
@@ -3966,7 +4360,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedGroupIds(new Set([groupId]))
       }
     },
-    [],
+    []
   )
 
   const handleDocumentLayerSelect = useCallback(
@@ -3987,7 +4381,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setSelectedIframeLayerIds(new Set())
       }
     },
-    [],
+    []
   )
 
   /**
@@ -4002,7 +4396,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       dy: number,
       totalDx: number,
       totalDy: number,
-      metaKey: boolean,
+      metaKey: boolean
     ): { adjDx: number; adjDy: number } => {
       const state = dragSnapStateRef.current
       if (!state) return { adjDx: dx, adjDy: dy }
@@ -4035,7 +4429,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       setSnapGuides(guides)
       return { adjDx, adjDy }
     },
-    [],
+    []
   )
 
   const handleMoveSelected = useCallback(
@@ -4044,7 +4438,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       dy: number,
       totalDx: number,
       totalDy: number,
-      metaKey: boolean,
+      metaKey: boolean
     ) => {
       const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
       const abIds = Array.from(selectedIframeLayerIdsRef.current)
@@ -4053,11 +4447,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // groups, so `moveIframeLayersByDelta` finds every group referenced by
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
-      if (groupMemberIds.length > 0) moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
+      if (groupMemberIds.length > 0)
+        moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
       // Source position has moved — recompute the merge preview off-render.
       applyMergeSnap(metaKey)
     },
-    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap],
+    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap]
   )
 
   /**
@@ -4072,14 +4467,14 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       dy: number,
       totalDx: number,
       totalDy: number,
-      metaKey: boolean,
+      metaKey: boolean
     ) => {
       const { adjDx, adjDy } = applyMoveSnap(dx, dy, totalDx, totalDy, metaKey)
       moveIframeLayersByDelta([layerId], adjDx, adjDy)
       // Source position has moved — recompute the merge preview off-render.
       applyMergeSnap(metaKey)
     },
-    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap],
+    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap]
   )
 
   const handlePointerMove = useCallback(
@@ -4127,7 +4522,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           })()
       setActiveGapHandle((prev) => {
         if (prev === next) return prev
-        if (prev && next && prev.groupId === next.groupId && prev.gapIndex === next.gapIndex) return prev
+        if (
+          prev &&
+          next &&
+          prev.groupId === next.groupId &&
+          prev.gapIndex === next.gapIndex
+        )
+          return prev
         return next
       })
 
@@ -4137,7 +4538,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       // without the dot flipping back to its hollow state.
       if (reorderDragRef.current) {
         setHoveredReorderIframeLayerId((prev) =>
-          prev === reorderDragRef.current!.iframeLayerId ? prev : reorderDragRef.current!.iframeLayerId,
+          prev === reorderDragRef.current!.iframeLayerId
+            ? prev
+            : reorderDragRef.current!.iframeLayerId
         )
       } else {
         const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
@@ -4147,7 +4550,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       }
     },
-    [setPresence, iframeLayerLayouts, hitTestGapHandle, hitTestReorderHandle],
+    [setPresence, iframeLayerLayouts, hitTestGapHandle, hitTestReorderHandle]
   )
 
   const handlePointerLeave = useCallback(() => {
@@ -4217,7 +4620,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
       setNewCommentPos({ x: canvasX, y: canvasY })
     },
-    [commentMode, iframeLayerLayouts, getIframeLayerDom],
+    [commentMode, iframeLayerLayouts, getIframeLayerDom]
   )
 
   // Broadcast selection to other users via presence. Doc IDs ride alongside
@@ -4247,7 +4650,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   useEffect(() => {
     if (selectedDocumentChatTargetId) return
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
-    const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
+    const firstRunning = agents.find(
+      (a) => a.status === "running" && a.sandboxName
+    )
     // Picking a default once async-loaded agent data arrives is a legitimate
     // effect sync, not an avoidable render cascade.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -4293,148 +4698,173 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           />
         )
       })}
-    <ResizablePanelGroup orientation="horizontal" className="fixed inset-0 bg-muted/30" defaultLayout={initialLayout} onLayoutChanged={onLayoutChanged}>
-      {/* Sidebar */}
-      <ResizablePanel
-        id="sidebar"
-        defaultSize="240px"
-        minSize="180px"
-        maxSize="480px"
-        collapsible
-        collapsedSize="0px"
-        groupResizeBehavior="preserve-pixel-size"
-        panelRef={sidebarPanelRef}
-        onResize={(size, _id, prev) => {
-          setSidebarCollapsed(size.inPixels === 0)
-          if (prev) {
-            const delta = size.inPixels - prev.inPixels
-            if (delta !== 0) {
-              const ref = transformRef.current
-              if (ref) {
-                const { positionX, positionY, scale } = ref.state
-                ref.setTransform(positionX - delta, positionY, scale, 0)
-              }
-            }
-          }
-        }}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="fixed inset-0 bg-muted/30"
+        defaultLayout={initialLayout}
+        onLayoutChanged={onLayoutChanged}
       >
-        <RoomSidebar
-          repos={repos}
-          branches={agents}
-          iframeLayers={iframeLayers}
-          markdownLayers={markdownLayers}
-          iframeLayerGroups={sortedIframeLayerGroups}
-          selectedIframeLayerIds={selectedIframeLayerIds}
-          selectedGroupIds={selectedGroupIds}
-          selectedDocumentLayerIds={selectedDocumentLayerIds}
-          onSelectGroup={handleGroupSelect}
-          onZoomToGroup={handleZoomToGroup}
-          onSelectDocument={handleDocumentLayerSelect}
-          onZoomToDocument={handleZoomToDocument}
-          onRenameDocument={setDocumentLayerTitle}
-          onRemoveDocument={(id) => removeDocumentLayers([id])}
-          onSelectBranch={handleSelectAgent}
-          onCreateRepo={handleCreateRepo}
-          onUpdateRepo={updateRepoInStorage}
-          onRemoveRepo={async (id, { deleteBranchesOnRemote }) => {
-            if (deleteBranchesOnRemote) {
-              const repo = repos.find((w) => w.id === id)
-              if (repo) {
-                const branches = agents
-                  .filter((a) => a.repoId === id && a.ref)
-                  .map((a) => a.ref)
-                const results = await Promise.all(
-                  branches.map((branch) =>
-                    deleteBranch(repo.repoOwner, repo.repoName, branch),
-                  ),
-                )
-                const failed = results.filter((r) => !r.success)
-                if (failed.length > 0) {
-                  throw new Error(
-                    failed[0]?.error ??
-                      `Failed to delete ${failed.length} branch${failed.length === 1 ? "" : "es"} on remote`,
-                  )
+        {/* Sidebar */}
+        <ResizablePanel
+          id="sidebar"
+          defaultSize="240px"
+          minSize="180px"
+          maxSize="480px"
+          collapsible
+          collapsedSize="0px"
+          groupResizeBehavior="preserve-pixel-size"
+          panelRef={sidebarPanelRef}
+          onResize={(size, _id, prev) => {
+            setSidebarCollapsed(size.inPixels === 0)
+            if (prev) {
+              const delta = size.inPixels - prev.inPixels
+              if (delta !== 0) {
+                const ref = transformRef.current
+                if (ref) {
+                  const { positionX, positionY, scale } = ref.state
+                  ref.setTransform(positionX - delta, positionY, scale, 0)
                 }
               }
             }
-            removeRepoFromStorage(id)
           }}
-          onCreateBranch={handleCreateAgent}
-          onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
-          onCreateParallelBranches={handleCreateParallelAgents}
-          onDuplicateBranch={handleDuplicateBranch}
-          onForkBranch={handleForkAgent}
-          onRebaseOnDefault={handleRebaseOnDefault}
-          onRefreshBranch={handleRefreshAgent}
-          onRemoveBranch={async (id, { deleteOnRemote }) => {
-            if (deleteOnRemote) {
-              const agent = agents.find((a) => a.id === id)
-              const repo = agent
-                ? repos.find((w) => w.id === agent.repoId)
-                : undefined
-              if (agent?.ref && repo) {
-                const result = await deleteBranch(
-                  repo.repoOwner,
-                  repo.repoName,
-                  agent.ref,
-                )
-                if (!result.success) {
-                  throw new Error(
-                    result.error ?? "Failed to delete branch on remote",
+        >
+          <RoomSidebar
+            repos={repos}
+            branches={agents}
+            iframeLayers={iframeLayers}
+            markdownLayers={markdownLayers}
+            iframeLayerGroups={sortedIframeLayerGroups}
+            selectedIframeLayerIds={selectedIframeLayerIds}
+            selectedGroupIds={selectedGroupIds}
+            selectedDocumentLayerIds={selectedDocumentLayerIds}
+            onSelectGroup={handleGroupSelect}
+            onZoomToGroup={handleZoomToGroup}
+            onSelectDocument={handleDocumentLayerSelect}
+            onZoomToDocument={handleZoomToDocument}
+            onRenameDocument={setDocumentLayerTitle}
+            onRemoveDocument={(id) => removeDocumentLayers([id])}
+            onSelectBranch={handleSelectAgent}
+            onCreateRepo={handleCreateRepo}
+            onUpdateRepo={updateRepoInStorage}
+            onRemoveRepo={async (id, { deleteBranchesOnRemote }) => {
+              if (deleteBranchesOnRemote) {
+                const repo = repos.find((w) => w.id === id)
+                if (repo) {
+                  const branches = agents
+                    .filter((a) => a.repoId === id && a.ref)
+                    .map((a) => a.ref)
+                  const results = await Promise.all(
+                    branches.map((branch) =>
+                      deleteBranch(repo.repoOwner, repo.repoName, branch)
+                    )
                   )
+                  const failed = results.filter((r) => !r.success)
+                  if (failed.length > 0) {
+                    throw new Error(
+                      failed[0]?.error ??
+                        `Failed to delete ${failed.length} branch${failed.length === 1 ? "" : "es"} on remote`
+                    )
+                  }
                 }
               }
+              removeRepoFromStorage(id)
+            }}
+            onCreateBranch={handleCreateAgent}
+            onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
+            onCreateParallelBranches={handleCreateParallelAgents}
+            onDuplicateBranch={handleDuplicateBranch}
+            onForkBranch={handleForkAgent}
+            onRebaseOnDefault={handleRebaseOnDefault}
+            onRefreshBranch={handleRefreshAgent}
+            onRemoveBranch={async (id, { deleteOnRemote }) => {
+              if (deleteOnRemote) {
+                const agent = agents.find((a) => a.id === id)
+                const repo = agent
+                  ? repos.find((w) => w.id === agent.repoId)
+                  : undefined
+                if (agent?.ref && repo) {
+                  const result = await deleteBranch(
+                    repo.repoOwner,
+                    repo.repoName,
+                    agent.ref
+                  )
+                  if (!result.success) {
+                    throw new Error(
+                      result.error ?? "Failed to delete branch on remote"
+                    )
+                  }
+                }
+              }
+              if (selectedAgentId === id) {
+                setSelectedAgentId(null)
+                setSelectedChatId(null)
+                chatPanelRef.current?.collapse()
+              }
+              // removeAgentFromStorage clears the chat-store mirror for the Chat
+              // Sessions the verb deletes.
+              removeAgentFromStorage(id)
+            }}
+            onAddIframeLayer={handleAddIframeLayerForAgent}
+            onPlayBranch={handlePlayAgent}
+            onShowRoutes={handleShowRoutesForAgent}
+            onUpdateBranch={updateAgentInStorage}
+            onRenameBranch={handleBranchRename}
+            onSelectIframeLayer={handleIframeLayerSelect}
+            onZoomToIframeLayer={handleSelectIframeLayer}
+            onRenameIframeLayer={renameIframeLayer}
+            onRemoveIframeLayer={removeIframeLayer}
+            onReorderIframeLayerGroups={reorderIframeLayerGroups}
+            onReorderRepos={ops.reorderRepos}
+            onReorderBranches={ops.reorderBranches}
+            onMoveMember={moveMember}
+            onRenameIframeLayerGroup={renameIframeLayerGroup}
+            onRemoveIframeLayerGroup={removeIframeLayerGroup}
+            onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
+            activeBranchIds={
+              new Set(
+                chatSessions
+                  .filter((c) => c.isStreaming && !c.closedAt && c.branchId)
+                  .map((c) => c.branchId as string)
+              )
             }
-            if (selectedAgentId === id) {
-              setSelectedAgentId(null)
-              setSelectedChatId(null)
-              chatPanelRef.current?.collapse()
-            }
-            // removeAgentFromStorage clears the chat-store mirror for the Chat
-            // Sessions the verb deletes.
-            removeAgentFromStorage(id)
-          }}
-          onAddIframeLayer={handleAddIframeLayerForAgent}
-          onPlayBranch={handlePlayAgent}
-          onShowRoutes={handleShowRoutesForAgent}
-          onUpdateBranch={updateAgentInStorage}
-          onRenameBranch={handleBranchRename}
-          onSelectIframeLayer={handleIframeLayerSelect}
-          onZoomToIframeLayer={handleSelectIframeLayer}
-          onRenameIframeLayer={renameIframeLayer}
-          onRemoveIframeLayer={removeIframeLayer}
-          onReorderIframeLayerGroups={reorderIframeLayerGroups}
-          onReorderRepos={ops.reorderRepos}
-          onReorderBranches={ops.reorderBranches}
-          onMoveMember={moveMember}
-          onRenameIframeLayerGroup={renameIframeLayerGroup}
-          onRemoveIframeLayerGroup={removeIframeLayerGroup}
-          onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-          activeBranchIds={new Set(chatSessions.filter((c) => c.isStreaming && !c.closedAt && c.branchId).map((c) => c.branchId as string))}
-          chatPanelBranchId={chatCollapsed ? null : selectedAgentId}
-          branchPrs={branchPrs}
-        />
-      </ResizablePanel>
-      <ResizableHandle className="focus-visible:ring-0" />
+            chatPanelBranchId={chatCollapsed ? null : selectedAgentId}
+            branchPrs={branchPrs}
+          />
+        </ResizablePanel>
+        <ResizableHandle className="focus-visible:ring-0" />
 
-      {/* Canvas */}
-      <ResizablePanel id="canvas">
-            <div
-              className="relative h-full w-full"
-              data-canvas-wrapper
-              ref={canvasWrapperRef}
-              style={{ clipPath: "inset(0)", cursor: isPanning ? "grabbing" : spaceHeld ? "grab" : documentMode || frameMode || commentMode ? "crosshair" : activeGapHandle ? "col-resize" : reorderDraggingIframeLayerId ? "grabbing" : hoveredReorderIframeLayerId ? "grab" : undefined }}
-              onPointerDownCapture={handleCanvasPointerDownCapture}
-              onPointerDown={handleCanvasPointerDown}
-              onPointerMove={(e) => {
-                handlePointerMove(e)
-                handleCanvasPointerMove(e)
-              }}
-              onPointerUp={handleCanvasPointerUp}
-              onPointerLeave={handlePointerLeave}
-              onClick={commentMode ? handleCanvasClick : undefined}
-            >
-
+        {/* Canvas */}
+        <ResizablePanel id="canvas">
+          <div
+            className="relative h-full w-full"
+            data-canvas-wrapper
+            ref={canvasWrapperRef}
+            style={{
+              clipPath: "inset(0)",
+              cursor: isPanning
+                ? "grabbing"
+                : spaceHeld
+                  ? "grab"
+                  : documentMode || frameMode || commentMode
+                    ? "crosshair"
+                    : activeGapHandle
+                      ? "col-resize"
+                      : reorderDraggingIframeLayerId
+                        ? "grabbing"
+                        : hoveredReorderIframeLayerId
+                          ? "grab"
+                          : undefined,
+            }}
+            onPointerDownCapture={handleCanvasPointerDownCapture}
+            onPointerDown={handleCanvasPointerDown}
+            onPointerMove={(e) => {
+              handlePointerMove(e)
+              handleCanvasPointerMove(e)
+            }}
+            onPointerUp={handleCanvasPointerUp}
+            onPointerLeave={handlePointerLeave}
+            onClick={commentMode ? handleCanvasClick : undefined}
+          >
             {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
                 so the iframeLayer iframes paint on top — the parts of each ghost
                 that extend past the active iframeLayer remain visible. Same
@@ -4445,7 +4875,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
               viewportPos={viewportPos}
               iframeLayerRect={(() => {
                 if (!resizeSnap) return null
-                const layout = effectiveIframeLayerLayouts.get(resizeSnap.iframeLayerId)
+                const layout = effectiveIframeLayerLayouts.get(
+                  resizeSnap.iframeLayerId
+                )
                 if (!layout) return null
                 return {
                   x: layout.x,
@@ -4508,7 +4940,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
               onInit={(ref) => {
                 if (!viewportRestoredRef.current && savedViewport) {
                   viewportRestoredRef.current = true
-                  ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
+                  ref.setTransform(
+                    savedViewport.x,
+                    savedViewport.y,
+                    savedViewport.zoom,
+                    0
+                  )
                   setZoom(savedViewport.zoom)
                   setViewportPos({ x: savedViewport.x, y: savedViewport.y })
                   setPresence({ viewport: savedViewport })
@@ -4521,7 +4958,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                   })
                 }
               }}
-              onPanningStart={() => { handleFollowBreak(); setIsPanning(true) }}
+              onPanningStart={() => {
+                handleFollowBreak()
+                setIsPanning(true)
+              }}
               onPanningStop={() => setIsPanning(false)}
               onWheelStart={handleFollowBreak}
               onPinchStart={handleFollowBreak}
@@ -4551,7 +4991,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                   className="relative"
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
-
                   {/* Flat member layer. Every iframe/markdown layer across all
                       groups renders as a stable, id-sorted, absolutely-positioned
                       sibling — NOT nested in a per-group element. A member keeps
@@ -4564,13 +5003,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                     // React never reparents or re-orders a member node (either of
                     // which remounts the iframe / TipTap editor — see the
                     // `groupZIndex` note for why DOM order has to stay fixed).
-                    const entries: Array<{ member: GroupMember; group: IframeLayerGroupData }> = []
+                    const entries: Array<{
+                      member: GroupMember
+                      group: IframeLayerGroupData
+                    }> = []
                     for (const group of iframeLayerGroups) {
                       for (const member of getGroupMembers(group)) {
                         entries.push({ member, group })
                       }
                     }
-                    entries.sort((a, b) => a.member.id.localeCompare(b.member.id))
+                    entries.sort((a, b) =>
+                      a.member.id.localeCompare(b.member.id)
+                    )
 
                     return entries.map(({ member, group }) => {
                       const members = getGroupMembers(group)
@@ -4606,7 +5050,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           const raw = iframeLayerLayouts.get(member.id)
                           if (raw) {
                             // Lock Y so the dragged frame slides only horizontally.
-                            dragTranslateX = reorderDragCursor.x - grab.x - raw.x
+                            dragTranslateX =
+                              reorderDragCursor.x - grab.x - raw.x
                             dragTranslateY = 0
                           }
                         }
@@ -4615,7 +5060,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                       const zIndex = groupZIndex.get(group.id)
 
                       if (member.kind === "markdown-layer") {
-                        const doc = markdownLayers.find((d) => d.id === member.id)
+                        const doc = markdownLayers.find(
+                          (d) => d.id === member.id
+                        )
                         if (!doc) return null
                         return (
                           <MarkdownLayer
@@ -4623,7 +5070,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                             layer={doc}
                             zoom={zoom}
                             selected={selectedDocumentLayerIds.has(doc.id)}
-                            multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
+                            multiSelected={
+                              selectedIframeLayerIds.size +
+                                selectedDocumentLayerIds.size >
+                              1
+                            }
                             editing={editingDocumentLayerId === doc.id}
                             spaceHeld={spaceHeld}
                             userName={self?.identity.name || "Anonymous"}
@@ -4638,21 +5089,36 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                             groupSelected={groupSelected}
                             onSelectGroup={
                               index === 0 && showGroupLabel
-                                ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                                ? (shiftKey) =>
+                                    handleGroupSelect(group.id, shiftKey)
                                 : undefined
                             }
                             onRenameGroup={
                               index === 0 && showGroupLabel
-                                ? (name) => renameIframeLayerGroup(group.id, name)
+                                ? (name) =>
+                                    renameIframeLayerGroup(group.id, name)
                                 : undefined
                             }
                             onSelect={handleDocumentLayerSelect}
-                            onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) => {
+                            onMoveGroup={(
+                              dx,
+                              dy,
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            ) => {
                               // Event handler (fires on drag), so the ref
                               // access inside is deferred past render; the rule
                               // can't see that through the inline closure.
                               // eslint-disable-next-line react-hooks/refs
-                              handleMoveGroupForLayer(doc.id, dx, dy, totalDx, totalDy, metaKey)
+                              handleMoveGroupForLayer(
+                                doc.id,
+                                dx,
+                                dy,
+                                totalDx,
+                                totalDy,
+                                metaKey
+                              )
                             }}
                             onMoveSelected={handleMoveSelected}
                             onGroupDragStart={() => {
@@ -4673,9 +5139,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                         )
                       }
 
-                      const iframeLayer = iframeLayers.find((a) => a.id === member.id)
+                      const iframeLayer = iframeLayers.find(
+                        (a) => a.id === member.id
+                      )
                       if (!iframeLayer) return null
-                      const agentInfo = iframeLayer.branchId ? agentDomains[iframeLayer.branchId] : undefined
+                      const agentInfo = iframeLayer.branchId
+                        ? agentDomains[iframeLayer.branchId]
+                        : undefined
                       return (
                         <IframeLayer
                           key={iframeLayer.id}
@@ -4686,7 +5156,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           }}
                           zoom={zoom}
                           focused={focusedIframeLayerId === iframeLayer.id}
-                          createFlow={createFlowIframeLayerId === iframeLayer.id}
+                          createFlow={
+                            createFlowIframeLayerId === iframeLayer.id
+                          }
                           selected={selectedIframeLayerIds.has(iframeLayer.id)}
                           onFocus={(id) => {
                             setFocusedIframeLayerId(id)
@@ -4698,10 +5170,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           }}
                           onSelect={handleIframeLayerSelect}
                           onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
-                            handleMoveGroupForLayer(iframeLayer.id, dx, dy, totalDx, totalDy, metaKey)
+                            handleMoveGroupForLayer(
+                              iframeLayer.id,
+                              dx,
+                              dy,
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            )
                           }
                           onMoveSelected={handleMoveSelected}
-                          onGroupDragStart={() => handleLayerGroupDragStart(iframeLayer.id)}
+                          onGroupDragStart={() =>
+                            handleLayerGroupDragStart(iframeLayer.id)
+                          }
                           onGroupDragEnd={handleLayerGroupDragEnd}
                           onRequestReorderDrag={requestReorderDrag}
                           onResize={resizeIframeLayerEdge}
@@ -4715,10 +5196,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           onKnobsDeclared={updateIframeLayerKnobs}
                           onKnobValuesChange={updateIframeLayerKnobValues}
                           onSharedStateChanged={updateIframeLayerSharedState}
-                          onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
+                          onPlay={
+                            iframeLayer.branchId
+                              ? handlePlayIframeLayer
+                              : undefined
+                          }
                           onFitToContent={fitIframeLayerToContent}
                           onSetSize={fitIframeLayerToContent}
-                          multiSelected={selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1}
+                          multiSelected={
+                            selectedIframeLayerIds.size +
+                              selectedDocumentLayerIds.size >
+                            1
+                          }
                           spaceHeld={spaceHeld}
                           commentMode={commentMode}
                           onHover={handleInspectHover}
@@ -4731,7 +5220,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                           groupSelected={groupSelected}
                           onSelectGroup={
                             index === 0 && showGroupLabel
-                              ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                              ? (shiftKey) =>
+                                  handleGroupSelect(group.id, shiftKey)
                               : undefined
                           }
                           onRenameGroup={
@@ -4780,518 +5270,559 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                       aria-label="Add frame to group"
                     />
                   ))}
-
-
                 </div>
               </TransformComponent>
-
             </TransformWrapper>
 
-              {/* Comment pins live in their own screen-space layer above the
+            {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
                   children still position in world coordinates. */}
-              <div
-                className="pointer-events-none absolute inset-0 z-20"
-                style={{
-                  transformOrigin: "0 0",
-                  transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+            <div
+              className="pointer-events-none absolute inset-0 z-20"
+              style={{
+                transformOrigin: "0 0",
+                transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+              }}
+            >
+              <Comments
+                roomId={roomId}
+                zoom={zoom}
+                newCommentPos={newCommentPos}
+                onNewCommentPlaced={() => {
+                  setNewCommentPos(null)
+                  setCommentMode(false)
                 }}
-              >
-                <Comments
-                  roomId={roomId}
-                  zoom={zoom}
-                  newCommentPos={newCommentPos}
-                  onNewCommentPlaced={() => {
-                    setNewCommentPos(null)
-                    setCommentMode(false)
-                  }}
-                  onCancelComment={() => setNewCommentPos(null)}
-                  iframeLayers={Array.from(iframeLayerLayouts.values())}
-                  getIframeLayerDom={getIframeLayerDom}
-                  getDocumentEditor={getDocumentEditor}
-                  documentEditorsVersion={documentEditorsVersion}
-                  initialThreads={initialThreads}
-                  onSendToChat={handleCommentSendToChat}
-                  activeThreadId={activeCommentThreadId}
-                  onActivateThread={setActiveCommentThreadId}
-                />
-              </div>
+                onCancelComment={() => setNewCommentPos(null)}
+                iframeLayers={Array.from(iframeLayerLayouts.values())}
+                getIframeLayerDom={getIframeLayerDom}
+                getDocumentEditor={getDocumentEditor}
+                documentEditorsVersion={documentEditorsVersion}
+                initialThreads={initialThreads}
+                onSendToChat={handleCommentSendToChat}
+                activeThreadId={activeCommentThreadId}
+                onActivateThread={setActiveCommentThreadId}
+              />
+            </div>
 
-              {/* Portal target for floating frame toolbars. Lives above the
+            {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
                   rings or resize handles. Children (rendered via createPortal
                   from iframe-layer) position themselves in canvas-wrapper
                   coords via a rAF loop. */}
-              <div
-                id="frame-toolbar-portal"
-                className="pointer-events-none absolute inset-0 z-30"
-              />
+            <div
+              id="frame-toolbar-portal"
+              className="pointer-events-none absolute inset-0 z-30"
+            />
 
-              {/* Portal target for the inline "Comment" bubble that appears
+            {/* Portal target for the inline "Comment" bubble that appears
                   above text selections inside a document layer. Same reason
                   as the toolbar portal: the bubble lives inside the world
                   transform's stacking context, so an internal z-index can't
                   lift it above the SelectionOverlay sibling. Portaled out
                   and positioned via rAF from markdown-layer. */}
-              <div
-                id="inline-comment-bubble-portal"
-                className="pointer-events-none absolute inset-0 z-30"
-              />
+            <div
+              id="inline-comment-bubble-portal"
+              className="pointer-events-none absolute inset-0 z-30"
+            />
 
-              <SelectionOverlay
-                zoom={zoom}
-                viewportPos={viewportPos}
-                selectedIframeLayerIds={overlaySelectedIds}
-                groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
-                focusedIframeLayerId={focusedIframeLayerId}
-                hoveredIframeLayerId={hoveredIframeLayerId}
-                iframeLayerLayouts={effectiveIframeLayerLayouts}
-                hideResizeHandles={editingDocumentLayerId !== null}
-                gapHandles={gapHandles}
-                reorderHandles={reorderHandles}
-                hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
-                reorderDragShift={(() => {
-                  // While popped, `effectiveIframeLayerLayouts` already
-                  // places the dragged frame at `cursor - grab`, so no extra
-                  // shift is needed for the selection overlay (which reads
-                  // from that same map). Only the in-flow reorder case
-                  // needs a translation delta layered on top of the raw
-                  // flex slot.
-                  if (!reorderDraggingIframeLayerId || !reorderDragCursor || reorderDragPopped) return null
-                  const layout = iframeLayerLayouts.get(reorderDraggingIframeLayerId)
-                  if (!layout) return null
-                  const grab = reorderGrabOffset ?? {
-                    x: layout.width / 2,
-                    y: layout.height / 2,
-                  }
-                  return {
-                    iframeLayerId: reorderDraggingIframeLayerId,
-                    dx: reorderDragCursor.x - grab.x - layout.x,
-                    dy: 0,
-                  }
-                })()}
-                marquee={marquee}
-                frameDraft={frameDraft}
-                documentDraft={documentDraft}
-                othersSelections={othersSelections}
-                snapGuides={snapGuides}
-                inspectRect={(() => {
-                  // Show the live hover overlay while in commentMode so the
-                  // user can see what element they're about to anchor to.
-                  const source = commentMode ? inspectHover : null
-                  if (!source) return null
-                  const layout = iframeLayerLayouts.get(source.iframeLayerId)
-                  if (!layout) return null
-                  return {
-                    x: layout.x + source.rect.x,
-                    y: layout.y + source.rect.y,
-                    width: source.rect.width,
-                    height: source.rect.height,
-                  }
-                })()}
+            <SelectionOverlay
+              zoom={zoom}
+              viewportPos={viewportPos}
+              selectedIframeLayerIds={overlaySelectedIds}
+              groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
+              focusedIframeLayerId={focusedIframeLayerId}
+              hoveredIframeLayerId={hoveredIframeLayerId}
+              iframeLayerLayouts={effectiveIframeLayerLayouts}
+              hideResizeHandles={editingDocumentLayerId !== null}
+              gapHandles={gapHandles}
+              reorderHandles={reorderHandles}
+              hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
+              reorderDragShift={(() => {
+                // While popped, `effectiveIframeLayerLayouts` already
+                // places the dragged frame at `cursor - grab`, so no extra
+                // shift is needed for the selection overlay (which reads
+                // from that same map). Only the in-flow reorder case
+                // needs a translation delta layered on top of the raw
+                // flex slot.
+                if (
+                  !reorderDraggingIframeLayerId ||
+                  !reorderDragCursor ||
+                  reorderDragPopped
+                )
+                  return null
+                const layout = iframeLayerLayouts.get(
+                  reorderDraggingIframeLayerId
+                )
+                if (!layout) return null
+                const grab = reorderGrabOffset ?? {
+                  x: layout.width / 2,
+                  y: layout.height / 2,
+                }
+                return {
+                  iframeLayerId: reorderDraggingIframeLayerId,
+                  dx: reorderDragCursor.x - grab.x - layout.x,
+                  dy: 0,
+                }
+              })()}
+              marquee={marquee}
+              frameDraft={frameDraft}
+              documentDraft={documentDraft}
+              othersSelections={othersSelections}
+              snapGuides={snapGuides}
+              inspectRect={(() => {
+                // Show the live hover overlay while in commentMode so the
+                // user can see what element they're about to anchor to.
+                const source = commentMode ? inspectHover : null
+                if (!source) return null
+                const layout = iframeLayerLayouts.get(source.iframeLayerId)
+                if (!layout) return null
+                return {
+                  x: layout.x + source.rect.x,
+                  y: layout.y + source.rect.y,
+                  width: source.rect.width,
+                  height: source.rect.height,
+                }
+              })()}
+            />
+            <Cursors viewport={{ ...viewportPos, zoom }} />
+            {chatAnchor && self?.message != null ? (
+              <CursorChat
+                screenX={chatAnchor.x * zoom + viewportPos.x}
+                screenY={chatAnchor.y * zoom + viewportPos.y}
+                color={self.color}
+                value={self.message}
+                onChange={(next) => setPresence({ message: next })}
+                onClose={closeCursorChat}
               />
-              <Cursors viewport={{ ...viewportPos, zoom }} />
-              {chatAnchor && self?.message != null ? (
-                <CursorChat
-                  screenX={chatAnchor.x * zoom + viewportPos.x}
-                  screenY={chatAnchor.y * zoom + viewportPos.y}
-                  color={self.color}
-                  value={self.message}
-                  onChange={(next) => setPresence({ message: next })}
-                  onClose={closeCursorChat}
-                />
-              ) : null}
-              <div className="pointer-events-none absolute left-0 top-0 z-[9998] flex h-12 items-center px-2">
-                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
-                  {sidebarCollapsed && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => sidebarPanelRef.current?.expand()}
-                          >
-                            <PanelLeftOpen className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Expand sidebar <Kbd>⌘B</Kbd>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Breadcrumb>
-                    <BreadcrumbList className="gap-0 text-xs sm:gap-0">
-                      <BreadcrumbItem className="gap-0">
-                        <BreadcrumbLink
-                          href="/"
-                          className="px-1.5 py-1 font-medium"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            router.push("/")
-                          }}
-                        >
-                          {parentFolderName}
-                        </BreadcrumbLink>
-                      </BreadcrumbItem>
-                      <BreadcrumbSeparator className="text-muted-foreground/60">/</BreadcrumbSeparator>
-                      <BreadcrumbItem className="gap-0">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs font-medium text-foreground">
-                              {currentRoomName}
-                              <ChevronDown className="h-3 w-3 opacity-60" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                setRenameDraft(currentRoomName)
-                                setRenameDialogOpen(true)
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onSelect={() => setDeleteDialogOpen(true)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                  <Dialog
-                    open={renameDialogOpen}
-                    onOpenChange={(next) => {
-                      if (renaming) return
-                      setRenameDialogOpen(next)
-                    }}
-                  >
-                    <DialogContent className="sm:max-w-md">
-                      <form
-                        onSubmit={async (e) => {
-                          e.preventDefault()
-                          const trimmed = renameDraft.trim() || "Untitled"
-                          setRenaming(true)
-                          try {
-                            await renameRoom(roomId, trimmed)
-                            setCurrentRoomName(trimmed)
-                            setRenameDialogOpen(false)
-                          } finally {
-                            setRenaming(false)
-                          }
-                        }}
-                      >
-                        <DialogHeader>
-                          <DialogTitle>Rename project</DialogTitle>
-                          <DialogDescription>
-                            Give this project a new name.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="my-4">
-                          <Input
-                            autoFocus
-                            value={renameDraft}
-                            onChange={(e) => setRenameDraft(e.target.value)}
-                            placeholder="Untitled"
-                          />
-                        </div>
-                        <DialogFooter>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setRenameDialogOpen(false)}
-                            disabled={renaming}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="submit" disabled={renaming}>
-                            {renaming ? "Saving…" : "Save"}
-                          </Button>
-                        </DialogFooter>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                  <DeleteRoomDialog
-                    open={deleteDialogOpen}
-                    onOpenChange={setDeleteDialogOpen}
-                    roomName={currentRoomName}
-                    onConfirm={async () => {
-                      await deleteRoom(roomId)
-                      setDeleteDialogOpen(false)
-                      router.push("/")
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
-                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
+            ) : null}
+            <div className="pointer-events-none absolute top-0 left-0 z-[9998] flex h-12 items-center px-2">
+              <div
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {sidebarCollapsed && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={!commentMode && !documentMode && !frameMode ? "default" : "ghost"}
+                          variant="ghost"
                           size="icon-xs"
-                          onClick={() => {
-                            setCommentMode(false)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
-                            setDocumentMode(false)
-                            setFrameMode(false)
-                          }}
+                          onClick={() => sidebarPanelRef.current?.expand()}
                         >
-                          <MousePointer2 className="h-3.5 w-3.5" />
+                          <PanelLeftOpen className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Select <Kbd>V</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={frameMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setFrameMode((m) => !m)
-                            setDocumentMode(false)
-                            setCommentMode(false)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
-                          }}
-                        >
-                          <Frame className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Frame <Kbd>F</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={documentMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setDocumentMode((m) => !m)
-                            setCommentMode(false)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
-                            setFrameMode(false)
-                          }}
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Document <Kbd>D</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={commentMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setCommentMode((m) => !m)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
-                            setDocumentMode(false)
-                            setFrameMode(false)
-                          }}
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Comment <Kbd>C</Kbd>
+                      <TooltipContent side="bottom">
+                        Expand sidebar <Kbd>⌘B</Kbd>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
-              </div>
-              <div className="pointer-events-none absolute right-0 top-0 z-[9998] flex h-12 items-center px-2">
-                <div className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5" onClick={(e) => e.stopPropagation()}>
-                  <FollowingToolbar
-                    followingId={followingConnectionId}
-                    onFollow={setFollowingConnectionId}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => setShareDialogOpen(true)}
-                  >
-                    Share
-                  </Button>
-                  <ShareRoomDialog
-                    open={shareDialogOpen}
-                    onOpenChange={setShareDialogOpen}
-                    roomId={roomId}
-                    roomName={currentRoomName}
-                  />
-                  {chatCollapsed && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                )}
+                <Breadcrumb>
+                  <BreadcrumbList className="gap-0 text-xs sm:gap-0">
+                    <BreadcrumbItem className="gap-0">
+                      <BreadcrumbLink
+                        href="/"
+                        className="px-1.5 py-1 font-medium"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          router.push("/")
+                        }}
+                      >
+                        {parentFolderName}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="text-muted-foreground/60">
+                      /
+                    </BreadcrumbSeparator>
+                    <BreadcrumbItem className="gap-0">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            size="icon-xs"
-                            onClick={() => chatPanelRef.current?.expand()}
+                            size="sm"
+                            className="h-6 gap-1 px-1.5 text-xs font-medium text-foreground"
                           >
-                            <PanelRightOpen className="h-3.5 w-3.5" />
+                            {currentRoomName}
+                            <ChevronDown className="h-3 w-3 opacity-60" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Expand chat <Kbd>⌘I</Kbd>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setRenameDraft(currentRoomName)
+                              setRenameDialogOpen(true)
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => setDeleteDialogOpen(true)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+                <Dialog
+                  open={renameDialogOpen}
+                  onOpenChange={(next) => {
+                    if (renaming) return
+                    setRenameDialogOpen(next)
+                  }}
+                >
+                  <DialogContent className="sm:max-w-md">
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        const trimmed = renameDraft.trim() || "Untitled"
+                        setRenaming(true)
+                        try {
+                          await renameRoom(roomId, trimmed)
+                          setCurrentRoomName(trimmed)
+                          setRenameDialogOpen(false)
+                        } finally {
+                          setRenaming(false)
+                        }
+                      }}
+                    >
+                      <DialogHeader>
+                        <DialogTitle>Rename project</DialogTitle>
+                        <DialogDescription>
+                          Give this project a new name.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="my-4">
+                        <Input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          placeholder="Untitled"
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setRenameDialogOpen(false)}
+                          disabled={renaming}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={renaming}>
+                          {renaming ? "Saving…" : "Save"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+                <DeleteRoomDialog
+                  open={deleteDialogOpen}
+                  onOpenChange={setDeleteDialogOpen}
+                  roomName={currentRoomName}
+                  onConfirm={async () => {
+                    await deleteRoom(roomId)
+                    setDeleteDialogOpen(false)
+                    router.push("/")
+                  }}
+                />
               </div>
             </div>
-      </ResizablePanel>
-      <ResizableHandle className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"} disabled={chatCollapsed} />
+            <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
+              <div
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={
+                          !commentMode && !documentMode && !frameMode
+                            ? "default"
+                            : "ghost"
+                        }
+                        size="icon-xs"
+                        onClick={() => {
+                          setCommentMode(false)
+                          setNewCommentPos(null)
+                          setInspectHover(null)
+                          setDocumentMode(false)
+                          setFrameMode(false)
+                        }}
+                      >
+                        <MousePointer2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Select <Kbd>V</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={frameMode ? "default" : "ghost"}
+                        size="icon-xs"
+                        onClick={() => {
+                          setFrameMode((m) => !m)
+                          setDocumentMode(false)
+                          setCommentMode(false)
+                          setNewCommentPos(null)
+                          setInspectHover(null)
+                        }}
+                      >
+                        <Frame className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Frame <Kbd>F</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={documentMode ? "default" : "ghost"}
+                        size="icon-xs"
+                        onClick={() => {
+                          setDocumentMode((m) => !m)
+                          setCommentMode(false)
+                          setNewCommentPos(null)
+                          setInspectHover(null)
+                          setFrameMode(false)
+                        }}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Document <Kbd>D</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={commentMode ? "default" : "ghost"}
+                        size="icon-xs"
+                        onClick={() => {
+                          setCommentMode((m) => !m)
+                          setNewCommentPos(null)
+                          setInspectHover(null)
+                          setDocumentMode(false)
+                          setFrameMode(false)
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Comment <Kbd>C</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+            <div className="pointer-events-none absolute top-0 right-0 z-[9998] flex h-12 items-center px-2">
+              <div
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <FollowingToolbar
+                  followingId={followingConnectionId}
+                  onFollow={setFollowingConnectionId}
+                />
+                <Button size="sm" onClick={() => setShareDialogOpen(true)}>
+                  Share
+                </Button>
+                <ShareRoomDialog
+                  open={shareDialogOpen}
+                  onOpenChange={setShareDialogOpen}
+                  roomId={roomId}
+                  roomName={currentRoomName}
+                />
+                {chatCollapsed && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => chatPanelRef.current?.expand()}
+                        >
+                          <PanelRightOpen className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Expand chat <Kbd>⌘I</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            </div>
+          </div>
+        </ResizablePanel>
+        <ResizableHandle
+          className={chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}
+          disabled={chatCollapsed}
+        />
 
-      {/* Chat — right panel */}
-      <ResizablePanel
-        id="chat"
-        defaultSize="0px"
-        minSize="360px"
-        collapsible
-        collapsedSize="0px"
-        groupResizeBehavior="preserve-pixel-size"
-        panelRef={chatPanelRef}
-        onResize={(size) => setChatCollapsed(size.inPixels === 0)}
-      >
-        {(() => {
-          // Resolve the panel's current target: an agent (sandbox-backed)
-          // when one is selected and ready, otherwise the doc-chat target
-          // when one was picked from the dropdown. Falls through to the
-          // empty-state below when neither is set.
-          const docTarget = selectedDocumentChatTargetId
-            ? markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null
-            : null
-          // Resolve the target. For layer-kind targets we pack the layer
-          // into the generic `{ kind: "layer", layerKind, layer }` shape
-          // — that's what the chat panel expects so it can dispatch
-          // through the layer-kinds registry.
-          const target: ChatPanelTarget | null =
-            selectedAgent?.sandboxName
+        {/* Chat — right panel */}
+        <ResizablePanel
+          id="chat"
+          defaultSize="0px"
+          minSize="360px"
+          collapsible
+          collapsedSize="0px"
+          groupResizeBehavior="preserve-pixel-size"
+          panelRef={chatPanelRef}
+          onResize={(size) => setChatCollapsed(size.inPixels === 0)}
+        >
+          {(() => {
+            // Resolve the panel's current target: an agent (sandbox-backed)
+            // when one is selected and ready, otherwise the doc-chat target
+            // when one was picked from the dropdown. Falls through to the
+            // empty-state below when neither is set.
+            const docTarget = selectedDocumentChatTargetId
+              ? (markdownLayers.find(
+                  (d) => d.id === selectedDocumentChatTargetId
+                ) ?? null)
+              : null
+            // Resolve the target. For layer-kind targets we pack the layer
+            // into the generic `{ kind: "layer", layerKind, layer }` shape
+            // — that's what the chat panel expects so it can dispatch
+            // through the layer-kinds registry.
+            const target: ChatPanelTarget | null = selectedAgent?.sandboxName
               ? { kind: "agent", agent: selectedAgent }
               : docTarget
                 ? {
                     kind: "layer",
                     layerKind: "markdown-layer",
-                    layer: docTarget as unknown as { id: string } & Record<string, unknown>,
+                    layer: docTarget as unknown as { id: string } & Record<
+                      string,
+                      unknown
+                    >,
                   }
                 : null
-          if (!target) return null
-          const filteredSessions = chatSessions.filter((c) => {
-            if (target.kind === "agent") return c.branchId === target.agent.id
-            // Layer targets: per-kind state lives on the chat session
-            // under different fields.
-            if (target.layerKind === "markdown-layer") return c.markdownLayerId === target.layer.id
-            return false
-          })
-          // This client's local terminal tabs for an agent target. Passed as a
-          // separate collection (never merged into `chatSessions`), so a
-          // terminal can't structurally reach the conversation model.
-          const terminalTabs =
-            target.kind === "agent"
-              ? localTerminals.filter((t) => t.branchId === target.agent.id)
-              : []
-          return (
-            <ChatPanel
-              target={target}
-              agents={agents}
-              markdownLayers={markdownLayers}
-              onSelectAgent={(id) => {
-                setSelectedDocumentChatTargetId(null)
-                handleSelectAgent(id)
-              }}
-              onSelectLayer={(layerKind, id) => {
-                if (layerKind === "markdown-layer") {
-                  setSelectedAgentId(null)
-                  setSelectedDocumentChatTargetId(id)
-                  const lastChat = selectedChatByDocumentRef.current[id]
-                  setSelectedChatId(lastChat ?? null)
-                  return
+            if (!target) return null
+            const filteredSessions = chatSessions.filter((c) => {
+              if (target.kind === "agent") return c.branchId === target.agent.id
+              // Layer targets: per-kind state lives on the chat session
+              // under different fields.
+              if (target.layerKind === "markdown-layer")
+                return c.markdownLayerId === target.layer.id
+              return false
+            })
+            // This client's local terminal tabs for an agent target. Passed as a
+            // separate collection (never merged into `chatSessions`), so a
+            // terminal can't structurally reach the conversation model.
+            const terminalTabs =
+              target.kind === "agent"
+                ? localTerminals.filter((t) => t.branchId === target.agent.id)
+                : []
+            return (
+              <ChatPanel
+                target={target}
+                agents={agents}
+                markdownLayers={markdownLayers}
+                onSelectAgent={(id) => {
+                  setSelectedDocumentChatTargetId(null)
+                  handleSelectAgent(id)
+                }}
+                onSelectLayer={(layerKind, id) => {
+                  if (layerKind === "markdown-layer") {
+                    setSelectedAgentId(null)
+                    setSelectedDocumentChatTargetId(id)
+                    const lastChat = selectedChatByDocumentRef.current[id]
+                    setSelectedChatId(lastChat ?? null)
+                    return
+                  }
+                }}
+                chatSessions={filteredSessions}
+                terminalTabs={terminalTabs}
+                selectedChatId={selectedChatId}
+                roomId={roomId}
+                onSelectChat={handleSelectChat}
+                onCreateChat={() => {
+                  if (target.kind === "agent") handleCreateChat(target.agent.id)
+                  // Event handler (fires on click), so the ref write inside
+                  // handleCreateDocumentChat is deferred past render.
+                  else if (target.layerKind === "markdown-layer")
+                    // eslint-disable-next-line react-hooks/refs
+                    handleCreateDocumentChat(target.layer.id)
+                }}
+                onCreateTerminal={
+                  target.kind === "agent"
+                    ? () => handleCreateTerminal(target.agent.id)
+                    : undefined
                 }
-              }}
-              chatSessions={filteredSessions}
-              terminalTabs={terminalTabs}
-              selectedChatId={selectedChatId}
-              roomId={roomId}
-              onSelectChat={handleSelectChat}
-              onCreateChat={() => {
-                if (target.kind === "agent") handleCreateChat(target.agent.id)
-                // Event handler (fires on click), so the ref write inside
-                // handleCreateDocumentChat is deferred past render.
-                else if (target.layerKind === "markdown-layer")
-                  // eslint-disable-next-line react-hooks/refs
-                  handleCreateDocumentChat(target.layer.id)
-              }}
-              onCreateTerminal={
-                target.kind === "agent"
-                  ? () => handleCreateTerminal(target.agent.id)
-                  : undefined
-              }
-              onRenameChat={handleRenameChat}
-              onRemoveChat={handleRemoveChat}
-              onCloseChat={handleCloseChat}
-              onReopenChat={handleReopenChat}
-              onBranchRename={(branch) => {
-                if (target.kind === "agent") handleBranchRename(target.agent.id, branch)
-              }}
-              onPlanModeChange={(chatId, pm) => updateChatSession(chatId, { planMode: pm })}
-              onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
-              diffStats={target.kind === "agent" ? diffStats.get(target.agent.id) : undefined}
-              branchPr={target.kind === "agent" ? branchPrs.get(target.agent.id) ?? null : null}
-              onCollapse={() => chatPanelRef.current?.collapse()}
-              onLogsReady={handleLogsReady}
-            />
-          )
-        })() || (
-          <div className="flex h-full flex-col bg-background">
-            <div className="flex h-12 items-center bg-background px-3">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-                      onClick={() => chatPanelRef.current?.collapse()}
-                    >
-                      <PanelRightClose className="h-4 w-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">
-                    Collapse chat <Kbd>⌘I</Kbd>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <span className="text-xs text-muted-foreground">
-                {repos.length === 0 ? "No workspaces" : "No active agents"}
-              </span>
+                onRenameChat={handleRenameChat}
+                onRemoveChat={handleRemoveChat}
+                onCloseChat={handleCloseChat}
+                onReopenChat={handleReopenChat}
+                onBranchRename={(branch) => {
+                  if (target.kind === "agent")
+                    handleBranchRename(target.agent.id, branch)
+                }}
+                onPlanModeChange={(chatId, pm) =>
+                  updateChatSession(chatId, { planMode: pm })
+                }
+                onModelChange={(chatId, model) =>
+                  updateChatSession(chatId, { model })
+                }
+                diffStats={
+                  target.kind === "agent"
+                    ? diffStats.get(target.agent.id)
+                    : undefined
+                }
+                branchPr={
+                  target.kind === "agent"
+                    ? (branchPrs.get(target.agent.id) ?? null)
+                    : null
+                }
+                onCollapse={() => chatPanelRef.current?.collapse()}
+                onLogsReady={handleLogsReady}
+              />
+            )
+          })() || (
+            <div className="flex h-full flex-col bg-background">
+              <div className="flex h-12 items-center bg-background px-3">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+                        onClick={() => chatPanelRef.current?.collapse()}
+                      >
+                        <PanelRightClose className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      Collapse chat <Kbd>⌘I</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <span className="text-xs text-muted-foreground">
+                  {repos.length === 0 ? "No workspaces" : "No active agents"}
+                </span>
+              </div>
+              <div className="border-b border-border" />
+              <div className="flex flex-1 items-center justify-center px-6">
+                <p className="text-sm text-muted-foreground">
+                  {repos.length === 0
+                    ? "Add a workspace to get started"
+                    : "Waiting for an agent to start…"}
+                </p>
+              </div>
             </div>
-            <div className="border-b border-border" />
-            <div className="flex flex-1 items-center justify-center px-6">
-              <p className="text-sm text-muted-foreground">
-                {repos.length === 0
-                  ? "Add a workspace to get started"
-                  : "Waiting for an agent to start…"}
-              </p>
-            </div>
-          </div>
-        )}
-      </ResizablePanel>
-    </ResizablePanelGroup>
+          )}
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </>
   )
 }

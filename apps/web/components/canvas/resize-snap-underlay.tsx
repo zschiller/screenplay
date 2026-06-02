@@ -9,7 +9,11 @@ import {
 } from "@/lib/iframe-layer-sizes"
 import { rectFromAnchor } from "@/lib/canvas/snap"
 
-function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
+function resolveColor(
+  el: HTMLElement,
+  varName: string,
+  fallback: string
+): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
   if (!raw) return fallback
   const temp = document.createElement("div")
@@ -27,13 +31,19 @@ interface ResizeSnapUnderlayProps {
    * The iframeLayer's current world-space rect (post-snap on the current frame),
    * used to derive the anchor corner that ghosts pivot around.
    */
-  iframeLayerRect: { x: number; y: number; width: number; height: number } | null
+  iframeLayerRect: {
+    x: number
+    y: number
+    width: number
+    height: number
+  } | null
   anchor: AnchorCorner
   candidates: SnapCandidate[]
   snappedPresetId: string | null
 }
 
-const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, LucideIcon> = IFRAME_LAYER_SIZE_CATEGORY_ICONS
+const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, LucideIcon> =
+  IFRAME_LAYER_SIZE_CATEGORY_ICONS
 
 /**
  * Zoom-independent screen-space underlay shown while the user resizes an
@@ -104,7 +114,13 @@ export function ResizeSnapUnderlay({
     const sorted = [...candidates].sort((a, b) => b.distancePx - a.distancePx)
 
     for (const c of sorted) {
-      const { x, y } = rectFromAnchor(anchor, ax, ay, c.ghostWidth, c.ghostHeight)
+      const { x, y } = rectFromAnchor(
+        anchor,
+        ax,
+        ay,
+        c.ghostWidth,
+        c.ghostHeight
+      )
       const tl = toScreen(x, y)
       const br = toScreen(x + c.ghostWidth, y + c.ghostHeight)
       const l = Math.round(tl.x)
@@ -144,7 +160,7 @@ export function ResizeSnapUnderlay({
 
   // Snapped-only label — non-snapped candidates show as silent outlines.
   const snapped = snappedPresetId
-    ? candidates.find((c) => c.preset.id === snappedPresetId) ?? null
+    ? (candidates.find((c) => c.preset.id === snappedPresetId) ?? null)
     : null
   let snappedLabelPos: { screenX: number; screenY: number } | null = null
   if (snapped && iframeLayerRect) {
@@ -161,7 +177,7 @@ export function ResizeSnapUnderlay({
       ax,
       ay,
       snapped.ghostWidth,
-      snapped.ghostHeight,
+      snapped.ghostHeight
     )
     snappedLabelPos = {
       screenX: (x + snapped.ghostWidth) * zoom + viewportPos.x,
@@ -172,31 +188,32 @@ export function ResizeSnapUnderlay({
   return (
     <div className="pointer-events-none absolute inset-0">
       <canvas ref={canvasRef} className="absolute inset-0" />
-      {snapped && snappedLabelPos && (() => {
-        const Icon = CATEGORY_LABEL_ICON[snapped.preset.category] ?? Monitor
-        const orientationSuffix =
-          snapped.orientation === "landscape" ? " · Landscape" : ""
-        const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
-        return (
-          <div
-            className="absolute flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold leading-none"
-            style={{
-              left: snappedLabelPos.screenX,
-              top: snappedLabelPos.screenY,
-              transform: "translate(-100%, 4px)",
-              color: "#d946ef",
-            }}
-          >
-            <Icon className="h-3 w-3" />
-            <span>
-              {snapped.preset.label}
-              {orientationSuffix}
-              {" "}
-              <span className="opacity-70">{dimensions}</span>
-            </span>
-          </div>
-        )
-      })()}
+      {snapped &&
+        snappedLabelPos &&
+        (() => {
+          const Icon = CATEGORY_LABEL_ICON[snapped.preset.category] ?? Monitor
+          const orientationSuffix =
+            snapped.orientation === "landscape" ? " · Landscape" : ""
+          const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
+          return (
+            <div
+              className="absolute flex items-center gap-1 text-[11px] leading-none font-semibold whitespace-nowrap"
+              style={{
+                left: snappedLabelPos.screenX,
+                top: snappedLabelPos.screenY,
+                transform: "translate(-100%, 4px)",
+                color: "#d946ef",
+              }}
+            >
+              <Icon className="h-3 w-3" />
+              <span>
+                {snapped.preset.label}
+                {orientationSuffix}{" "}
+                <span className="opacity-70">{dimensions}</span>
+              </span>
+            </div>
+          )
+        })()}
     </div>
   )
 }

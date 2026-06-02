@@ -46,11 +46,14 @@ export function FollowingToolbar({
               >
                 <Avatar size="sm">
                   {self.identity.avatar ? (
-                    <AvatarImage src={self.identity.avatar} alt={self.identity.name} />
+                    <AvatarImage
+                      src={self.identity.avatar}
+                      alt={self.identity.name}
+                    />
                   ) : null}
                   <AvatarFallback
                     style={{ backgroundColor: self.color }}
-                    className="text-white text-[10px] font-medium"
+                    className="text-[10px] font-medium text-white"
                   >
                     {getInitials(self.identity.name || "?")}
                   </AvatarFallback>
@@ -85,7 +88,7 @@ export function FollowingToolbar({
                     ) : null}
                     <AvatarFallback
                       style={{ backgroundColor: presence.color }}
-                      className="text-white text-[10px] font-medium"
+                      className="text-[10px] font-medium text-white"
                     >
                       {getInitials(name)}
                     </AvatarFallback>
@@ -101,7 +104,9 @@ export function FollowingToolbar({
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isFollowing ? `Following ${name} — click to stop` : `Follow ${name}`}
+                {isFollowing
+                  ? `Following ${name} — click to stop`
+                  : `Follow ${name}`}
               </TooltipContent>
             </Tooltip>
           )

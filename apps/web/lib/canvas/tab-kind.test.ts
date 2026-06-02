@@ -20,7 +20,11 @@ function stubWindow(initial: Record<string, string> = {}) {
 
 describe("createTerminalTab", () => {
   it("produces a terminal tab bound to the agent's sandbox", () => {
-    const tab = createTerminalTab({ id: "t1", branchId: "agent-1", createdAt: 5 })
+    const tab = createTerminalTab({
+      id: "t1",
+      branchId: "agent-1",
+      createdAt: 5,
+    })
 
     expect(tab.branchId).toBe("agent-1")
     expect(tab.createdAt).toBe(5)
@@ -30,7 +34,11 @@ describe("createTerminalTab", () => {
   })
 
   it("defaults to the terminal label", () => {
-    const tab = createTerminalTab({ id: "t1", branchId: "agent-1", createdAt: 0 })
+    const tab = createTerminalTab({
+      id: "t1",
+      branchId: "agent-1",
+      createdAt: 0,
+    })
 
     expect(tab.label).toBe(TERMINAL_TAB_LABEL)
   })
@@ -61,7 +69,7 @@ describe("default tab kind pref", () => {
     expect(readLastTabKind()).toBe("chat")
   })
 
-  it("reads only an exact \"terminal\" as terminal", () => {
+  it('reads only an exact "terminal" as terminal', () => {
     stubWindow({ "agent-last-tab-kind": "terminal" })
     expect(readLastTabKind()).toBe("terminal")
 

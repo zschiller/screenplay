@@ -38,8 +38,8 @@ export async function GET(req: Request) {
       .where(
         and(
           eq(agentPendingToolCall.chatId, chatId),
-          eq(agentPendingToolCall.toolName, "submit_plan"),
-        ),
+          eq(agentPendingToolCall.toolName, "submit_plan")
+        )
       ),
   ])
 
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
 function convertMessage(
   m: ModelMessage,
   planStatuses: Map<string, "pending" | "approved" | "rejected">,
-  out: AgentMessage[],
+  out: AgentMessage[]
 ): void {
   switch (m.role) {
     case "user": {

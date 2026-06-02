@@ -41,21 +41,21 @@ describe("parseFrontmatter", () => {
 
   it("throws when the frontmatter block is missing", () => {
     expect(() => parseFrontmatter("# Just a doc\n", "x/SKILL.md")).toThrow(
-      /missing a YAML frontmatter block/,
+      /missing a YAML frontmatter block/
     )
   })
 
   it("throws when name is missing", () => {
     const raw = ["---", "description: No name here.", "---", "body"].join("\n")
     expect(() => parseFrontmatter(raw, "x")).toThrow(
-      /must declare both "name" and "description"/,
+      /must declare both "name" and "description"/
     )
   })
 
   it("throws when description is missing", () => {
     const raw = ["---", "name: deploy", "---", "body"].join("\n")
     expect(() => parseFrontmatter(raw, "x")).toThrow(
-      /must declare both "name" and "description"/,
+      /must declare both "name" and "description"/
     )
   })
 

@@ -64,7 +64,7 @@ export class YjsCollection<T extends Record<string, unknown>> {
 
   constructor(
     private readonly doc: Y.Doc,
-    private readonly map: Y.Map<AnyMap>,
+    private readonly map: Y.Map<AnyMap>
   ) {}
 
   has(id: string): boolean {
@@ -164,7 +164,7 @@ export class YjsSingleton<T extends Record<string, unknown>> {
   constructor(
     private readonly doc: Y.Doc,
     private readonly parent: AnyMap,
-    private readonly field: string,
+    private readonly field: string
   ) {}
 
   get(): T | null {
@@ -243,35 +243,35 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     doc,
     repos: new YjsCollection<RepoData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.repos),
+      ensureCollection(doc, COLLECTION_KEYS.repos)
     ),
     branches: new YjsCollection<BranchData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.branches),
+      ensureCollection(doc, COLLECTION_KEYS.branches)
     ),
     iframeLayers: new YjsCollection<IframeLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.iframeLayers),
+      ensureCollection(doc, COLLECTION_KEYS.iframeLayers)
     ),
     iframeLayerGroups: new YjsCollection<IframeLayerGroupData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups),
+      ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups)
     ),
     markdownLayers: new YjsCollection<MarkdownLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.markdownLayers),
+      ensureCollection(doc, COLLECTION_KEYS.markdownLayers)
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.chatSessions),
+      ensureCollection(doc, COLLECTION_KEYS.chatSessions)
     ),
     plans: new YjsCollection<PlanData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.plans),
+      ensureCollection(doc, COLLECTION_KEYS.plans)
     ),
     commentPositions: new YjsCollection<CommentPosition>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.commentPositions),
+      ensureCollection(doc, COLLECTION_KEYS.commentPositions)
     ),
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),
@@ -295,7 +295,10 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
 function migrateLegacyGroups(c: RoomCollections): void {
   const doc = c.doc
   const iframeLayersMap = ensureCollection(doc, COLLECTION_KEYS.iframeLayers)
-  const markdownLayersMap = ensureCollection(doc, COLLECTION_KEYS.markdownLayers)
+  const markdownLayersMap = ensureCollection(
+    doc,
+    COLLECTION_KEYS.markdownLayers
+  )
   const groupsMap = ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups)
 
   const referenced = new Set<string>()
@@ -304,7 +307,8 @@ function migrateLegacyGroups(c: RoomCollections): void {
       | Array<{ kind: string; id: string }>
       | undefined
     if (Array.isArray(members) && members.length > 0) {
-      for (const m of members) if (m && typeof m.id === "string") referenced.add(m.id)
+      for (const m of members)
+        if (m && typeof m.id === "string") referenced.add(m.id)
     }
   })
 
@@ -334,7 +338,8 @@ function migrateLegacyGroups(c: RoomCollections): void {
 
   // Collect groups missing a name so we can back-fill. Sort by the sidebar
   // ordering they'd render in so the auto-numbering matches the user's view.
-  const unnamed: Array<{ id: string; sidebarOrder: number; docIdx: number }> = []
+  const unnamed: Array<{ id: string; sidebarOrder: number; docIdx: number }> =
+    []
   let docIdx = 0
   let maxNumber = 0
   groupsMap.forEach((groupMap, id) => {
@@ -353,7 +358,8 @@ function migrateLegacyGroups(c: RoomCollections): void {
     docIdx++
   })
   unnamed.sort((a, b) => {
-    if (a.sidebarOrder !== b.sidebarOrder) return a.sidebarOrder - b.sidebarOrder
+    if (a.sidebarOrder !== b.sidebarOrder)
+      return a.sidebarOrder - b.sidebarOrder
     if (a.docIdx !== b.docIdx) return a.docIdx - b.docIdx
     return a.id.localeCompare(b.id)
   })
@@ -382,7 +388,9 @@ function migrateLegacyGroups(c: RoomCollections): void {
         x: orphan.x,
         y: orphan.y,
         members: [{ kind: "iframe-layer", id: orphan.id }],
-        ...(orphan.sidebarOrder !== undefined ? { sidebarOrder: orphan.sidebarOrder } : {}),
+        ...(orphan.sidebarOrder !== undefined
+          ? { sidebarOrder: orphan.sidebarOrder }
+          : {}),
       })
       const layer = iframeLayersMap.get(orphan.id)
       if (layer) {

@@ -10,7 +10,11 @@ describe("applyTextEdit", () => {
       newString: "2",
     })
 
-    expect(result).toEqual({ ok: true, content: "const x = 2", replacements: 1 })
+    expect(result).toEqual({
+      ok: true,
+      content: "const x = 2",
+      replacements: 1,
+    })
   })
 
   it("reports not_found when the old string is absent", () => {

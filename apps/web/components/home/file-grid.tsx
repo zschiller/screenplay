@@ -47,7 +47,10 @@ function FileCard({ file }: { file: RoomSummary }) {
             {file.name}
           </a>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>Edited {formatDistanceToNow(file.lastConnectionAt ?? file.createdAt)}</span>
+            <span>
+              Edited{" "}
+              {formatDistanceToNow(file.lastConnectionAt ?? file.createdAt)}
+            </span>
             {!file.isOwner && (
               <>
                 <span>·</span>

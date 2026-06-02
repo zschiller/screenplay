@@ -27,7 +27,13 @@ interface GroupLabelProps {
  * leftmost item in a multi-member group. Shared between `IframeLayer` and
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
-export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, onRename }: GroupLabelProps) {
+export function GroupLabel({
+  label,
+  groupSelected,
+  onSelectGroup,
+  dragHandlers,
+  onRename,
+}: GroupLabelProps) {
   if (onSelectGroup) {
     const dragPointerDown = dragHandlers?.onPointerDown as
       | ((e: React.PointerEvent) => void)
@@ -41,7 +47,9 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
       onSelectGroup(e.shiftKey)
       dragPointerDown?.(e)
     }
-    const colorClass = groupSelected ? "text-fuchsia-500" : "text-muted-foreground"
+    const colorClass = groupSelected
+      ? "text-fuchsia-500"
+      : "text-muted-foreground"
 
     if (onRename) {
       // Match the frame-label structure exactly: EditableText as a direct
@@ -50,7 +58,7 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
       // slot to scroll inside.
       return (
         <div
-          className="mb-0.5 flex items-center max-w-full"
+          className="mb-0.5 flex max-w-full items-center"
           {...dragHandlers}
           onPointerDown={handleSelectPointerDown}
           onClick={(e) => {
@@ -62,7 +70,7 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
             value={label}
             onCommit={onRename}
             placeholder="Group"
-            className={cn("text-xs font-medium min-w-[0.75em]", colorClass)}
+            className={cn("min-w-[0.75em] text-xs font-medium", colorClass)}
             viewClassName="truncate cursor-grab active:cursor-grabbing"
             editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
           />
@@ -74,8 +82,8 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
       <button
         type="button"
         className={cn(
-          "mb-0.5 text-xs font-medium truncate min-w-0 cursor-grab active:cursor-grabbing outline-none",
-          colorClass,
+          "mb-0.5 min-w-0 cursor-grab truncate text-xs font-medium outline-none active:cursor-grabbing",
+          colorClass
         )}
         {...dragHandlers}
         onPointerDown={handleSelectPointerDown}
@@ -90,8 +98,8 @@ export function GroupLabel({ label, groupSelected, onSelectGroup, dragHandlers, 
   return (
     <div
       className={cn(
-        "mb-0.5 text-xs font-medium truncate min-w-0",
-        groupSelected ? "text-fuchsia-500" : "text-muted-foreground",
+        "mb-0.5 min-w-0 truncate text-xs font-medium",
+        groupSelected ? "text-fuchsia-500" : "text-muted-foreground"
       )}
     >
       {label}

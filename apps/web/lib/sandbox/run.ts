@@ -27,7 +27,7 @@ export class SandboxStepError extends Error {
   constructor(
     readonly cmd: string,
     readonly exitCode: number,
-    readonly stderr: string,
+    readonly stderr: string
   ) {
     super(`Command \`${cmd}\` failed (exit ${exitCode}): ${stderr}`)
     this.name = "SandboxStepError"
@@ -42,13 +42,16 @@ export class SandboxStepError extends Error {
 export async function step(
   sandbox: SandboxInstance,
   cmd: string,
-  args: string[] = [],
+  args: string[] = []
 ): Promise<SandboxCommandResult> {
   const result = await sandbox.runCommand(cmd, args)
   if (result.exitCode !== 0) {
     // Redact before truncating: slicing first could split a token across the
     // cut and leave a fragment the patterns no longer match.
-    const stderr = redactSensitiveInfo(await result.stderr()).slice(0, MAX_STDERR_LENGTH)
+    const stderr = redactSensitiveInfo(await result.stderr()).slice(
+      0,
+      MAX_STDERR_LENGTH
+    )
     throw new SandboxStepError(cmd, result.exitCode, stderr)
   }
   return result
@@ -61,7 +64,7 @@ export async function step(
  */
 export async function runSandboxAction<T>(
   name: string,
-  fn: (sandbox: SandboxInstance) => Promise<T>,
+  fn: (sandbox: SandboxInstance) => Promise<T>
 ): Promise<SandboxActionResult<T>> {
   try {
     const sandbox = await sandboxProvider.get({ name })

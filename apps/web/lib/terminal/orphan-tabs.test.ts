@@ -18,7 +18,7 @@ describe("partitionTerminalsByBranch", () => {
     const tabs = [tab("a", "branch-1"), tab("b", "gone"), tab("c", "branch-2")]
     const { kept, orphaned } = partitionTerminalsByBranch(
       tabs,
-      new Set(["branch-1", "branch-2"]),
+      new Set(["branch-1", "branch-2"])
     )
     expect(kept.map((t) => t.id)).toEqual(["a", "c"])
     expect(orphaned.map((t) => t.id)).toEqual(["b"])
@@ -35,7 +35,7 @@ describe("partitionTerminalsByBranch", () => {
     const tabs = [tab("a", "branch-1")]
     const { kept, orphaned } = partitionTerminalsByBranch(
       tabs,
-      new Set(["branch-1"]),
+      new Set(["branch-1"])
     )
     expect(kept.map((t) => t.id)).toEqual(["a"])
     expect(orphaned).toEqual([])
@@ -50,7 +50,7 @@ describe("partitionTerminalsByBranch", () => {
     ]
     const { kept, orphaned } = partitionTerminalsByBranch(
       tabs,
-      new Set(["live"]),
+      new Set(["live"])
     )
     expect(kept.map((t) => t.id)).toEqual(["a", "c"])
     expect(orphaned.map((t) => t.id)).toEqual(["b", "d"])

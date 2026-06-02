@@ -59,7 +59,7 @@ function loadAllSkills(): Map<string, LoadedSkill> {
     if (!skill) continue
     if (skill.metadata.name !== entry) {
       throw new Error(
-        `Skill at ${skillDir} declares name="${skill.metadata.name}" but lives in directory "${entry}". Names must match.`,
+        `Skill at ${skillDir} declares name="${skill.metadata.name}" but lives in directory "${entry}". Names must match.`
       )
     }
     out.set(skill.metadata.name, skill)

@@ -20,7 +20,7 @@ import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 
 export async function listThreadsAction(
-  roomId: string,
+  roomId: string
 ): Promise<ThreadWithComments[]> {
   const userId = await requireUserId()
   await requireMember(roomId, userId)
@@ -114,7 +114,11 @@ export async function appendCommentAction(opts: {
   await requireMembershipForThread(opts.threadId, userId)
   const trimmed = opts.body.trim()
   if (!trimmed) throw new Error("Comment body is required")
-  return appendComment({ threadId: opts.threadId, authorId: userId, body: trimmed })
+  return appendComment({
+    threadId: opts.threadId,
+    authorId: userId,
+    body: trimmed,
+  })
 }
 
 export async function editCommentAction(opts: {
@@ -124,7 +128,11 @@ export async function editCommentAction(opts: {
   const userId = await requireUserId()
   const trimmed = opts.body.trim()
   if (!trimmed) throw new Error("Comment body is required")
-  await editCommentFn({ commentId: opts.commentId, authorId: userId, body: trimmed })
+  await editCommentFn({
+    commentId: opts.commentId,
+    authorId: userId,
+    body: trimmed,
+  })
 }
 
 export async function deleteCommentAction(opts: {

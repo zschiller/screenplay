@@ -55,7 +55,7 @@ export function RepoPicker({ configs, onSelect }: RepoPickerProps) {
     .sort((a, b) =>
       a.repoFullName === b.repoFullName
         ? a.name.localeCompare(b.name)
-        : a.repoFullName.localeCompare(b.repoFullName),
+        : a.repoFullName.localeCompare(b.repoFullName)
     )
   const otherRepos = repos.filter((r) => !configsByRepo.has(r.fullName))
   const showGroups = (configs?.length ?? 0) > 0
@@ -68,7 +68,9 @@ export function RepoPicker({ configs, onSelect }: RepoPickerProps) {
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-4">
               <Spinner className="size-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading repositories…</span>
+              <span className="text-sm text-muted-foreground">
+                Loading repositories…
+              </span>
             </div>
           ) : (
             "No repositories found."
@@ -90,7 +92,10 @@ export function RepoPicker({ configs, onSelect }: RepoPickerProps) {
                   <span className="truncate">
                     {config.repoFullName}
                     {config.name ? (
-                      <span className="text-muted-foreground"> · {config.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {config.name}
+                      </span>
                     ) : null}
                   </span>
                 </CommandItem>

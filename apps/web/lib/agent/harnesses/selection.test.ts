@@ -17,7 +17,7 @@ import {
  */
 function provider(
   key: string,
-  egress: ReturnType<ModelProvider["egress"]>,
+  egress: ReturnType<ModelProvider["egress"]>
 ): ModelProvider {
   return {
     key,
@@ -53,7 +53,7 @@ describe("selectHarnesses", () => {
 
   it("yields none for an empty / whitespace-only value", () => {
     expect(selectHarnesses("   ", [anthropicConfigured]).installable).toEqual(
-      [],
+      []
     )
   })
 
@@ -184,7 +184,9 @@ describe("buildBrokeredEnv", () => {
 })
 
 describe("resolveLaunchArgv", () => {
-  const installable = selectHarnesses("claude-code", [anthropicConfigured]).installable
+  const installable = selectHarnesses("claude-code", [
+    anthropicConfigured,
+  ]).installable
 
   it("resolves an installed harness key → its launch command wrapped for Ctrl-D-to-shell", () => {
     // The harness is wrapped so quitting it (Ctrl-D) `exec`s a login shell in

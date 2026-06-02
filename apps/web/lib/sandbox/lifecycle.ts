@@ -4,7 +4,11 @@ import { getModelProviders } from "@/lib/agent/providers"
 import { buildBrokeredEnv, selectHarnesses } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
-import { isSandboxRunning, sandboxProvider, supportsHibernation } from "@/lib/sandbox"
+import {
+  isSandboxRunning,
+  sandboxProvider,
+  supportsHibernation,
+} from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   PROXY_PORT_OFFSET,
@@ -63,10 +67,13 @@ export async function removeSandboxEnv(sandboxName: string): Promise<void> {
  * no-op (success) rather than an error.
  */
 export async function keepAliveSandbox(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<SandboxActionResult<void>> {
   try {
-    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
     if (!supportsHibernation(sandbox)) {
       // No auto-stop timer to push back — nothing to keep alive.
       return { success: true, value: undefined }
@@ -100,8 +107,10 @@ export async function keepAliveSandbox(
  */
 export async function reconnectSandbox(
   sandboxName: string,
-  repo: RepoData,
-): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
+  repo: RepoData
+): Promise<
+  SandboxActionResult<{ sandboxName: string; previewDomain: string }>
+> {
   const port = repo.devServerPort
   let check
   try {
@@ -109,7 +118,10 @@ export async function reconnectSandbox(
     // we don't spawn a duplicate dev server.
     check = await sandboxProvider.get({ name: sandboxName, resume: false })
   } catch (e) {
-    return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
   }
 
   if (isSandboxRunning(check)) {
@@ -127,7 +139,12 @@ export async function reconnectSandbox(
   // it) and redacts any failure on the way out.
   const safeEnv = await getEnvVars(sandboxName)
   return runSandboxAction(sandboxName, async (sandbox) => {
-    const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
+    const previewDomain = await launchDevAndProxy(
+      sandbox,
+      port,
+      repo.devScript,
+      safeEnv
+    )
     return { sandboxName: sandbox.name, previewDomain }
   })
 }
@@ -154,8 +171,10 @@ export async function restartSandbox(
   sandboxName: string,
   repo: RepoData,
   branch: string,
-  ghToken?: string,
-): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
+  ghToken?: string
+): Promise<
+  SandboxActionResult<{ sandboxName: string; previewDomain: string }>
+> {
   try {
     const safeEnv = await getEnvVars(sandboxName)
     const port = repo.devServerPort
@@ -168,7 +187,10 @@ export async function restartSandbox(
     // snapshotId is captured.
     let snapshotId: string | undefined
     try {
-      const old = await sandboxProvider.get({ name: sandboxName, resume: false })
+      const old = await sandboxProvider.get({
+        name: sandboxName,
+        resume: false,
+      })
       // Only a hibernating provider can capture a snapshot; a portable one
       // leaves snapshotId unset and falls through to the reclone path below.
       if (supportsHibernation(old)) {
@@ -195,7 +217,10 @@ export async function restartSandbox(
     // setup/install/configure pipeline entirely.
     const providers = getModelProviders()
     const networkPolicy = buildNetworkPolicy(providers)
-    const installable = selectHarnesses(process.env.SANDBOX_HARNESSES, providers).installable
+    const installable = selectHarnesses(
+      process.env.SANDBOX_HARNESSES,
+      providers
+    ).installable
     const mergedEnv = { ...buildBrokeredEnv(installable), ...(safeEnv ?? {}) }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
@@ -208,9 +233,20 @@ export async function restartSandbox(
       networkPolicy,
     })
 
-    const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, safeEnv)
-    return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
+    const previewDomain = await launchDevAndProxy(
+      sandbox,
+      port,
+      repo.devScript,
+      safeEnv
+    )
+    return {
+      success: true,
+      value: { sandboxName: sandbox.name, previewDomain },
+    }
   } catch (e) {
-    return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
   }
 }

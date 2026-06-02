@@ -6,7 +6,7 @@ import { broadcastChatEventViaDoc } from "@/lib/yjs/server"
 export async function broadcastEvent(
   roomId: string,
   chatId: string,
-  event: AgentStreamEvent,
+  event: AgentStreamEvent
 ): Promise<void> {
   try {
     await broadcastChatEventViaDoc(roomId, {
@@ -22,7 +22,7 @@ export async function broadcastEvent(
 export async function broadcastSignal(
   roomId: string,
   chatId: string,
-  signal: "chat-stream-start" | "chat-stream-end",
+  signal: "chat-stream-start" | "chat-stream-end"
 ): Promise<void> {
   try {
     await broadcastChatEventViaDoc(roomId, { type: signal, chatId })
@@ -46,7 +46,7 @@ export class StreamBroadcaster {
 
   constructor(
     private readonly roomId: string,
-    private readonly chatId: string,
+    private readonly chatId: string
   ) {}
 
   async onTextDelta(textId: string, delta: string): Promise<void> {
@@ -92,6 +92,9 @@ export class StreamBroadcaster {
   }
 
   async onUserMessage(text: string): Promise<void> {
-    await broadcastEvent(this.roomId, this.chatId, { type: "user_message", text })
+    await broadcastEvent(this.roomId, this.chatId, {
+      type: "user_message",
+      text,
+    })
   }
 }

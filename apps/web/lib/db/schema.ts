@@ -102,7 +102,7 @@ export const roomMember = pgTable(
   (t) => [
     primaryKey({ columns: [t.roomId, t.userId] }),
     index("room_member_user_idx").on(t.userId),
-  ],
+  ]
 )
 
 import { doublePrecision } from "drizzle-orm/pg-core"
@@ -158,7 +158,7 @@ export const thread = pgTable(
     index("thread_room_idx").on(t.roomId),
     index("thread_room_branch_idx").on(t.roomId, t.branch),
     index("thread_document_idx").on(t.documentId),
-  ],
+  ]
 )
 
 export const comment = pgTable(
@@ -175,7 +175,7 @@ export const comment = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     editedAt: timestamp("edited_at"),
   },
-  (t) => [index("comment_thread_idx").on(t.threadId)],
+  (t) => [index("comment_thread_idx").on(t.threadId)]
 )
 
 // Per-user thread read tracking. A thread is unread for user U when no row
@@ -195,7 +195,7 @@ export const threadRead = pgTable(
   (t) => [
     primaryKey({ columns: [t.threadId, t.userId] }),
     index("thread_read_user_idx").on(t.userId),
-  ],
+  ]
 )
 
 // Agent persistence — backs the streamText tool loop in lib/agent/engine.ts.
@@ -216,7 +216,7 @@ export const agentChat = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("agent_chat_room_idx").on(t.roomId)],
+  (t) => [index("agent_chat_room_idx").on(t.roomId)]
 )
 
 // Append-only UIMessage log. Stored as a single JSONB blob per message so we
@@ -232,7 +232,7 @@ export const agentMessage = pgTable(
     message: jsonb("message").$type<ModelMessage>().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)],
+  (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)]
 )
 
 // Tracks a ToolLoopAgent invocation through its lifecycle. The run-state
@@ -267,7 +267,7 @@ export const agentRun = pgTable(
     startedAt: timestamp("started_at").notNull().defaultNow(),
     endedAt: timestamp("ended_at"),
   },
-  (t) => [index("agent_run_chat_idx").on(t.chatId, t.startedAt)],
+  (t) => [index("agent_run_chat_idx").on(t.chatId, t.startedAt)]
 )
 
 // Captures a tool call that's waiting on the user (currently only
@@ -299,7 +299,7 @@ export const agentPendingToolCall = pgTable(
   (t) => [
     index("agent_pending_tool_call_chat_idx").on(t.chatId, t.status),
     index("agent_pending_tool_call_run_idx").on(t.runId, t.status),
-  ],
+  ]
 )
 
 // Persisted terminal tabs (#258). One row per open terminal tab, keyed by
@@ -336,6 +336,5 @@ export const terminalTab = pgTable(
   },
   (t) => [
     index("terminal_tab_user_room_branch_idx").on(t.userId, t.roomId, t.branch),
-  ],
+  ]
 )
-

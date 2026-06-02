@@ -38,9 +38,7 @@ export function PlayerChatHost({
   const allChatSessions = useChatSessions()
   const agent = agents.find((a) => a.id === agentId)
   const chatSessions = allChatSessions.filter((c) => c.branchId === agentId)
-  const repo = agent
-    ? collections.repos.toMap().get(agent.repoId)
-    : undefined
+  const repo = agent ? collections.repos.toMap().get(agent.repoId) : undefined
   const diffStats = useDiffStats(agents, repo ? [repo] : [])
   const branchPrs = useBranchPrs(agents, repo ? [repo] : [])
 
@@ -50,28 +48,28 @@ export function PlayerChatHost({
     (id: string, data: Partial<ChatSessionData>) => {
       collections.chatSessions.update(id, data)
     },
-    [collections],
+    [collections]
   )
 
   const addChatSession = useCallback(
     (id: string, data: ChatSessionData) => {
       collections.chatSessions.set(id, data)
     },
-    [collections],
+    [collections]
   )
 
   const removeChatSession = useCallback(
     (id: string) => {
       collections.chatSessions.delete(id)
     },
-    [collections],
+    [collections]
   )
 
   const updateAgent = useCallback(
-    (id: string, data: Partial<typeof agents[number]>) => {
+    (id: string, data: Partial<(typeof agents)[number]>) => {
       collections.branches.update(id, data)
     },
-    [collections],
+    [collections]
   )
 
   // Feed broadcast events into the chat store so the chat tabs stream
@@ -122,7 +120,7 @@ export function PlayerChatHost({
     (chatId: string, label: string) => {
       updateChatSession(chatId, { label })
     },
-    [updateChatSession],
+    [updateChatSession]
   )
 
   const handleCloseChat = useCallback(
@@ -147,14 +145,14 @@ export function PlayerChatHost({
         setSelectedChatId(siblings[0]?.id ?? null)
       }
     },
-    [selectedChatId, chatSessions, updateChatSession, addChatSession],
+    [selectedChatId, chatSessions, updateChatSession, addChatSession]
   )
 
   const handleReopenChat = useCallback(
     (chatId: string) => {
       updateChatSession(chatId, { closedAt: 0 })
     },
-    [updateChatSession],
+    [updateChatSession]
   )
 
   const handleRemoveChat = useCallback(
@@ -171,7 +169,7 @@ export function PlayerChatHost({
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
-    [selectedChatId, chatSessions, removeChatSession],
+    [selectedChatId, chatSessions, removeChatSession]
   )
 
   const handleBranchRename = useCallback(
@@ -198,11 +196,11 @@ export function PlayerChatHost({
         repo,
         agent.sandboxName,
         previousBranch,
-        newBranch,
+        newBranch
       )
       if (!result.success) updateAgent(agent.id, { ref: previousBranch })
     },
-    [agent, repo, updateAgent],
+    [agent, repo, updateAgent]
   )
 
   if (!agent) {
@@ -246,9 +244,7 @@ export function PlayerChatHost({
       onPlanModeChange={(chatId, planMode) =>
         updateChatSession(chatId, { planMode })
       }
-      onModelChange={(chatId, model) =>
-        updateChatSession(chatId, { model })
-      }
+      onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
       diffStats={diffStats.get(agent.id)}
       branchPr={branchPrs.get(agent.id) ?? null}
       onCollapse={onCollapse}

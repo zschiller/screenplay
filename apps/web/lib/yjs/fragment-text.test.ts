@@ -31,7 +31,7 @@ describe("documentFragment", () => {
     const doc = new Y.Doc()
 
     expect(documentFragment(doc, "doc-1")).toBe(
-      doc.getXmlFragment("markdown-layer-doc-1"),
+      doc.getXmlFragment("markdown-layer-doc-1")
     )
   })
 })

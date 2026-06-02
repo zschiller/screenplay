@@ -46,13 +46,19 @@ import { runSandboxAction, SandboxStepError, step } from "@/lib/sandbox/run"
  * everything else throws so an accidental dependency is loud, not silent.
  */
 function fakeSandbox(
-  respond: (cmd: string, args: string[]) => { exitCode: number; stdout?: string; stderr?: string },
+  respond: (
+    cmd: string,
+    args: string[]
+  ) => { exitCode: number; stdout?: string; stderr?: string }
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -114,9 +120,14 @@ describe("step", () => {
   })
 
   it("throws SandboxStepError on a non-zero exit", async () => {
-    const sandbox = fakeSandbox(() => ({ exitCode: 1, stderr: "fatal: not a git repository" }))
+    const sandbox = fakeSandbox(() => ({
+      exitCode: 1,
+      stderr: "fatal: not a git repository",
+    }))
 
-    await expect(step(sandbox, "git", ["status"])).rejects.toBeInstanceOf(SandboxStepError)
+    await expect(step(sandbox, "git", ["status"])).rejects.toBeInstanceOf(
+      SandboxStepError
+    )
   })
 
   it("redacts a GitHub token out of the error it carries", async () => {
@@ -126,7 +137,9 @@ describe("step", () => {
       stderr: `fatal: unable to access 'https://x-access-token:${token}@github.com/o/r': 403`,
     }))
 
-    const error = await step(sandbox, "git", ["fetch"]).catch((e) => e as SandboxStepError)
+    const error = await step(sandbox, "git", ["fetch"]).catch(
+      (e) => e as SandboxStepError
+    )
 
     expect(error).toBeInstanceOf(SandboxStepError)
     expect(error.stderr).not.toContain(token)
@@ -134,9 +147,14 @@ describe("step", () => {
   })
 
   it("truncates very long stderr", async () => {
-    const sandbox = fakeSandbox(() => ({ exitCode: 1, stderr: "x".repeat(10_000) }))
+    const sandbox = fakeSandbox(() => ({
+      exitCode: 1,
+      stderr: "x".repeat(10_000),
+    }))
 
-    const error = await step(sandbox, "npm", ["install"]).catch((e) => e as SandboxStepError)
+    const error = await step(sandbox, "npm", ["install"]).catch(
+      (e) => e as SandboxStepError
+    )
 
     expect(error.stderr.length).toBeLessThan(10_000)
   })

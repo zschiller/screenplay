@@ -38,7 +38,10 @@ export function CursorChat({
       className="pointer-events-none absolute z-[10000]"
       style={{ left: screenX, top: screenY }}
     >
-      <div className="pointer-events-auto ml-3 mt-1 flex items-center rounded-2xl rounded-tl-none px-2.5 py-1 shadow-md" style={{ backgroundColor: color }}>
+      <div
+        className="pointer-events-auto mt-1 ml-3 flex items-center rounded-2xl rounded-tl-none px-2.5 py-1 shadow-md"
+        style={{ backgroundColor: color }}
+      >
         <input
           ref={inputRef}
           type="text"
@@ -57,7 +60,7 @@ export function CursorChat({
             e.stopPropagation()
           }}
           onBlur={onClose}
-          className="w-48 bg-transparent text-xs text-white placeholder:text-white/70 outline-none"
+          className="w-48 bg-transparent text-xs text-white outline-none placeholder:text-white/70"
         />
       </div>
     </div>

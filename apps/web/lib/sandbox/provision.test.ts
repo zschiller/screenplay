@@ -66,7 +66,10 @@ function configuredAnthropic(): ModelProvider {
     resolve: () => {
       throw new Error("stub provider: resolve should not be called")
     },
-    egress: () => ({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+    egress: () => ({
+      host: "api.anthropic.com",
+      headers: { "x-api-key": "real-key" },
+    }),
   }
 }
 
@@ -74,7 +77,9 @@ function configuredAnthropic(): ModelProvider {
 // env vars. Both need a request context / KV we don't have under plain Node —
 // stub them so the action's create + result shaping is what's under test.
 const getUserId = vi.hoisted(() => vi.fn(async () => null as string | null))
-const getGitHubToken = vi.hoisted(() => vi.fn(async () => null as string | null))
+const getGitHubToken = vi.hoisted(() =>
+  vi.fn(async () => null as string | null)
+)
 vi.mock("@/lib/auth-helpers", () => ({ getUserId, getGitHubToken }))
 
 const storeEnvVars = vi.hoisted(() => vi.fn(async () => {}))
@@ -102,7 +107,11 @@ import {
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 
 /** A `runCommand` invocation captured by the fake sandbox for path-seam asserts. */
-type RecordedCall = { cmd: string; args: string[]; env?: Record<string, string> }
+type RecordedCall = {
+  cmd: string
+  args: string[]
+  env?: Record<string, string>
+}
 
 /**
  * Builds a fake {@link SandboxInstance} whose `runCommand` is scripted by
@@ -119,13 +128,16 @@ function fakeSandbox(
     homeDir?: string
     /** Records every `runCommand` (including its `env`) for path-seam asserts. */
     calls?: RecordedCall[]
-  } = {},
+  } = {}
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -198,7 +210,7 @@ describe("installDependencies", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     const result = await installDependencies("sandbox-a", "pnpm install")
@@ -214,7 +226,7 @@ describe("installDependencies", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     await installDependencies("sandbox-a")
@@ -231,7 +243,11 @@ describe("installDependencies", () => {
 
 /** True for the global Claude Code install command. */
 function isClaudeInstall(cmd: string, args: string[]): boolean {
-  return cmd === "npm" && args.includes("-g") && args.includes("@anthropic-ai/claude-code")
+  return (
+    cmd === "npm" &&
+    args.includes("-g") &&
+    args.includes("@anthropic-ai/claude-code")
+  )
 }
 
 describe("installHarnesses", () => {
@@ -242,7 +258,7 @@ describe("installHarnesses", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
@@ -258,14 +274,16 @@ describe("installHarnesses", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     const result = await installHarnesses("sandbox-a", [])
 
     expect(result).toEqual({ success: true, value: undefined })
     // Nothing is installed when the selection resolves to no harnesses.
-    expect(seen.some((c) => isClaudeInstall(c.split(" ")[0]!, c.split(" ").slice(1)))).toBe(false)
+    expect(
+      seen.some((c) => isClaudeInstall(c.split(" ")[0]!, c.split(" ").slice(1)))
+    ).toBe(false)
   })
 
   it("installs nothing (success) when the broker provider isn't configured", async () => {
@@ -276,13 +294,15 @@ describe("installHarnesses", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
 
     expect(result).toEqual({ success: true, value: undefined })
-    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(false)
+    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(
+      false
+    )
   })
 
   it("reports failure truthfully when a global install exits non-zero", async () => {
@@ -291,8 +311,8 @@ describe("installHarnesses", () => {
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
           ? { exitCode: 1, stderr: "npm ERR! network timeout" }
-          : { exitCode: 0 },
-      ),
+          : { exitCode: 0 }
+      )
     )
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
@@ -308,8 +328,8 @@ describe("installHarnesses", () => {
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
           ? { exitCode: 1, stderr: `install failed using ${GH_TOKEN}` }
-          : { exitCode: 0 },
-      ),
+          : { exitCode: 0 }
+      )
     )
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
@@ -333,7 +353,7 @@ describe("installHarnesses", () => {
         worktreePath: "/workspace/repo",
         homeDir: "/home/agent",
         calls,
-      }),
+      })
     )
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
@@ -366,7 +386,7 @@ describe("installRipgrep", () => {
       fakeSandbox((cmd, args) => {
         seen.push(`${cmd} ${args.join(" ")}`)
         return { exitCode: 0 }
-      }),
+      })
     )
 
     await installRipgrep("sandbox-a")
@@ -375,7 +395,9 @@ describe("installRipgrep", () => {
   })
 
   it("reports success even when the install fails — it's best-effort", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 1, stderr: "no package manager" })))
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 1, stderr: "no package manager" }))
+    )
 
     const result = await installRipgrep("sandbox-a")
 
@@ -393,10 +415,13 @@ describe("cloneSandbox", () => {
       "main",
       3000,
       undefined,
-      "tok123",
+      "tok123"
     )
 
-    expect(result).toEqual({ success: true, value: { sandboxName: "fake-sandbox" } })
+    expect(result).toEqual({
+      success: true,
+      value: { sandboxName: "fake-sandbox" },
+    })
     expect(fake.createCalls).toHaveLength(1)
     expect(fake.createCalls[0]!.source).toEqual({
       type: "git",
@@ -432,7 +457,14 @@ describe("cloneSandbox", () => {
   it("returns a redacted failure result when creation throws", async () => {
     fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
 
-    const result = await cloneSandbox("sandbox-a", "url", "main", 3000, undefined, "tok")
+    const result = await cloneSandbox(
+      "sandbox-a",
+      "url",
+      "main",
+      3000,
+      undefined,
+      "tok"
+    )
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -457,12 +489,17 @@ describe("startDevServer", () => {
     // devserver port itself.
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "fake-sandbox", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
   })
 
   it("returns a failure result when the bridge install fails", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { writeError: "disk full" }))
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 0 }), { writeError: "disk full" })
+    )
 
     const result = await startDevServer("sandbox-a", 3000)
 
@@ -473,7 +510,9 @@ describe("startDevServer", () => {
 
   it("redacts a GitHub token out of a launch failure", async () => {
     fake.setInstance(
-      fakeSandbox(() => ({ exitCode: 0 }), { writeError: `write failed using ${GH_TOKEN}` }),
+      fakeSandbox(() => ({ exitCode: 0 }), {
+        writeError: `write failed using ${GH_TOKEN}`,
+      })
     )
 
     const result = await startDevServer("sandbox-a", 3000)
