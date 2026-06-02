@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-helpers"
-import { resolveLaunchArgv, selectHarnesses } from "@/lib/agent/harnesses"
+import {
+  parseHarnessKeys,
+  resolveLaunchArgv,
+  selectHarnesses,
+  unconfiguredBannerArgv,
+} from "@/lib/agent/harnesses"
 import { getModelProviders } from "@/lib/agent/providers"
 import { issueTerminalCredential } from "@/lib/sandbox/terminal-credential"
 import { ensureTerminal } from "@/lib/sandbox/terminal"
@@ -85,12 +90,24 @@ export async function POST(req: Request) {
   // `launchArgv` is the resolved launch command for *this* tab's stored
   // `harnessKey`, wrapped so Ctrl-D drops to a shell. An empty argv (no/unknown
   // key, or a harness no longer installed) means the tab opens a plain shell.
+  const sandboxHarnesses = process.env.SANDBOX_HARNESSES
   const installable = selectHarnesses(
-    process.env.SANDBOX_HARNESSES,
+    sandboxHarnesses,
     getModelProviders()
   ).installable
   const harnesses = installable.map((h) => ({ key: h.key, label: h.label }))
-  const launchArgv = resolveLaunchArgv(harnessKey, installable)
+  // When nothing is configured at all (SANDBOX_HARNESSES unset/empty), a tab that
+  // would open a bare shell instead shows a banner telling the operator to set
+  // SANDBOX_HARNESSES — so an empty config explains itself rather than presenting
+  // a silent blank shell. A tab whose harness launches (argv non-empty) never
+  // shows it; nor does a configured-but-this-tab-has-no-harness shell.
+  let launchArgv = resolveLaunchArgv(harnessKey, installable)
+  if (
+    launchArgv.length === 0 &&
+    parseHarnessKeys(sandboxHarnesses).length === 0
+  ) {
+    launchArgv = unconfiguredBannerArgv()
+  }
 
   return NextResponse.json(
     { url: result.value.url, ...credential, harnesses, launchArgv },

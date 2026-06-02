@@ -148,9 +148,10 @@ export async function installRipgrep(
 
 /**
  * Install one harness: a global `npm install -g <package>` followed by the
- * descriptor's `seed()`. The global install is load-bearing — a non-zero exit
- * throws (with redacted stderr) the same `SandboxStepError` the runner maps to
- * a failure result. The seed writes that follow are fire-and-forget.
+ * descriptor's `seed()`. A non-zero exit throws (with redacted stderr) the same
+ * `SandboxStepError` the runner uses; `installHarnesses` catches it per-harness
+ * so a single bad CLI is logged and swallowed rather than failing the install.
+ * The seed writes that follow are fire-and-forget.
  */
 async function installOneHarness(
   sandbox: SandboxInstance,
@@ -179,23 +180,48 @@ async function installOneHarness(
 /**
  * Install the operator-selected harnesses into a sandbox: a best-effort,
  * parallel fold over the installable descriptors resolved from `harnessKeys`
- * against the live provider registry (a key whose broker provider isn't
- * configured/brokerable is dropped). For each, run a global `npm install -g`
+ * against the live provider registry. For each, run a global `npm install -g`
  * then the descriptor's `seed()`. Replaces `installClaudeCode`.
  *
- * The per-harness install is load-bearing (a failed `npm install -g` surfaces a
- * redacted failure result); "best-effort" is a caller policy — the
- * `branch/create` route ignores the result. With no installable harnesses
- * (unset `SANDBOX_HARNESSES`, or none brokerable) this is a no-op success.
+ * Every operator-facing edge of a partial/empty config explains itself in the
+ * logs instead of silently producing a broken or bare Sandbox:
+ *
+ *  - A *skipped* harness — an unknown/typo'd key, or one whose broker provider is
+ *    unconfigured or non-brokerable (e.g. Gemini, whose `egress()` is null) — is
+ *    dropped by the selection fold with a log line, never a hard failure.
+ *  - A *failed* install is logged (redacted) and swallowed per-harness, so one
+ *    bad CLI can't dark the whole Sandbox: the others still install and the
+ *    action stays successful. "Best-effort" is the contract here, not just a
+ *    caller policy.
+ *
+ * With no installable harnesses (unset `SANDBOX_HARNESSES`, or none brokerable)
+ * this is a no-op success.
  */
 export async function installHarnesses(
   sandboxName: string,
   harnessKeys: string[]
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    const { installable } = resolveHarnesses(harnessKeys, getModelProviders())
+    const { installable, skipped } = resolveHarnesses(
+      harnessKeys,
+      getModelProviders()
+    )
+    for (const { key, reason } of skipped) {
+      console.warn(`[harness] skipped "${key}": ${reason}`)
+    }
     await Promise.all(
-      installable.map((harness) => installOneHarness(sandbox, harness))
+      installable.map(async (harness) => {
+        try {
+          await installOneHarness(sandbox, harness)
+        } catch (e) {
+          const message = redactSensitiveInfo(
+            e instanceof Error ? e.message : String(e)
+          )
+          console.warn(
+            `[harness] install failed for "${harness.key}": ${message}`
+          )
+        }
+      })
     )
   })
 }

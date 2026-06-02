@@ -73,6 +73,23 @@ function configuredAnthropic(): ModelProvider {
   }
 }
 
+/** A configured, header-brokerable OpenAI stub — the codex broker. */
+function configuredOpenai(): ModelProvider {
+  return {
+    key: "openai",
+    label: "OpenAI",
+    isConfigured: () => true,
+    listModels: async () => [],
+    resolve: () => {
+      throw new Error("stub provider: resolve should not be called")
+    },
+    egress: () => ({
+      host: "api.openai.com",
+      headers: { authorization: "Bearer real-openai-key" },
+    }),
+  }
+}
+
 // cloneSandbox falls back to the session's GitHub token and persists repo
 // env vars. Both need a request context / KV we don't have under plain Node —
 // stub them so the action's create + result shaping is what's under test.
@@ -305,8 +322,9 @@ describe("installHarnesses", () => {
     )
   })
 
-  it("reports failure truthfully when a global install exits non-zero", async () => {
+  it("logs and swallows a non-zero install (best-effort), leaving the action successful", async () => {
     getModelProviders.mockReturnValue([configuredAnthropic()])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     fake.setInstance(
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
@@ -315,15 +333,20 @@ describe("installHarnesses", () => {
       )
     )
 
+    // A failed CLI is best-effort: it must not fail the action (so the Sandbox
+    // stays up), but it must be logged so the failure isn't silent.
     const result = await installHarnesses("sandbox-a", ["claude-code"])
 
-    expect(result.success).toBe(false)
-    if (result.success) throw new Error("expected failure")
-    expect(result.error).toContain("npm ERR! network timeout")
+    expect(result).toEqual({ success: true, value: undefined })
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n")
+    expect(logged).toContain("claude-code")
+    expect(logged).toContain("npm ERR! network timeout")
+    warn.mockRestore()
   })
 
-  it("redacts a GitHub token out of an install failure", async () => {
+  it("redacts a GitHub token out of a logged install failure", async () => {
     getModelProviders.mockReturnValue([configuredAnthropic()])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     fake.setInstance(
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
@@ -334,10 +357,69 @@ describe("installHarnesses", () => {
 
     const result = await installHarnesses("sandbox-a", ["claude-code"])
 
-    expect(result.success).toBe(false)
-    if (result.success) throw new Error("expected failure")
-    expect(result.error).not.toContain(GH_TOKEN)
-    expect(result.error).toContain("[REDACTED]")
+    expect(result).toEqual({ success: true, value: undefined })
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n")
+    expect(logged).not.toContain(GH_TOKEN)
+    expect(logged).toContain("[REDACTED]")
+    warn.mockRestore()
+  })
+
+  it("logs a skipped harness (unknown key / unconfigured broker) without failing", async () => {
+    // anthropic configured ⇒ claude-code installs; "ghost" is unknown and
+    // "codex" has no broker (openai absent) ⇒ both skipped with a log line.
+    getModelProviders.mockReturnValue([configuredAnthropic()])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      })
+    )
+
+    const result = await installHarnesses("sandbox-a", [
+      "ghost",
+      "claude-code",
+      "codex",
+    ])
+
+    expect(result).toEqual({ success: true, value: undefined })
+    // The good harness still installs even though others were skipped.
+    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(true)
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n")
+    expect(logged).toContain("ghost")
+    expect(logged).toContain("codex")
+    warn.mockRestore()
+  })
+
+  it("installs the good harness even when another harness's install fails", async () => {
+    // Both brokers configured ⇒ both selected; codex's install exits non-zero.
+    // The bad CLI must not stop claude-code from installing (one bad harness
+    // can't dark the whole Sandbox).
+    getModelProviders.mockReturnValue([
+      configuredAnthropic(),
+      configuredOpenai(),
+    ])
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        const isCodexInstall =
+          cmd === "npm" && args.includes("-g") && args.includes("@openai/codex")
+        return isCodexInstall
+          ? { exitCode: 1, stderr: "boom" }
+          : { exitCode: 0 }
+      })
+    )
+
+    const result = await installHarnesses("sandbox-a", ["claude-code", "codex"])
+
+    expect(result).toEqual({ success: true, value: undefined })
+    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(true)
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n")
+    expect(logged).toContain("codex")
+    warn.mockRestore()
   })
 
   // Path-seam regression: the claude-code seed must follow the provider-supplied
