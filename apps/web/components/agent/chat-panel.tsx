@@ -10,7 +10,6 @@ import {
 } from "react"
 import {
   Plus,
-  Pencil,
   X,
   Archive,
   RotateCcw,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { EditableText } from "@workspace/ui/components/editable-text"
 import {
   Tabs,
   TabsContent,
@@ -149,7 +149,26 @@ function useChatStatus(chatId: string) {
   return { isStreaming, hasUnread }
 }
 
-function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
+// A tab's inline-rename field. ALL geometry — the padding and the negative
+// margins that cancel it — is reserved in BOTH modes (transparent in view) so
+// the box is identical whether or not we're editing. Entering edit mode then
+// only toggles paint (bg/shadow/ring), never layout, so the tab can't shift or
+// resize. The negative margins cancel the padding so the popped box doesn't
+// widen the tab's footprint.
+const TAB_LABEL_CLASS =
+  "max-w-[100px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
+// Edit-mode-only decoration. Uses theme tokens (not the sidebar rows' hardcoded
+// white) so it reads against the tab strip.
+const TAB_LABEL_EDIT_CLASS =
+  "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-background text-foreground shadow-sm ring-[0.5px] ring-border"
+
+function ChatTabLabel({
+  chat,
+  onRename,
+}: {
+  chat: ChatSessionData
+  onRename: (label: string) => void
+}) {
   const { isStreaming, hasUnread } = useChatStatus(chat.id)
   return (
     <span className="flex items-center gap-1.5">
@@ -158,7 +177,15 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
       ) : hasUnread ? (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
       ) : null}
-      <span className="max-w-[100px] truncate">{chat.label}</span>
+      <EditableText
+        as="span"
+        value={chat.label}
+        onCommit={onRename}
+        placeholder="Untitled"
+        className={TAB_LABEL_CLASS}
+        viewClassName="truncate"
+        editClassName={TAB_LABEL_EDIT_CLASS}
+      />
     </span>
   )
 }
@@ -169,10 +196,24 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
  * (ephemeral + BYO harness, not durable + shared chat). Reads no chat-store
  * status: a terminal tab has no streaming/unread conversation state.
  */
-function TerminalTabLabel({ terminal }: { terminal: TerminalTabData }) {
+function TerminalTabLabel({
+  terminal,
+  onRename,
+}: {
+  terminal: TerminalTabData
+  onRename: (label: string) => void
+}) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="max-w-[100px] truncate">{terminal.label}</span>
+      <EditableText
+        as="span"
+        value={terminal.label}
+        onCommit={onRename}
+        placeholder="Untitled"
+        className={TAB_LABEL_CLASS}
+        viewClassName="truncate"
+        editClassName={TAB_LABEL_EDIT_CLASS}
+      />
     </span>
   )
 }
@@ -568,35 +609,18 @@ export function ChatPanel({
                 className="group/tab relative min-w-[100px] px-2 py-1 pr-2 text-xs"
               >
                 {tab.kind === "terminal" ? (
-                  <TerminalTabLabel terminal={tab.terminal} />
+                  <TerminalTabLabel
+                    terminal={tab.terminal}
+                    onRename={(label) => onRenameChat(tab.id, label)}
+                  />
                 ) : (
-                  <ChatTabLabel chat={tab.chat} />
+                  <ChatTabLabel
+                    chat={tab.chat}
+                    onRename={(label) => onRenameChat(tab.id, label)}
+                  />
                 )}
                 <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
                   <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    title="Rename"
-                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const newLabel = prompt("Rename chat", tab.label)
-                      if (newLabel?.trim())
-                        onRenameChat(tab.id, newLabel.trim())
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        const newLabel = prompt("Rename chat", tab.label)
-                        if (newLabel?.trim())
-                          onRenameChat(tab.id, newLabel.trim())
-                      }
-                    }}
-                  >
-                    <Pencil className="size-3" />
-                  </span>
                   <span
                     role="button"
                     tabIndex={0}
@@ -803,6 +827,7 @@ export function ChatPanel({
               roomId={roomId}
               sandboxId={agent?.id}
               sandboxName={agent?.sandboxName}
+              sandboxStatus={agent?.status}
               branch={agent?.ref}
               markdownLayerId={
                 layerTarget?.layerKind === "markdown-layer"

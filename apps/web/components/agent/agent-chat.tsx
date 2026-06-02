@@ -29,9 +29,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import type { AgentMessage } from "@/lib/agent/types"
+import type { SandboxStatus } from "@/lib/types"
 import {
   buildReferencedDocsFooter,
   serializeMention,
@@ -170,6 +172,10 @@ interface AgentChatProps {
   /** Sandbox-backed target. Either this or `markdownLayerId` is set. */
   sandboxId?: string
   sandboxName?: string
+  /** The branch's sandbox lifecycle status. While it's creating/starting the
+   *  chat can't reach the agent yet, so we show the same provisioning spinner
+   *  the terminal does rather than a live input that would error on send. */
+  sandboxStatus?: SandboxStatus
   branch?: string
   /** Document-layer target. */
   markdownLayerId?: string
@@ -187,6 +193,7 @@ export function AgentChat({
   chatId,
   roomId,
   sandboxName,
+  sandboxStatus,
   branch,
   markdownLayerId,
   isFirstChat,
@@ -421,7 +428,7 @@ export function AgentChat({
     editorProps: {
       attributes: {
         class:
-          "tiptap min-h-[40px] max-h-48 overflow-y-auto px-3 py-2 text-xs focus:outline-none",
+          "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-3 text-xs focus:outline-none",
         "data-placeholder": composerPlaceholder,
       },
       handleKeyDown(_view, event) {
@@ -446,7 +453,20 @@ export function AgentChat({
   // configured provider set. The string is "" while the catalog is still
   // loading so the dropdown can render a "Loading…" placeholder rather than
   // a stale id from a different deployment's provider.
-  const effectiveModel = model ?? storedModel ?? serverDefaultModel ?? ""
+  const preferredModel = model ?? storedModel ?? serverDefaultModel ?? ""
+  // Guard against a stale preference: once the catalog has loaded, a
+  // preferred id that's no longer in it (e.g. the user's last-used model was
+  // retired when a newer one shipped) must not stick — fall back to the
+  // server default, then the first listed model, so the picker never sits on
+  // an invalid value. While the catalog is still loading we keep the
+  // preferred id so the "Loading…" placeholder behaviour is preserved.
+  const effectiveModel = (() => {
+    if (models.length === 0 || models.some((m) => m.id === preferredModel))
+      return preferredModel
+    if (serverDefaultModel && models.some((m) => m.id === serverDefaultModel))
+      return serverDefaultModel
+    return models[0]?.id ?? preferredModel
+  })()
 
   const handleModelChange = useCallback(
     (m: string) => {
@@ -513,6 +533,20 @@ export function AgentChat({
   }
 
   const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
+
+  // While the sandbox is still booting there's no agent to talk to yet — show
+  // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
+  // of a live composer whose first send would just error. Mirrors the copy and
+  // Spinner so a freshly-seeded chat tab and terminal tab read identically.
+  if (sandboxStatus === "creating" || sandboxStatus === "starting") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <Spinner className="size-4" /> Waiting for the sandbox to start…
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -698,7 +732,7 @@ function EmptyAwarePlaceholder({
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute top-0 left-0 px-3 py-2 text-xs text-muted-foreground">
+    <div className="pointer-events-none absolute top-0 left-0 px-2.5 py-3 text-xs text-muted-foreground">
       {text}
     </div>
   )

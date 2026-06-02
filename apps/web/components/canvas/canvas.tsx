@@ -2463,16 +2463,17 @@ export function Canvas({
   )
 
   /**
-   * Seed a freshly-created branch's default tab to the user's pref. A chat is
-   * left to the server (`ensureChatForBranch`), so the chat pref needs nothing
-   * here. A terminal pref is seeded client-side now (selection deferred until
-   * the sandbox is ready) and the server is told to skip the auto chat. Returns
-   * the `seedChat` flag to forward to the create API.
+   * Seed a freshly-created branch's default tab to the user's pref. Both kinds
+   * (chat or terminal) are seeded client-side now — selection deferred until the
+   * sandbox is ready — so the tab shows up immediately rather than only after
+   * the provisioning pipeline finishes (the chat pref used to wait on the
+   * server's `ensureChatForBranch`, leaving the branch tab-less in the meantime).
+   * Since the client always pre-seeds, the server is told to skip its auto chat.
+   * Returns the `seedChat` flag to forward to the create API.
    */
   const seedDefaultTabForNewBranch = useCallback(
     (branchId: string): boolean => {
-      if (readLastTabKind() !== "terminal") return true
-      createDefaultTabForBranch(branchId, "terminal", { select: false })
+      createDefaultTabForBranch(branchId, readLastTabKind(), { select: false })
       return false
     },
     [createDefaultTabForBranch]
