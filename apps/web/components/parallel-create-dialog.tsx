@@ -75,8 +75,18 @@ export function ParallelCreateDialog({
   // Stored model wins over the server default so a user who picked a model
   // last time keeps that choice; the server default is only used the first
   // time. Empty string until both stores have answered to avoid kicking off
-  // with a stale id.
-  const initialModel = (readStoredModel() ?? serverDefaultModel) || ""
+  // with a stale id. Once the catalog has loaded, a stored id that's no
+  // longer in it (e.g. retired when a newer model shipped) falls back to the
+  // server default, then the first listed model, so we never seed an invalid
+  // value into a row's picker.
+  const initialModel = (() => {
+    const preferred = readStoredModel() ?? serverDefaultModel ?? ""
+    if (models.length === 0 || models.some((m) => m.id === preferred))
+      return preferred
+    if (serverDefaultModel && models.some((m) => m.id === serverDefaultModel))
+      return serverDefaultModel
+    return models[0]?.id ?? preferred
+  })()
 
   // Reset rows whenever the dialog re-opens so reopening the dialog gives a
   // fresh starting state instead of stale prompts from the previous session.
