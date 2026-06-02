@@ -359,3 +359,28 @@ reconnect path.
   relaunches it on create — the same `-A` behavior the #259/#260 addenda rest
   on, now carrying a command. Two tabs on one Branch keep their isolated
   sessions.
+
+## Addendum (2026-06-02): unconfigured-skip logging + configure banner (slice #289)
+
+Closing the operator-facing edges so a partial or empty config explains itself
+instead of silently producing a broken or bare terminal. No new transport — both
+edges hang off the existing selection fold (#284) and `?arg=` launch (#285).
+
+- **Skips are logged, never fatal.** `installHarnesses` reads the selection
+  fold's `skipped[]` and logs each dropped harness with its reason — an
+  unknown/typo'd key, or a broker provider that's unconfigured or non-brokerable
+  (e.g. Gemini, whose `egress()` is null). A *failed* `npm install -g` is now
+  caught per-harness, logged (redacted), and swallowed, so one bad CLI can't dark
+  the whole Sandbox: the rest still install and the action stays successful.
+  "Best-effort" is the install path's own contract now, not just a policy the
+  `branch/create` caller enforced by ignoring the result.
+
+- **An unset `SANDBOX_HARNESSES` shows a configure banner.** `/api/terminal/url`
+  resolves a tab's launch argv as before; when that resolves to a bare shell
+  *and* nothing is configured at all (`parseHarnessKeys(SANDBOX_HARNESSES)` is
+  empty), it substitutes `unconfiguredBannerArgv()` — a login shell preceded by a
+  one-line banner telling the operator to set `SANDBOX_HARNESSES`. It rides the
+  same `?arg=` transport (`sh -c 'printf …; exec $SHELL'`, wrapped like a harness
+  launch) so the operator lands in a normal shell after the banner. A tab whose
+  harness launches never shows it, and neither does a configured-but-this-tab-has-
+  no-harness shell — the banner is strictly the empty-config signal.
