@@ -249,6 +249,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 # OPENAI_COMPATIBLE_API_KEY=...
 
+# --- BYO coding harnesses (terminal tabs) ---
+# Comma-separated catalog keys of external coding CLIs to install into each
+# sandbox for use in Terminal Tabs (e.g. claude-code). Unset ⇒ no harness is
+# installed. A key is only honored when its broker model provider above is
+# configured AND header-brokerable. See "BYO coding harnesses" below.
+# BREAKING CHANGE: there is no default anymore — set this to keep Claude Code.
+# SANDBOX_HARNESSES=claude-code
+
 # --- Env-var encryption ---
 # 32 random bytes, hex-encoded (64 hex chars). Used to encrypt per-workspace
 # env vars before storing them in Postgres (see lib/env-store.ts).
@@ -272,6 +280,20 @@ THUMBNAIL_RENDER_SECRET=<64 hex chars>
 # in lib/blob/index.ts, and set whatever env vars that backend needs.
 BLOB_READ_WRITE_TOKEN=...
 ```
+
+#### BYO coding harnesses (`SANDBOX_HARNESSES`)
+
+Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs** — Claude Code, and more as the catalog grows — that run *inside* a sandbox's [Terminal Tab](apps/web/CONTEXT.md). Each is a descriptor in `apps/web/lib/agent/harnesses/`, keyed by a stable catalog key. `SANDBOX_HARNESSES` is the comma-separated list of keys to install into every sandbox:
+
+```bash
+SANDBOX_HARNESSES=claude-code        # install Claude Code
+# SANDBOX_HARNESSES=claude-code,codex  # several, in listed order
+# (unset) ⇒ no harness is installed
+```
+
+Selection is a pure fold over the keys and your configured model providers (`apps/web/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a known catalog entry and (b) its broker model provider is configured **and** header-brokerable (`egress()` non-null) — e.g. `claude-code` needs `ANTHROPIC_API_KEY` set. Unknown keys and unconfigured/non-brokerable harnesses are silently dropped with a skip reason, never a hard failure. The harness never holds the real key: it boots against a dummy `brokered` placeholder and the sandbox firewall injects the operator's real key on egress — see [ADR 0002](apps/web/docs/adr/0002-byo-harness-terminal.md) for the trust boundary (single-trusted-operator, generalized egress injection, no per-tenant metering).
+
+> ⚠️ **Breaking change for existing deployments.** There is **no longer a default harness.** Earlier versions always installed Claude Code into every sandbox; now nothing is installed unless `SANDBOX_HARNESSES` names it. **To keep today's behavior, set `SANDBOX_HARNESSES=claude-code`** (with `ANTHROPIC_API_KEY` configured) before upgrading — otherwise Claude Code disappears from your Terminal Tabs.
 
 #### Sandbox provider credentials
 

@@ -156,7 +156,23 @@ The owned, server-side turn loop that drives a Chat Session against a model
 via the AI SDK — it replays the persisted conversation, runs Tools, and
 broadcasts deltas to every client in the room. The app owns this loop; it is
 deliberately **not** an external coding harness (Claude Code, Codex, …).
-_Avoid_: harness (reserve that word for an external/BYO agent tool), runtime.
+_Avoid_: harness (reserve that word for an external/BYO agent tool — see Harness
+below), runtime.
+
+**Harness** (BYO Coding CLI):
+An external, bring-your-own coding agent CLI — Claude Code, Codex, aider — that
+the operator runs *inside* a Terminal Tab against a Branch's sandbox. Distinct
+from the Engine: the Engine is screenplay's owned Agent Loop; a Harness is
+someone else's tool we install and step out of the way for. Each is a descriptor
+in the catalog (`lib/agent/harnesses/`), enabled per deployment via
+`SANDBOX_HARNESSES` (comma-separated catalog keys) and installed into the
+sandbox — there is **no default**. A Harness is offered **only** when its broker
+model provider is configured *and* header-brokerable (`egress()` non-null), so
+it reaches its model API on the operator's key injected at the firewall without
+ever holding it (ADR 0002's trust boundary).
+_Avoid_: engine, agent (screenplay's owned AI loop, never a BYO CLI); treating a
+Harness as a Chat Session (it produces no messages, runs, or Y.Doc state — its
+scrollback dies with the sandbox).
 
 **Message Markers**:
 The wire format that encodes a chat turn's metadata into the user-message
