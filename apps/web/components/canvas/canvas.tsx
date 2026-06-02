@@ -706,7 +706,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat])
+  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat, collections])
 
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
@@ -1423,7 +1423,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [collections],
   )
 
-  const handleResizeEnd = useCallback((_id: string) => {
+  const handleResizeEnd = useCallback(() => {
     resizeRawRef.current = null
     setResizeSnap(null)
   }, [])
@@ -2298,42 +2298,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [addChatSession],
   )
 
-  const handleSubmitAsPlan = useCallback(
-    (text: string, agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.ref) return
-
-      const chatId = nanoid()
-      const isFirstChat = !chatSessions.some((c) => c.branchId === agentId)
-
-      addChatSession(chatId, {
-        id: chatId,
-        branchId: agentId,
-        label: "Untitled",
-        createdAt: Date.now(),
-        planMode: true,
-      })
-
-      chatStore.sendMessage({
-        roomId,
-        chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message: text,
-        isFirstChat,
-        autoNamedBranch: agent.autoNamedBranch,
-        planMode: true,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, { ref: branch, autoNamedBranch: false }),
-        onChatRename: (label) => updateChatSession(chatId, { label }),
-      })
-
-      setSelectedAgentId(agentId)
-      setSelectedChatId(chatId)
-    },
-    [agents, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
-  )
-
   const handleRebaseOnDefault = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -2656,7 +2620,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       iframeLayers,
       roomId,
       addChatSession,
-      updateChatSession,
     ],
   )
 
@@ -3082,7 +3045,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setPendingAgentIds((prev) => (prev.includes(d.id) ? prev : [...prev, d.id]))
       }
     },
-    [repos, collections, roomId],
+    [repos, ops, roomId],
   )
 
   const handleRefreshAgent = useCallback(
@@ -3560,7 +3523,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups],
+    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups, iframeLayerLayouts],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -3620,7 +3583,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3955,7 +3918,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom],
+    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom, collections, ops],
   )
 
   // Click on iframeLayer to select. Clicking a child frame whose parent group is

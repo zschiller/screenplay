@@ -116,6 +116,11 @@ export function useScreenplayDom(
   )
 
   useEffect(() => {
+    // `pending` is a ref to a Map created once and only ever mutated, so its
+    // identity is stable for the effect's lifetime. Capture it in a local so
+    // the cleanup operates on the same Map the listener used (and to satisfy
+    // the ref-in-cleanup lint).
+    const pendingRequests = pending.current
     function handleMessage(e: MessageEvent) {
       if (!isScreenplayMessage(e.data)) return
       const iframe = iframeRef.current
@@ -123,10 +128,10 @@ export function useScreenplayDom(
 
       const d = e.data
       if (d.type === "screenplay:dom-result") {
-        const p = pending.current.get(d.id)
+        const p = pendingRequests.get(d.id)
         if (!p) return
         clearTimeout(p.timer)
-        pending.current.delete(d.id)
+        pendingRequests.delete(d.id)
         if (d.ok) p.resolve(d.value)
         else p.reject(new Error(d.error))
       } else if (d.type === "screenplay:picked") {
@@ -163,8 +168,8 @@ export function useScreenplayDom(
     window.addEventListener("message", handleMessage)
     return () => {
       window.removeEventListener("message", handleMessage)
-      for (const p of pending.current.values()) clearTimeout(p.timer)
-      pending.current.clear()
+      for (const p of pendingRequests.values()) clearTimeout(p.timer)
+      pendingRequests.clear()
     }
   }, [iframeRef])
 
