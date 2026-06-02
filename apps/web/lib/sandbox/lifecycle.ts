@@ -9,6 +9,7 @@ import {
   sandboxProvider,
   supportsHibernation,
 } from "@/lib/sandbox"
+import type { SandboxInstance } from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   PROXY_PORT_OFFSET,
@@ -45,6 +46,33 @@ export async function probeSandboxUrl(url: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * Ensure a live VM's preview is actually answering, relaunching the dev server
+ * and proxy when it isn't. Probes the proxy domain first: a healthy, reachable
+ * preview is handed straight back untouched — no needless relaunch of a dev
+ * server that's already up. When the probe fails (the VM kept running but the
+ * dev server or bridge proxy died), relaunches both and returns the preview
+ * domain, which now points at the freshly launched proxy.
+ *
+ * This is the reachability-check-and-relaunch half of the reconnect self-heal:
+ * a page reload onto a stuck-but-live VM recovers the preview instead of handing
+ * back a dead URL the client can only spin on. Throws if the relaunch fails —
+ * callers running through the runner (or their own redacting catch) turn that
+ * into a redacted failure result.
+ */
+export async function ensurePreviewLive(
+  sandbox: SandboxInstance,
+  port: number,
+  devScript?: string,
+  env?: Record<string, string> | null
+): Promise<string> {
+  const previewDomain = sandbox.domain(port + PROXY_PORT_OFFSET)
+  if (await probeSandboxUrl(previewDomain)) {
+    return previewDomain
+  }
+  return launchDevAndProxy(sandbox, port, devScript, env)
 }
 
 /**
@@ -91,13 +119,16 @@ export async function keepAliveSandbox(
 
 /**
  * Reconnect to a sandbox after a page reload. Probes the current state with
- * `resume:false` first: if the sandbox is live, returns its preview domain
- * straight away rather than relaunching a dev server that's already up.
+ * `resume:false` first: if the sandbox is live, routes through
+ * {@link ensurePreviewLive} — which returns the preview domain straight away
+ * when it's reachable, and relaunches the dev server + proxy only when a live
+ * VM's preview has gone dark (so a reload self-heals a stuck-but-live VM instead
+ * of handing back a dead URL).
  *
  * Liveness is read through the portable {@link isSandboxRunning} predicate, not
  * a `status === "running"` literal. A portable backend has no stopped-but-present
  * state — its handle is live for as long as it exists — so a successful probe
- * always lands in the reuse branch. Only a hibernating provider can observe a
+ * always lands in the live branch. Only a hibernating provider can observe a
  * stopped-but-present VM; it resumes the VM (the runner's `get` wakes it) and
  * relaunches the dev + proxy, preserving the in-VM working tree.
  *
@@ -114,8 +145,8 @@ export async function reconnectSandbox(
   const port = repo.devServerPort
   let check
   try {
-    // Check current state without resuming — a live sandbox is left untouched so
-    // we don't spawn a duplicate dev server.
+    // Check current state without resuming — a live, reachable sandbox is left
+    // untouched so we don't spawn a duplicate dev server.
     check = await sandboxProvider.get({ name: sandboxName, resume: false })
   } catch (e) {
     return {
@@ -125,12 +156,28 @@ export async function reconnectSandbox(
   }
 
   if (isSandboxRunning(check)) {
-    return {
-      success: true,
-      value: {
-        sandboxName: check.name,
-        previewDomain: check.domain(port + PROXY_PORT_OFFSET),
-      },
+    // The VM is up, but its dev server or bridge proxy may have died while it
+    // kept running. ensurePreviewLive probes the preview and relaunches only
+    // when it's unreachable, so a healthy preview rides the fast path untouched.
+    // We already hold the live handle, so reuse it rather than resolving again —
+    // and wrap the relaunch in the same redacting catch as the resume path.
+    const safeEnv = await getEnvVars(sandboxName)
+    try {
+      const previewDomain = await ensurePreviewLive(
+        check,
+        port,
+        repo.devScript,
+        safeEnv
+      )
+      return {
+        success: true,
+        value: { sandboxName: check.name, previewDomain },
+      }
+    } catch (e) {
+      return {
+        success: false,
+        error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+      }
     }
   }
 

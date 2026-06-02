@@ -127,12 +127,24 @@ vi.mock("@/lib/sandbox-bridge", () => ({
 }))
 
 import {
+  ensurePreviewLive,
   keepAliveSandbox,
   probeSandboxUrl,
   reconnectSandbox,
   removeSandboxEnv,
   restartSandbox,
 } from "@/lib/sandbox/lifecycle"
+
+/** Stub global fetch so the reachability probe lands on a chosen branch. */
+function stubProbe(reachable: boolean) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      if (!reachable) throw new Error("ECONNREFUSED")
+      return { ok: true, text: async () => "<html><body>hi</body></html>" }
+    })
+  )
+}
 
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 
@@ -158,6 +170,7 @@ function fakeSandbox(
     snapshotId?: string
     snapshotError?: boolean
     writeError?: string
+    onWriteFiles?: () => void
     extendTimeout?: (ms: number) => void
   } = {}
 ): SandboxInstance {
@@ -194,6 +207,10 @@ function fakeSandbox(
     domain: (port: number) => `https://fake-${port}.example.com`,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
+      // launchDevAndProxy writes the bridge files first, so a writeFiles call is
+      // the signal that a relaunch happened — tests assert on it to tell the
+      // probe's fast path (no relaunch) from the dead-preview path (relaunch).
+      opts.onWriteFiles?.()
       if (opts.writeError) throw new Error(opts.writeError)
     },
     readFileToBuffer: notUsed("readFileToBuffer") as never,
@@ -401,8 +418,21 @@ describe("restartSandbox", () => {
 })
 
 describe("reconnectSandbox", () => {
-  it("returns the running preview without relaunching when the sandbox is already up", async () => {
-    fake.setGet(fakeSandbox({ status: "running" }))
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("returns the running preview without relaunching when the preview is reachable", async () => {
+    // VM up and its preview answers, so the fast path returns the domain with no
+    // relaunch of the dev server.
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+    stubProbe(true)
 
     const result = await reconnectSandbox("sandbox-a", repo)
 
@@ -418,6 +448,37 @@ describe("reconnectSandbox", () => {
     })
     expect(fake.getCalls).toHaveLength(1)
     expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
+    // Reachable preview was left untouched — no dev-server relaunch.
+    expect(relaunched).toBe(false)
+  })
+
+  it("relaunches the dev server and proxy when a live VM's preview is unreachable", async () => {
+    // VM up but the dev server / bridge proxy has died: the probe fails, so the
+    // reconnect self-heals by relaunching before returning the domain.
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+    stubProbe(false)
+
+    const result = await reconnectSandbox("sandbox-a", repo)
+
+    expect(result).toEqual({
+      success: true,
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
+    })
+    // Reused the live handle (single resume:false probe, no reclone) and
+    // relaunched the dev server in place.
+    expect(fake.getCalls).toHaveLength(1)
+    expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
+    expect(fake.createCalls).toHaveLength(0)
+    expect(relaunched).toBe(true)
   })
 
   it("resumes and relaunches the dev server when a hibernating sandbox has stopped", async () => {
@@ -442,7 +503,9 @@ describe("reconnectSandbox", () => {
     // A portable provider has no stopped-but-present state: its handle is live
     // for as long as it exists, so the portable predicate reports it running and
     // reconnect reuses it — no resume (which means nothing here) and no reclone.
+    // Its preview answers, so the fast path returns without a relaunch.
     fake.setGet(fakeSandbox({ hibernating: false }))
+    stubProbe(true)
 
     const result = await reconnectSandbox("sandbox-a", repo)
 
@@ -487,6 +550,46 @@ describe("reconnectSandbox", () => {
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
+  })
+})
+
+describe("ensurePreviewLive", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("returns the preview domain untouched when it is already reachable", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({ onWriteFiles: () => (relaunched = true) })
+    stubProbe(true)
+
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev")
+
+    // Proxy port = dev port + 1000, handed back with no relaunch.
+    expect(domain).toBe("https://fake-4000.example.com")
+    expect(relaunched).toBe(false)
+  })
+
+  it("relaunches the dev server and proxy when the preview is unreachable", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({ onWriteFiles: () => (relaunched = true) })
+    stubProbe(false)
+
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev")
+
+    // Probe failed, so launchDevAndProxy ran (bridge files written) and the
+    // freshly launched proxy's domain is returned.
+    expect(domain).toBe("https://fake-4000.example.com")
+    expect(relaunched).toBe(true)
+  })
+
+  it("propagates a relaunch failure so the caller can redact it", async () => {
+    const sandbox = fakeSandbox({ writeError: "relaunch boom" })
+    stubProbe(false)
+
+    await expect(
+      ensurePreviewLive(sandbox, 3000, "npm run dev")
+    ).rejects.toThrow("relaunch boom")
   })
 })
 
