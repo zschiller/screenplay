@@ -29,10 +29,10 @@ interface CreateRequest {
   sourceBranch?: string
   /**
    * Whether the server should auto-create the branch's first chat once it's
-   * provisioned. The client sets this false when the user's default-tab pref is
-   * "terminal" — it has already seeded a terminal tab, so the branch should open
-   * to that alone rather than also getting a chat. Defaults to true (the
-   * historic behaviour) when absent.
+   * provisioned. The branch-create flows set this false because the client now
+   * pre-seeds the branch's default tab (chat or terminal) itself, so the tab
+   * appears immediately instead of only after provisioning. Defaults to true
+   * (the historic behaviour) when absent, for any caller that doesn't pre-seed.
    */
   seedChat?: boolean
 }
@@ -189,8 +189,9 @@ async function runNewOrFromBranchPipeline(
     status: "running",
     statusMessage: undefined,
   })
-  // Skipped when the client pre-seeded a terminal as the branch's default tab
-  // (seedChat === false) so the branch isn't also given an auto chat.
+  // Skipped when the client pre-seeded the branch's default tab — chat or
+  // terminal — itself (seedChat === false) so the branch isn't also given an
+  // extra auto chat.
   if (req.seedChat !== false) {
     await ensureChatForBranch(roomId, branchId)
   }

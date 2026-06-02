@@ -71,7 +71,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       as = "span",
       onPointerDown,
     },
-    ref,
+    ref
   ) {
     const [isEditing, setIsEditing] = React.useState(false)
     const elRef = React.useRef<HTMLElement | null>(null)
@@ -127,7 +127,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         if (toCommit !== null) onCommit(toCommit)
         onEditEnd?.()
       },
-      [onCommit, onEditEnd, revertOnEmpty, singleLine],
+      [onCommit, onEditEnd, revertOnEmpty, singleLine]
     )
 
     React.useImperativeHandle(
@@ -137,7 +137,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         stopEditing,
         isEditing: () => isEditing,
       }),
-      [isEditing, startEditing, stopEditing],
+      [isEditing, startEditing, stopEditing]
     )
 
     // Seed the contentEditable element and focus/select on entering edit mode.
@@ -156,6 +156,17 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       sel?.removeAllRanges()
       sel?.addRange(range)
     }, [isEditing, selectAllOnEdit])
+
+    // When leaving edit mode the same DOM node is reused for the view element,
+    // so any horizontal scroll the caret left behind (caret pushed to the end
+    // of a long value) persists. The view element clips with `overflow:hidden`,
+    // so a non-zero scrollLeft would leave the label scrolled out of sight —
+    // appearing blank. Reset it whenever we're not editing.
+    React.useLayoutEffect(() => {
+      if (isEditing) return
+      const el = elRef.current
+      if (el) el.scrollLeft = 0
+    }, [isEditing, value])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
       if (isComposingRef.current) return
@@ -189,7 +200,9 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     }
 
     const sanitize = (text: string) =>
-      singleLine ? text.replace(/[\r\n\t]+/g, " ") : text.replace(/\r\n?/g, "\n")
+      singleLine
+        ? text.replace(/[\r\n\t]+/g, " ")
+        : text.replace(/\r\n?/g, "\n")
 
     const handlePaste = (e: React.ClipboardEvent<HTMLElement>) => {
       e.preventDefault()
@@ -255,9 +268,9 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     // and doesn't perturb layout.
     const sharedClass = cn(
       "outline-none",
-      singleLine ? "whitespace-nowrap" : "whitespace-pre-wrap break-words",
-      "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/60",
-      className,
+      singleLine ? "whitespace-nowrap" : "break-words whitespace-pre-wrap",
+      "empty:before:text-muted-foreground/60 empty:before:content-[attr(data-placeholder)]",
+      className
     )
 
     const Tag = as as keyof React.JSX.IntrinsicElements
@@ -311,7 +324,8 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         "data-placeholder": placeholder,
         "data-editable-text": "idle",
         tabIndex: disabled ? -1 : 0,
-        onPointerDown: editTrigger === "manual" ? onPointerDown : handleIdlePointerDown,
+        onPointerDown:
+          editTrigger === "manual" ? onPointerDown : handleIdlePointerDown,
         // When trigger is doubleClick, swallow the browser's `dblclick` event
         // so a parent's `onDoubleClick` (e.g. sidebar zoom-to-frame) doesn't
         // fire alongside our rename. Single click still bubbles for selection.
@@ -323,9 +337,9 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
             : undefined,
         className: cn(sharedClass, !disabled && "cursor-text", viewClassName),
       },
-      value,
+      value
     )
-  },
+  }
 )
 
 export { EditableText }
