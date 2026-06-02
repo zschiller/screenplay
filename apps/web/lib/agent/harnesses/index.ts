@@ -2,6 +2,7 @@ import "server-only"
 
 import type { ModelProvider } from "@/lib/agent/providers"
 import { claudeCodeHarness } from "./claude-code"
+import { codexHarness } from "./codex"
 import { BROKERED_VALUE } from "./types"
 import type { Harness, HarnessSelection, SkippedHarness } from "./types"
 
@@ -17,7 +18,7 @@ export type { Harness, HarnessSelection, SkippedHarness } from "./types"
  *
  * Order is preserved through selection, so entries install in catalog order.
  */
-const HARNESSES: Harness[] = [claudeCodeHarness]
+const HARNESSES: Harness[] = [claudeCodeHarness, codexHarness]
 
 const HARNESSES_BY_KEY = new Map<string, Harness>(
   HARNESSES.map((h) => [h.key, h]),
@@ -26,6 +27,17 @@ const HARNESSES_BY_KEY = new Map<string, Harness>(
 /** The catalog, read-only. */
 export function getHarnesses(): Harness[] {
   return HARNESSES
+}
+
+/**
+ * Argv that launches the harness CLI for `key` in an interactive terminal tab
+ * (binary + boot flags), or `null` when `key` names no catalog entry. The
+ * terminal / default-tab plumbing uses this to drop a fresh tab straight into a
+ * configured harness; an unknown key returns `null` so the caller falls back to
+ * a plain shell rather than failing.
+ */
+export function harnessLaunchArgv(key: string): string[] | null {
+  return HARNESSES_BY_KEY.get(key)?.launchArgv ?? null
 }
 
 /**
@@ -102,7 +114,8 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
   const env: Record<string, string> = {}
   for (const harness of harnesses) {
     env[harness.gateEnvVar] = BROKERED_VALUE
-    if (harness.baseUrlEnv) env[harness.baseUrlEnv.name] = harness.baseUrlEnv.value
+    if (harness.baseUrlEnv)
+      env[harness.baseUrlEnv.name] = harness.baseUrlEnv.value
   }
   return env
 }

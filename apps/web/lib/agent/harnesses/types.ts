@@ -12,6 +12,30 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
 export const BROKERED_VALUE = "brokered"
 
 /**
+ * The always-commit-and-push rule, as markdown. Every harness seeds this into
+ * its own *home-level* agents file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
+ * …) so each session inherits the rule without it ever being written into the
+ * cloned repo's root `AGENTS.md` — keeping the user's git history clean. Shared
+ * here so the wording stays identical across harnesses.
+ */
+export function commitAndPushRuleMarkdown(): string {
+  return [
+    "# Screenplay sandbox rules",
+    "",
+    "## CRITICAL — always commit and push after changes",
+    "",
+    "After ANY file change, you MUST run these three commands before ending your turn. Never skip. This is the most important rule.",
+    "",
+    "1. `git add -A`",
+    '2. `git commit -m "<concise description of changes>"`',
+    "3. `git push`",
+    "",
+    "If you do not push, the user will not see your changes in the Screenplay UI. Always push.",
+    "",
+  ].join("\n")
+}
+
+/**
  * A coding-harness descriptor. The flat catalog in `index.ts` is an array of
  * these keyed by `key`, mirroring the model-provider registry
  * (`lib/agent/providers`): teach the system a new harness by dropping a
@@ -54,6 +78,16 @@ export interface Harness {
    * the harness already targets its provider's host by default.
    */
   baseUrlEnv?: { name: string; value: string }
+
+  /**
+   * Argv that launches the harness CLI in an interactive terminal tab — the
+   * binary plus any flags needed to boot it past first-run gates. The first
+   * element is the executable installed by `installPackage` (e.g. `["claude"]`,
+   * `["codex"]`). Exposed via `harnessLaunchArgv(key)` for the terminal/default-
+   * tab plumbing; kept on the descriptor so a new harness ships its launch
+   * command alongside its install + seed.
+   */
+  launchArgv: string[]
 
   /**
    * Reproduce the harness's in-sandbox setup after install (onboarding state,
