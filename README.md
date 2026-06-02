@@ -43,7 +43,9 @@ Schema lives in `apps/web/lib/db/schema.ts`:
 - Better Auth's `user` / `session` / `account` / `verification` tables, plus a per-user `organization` JSONB column for folders/pins.
 - `kv_store` — backs `lib/kv` (TTL-aware key/value with distributed locks).
 - `room` / `room_member` — project rooms and access control. Source of truth for who can open a canvas; the `/api/yjs/auth` route gates Yjs-host token issuance against `room_member`.
-- `thread` / `comment` — canvas comment threads. Realtime fanout rides a `meta.commentsRevision` counter inside the room's Y.Doc — server bumps it after any thread/comment change, clients subscribe via `useCommentsRevision` and refetch.
+- `thread` / `comment` / `thread_read` — canvas comment threads plus per-user read markers. Realtime fanout rides a `meta.commentsRevision` counter inside the room's Y.Doc — server bumps it after any thread/comment change, clients subscribe via `useCommentsRevision` and refetch.
+- `agent_chat` / `agent_message` / `agent_run` / `agent_pending_tool_call` — agent persistence behind the `streamText` tool loop in `lib/agent/engine.ts`: one chat per canvas chat session, an append-only `UIMessage` log, the run-state machine for each invocation, and tool calls parked awaiting user approval (e.g. `submit_plan`).
+- `terminal_tab` — persisted Terminal Tabs, keyed by user + room + branch, recording each tab's identity/label/ordering and the harness key it launches into (never scrollback or conversation content).
 
 #### Changing the schema
 
@@ -109,7 +111,7 @@ Each workspace runs its coding agent and dev server inside a live sandbox VM. Th
 
 3. Change the single import in `index.ts` to point at your new factory.
 
-The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`) — see `apps/web/lib/sandbox/types.ts` for the exact shape. Everything else in the app — `lib/sandbox-actions.ts`, the agent's tool executor, the logs SSE route — is written against this interface and needs no changes when the backend swaps.
+The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`, plus provider-supplied path seams like `worktreePath` / `homeDir`) — see `apps/web/lib/sandbox/types.ts` for the exact shape. Everything else in the app — the agent's tool executor, the logs SSE route, the terminal plumbing — is written against this interface and needs no changes when the backend swaps. Capabilities a backend can't offer (e.g. Hibernation) are guarded behind optional predicates rather than baked into the core interface; see [ADR 0003](apps/web/docs/adr/0003-honest-sandbox-provider-seam.md) for the portable-core-plus-optional-capability design.
 
 ### Blob store
 
@@ -141,9 +143,9 @@ The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url
 
 ### Model providers
 
-The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider is one concrete file under `apps/web/lib/agent/providers/` (anthropic, openai, google, gateway), composed into the active set in `apps/web/lib/agent/providers/index.ts`. The shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a `ModelProvider` interface in `types.ts`, one file per implementation, and an `index.ts` that picks which ones are live.
+The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider is one concrete file under `apps/web/lib/agent/providers/` (`anthropic`, `openai`, `google`, `vercel` for the AI Gateway, and `openai-compatible`), composed into the active set in `apps/web/lib/agent/providers/index.ts`. The shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a `ModelProvider` interface in `types.ts`, one file per implementation, and an `index.ts` that picks which ones are live.
 
-Model ids are fully qualified: `<provider>:<model>` (e.g. `anthropic:claude-sonnet-4-6`, `openai:gpt-4o`, `gateway:meta-llama/llama-3.3-70b`). Bare ids are rejected — provider routing is always explicit, so a deployment configured only for OpenAI never silently routes a stray `claude-*` id to Anthropic.
+Model ids are fully qualified: `<provider>:<model>` (e.g. `anthropic:claude-sonnet-4-6`, `openai:gpt-4o`, `vercel:anthropic/claude-sonnet-4-6` for a model routed through the AI Gateway, `compat:llama-3.3-70b` for an OpenAI-compatible endpoint). Bare ids are rejected — provider routing is always explicit, so a deployment configured only for OpenAI never silently routes a stray `claude-*` id to Anthropic.
 
 A provider self-detects whether it's enabled by inspecting env vars in `isConfigured()`. Providers without their key set are skipped from the picker but stay loaded in code, so chats that reference them surface a clear "API key not set" error rather than silently rerouting.
 
@@ -156,7 +158,7 @@ Each provider's model list is populated live by hitting its discovery endpoint, 
 - **Anthropic** — `ANTHROPIC_API_KEY`. Models discovered from `GET https://api.anthropic.com/v1/models`.
 - **OpenAI** — `OPENAI_API_KEY`. Models discovered from `GET https://api.openai.com/v1/models`, filtered to chat-capable ids (excludes embeddings, dall-e, tts, whisper, etc.).
 - **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models discovered from `GET https://generativelanguage.googleapis.com/v1beta/models`, filtered to those supporting `generateContent`.
-- **Vercel AI Gateway** — `AI_GATEWAY_API_KEY` (Vercel's standard; auto-injected via OIDC on Vercel deploys, no env var needed there). Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. Models discovered via `gateway.getAvailableModels()` from `@ai-sdk/gateway`, filtered to language models.
+- **Vercel AI Gateway** (provider key `vercel`) — `AI_GATEWAY_API_KEY`, generated from your project's AI Gateway dashboard. Routes through https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified API with Vercel-specific features on top: budgets, per-user/tag analytics, automatic failover, and BYOK. Model ids are prefixed `vercel:` (e.g. `vercel:anthropic/claude-sonnet-4-6`). Models discovered via `gateway.getAvailableModels()` from the AI SDK, filtered to language models. Note: although Vercel injects an OIDC token on deploys, the gateway does **not** accept it in practice, so `AI_GATEWAY_API_KEY` must be set explicitly — even on Vercel — for this provider to be considered configured.
 - **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+ optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal LiteLLM proxy, etc. Models discovered from `${BASE_URL}/v1/models`. For Vercel AI Gateway specifically, use the dedicated provider above instead — it uses Vercel's SDK and gets you the extra Gateway features. Example:
 
   ```bash
@@ -245,15 +247,17 @@ AGENT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6
 ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_API_KEY=sk-...
 # GOOGLE_GENERATIVE_AI_API_KEY=...
-# AI_GATEWAY_API_KEY=...   # Vercel AI Gateway; auto-OIDC on Vercel
+# AI_GATEWAY_API_KEY=...   # Vercel AI Gateway; required even on Vercel (the
+#                          # injected OIDC token is not accepted by the gateway)
 # OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 # OPENAI_COMPATIBLE_API_KEY=...
 
 # --- BYO coding harnesses (terminal tabs) ---
 # Comma-separated catalog keys of external coding CLIs to install into each
-# sandbox for use in Terminal Tabs (e.g. claude-code). Unset ⇒ no harness is
-# installed. A key is only honored when its broker model provider above is
-# configured AND header-brokerable. See "BYO coding harnesses" below.
+# sandbox for use in Terminal Tabs. Catalog keys: claude-code, codex,
+# opencode-gateway, opencode-compat. Unset ⇒ no harness is installed. A key is
+# only honored when its broker model provider above is configured AND
+# header-brokerable. See "BYO coding harnesses" below.
 # BREAKING CHANGE: there is no default anymore — set this to keep Claude Code.
 # SANDBOX_HARNESSES=claude-code
 
@@ -270,6 +274,15 @@ ENCRYPTION_KEY=<64 hex chars>
 # Generate with: openssl rand -hex 32
 THUMBNAIL_RENDER_SECRET=<64 hex chars>
 
+# --- Terminal access ---
+# HMAC secret for the short-lived, per-session credentials that gate access to
+# a sandbox's terminal daemon (Terminal Tabs). A room member POSTs
+# /api/terminal/auth and gets a signed credential; the terminal-websocket proxy
+# verifies it on connect so the in-sandbox root shell is never reachable on an
+# open URL. Any long random string works.
+# Generate with: openssl rand -hex 32
+TERMINAL_AUTH_SECRET=<64 hex chars>
+
 # --- Blob store ---
 # Credentials for whatever blob store is configured. The default
 # implementation (lib/blob/vercel.ts) wraps Vercel Blob and only needs a
@@ -283,15 +296,25 @@ BLOB_READ_WRITE_TOKEN=...
 
 #### BYO coding harnesses (`SANDBOX_HARNESSES`)
 
-Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs** — Claude Code, and more as the catalog grows — that run *inside* a sandbox's [Terminal Tab](apps/web/CONTEXT.md). Each is a descriptor in `apps/web/lib/agent/harnesses/`, keyed by a stable catalog key. `SANDBOX_HARNESSES` is the comma-separated list of keys to install into every sandbox:
+Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs** that run *inside* a sandbox's [Terminal Tab](apps/web/CONTEXT.md). Each is a descriptor in `apps/web/lib/agent/harnesses/`, keyed by a stable catalog key, and brokered through one of the model providers above. The current catalog:
+
+| Key | CLI | Broker provider (gate var) |
+| --- | --- | --- |
+| `claude-code` | Claude Code (`@anthropic-ai/claude-code`) | `anthropic` (`ANTHROPIC_API_KEY`) |
+| `codex` | Codex (`@openai/codex`) | `openai` (`OPENAI_API_KEY`) |
+| `opencode-gateway` | opencode pointed at the Vercel AI Gateway | `vercel` (`AI_GATEWAY_API_KEY`) |
+| `opencode-compat` | opencode pointed at an OpenAI-compatible endpoint | `compat` (`OPENAI_COMPATIBLE_API_KEY`) |
+
+`SANDBOX_HARNESSES` is the comma-separated list of keys to install into every sandbox:
 
 ```bash
-SANDBOX_HARNESSES=claude-code        # install Claude Code
-# SANDBOX_HARNESSES=claude-code,codex  # several, in listed order
+SANDBOX_HARNESSES=claude-code               # install Claude Code
+# SANDBOX_HARNESSES=claude-code,codex       # several, in listed order
+# SANDBOX_HARNESSES=opencode-gateway        # opencode via the AI Gateway
 # (unset) ⇒ no harness is installed
 ```
 
-Selection is a pure fold over the keys and your configured model providers (`apps/web/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a known catalog entry and (b) its broker model provider is configured **and** header-brokerable (`egress()` non-null) — e.g. `claude-code` needs `ANTHROPIC_API_KEY` set. Unknown keys and unconfigured/non-brokerable harnesses are silently dropped with a skip reason, never a hard failure. The harness never holds the real key: it boots against a dummy `brokered` placeholder and the sandbox firewall injects the operator's real key on egress — see [ADR 0002](apps/web/docs/adr/0002-byo-harness-terminal.md) for the trust boundary (single-trusted-operator, generalized egress injection, no per-tenant metering).
+Selection is a pure fold over the keys and your configured model providers (`apps/web/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a known catalog entry and (b) its broker model provider is configured **and** header-brokerable (`egress()` non-null) — e.g. `claude-code` needs `ANTHROPIC_API_KEY` set, `codex` needs `OPENAI_API_KEY`. Unknown keys and unconfigured/non-brokerable harnesses are silently dropped with a skip reason, never a hard failure. The harness never holds the real key: it boots against a dummy `brokered` placeholder and the sandbox firewall injects the operator's real key on egress — see [ADR 0002](apps/web/docs/adr/0002-byo-harness-terminal.md) for the trust boundary (single-trusted-operator, generalized egress injection, no per-tenant metering).
 
 > ⚠️ **Breaking change for existing deployments.** There is **no longer a default harness.** Earlier versions always installed Claude Code into every sandbox; now nothing is installed unless `SANDBOX_HARNESSES` names it. **To keep today's behavior, set `SANDBOX_HARNESSES=claude-code`** (with `ANTHROPIC_API_KEY` configured) before upgrading — otherwise Claude Code disappears from your Terminal Tabs.
 
@@ -314,7 +337,7 @@ If you've swapped in a different provider under `apps/web/lib/sandbox/`, set wha
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
-   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_API_KEY` (auto-OIDC on Vercel, so usually unset) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs)): **Production + Preview**.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_API_KEY` (must be set explicitly — the gateway doesn't accept Vercel's OIDC token) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `TERMINAL_AUTH_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs), `SANDBOX_HARNESSES` (if you offer BYO coding CLIs)): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
 ### Running locally
@@ -336,6 +359,7 @@ pnpm build       # production build (runs drizzle-kit migrate, then next build)
 pnpm lint        # ESLint
 pnpm typecheck   # tsc --noEmit
 pnpm format      # Prettier
+pnpm test        # Vitest (run from apps/web for watch mode: pnpm test:watch)
 
 # Database (run from apps/web)
 pnpm db:generate # generate a new SQL migration from schema changes — commit the output
