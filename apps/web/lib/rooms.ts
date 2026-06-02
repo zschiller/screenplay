@@ -76,10 +76,7 @@ export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
       thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt,
     })
     .from(schema.room)
-    .innerJoin(
-      schema.roomMember,
-      eq(schema.roomMember.roomId, schema.room.id),
-    )
+    .innerJoin(schema.roomMember, eq(schema.roomMember.roomId, schema.room.id))
     .where(eq(schema.roomMember.userId, userId))
     .orderBy(desc(schema.room.createdAt))
   return rows.map(toRoom)
@@ -105,7 +102,7 @@ export async function touchRoomOpened(roomId: string): Promise<void> {
 
 export async function setRoomThumbnail(
   roomId: string,
-  thumbnailUrl: string,
+  thumbnailUrl: string
 ): Promise<void> {
   await db
     .update(schema.room)
@@ -114,7 +111,7 @@ export async function setRoomThumbnail(
 }
 
 export async function touchRoomThumbnailUpdatedAt(
-  roomId: string,
+  roomId: string
 ): Promise<void> {
   await db
     .update(schema.room)
@@ -123,7 +120,7 @@ export async function touchRoomThumbnailUpdatedAt(
 }
 
 export async function getRoomThumbnailUpdatedAt(
-  roomId: string,
+  roomId: string
 ): Promise<number | null> {
   const rows = await db
     .select({ thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt })
@@ -135,7 +132,7 @@ export async function getRoomThumbnailUpdatedAt(
 
 export async function getMembership(
   roomId: string,
-  userId: string,
+  userId: string
 ): Promise<RoomMemberRecord | null> {
   const rows = await db
     .select()
@@ -143,8 +140,8 @@ export async function getMembership(
     .where(
       and(
         eq(schema.roomMember.roomId, roomId),
-        eq(schema.roomMember.userId, userId),
-      ),
+        eq(schema.roomMember.userId, userId)
+      )
     )
     .limit(1)
   const row = rows[0]
@@ -188,20 +185,23 @@ export async function addMember(opts: {
     })
 }
 
-export async function removeMember(roomId: string, userId: string): Promise<void> {
+export async function removeMember(
+  roomId: string,
+  userId: string
+): Promise<void> {
   await db
     .delete(schema.roomMember)
     .where(
       and(
         eq(schema.roomMember.roomId, roomId),
-        eq(schema.roomMember.userId, userId),
-      ),
+        eq(schema.roomMember.userId, userId)
+      )
     )
 }
 
 export async function canAccess(
   roomId: string,
-  userId: string,
+  userId: string
 ): Promise<boolean> {
   const membership = await getMembership(roomId, userId)
   return membership !== null
@@ -209,7 +209,7 @@ export async function canAccess(
 
 export async function requireMember(
   roomId: string,
-  userId: string,
+  userId: string
 ): Promise<RoomMemberRecord> {
   const membership = await getMembership(roomId, userId)
   if (!membership) throw new Error("You don't have access to this project")
@@ -218,7 +218,7 @@ export async function requireMember(
 
 export async function requireOwner(
   roomId: string,
-  userId: string,
+  userId: string
 ): Promise<RoomRecord> {
   const room = await getRoom(roomId)
   if (!room) throw new Error("Project not found")

@@ -20,7 +20,7 @@ import {
 
 function HomeWorkspace() {
   const [defaultLayout] = useState<PanelLayout | undefined>(() =>
-    readPanelLayout("home-layout"),
+    readPanelLayout("home-layout")
   )
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
     writePanelLayout("home-layout", layout)

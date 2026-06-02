@@ -90,13 +90,21 @@ export function PlayerComments({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-foreground/5 px-3 py-2">
-        <span className="text-xs font-medium text-foreground">Branch comments</span>
-        <span className="font-mono text-[10px] text-muted-foreground">{branch || "(no branch)"}</span>
+        <span className="text-xs font-medium text-foreground">
+          Branch comments
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {branch || "(no branch)"}
+        </span>
       </div>
-      <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div
+        ref={scrollRef}
+        className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
+      >
         {threads.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No comments yet. Drop a note for this branch — anyone with access to the project will see it.
+            No comments yet. Drop a note for this branch — anyone with access to
+            the project will see it.
           </p>
         ) : (
           threads.map((t) => {
@@ -134,7 +142,7 @@ export function PlayerComments({
                       </button>
                     ) : null}
                   </div>
-                  <p className="text-xs text-foreground whitespace-pre-wrap break-words">
+                  <p className="text-xs break-words whitespace-pre-wrap text-foreground">
                     {primary.body}
                   </p>
                 </div>
@@ -153,7 +161,9 @@ export function PlayerComments({
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={branch ? `Comment on ${branch}…` : "Branch isn't ready yet"}
+          placeholder={
+            branch ? `Comment on ${branch}…` : "Branch isn't ready yet"
+          }
           disabled={!branch}
           rows={2}
           className="resize-none text-xs"

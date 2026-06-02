@@ -13,9 +13,7 @@ function getSecret(): string {
 }
 
 function sign(payload: string): string {
-  return createHmac("sha256", getSecret())
-    .update(payload)
-    .digest("base64url")
+  return createHmac("sha256", getSecret()).update(payload).digest("base64url")
 }
 
 export function signRenderToken(roomId: string, now = Date.now()): string {
@@ -27,7 +25,7 @@ export function signRenderToken(roomId: string, now = Date.now()): string {
 export function verifyRenderToken(
   roomId: string,
   token: string,
-  now = Date.now(),
+  now = Date.now()
 ): boolean {
   const parts = token.split(".")
   if (parts.length !== 3) return false

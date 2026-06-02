@@ -60,7 +60,10 @@ export interface GlobOptions {
  * regular files only.
  */
 export function buildGlobInvocation(opts: GlobOptions): Invocation {
-  const pathPattern = `*/${opts.pattern.replace(/^\*\*\//, "")}`.replace(/\*\*/g, "*")
+  const pathPattern = `*/${opts.pattern.replace(/^\*\*\//, "")}`.replace(
+    /\*\*/g,
+    "*"
+  )
   return {
     cmd: "find",
     args: [
@@ -86,7 +89,10 @@ export const MAX_OUTPUT_LENGTH = 20_000
  * Truncate over-long tool output to `max` characters, appending a notice with
  * how many characters were dropped so the model knows the result was clipped.
  */
-export function truncateOutput(text: string, max: number = MAX_OUTPUT_LENGTH): string {
+export function truncateOutput(
+  text: string,
+  max: number = MAX_OUTPUT_LENGTH
+): string {
   if (text.length <= max) return text
   return `${text.slice(0, max)}\n...(truncated ${text.length - max} chars)`
 }

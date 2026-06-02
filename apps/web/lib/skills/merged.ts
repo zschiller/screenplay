@@ -27,7 +27,7 @@ export interface OriginTaggedSkill extends SkillMetadata {
  */
 export function mergeSkillIndexes(
   app: SkillMetadata[],
-  repo: SkillMetadata[],
+  repo: SkillMetadata[]
 ): OriginTaggedSkill[] {
   const byName = new Map<string, OriginTaggedSkill>()
   for (const s of app) {
@@ -38,7 +38,7 @@ export function mergeSkillIndexes(
     byName.set(s.name, { ...s, origin: "repo" })
   }
   return Array.from(byName.values()).sort((a, b) =>
-    a.name.localeCompare(b.name),
+    a.name.localeCompare(b.name)
   )
 }
 
@@ -54,7 +54,7 @@ export async function resolveSkillBody(
   readers: {
     readRepoBody: (name: string) => Promise<string | null>
     readAppBody: (name: string) => string | null
-  },
+  }
 ): Promise<string | null> {
   const repoBody = await readers.readRepoBody(name)
   if (repoBody !== null) return repoBody

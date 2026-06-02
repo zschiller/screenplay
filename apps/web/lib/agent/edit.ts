@@ -35,7 +35,11 @@ export function applyTextEdit(opts: {
 
   if (count > 1) return { ok: false, reason: "ambiguous", count }
 
-  return { ok: true, content: content.replace(oldString, newString), replacements: 1 }
+  return {
+    ok: true,
+    content: content.replace(oldString, newString),
+    replacements: 1,
+  }
 }
 
 function countOccurrences(haystack: string, needle: string): number {

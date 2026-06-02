@@ -17,18 +17,14 @@ import type {
 
 // Plain fixtures — no React, no Y.Doc. These mirror what
 // `YjsCollection.toArray()` yields once a room has hydrated.
-function layer(
-  id: string,
-  width: number,
-  height: number,
-): IframeLayerData {
+function layer(id: string, width: number, height: number): IframeLayerData {
   return { id, width, height, label: id, iframeState: {} }
 }
 
 function markdown(
   id: string,
   width: number,
-  height: number,
+  height: number
 ): MarkdownLayerData {
   return { id, width, height, title: id }
 }
@@ -38,7 +34,7 @@ function group(
   x: number,
   y: number,
   members: IframeLayerGroupData["members"],
-  extra: Partial<IframeLayerGroupData> = {},
+  extra: Partial<IframeLayerGroupData> = {}
 ): IframeLayerGroupData {
   return { id, x, y, members, ...extra }
 }
@@ -51,7 +47,7 @@ describe("computeIframeLayerLayouts", () => {
     ])
     const layouts = computeIframeLayerLayouts(
       [g],
-      [layer("a", 300, 400), layer("b", 150, 250)],
+      [layer("a", 300, 400), layer("b", 150, 250)]
     )
 
     expect(layouts.get("a")).toEqual({
@@ -88,11 +84,11 @@ describe("computeIframeLayerLayouts", () => {
         { kind: "iframe-layer", id: "a" },
         { kind: "iframe-layer", id: "b" },
       ],
-      { gap: 10 },
+      { gap: 10 }
     )
     const layouts = computeIframeLayerLayouts(
       [g],
-      [layer("a", 200, 100), layer("b", 80, 60)],
+      [layer("a", 200, 100), layer("b", 80, 60)]
     )
 
     expect(layouts.get("b")?.x).toBe(200 + 10)
@@ -106,7 +102,7 @@ describe("computeIframeLayerLayouts", () => {
     const layouts = computeIframeLayerLayouts(
       [g],
       [layer("a", 100, 50)],
-      [markdown("m", 40, 90)],
+      [markdown("m", 40, 90)]
     )
 
     expect(layouts.get("m")).toMatchObject({
@@ -185,13 +181,7 @@ describe("groupContentHeight", () => {
 
 describe("placeNewIframeLayerGroup", () => {
   it("centers the new group on the viewport when the canvas is empty", () => {
-    const pos = placeNewIframeLayerGroup(
-      [],
-      [],
-      { x: 1000, y: 500 },
-      200,
-      100,
-    )
+    const pos = placeNewIframeLayerGroup([], [], { x: 1000, y: 500 }, 200, 100)
 
     expect(pos).toEqual({ x: 1000 - 100, y: 500 - 50 })
   })
@@ -208,7 +198,7 @@ describe("placeNewIframeLayerGroup", () => {
       iframeLayers,
       { x: 0, y: 0 },
       80,
-      80,
+      80
     )
 
     // Rightmost edge is g2.x (500) + its content width (150); topmost y is 40.
@@ -247,7 +237,7 @@ describe("computeEffectiveLayouts", () => {
 
   it("returns the base layout untouched when no drag is active", () => {
     expect(computeEffectiveLayouts(base, groups, iframeLayers, [], null)).toBe(
-      base,
+      base
     )
   })
 
@@ -340,7 +330,11 @@ describe("deriveCanvasLayout", () => {
     expect(reorderHandles).toEqual([
       { iframeLayerId: "a", centerX: 100 + 150, centerY: 200 + 200 },
       { iframeLayerId: "b", centerX: 400 + G + 75, centerY: 200 + 125 },
-      { iframeLayerId: "c", centerX: 400 + G + 150 + G + 50, centerY: 200 + 50 },
+      {
+        iframeLayerId: "c",
+        centerX: 400 + G + 150 + G + 50,
+        centerY: 200 + 50,
+      },
     ])
   })
 

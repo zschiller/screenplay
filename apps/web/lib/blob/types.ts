@@ -30,6 +30,6 @@ export interface BlobStore {
   put(
     key: string,
     body: Buffer | Uint8Array,
-    opts: PutOptions,
+    opts: PutOptions
   ): Promise<PutResult>
 }

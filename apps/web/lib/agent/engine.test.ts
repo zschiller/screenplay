@@ -105,7 +105,12 @@ function finishesWithPlan(toolCallId: string, plan: string): StreamDriver {
     {
       role: "assistant",
       content: [
-        { type: "tool-call", toolCallId, toolName: "submit_plan", input: { plan } },
+        {
+          type: "tool-call",
+          toolCallId,
+          toolName: "submit_plan",
+          input: { plan },
+        },
       ],
     },
   ])

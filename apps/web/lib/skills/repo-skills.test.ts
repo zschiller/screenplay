@@ -16,7 +16,7 @@ function fakeFs(opts: {
 }): RepoSkillFs {
   return {
     async list(dir) {
-      return dir === ".claude/skills" ? opts.entries ?? null : null
+      return dir === ".claude/skills" ? (opts.entries ?? null) : null
     },
     async read(path) {
       return opts.files?.[path] ?? null

@@ -64,7 +64,9 @@ function fakeRepo() {
       // rolling back as a unit — neither the run status nor the pending row
       // lands.
       if (pendings.has(planCall.toolCallId)) {
-        throw new Error(`pending tool call ${planCall.toolCallId} already exists`)
+        throw new Error(
+          `pending tool call ${planCall.toolCallId} already exists`
+        )
       }
       const run = runs.get(runId)
       if (!run) throw new Error(`unknown run ${runId}`)
@@ -97,7 +99,10 @@ function fakeRepo() {
   return {
     repo,
     /** Seed a run in a given state, returning its id. */
-    seed(status: RunStatus, opts: { chatId?: string; endedAt?: Date | null } = {}) {
+    seed(
+      status: RunStatus,
+      opts: { chatId?: string; endedAt?: Date | null } = {}
+    ) {
       const id = `run_${++seq}`
       runs.set(id, {
         chatId: opts.chatId ?? "chat_1",
@@ -113,7 +118,7 @@ function fakeRepo() {
         runId: string
         chatId?: string
         status?: "pending" | "approved" | "rejected"
-      },
+      }
     ) {
       pendings.set(id, {
         runId: opts.runId,
@@ -207,7 +212,13 @@ describe("transition edge table", () => {
   // The contract from the issue, restated here so the test pins the spec rather
   // than echoing the module's own table.
   const legal: Record<RunStatus, RunStatus[]> = {
-    running: ["completed", "failed", "aborted", "superseded", "paused_for_plan"],
+    running: [
+      "completed",
+      "failed",
+      "aborted",
+      "superseded",
+      "paused_for_plan",
+    ],
     paused_for_plan: ["aborted", "superseded"],
     completed: [],
     failed: [],
@@ -321,7 +332,7 @@ describe("pauseForPlan", () => {
         chatId: "chat_1",
         toolName: "submit_plan",
         input: {},
-      }),
+      })
     ).rejects.toThrow()
 
     expect(store.row(id)?.status).toBe("running")
@@ -338,7 +349,7 @@ describe("pauseForPlan", () => {
         chatId: "chat_1",
         toolName: "submit_plan",
         input: {},
-      }),
+      })
     ).rejects.toThrow(/unknown/i)
   })
 
@@ -408,7 +419,7 @@ describe("resolvePlan", () => {
     const { resolvePlan } = createRunState(store.repo)
 
     await expect(
-      resolvePlan("plan_orphan", { approved: true }),
+      resolvePlan("plan_orphan", { approved: true })
     ).rejects.toThrow()
 
     expect(store.pending("plan_orphan")?.status).toBe("pending")

@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 import {
   ResizableHandle,
@@ -59,7 +66,7 @@ export function PrototypePlayer({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [knobs, setKnobs] = useState<JsonValue[]>([])
   const [knobValues, setKnobValues] = useState<JsonObject>(
-    initialKnobValues as JsonObject,
+    initialKnobValues as JsonObject
   )
 
   // Live shared state from Yjs when we have an iframeLayer binding. Falls back
@@ -68,7 +75,7 @@ export function PrototypePlayer({
   const collections = useRoomCollections()
   const liveIframeLayer = useCollectionEntry<IframeLayerData>(
     collections.iframeLayers,
-    iframeLayerId ?? "",
+    iframeLayerId ?? ""
   )
   const sharedState = useMemo<JsonObject>(() => {
     if (iframeLayerId && liveIframeLayer?.sharedState) {
@@ -118,13 +125,12 @@ export function PrototypePlayer({
   // 1×. We never scale up — desktop sub-viewport sizes letterbox instead.
   const stageRef = useRef<HTMLDivElement>(null)
   const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(
-    null,
+    null
   )
   useLayoutEffect(() => {
     const el = stageRef.current
     if (!el) return
-    const update = () =>
-      setStageSize({ w: el.clientWidth, h: el.clientHeight })
+    const update = () => setStageSize({ w: el.clientWidth, h: el.clientHeight })
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -139,13 +145,16 @@ export function PrototypePlayer({
     return Math.min(
       1,
       availW / devicePreset.width,
-      availH / devicePreset.height,
+      availH / devicePreset.height
     )
   }, [devicePreset, stageSize])
 
   const initialSrc = useMemo(() => {
     const path = initialRoute || "/"
-    return previewDomain.replace(/\/$/, "") + (path.startsWith("/") ? path : `/${path}`)
+    return (
+      previewDomain.replace(/\/$/, "") +
+      (path.startsWith("/") ? path : `/${path}`)
+    )
   }, [previewDomain, initialRoute])
 
   const sendKnobValues = useCallback((values: JsonObject) => {
@@ -153,7 +162,7 @@ export function PrototypePlayer({
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage(
       { type: "screenplay:knob-values", values },
-      "*",
+      "*"
     )
   }, [])
 
@@ -165,7 +174,7 @@ export function PrototypePlayer({
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage(
       { type: "screenplay:cursor-mode", mode: touch ? "touch" : "default" },
-      "*",
+      "*"
     )
   }, [])
   const isTouchDeviceRef = useRef(isTouchDevice)
@@ -179,7 +188,7 @@ export function PrototypePlayer({
     if (!iframe?.contentWindow) return
     iframe.contentWindow.postMessage(
       { type: "screenplay:shared-state-apply", state },
-      "*",
+      "*"
     )
   }, [])
 
@@ -194,7 +203,7 @@ export function PrototypePlayer({
         // an empty state lets the bridge complete its handshake.
         iframe.contentWindow.postMessage(
           { type: "screenplay:init", state: {} },
-          "*",
+          "*"
         )
         // Resend the current cursor mode — a navigation or reload re-injects
         // the bridge with default state, so the puck would otherwise reset.
@@ -243,14 +252,20 @@ export function PrototypePlayer({
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [sendKnobValues, sendCursorMode, sendSharedState, iframeLayerId, collections])
+  }, [
+    sendKnobValues,
+    sendCursorMode,
+    sendSharedState,
+    iframeLayerId,
+    collections,
+  ])
 
   const handleKnobChange = useCallback(
     (next: JsonObject) => {
       setKnobValues(next)
       sendKnobValues(next)
     },
-    [sendKnobValues],
+    [sendKnobValues]
   )
 
   // Push remote shared-state changes from Yjs down into our iframe. Skip the
@@ -341,7 +356,7 @@ export function PrototypePlayer({
         </div>
       </ResizablePanel>
       <ResizableHandle
-        className={`${chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}${isTouchDevice ? " dark" : ""}`}
+        className={`${chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}${isTouchDevice ? "dark" : ""}`}
         disabled={chatCollapsed}
       />
       <ResizablePanel
@@ -360,9 +375,7 @@ export function PrototypePlayer({
          *  inherited text color against the dark token set; without it,
          *  `color` stays the value computed at <body>. */}
         <div
-          className={
-            isTouchDevice ? "dark h-full text-foreground" : "h-full"
-          }
+          className={isTouchDevice ? "dark h-full text-foreground" : "h-full"}
         >
           <PlayerChatHost
             roomId={roomId}

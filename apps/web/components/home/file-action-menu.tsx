@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  FolderInput,
-  Pencil,
-  Pin,
-  PinOff,
-  Share2,
-  Trash2,
-} from "lucide-react"
+import { FolderInput, Pencil, Pin, PinOff, Share2, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,

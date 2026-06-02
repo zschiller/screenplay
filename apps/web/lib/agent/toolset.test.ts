@@ -31,7 +31,9 @@ const fake = vi.hoisted(() => {
 })
 
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
-vi.mock("@/lib/auth-helpers", () => ({ getGitHubTokenForUser: vi.fn(async () => null) }))
+vi.mock("@/lib/auth-helpers", () => ({
+  getGitHubTokenForUser: vi.fn(async () => null),
+}))
 vi.mock("@/lib/github-pr", () => ({ createGitHubPr: vi.fn() }))
 // The shared read tool + document tools import yjs/server, which reads
 // LIVEBLOCKS_SECRET_KEY at import. Stub the seam so the assembly is unit-testable.
@@ -40,11 +42,23 @@ vi.mock("@/lib/yjs/server", () => ({
   mutateRoomDoc: vi.fn(async () => {}),
 }))
 
-import { toolsetFor, withRedactedOutput, type ToolTarget } from "@/lib/agent/toolset"
+import {
+  toolsetFor,
+  withRedactedOutput,
+  type ToolTarget,
+} from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
 
-const sandboxCtx: ToolContext = { sandboxName: "sandbox-a", roomId: "room-1", userId: "user-1" }
-const sandboxTarget: ToolTarget = { kind: "sandbox", roomId: "room-1", sandbox: sandboxCtx }
+const sandboxCtx: ToolContext = {
+  sandboxName: "sandbox-a",
+  roomId: "room-1",
+  userId: "user-1",
+}
+const sandboxTarget: ToolTarget = {
+  kind: "sandbox",
+  roomId: "room-1",
+  sandbox: sandboxCtx,
+}
 
 function fakeSandboxReturning(content: string): SandboxInstance {
   const notUsed = (name: string) => () => {
@@ -114,7 +128,9 @@ describe("toolsetFor (sandbox)", () => {
 
 describe("withRedactedOutput", () => {
   it("leaves a tool with no execute untouched", () => {
-    const passthrough = { submit_plan: { description: "x", inputSchema: undefined } } as never
+    const passthrough = {
+      submit_plan: { description: "x", inputSchema: undefined },
+    } as never
     const wrapped = withRedactedOutput(passthrough)
     expect(wrapped.submit_plan.execute).toBeUndefined()
   })

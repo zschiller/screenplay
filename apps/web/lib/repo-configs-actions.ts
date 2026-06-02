@@ -1,6 +1,11 @@
 "use server"
 
-import { adjectives, animals, colors, uniqueNamesGenerator } from "unique-names-generator"
+import {
+  adjectives,
+  animals,
+  colors,
+  uniqueNamesGenerator,
+} from "unique-names-generator"
 import { requireUserId } from "@/lib/auth-helpers"
 import { createBranch } from "./github-actions"
 import { getConfigs, saveConfigs } from "./repo-configs-store"
@@ -12,7 +17,7 @@ export async function listRepoConfigs(): Promise<RepoConfig[]> {
 }
 
 export async function upsertRepoConfig(
-  config: RepoConfig,
+  config: RepoConfig
 ): Promise<RepoConfig[]> {
   const userId = await requireUserId()
   const list = await getConfigs(userId)
@@ -21,18 +26,19 @@ export async function upsertRepoConfig(
     (c) =>
       c.id !== config.id &&
       c.repoFullName === config.repoFullName &&
-      c.name === config.name,
+      c.name === config.name
   )
   if (duplicate) {
     throw new Error(
-      `A configuration named "${config.name || "default"}" already exists for ${config.repoFullName}`,
+      `A configuration named "${config.name || "default"}" already exists for ${config.repoFullName}`
     )
   }
 
   const idx = list.findIndex((c) => c.id === config.id)
   const isNew = idx === -1
-  const next: RepoConfig[] =
-    isNew ? [...list, config] : list.map((c) => (c.id === config.id ? config : c))
+  const next: RepoConfig[] = isNew
+    ? [...list, config]
+    : list.map((c) => (c.id === config.id ? config : c))
 
   await saveConfigs(userId, next)
 
@@ -46,11 +52,11 @@ export async function upsertRepoConfig(
       config.repoOwner,
       config.repoName,
       branchName,
-      config.defaultBranch,
+      config.defaultBranch
     )
     if (!result.success) {
       console.warn(
-        `Failed to auto-generate branch ${branchName} for ${config.repoFullName}: ${result.error}`,
+        `Failed to auto-generate branch ${branchName} for ${config.repoFullName}: ${result.error}`
       )
     }
   }
@@ -58,9 +64,7 @@ export async function upsertRepoConfig(
   return next
 }
 
-export async function deleteRepoConfig(
-  id: string,
-): Promise<RepoConfig[]> {
+export async function deleteRepoConfig(id: string): Promise<RepoConfig[]> {
   const userId = await requireUserId()
   const list = await getConfigs(userId)
   const next = list.filter((c) => c.id !== id)

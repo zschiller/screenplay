@@ -174,7 +174,9 @@ export interface HibernatingSandbox extends SandboxInstance {
  * capability by the presence of `isRunning`; with `snapshot()` / `extendTimeout()`
  * now off the core, that method is the sole discriminator the core never carries.
  */
-export function supportsHibernation(s: SandboxInstance): s is HibernatingSandbox {
+export function supportsHibernation(
+  s: SandboxInstance
+): s is HibernatingSandbox {
   return typeof (s as Partial<HibernatingSandbox>).isRunning === "function"
 }
 

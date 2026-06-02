@@ -7,7 +7,9 @@ export function panelLayoutCookieName(groupId: string): string {
   return `${COOKIE_PREFIX}:${groupId}`
 }
 
-export function parsePanelLayoutValue(rawValue: string | undefined): PanelLayout | undefined {
+export function parsePanelLayoutValue(
+  rawValue: string | undefined
+): PanelLayout | undefined {
   if (!rawValue) return undefined
   try {
     const decoded = decodeURIComponent(rawValue)
@@ -17,7 +19,7 @@ export function parsePanelLayoutValue(rawValue: string | undefined): PanelLayout
       typeof parsed === "object" &&
       !Array.isArray(parsed) &&
       Object.values(parsed as Record<string, unknown>).every(
-        (v) => typeof v === "number" && Number.isFinite(v),
+        (v) => typeof v === "number" && Number.isFinite(v)
       )
     ) {
       return parsed as PanelLayout

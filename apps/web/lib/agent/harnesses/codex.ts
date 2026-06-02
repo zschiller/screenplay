@@ -83,6 +83,8 @@ export const codexHarness: Harness = {
   key: "codex",
   label: "Codex",
   installPackage: "@openai/codex",
+  // The global install exposes the `codex` CLI on PATH.
+  launchCommand: "codex",
   brokerProviderKey: "openai",
   gateEnvVar: "OPENAI_API_KEY",
   launchArgv: ["codex"],

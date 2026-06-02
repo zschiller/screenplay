@@ -28,7 +28,11 @@ interface DeviceSizeMenuProps {
   onSelect: (width: number, height: number) => void
 }
 
-export function DeviceSizeMenu({ width, height, onSelect }: DeviceSizeMenuProps) {
+export function DeviceSizeMenu({
+  width,
+  height,
+  onSelect,
+}: DeviceSizeMenuProps) {
   return (
     <DropdownMenu>
       <TooltipProvider>
@@ -43,7 +47,12 @@ export function DeviceSizeMenu({ width, height, onSelect }: DeviceSizeMenuProps)
           <TooltipContent side="right">Device size</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-64">
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        className="w-64"
+      >
         {GROUPED_IFRAME_LAYER_SIZE_PRESETS.map((group, index) => {
           const Icon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[group.category]
           return (
@@ -53,7 +62,8 @@ export function DeviceSizeMenu({ width, height, onSelect }: DeviceSizeMenuProps)
                 {group.category}
               </DropdownMenuLabel>
               {group.presets.map((preset) => {
-                const active = preset.width === width && preset.height === height
+                const active =
+                  preset.width === width && preset.height === height
                 return (
                   <DropdownMenuItem
                     key={preset.id}
@@ -63,7 +73,9 @@ export function DeviceSizeMenu({ width, height, onSelect }: DeviceSizeMenuProps)
                     <span>{preset.label}</span>
                     <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                       {preset.width}×{preset.height}
-                      {active ? <Check className="size-3 text-foreground" /> : null}
+                      {active ? (
+                        <Check className="size-3 text-foreground" />
+                      ) : null}
                     </span>
                   </DropdownMenuItem>
                 )

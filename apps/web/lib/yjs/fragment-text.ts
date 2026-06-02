@@ -31,7 +31,9 @@ export function documentFragment(doc: Y.Doc, id: string): Y.XmlFragment {
  * richer blocks (blockquotes, ordered lists, code blocks) round-trip
  * correctly — anything StarterKit's markdown handlers cover, ours covers.
  */
-export function fragmentToPlainText(node: Y.XmlFragment | Y.XmlElement): string {
+export function fragmentToPlainText(
+  node: Y.XmlFragment | Y.XmlElement
+): string {
   const lines: string[] = []
   collectLines(node, lines)
   return lines.join("\n").trim()
@@ -58,7 +60,8 @@ export function seedDocumentFragment(fragment: Y.XmlFragment): void {
  *  the empty string when the fragment hasn't been seeded yet. */
 export function getFragmentTitle(fragment: Y.XmlFragment): string {
   const first = fragment.length > 0 ? fragment.get(0) : undefined
-  if (!(first instanceof Y.XmlElement) || first.nodeName !== "heading") return ""
+  if (!(first instanceof Y.XmlElement) || first.nodeName !== "heading")
+    return ""
   return xmlElementText(first)
 }
 
@@ -130,7 +133,7 @@ export function setFragmentTitle(fragment: Y.XmlFragment, title: string): void {
  */
 export function replaceFragmentBodyPreservingTitle(
   fragment: Y.XmlFragment,
-  markdown: string,
+  markdown: string
 ): void {
   const doc = fragment.doc
   if (!doc) return
@@ -210,7 +213,7 @@ function parseMarkdownToBlocks(markdown: string): Y.XmlElement[] {
  */
 export function writeMarkdownToFragment(
   fragment: Y.XmlFragment,
-  text: string,
+  text: string
 ): void {
   const doc = fragment.doc
   if (!doc) return
@@ -244,10 +247,7 @@ function makeHeading(level: number): Y.XmlElement {
   return heading
 }
 
-function collectLines(
-  node: Y.XmlFragment | Y.XmlElement,
-  out: string[],
-): void {
+function collectLines(node: Y.XmlFragment | Y.XmlElement, out: string[]): void {
   const len = node.length
   for (let i = 0; i < len; i++) {
     const child = node.get(i)
@@ -263,7 +263,9 @@ function collectLines(
       // human-readable reference.
       if (child.nodeName === "mention") {
         const attrs = child.getAttributes() as Record<string, unknown>
-        const label = (attrs.label as string | undefined) ?? (attrs.id as string | undefined)
+        const label =
+          (attrs.label as string | undefined) ??
+          (attrs.id as string | undefined)
         if (label) out.push(`@${label}`)
         continue
       }

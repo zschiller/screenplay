@@ -52,20 +52,25 @@ type Issued = { cmd: string; args: string[]; detached: boolean }
  * implemented; everything else throws so an accidental dependency is loud.
  */
 function fakeSandbox(
-  respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 }),
+  respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 })
 ): { sandbox: SandboxInstance; issued: Issued[] } {
   const issued: Issued[] = []
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
         : ((cmdOrOpts as { args?: string[] }).args ?? [])
     const detached =
-      typeof cmdOrOpts === "string" ? false : Boolean((cmdOrOpts as { detached?: boolean }).detached)
+      typeof cmdOrOpts === "string"
+        ? false
+        : Boolean((cmdOrOpts as { detached?: boolean }).detached)
     issued.push({ cmd, args, detached })
     const scripted = respond(cmd, args)
     const result: SandboxCommandResult = {
@@ -202,7 +207,9 @@ describe("ensureTerminal", () => {
     // Base command is the bundled tmux attaching-or-creating a named session,
     // with `-u` forcing UTF-8 so box-drawing glyphs aren't mangled and `-f`
     // loading the config that hides the status bar.
-    expect(cmd).toContain("/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s")
+    expect(cmd).toContain(
+      "/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s"
+    )
     // The status bar is disabled via that config file.
     expect(cmd).toContain("set -g status off")
   })
@@ -235,7 +242,7 @@ describe("ensureTerminal", () => {
           ? { exitCode: 0, stdout: `${arch}\n` }
           : isCheck(args)
             ? { exitCode: 0, stdout: "running\n" }
-            : { exitCode: 0 },
+            : { exitCode: 0 }
       )
       fake.setInstance(sandbox)
 
@@ -247,7 +254,7 @@ describe("ensureTerminal", () => {
       expect(cmd).toContain(`/releases/download/1.7.7/${expectedAsset}`)
       // Not the hardcoded-x86_64 bug: the other arch's asset never leaks in.
       expect(cmd).not.toContain(otherAsset)
-    },
+    }
   )
 
   it.each([
@@ -263,7 +270,7 @@ describe("ensureTerminal", () => {
           ? { exitCode: 0, stdout: `${arch}\n` }
           : isCheck(args)
             ? { exitCode: 0, stdout: "running\n" }
-            : { exitCode: 0 },
+            : { exitCode: 0 }
       )
       fake.setInstance(sandbox)
 
@@ -275,7 +282,7 @@ describe("ensureTerminal", () => {
       expect(cmd).toContain(expectedAsset)
       // The other arch's token (incl. the wrong `aarch64`/`arm64` naming) never leaks in.
       expect(cmd).not.toContain(otherToken)
-    },
+    }
   )
 
   it("fails (redacted) rather than defaulting to x86_64 on an unknown arch", async () => {
@@ -284,7 +291,7 @@ describe("ensureTerminal", () => {
         ? { exitCode: 0, stdout: "riscv64\n" }
         : isCheck(args)
           ? { exitCode: 0, stdout: "running\n" }
-          : { exitCode: 0 },
+          : { exitCode: 0 }
     )
     fake.setInstance(sandbox)
 
@@ -310,14 +317,18 @@ describe("ensureTerminal", () => {
     // …re-fetching the bundled binaries the fresh image lacks…
     expect(
       issued.some(
-        (i) => script(i).includes("/tmp/screenplay/tmux") && script(i).includes("curl"),
-      ),
+        (i) =>
+          script(i).includes("/tmp/screenplay/tmux") &&
+          script(i).includes("curl")
+      )
     ).toBe(true)
     // …and relaunching ttyd with tmux attach-or-create, so the operator lands in
     // a fresh working shell (the `-A` creates the session the rebuilt VM lacks).
     const launch = issued.find(isLaunch)
     expect(launch).toBeDefined()
-    expect(script(launch!)).toContain("/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s")
+    expect(script(launch!)).toContain(
+      "/tmp/screenplay/tmux -u -f /tmp/screenplay/tmux.conf new -A -s"
+    )
   })
 
   it("returns a redacted failure when a step fails, without spilling a token", async () => {

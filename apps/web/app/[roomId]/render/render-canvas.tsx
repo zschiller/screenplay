@@ -70,7 +70,7 @@ export function RenderCanvas({
   const target = iframeLayers.filter((a) => a.iframeUrl)
   const targetCount = target.length
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(
-    () => new Set<string>(),
+    () => new Set<string>()
   )
 
   const allLoaded = targetCount === 0 || loadedIds.size >= targetCount
@@ -114,7 +114,7 @@ export function RenderCanvas({
   const scale = Math.min(
     MAX_SCALE,
     (VIEWPORT_W - PADDING * 2) / box.width,
-    (VIEWPORT_H - PADDING * 2) / box.height,
+    (VIEWPORT_H - PADDING * 2) / box.height
   )
   const scaledW = box.width * scale
   const scaledH = box.height * scale
@@ -216,7 +216,8 @@ export function RenderCanvas({
                 overflow: "hidden",
               }}
               dangerouslySetInnerHTML={{
-                __html: d.html || `<h1>${escapeHtml(d.title || "Untitled")}</h1>`,
+                __html:
+                  d.html || `<h1>${escapeHtml(d.title || "Untitled")}</h1>`,
               }}
             />
           </div>

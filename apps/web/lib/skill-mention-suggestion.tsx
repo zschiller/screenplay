@@ -64,7 +64,7 @@ export function buildSkillMentionSuggestion(opts: {
         .filter(
           (s) =>
             s.name.toLowerCase().includes(q) ||
-            s.description.toLowerCase().includes(q),
+            s.description.toLowerCase().includes(q)
         )
         .slice(0, 12)
     },

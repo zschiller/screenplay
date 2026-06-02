@@ -105,37 +105,43 @@ export default async function RenderPage({
     const allIframeLayers = c.iframeLayers.toArray()
     const allDocuments = c.markdownLayers.toArray()
     const allGroups = c.iframeLayerGroups.toArray()
-    const layouts = computeIframeLayerLayouts(allGroups, allIframeLayers, allDocuments)
+    const layouts = computeIframeLayerLayouts(
+      allGroups,
+      allIframeLayers,
+      allDocuments
+    )
     const arts: RenderIframeLayer[] = allIframeLayers.flatMap((a) => {
       const layout = layouts.get(a.id)
       if (!layout) return []
       const branch = a.branchId ? branches.get(a.branchId) : undefined
       const previewDomain = branch?.previewDomain
-      return [{
-        id: a.id,
-        x: layout.x,
-        y: layout.y,
-        width: a.width,
-        height: a.height,
-        label: a.label,
-        iframeUrl: previewDomain
-          ? previewDomain + (a.route ?? "")
-          : null,
-      }]
+      return [
+        {
+          id: a.id,
+          x: layout.x,
+          y: layout.y,
+          width: a.width,
+          height: a.height,
+          label: a.label,
+          iframeUrl: previewDomain ? previewDomain + (a.route ?? "") : null,
+        },
+      ]
     })
     const docs = allDocuments.flatMap((d) => {
       const layout = layouts.get(d.id)
       if (!layout) return []
       const fragment = documentFragment(c.doc, d.id)
-      return [{
-        id: d.id,
-        x: layout.x,
-        y: layout.y,
-        width: d.width,
-        height: d.height,
-        title: d.title || "",
-        html: fragmentToHtml(fragment),
-      }]
+      return [
+        {
+          id: d.id,
+          x: layout.x,
+          y: layout.y,
+          width: d.width,
+          height: d.height,
+          title: d.title || "",
+          html: fragmentToHtml(fragment),
+        },
+      ]
     })
     return { iframeLayers: arts, markdownLayers: docs }
   })
@@ -143,7 +149,10 @@ export default async function RenderPage({
   return (
     <>
       <style>{`nextjs-portal { display: none !important; }`}</style>
-      <RenderCanvas iframeLayers={iframeLayers} markdownLayers={markdownLayers} />
+      <RenderCanvas
+        iframeLayers={iframeLayers}
+        markdownLayers={markdownLayers}
+      />
     </>
   )
 }

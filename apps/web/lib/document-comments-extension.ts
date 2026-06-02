@@ -21,21 +21,20 @@ interface DocumentCommentsOptions {
   onSelectThread?: (threadId: string) => void
 }
 
-const DOC_COMMENTS_KEY = new PluginKey<DocumentCommentsState>("documentComments")
+const DOC_COMMENTS_KEY = new PluginKey<DocumentCommentsState>(
+  "documentComments"
+)
 
 /** Replace the active set of comment highlights for a given editor. */
 export function setDocumentCommentRanges(
   view: { state: EditorState; dispatch: (tr: EditorState["tr"]) => void },
-  ranges: DocumentCommentRange[],
+  ranges: DocumentCommentRange[]
 ): void {
   const tr = view.state.tr.setMeta(DOC_COMMENTS_KEY, { ranges })
   view.dispatch(tr)
 }
 
-function buildDeco(
-  doc: PMNode,
-  ranges: DocumentCommentRange[],
-): DecorationSet {
+function buildDeco(doc: PMNode, ranges: DocumentCommentRange[]): DecorationSet {
   if (ranges.length === 0) return DecorationSet.empty
   const size = doc.content.size
   const decorations: Decoration[] = []
@@ -46,9 +45,10 @@ function buildDeco(
     decorations.push(
       Decoration.inline(from, to, {
         class:
-          "doc-comment-highlight" + (r.active ? " doc-comment-highlight-active" : ""),
+          "doc-comment-highlight" +
+          (r.active ? " doc-comment-highlight-active" : ""),
         "data-comment-thread": r.id,
-      }),
+      })
     )
   }
   return DecorationSet.create(doc, decorations)
@@ -61,8 +61,8 @@ function buildDeco(
  * changes; positions are mapped through doc edits in between updates so
  * the highlight tracks the underlying text even before the next refresh.
  */
-export const DocumentCommentsExtension = Extension.create<DocumentCommentsOptions>(
-  {
+export const DocumentCommentsExtension =
+  Extension.create<DocumentCommentsOptions>({
     name: "documentComments",
 
     addOptions() {
@@ -105,7 +105,7 @@ export const DocumentCommentsExtension = Extension.create<DocumentCommentsOption
               const target = event.target as HTMLElement | null
               if (!target) return false
               const el = target.closest(
-                "[data-comment-thread]",
+                "[data-comment-thread]"
               ) as HTMLElement | null
               if (!el) return false
               const id = el.getAttribute("data-comment-thread")
@@ -120,5 +120,4 @@ export const DocumentCommentsExtension = Extension.create<DocumentCommentsOption
         }),
       ]
     },
-  },
-)
+  })

@@ -12,7 +12,10 @@ import type { ToolContext } from "./tools"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import { readRoomDoc } from "@/lib/yjs/server"
-import { documentFragment, fragmentBodyToPlainText } from "@/lib/yjs/fragment-text"
+import {
+  documentFragment,
+  fragmentBodyToPlainText,
+} from "@/lib/yjs/fragment-text"
 
 /**
  * Server-side registry of chat target kinds. Each entry contains the
@@ -37,18 +40,29 @@ export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
   loadContext(roomId: string, target: TTarget): Promise<TContext | null>
   buildSystemPrompt(ctx: TContext, opts: { repoSystemPrompt?: string }): string
-  buildTools(roomId: string, target: TTarget, sandbox?: ToolContext): Record<string, Tool>
-  decorateUserMessage?(message: string, opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }): string
+  buildTools(
+    roomId: string,
+    target: TTarget,
+    sandbox?: ToolContext
+  ): Record<string, Tool>
+  decorateUserMessage?(
+    message: string,
+    opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }
+  ): string
 }
 
 /**
  * Snapshot the canvas's docs for the model's directory block. Cheap — the
  * collection is already in memory; we copy id + title only.
  */
-export async function loadLayerDirectory(roomId: string): Promise<LayerDirectory> {
+export async function loadLayerDirectory(
+  roomId: string
+): Promise<LayerDirectory> {
   return (
     (await readRoomDoc(roomId, ({ markdownLayers }) => ({
-      documents: markdownLayers.toArray().map((d) => ({ id: d.id, title: d.title })),
+      documents: markdownLayers
+        .toArray()
+        .map((d) => ({ id: d.id, title: d.title })),
     })).catch(() => null)) ?? { documents: [] }
   )
 }
@@ -75,7 +89,9 @@ export const agentChatTarget: ChatTargetSpec<AgentTarget, AgentContext> = {
   async loadContext(roomId, target) {
     const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
       readRoomDoc(roomId, ({ branches, repos }) => {
-        const branch = branches.toArray().find((a) => a.sandboxName === target.sandboxName)
+        const branch = branches
+          .toArray()
+          .find((a) => a.sandboxName === target.sandboxName)
         if (!branch) return undefined
         return repos.get(branch.repoId)?.systemPrompt
       }).catch(() => undefined),
@@ -122,7 +138,10 @@ interface MarkdownLayerContext {
   layerDirectory: LayerDirectory
 }
 
-export const markdownLayerChatTarget: ChatTargetSpec<MarkdownLayerTarget, MarkdownLayerContext> = {
+export const markdownLayerChatTarget: ChatTargetSpec<
+  MarkdownLayerTarget,
+  MarkdownLayerContext
+> = {
   kind: "markdown-layer",
   async loadContext(roomId, target) {
     const [self, layerDirectory] = await Promise.all([
@@ -174,7 +193,7 @@ const REGISTRY_BY_KIND = new Map(REGISTRY.map((s) => [s.kind, s]))
 
 /** Returns the registered spec for a target kind, or `undefined`. */
 export function getChatTargetSpec(
-  kind: string,
+  kind: string
 ): ChatTargetSpec<never, never> | undefined {
   return REGISTRY_BY_KIND.get(kind)
 }
@@ -186,7 +205,7 @@ export type PreparedChatTarget = {
   tools: Record<string, Tool>
   decorateUserMessage: (
     message: string,
-    opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean },
+    opts: { planMode?: boolean; branch?: string; isFirstMessage: boolean }
   ) => string
 }
 
@@ -199,7 +218,7 @@ export async function prepareChatTarget<TTarget, TContext>(
   roomId: string,
   spec: ChatTargetSpec<TTarget, TContext>,
   target: TTarget,
-  toolCtx?: ToolContext,
+  toolCtx?: ToolContext
 ): Promise<PreparedChatTarget | null> {
   const ctx = await spec.loadContext(roomId, target)
   if (!ctx) return null

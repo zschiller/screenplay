@@ -10,7 +10,9 @@ export default defineConfig({
       // server-only modules can be unit-tested under plain Node.
       {
         find: "server-only",
-        replacement: fileURLToPath(new URL("./test/stubs/server-only.ts", import.meta.url)),
+        replacement: fileURLToPath(
+          new URL("./test/stubs/server-only.ts", import.meta.url)
+        ),
       },
       // Mirror the tsconfig `@/*` path alias. The regex keeps it from matching
       // unrelated scoped packages like `@workspace/ui`.

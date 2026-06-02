@@ -4,7 +4,11 @@ import { useMemo, useState } from "react"
 import { Braces, Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { BranchBadge } from "@/components/branch-badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@workspace/ui/components/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
 import {
   Tooltip,
   TooltipContent,
@@ -45,7 +49,10 @@ interface IframeLayerLabelProps {
     [key: string]: unknown
   }
   /** Ask the canvas to start a reorder drag from this frame's title bar. */
-  onRequestReorderDrag?: (iframeLayerId: string, e: React.PointerEvent) => boolean
+  onRequestReorderDrag?: (
+    iframeLayerId: string,
+    e: React.PointerEvent
+  ) => boolean
   /** Drag handlers attached to the GroupLabel button — separate set so the
    *  group label moves the whole group rather than reordering a single
    *  frame within the group. */
@@ -86,7 +93,33 @@ interface IframeLayerLabelProps {
   onRename?: (next: string) => void
 }
 
-export function IframeLayerLabel({ iframeLayerId, label, branch, branchId, route, sharedState, zoom, iframeLayerWidth, dragHandlers, onRequestReorderDrag, groupLabelDragHandlers, assignableBranches, onAssignBranch, discoveredRoutes, onSelectRoute, selected, groupLabel, groupSelected, onSelectGroup, onRenameGroup, onSelectFrame, onRename, reorderDragTranslateX, reorderDragTranslateY, reorderDragPopped }: IframeLayerLabelProps) {
+export function IframeLayerLabel({
+  iframeLayerId,
+  label,
+  branch,
+  branchId,
+  route,
+  sharedState,
+  zoom,
+  iframeLayerWidth,
+  dragHandlers,
+  onRequestReorderDrag,
+  groupLabelDragHandlers,
+  assignableBranches,
+  onAssignBranch,
+  discoveredRoutes,
+  onSelectRoute,
+  selected,
+  groupLabel,
+  groupSelected,
+  onSelectGroup,
+  onRenameGroup,
+  onSelectFrame,
+  onRename,
+  reorderDragTranslateX,
+  reorderDragTranslateY,
+  reorderDragPopped,
+}: IframeLayerLabelProps) {
   return (
     <LayerTitleBar
       layerId={iframeLayerId}
@@ -103,13 +136,15 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, branchId, route
       reorderDragTranslateY={reorderDragTranslateY}
       reorderDragPopped={reorderDragPopped}
     >
-      <div className="flex min-h-[18px] items-center gap-2 max-w-full overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
+      <div className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
         {onAssignBranch ? (
           <BranchPicker
             branch={branch}
             currentBranchId={branchId}
             colorKey={branchId}
-            colorIndex={assignableBranches?.find((a) => a.id === branchId)?.colorIndex}
+            colorIndex={
+              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+            }
             assignableBranches={assignableBranches ?? []}
             onAssignBranch={onAssignBranch}
           />
@@ -117,8 +152,10 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, branchId, route
           <BranchBadge
             branch={branch}
             colorKey={branchId}
-            colorIndex={assignableBranches?.find((a) => a.id === branchId)?.colorIndex}
-            className="shrink-0 max-w-[1.25rem] hover:max-w-[30rem] hover:delay-300 transition-[max-width] duration-200 text-[10px] py-0 px-1"
+            colorIndex={
+              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+            }
+            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
           />
         ) : null}
         <LayerTitleText
@@ -128,19 +165,23 @@ export function IframeLayerLabel({ iframeLayerId, label, branch, branchId, route
           onRename={onRename}
           placeholder="Untitled"
         />
-        {branch && (onSelectRoute ? (
-          <RoutePicker
-            route={route}
-            discoveredRoutes={discoveredRoutes ?? []}
-            onSelectRoute={onSelectRoute}
-            sharedState={sharedState}
-          />
-        ) : (
-          <Badge variant="outline" className="shrink-0 border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] hover:max-w-full transition-[max-width] duration-200">
-            <span className="truncate">{route || "/"}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-        ))}
+        {branch &&
+          (onSelectRoute ? (
+            <RoutePicker
+              route={route}
+              discoveredRoutes={discoveredRoutes ?? []}
+              onSelectRoute={onSelectRoute}
+              sharedState={sharedState}
+            />
+          ) : (
+            <Badge
+              variant="outline"
+              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] duration-200 hover:max-w-full"
+            >
+              <span className="truncate">{route || "/"}</span>
+              <SharedStateIndicator sharedState={sharedState} />
+            </Badge>
+          ))}
       </div>
     </LayerTitleBar>
   )
@@ -153,7 +194,12 @@ interface RoutePickerProps {
   sharedState?: JsonObject
 }
 
-function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: RoutePickerProps) {
+function RoutePicker({
+  route,
+  discoveredRoutes,
+  onSelectRoute,
+  sharedState,
+}: RoutePickerProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState("")
 
@@ -163,10 +209,15 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
   const hasExactMatch = typedRoute
     ? discoveredRoutes.some((r) => r.route === typedRoute)
     : true
-  const filteredRoutes = (trimmed
-    ? discoveredRoutes.filter((r) => r.route.toLowerCase().includes(trimmed.toLowerCase()))
-    : discoveredRoutes
-  ).slice().sort((a, b) => a.route.localeCompare(b.route))
+  const filteredRoutes = (
+    trimmed
+      ? discoveredRoutes.filter((r) =>
+          r.route.toLowerCase().includes(trimmed.toLowerCase())
+        )
+      : discoveredRoutes
+  )
+    .slice()
+    .sort((a, b) => a.route.localeCompare(b.route))
 
   const handleSelect = (next: string) => {
     onSelectRoute(next)
@@ -188,17 +239,25 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <Badge variant="outline" className="border-transparent bg-muted font-mono text-[10px] text-foreground/50 py-0 px-1.5 min-w-[20px] max-w-[9rem] group-hover:max-w-full group-data-[state=open]:max-w-full transition-[max-width] duration-200">
+          <Badge
+            variant="outline"
+            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] duration-200 group-hover:max-w-full group-data-[state=open]:max-w-full"
+          >
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
           <ChevronsUpDown
             aria-hidden
-            className="h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
+            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
+      <PopoverContent
+        className="w-72 p-0"
+        side="bottom"
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search or type a route..."
@@ -217,8 +276,13 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
                     value={r.route}
                     onSelect={() => handleSelect(r.route)}
                   >
-                    <Check className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`} />
-                    <Badge variant="outline" className="border-transparent bg-muted font-mono text-[11px] text-foreground/50 py-0 px-1.5 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen">
+                    <Check
+                      className={`shrink-0 ${r.route === currentRoute ? "" : "opacity-0"}`}
+                    />
+                    <Badge
+                      variant="outline"
+                      className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                    >
                       {r.route}
                     </Badge>
                   </CommandItem>
@@ -231,7 +295,10 @@ function RoutePicker({ route, discoveredRoutes, onSelectRoute, sharedState }: Ro
                     <Check className="shrink-0 opacity-0" />
                     <span className="flex items-center gap-1">
                       <span className="text-xs">Go to</span>
-                      <Badge variant="outline" className="border-transparent bg-muted font-mono text-[11px] text-foreground/50 py-0 px-1.5 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen">
+                      <Badge
+                        variant="outline"
+                        className="border-transparent bg-muted px-1.5 py-0 font-mono text-[11px] text-foreground/50 transition-none [[data-selected=true]_&]:mix-blend-multiply dark:[[data-selected=true]_&]:mix-blend-screen"
+                      >
                         {typedRoute}
                       </Badge>
                     </span>
@@ -293,7 +360,7 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
           </span>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-[360px] p-0">
-          <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap break-words p-2 font-mono text-[10px] leading-snug">
+          <pre className="max-h-[300px] overflow-auto p-2 font-mono text-[10px] leading-snug break-words whitespace-pre-wrap">
             {json}
           </pre>
         </TooltipContent>
@@ -302,9 +369,18 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
   )
 }
 
-function BranchPicker({ branch, currentBranchId, colorKey, colorIndex, assignableBranches, onAssignBranch }: BranchPickerProps) {
+function BranchPicker({
+  branch,
+  currentBranchId,
+  colorKey,
+  colorIndex,
+  assignableBranches,
+  onAssignBranch,
+}: BranchPickerProps) {
   const [open, setOpen] = useState(false)
-  const pickableBranches = assignableBranches.filter((a) => a.ref && a.status !== "error" && a.status !== "stopped")
+  const pickableBranches = assignableBranches.filter(
+    (a) => a.ref && a.status !== "error" && a.status !== "stopped"
+  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -320,7 +396,7 @@ function BranchPicker({ branch, currentBranchId, colorKey, colorIndex, assignabl
               branch={branch}
               colorKey={colorKey}
               colorIndex={colorIndex}
-              className="shrink-0 max-w-[1.25rem] group-hover:max-w-[30rem] group-hover:delay-300 group-data-[state=open]:max-w-[30rem] transition-[max-width] duration-200 text-[10px] py-0 px-1"
+              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-300 group-data-[state=open]:max-w-[30rem]"
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -331,20 +407,26 @@ function BranchPicker({ branch, currentBranchId, colorKey, colorIndex, assignabl
             aria-hidden
             className={
               branch
-                ? "h-3 w-0 ml-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:w-3 group-hover:ml-1 group-hover:opacity-100 group-hover:delay-300 group-data-[state=open]:w-3 group-data-[state=open]:ml-1 group-data-[state=open]:opacity-100"
-                : "h-3 w-3 ml-1 shrink-0 text-muted-foreground"
+                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-300 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+                : "ml-1 h-3 w-3 shrink-0 text-muted-foreground"
             }
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" side="bottom" align="start" onPointerDown={(e) => e.stopPropagation()}>
+      <PopoverContent
+        className="w-72 p-0"
+        side="bottom"
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Command>
           <CommandInput placeholder="Search branches..." />
           <CommandList>
             <CommandEmpty>No branches found.</CommandEmpty>
             <CommandGroup>
               {pickableBranches.map((a) => {
-                const isBusy = a.status === "creating" || a.status === "starting"
+                const isBusy =
+                  a.status === "creating" || a.status === "starting"
                 return (
                   <CommandItem
                     key={a.id}
@@ -354,8 +436,15 @@ function BranchPicker({ branch, currentBranchId, colorKey, colorIndex, assignabl
                       setOpen(false)
                     }}
                   >
-                    <Check className={`shrink-0 ${a.id === currentBranchId ? "" : "opacity-0"}`} />
-                    <BranchBadge branch={a.ref} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
+                    <Check
+                      className={`shrink-0 ${a.id === currentBranchId ? "" : "opacity-0"}`}
+                    />
+                    <BranchBadge
+                      branch={a.ref}
+                      colorKey={a.id}
+                      colorIndex={a.colorIndex}
+                      className="px-1.5 py-0 text-[11px]"
+                    />
                     {isBusy && <Spinner className="ml-auto size-3" />}
                   </CommandItem>
                 )

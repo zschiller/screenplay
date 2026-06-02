@@ -56,14 +56,20 @@ import { crawlRoutes, getSandboxLogs } from "@/lib/sandbox/inspect"
  * everything else throws so an accidental dependency is loud, not silent.
  */
 function fakeSandbox(
-  respond: (cmd: string, args: string[]) => { exitCode: number; stdout?: string; stderr?: string },
-  status = "running",
+  respond: (
+    cmd: string,
+    args: string[]
+  ) => { exitCode: number; stdout?: string; stderr?: string },
+  status = "running"
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -98,7 +104,9 @@ beforeEach(() => {
 
 describe("getSandboxLogs", () => {
   it("returns the tailed log content as a success value on exit 0", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 0, stdout: "line a\nline b\n" })))
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 0, stdout: "line a\nline b\n" }))
+    )
 
     const result = await getSandboxLogs("sandbox-a")
 
@@ -108,8 +116,10 @@ describe("getSandboxLogs", () => {
   it("returns empty content without running a command when the sandbox is not running", async () => {
     fake.setInstance(
       fakeSandbox(() => {
-        throw new Error("runCommand should not be called when the sandbox is stopped")
-      }, "stopped"),
+        throw new Error(
+          "runCommand should not be called when the sandbox is stopped"
+        )
+      }, "stopped")
     )
 
     const result = await getSandboxLogs("sandbox-a")
@@ -120,7 +130,12 @@ describe("getSandboxLogs", () => {
 
 describe("crawlRoutes", () => {
   it("returns the LLM-discovered routes as a success value", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 0, stdout: "app/page.tsx\napp/about/page.tsx\n" })))
+    fake.setInstance(
+      fakeSandbox(() => ({
+        exitCode: 0,
+        stdout: "app/page.tsx\napp/about/page.tsx\n",
+      }))
+    )
     generateText.mockResolvedValue({
       text: '[{"route":"/","label":"Home"},{"route":"/about","label":"About"}]',
     })
@@ -141,12 +156,17 @@ describe("crawlRoutes", () => {
 
     const result = await crawlRoutes("sandbox-a")
 
-    expect(result).toEqual({ success: true, value: [{ route: "/", label: "Home" }] })
+    expect(result).toEqual({
+      success: true,
+      value: [{ route: "/", label: "Home" }],
+    })
     expect(generateText).not.toHaveBeenCalled()
   })
 
   it("returns a failure result when the file-listing command exits non-zero", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 1, stderr: "find: cannot access" })))
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 1, stderr: "find: cannot access" }))
+    )
 
     const result = await crawlRoutes("sandbox-a")
 
@@ -158,7 +178,10 @@ describe("crawlRoutes", () => {
   it("redacts a GitHub token out of a failure error", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     fake.setInstance(
-      fakeSandbox(() => ({ exitCode: 1, stderr: `find failed using token ${token}` })),
+      fakeSandbox(() => ({
+        exitCode: 1,
+        stderr: `find failed using token ${token}`,
+      }))
     )
 
     const result = await crawlRoutes("sandbox-a")

@@ -1,11 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  File as FileIcon,
-  MoreHorizontal,
-  Pin,
-} from "lucide-react"
+import { File as FileIcon, MoreHorizontal, Pin } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Table,
@@ -34,15 +30,12 @@ function FileRow({ file }: { file: RoomSummary }) {
   const folderName =
     folderId === DRAFTS_FOLDER_ID
       ? "Drafts"
-      : folders.find((f) => f.id === folderId)?.name ?? "Folder"
+      : (folders.find((f) => f.id === folderId)?.name ?? "Folder")
 
   return (
     <TableRow className="group">
       <TableCell className="w-full">
-        <a
-          href={`/${file.id}`}
-          className="flex items-center gap-2"
-        >
+        <a href={`/${file.id}`} className="flex items-center gap-2">
           <FileIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate font-medium hover:underline">
             {file.name}

@@ -174,7 +174,10 @@ export function TerminalTab({
         launchArgv = body.launchArgv ?? []
       } catch {
         if (!cancelled) {
-          setState({ status: "error", message: "Couldn't reach the sandbox terminal." })
+          setState({
+            status: "error",
+            message: "Couldn't reach the sandbox terminal.",
+          })
         }
         return
       }
@@ -196,8 +199,17 @@ export function TerminalTab({
       // monospace. Take only the real Geist face (the first token) and append
       // genuine monospace generics, so any glyph Geist can't supply still falls
       // back to a fixed-width font rather than that proportional fallback.
-      const monoFamily = styles.getPropertyValue("--font-mono").split(",")[0]?.trim()
-      const fontFamily = [monoFamily, "ui-monospace", "'SF Mono'", "Menlo", "monospace"]
+      const monoFamily = styles
+        .getPropertyValue("--font-mono")
+        .split(",")[0]
+        ?.trim()
+      const fontFamily = [
+        monoFamily,
+        "ui-monospace",
+        "'SF Mono'",
+        "Menlo",
+        "monospace",
+      ]
         .filter(Boolean)
         .join(", ")
       const fontSize = 13
@@ -211,7 +223,8 @@ export function TerminalTab({
       // scrolls. Wait for the actual font before opening so we measure for real.
       try {
         const primaryFamily = fontFamily.split(",")[0]?.trim()
-        if (primaryFamily) await document.fonts.load(`${fontSize}px ${primaryFamily}`)
+        if (primaryFamily)
+          await document.fonts.load(`${fontSize}px ${primaryFamily}`)
         await document.fonts.ready
       } catch {
         // Font Loading API unavailable or rejected — fall through and open
@@ -287,7 +300,12 @@ export function TerminalTab({
       const fitWhenReady = (attempt = 0) => {
         cancelAnimationFrame(fitFrame)
         if (cancelled) return
-        if (!host.offsetParent || host.clientWidth === 0 || host.clientHeight === 0) return
+        if (
+          !host.offsetParent ||
+          host.clientWidth === 0 ||
+          host.clientHeight === 0
+        )
+          return
         if (fit.proposeDimensions()) {
           fit.fit()
           return
@@ -339,14 +357,20 @@ export function TerminalTab({
       //    ignores the command when reattaching to a live one).
       const ws = new WebSocket(
         terminalWebSocketUrl(url, [tmuxSessionName(sessionId), ...launchArgv]),
-        [TTYD_SUBPROTOCOL],
+        [TTYD_SUBPROTOCOL]
       )
       ws.binaryType = "arraybuffer"
 
       ws.onopen = () => {
         // The handshake is the first frame ttyd waits for before spawning the
         // PTY; it carries the fitted geometry so output isn't clipped/wrapped.
-        ws.send(encodeHandshake({ authToken: token, columns: term.cols, rows: term.rows }))
+        ws.send(
+          encodeHandshake({
+            authToken: token,
+            columns: term.cols,
+            rows: term.rows,
+          })
+        )
         if (!cancelled) setState({ status: "ready" })
         term.focus()
       }
@@ -357,7 +381,10 @@ export function TerminalTab({
       }
       ws.onerror = () => {
         if (!cancelled) {
-          setState({ status: "error", message: "Lost connection to the terminal." })
+          setState({
+            status: "error",
+            message: "Lost connection to the terminal.",
+          })
         }
       }
       ws.onclose = () => {
@@ -365,7 +392,7 @@ export function TerminalTab({
           setState((prev) =>
             prev.status === "ready"
               ? { status: "error", message: "Terminal session ended." }
-              : prev,
+              : prev
           )
         }
       }

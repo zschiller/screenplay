@@ -50,8 +50,10 @@ export async function reprovisionFromGit(
   repo: RepoData,
   branch: string,
   ghToken?: string,
-  env?: Record<string, string> | null,
-): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
+  env?: Record<string, string> | null
+): Promise<
+  SandboxActionResult<{ sandboxName: string; previewDomain: string }>
+> {
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
     const port = repo.devServerPort
@@ -64,7 +66,13 @@ export async function reprovisionFromGit(
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source: ghToken
-        ? { type: "git", url: repo.cloneUrl, revision: branch, username: "x-access-token", password: ghToken }
+        ? {
+            type: "git",
+            url: repo.cloneUrl,
+            revision: branch,
+            username: "x-access-token",
+            password: ghToken,
+          }
         : { type: "git", url: repo.cloneUrl, revision: branch },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
@@ -92,9 +100,20 @@ export async function reprovisionFromGit(
       throw new Error(gitResult.error ?? "Failed to configure git")
     }
 
-    const previewDomain = await launchDevAndProxy(sandbox, port, repo.devScript, env)
-    return { success: true, value: { sandboxName: sandbox.name, previewDomain } }
+    const previewDomain = await launchDevAndProxy(
+      sandbox,
+      port,
+      repo.devScript,
+      env
+    )
+    return {
+      success: true,
+      value: { sandboxName: sandbox.name, previewDomain },
+    }
   } catch (e) {
-    return { success: false, error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)) }
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
   }
 }

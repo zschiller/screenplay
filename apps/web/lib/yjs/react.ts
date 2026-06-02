@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import * as Y from "yjs"
 import { UndoManager } from "yjs"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
@@ -29,33 +36,33 @@ export function useRoomCollections(): RoomCollections {
 }
 
 function useCollectionArray<T extends Record<string, unknown>>(
-  collection: YjsCollection<T>,
+  collection: YjsCollection<T>
 ): Array<T> {
   const subscribe = useCallback(
     (cb: () => void) => collection.observe(cb),
-    [collection],
+    [collection]
   )
   const getSnapshot = useCallback(() => collection.toArray(), [collection])
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 function useCollectionMap<T extends Record<string, unknown>>(
-  collection: YjsCollection<T>,
+  collection: YjsCollection<T>
 ): ReadonlyMap<string, T> {
   const subscribe = useCallback(
     (cb: () => void) => collection.observe(cb),
-    [collection],
+    [collection]
   )
   const getSnapshot = useCallback(() => collection.toMap(), [collection])
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 function useSingleton<T extends Record<string, unknown>>(
-  singleton: YjsSingleton<T>,
+  singleton: YjsSingleton<T>
 ): T | null {
   const subscribe = useCallback(
     (cb: () => void) => singleton.observe(cb),
-    [singleton],
+    [singleton]
   )
   const getSnapshot = useCallback(() => singleton.get(), [singleton])
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
@@ -113,7 +120,7 @@ export function useYjsHistory() {
         doc.getMap(COLLECTION_KEYS.chatSessions),
         doc.getMap(COLLECTION_KEYS.plans),
       ],
-      { captureTimeout: 500 },
+      { captureTimeout: 500 }
     )
     undoMgrRef.current = mgr
     return () => {
@@ -127,7 +134,7 @@ export function useYjsHistory() {
       undo: () => undoMgrRef.current?.undo(),
       redo: () => undoMgrRef.current?.redo(),
     }),
-    [],
+    []
   )
 }
 
@@ -138,7 +145,7 @@ export function useYjsHistory() {
  */
 export function useCollectionEntry<T extends Record<string, unknown>>(
   collection: YjsCollection<T>,
-  id: string,
+  id: string
 ): T | undefined {
   const [, force] = useState(0)
   useEffect(() => collection.observe(() => force((n) => n + 1)), [collection])
@@ -177,10 +184,11 @@ export function useSetPresence() {
   const awareness = useAwareness()
   return useCallback(
     (partial: Partial<CanvasPresence>) => {
-      const current = awareness.getLocalState() as Partial<CanvasPresence> | null
+      const current =
+        awareness.getLocalState() as Partial<CanvasPresence> | null
       awareness.setLocalState({ ...(current ?? {}), ...partial })
     },
-    [awareness],
+    [awareness]
   )
 }
 
@@ -213,11 +221,14 @@ function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
       awareness.on("update", handler)
       return () => awareness.off("update", handler)
     },
-    [awareness],
+    [awareness]
   )
 
   const getSnapshot = useCallback(() => {
-    if (cacheRef.current === EMPTY || lastVersionSeenRef.current !== versionRef.current) {
+    if (
+      cacheRef.current === EMPTY ||
+      lastVersionSeenRef.current !== versionRef.current
+    ) {
       cacheRef.current = select(awareness)
       lastVersionSeenRef.current = versionRef.current
     }
@@ -281,7 +292,9 @@ export function useY(doc: Y.Doc) {
  * joiner sees the in-progress stream; older events are ignored (chat history
  * is hydrated separately via the API).
  */
-export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void) {
+export function useChatStreamEvents(
+  onEvent: (event: ChatBroadcastEvent) => void
+) {
   const { doc } = useYjs()
   const onEventRef = useRef(onEvent)
   useEffect(() => {
@@ -289,7 +302,9 @@ export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void
   })
 
   useEffect(() => {
-    const map = doc.getMap("streamEventsByChat") as Y.Map<Y.Array<ChatBroadcastEvent>>
+    const map = doc.getMap("streamEventsByChat") as Y.Map<
+      Y.Array<ChatBroadcastEvent>
+    >
     const cursors = new Map<string, number>()
 
     /**
@@ -360,12 +375,12 @@ export function useCommentPositions(): ReadonlyMap<
 export function useSetCommentPosition(): (
   threadId: string,
   x: number,
-  y: number,
+  y: number
 ) => void {
   const { commentPositions } = useRoomCollections()
   return useCallback(
     (threadId, x, y) => commentPositions.set(threadId, { x, y }),
-    [commentPositions],
+    [commentPositions]
   )
 }
 
@@ -387,7 +402,7 @@ export function usePruneCommentPositions(): (liveIds: Set<string>) => void {
         for (const id of stale) commentPositions.delete(id)
       })
     },
-    [commentPositions, transact],
+    [commentPositions, transact]
   )
 }
 
@@ -404,11 +419,11 @@ export function useCommentsRevision(): number {
       meta.observe(handler)
       return () => meta.unobserve(handler)
     },
-    [meta],
+    [meta]
   )
   const getSnapshot = useCallback(
     () => (meta.get("commentsRevision") as number | undefined) ?? 0,
-    [meta],
+    [meta]
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
@@ -429,11 +444,11 @@ export function useCommentsReadRevision(userId: string | null): number {
       read.observe(handler)
       return () => read.unobserve(handler)
     },
-    [read],
+    [read]
   )
   const getSnapshot = useCallback(
     () => (userId ? ((read.get(userId) as number | undefined) ?? 0) : 0),
-    [read, userId],
+    [read, userId]
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

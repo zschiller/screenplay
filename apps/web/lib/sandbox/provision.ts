@@ -39,7 +39,7 @@ export async function cloneSandbox(
   branch: string,
   port: number = 3000,
   env?: Record<string, string>,
-  ghToken?: string,
+  ghToken?: string
 ): Promise<SandboxActionResult<{ sandboxName: string }>> {
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
@@ -49,7 +49,10 @@ export async function cloneSandbox(
     // The brokered gate vars (ANTHROPIC_API_KEY=brokered, …) are derived from
     // the harnesses the operator selected via SANDBOX_HARNESSES, beside the
     // network policy. No real key is emitted — the firewall injects it on egress.
-    const installable = selectHarnesses(process.env.SANDBOX_HARNESSES, providers).installable
+    const installable = selectHarnesses(
+      process.env.SANDBOX_HARNESSES,
+      providers
+    ).installable
     const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
 
     const sandbox = await sandboxProvider.create({
@@ -92,7 +95,7 @@ export async function cloneSandbox(
  * uniform result contract; a failed write comes back redacted via the runner.
  */
 export async function installBridge(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     await writeBridgeFiles(sandbox)
@@ -106,7 +109,7 @@ export async function installBridge(
  */
 export async function installDependencies(
   sandboxName: string,
-  setupScript?: string,
+  setupScript?: string
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     const setup = setupScript?.trim() || "npm install"
@@ -128,7 +131,7 @@ export async function installDependencies(
  * already present), so it's safe to run on every provision.
  */
 export async function installRipgrep(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     await sandbox.runCommand({
@@ -151,7 +154,7 @@ export async function installRipgrep(
  */
 async function installOneHarness(
   sandbox: SandboxInstance,
-  harness: Harness,
+  harness: Harness
 ): Promise<void> {
   // `step` can't express `sudo`, so run the global install directly and turn a
   // non-zero exit into the same redacted SandboxStepError the runner maps to a
@@ -166,7 +169,7 @@ async function installOneHarness(
     throw new SandboxStepError(
       `npm install -g ${harness.installPackage}`,
       install.exitCode,
-      stderr,
+      stderr
     )
   }
 
@@ -187,11 +190,13 @@ async function installOneHarness(
  */
 export async function installHarnesses(
   sandboxName: string,
-  harnessKeys: string[],
+  harnessKeys: string[]
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     const { installable } = resolveHarnesses(harnessKeys, getModelProviders())
-    await Promise.all(installable.map((harness) => installOneHarness(sandbox, harness)))
+    await Promise.all(
+      installable.map((harness) => installOneHarness(sandbox, harness))
+    )
   })
 }
 
@@ -205,8 +210,10 @@ export async function installHarnesses(
 export async function startDevServer(
   sandboxName: string,
   port: number = 3000,
-  devScript?: string,
-): Promise<SandboxActionResult<{ sandboxName: string; previewDomain: string }>> {
+  devScript?: string
+): Promise<
+  SandboxActionResult<{ sandboxName: string; previewDomain: string }>
+> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     const previewDomain = await launchDevAndProxy(sandbox, port, devScript)
     return { sandboxName: sandbox.name, previewDomain }

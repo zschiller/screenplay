@@ -30,9 +30,8 @@ vi.mock("drizzle-orm", () => ({
 }))
 
 vi.mock("@/lib/db", async () => {
-  const schema = await vi.importActual<typeof import("./db/schema")>(
-    "./db/schema",
-  )
+  const schema =
+    await vi.importActual<typeof import("./db/schema")>("./db/schema")
   const db = {
     select() {
       const b = {
@@ -145,7 +144,10 @@ describe("listTerminalTabs", () => {
     expect(eqFor(call.where, schema.terminalTab.roomId)?.val).toBe("room-1")
     // No branch filter when branch is omitted.
     expect(eqFor(call.where, schema.terminalTab.branch)).toBeUndefined()
-    expect(call.order).toEqual({ type: "asc", col: schema.terminalTab.createdAt })
+    expect(call.order).toEqual({
+      type: "asc",
+      col: schema.terminalTab.createdAt,
+    })
   })
 
   it("adds a branch filter when scoped to a single branch", async () => {

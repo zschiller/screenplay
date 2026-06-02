@@ -20,7 +20,7 @@ type RecordedCall = {
  */
 function fakeSandbox(
   calls: RecordedCall[],
-  homeDir = "/home/agent",
+  homeDir = "/home/agent"
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
@@ -80,7 +80,7 @@ describe("seedCodex", () => {
     expect(configCall).toBeDefined()
     expect(configCall!.env!.CODEX_CONFIG).toBe(codexConfigToml())
     expect(configCall!.args.at(-1)).toContain(
-      '"/home/agent/.codex/config.toml"',
+      '"/home/agent/.codex/config.toml"'
     )
 
     const agentsCall = calls.find((c) => c.env?.CODEX_AGENTS_MD)

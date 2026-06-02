@@ -87,12 +87,14 @@ function applyOrg(state: OrganizationState) {
 
 export function HomeProvider({ children }: { children: React.ReactNode }) {
   const [files, setFiles] = useState<RoomSummary[]>([])
-  const [org, setOrg] = useState(() => applyOrg({
-    folders: [],
-    fileFolder: {},
-    pinnedFiles: [],
-    pinnedFolders: [],
-  }))
+  const [org, setOrg] = useState(() =>
+    applyOrg({
+      folders: [],
+      fileFolder: {},
+      pinnedFiles: [],
+      pinnedFolders: [],
+    })
+  )
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string>(DRAFTS_FOLDER_ID)
   const [view, setView] = useState<View>("grid")
@@ -104,7 +106,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       .then(async ([roomList, orgState]) => {
         if (cancelled) return
         const cleaned = await cleanupMissingFiles(
-          roomList.map((p) => p.id),
+          roomList.map((p) => p.id)
         ).catch(() => orgState)
         if (cancelled) return
         setFiles(roomList)
@@ -126,7 +128,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       }
       return files.filter((f) => org.fileFolder[f.id] === folderId)
     },
-    [files, org.fileFolder],
+    [files, org.fileFolder]
   )
 
   const sortedSelection = useMemo(() => {
@@ -161,35 +163,35 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     return org.folders.find((f) => f.id === selectedId)?.name ?? "Folder"
   }, [selectedId, org.folders])
 
-  const createFile = useCallback(
-    async (name: string, folderId: string) => {
-      const file = await createRoom(name)
-      setFiles((prev) => [file, ...prev])
-      if (folderId !== DRAFTS_FOLDER_ID) {
-        const next = await moveFileAction(file.id, folderId)
-        setOrg(applyOrg(next))
-      }
-      return file
-    },
-    [],
-  )
+  const createFile = useCallback(async (name: string, folderId: string) => {
+    const file = await createRoom(name)
+    setFiles((prev) => [file, ...prev])
+    if (folderId !== DRAFTS_FOLDER_ID) {
+      const next = await moveFileAction(file.id, folderId)
+      setOrg(applyOrg(next))
+    }
+    return file
+  }, [])
 
   const renameFile = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim() || "Untitled"
     await renameRoom(id, trimmed)
     setFiles((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: trimmed } : p)),
+      prev.map((p) => (p.id === id ? { ...p, name: trimmed } : p))
     )
   }, [])
 
-  const removeFile = useCallback(async (id: string) => {
-    await deleteRoom(id)
-    setFiles((prev) => prev.filter((p) => p.id !== id))
-    const next = await cleanupMissingFiles(
-      files.filter((f) => f.id !== id).map((f) => f.id),
-    ).catch(() => null)
-    if (next) setOrg(applyOrg(next))
-  }, [files])
+  const removeFile = useCallback(
+    async (id: string) => {
+      await deleteRoom(id)
+      setFiles((prev) => prev.filter((p) => p.id !== id))
+      const next = await cleanupMissingFiles(
+        files.filter((f) => f.id !== id).map((f) => f.id)
+      ).catch(() => null)
+      if (next) setOrg(applyOrg(next))
+    },
+    [files]
+  )
 
   const moveFile = useCallback(async (fileId: string, folderId: string) => {
     const next = await moveFileAction(fileId, folderId)
@@ -201,7 +203,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       const next = await setFilePinned(id, !org.pinnedFiles.has(id))
       setOrg(applyOrg(next))
     },
-    [org.pinnedFiles],
+    [org.pinnedFiles]
   )
 
   const createFolder = useCallback(async (name: string) => {
@@ -221,7 +223,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       setOrg(applyOrg(next))
       if (selectedId === id) setSelectedId(DRAFTS_FOLDER_ID)
     },
-    [selectedId],
+    [selectedId]
   )
 
   const toggleFolderPin = useCallback(
@@ -229,7 +231,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       const next = await setFolderPinned(id, !org.pinnedFolders.has(id))
       setOrg(applyOrg(next))
     },
-    [org.pinnedFolders],
+    [org.pinnedFolders]
   )
 
   const value: HomeContextValue = {

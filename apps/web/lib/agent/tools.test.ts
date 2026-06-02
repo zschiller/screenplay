@@ -42,7 +42,10 @@ vi.mock("@/lib/auth-helpers", () => ({
 // reads LIVEBLOCKS_SECRET_KEY at import. Stub it so the tools' import graph
 // stays unit-testable under plain Node.
 vi.mock("@/lib/github-pr", () => ({
-  createGitHubPr: vi.fn(async () => ({ url: "https://example/pr/1", number: 1 })),
+  createGitHubPr: vi.fn(async () => ({
+    url: "https://example/pr/1",
+    number: 1,
+  })),
 }))
 
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
@@ -61,18 +64,24 @@ const ctx: ToolContext = {
  */
 function fakeSandbox(opts: {
   files?: Record<string, string>
-  command?: (cmd: string, args: string[]) => { exitCode: number; stdout?: string; stderr?: string }
+  command?: (
+    cmd: string,
+    args: string[]
+  ) => { exitCode: number; stdout?: string; stderr?: string }
 }): SandboxInstance {
   const files: Record<string, string> = { ...opts.files }
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
-        ? maybeArgs ?? []
-        : (cmdOrOpts as { args?: string[] }).args ?? []
+        ? (maybeArgs ?? [])
+        : ((cmdOrOpts as { args?: string[] }).args ?? [])
     const scripted = opts.command?.(cmd, args) ?? { exitCode: 0 }
     const result: SandboxCommandResult = {
       exitCode: scripted.exitCode,
@@ -104,11 +113,13 @@ beforeEach(() => {
 
 describe("read_file", () => {
   it("returns the file's contents with cat -n-style line numbers", async () => {
-    fake.setInstance(fakeSandbox({ files: { "src/App.tsx": "line one\nline two" } }))
+    fake.setInstance(
+      fakeSandbox({ files: { "src/App.tsx": "line one\nline two" } })
+    )
 
     const out = await buildSandboxTools(ctx).read_file.execute!(
       { path: "src/App.tsx" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toBe("     1\tline one\n     2\tline two")
@@ -119,7 +130,7 @@ describe("read_file", () => {
 
     const out = await buildSandboxTools(ctx).read_file.execute!(
       { path: "a.ts", offset: 2, limit: 1 },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("     2\tl2")
@@ -133,7 +144,7 @@ describe("read_file", () => {
 
     const out = await buildSandboxTools(ctx).read_file.execute!(
       { path: "nope.ts" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toBe("File not found: nope.ts")
@@ -147,7 +158,7 @@ describe("write_file", () => {
 
     const written = await tools.write_file.execute!(
       { path: "a.txt", content: "hello" },
-      {} as never,
+      {} as never
     )
     expect(written).toBe("Written 5 bytes to a.txt")
 
@@ -163,7 +174,7 @@ describe("edit_file", () => {
 
     await tools.edit_file.execute!(
       { path: "a.ts", old_string: "1", new_string: "2" },
-      {} as never,
+      {} as never
     )
 
     const back = await tools.read_file.execute!({ path: "a.ts" }, {} as never)
@@ -175,7 +186,7 @@ describe("edit_file", () => {
 
     const out = await buildSandboxTools(ctx).edit_file.execute!(
       { path: "a.ts", old_string: "zzz", new_string: "2" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("old_string not found")
@@ -187,7 +198,7 @@ describe("edit_file", () => {
 
     const out = await tools.edit_file.execute!(
       { path: "a.ts", old_string: "x", new_string: "y" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("3")
@@ -204,7 +215,7 @@ describe("edit_file", () => {
 
     const out = await tools.edit_file.execute!(
       { path: "a.ts", old_string: "x", new_string: "y", replace_all: true },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("3")
@@ -220,12 +231,12 @@ describe("run_command", () => {
     fake.setInstance(
       fakeSandbox({
         command: () => ({ exitCode: 2, stdout: "out", stderr: "err" }),
-      }),
+      })
     )
 
     const out = await buildSandboxTools(ctx).run_command.execute!(
       { command: "npm test" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("stdout:\nout")
@@ -236,12 +247,14 @@ describe("run_command", () => {
   it("leaves a token in its output untouched — redaction is the assembly point's job", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     fake.setInstance(
-      fakeSandbox({ command: () => ({ exitCode: 0, stdout: `using ${token}` }) }),
+      fakeSandbox({
+        command: () => ({ exitCode: 0, stdout: `using ${token}` }),
+      })
     )
 
     const out = await buildSandboxTools(ctx).run_command.execute!(
       { command: "git remote -v" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain(token)
@@ -251,10 +264,15 @@ describe("run_command", () => {
 describe("list_files", () => {
   it("returns the find output", async () => {
     fake.setInstance(
-      fakeSandbox({ command: () => ({ exitCode: 0, stdout: "./a.ts\n./b.ts" }) }),
+      fakeSandbox({
+        command: () => ({ exitCode: 0, stdout: "./a.ts\n./b.ts" }),
+      })
     )
 
-    const out = await buildSandboxTools(ctx).list_files.execute!({}, {} as never)
+    const out = await buildSandboxTools(ctx).list_files.execute!(
+      {},
+      {} as never
+    )
 
     expect(out).toBe("./a.ts\n./b.ts")
   })
@@ -265,11 +283,16 @@ describe("grep", () => {
     fake.setInstance(
       fakeSandbox({
         command: (cmd) =>
-          cmd === "rg" ? { exitCode: 0, stdout: "a.ts:1:useState(0)" } : { exitCode: 1 },
-      }),
+          cmd === "rg"
+            ? { exitCode: 0, stdout: "a.ts:1:useState(0)" }
+            : { exitCode: 1 },
+      })
     )
 
-    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "useState" }, {} as never)
+    const out = await buildSandboxTools(ctx).grep.execute!(
+      { pattern: "useState" },
+      {} as never
+    )
 
     expect(out).toContain("a.ts:1:useState(0)")
   })
@@ -278,22 +301,32 @@ describe("grep", () => {
     fake.setInstance(
       fakeSandbox({
         command: (cmd) => {
-          if (cmd === "rg") return { exitCode: 127, stderr: "rg: command not found" }
-          if (cmd === "grep") return { exitCode: 0, stdout: "b.ts:2:useState(1)" }
+          if (cmd === "rg")
+            return { exitCode: 127, stderr: "rg: command not found" }
+          if (cmd === "grep")
+            return { exitCode: 0, stdout: "b.ts:2:useState(1)" }
           return { exitCode: 1 }
         },
-      }),
+      })
     )
 
-    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "useState" }, {} as never)
+    const out = await buildSandboxTools(ctx).grep.execute!(
+      { pattern: "useState" },
+      {} as never
+    )
 
     expect(out).toContain("b.ts:2:useState(1)")
   })
 
   it("reports no matches rather than returning an empty string", async () => {
-    fake.setInstance(fakeSandbox({ command: () => ({ exitCode: 1, stdout: "" }) }))
+    fake.setInstance(
+      fakeSandbox({ command: () => ({ exitCode: 1, stdout: "" }) })
+    )
 
-    const out = await buildSandboxTools(ctx).grep.execute!({ pattern: "nope" }, {} as never)
+    const out = await buildSandboxTools(ctx).grep.execute!(
+      { pattern: "nope" },
+      {} as never
+    )
 
     expect(out).toMatch(/no matches/i)
   })
@@ -304,11 +337,16 @@ describe("glob", () => {
     fake.setInstance(
       fakeSandbox({
         command: (cmd) =>
-          cmd === "find" ? { exitCode: 0, stdout: "./a.tsx\n./b.tsx" } : { exitCode: 1 },
-      }),
+          cmd === "find"
+            ? { exitCode: 0, stdout: "./a.tsx\n./b.tsx" }
+            : { exitCode: 1 },
+      })
     )
 
-    const out = await buildSandboxTools(ctx).glob.execute!({ pattern: "**/*.tsx" }, {} as never)
+    const out = await buildSandboxTools(ctx).glob.execute!(
+      { pattern: "**/*.tsx" },
+      {} as never
+    )
 
     expect(out).toBe("./a.tsx\n./b.tsx")
   })
@@ -318,7 +356,7 @@ describe("read_skill", () => {
   it("lists available skills when the name is unknown", async () => {
     const out = await buildSandboxTools(ctx).read_skill.execute!(
       { name: "does-not-exist" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain('Unknown skill: "does-not-exist"')
@@ -331,12 +369,12 @@ describe("read_skill", () => {
           ".claude/skills/deploy/SKILL.md":
             "---\nname: deploy\ndescription: Deploy it.\n---\nDEPLOY BODY",
         },
-      }),
+      })
     )
 
     const out = await buildSandboxTools(ctx).read_skill.execute!(
       { name: "deploy" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("DEPLOY BODY")
@@ -349,7 +387,7 @@ describe("read_skill", () => {
 
     const out = await buildSandboxTools(ctx).read_skill.execute!(
       { name: "screenplay-add-knob" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain("name: screenplay-add-knob")
@@ -364,12 +402,12 @@ describe("read_skill", () => {
         },
         command: (cmd) =>
           cmd === "ls" ? { exitCode: 0, stdout: "deploy" } : { exitCode: 1 },
-      }),
+      })
     )
 
     const out = await buildSandboxTools(ctx).read_skill.execute!(
       { name: "nope" },
-      {} as never,
+      {} as never
     )
 
     expect(out).toContain('Unknown skill: "nope"')

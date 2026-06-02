@@ -29,7 +29,7 @@ export async function listUserRepos(): Promise<GitHubRepo[]> {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",
         },
-      },
+      }
     )
 
     if (!res.ok) break
@@ -67,7 +67,7 @@ export async function createBranch(
   repo: string,
   newBranchName: string,
   fromBranch: string,
-  ghToken?: string,
+  ghToken?: string
 ): Promise<{ success: boolean; error?: string }> {
   let token = ghToken
   if (!token) token = (await getGitHubToken()) ?? undefined
@@ -81,7 +81,7 @@ export async function createBranch(
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-    },
+    }
   )
 
   if (!refRes.ok) {
@@ -110,7 +110,7 @@ export async function createBranch(
         ref: `refs/heads/${newBranchName}`,
         sha,
       }),
-    },
+    }
   )
 
   if (!createRes.ok) {
@@ -128,7 +128,7 @@ export async function renameBranch(
   owner: string,
   repo: string,
   oldBranch: string,
-  newBranch: string,
+  newBranch: string
 ): Promise<{ success: boolean; error?: string }> {
   const token = await getGitHubToken()
   if (!token) return { success: false, error: "No GitHub token" }
@@ -143,14 +143,15 @@ export async function renameBranch(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ new_name: newBranch }),
-    },
+    }
   )
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     return {
       success: false,
-      error: err.message || `Failed to rename branch ${oldBranch} to ${newBranch}`,
+      error:
+        err.message || `Failed to rename branch ${oldBranch} to ${newBranch}`,
     }
   }
 
@@ -160,7 +161,7 @@ export async function renameBranch(
 export async function deleteBranch(
   owner: string,
   repo: string,
-  branch: string,
+  branch: string
 ): Promise<{ success: boolean; error?: string }> {
   const token = await getGitHubToken()
   if (!token) return { success: false, error: "No GitHub token" }
@@ -173,7 +174,7 @@ export async function deleteBranch(
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-    },
+    }
   )
 
   // 204 No Content = deleted; 422 typically means the ref doesn't exist (already gone).
@@ -190,7 +191,7 @@ export async function compareBranch(
   owner: string,
   repo: string,
   base: string,
-  head: string,
+  head: string
 ): Promise<{ additions: number; deletions: number } | null> {
   const token = await getGitHubToken()
   if (!token) return null
@@ -202,7 +203,7 @@ export async function compareBranch(
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-    },
+    }
   )
 
   if (!res.ok) return null
@@ -228,7 +229,7 @@ export interface BranchPrInfo {
 export async function listBranchPullRequest(
   owner: string,
   repo: string,
-  branch: string,
+  branch: string
 ): Promise<BranchPrInfo | null> {
   const token = await getGitHubToken()
   if (!token) return null
@@ -240,7 +241,7 @@ export async function listBranchPullRequest(
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-    },
+    }
   )
 
   if (!res.ok) return null
@@ -260,7 +261,7 @@ export async function listBranchPullRequest(
 
 export async function listRepoBranches(
   owner: string,
-  repo: string,
+  repo: string
 ): Promise<GitHubBranch[]> {
   const token = await getGitHubToken()
   if (!token) return []
@@ -272,7 +273,7 @@ export async function listRepoBranches(
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-    },
+    }
   )
 
   if (!res.ok) return []

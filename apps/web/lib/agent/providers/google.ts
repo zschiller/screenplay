@@ -29,7 +29,9 @@ async function fetchGoogleModels(): Promise<
   const raw: Array<{ id: string; label: string }> = []
   let pageToken: string | undefined
   for (let i = 0; i < 5; i++) {
-    const url = new URL("https://generativelanguage.googleapis.com/v1beta/models")
+    const url = new URL(
+      "https://generativelanguage.googleapis.com/v1beta/models"
+    )
     url.searchParams.set("key", apiKey)
     url.searchParams.set("pageSize", "100")
     if (pageToken) url.searchParams.set("pageToken", pageToken)

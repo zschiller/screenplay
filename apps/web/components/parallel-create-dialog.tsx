@@ -24,7 +24,11 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
-import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
+import {
+  getDefaultModelId,
+  getModels,
+  type ModelInfo,
+} from "@/lib/models-store"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -64,7 +68,9 @@ export function ParallelCreateDialog({
   const [branches, setBranches] = useState<GitHubBranch[]>([])
   const [branchesLoading, setBranchesLoading] = useState(false)
   const [models, setModels] = useState<ModelInfo[]>([])
-  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
+  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
+    null
+  )
 
   // Stored model wins over the server default so a user who picked a model
   // last time keeps that choice; the server default is only used the first
@@ -95,7 +101,7 @@ export function ParallelCreateDialog({
     ? `${repoOwner}|${repoName}|${defaultBranch}`
     : null
   const [prevBranchFetchKey, setPrevBranchFetchKey] = useState<string | null>(
-    null,
+    null
   )
   if (branchFetchKey !== prevBranchFetchKey) {
     setPrevBranchFetchKey(branchFetchKey)
@@ -172,10 +178,14 @@ export function ParallelCreateDialog({
   }
 
   const removeRow = (idx: number) => {
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
+    setRows((prev) =>
+      prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)
+    )
   }
 
-  const validRows = rows.filter((r) => r.prompt.trim() && r.baseBranch && r.model)
+  const validRows = rows.filter(
+    (r) => r.prompt.trim() && r.baseBranch && r.model
+  )
   const canSubmit = validRows.length > 0 && validRows.length === rows.length
 
   const handleSubmit = () => {
@@ -190,8 +200,9 @@ export function ParallelCreateDialog({
         <DialogHeader>
           <DialogTitle>Parallel agents</DialogTitle>
           <DialogDescription>
-            Spin up multiple branches at once. Each row creates a branch and sends
-            its prompt to a fresh agent chat as soon as the sandbox is ready.
+            Spin up multiple branches at once. Each row creates a branch and
+            sends its prompt to a fresh agent chat as soon as the sandbox is
+            ready.
           </DialogDescription>
         </DialogHeader>
 
@@ -229,7 +240,7 @@ export function ParallelCreateDialog({
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <label className="text-[10px] tracking-wide text-muted-foreground uppercase">
                     Base branch
                   </label>
                   <Select
@@ -258,7 +269,11 @@ export function ParallelCreateDialog({
                         </div>
                       ) : (
                         branches.map((b) => (
-                          <SelectItem key={b.name} value={b.name} className="text-xs">
+                          <SelectItem
+                            key={b.name}
+                            value={b.name}
+                            className="text-xs"
+                          >
                             <span className="font-mono">{b.name}</span>
                           </SelectItem>
                         ))
@@ -268,7 +283,7 @@ export function ParallelCreateDialog({
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <label className="text-[10px] tracking-wide text-muted-foreground uppercase">
                     Model
                   </label>
                   <Select
@@ -287,7 +302,9 @@ export function ParallelCreateDialog({
                         modelGroups.map((group, gIdx) => (
                           <SelectGroup key={group.key}>
                             {gIdx > 0 && <SelectSeparator />}
-                            <SelectLabel className="text-xs">{group.label}</SelectLabel>
+                            <SelectLabel className="text-xs">
+                              {group.label}
+                            </SelectLabel>
                             {group.models.map((m) => (
                               <SelectItem
                                 key={m.id}
@@ -306,7 +323,7 @@ export function ParallelCreateDialog({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <label className="text-[10px] tracking-wide text-muted-foreground uppercase">
                   Prompt
                 </label>
                 <Textarea

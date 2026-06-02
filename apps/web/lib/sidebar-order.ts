@@ -18,7 +18,7 @@
  */
 export function sortForSidebar<T extends { sidebarOrder?: number }>(
   items: readonly T[],
-  fallbackCompare: (a: T, b: T) => number,
+  fallbackCompare: (a: T, b: T) => number
 ): T[] {
   return [...items].sort((a, b) => {
     const ao = a.sidebarOrder ?? Number.POSITIVE_INFINITY
@@ -37,7 +37,7 @@ export function sortForSidebar<T extends { sidebarOrder?: number }>(
 export function reorderedIds(
   currentIds: readonly string[],
   activeId: string,
-  overId: string,
+  overId: string
 ): string[] {
   const from = currentIds.indexOf(activeId)
   const to = currentIds.indexOf(overId)

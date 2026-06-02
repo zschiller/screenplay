@@ -24,12 +24,17 @@ function provider(egress: ReturnType<ModelProvider["egress"]>): ModelProvider {
 describe("buildNetworkPolicy", () => {
   it("emits an allow rule with an auth-header transform for a configured provider", () => {
     const policy = buildNetworkPolicy([
-      provider({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+      provider({
+        host: "api.anthropic.com",
+        headers: { "x-api-key": "real-key" },
+      }),
     ])
 
     expect(policy).toEqual({
       allow: {
-        "api.anthropic.com": [{ transform: [{ headers: { "x-api-key": "real-key" } }] }],
+        "api.anthropic.com": [
+          { transform: [{ headers: { "x-api-key": "real-key" } }] },
+        ],
         "*": [],
       },
     })
@@ -45,12 +50,19 @@ describe("buildNetworkPolicy", () => {
     const policy = buildNetworkPolicy([
       provider({ host: "api.anthropic.com", headers: { "x-api-key": "ak" } }),
       provider(null),
-      provider({ host: "api.openai.com", headers: { authorization: "Bearer ok" } }),
+      provider({
+        host: "api.openai.com",
+        headers: { authorization: "Bearer ok" },
+      }),
     ])
 
     expect(policy.allow).toEqual({
-      "api.anthropic.com": [{ transform: [{ headers: { "x-api-key": "ak" } }] }],
-      "api.openai.com": [{ transform: [{ headers: { authorization: "Bearer ok" } }] }],
+      "api.anthropic.com": [
+        { transform: [{ headers: { "x-api-key": "ak" } }] },
+      ],
+      "api.openai.com": [
+        { transform: [{ headers: { authorization: "Bearer ok" } }] },
+      ],
       "*": [],
     })
   })
@@ -61,10 +73,14 @@ describe("buildNetworkPolicy", () => {
     // injected one. The builder's job is to emit the header in that map form;
     // a Record holds exactly one value per header name — overwrite, not append.
     const policy = buildNetworkPolicy([
-      provider({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+      provider({
+        host: "api.anthropic.com",
+        headers: { "x-api-key": "real-key" },
+      }),
     ])
 
-    const headers = policy.allow["api.anthropic.com"]![0]!.transform![0]!.headers!
+    const headers =
+      policy.allow["api.anthropic.com"]![0]!.transform![0]!.headers!
     expect(headers).toEqual({ "x-api-key": "real-key" })
     expect(Object.values(headers)).toEqual(["real-key"])
   })

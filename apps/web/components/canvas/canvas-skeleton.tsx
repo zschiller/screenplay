@@ -1,6 +1,10 @@
 import type { PanelLayout } from "@/lib/panel-layout"
 
-export function CanvasSkeleton({ initialLayout }: { initialLayout?: PanelLayout }) {
+export function CanvasSkeleton({
+  initialLayout,
+}: {
+  initialLayout?: PanelLayout
+}) {
   const sidebarGrow = initialLayout?.sidebar
   const canvasGrow = initialLayout?.canvas
   const chatGrow = initialLayout?.chat

@@ -77,16 +77,12 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button
-                size="icon-xxs"
-                variant="ghost"
-                className="relative"
-              >
+              <Button size="icon-xxs" variant="ghost" className="relative">
                 <SlidersHorizontal />
                 {hasOverrides ? (
                   <span
                     aria-hidden
-                    className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
+                    className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
                   />
                 ) : null}
               </Button>
@@ -109,7 +105,7 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
               Ask the model to add a knob so you can tweak this prototype live.
               For example:
             </p>
-            <p className="rounded-sm border border-border bg-muted/50 p-2 italic text-foreground">
+            <p className="rounded-sm border border-border bg-muted/50 p-2 text-foreground italic">
               &ldquo;Add a slider knob to control the card padding.&rdquo;
             </p>
           </div>

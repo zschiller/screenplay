@@ -59,9 +59,10 @@ export async function runLogged(
   sandbox: SandboxInstance,
   cmd: string,
   args: string[],
-  options: { env?: Record<string, string>; label?: string } = {},
+  options: { env?: Record<string, string>; label?: string } = {}
 ) {
-  const label = options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
+  const label =
+    options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
   const sh =
@@ -83,7 +84,9 @@ export async function runLogged(
  * read access to /root. Throws if the write fails so callers running through
  * the runner surface a redacted failure result.
  */
-export async function writeBridgeFiles(sandbox: SandboxInstance): Promise<void> {
+export async function writeBridgeFiles(
+  sandbox: SandboxInstance
+): Promise<void> {
   const { PROXY_JS, BRIDGE_JS } = await import("@/lib/sandbox-bridge")
   await sandbox.writeFiles([
     { path: "/tmp/screenplay/proxy.mjs", content: PROXY_JS },
@@ -102,7 +105,7 @@ export async function launchDevAndProxy(
   sandbox: SandboxInstance,
   port: number,
   devScript?: string,
-  env?: Record<string, string> | null,
+  env?: Record<string, string> | null
 ): Promise<string> {
   await writeBridgeFiles(sandbox)
 
@@ -115,7 +118,7 @@ export async function launchDevAndProxy(
   // (Next compile workers, esbuild, etc.). `& disown` returns the outer
   // shell immediately while the dev tree keeps running.
   const devInner = shellQuote(
-    `export ${LOG_ENV}; exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`,
+    `export ${LOG_ENV}; exec ${dev} >> ${SANDBOX_LOG_PATH} 2>&1`
   )
   await sandbox.runCommand({
     cmd: "sh",
@@ -139,8 +142,8 @@ export async function launchDevAndProxy(
     args: [
       "-c",
       `setsid sh -c 'while true; do node /tmp/screenplay/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
-      `echo $! > ${PIDFILE_PROXY}; ` +
-      `disown`,
+        `echo $! > ${PIDFILE_PROXY}; ` +
+        `disown`,
     ],
     detached: true,
     env: {

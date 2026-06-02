@@ -98,7 +98,10 @@ export function defaultValueFor(def: KnobDef): KnobValue {
 }
 
 /** Coerce a JsonValue stored in Yjs into a KnobValue, falling back to the default. */
-export function coerceKnobValue(def: KnobDef, raw: JsonValue | undefined): KnobValue {
+export function coerceKnobValue(
+  def: KnobDef,
+  raw: JsonValue | undefined
+): KnobValue {
   if (raw === undefined || raw === null) return def.default
   switch (def.type) {
     case "number":

@@ -10,8 +10,16 @@ function jsonResponse(body: SkillsResponse): Response {
   })
 }
 
-const repoItem = { name: "deploy", description: "Repo deploy.", origin: "repo" as const }
-const appItem = { name: "knobs", description: "App knobs.", origin: "app" as const }
+const repoItem = {
+  name: "deploy",
+  description: "Repo deploy.",
+  origin: "repo" as const,
+}
+const appItem = {
+  name: "knobs",
+  description: "App knobs.",
+  origin: "app" as const,
+}
 
 describe("getSkillMenuItems", () => {
   beforeEach(() => {

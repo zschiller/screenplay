@@ -30,7 +30,10 @@ export function makeHarness(): {
   // transaction. Without a subscriber, a verb's own internal `toArray()` read
   // would poison the cache with a pre-mutation snapshot and mask later writes.
   for (const value of Object.values(collections)) {
-    if (value && typeof (value as { observe?: unknown }).observe === "function") {
+    if (
+      value &&
+      typeof (value as { observe?: unknown }).observe === "function"
+    ) {
       ;(value as { observe(cb: () => void): () => void }).observe(() => {})
     }
   }
@@ -41,15 +44,22 @@ export function makeHarness(): {
 /** A minimal valid Iframe Layer record for seeding. */
 export function baseLayer(
   id: string,
-  overrides: Partial<IframeLayerData> = {},
+  overrides: Partial<IframeLayerData> = {}
 ): IframeLayerData {
-  return { id, width: 400, height: 300, label: "Frame", iframeState: {}, ...overrides }
+  return {
+    id,
+    width: 400,
+    height: 300,
+    label: "Frame",
+    iframeState: {},
+    ...overrides,
+  }
 }
 
 /** A minimal valid Branch record for seeding cascade-removal tests. */
 export function baseBranch(
   id: string,
-  overrides: Partial<BranchData> = {},
+  overrides: Partial<BranchData> = {}
 ): BranchData {
   return {
     id,
@@ -68,7 +78,7 @@ export function baseBranch(
 /** A minimal valid Markdown Layer (Document) record for seeding. */
 export function baseDoc(
   id: string,
-  overrides: Partial<MarkdownLayerData> = {},
+  overrides: Partial<MarkdownLayerData> = {}
 ): MarkdownLayerData {
   return { id, width: 300, height: 200, title: "", ...overrides }
 }
@@ -76,7 +86,7 @@ export function baseDoc(
 /** A minimal valid Chat Session record. Pass `branchId` or `markdownLayerId` to set its target. */
 export function baseChat(
   id: string,
-  overrides: Partial<ChatSessionData> = {},
+  overrides: Partial<ChatSessionData> = {}
 ): ChatSessionData {
   return { id, label: "Chat", createdAt: 0, ...overrides }
 }
@@ -84,7 +94,7 @@ export function baseChat(
 /** A minimal valid Repo record for seeding cascade-removal tests. */
 export function baseRepo(
   id: string,
-  overrides: Partial<RepoData> = {},
+  overrides: Partial<RepoData> = {}
 ): RepoData {
   return {
     id,
@@ -107,7 +117,7 @@ export function baseRepo(
 export function seedGroup(
   collections: RoomCollections,
   id: string,
-  members: GroupMember[],
+  members: GroupMember[]
 ): void {
   collections.iframeLayerGroups.set(id, { id, name: id, x: 0, y: 0, members })
 }

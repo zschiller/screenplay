@@ -51,7 +51,7 @@ class OpenAICompatibleProviderImpl implements ModelProvider {
         })
         if (!res.ok) {
           throw new Error(
-            `${url} returned ${res.status} — server may not implement /v1/models`,
+            `${url} returned ${res.status} — server may not implement /v1/models`
           )
         }
         const data = (await res.json()) as {
@@ -94,7 +94,7 @@ class OpenAICompatibleProviderImpl implements ModelProvider {
     const baseURL = process.env.OPENAI_COMPATIBLE_BASE_URL
     if (!baseURL) {
       throw new Error(
-        "OPENAI_COMPATIBLE_BASE_URL is not set — the OpenAI-compatible provider isn't configured.",
+        "OPENAI_COMPATIBLE_BASE_URL is not set — the OpenAI-compatible provider isn't configured."
       )
     }
     const apiKey = process.env.OPENAI_COMPATIBLE_API_KEY

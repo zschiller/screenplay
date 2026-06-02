@@ -75,10 +75,7 @@ export async function listRooms(): Promise<RoomSummary[]> {
   }))
 }
 
-export async function renameRoom(
-  roomId: string,
-  name: string,
-): Promise<void> {
+export async function renameRoom(roomId: string, name: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
   const trimmed = name.trim() || "Untitled"
@@ -94,7 +91,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
 }
 
 export async function listCollaborators(
-  roomId: string,
+  roomId: string
 ): Promise<CollaboratorInfo[]> {
   const userId = await requireUserId()
   await requireMember(roomId, userId)
@@ -122,7 +119,7 @@ export async function listCollaborators(
 
 export async function shareRoom(
   roomId: string,
-  email: string,
+  email: string
 ): Promise<CollaboratorInfo[]> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
@@ -139,7 +136,7 @@ export async function shareRoom(
   const allMembers = await listMembers(roomId)
   await yjsHost.syncRoomMembers(
     roomId,
-    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+    allMembers.map((m) => ({ userId: m.userId, role: m.role }))
   )
 
   return listCollaborators(roomId)
@@ -147,7 +144,7 @@ export async function shareRoom(
 
 export async function removeCollaborator(
   roomId: string,
-  collaboratorId: string,
+  collaboratorId: string
 ): Promise<CollaboratorInfo[]> {
   const userId = await requireUserId()
   const room = await requireOwner(roomId, userId)
@@ -159,7 +156,7 @@ export async function removeCollaborator(
   const allMembers = await listMembers(roomId)
   await yjsHost.syncRoomMembers(
     roomId,
-    allMembers.map((m) => ({ userId: m.userId, role: m.role })),
+    allMembers.map((m) => ({ userId: m.userId, role: m.role }))
   )
 
   return listCollaborators(roomId)

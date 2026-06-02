@@ -13,10 +13,7 @@ import { Button } from "@workspace/ui/components/button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
-import {
-  deleteRepoConfig,
-  listRepoConfigs,
-} from "@/lib/repo-configs-actions"
+import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 
 type Mode =
@@ -82,7 +79,7 @@ export function RepoConfigsDialog({
     grouped.set(c.repoFullName, list)
   }
   const sortedRepos = Array.from(grouped.keys()).sort((a, b) =>
-    a.localeCompare(b),
+    a.localeCompare(b)
   )
 
   return (
@@ -123,7 +120,10 @@ export function RepoConfigsDialog({
                       .slice()
                       .sort((a, b) => a.name.localeCompare(b.name))
                     return (
-                      <div key={repoFullName} className="flex min-w-0 flex-col gap-1">
+                      <div
+                        key={repoFullName}
+                        className="flex min-w-0 flex-col gap-1"
+                      >
                         <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
                           {items[0].private ? (
                             <FolderLock className="size-3.5 shrink-0" />
@@ -139,7 +139,9 @@ export function RepoConfigsDialog({
                           >
                             <div className="min-w-0 flex-1 truncate text-sm">
                               {config.name || (
-                                <span className="text-muted-foreground">default</span>
+                                <span className="text-muted-foreground">
+                                  default
+                                </span>
                               )}
                               <span className="ml-2 text-xs text-muted-foreground">
                                 port {config.devServerPort}

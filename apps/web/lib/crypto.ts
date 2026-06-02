@@ -6,10 +6,7 @@ const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, "hex") // 32 bytes
 export function encrypt(text: string): string {
   const iv = randomBytes(12)
   const cipher = createCipheriv(ALGORITHM, KEY, iv)
-  const encrypted = Buffer.concat([
-    cipher.update(text, "utf8"),
-    cipher.final(),
-  ])
+  const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()])
   const tag = cipher.getAuthTag()
   // iv (12) + tag (16) + ciphertext
   return Buffer.concat([iv, tag, encrypted]).toString("base64")

@@ -22,7 +22,12 @@ interface RepoConfigFormProps {
 
 type RepoIdentity = Pick<
   RepoConfig,
-  "repoFullName" | "repoOwner" | "repoName" | "defaultBranch" | "cloneUrl" | "private"
+  | "repoFullName"
+  | "repoOwner"
+  | "repoName"
+  | "defaultBranch"
+  | "cloneUrl"
+  | "private"
 >
 
 export function RepoConfigForm({
@@ -41,17 +46,17 @@ export function RepoConfigForm({
           cloneUrl: initial.cloneUrl,
           private: initial.private,
         }
-      : null,
+      : null
   )
   const [name, setName] = useState(initial?.name ?? "")
   const [setupScript, setSetupScript] = useState(initial?.setupScript ?? "")
   const [devScript, setDevScript] = useState(initial?.devScript ?? "")
   const [devServerPort, setDevServerPort] = useState(
-    String(initial?.devServerPort ?? 3000),
+    String(initial?.devServerPort ?? 3000)
   )
   const [envVars, setEnvVars] = useState(initial?.envVars ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    initial?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID,
+    initial?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
   const [systemPrompt, setSystemPrompt] = useState(initial?.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
@@ -64,12 +69,12 @@ export function RepoConfigForm({
   const trimmedName = name.trim()
   const nameCollision = Boolean(
     repo &&
-      existingConfigs.some(
-        (c) =>
-          c.id !== initial?.id &&
-          c.repoFullName === repo.repoFullName &&
-          c.name === trimmedName,
-      ),
+    existingConfigs.some(
+      (c) =>
+        c.id !== initial?.id &&
+        c.repoFullName === repo.repoFullName &&
+        c.name === trimmedName
+    )
   )
 
   const canSave = Boolean(repo) && portIsValid && !nameCollision
@@ -172,7 +177,8 @@ export function RepoConfigForm({
             />
             {nameCollision && (
               <p className="text-xs text-destructive">
-                A configuration named “{trimmedName || "default"}” already exists for this repo.
+                A configuration named “{trimmedName || "default"}” already
+                exists for this repo.
               </p>
             )}
           </div>
@@ -221,7 +227,7 @@ export function RepoConfigForm({
               onChange={(e) => setEnvVars(e.target.value)}
               placeholder={"KEY=value\nANOTHER_KEY=value"}
               rows={4}
-              className="max-w-full resize-y font-mono text-xs [field-sizing:fixed]"
+              className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
             />
           </div>
 
@@ -240,7 +246,8 @@ export function RepoConfigForm({
             <Label htmlFor="config-system-prompt">
               System prompt{" "}
               <span className="font-normal text-muted-foreground/70">
-                (optional, appended to the agent&apos;s instructions — useful for monorepo context)
+                (optional, appended to the agent&apos;s instructions — useful
+                for monorepo context)
               </span>
             </Label>
             <Textarea
@@ -249,7 +256,7 @@ export function RepoConfigForm({
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
               rows={4}
-              className="max-w-full resize-y text-xs [field-sizing:fixed]"
+              className="[field-sizing:fixed] max-w-full resize-y text-xs"
             />
           </div>
         </div>
@@ -262,7 +269,11 @@ export function RepoConfigForm({
           Cancel
         </Button>
         <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
-          {saving ? "Saving…" : initial ? "Save changes" : "Create configuration"}
+          {saving
+            ? "Saving…"
+            : initial
+              ? "Save changes"
+              : "Create configuration"}
         </Button>
       </div>
     </div>
