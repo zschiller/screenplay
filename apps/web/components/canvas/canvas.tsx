@@ -24,7 +24,7 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { createTerminalTab, readLastTabKind } from "@/lib/canvas/tab-kind"
+import { createTerminalTab, DEFAULT_HARNESS_KEY, readLastTabKind } from "@/lib/canvas/tab-kind"
 import {
   createTerminalTabAction,
   deleteTerminalTabAction,
@@ -221,6 +221,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         branchId: r.branch,
         createdAt: r.createdAt,
         label: r.label,
+        harnessKey: r.harnessKey ?? undefined,
       }),
     ),
   )
@@ -244,6 +245,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             branchId: r.branch,
             createdAt: r.createdAt,
             label: r.label,
+            harnessKey: r.harnessKey ?? undefined,
           }),
         )
         setLocalTerminals((prev) => {
@@ -2145,6 +2147,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         id,
         branchId: agentId,
         createdAt: Date.now(),
+        // The "+" button always launches Claude Code (the #285 tracer bullet).
+        harnessKey: DEFAULT_HARNESS_KEY,
       })
       setLocalTerminals((prev) => [...prev, tab])
       setSelectedAgentId(agentId)
@@ -2157,6 +2161,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         branch: agentId,
         id: tab.id,
         label: tab.label,
+        harnessKey: tab.harnessKey,
         createdAt: tab.createdAt,
       }).catch((err) => {
         console.error("Failed to persist terminal tab", err)
@@ -2181,6 +2186,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           id: nanoid(),
           branchId,
           createdAt: Date.now(),
+          // A terminal-default tab launches the same harness as the "+" button.
+          harnessKey: DEFAULT_HARNESS_KEY,
         })
         setLocalTerminals((prev) => [...prev, tab])
         if (select) setSelectedChatId(tab.id)
@@ -2189,6 +2196,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           branch: branchId,
           id: tab.id,
           label: tab.label,
+          harnessKey: tab.harnessKey,
           createdAt: tab.createdAt,
         }).catch((err) => {
           console.error("Failed to persist terminal tab", err)

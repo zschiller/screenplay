@@ -100,20 +100,23 @@ export function decodeServerMessage(data: Uint8Array): TtydServerMessage {
  * `https://…vercel.run` origin) into the `wss://…/ws` endpoint ttyd serves its
  * WebSocket on.
  *
- * `commandArg` is appended as ttyd's `?arg=` URL argument (the daemon runs with
- * `--url-arg`): ttyd appends it as a single argv to its base command
- * `tmux new -A -s`, yielding the tab's per-session attach-or-create
- * `tmux new -A -s screenplay-<tabId>` (#259). Omit it and the bare `/ws`
- * endpoint is returned.
+ * `commandArgs` are appended in order as ttyd's repeated `?arg=` URL arguments
+ * (the daemon runs with `--url-arg`): ttyd forwards each as one argv element on
+ * its base command `tmux new -A -s`. The first arg is the tab's session name,
+ * yielding the per-session attach-or-create `tmux new -A -s screenplay-<tabId>`
+ * (#259); any following args are the harness launch command
+ * (`sh -c '<harness>; exec $SHELL'`, #285), so a new tab lands straight in the
+ * harness while `tmux new -A` ignores the command when reattaching to a live
+ * session. Pass none and the bare `/ws` endpoint is returned.
  */
 export function terminalWebSocketUrl(
   httpUrl: string,
-  commandArg?: string,
+  commandArgs: string[] = [],
 ): string {
   const url = new URL(httpUrl)
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
   url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`
-  if (commandArg) url.searchParams.set("arg", commandArg)
+  for (const arg of commandArgs) url.searchParams.append("arg", arg)
   return url.toString()
 }
 

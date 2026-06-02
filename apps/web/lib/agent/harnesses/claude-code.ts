@@ -77,6 +77,8 @@ export const claudeCodeHarness: Harness = {
   key: "claude-code",
   label: "Claude Code",
   installPackage: "@anthropic-ai/claude-code",
+  // The global install exposes the `claude` CLI on PATH.
+  launchCommand: "claude",
   brokerProviderKey: "anthropic",
   gateEnvVar: "ANTHROPIC_API_KEY",
   seed: seedClaudeCode,

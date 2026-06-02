@@ -26,6 +26,10 @@ interface TerminalTabProps {
    *  rebuilt VM after the old one was reclaimed) we hold off connecting and show
    *  provisioning feedback; once it's "running" we connect (#260). */
   sandboxStatus?: SandboxStatus
+  /** The harness this tab launches into (`Harness.key`, e.g. "claude-code").
+   *  The server resolves it → the launch argv; undefined (a pre-#285 tab) opens
+   *  a plain shell. */
+  harnessKey?: string
 }
 
 type State =
@@ -86,6 +90,7 @@ export function TerminalTab({
   roomId,
   sandboxName,
   sandboxStatus,
+  harnessKey,
 }: TerminalTabProps) {
   // The pre-connection status is a pure function of the props: no sandbox yet
   // means "idle"; a sandbox that's still booting/resuming means "provisioning".
@@ -132,11 +137,17 @@ export function TerminalTab({
       //    that previously guarded the iframe src.
       let url: string
       let token: string
+      let launchArgv: string[]
       try {
         const res = await fetch("/api/terminal/url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ room: roomId, session: sessionId, sandboxName }),
+          body: JSON.stringify({
+            room: roomId,
+            session: sessionId,
+            sandboxName,
+            harnessKey,
+          }),
         })
         if (cancelled) return
         if (!res.ok) {
@@ -151,9 +162,16 @@ export function TerminalTab({
           })
           return
         }
-        const body = (await res.json()) as { url: string; token: string }
+        const body = (await res.json()) as {
+          url: string
+          token: string
+          launchArgv?: string[]
+        }
         url = body.url
         token = body.token
+        // The server resolved this tab's harnessKey → the launch argv (wrapped
+        // `sh -c '<harness>; exec $SHELL'`). Absent/empty means a plain shell.
+        launchArgv = body.launchArgv ?? []
       } catch {
         if (!cancelled) {
           setState({ status: "error", message: "Couldn't reach the sandbox terminal." })
@@ -313,11 +331,14 @@ export function TerminalTab({
       })
 
       // 3. Connect straight to the daemon's WebSocket and speak ttyd's protocol.
-      //    The tab's tmux session name rides along as ttyd's `?arg=`, so the
-      //    daemon attaches-or-creates this tab's own persistent session — a
+      //    The tab's tmux session name rides along as ttyd's first `?arg=`, so
+      //    the daemon attaches-or-creates this tab's own persistent session — a
       //    reload reattaches to the same shell with its process still running.
+      //    The resolved harness launch argv follows as further `?arg=`s, so a
+      //    fresh session lands straight in the harness (and `tmux new -A`
+      //    ignores the command when reattaching to a live one).
       const ws = new WebSocket(
-        terminalWebSocketUrl(url, tmuxSessionName(sessionId)),
+        terminalWebSocketUrl(url, [tmuxSessionName(sessionId), ...launchArgv]),
         [TTYD_SUBPROTOCOL],
       )
       ws.binaryType = "arraybuffer"
@@ -381,7 +402,7 @@ export function TerminalTab({
       cancelled = true
       cleanup?.()
     }
-  }, [roomId, sessionId, sandboxName, sandboxStatus])
+  }, [roomId, sessionId, sandboxName, sandboxStatus, harnessKey])
 
   return (
     <div className="flex h-full flex-col bg-background">

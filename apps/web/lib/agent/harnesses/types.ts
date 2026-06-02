@@ -33,6 +33,17 @@ export interface Harness {
   installPackage: string
 
   /**
+   * Shell command that starts the harness CLI in the terminal (e.g. `claude`).
+   * A terminal tab stores the harness *key*, not this command — the server
+   * resolves key → launch argv from the catalog at connect time, so the launch
+   * command can change here without rewriting persisted rows. It is wrapped as
+   * `sh -c '<launchCommand>; exec $SHELL'` (see `resolveLaunchArgv`) so quitting
+   * the harness (Ctrl-D) drops the operator into a normal shell in the same
+   * persistent tmux session rather than killing the tab.
+   */
+  launchCommand: string
+
+  /**
    * Key of the model provider whose egress brokers this harness's API auth. A
    * harness is only installable when this provider is configured AND its
    * `egress()` is header-brokerable (non-null) — that's the firewall rule that
