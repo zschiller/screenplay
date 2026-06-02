@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import {
   ChevronRight,
   ChevronsUpDown,
@@ -194,6 +194,11 @@ function SidebarFileItem({ file }: { file: RoomSummary }) {
 
 const FOLDER_OPEN_STORAGE_PREFIX = "home-sidebar:folder-open:"
 
+function readStoredOpen(storageKey: string): boolean {
+  if (typeof window === "undefined") return false
+  return window.localStorage.getItem(storageKey) === "1"
+}
+
 function SidebarFolderItem({
   folder,
 }: {
@@ -207,16 +212,19 @@ function SidebarFolderItem({
     removeFolder,
   } = useHome()
   const storageKey = `${FOLDER_OPEN_STORAGE_PREFIX}${folder.id}`
-  const [open, setOpen] = useState(false)
+  // Read the persisted open state during render instead of in an effect. The
+  // lazy initializer runs once on mount, and the previous-value pattern below
+  // re-reads localStorage if the storage key changes (e.g. folder.id changes).
+  const [open, setOpen] = useState(() => readStoredOpen(storageKey))
+  const [storageKeyForOpen, setStorageKeyForOpen] = useState(storageKey)
+  if (storageKey !== storageKeyForOpen) {
+    setStorageKeyForOpen(storageKey)
+    setOpen(readStoredOpen(storageKey))
+  }
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const files = filesInFolder(folder.id)
   const isActive = selectedId === folder.id
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(storageKey)
-    setOpen(stored === "1")
-  }, [storageKey])
 
   const updateOpen = useCallback(
     (next: boolean) => {

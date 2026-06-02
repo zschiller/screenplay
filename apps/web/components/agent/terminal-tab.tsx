@@ -87,23 +87,40 @@ export function TerminalTab({
   sandboxName,
   sandboxStatus,
 }: TerminalTabProps) {
-  const [state, setState] = useState<State>({ status: "idle" })
+  // The pre-connection status is a pure function of the props: no sandbox yet
+  // means "idle"; a sandbox that's still booting/resuming means "provisioning".
+  // Deriving it during render (rather than setting it from the effect) avoids a
+  // cascading render, and the effect below only runs once there's actually a
+  // daemon to connect to.
+  const notReady: State | null = !sandboxName
+    ? { status: "idle" }
+    : sandboxStatus === "creating" || sandboxStatus === "starting"
+      ? { status: "provisioning" }
+      : null
+
+  const [connState, setState] = useState<State>({ status: "loading" })
   const hostRef = useRef<HTMLDivElement>(null)
 
+  // While we're not ready to connect, the connection lifecycle state is moot —
+  // reset it during render so that when we do become ready the effect starts
+  // from a clean "loading" rather than a stale "ready"/"error" from a previous
+  // sandbox.
+  const [wasNotReady, setWasNotReady] = useState(notReady !== null)
+  if ((notReady !== null) !== wasNotReady) {
+    setWasNotReady(notReady !== null)
+    if (notReady !== null) setState({ status: "loading" })
+  }
+
+  const state: State = notReady ?? connState
+
   useEffect(() => {
-    if (!sandboxName) {
-      setState({ status: "idle" })
-      return
-    }
+    if (!sandboxName) return
     // The sandbox is still booting/resuming (e.g. a rebuilt VM after the old one
     // was reclaimed). Show provisioning feedback rather than a dead/blank
     // terminal or a spurious connection error, and wait: the effect re-runs when
     // the status flips to "running", at which point we connect and the daemon's
     // `tmux new -A` hands back a fresh working shell (#260).
-    if (sandboxStatus === "creating" || sandboxStatus === "starting") {
-      setState({ status: "provisioning" })
-      return
-    }
+    if (sandboxStatus === "creating" || sandboxStatus === "starting") return
     const host = hostRef.current
     if (!host) return
 

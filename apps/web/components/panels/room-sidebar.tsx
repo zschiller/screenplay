@@ -19,7 +19,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import {
   FolderPlus,
   Plus,
@@ -458,7 +457,6 @@ export function RoomSidebar({
   onRebaseOnDefault,
   onRefreshBranch,
   onRemoveBranch,
-  onAddIframeLayer,
   onPlayBranch,
   onShowRoutes,
   onUpdateBranch,
@@ -921,7 +919,9 @@ export function RoomSidebar({
   // unstable callback reference causes it to fire every render and loops.
   const prevStatusRef = useRef<Map<string, string>>(new Map())
   const onSelectBranchRef = useRef(onSelectBranch)
-  onSelectBranchRef.current = onSelectBranch
+  useEffect(() => {
+    onSelectBranchRef.current = onSelectBranch
+  })
   useEffect(() => {
     const prev = prevStatusRef.current
     for (const branch of branches) {

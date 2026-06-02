@@ -36,11 +36,29 @@ import { BranchBadge } from "@/components/branch-badge"
 import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind, TerminalTabData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import { readLastTabKind, writeLastTabKind } from "@/lib/canvas/tab-kind"
+import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
+
+// Scan a chat's messages newest-first for the most recent `create_pr` tool
+// result and pull the PR url/number out of its output. Pure over `messages`
+// so the `useMemo` below is a single reactive call the compiler can preserve.
+function findLatestPr(
+  messages: AgentMessage[],
+): { url: string; number: string } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === "tool_result" && m.name === "create_pr") {
+      const url = m.output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
+      const num = m.output.match(/#(\d+)/)?.[1]
+      if (url && num) return { url, number: num }
+    }
+  }
+  return null
+}
 
 function useLatestPr(chatId: string): { url: string; number: string } | null {
   const messages = useSyncExternalStore(
@@ -48,17 +66,7 @@ function useLatestPr(chatId: string): { url: string; number: string } | null {
     () => chatStore.getSnapshot(chatId).messages,
     () => [],
   )
-  return useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i]
-      if (m.role === "tool_result" && m.name === "create_pr") {
-        const url = m.output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
-        const num = m.output.match(/#(\d+)/)?.[1]
-        if (url && num) return { url, number: num }
-      }
-    }
-    return null
-  }, [messages])
+  return useMemo(() => findLatestPr(messages), [messages])
 }
 
 function useAnyChatStreaming(chatIds: string[]): boolean {
@@ -203,7 +211,6 @@ export function ChatPanel({
   onCreateChat,
   onCreateTerminal,
   onRenameChat,
-  onRemoveChat,
   onCloseChat,
   onReopenChat,
   onBranchRename,
@@ -278,14 +285,13 @@ export function ChatPanel({
   const [showLogs, setShowLogs] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
-  // Sticky new-tab action. Initialised to null and hydrated from localStorage
-  // in an effect so server and first client render agree (no hydration warn).
-  // `onCreateTerminal` is absent for layer targets, so the sticky kind can
-  // only ever be "terminal" when terminals are actually creatable here.
-  const [lastTabKind, setLastTabKind] = useState<TabKind | null>(null)
-  useEffect(() => {
-    setLastTabKind(readLastTabKind())
-  }, [])
+  // Sticky new-tab action. Read the last-used kind from localStorage during
+  // render (SSR-safe — `readLastTabKind` returns "chat" when `window` is
+  // undefined) rather than syncing it in via an effect, which would trigger a
+  // cascading render on mount. `onCreateTerminal` is absent for layer targets,
+  // so the sticky kind can only ever be "terminal" when terminals are actually
+  // creatable here.
+  const [lastTabKind, setLastTabKind] = useState<TabKind>(readLastTabKind)
   const stickyTabKind: TabKind =
     onCreateTerminal && lastTabKind === "terminal" ? "terminal" : "chat"
 
@@ -301,11 +307,15 @@ export function ChatPanel({
 
   // Reset the logs-visible flag whenever the chat target changes so a
   // freshly-selected target (whose LogsPanel is still fetching, if any)
-  // doesn't inherit the previous target's "logs tab open" state.
+  // doesn't inherit the previous target's "logs tab open" state. Done during
+  // render via the previous-value pattern rather than in an effect, which
+  // would cascade an extra render after the target switch.
   const targetKey = agent?.id ?? layerTarget?.layer.id ?? ""
-  useEffect(() => {
+  const [lastTargetKey, setLastTargetKey] = useState(targetKey)
+  if (targetKey !== lastTargetKey) {
+    setLastTargetKey(targetKey)
     setShowLogs(false)
-  }, [targetKey])
+  }
 
   // Fired by LogsPanel the first time it successfully connects to the stream.
   // We only auto-open logs at this point (not on agent.status === "starting")
@@ -572,7 +582,7 @@ export function ChatPanel({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {closedChats.map((chat, i) => (
+                {closedChats.map((chat) => (
                   <DropdownMenuItem
                     key={chat.id}
                     className="flex items-center gap-2"

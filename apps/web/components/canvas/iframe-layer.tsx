@@ -189,7 +189,6 @@ export function IframeLayer({
   onResize,
   onResizeStart,
   onResizeEnd,
-  onRemove,
   onRename,
   onStateChanged,
   onRouteChange,
@@ -299,6 +298,10 @@ export function IframeLayer({
   // (host change) from a route-only change.
   const lastIframeUrlRef = useRef<string | undefined>(iframeLayer.iframeUrl)
 
+  // Declared here (rather than inside usePostMessage) so callbacks defined
+  // above the usePostMessage call below — e.g. reloadIframe — can reference it.
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
   const handleNavigation = useCallback(
     (id: string, path: string) => {
       reportedPathRef.current = path
@@ -349,11 +352,14 @@ export function IframeLayer({
 
   // Portal target is created in canvas.tsx at z-30 (above the SelectionOverlay
   // canvas at z-10), so the toolbar isn't painted over by hover rings or
-  // resize handles. Resolved on mount; null until then.
-  const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLElement | null>(null)
-  useEffect(() => {
-    setToolbarPortalTarget(document.getElementById("frame-toolbar-portal"))
-  }, [])
+  // resize handles. Resolved lazily during render — it's only read once the
+  // frame is selected (showToolbar), well after the ancestor portal node has
+  // mounted, and getElementById returns a stable node reference so dependents
+  // don't churn.
+  const toolbarPortalTarget =
+    typeof document !== "undefined"
+      ? document.getElementById("frame-toolbar-portal")
+      : null
 
   // Keep the portaled toolbar anchored to the frame's right edge. The frame
   // lives inside the world transform (panning/zooming change its screen
@@ -393,7 +399,8 @@ export function IframeLayer({
     [onScrollChange],
   )
 
-  const { iframeRef } = usePostMessage({
+  usePostMessage({
+    iframeRef,
     iframeLayerId: iframeLayer.id,
     iframeState: iframeLayer.iframeState ?? {},
     iframeScrollX: iframeLayer.scrollX,
@@ -422,7 +429,9 @@ export function IframeLayer({
   }, [dom, iframeLayer.id, onFitToContent])
 
   const onDomReadyRef = useRef(onDomReady)
-  onDomReadyRef.current = onDomReady
+  useEffect(() => {
+    onDomReadyRef.current = onDomReady
+  })
   useEffect(() => {
     onDomReadyRef.current?.(iframeLayer.id, dom)
     return () => onDomReadyRef.current?.(iframeLayer.id, null)
@@ -459,6 +468,13 @@ export function IframeLayer({
   // iframe back onto the path it's already on).
   const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
 
+  // This synchronizes the iframe (an external system) with the desired
+  // url/route while suppressing reload loops from in-iframe navigation echoes.
+  // The decision depends on ref-tracked history (last applied url, last path
+  // the iframe reported), which can't be read during render — so it can't move
+  // to a render-phase derivation. setState here is the intended sync, not an
+  // avoidable cascade.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!iframeLayer.iframeUrl) {
       setIframeSrc(undefined)
@@ -478,6 +494,7 @@ export function IframeLayer({
     if (route === reportedPathRef.current) return
     setIframeSrc(iframeLayer.iframeUrl + route)
   }, [iframeLayer.iframeUrl, iframeLayer.route])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const [serverReady, setServerReady] = useState(false)
 

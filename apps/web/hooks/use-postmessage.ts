@@ -1,10 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
+import type { RefObject } from "react"
 import type { HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
 
 interface UsePostMessageOptions {
+  // The iframe element ref. Passed in by the caller (rather than created here)
+  // so callers can reference the iframe in callbacks declared before this hook
+  // is called.
+  iframeRef: RefObject<HTMLIFrameElement | null>
   iframeLayerId: string
   iframeState: JsonObject
   iframeScrollX?: number
@@ -21,6 +26,7 @@ interface UsePostMessageOptions {
 }
 
 export function usePostMessage({
+  iframeRef,
   iframeLayerId,
   iframeState,
   iframeScrollX,
@@ -35,35 +41,40 @@ export function usePostMessage({
   onKnobsDeclared,
   onSharedStateChanged,
 }: UsePostMessageOptions) {
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const stateRef = useRef(iframeState)
-  stateRef.current = iframeState
   const scrollRef = useRef<{ x: number; y: number } | null>(
     iframeScrollX !== undefined || iframeScrollY !== undefined
       ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
       : null,
   )
-  scrollRef.current =
-    iframeScrollX !== undefined || iframeScrollY !== undefined
-      ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
-      : null
   // Last scroll position we either received from or applied to the iframe.
   // Used to avoid looping remote scrolls back to the iframe when Yjs echoes
   // them to us a moment later.
   const lastScrollRef = useRef<{ x: number; y: number } | null>(null)
   const knobValuesRef = useRef(knobValues)
-  knobValuesRef.current = knobValues
   // Tracks the last sharedState we either received from or pushed down to the
   // iframe. Used to suppress echoes when Yjs sends our own update back to us.
   const lastSharedStateRef = useRef<string | null>(null)
   const onReadyRef = useRef(onReady)
-  onReadyRef.current = onReady
   const onHmrStatusRef = useRef(onHmrStatus)
-  onHmrStatusRef.current = onHmrStatus
   const onKnobsDeclaredRef = useRef(onKnobsDeclared)
-  onKnobsDeclaredRef.current = onKnobsDeclared
   const onSharedStateChangedRef = useRef(onSharedStateChanged)
-  onSharedStateChangedRef.current = onSharedStateChanged
+
+  // Keep the "latest value" refs current. Written in an effect (not during
+  // render) so they reflect the value as of the last committed render; every
+  // reader below runs after commit (event handlers, post-ready callbacks).
+  useEffect(() => {
+    stateRef.current = iframeState
+    scrollRef.current =
+      iframeScrollX !== undefined || iframeScrollY !== undefined
+        ? { x: iframeScrollX ?? 0, y: iframeScrollY ?? 0 }
+        : null
+    knobValuesRef.current = knobValues
+    onReadyRef.current = onReady
+    onHmrStatusRef.current = onHmrStatus
+    onKnobsDeclaredRef.current = onKnobsDeclared
+    onSharedStateChangedRef.current = onSharedStateChanged
+  })
 
   const sendMessage = useCallback(
     (type: "screenplay:init" | "screenplay:state-update", state: JsonObject) => {
@@ -71,7 +82,7 @@ export function usePostMessage({
       if (!iframe?.contentWindow) return
       iframe.contentWindow.postMessage({ type, state }, "*")
     },
-    [],
+    [iframeRef],
   )
 
   const sendKnobValues = useCallback((values: JsonObject) => {
@@ -81,7 +92,7 @@ export function usePostMessage({
       { type: "screenplay:knob-values", values },
       "*",
     )
-  }, [])
+  }, [iframeRef])
 
   const sendSharedState = useCallback((state: JsonObject) => {
     const iframe = iframeRef.current
@@ -90,7 +101,7 @@ export function usePostMessage({
       { type: "screenplay:shared-state-apply", state },
       "*",
     )
-  }, [])
+  }, [iframeRef])
 
   const sendScrollTo = useCallback((x: number, y: number) => {
     const iframe = iframeRef.current
@@ -102,7 +113,7 @@ export function usePostMessage({
       { type: "screenplay:scroll-to", scrollX: x, scrollY: y },
       "*",
     )
-  }, [])
+  }, [iframeRef])
 
   // Push scroll changes from Yjs down into the iframe.
   useEffect(() => {
@@ -174,7 +185,7 @@ export function usePostMessage({
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [iframeLayerId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
+  }, [iframeRef, iframeLayerId, onStateChanged, onNavigation, onScroll, sendMessage, sendScrollTo, sendKnobValues])
 
   return { iframeRef, sendMessage }
 }

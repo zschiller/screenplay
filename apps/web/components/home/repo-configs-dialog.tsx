@@ -38,10 +38,20 @@ export function RepoConfigsDialog({
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // Reset the view (mode + loading) the moment the dialog opens, using the
+  // render-phase previous-value pattern instead of a synchronous setState in
+  // the effect below. The effect is left to drive the async fetch only.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setMode({ kind: "list" })
+      setLoading(true)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
-    setMode({ kind: "list" })
-    setLoading(true)
     let cancelled = false
     listRepoConfigs()
       .then((list) => {
