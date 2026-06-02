@@ -127,16 +127,6 @@ _Avoid_: chat tab; terminal session (reserve "tmux session" for the in-sandbox
 multiplexer, "Terminal Tab" for the UI surface); harness (that's the tool the
 operator runs *inside* the tab — see Engine for why the app's own loop isn't one).
 
-**Harness**:
-An external, bring-your-own coding CLI (Claude Code, Codex, …) the operator
-runs *inside* a Terminal Tab — distinct from the Engine, which is the app's own
-owned loop and deliberately not a harness. Screenplay installs selected
-harnesses into a Branch's Sandbox and brokers each one's model auth at the
-firewall, so a harness is only offered for an endpoint whose auth is
-header-brokerable (it never holds a real key itself).
-_Avoid_: calling the Engine a harness; CLI, agent tool; "Tool" (that's a model
-capability, below).
-
 **Tool**:
 A capability the model can call during a chat turn (read_file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
