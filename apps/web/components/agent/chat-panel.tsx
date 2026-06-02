@@ -46,6 +46,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -73,7 +75,15 @@ import type {
   TerminalTabData,
 } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
-import { readLastTabKind, writeLastTabKind } from "@/lib/canvas/tab-kind"
+import {
+  DEFAULT_HARNESS_KEY,
+  readLastHarnessKey,
+  readLastTabKind,
+  writeLastHarnessKey,
+  writeLastTabKind,
+} from "@/lib/canvas/tab-kind"
+import { useSession } from "@/lib/auth-client"
+import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -227,9 +237,10 @@ interface ChatPanelProps {
   roomId: string
   onSelectChat: (chatId: string | null) => void
   onCreateChat: () => void
-  /** Open a new terminal tab against the current agent's sandbox. Absent for
-   *  non-agent (layer) targets, which have no sandbox to attach a terminal to. */
-  onCreateTerminal?: () => void
+  /** Open a new terminal tab against the current agent's sandbox, launching the
+   *  given harness (by `Harness.key`). Absent for non-agent (layer) targets,
+   *  which have no sandbox to attach a terminal to. */
+  onCreateTerminal?: (harnessKey: string) => void
   onRenameChat: (chatId: string, label: string) => void
   onRemoveChat: (chatId: string) => void
   onCloseChat: (chatId: string) => void
@@ -351,15 +362,53 @@ export function ChatPanel({
   const stickyTabKind: TabKind =
     onCreateTerminal && lastTabKind === "terminal" ? "terminal" : "chat"
 
-  const createTab = useCallback(
-    (kind: TabKind) => {
-      setLastTabKind(kind)
-      writeLastTabKind(kind)
-      if (kind === "terminal") onCreateTerminal?.()
-      else onCreateChat()
+  // The harnesses installed in this deployment's sandboxes — the menu the caret
+  // draws (#290). Only fetched when terminals are creatable here (agent target).
+  const { data: session } = useSession()
+  const userId = session?.user.id
+  const installedHarnesses = useInstalledHarnesses(!!onCreateTerminal)
+
+  // The harness the sticky "+" launches when its kind is "terminal": the
+  // operator's last pick if it's still installed, else the first installed
+  // harness, else the catalog default (list not loaded yet / none installed).
+  // Read per-User from localStorage during render — a hint only, never
+  // authoritative (a tab's harness lives on its `terminal_tab.harnessKey` row),
+  // so a stale value can't change an existing tab. A harness pick flips
+  // `lastTabKind` (a state update), which re-renders and re-reads this fresh.
+  const storedHarnessKey = userId ? readLastHarnessKey(userId) : null
+  const defaultHarnessKey =
+    storedHarnessKey &&
+    installedHarnesses.some((h) => h.key === storedHarnessKey)
+      ? storedHarnessKey
+      : (installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY)
+  const defaultHarnessLabel = installedHarnesses.find(
+    (h) => h.key === defaultHarnessKey
+  )?.label
+
+  const createChatTab = useCallback(() => {
+    setLastTabKind("chat")
+    writeLastTabKind("chat")
+    onCreateChat()
+  }, [onCreateChat])
+
+  // Launch a terminal with `harnessKey` and make it the sticky default: the "+"
+  // button now repeats *this* harness, and (keyed per User) it survives reload.
+  const createTerminalTab = useCallback(
+    (harnessKey: string) => {
+      setLastTabKind("terminal")
+      writeLastTabKind("terminal")
+      if (userId) writeLastHarnessKey(userId, harnessKey)
+      onCreateTerminal?.(harnessKey)
     },
-    [onCreateChat, onCreateTerminal]
+    [onCreateTerminal, userId]
   )
+
+  // The sticky "+" action: repeat the last-used kind, and for terminals the
+  // last-used (or default) harness.
+  const createStickyTab = useCallback(() => {
+    if (stickyTabKind === "terminal") createTerminalTab(defaultHarnessKey)
+    else createChatTab()
+  }, [stickyTabKind, defaultHarnessKey, createTerminalTab, createChatTab])
 
   // Reset the logs-visible flag whenever the chat target changes so a
   // freshly-selected target (whose LogsPanel is still fetching, if any)
@@ -581,11 +630,13 @@ export function ChatPanel({
                         variant="ghost"
                         size="icon-xs"
                         className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                        onClick={() => createTab(stickyTabKind)}
+                        onClick={createStickyTab}
                         disabled={isAgentBusy}
                         aria-label={
                           stickyTabKind === "terminal"
-                            ? "New terminal"
+                            ? defaultHarnessLabel
+                              ? `New ${defaultHarnessLabel} terminal`
+                              : "New terminal"
                             : "New chat"
                         }
                       >
@@ -596,7 +647,9 @@ export function ChatPanel({
                       {isAgentBusy
                         ? "Sandbox still starting…"
                         : stickyTabKind === "terminal"
-                          ? "New terminal"
+                          ? defaultHarnessLabel
+                            ? `New ${defaultHarnessLabel} terminal`
+                            : "New terminal"
                           : "New chat"}
                     </TooltipContent>
                   </Tooltip>
@@ -614,15 +667,42 @@ export function ChatPanel({
                       <ChevronDown className="size-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onSelect={() => createTab("chat")}>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onSelect={() => createChatTab()}>
                       <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
                       New chat
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => createTab("terminal")}>
-                      <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
-                      New terminal
-                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {installedHarnesses.length > 0 ? (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                          New terminal
+                        </DropdownMenuLabel>
+                        {installedHarnesses.map((h) => (
+                          <DropdownMenuItem
+                            key={h.key}
+                            onSelect={() => createTerminalTab(h.key)}
+                          >
+                            <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{h.label}</span>
+                            {stickyTabKind === "terminal" &&
+                              h.key === defaultHarnessKey && (
+                                <Check className="ml-auto size-3 shrink-0" />
+                              )}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    ) : (
+                      // List not loaded yet (or no harnesses installed) — keep a
+                      // single working "New terminal" that opens the default
+                      // harness, so the menu never strands the operator.
+                      <DropdownMenuItem
+                        onSelect={() => createTerminalTab(DEFAULT_HARNESS_KEY)}
+                      >
+                        <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
+                        New terminal
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </ButtonGroup>

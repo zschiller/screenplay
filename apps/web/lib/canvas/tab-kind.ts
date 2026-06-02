@@ -4,11 +4,13 @@ import type { TabKind, TerminalTabData } from "@/lib/types"
 export const TERMINAL_TAB_LABEL = "Terminal"
 
 /**
- * The harness a new terminal tab launches into. The launch-side tracer bullet
- * (#285): one harness, no picker yet — the "+" button always opens Claude Code.
- * Stored on the tab (by key, not argv) and resolved server-side to a launch
- * command at connect time; falls back to a plain shell if the key isn't
- * installed in the sandbox.
+ * Fallback harness for a new terminal tab when the operator has no stored pick
+ * yet and the installed-harness list isn't available to draw a default from
+ * (still loading, or empty). The picker (#290) prefers the per-user
+ * last-selected harness and otherwise the first installed harness; this constant
+ * is only the last resort. Stored on the tab (by key, not argv) and resolved
+ * server-side to a launch command at connect time; falls back to a plain shell
+ * if the key isn't installed in the sandbox.
  */
 export const DEFAULT_HARNESS_KEY = "claude-code"
 
@@ -34,6 +36,36 @@ export function writeLastTabKind(kind: TabKind) {
   if (typeof window === "undefined") return
   try {
     window.localStorage.setItem(LAST_TAB_KIND_STORAGE_KEY, kind)
+  } catch {}
+}
+
+// Per-user "last-selected harness" pref backing the sticky "+" new-tab button
+// and the harness picker menu (#290). Keyed per User so two operators sharing a
+// browser profile don't inherit each other's pick. It is *only* a hint for what
+// a fresh terminal tab should launch — never authoritative: a tab's harness
+// lives on its `terminal_tab.harnessKey` row, so a stale local value can't
+// retroactively change an existing tab's CLI (it's resolved from the row on
+// reload, not from here). An unset/stale value falls back to a default from the
+// installed list at the call site.
+const LAST_HARNESS_KEY_STORAGE_PREFIX = "agent-last-harness-key"
+
+function harnessStorageKey(userId: string): string {
+  return `${LAST_HARNESS_KEY_STORAGE_PREFIX}:${userId}`
+}
+
+export function readLastHarnessKey(userId: string): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    return window.localStorage.getItem(harnessStorageKey(userId))
+  } catch {
+    return null
+  }
+}
+
+export function writeLastHarnessKey(userId: string, harnessKey: string) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(harnessStorageKey(userId), harnessKey)
   } catch {}
 }
 

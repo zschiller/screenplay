@@ -32,6 +32,7 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import {
   createTerminalTab,
   DEFAULT_HARNESS_KEY,
+  readLastHarnessKey,
   readLastTabKind,
 } from "@/lib/canvas/tab-kind"
 import {
@@ -573,6 +574,7 @@ export function Canvas({
   const self = useSelfPresence()
   const others = useOtherPresences()
   const { data: session } = useSession()
+  const userId = session?.user.id
   const history = useYjsHistory()
   const collections = useRoomCollections()
   // Canvas Operations seam (#157): the single transaction entry point + the
@@ -2380,14 +2382,15 @@ export function Canvas({
    * never, by type, see it.
    */
   const handleCreateTerminal = useCallback(
-    (agentId: string) => {
+    (agentId: string, harnessKey: string) => {
       const id = nanoid()
       const tab = createTerminalTab({
         id,
         branchId: agentId,
         createdAt: Date.now(),
-        // The "+" button always launches Claude Code (the #285 tracer bullet).
-        harnessKey: DEFAULT_HARNESS_KEY,
+        // The harness the operator picked (or the sticky default) — #290. Stored
+        // on the row so it's authoritative and survives reload/rebuild.
+        harnessKey,
       })
       setLocalTerminals((prev) => [...prev, tab])
       setSelectedAgentId(agentId)
@@ -2425,8 +2428,12 @@ export function Canvas({
           id: nanoid(),
           branchId,
           createdAt: Date.now(),
-          // A terminal-default tab launches the same harness as the "+" button.
-          harnessKey: DEFAULT_HARNESS_KEY,
+          // A terminal-default tab launches the same harness as the "+" button:
+          // the operator's last-selected harness (#290), falling back to the
+          // catalog default. If it's since been uninstalled the server resolves
+          // it to a plain shell, so a stale pref degrades gracefully.
+          harnessKey:
+            (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY,
         })
         setLocalTerminals((prev) => [...prev, tab])
         if (select) setSelectedChatId(tab.id)
@@ -2452,7 +2459,7 @@ export function Canvas({
       if (select) setSelectedChatId(id)
       return id
     },
-    [roomId, addChatSession]
+    [roomId, addChatSession, userId]
   )
 
   /**
@@ -5758,7 +5765,8 @@ export function Canvas({
                 }}
                 onCreateTerminal={
                   target.kind === "agent"
-                    ? () => handleCreateTerminal(target.agent.id)
+                    ? (harnessKey) =>
+                        handleCreateTerminal(target.agent.id, harnessKey)
                     : undefined
                 }
                 onRenameChat={handleRenameChat}

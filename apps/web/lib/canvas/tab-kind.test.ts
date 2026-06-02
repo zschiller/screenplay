@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   createTerminalTab,
+  readLastHarnessKey,
   readLastTabKind,
   TERMINAL_TAB_LABEL,
+  writeLastHarnessKey,
   writeLastTabKind,
 } from "@/lib/canvas/tab-kind"
 
@@ -92,5 +94,43 @@ describe("default tab kind pref", () => {
   it("write is a no-op without a window (SSR)", () => {
     delete (globalThis as { window?: unknown }).window
     expect(() => writeLastTabKind("terminal")).not.toThrow()
+  })
+})
+
+describe("last-selected harness pref", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete (globalThis as { window?: unknown }).window
+  })
+
+  it("returns null with no window (SSR) and no stored value", () => {
+    delete (globalThis as { window?: unknown }).window
+    expect(readLastHarnessKey("user-1")).toBeNull()
+
+    stubWindow()
+    expect(readLastHarnessKey("user-1")).toBeNull()
+  })
+
+  it("round-trips through write/read keyed per user", () => {
+    stubWindow()
+    writeLastHarnessKey("user-1", "codex")
+    expect(readLastHarnessKey("user-1")).toBe("codex")
+    writeLastHarnessKey("user-1", "claude-code")
+    expect(readLastHarnessKey("user-1")).toBe("claude-code")
+  })
+
+  it("scopes the pref per user so operators don't inherit each other's pick", () => {
+    stubWindow()
+    writeLastHarnessKey("user-1", "codex")
+    writeLastHarnessKey("user-2", "opencode-gateway")
+    expect(readLastHarnessKey("user-1")).toBe("codex")
+    expect(readLastHarnessKey("user-2")).toBe("opencode-gateway")
+    // A user with no pick yet reads null, not another user's value.
+    expect(readLastHarnessKey("user-3")).toBeNull()
+  })
+
+  it("write is a no-op without a window (SSR)", () => {
+    delete (globalThis as { window?: unknown }).window
+    expect(() => writeLastHarnessKey("user-1", "codex")).not.toThrow()
   })
 })
