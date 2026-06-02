@@ -3,10 +3,7 @@ import "server-only"
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
-import {
-  bumpCommentsRead,
-  bumpCommentsRevision,
-} from "@/lib/comments-signals"
+import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { mutateRoomDoc } from "@/lib/yjs/server"
 
@@ -78,7 +75,7 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
 
 function toComment(
   row: typeof schema.comment.$inferSelect,
-  author: { name: string; image: string | null } | null,
+  author: { name: string; image: string | null } | null
 ): CommentRecord {
   return {
     id: row.id,
@@ -120,13 +117,13 @@ async function listThreadsScoped(
   roomId: string,
   userId: string,
   filter: { branch: string } | { positional: true },
-  outerOrder: "asc" | "desc",
+  outerOrder: "asc" | "desc"
 ): Promise<ThreadWithComments[]> {
   const where =
     "branch" in filter
       ? and(
           eq(schema.thread.roomId, roomId),
-          eq(schema.thread.branch, filter.branch),
+          eq(schema.thread.branch, filter.branch)
         )
       : and(eq(schema.thread.roomId, roomId), isNull(schema.thread.branch))
   const threadRows = await db
@@ -136,7 +133,7 @@ async function listThreadsScoped(
     .orderBy(
       outerOrder === "asc"
         ? asc(schema.thread.createdAt)
-        : desc(schema.thread.createdAt),
+        : desc(schema.thread.createdAt)
     )
   if (threadRows.length === 0) return []
 
@@ -152,14 +149,16 @@ async function listThreadsScoped(
       .where(
         and(
           eq(schema.threadRead.userId, userId),
-          inArray(schema.threadRead.threadId, threadIds),
-        ),
+          inArray(schema.threadRead.threadId, threadIds)
+        )
       ),
   ])
 
   const authorIds = Array.from(new Set(commentRows.map((c) => c.authorId)))
   const authors = await getUsersByIds(authorIds)
-  const authorById = new Map(authors.map((a) => [a.id, { name: a.name, image: a.image }]))
+  const authorById = new Map(
+    authors.map((a) => [a.id, { name: a.name, image: a.image }])
+  )
 
   const byThread = new Map<string, CommentRecord[]>()
   for (const row of commentRows) {
@@ -173,7 +172,7 @@ async function listThreadsScoped(
   }
 
   const lastReadByThread = new Map(
-    readRows.map((r) => [r.threadId, r.lastReadAt.getTime()]),
+    readRows.map((r) => [r.threadId, r.lastReadAt.getTime()])
   )
 
   return threadRows.map((t) => {
@@ -195,7 +194,7 @@ async function listThreadsScoped(
 /** Canvas threads: anchored to a position/iframeLayer/selector, branch null. */
 export async function listThreads(
   roomId: string,
-  userId: string,
+  userId: string
 ): Promise<ThreadWithComments[]> {
   return listThreadsScoped(roomId, userId, { positional: true }, "desc")
 }
@@ -205,7 +204,7 @@ export async function listThreads(
 export async function listBranchThreads(
   roomId: string,
   userId: string,
-  branch: string,
+  branch: string
 ): Promise<ThreadWithComments[]> {
   return listThreadsScoped(roomId, userId, { branch }, "asc")
 }
@@ -277,7 +276,12 @@ export async function createThreadWithFirstComment(opts: {
   const [author] = await getUsersByIds([opts.authorId])
   return {
     ...toThread(threadRow),
-    comments: [toComment(commentRow, author ? { name: author.name, image: author.image } : null)],
+    comments: [
+      toComment(
+        commentRow,
+        author ? { name: author.name, image: author.image } : null
+      ),
+    ],
     unread: false,
   }
 }
@@ -308,7 +312,10 @@ export async function appendComment(opts: {
   if (threadRow) await signalContentChange(threadRow.roomId)
 
   const [author] = await getUsersByIds([opts.authorId])
-  return toComment(row, author ? { name: author.name, image: author.image } : null)
+  return toComment(
+    row,
+    author ? { name: author.name, image: author.image } : null
+  )
 }
 
 export async function editComment(opts: {
@@ -322,8 +329,8 @@ export async function editComment(opts: {
     .where(
       and(
         eq(schema.comment.id, opts.commentId),
-        eq(schema.comment.authorId, opts.authorId),
-      ),
+        eq(schema.comment.authorId, opts.authorId)
+      )
     )
     .returning({ threadId: schema.comment.threadId })
   if (!row) throw new Error("Comment not found or not yours")
@@ -345,8 +352,8 @@ export async function deleteComment(opts: {
     .where(
       and(
         eq(schema.comment.id, opts.commentId),
-        eq(schema.comment.authorId, opts.authorId),
-      ),
+        eq(schema.comment.authorId, opts.authorId)
+      )
     )
     .returning({ threadId: schema.comment.threadId })
   if (!row) return
@@ -430,8 +437,8 @@ export async function markThreadUnread(opts: {
     .where(
       and(
         eq(schema.threadRead.threadId, opts.threadId),
-        eq(schema.threadRead.userId, opts.userId),
-      ),
+        eq(schema.threadRead.userId, opts.userId)
+      )
     )
   // Per-user doorbell: only the acting user's tabs refresh their unread counts
   // (relevant when the same user has the room open elsewhere). A read-state

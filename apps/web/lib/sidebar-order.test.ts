@@ -22,7 +22,7 @@ describe("sortForSidebar", () => {
     const items: Item[] = [{ id: "charlie" }, { id: "alpha" }, { id: "bravo" }]
 
     const ordered = sortForSidebar(items, (a, b) =>
-      a.id.localeCompare(b.id),
+      a.id.localeCompare(b.id)
     ).map((i) => i.id)
 
     expect(ordered).toEqual(["alpha", "bravo", "charlie"])
@@ -39,7 +39,7 @@ describe("sortForSidebar", () => {
     ]
 
     const ordered = sortForSidebar(items, (a, b) =>
-      a.id.localeCompare(b.id),
+      a.id.localeCompare(b.id)
     ).map((i) => i.id)
 
     expect(ordered).toEqual(["manual", "untouched-a", "untouched-b"])

@@ -38,7 +38,11 @@ import {
   serializeSkill,
 } from "@/lib/agent/message-markers"
 import { inputStore } from "@/lib/input-store"
-import { getDefaultModelId, getModels, type ModelInfo } from "@/lib/models-store"
+import {
+  getDefaultModelId,
+  getModels,
+  type ModelInfo,
+} from "@/lib/models-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import type { MarkdownLayerData } from "@/lib/types"
 
@@ -150,7 +154,14 @@ function extractTextAndMentions(json: JSONContent | undefined): {
     }
   }
   visit(json, 0)
-  return { text: out.join("").replace(/\n{3,}/g, "\n\n").trim(), mentions, skill }
+  return {
+    text: out
+      .join("")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+    mentions,
+    skill,
+  }
 }
 
 interface AgentChatProps {
@@ -187,16 +198,24 @@ export function AgentChat({
   onBranchRename,
   onChatRename,
 }: AgentChatProps) {
-  const {
-    messages,
-    isStreaming,
-    isLoadingHistory,
-    sendMessage,
-    stopMessage,
-  } = useAgentChat({ chatId, roomId, sandboxName, branch, markdownLayerId, isFirstChat, autoNamedBranch, planMode, onBranchRename, onChatRename })
+  const { messages, isStreaming, isLoadingHistory, sendMessage, stopMessage } =
+    useAgentChat({
+      chatId,
+      roomId,
+      sandboxName,
+      branch,
+      markdownLayerId,
+      isFirstChat,
+      autoNamedBranch,
+      planMode,
+      onBranchRename,
+      onChatRename,
+    })
 
   const [models, setModels] = useState<ModelInfo[]>([])
-  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
+  const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
+    null
+  )
   // Read the last-used model from localStorage during render (SSR-safe — the
   // reader returns null when `window` is undefined) rather than syncing it in
   // via an effect, which would trigger a cascading render on mount.
@@ -267,7 +286,8 @@ export function AgentChat({
       }
       const isFirstReveal = lastClientHeight === 0
       lastClientHeight = clientHeight
-      const distance = container.scrollHeight - container.scrollTop - clientHeight
+      const distance =
+        container.scrollHeight - container.scrollTop - clientHeight
       if (!isFirstReveal && distance > 64) return
       container.scrollTo({
         top: container.scrollHeight,
@@ -336,13 +356,16 @@ export function AgentChat({
             "mention-doc-pill inline-flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary",
         },
         renderText({ node }) {
-          const label = (node.attrs.label as string | undefined) ?? node.attrs.id
-          if (node.attrs.mentionSuggestionChar === "/") return serializeSkill(label)
+          const label =
+            (node.attrs.label as string | undefined) ?? node.attrs.id
+          if (node.attrs.mentionSuggestionChar === "/")
+            return serializeSkill(label)
           return `@${label}`
         },
         renderHTML({ options, node }) {
           const label =
-            (node.attrs.label as string | undefined) ?? (node.attrs.id as string)
+            (node.attrs.label as string | undefined) ??
+            (node.attrs.id as string)
           if (node.attrs.mentionSuggestionChar === "/") {
             return [
               "span",
@@ -431,7 +454,7 @@ export function AgentChat({
       setStoredModel(m)
       onModelChange?.(m)
     },
-    [onModelChange],
+    [onModelChange]
   )
 
   const handleSubmit = useCallback(() => {
@@ -468,11 +491,7 @@ export function AgentChat({
     if (!editor) return undefined
     return inputStore.subscribe(chatId, (text) => {
       const prefix = editor.isEmpty ? "" : "\n\n"
-      editor
-        .chain()
-        .focus("end")
-        .insertContent(`${prefix}${text}`)
-        .run()
+      editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
     })
   }, [chatId, editor])
 
@@ -514,27 +533,48 @@ export function AgentChat({
             <div className="space-y-3">
               {messages.map((msg, i) => {
                 if (msg.role === "tool_use") {
-                  const result = messages.slice(i + 1).find(
-                    (m): m is AgentMessage & { role: "tool_result" } =>
-                      m.role === "tool_result" && m.name === msg.name
+                  const result = messages
+                    .slice(i + 1)
+                    .find(
+                      (m): m is AgentMessage & { role: "tool_result" } =>
+                        m.role === "tool_result" && m.name === msg.name
+                    )
+                  return (
+                    <AgentMessageItem
+                      key={i}
+                      message={msg}
+                      toolResult={result}
+                      roomId={roomId}
+                      chatId={chatId}
+                    />
                   )
-                  return <AgentMessageItem key={i} message={msg} toolResult={result} roomId={roomId} chatId={chatId} />
                 }
-                return <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+                return (
+                  <AgentMessageItem
+                    key={i}
+                    message={msg}
+                    roomId={roomId}
+                    chatId={chatId}
+                  />
+                )
               })}
-              {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Thinking...
-                </div>
-              )}
+              {isStreaming &&
+                messages[messages.length - 1]?.role !== "assistant" && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Thinking...
+                  </div>
+                )}
             </div>
           )}
         </div>
       </div>
 
       {/* Input */}
-      <div ref={editorContainerRef} className="relative border-t border-border p-3">
+      <div
+        ref={editorContainerRef}
+        className="relative border-t border-border p-3"
+      >
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
           <EmptyAwarePlaceholder editor={editor} text={composerPlaceholder} />
           <EditorContent editor={editor} className="w-full" />
@@ -545,7 +585,11 @@ export function AgentChat({
                   size="xs"
                   className="text-xs"
                   disabled={modelLocked}
-                  title={modelLocked ? "Model is locked to this session" : "Change model"}
+                  title={
+                    modelLocked
+                      ? "Model is locked to this session"
+                      : "Change model"
+                  }
                 >
                   {currentModel.label}
                   <ChevronDown />
@@ -567,7 +611,9 @@ export function AgentChat({
                           onSelect={() => handleModelChange(m.id)}
                         >
                           <span className="flex-1">{m.label}</span>
-                          {m.id === effectiveModel && <Check className="size-3.5" />}
+                          {m.id === effectiveModel && (
+                            <Check className="size-3.5" />
+                          )}
                         </DropdownMenuItem>
                       ))}
                     </div>
@@ -652,7 +698,7 @@ function EmptyAwarePlaceholder({
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute left-0 top-0 px-3 py-2 text-xs text-muted-foreground">
+    <div className="pointer-events-none absolute top-0 left-0 px-3 py-2 text-xs text-muted-foreground">
       {text}
     </div>
   )

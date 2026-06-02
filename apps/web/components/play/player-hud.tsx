@@ -1,8 +1,21 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { animate, motion, useMotionValue } from "motion/react"
-import { ArrowLeft, GripVertical, MessageSquare, MessagesSquare, SlidersHorizontal } from "lucide-react"
+import {
+  ArrowLeft,
+  GripVertical,
+  MessageSquare,
+  MessagesSquare,
+  SlidersHorizontal,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Select,
@@ -109,10 +122,14 @@ export function PlayerHud({
     const right = window.innerWidth - w - MARGIN
     const bottom = window.innerHeight - h - MARGIN
     switch (c) {
-      case "tl": return { x: MARGIN, y: MARGIN }
-      case "tr": return { x: right, y: MARGIN }
-      case "bl": return { x: MARGIN, y: bottom }
-      case "br": return { x: right, y: bottom }
+      case "tl":
+        return { x: MARGIN, y: MARGIN }
+      case "tr":
+        return { x: right, y: MARGIN }
+      case "bl":
+        return { x: MARGIN, y: bottom }
+      case "br":
+        return { x: right, y: bottom }
     }
   }, [])
 
@@ -155,7 +172,8 @@ export function PlayerHud({
     const cy = window.innerHeight / 2
     const midX = rect.left + rect.width / 2
     const midY = rect.top + rect.height / 2
-    const next: Corner = `${midY < cy ? "t" : "b"}${midX < cx ? "l" : "r"}` as Corner
+    const next: Corner =
+      `${midY < cy ? "t" : "b"}${midX < cx ? "l" : "r"}` as Corner
     persistCorner(next)
     const target = cornerPos(next)
     animate(x, target.x, { type: "spring", stiffness: 360, damping: 26 })
@@ -258,7 +276,7 @@ export function PlayerHud({
                 return (
                   <SelectGroup key={group.category}>
                     {index > 0 ? <SelectSeparator /> : null}
-                    <SelectLabel className="text-[10px] uppercase tracking-wide">
+                    <SelectLabel className="text-[10px] tracking-wide uppercase">
                       {group.category}
                     </SelectLabel>
                     {group.presets.map((preset) => (
@@ -287,9 +305,7 @@ export function PlayerHud({
                 variant={panel === "knobs" ? "default" : "ghost"}
                 size="icon-xs"
                 onPointerDown={(e) => e.stopPropagation()}
-                onClick={() =>
-                  setPanel(panel === "knobs" ? null : "knobs")
-                }
+                onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
               </Button>

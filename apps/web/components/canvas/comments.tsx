@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react"
 import { motion } from "motion/react"
 import { ArrowUp, CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
 import type { Editor } from "@tiptap/core"
@@ -138,7 +145,7 @@ export function Comments({
 }: CommentsProps) {
   const { data: session } = useSession()
   const [threads, setThreads] = useState<ThreadWithComments[]>(
-    () => initialThreads ?? [],
+    () => initialThreads ?? []
   )
   // Distinguishes "haven't fetched yet" from "fetched and got zero". Without
   // this, the prune effect would run with the initial empty array on first
@@ -146,7 +153,7 @@ export function Comments({
   // Pre-fetched data from the server flips this immediately so pins render
   // on the very first paint.
   const [threadsLoaded, setThreadsLoaded] = useState(
-    () => initialThreads !== undefined,
+    () => initialThreads !== undefined
   )
   const [internalActiveThreadId, setInternalActiveThreadId] = useState<
     string | null
@@ -160,7 +167,7 @@ export function Comments({
       if (onActivateThread) onActivateThread(id)
       else setInternalActiveThreadId(id)
     },
-    [onActivateThread],
+    [onActivateThread]
   )
   const revision = useCommentsRevision()
   // The acting user's own read-state doorbell. Bumped only when *this* user
@@ -232,7 +239,7 @@ export function Comments({
     let cancelled = false
     let rafId: number | null = null
     const anchored = threads.filter(
-      (t) => !t.resolved && t.iframeLayerId && t.selector,
+      (t) => !t.resolved && t.iframeLayerId && t.selector
     )
     if (anchored.length === 0) return
 
@@ -247,45 +254,47 @@ export function Comments({
 
     async function tick() {
       await Promise.all(
-        Array.from(byIframeLayer.entries()).map(async ([iframeLayerId, group]) => {
-          const dom = getIframeLayerDom!(iframeLayerId)
-          if (!dom) return
-          const selectors = group.map((t) => t.selector!)
-          let rects: (DomRect | null)[]
-          try {
-            rects = await dom.getRectsForSelectors(selectors)
-          } catch {
-            return
-          }
-          for (let i = 0; i < group.length; i++) {
-            const t = group[i]
-            const rect = rects[i]
-            if (!t || !rect) continue
-            // Offsets are stored as fractions of the element's size at click
-            // time, so the pin tracks the same relative point on the element
-            // even as it resizes with iframeLayer / page reflow.
-            const x = rect.x + (t.offsetX ?? 0) * rect.width
-            const y = rect.y + (t.offsetY ?? 0) * rect.height
-            // Compare against the current yjs cached position (or DB
-            // fallback if we haven't cached one yet) to skip writes when
-            // nothing meaningful changed.
-            const cached = trackedPositionsRef.current.get(t.id)
-            const baseX = cached?.x ?? t.x
-            const baseY = cached?.y ?? t.y
-            // baseX/baseY are nullable because branch-only threads have no
-            // canvas position. listThreads filters those out, so this is
-            // effectively unreachable for canvas threads — but be defensive
-            // and just write the new position without diffing if we somehow
-            // don't have a baseline.
-            if (
-              baseX === null ||
-              baseY === null ||
-              Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
-            ) {
-              setCommentPosition(t.id, x, y)
+        Array.from(byIframeLayer.entries()).map(
+          async ([iframeLayerId, group]) => {
+            const dom = getIframeLayerDom!(iframeLayerId)
+            if (!dom) return
+            const selectors = group.map((t) => t.selector!)
+            let rects: (DomRect | null)[]
+            try {
+              rects = await dom.getRectsForSelectors(selectors)
+            } catch {
+              return
+            }
+            for (let i = 0; i < group.length; i++) {
+              const t = group[i]
+              const rect = rects[i]
+              if (!t || !rect) continue
+              // Offsets are stored as fractions of the element's size at click
+              // time, so the pin tracks the same relative point on the element
+              // even as it resizes with iframeLayer / page reflow.
+              const x = rect.x + (t.offsetX ?? 0) * rect.width
+              const y = rect.y + (t.offsetY ?? 0) * rect.height
+              // Compare against the current yjs cached position (or DB
+              // fallback if we haven't cached one yet) to skip writes when
+              // nothing meaningful changed.
+              const cached = trackedPositionsRef.current.get(t.id)
+              const baseX = cached?.x ?? t.x
+              const baseY = cached?.y ?? t.y
+              // baseX/baseY are nullable because branch-only threads have no
+              // canvas position. listThreads filters those out, so this is
+              // effectively unreachable for canvas threads — but be defensive
+              // and just write the new position without diffing if we somehow
+              // don't have a baseline.
+              if (
+                baseX === null ||
+                baseY === null ||
+                Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
+              ) {
+                setCommentPosition(t.id, x, y)
+              }
             }
           }
-        }),
+        )
       )
       if (cancelled) return
     }
@@ -316,7 +325,7 @@ export function Comments({
   useEffect(() => {
     if (!getDocumentEditor) return
     const docThreads = threads.filter(
-      (t) => !t.resolved && t.documentId && t.anchorStart && t.anchorEnd,
+      (t) => !t.resolved && t.documentId && t.anchorStart && t.anchorEnd
     )
     const byDoc = new Map<string, ThreadWithComments[]>()
     for (const t of docThreads) {
@@ -331,7 +340,7 @@ export function Comments({
       const ranges: DocumentCommentRange[] = []
       const layer = iframeLayerById.get(docId)
       const layerEl = editor.view.dom.closest(
-        "[data-doc-id]",
+        "[data-doc-id]"
       ) as HTMLElement | null
       const layerRect = layerEl?.getBoundingClientRect()
       for (const t of group) {
@@ -410,15 +419,14 @@ export function Comments({
         // back to the DB-stored x/y. Branch-only threads (no x/y) never reach
         // here because listThreads filters them out, but guard regardless.
         const local =
-          tracked ??
-          (t.x !== null && t.y !== null ? { x: t.x, y: t.y } : null)
+          tracked ?? (t.x !== null && t.y !== null ? { x: t.x, y: t.y } : null)
         if (!local) return null
         return { x: ab.x + local.x, y: ab.y + local.y }
       }
       if (t.x === null || t.y === null) return null
       return { x: t.x, y: t.y }
     },
-    [iframeLayerById, trackedPositions],
+    [iframeLayerById, trackedPositions]
   )
 
   const composerCanvasPos = newCommentPos ? resolvePos(newCommentPos) : null
@@ -428,7 +436,7 @@ export function Comments({
   // the popover or toggling from the menu.
   const setThreadUnread = useCallback((threadId: string, unread: boolean) => {
     setThreads((prev) =>
-      prev.map((t) => (t.id === threadId ? { ...t, unread } : t)),
+      prev.map((t) => (t.id === threadId ? { ...t, unread } : t))
     )
   }, [])
 
@@ -453,7 +461,7 @@ export function Comments({
                 if (open && thread.unread) {
                   setThreadUnread(thread.id, false)
                   markThreadReadAction(thread.id).catch((e) =>
-                    console.error("markThreadRead failed:", e),
+                    console.error("markThreadRead failed:", e)
                   )
                 }
               }}
@@ -617,7 +625,7 @@ function CommentPin({
                 {firstComment && (
                   <motion.div
                     aria-hidden
-                    className="pointer-events-none ml-2 mr-4 flex min-w-0 flex-col gap-0 text-left leading-tight"
+                    className="pointer-events-none mr-4 ml-2 flex min-w-0 flex-col gap-0 text-left leading-tight"
                     animate={{ opacity: expanded ? 1 : 0 }}
                     transition={{
                       duration: 0.15,
@@ -741,7 +749,12 @@ function NewThreadComposer({
           )}
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={pending}
+          >
             Cancel
           </Button>
           <Button size="sm" onClick={submit} disabled={pending || !body.trim()}>
@@ -864,7 +877,7 @@ function ThreadView({
               onSelect={() => {
                 onMarkUnread()
                 markThreadUnreadAction(thread.id).catch((e) =>
-                  console.error("markThreadUnread failed:", e),
+                  console.error("markThreadUnread failed:", e)
                 )
               }}
             >
@@ -892,11 +905,7 @@ function ThreadView({
       </div>
       <div className="max-h-72 overflow-y-auto px-3 py-2">
         {thread.comments.map((c) => (
-          <CommentRow
-            key={c.id}
-            comment={c}
-            currentUserId={currentUserId}
-          />
+          <CommentRow key={c.id} comment={c} currentUserId={currentUserId} />
         ))}
       </div>
       <div className="border-t border-border p-2">
@@ -958,11 +967,11 @@ function QuoteHeader({
   return (
     <div className="mb-2 rounded-sm border-l-2 border-yellow-500 bg-yellow-50 px-2 py-1.5 text-xs leading-snug text-foreground/80 dark:bg-yellow-500/10">
       {range && (
-        <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="mb-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
           {range}
         </div>
       )}
-      <div className="line-clamp-3 whitespace-pre-wrap break-words">
+      <div className="line-clamp-3 break-words whitespace-pre-wrap">
         {quotedText}
       </div>
     </div>
@@ -971,7 +980,7 @@ function QuoteHeader({
 
 function useDocCommentLines(
   thread: ThreadWithComments,
-  getDocumentEditor?: (id: string) => Editor | undefined,
+  getDocumentEditor?: (id: string) => Editor | undefined
 ): { lineFrom: number; lineTo: number } | null {
   return useMemo(() => {
     if (!thread.documentId || !thread.anchorStart || !thread.anchorEnd) {
@@ -987,7 +996,13 @@ function useDocCommentLines(
     // anchorStart/End are immutable per thread; deps just need the thread id
     // and the editor lookup (which closes over the latest registry).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thread.id, thread.documentId, thread.anchorStart, thread.anchorEnd, getDocumentEditor])
+  }, [
+    thread.id,
+    thread.documentId,
+    thread.anchorStart,
+    thread.anchorEnd,
+    getDocumentEditor,
+  ])
 }
 
 function CommentRow({
@@ -1000,10 +1015,7 @@ function CommentRow({
   const [pending, start] = useTransition()
   return (
     <div className="group flex items-start gap-2 py-2">
-      <Avatar
-        name={comment.authorName}
-        avatar={comment.authorAvatar}
-      />
+      <Avatar name={comment.authorName} avatar={comment.authorAvatar} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-medium text-foreground">
@@ -1013,7 +1025,7 @@ function CommentRow({
             {formatRelative(comment.createdAt)}
           </span>
         </div>
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-sm">
+        <p className="mt-0.5 text-sm break-words whitespace-pre-wrap">
           {comment.body}
         </p>
       </div>
@@ -1045,11 +1057,7 @@ function PillAvatar({ name, avatar }: { name: string; avatar: string | null }) {
   if (avatar) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatar}
-        alt={name}
-        className="size-6 rounded-full"
-      />
+      <img src={avatar} alt={name} className="size-6 rounded-full" />
     )
   }
   const initial = (name.trim()[0] ?? "?").toUpperCase()
@@ -1064,11 +1072,7 @@ function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
   if (avatar) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatar}
-        alt={name}
-        className="mt-0.5 size-5 rounded-full"
-      />
+      <img src={avatar} alt={name} className="mt-0.5 size-5 rounded-full" />
     )
   }
   const initial = (name.trim()[0] ?? "?").toUpperCase()

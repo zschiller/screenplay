@@ -4,7 +4,9 @@ import type { ResizeEdge } from "@/hooks/use-iframe-layer-resize"
 
 interface ResizeHandlesProps {
   zoom: number
-  makeHandleProps: (edge: ResizeEdge) => { onPointerDown: (e: React.PointerEvent) => void }
+  makeHandleProps: (edge: ResizeEdge) => {
+    onPointerDown: (e: React.PointerEvent) => void
+  }
 }
 
 /**
@@ -23,14 +25,66 @@ export function ResizeHandles({ zoom, makeHandleProps }: ResizeHandlesProps) {
 
   return (
     <>
-      <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("n")} style={{ top: -hHalf, left: cHalf, right: cHalf, height: h }} />
-      <div className="absolute cursor-ns-resize touch-none" {...makeHandleProps("s")} style={{ bottom: -hHalf, left: cHalf, right: cHalf, height: h }} />
-      <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("w")} style={{ left: -hHalf, top: cHalf, bottom: cHalf, width: h }} />
-      <div className="absolute cursor-ew-resize touch-none" {...makeHandleProps("e")} style={{ right: -hHalf, top: cHalf, bottom: cHalf, width: h }} />
-      <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("nw")} style={{ top: -cHalf, left: -cHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("ne")} style={{ top: -cHalf, right: -cHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nesw-resize touch-none" {...makeHandleProps("sw")} style={{ bottom: -cHalf, left: -cHalf, width: cornerSize, height: cornerSize }} />
-      <div className="absolute cursor-nwse-resize touch-none" {...makeHandleProps("se")} style={{ bottom: -cHalf, right: -cHalf, width: cornerSize, height: cornerSize }} />
+      <div
+        className="absolute cursor-ns-resize touch-none"
+        {...makeHandleProps("n")}
+        style={{ top: -hHalf, left: cHalf, right: cHalf, height: h }}
+      />
+      <div
+        className="absolute cursor-ns-resize touch-none"
+        {...makeHandleProps("s")}
+        style={{ bottom: -hHalf, left: cHalf, right: cHalf, height: h }}
+      />
+      <div
+        className="absolute cursor-ew-resize touch-none"
+        {...makeHandleProps("w")}
+        style={{ left: -hHalf, top: cHalf, bottom: cHalf, width: h }}
+      />
+      <div
+        className="absolute cursor-ew-resize touch-none"
+        {...makeHandleProps("e")}
+        style={{ right: -hHalf, top: cHalf, bottom: cHalf, width: h }}
+      />
+      <div
+        className="absolute cursor-nwse-resize touch-none"
+        {...makeHandleProps("nw")}
+        style={{
+          top: -cHalf,
+          left: -cHalf,
+          width: cornerSize,
+          height: cornerSize,
+        }}
+      />
+      <div
+        className="absolute cursor-nesw-resize touch-none"
+        {...makeHandleProps("ne")}
+        style={{
+          top: -cHalf,
+          right: -cHalf,
+          width: cornerSize,
+          height: cornerSize,
+        }}
+      />
+      <div
+        className="absolute cursor-nesw-resize touch-none"
+        {...makeHandleProps("sw")}
+        style={{
+          bottom: -cHalf,
+          left: -cHalf,
+          width: cornerSize,
+          height: cornerSize,
+        }}
+      />
+      <div
+        className="absolute cursor-nwse-resize touch-none"
+        {...makeHandleProps("se")}
+        style={{
+          bottom: -cHalf,
+          right: -cHalf,
+          width: cornerSize,
+          height: cornerSize,
+        }}
+      />
     </>
   )
 }

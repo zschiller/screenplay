@@ -110,7 +110,9 @@ export function LogsPanel({
     for (const t of tagged) t._id = nextTokenId++
     setTokens((prev) => {
       const next = prev.concat(tagged)
-      return next.length > MAX_TOKENS ? next.slice(next.length - MAX_TOKENS) : next
+      return next.length > MAX_TOKENS
+        ? next.slice(next.length - MAX_TOKENS)
+        : next
     })
   }, [])
 
@@ -208,7 +210,7 @@ export function LogsPanel({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/80"
+        className="flex-1 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-foreground/80"
       >
         {error ? (
           <span className="text-red-600 dark:text-red-400">

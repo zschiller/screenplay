@@ -17,7 +17,7 @@ import type { SandboxNetworkPolicy } from "@/lib/sandbox/types"
  * whole policy is unit-testable.
  */
 export function buildNetworkPolicy(
-  providers: ModelProvider[],
+  providers: ModelProvider[]
 ): SandboxNetworkPolicy {
   const allow: SandboxNetworkPolicy["allow"] = { "*": [] }
   for (const provider of providers) {

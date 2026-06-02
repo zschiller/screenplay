@@ -2,13 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  ArrowUpDown,
-  LayoutGrid,
-  List,
-  Pin,
-  Plus,
-} from "lucide-react"
+import { ArrowUpDown, LayoutGrid, List, Pin, Plus } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
@@ -70,62 +64,62 @@ export function FilesView() {
             <h1 className="text-base font-semibold">{selectionLabel}</h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <ArrowUpDown />
-                Sort: {SORT_LABELS[sort]}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuRadioGroup
-                value={sort}
-                onValueChange={(v) => setSort(v as SortKey)}
-              >
-                <DropdownMenuRadioItem value="updated">
-                  Last edited
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="created">
-                  Date created
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="name">
-                  Name
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <ArrowUpDown />
+                  Sort: {SORT_LABELS[sort]}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(v) => setSort(v as SortKey)}
+                >
+                  <DropdownMenuRadioItem value="updated">
+                    Last edited
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="created">
+                    Date created
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="name">
+                    Name
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <Tabs
-            value={view}
-            onValueChange={(v) => {
-              if (v === "grid" || v === "table") setView(v)
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="grid" aria-label="Grid view">
-                <LayoutGrid />
-              </TabsTrigger>
-              <TabsTrigger value="table" aria-label="Table view">
-                <List />
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+            <Tabs
+              value={view}
+              onValueChange={(v) => {
+                if (v === "grid" || v === "table") setView(v)
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="grid" aria-label="Grid view">
+                  <LayoutGrid />
+                </TabsTrigger>
+                <TabsTrigger value="table" aria-label="Table view">
+                  <List />
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-          <Button
-            onClick={() => setNewFileOpen(true)}
-            disabled={!canCreateHere}
-            title={
-              canCreateHere
-                ? "Create a new file"
-                : "Select a folder to create a file"
-            }
-          >
-            <Plus />
-            New file
-          </Button>
-        </div>
+            <Button
+              onClick={() => setNewFileOpen(true)}
+              disabled={!canCreateHere}
+              title={
+                canCreateHere
+                  ? "Create a new file"
+                  : "Select a folder to create a file"
+              }
+            >
+              <Plus />
+              New file
+            </Button>
+          </div>
         </div>
       </header>
 

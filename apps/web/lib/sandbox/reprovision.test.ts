@@ -65,14 +65,19 @@ function configuredAnthropic(): ModelProvider {
     resolve: () => {
       throw new Error("stub provider: resolve should not be called")
     },
-    egress: () => ({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+    egress: () => ({
+      host: "api.anthropic.com",
+      headers: { "x-api-key": "real-key" },
+    }),
   }
 }
 
 // reprovisionFromGit falls back to the session's GitHub token when none is
 // passed. That needs a request context we don't have under plain Node — stub it
 // so the action's create + result shaping is what's under test.
-const getGitHubToken = vi.hoisted(() => vi.fn(async () => null as string | null))
+const getGitHubToken = vi.hoisted(() =>
+  vi.fn(async () => null as string | null)
+)
 vi.mock("@/lib/auth-helpers", () => ({ getGitHubToken }))
 
 // Git setup and the harness install live in their own action modules,
@@ -81,12 +86,18 @@ vi.mock("@/lib/auth-helpers", () => ({ getGitHubToken }))
 const configureAgentGit = vi.hoisted(() =>
   vi.fn(
     async () =>
-      ({ success: true, value: undefined }) as { success: boolean; error?: string; value?: undefined },
-  ),
+      ({ success: true, value: undefined }) as {
+        success: boolean
+        error?: string
+        value?: undefined
+      }
+  )
 )
 vi.mock("@/lib/sandbox/git", () => ({ configureAgentGit }))
 
-const installHarnesses = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
+const installHarnesses = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true, value: undefined }))
+)
 vi.mock("@/lib/sandbox/provision", () => ({ installHarnesses }))
 
 // The bridge module ships large generated scripts; stub the constants so the
@@ -111,14 +122,18 @@ function fakeSandbox(
     name?: string
     respond?: (cmd: string, args: string[]) => Scripted
     writeError?: string
-  } = {},
+  } = {}
 ): SandboxInstance {
-  const respond: (cmd: string, args: string[]) => Scripted = opts.respond ?? (() => ({ exitCode: 0 }))
+  const respond: (cmd: string, args: string[]) => Scripted =
+    opts.respond ?? (() => ({ exitCode: 0 }))
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -183,13 +198,21 @@ describe("reprovisionFromGit", () => {
   it("clones from git, provisions, and returns the proxy preview domain", async () => {
     fake.setInstance(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await reprovisionFromGit("sandbox-a", repo, "feature", "tok123")
+    const result = await reprovisionFromGit(
+      "sandbox-a",
+      repo,
+      "feature",
+      "tok123"
+    )
 
     // Preview points at the proxy port (devserver port + 1000), not the
     // devserver port itself.
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "sandbox-a",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     // VM was created from a token-authed git source on the requested branch…
     expect(fake.createCalls).toHaveLength(1)
@@ -225,13 +248,20 @@ describe("reprovisionFromGit", () => {
   it("merges the brokered Anthropic env with the passed repo env", async () => {
     fake.setInstance(fakeSandbox({ name: "sandbox-a" }))
 
-    await reprovisionFromGit("sandbox-a", repo, "feature", "tok", { FOO: "bar" })
+    await reprovisionFromGit("sandbox-a", repo, "feature", "tok", {
+      FOO: "bar",
+    })
 
-    expect(fake.createCalls[0]!.env).toEqual({ ANTHROPIC_API_KEY: "brokered", FOO: "bar" })
+    expect(fake.createCalls[0]!.env).toEqual({
+      ANTHROPIC_API_KEY: "brokered",
+      FOO: "bar",
+    })
   })
 
   it("returns a failure when the setup script exits non-zero, before configuring git", async () => {
-    fake.setInstance(fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) }))
+    fake.setInstance(
+      fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) })
+    )
 
     const result = await reprovisionFromGit("sandbox-a", repo, "feature", "tok")
 
@@ -244,7 +274,10 @@ describe("reprovisionFromGit", () => {
 
   it("returns a failure when git configuration fails", async () => {
     fake.setInstance(fakeSandbox({ name: "sandbox-a" }))
-    configureAgentGit.mockResolvedValue({ success: false, error: "git remote set-url failed" })
+    configureAgentGit.mockResolvedValue({
+      success: false,
+      error: "git remote set-url failed",
+    })
 
     const result = await reprovisionFromGit("sandbox-a", repo, "feature", "tok")
 
@@ -255,7 +288,10 @@ describe("reprovisionFromGit", () => {
 
   it("redacts a GitHub token out of a git-config failure", async () => {
     fake.setInstance(fakeSandbox({ name: "sandbox-a" }))
-    configureAgentGit.mockResolvedValue({ success: false, error: `push failed using ${GH_TOKEN}` })
+    configureAgentGit.mockResolvedValue({
+      success: false,
+      error: `push failed using ${GH_TOKEN}`,
+    })
 
     const result = await reprovisionFromGit("sandbox-a", repo, "feature", "tok")
 

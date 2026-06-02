@@ -108,7 +108,7 @@ function findBestSnap(
   sourceEdges: AxisEdge[],
   candidateEdges: AxisEdge[],
   zoom: number,
-  thresholdPx: number,
+  thresholdPx: number
 ): BestSnap | null {
   let best: BestSnap | null = null
   let bestDistPx = Infinity
@@ -140,7 +140,7 @@ function findBestSnap(
 function collectGuides(
   sourceEdges: AxisEdge[],
   candidateEdges: AxisEdge[],
-  axis: "x" | "y",
+  axis: "x" | "y"
 ): SnapGuide[] {
   const guides: SnapGuide[] = []
   for (const s of sourceEdges) {
@@ -298,9 +298,8 @@ export function computeDeviceSnap(opts: {
   const seen = new Set<string>()
 
   for (const preset of presets) {
-    const orientations: Array<{ w: number; h: number; name: SnapOrientation }> = [
-      { w: preset.width, h: preset.height, name: "portrait" },
-    ]
+    const orientations: Array<{ w: number; h: number; name: SnapOrientation }> =
+      [{ w: preset.width, h: preset.height, name: "portrait" }]
     if (preset.category === "Mobile" || preset.category === "Tablet") {
       orientations.push({
         w: preset.height,
@@ -401,7 +400,7 @@ export function rectFromAnchor(
   anchorX: number,
   anchorY: number,
   width: number,
-  height: number,
+  height: number
 ): { x: number; y: number } {
   switch (anchor) {
     case "tl":
@@ -473,9 +472,13 @@ export function computeMergeSnap(opts: {
   // Degenerate source (no resolvable members) can't merge into anything.
   if (rect.width === 0 || rect.height === 0) return null
 
-  let best:
-    | { id: string; dist: number; x: number; y: number; gap: number }
-    | null = null
+  let best: {
+    id: string
+    dist: number
+    x: number
+    y: number
+    gap: number
+  } | null = null
   for (const c of candidates) {
     const placeholderX = c.rect.x + c.rect.width + c.gap
     const placeholderY = c.rect.y
@@ -494,7 +497,12 @@ export function computeMergeSnap(opts: {
   const rects: Rect[] = []
   let cursorX = best.x
   for (const size of memberSizes) {
-    rects.push({ x: cursorX, y: best.y, width: size.width, height: size.height })
+    rects.push({
+      x: cursorX,
+      y: best.y,
+      width: size.width,
+      height: size.height,
+    })
     cursorX += size.width + best.gap
   }
   if (rects.length === 0) return null

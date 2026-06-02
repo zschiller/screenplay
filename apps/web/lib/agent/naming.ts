@@ -43,7 +43,7 @@ export async function generateChatNames(opts: {
         .trim()
         .replace(/^["'`]+|["'`]+$/g, "")
         .replace(/^[-*\d.)\s]+/, "")
-        .trim(),
+        .trim()
     )
     .filter(Boolean)
 
@@ -75,7 +75,7 @@ export async function generateChatNames(opts: {
 export async function deduplicateBranchName(
   roomId: string,
   branchName: string,
-  userId: string,
+  userId: string
 ): Promise<string> {
   try {
     const repo = await readRoomDoc(roomId, ({ repos }) => {
@@ -100,7 +100,7 @@ export async function deduplicateBranchName(
             Authorization: `Bearer ${token}`,
             Accept: "application/vnd.github+json",
           },
-        },
+        }
       )
       if (res.status === 404) return candidate
       if (!res.ok) return candidate // unexpected error — use as-is

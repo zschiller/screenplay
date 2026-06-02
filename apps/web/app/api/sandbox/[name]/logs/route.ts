@@ -8,7 +8,7 @@ export const maxDuration = 300
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ name: string }> },
+  { params }: { params: Promise<{ name: string }> }
 ) {
   const userId = await getUserId()
   if (!userId) {

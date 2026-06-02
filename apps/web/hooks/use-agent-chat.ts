@@ -37,7 +37,7 @@ export function useAgentChat({
   const state: ChatState = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
     () => chatStore.getSnapshot(chatId),
-    () => chatStore.getSnapshot(chatId),
+    () => chatStore.getSnapshot(chatId)
   )
 
   // Load history once per chatId. Keyed by chatId since the agent's message
@@ -87,7 +87,7 @@ export function useAgentChat({
       planMode,
       onBranchRename,
       onChatRename,
-    ],
+    ]
   )
 
   const stopMessage = useCallback(() => {

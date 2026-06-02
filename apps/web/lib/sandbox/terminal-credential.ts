@@ -34,7 +34,7 @@ export async function issueTerminalCredential(
     sessionId: string
     userId: string
   },
-  now = Date.now(),
+  now = Date.now()
 ): Promise<TerminalCredential | null> {
   if (!(await canAccess(input.roomId, input.userId))) return null
 
@@ -56,7 +56,7 @@ export type TerminalCredentialCheck =
 export function verifyTerminalCredential(
   token: string,
   binding: { roomId: string; sessionId: string },
-  now = Date.now(),
+  now = Date.now()
 ): TerminalCredentialCheck {
   const parts = token.split(".")
   if (parts.length !== 5) return { ok: false }

@@ -67,7 +67,7 @@ export async function loadChatHistory(chatId: string): Promise<ModelMessage[]> {
  * as bare tool_use rows, which is the honest representation.
  */
 export async function loadChatHistoryForModel(
-  chatId: string,
+  chatId: string
 ): Promise<ModelMessage[]> {
   return repairOrphanedToolCalls(await loadChatHistory(chatId))
 }
@@ -93,7 +93,7 @@ export async function loadChatHistoryForModel(
  * Pure / idempotent — safe to call on already-clean histories.
  */
 export function repairOrphanedToolCalls(
-  messages: ModelMessage[],
+  messages: ModelMessage[]
 ): ModelMessage[] {
   const out: ModelMessage[] = []
   let i = 0
@@ -114,7 +114,7 @@ export function repairOrphanedToolCalls(
 
     const toolCalls = msg.content.filter(
       (p): p is Extract<typeof p, { type: "tool-call" }> =>
-        p.type === "tool-call",
+        p.type === "tool-call"
     )
 
     out.push(msg)
@@ -167,7 +167,7 @@ export function repairOrphanedToolCalls(
 
 export async function appendMessage(
   chatId: string,
-  message: ModelMessage,
+  message: ModelMessage
 ): Promise<void> {
   await db.insert(agentMessage).values({
     id: nanoid(),
@@ -179,7 +179,7 @@ export async function appendMessage(
 
 export async function appendMessages(
   chatId: string,
-  messages: ModelMessage[],
+  messages: ModelMessage[]
 ): Promise<void> {
   if (messages.length === 0) return
   await db.insert(agentMessage).values(
@@ -188,7 +188,7 @@ export async function appendMessages(
       chatId,
       role: message.role,
       message,
-    })),
+    }))
   )
 }
 
@@ -200,7 +200,7 @@ export async function appendMessages(
  * read-only lookup.
  */
 export async function findActiveRun(
-  chatId: string,
+  chatId: string
 ): Promise<{ id: string; status: "running" | "paused_for_plan" } | null> {
   const [row] = await db
     .select({ id: agentRun.id, status: agentRun.status })
@@ -208,8 +208,8 @@ export async function findActiveRun(
     .where(
       and(
         eq(agentRun.chatId, chatId),
-        inArray(agentRun.status, ["running", "paused_for_plan"]),
-      ),
+        inArray(agentRun.status, ["running", "paused_for_plan"])
+      )
     )
     .orderBy(desc(agentRun.startedAt))
     .limit(1)
@@ -217,9 +217,7 @@ export async function findActiveRun(
   return { id: row.id, status: row.status as "running" | "paused_for_plan" }
 }
 
-export async function findPendingToolCall(
-  pendingId: string,
-): Promise<{
+export async function findPendingToolCall(pendingId: string): Promise<{
   id: string
   runId: string
   chatId: string
@@ -262,8 +260,8 @@ export async function findPendingPlanForChat(chatId: string): Promise<{
       and(
         eq(agentPendingToolCall.chatId, chatId),
         eq(agentPendingToolCall.toolName, "submit_plan"),
-        eq(agentPendingToolCall.status, "pending"),
-      ),
+        eq(agentPendingToolCall.status, "pending")
+      )
     )
     .orderBy(desc(agentPendingToolCall.createdAt))
     .limit(1)

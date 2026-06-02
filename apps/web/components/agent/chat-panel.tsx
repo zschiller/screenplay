@@ -1,14 +1,46 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { Plus, Pencil, X, Archive, RotateCcw, PanelRightClose, ChevronsUpDown, ChevronDown, Check, GitPullRequest, ArrowUpRight, Logs, MessageCircle, SquareTerminal } from "lucide-react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
+import {
+  Plus,
+  Pencil,
+  X,
+  Archive,
+  RotateCcw,
+  PanelRightClose,
+  ChevronsUpDown,
+  ChevronDown,
+  Check,
+  GitPullRequest,
+  ArrowUpRight,
+  Logs,
+  MessageCircle,
+  SquareTerminal,
+} from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@workspace/ui/components/tabs"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
 import {
   DropdownMenu,
@@ -33,7 +65,13 @@ import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
 import { BranchBadge } from "@/components/branch-badge"
-import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind, TerminalTabData } from "@/lib/types"
+import type {
+  BranchData,
+  ChatSessionData,
+  MarkdownLayerData,
+  TabKind,
+  TerminalTabData,
+} from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
 import { readLastTabKind, writeLastTabKind } from "@/lib/canvas/tab-kind"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -47,7 +85,7 @@ const LOGS_TAB_VALUE = "__sandbox_logs__"
 // result and pull the PR url/number out of its output. Pure over `messages`
 // so the `useMemo` below is a single reactive call the compiler can preserve.
 function findLatestPr(
-  messages: AgentMessage[],
+  messages: AgentMessage[]
 ): { url: string; number: string } | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
@@ -64,7 +102,7 @@ function useLatestPr(chatId: string): { url: string; number: string } | null {
   const messages = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
     () => chatStore.getSnapshot(chatId).messages,
-    () => [],
+    () => []
   )
   return useMemo(() => findLatestPr(messages), [messages])
 }
@@ -77,12 +115,12 @@ function useAnyChatStreaming(chatIds: string[]): boolean {
       return () => unsubs.forEach((u) => u())
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key],
+    [key]
   )
   const getSnapshot = useCallback(
     () => chatIds.some((id) => chatStore.getSnapshot(id).isStreaming),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key],
+    [key]
   )
   return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }
@@ -91,12 +129,12 @@ function useChatStatus(chatId: string) {
   const isStreaming = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
     () => chatStore.getSnapshot(chatId).isStreaming,
-    () => false,
+    () => false
   )
   const hasUnread = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
     () => chatStore.hasUnread(chatId),
-    () => false,
+    () => false
   )
   return { isStreaming, hasUnread }
 }
@@ -110,7 +148,7 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
       ) : hasUnread ? (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
       ) : null}
-      <span className="truncate max-w-[100px]">{chat.label}</span>
+      <span className="max-w-[100px] truncate">{chat.label}</span>
     </span>
   )
 }
@@ -124,7 +162,7 @@ function ChatTabLabel({ chat }: { chat: ChatSessionData }) {
 function TerminalTabLabel({ terminal }: { terminal: TerminalTabData }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="truncate max-w-[100px]">{terminal.label}</span>
+      <span className="max-w-[100px] truncate">{terminal.label}</span>
     </span>
   )
 }
@@ -137,8 +175,20 @@ function TerminalTabLabel({ terminal }: { terminal: TerminalTabData }) {
  * close) don't have to branch on `kind`.
  */
 type OpenTab =
-  | { kind: "chat"; id: string; label: string; createdAt: number; chat: ChatSessionData }
-  | { kind: "terminal"; id: string; label: string; createdAt: number; terminal: TerminalTabData }
+  | {
+      kind: "chat"
+      id: string
+      label: string
+      createdAt: number
+      chat: ChatSessionData
+    }
+  | {
+      kind: "terminal"
+      id: string
+      label: string
+      createdAt: number
+      terminal: TerminalTabData
+    }
 
 /**
  * The chat panel can target one of two top-level kinds:
@@ -154,7 +204,11 @@ type OpenTab =
  */
 export type ChatPanelTarget =
   | { kind: "agent"; agent: BranchData }
-  | { kind: "layer"; layerKind: string; layer: { id: string } & Record<string, unknown> }
+  | {
+      kind: "layer"
+      layerKind: string
+      layer: { id: string } & Record<string, unknown>
+    }
 
 interface ChatPanelProps {
   target: ChatPanelTarget
@@ -261,7 +315,7 @@ export function ChatPanel({
       [...chatSessions]
         .filter((c) => c.closedAt)
         .sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0)),
-    [chatSessions],
+    [chatSessions]
   )
 
   // Auto-select the first open tab (chat or terminal) if none selected
@@ -276,10 +330,12 @@ export function ChatPanel({
   const displayPr: { url: string; number: string } | null =
     chatHistoryPr ??
     (branchPr ? { url: branchPr.url, number: String(branchPr.number) } : null)
-  const isAgentBusy = agent ? (agent.status === "creating" || agent.status === "starting") : false
+  const isAgentBusy = agent
+    ? agent.status === "creating" || agent.status === "starting"
+    : false
   const allChatIds = useMemo(
     () => chatSessions.map((c) => c.id),
-    [chatSessions],
+    [chatSessions]
   )
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const [showLogs, setShowLogs] = useState(false)
@@ -302,7 +358,7 @@ export function ChatPanel({
       if (kind === "terminal") onCreateTerminal?.()
       else onCreateChat()
     },
-    [onCreateChat, onCreateTerminal],
+    [onCreateChat, onCreateTerminal]
   )
 
   // Reset the logs-visible flag whenever the chat target changes so a
@@ -333,7 +389,11 @@ export function ChatPanel({
   const prevStatusRef = useRef(agent?.status)
   useEffect(() => {
     const prev = prevStatusRef.current
-    if (agent && (prev === "creating" || prev === "starting") && agent.status === "running") {
+    if (
+      agent &&
+      (prev === "creating" || prev === "starting") &&
+      agent.status === "running"
+    ) {
       setShowLogs(false)
     }
     prevStatusRef.current = agent?.status
@@ -341,7 +401,10 @@ export function ChatPanel({
 
   const handleCreatePr = () => {
     if (!activeTab) return
-    inputStore.send(activeTab, "Create a pull request for the changes on this branch.")
+    inputStore.send(
+      activeTab,
+      "Create a pull request for the changes on this branch."
+    )
   }
 
   const handleTabChange = (value: string) => {
@@ -391,47 +454,53 @@ export function ChatPanel({
         <div className="ml-auto flex items-center gap-1.5">
           {/* Diff stats and the PR button are agent-only — there's no
               git/branch concept for a doc target. */}
-          {isAgentTarget && diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) && (
-            <span className="flex items-center gap-1 font-mono text-[10px]">
-              <span className="text-green-700 dark:text-green-300">+{diffStats.additions}</span>
-              <span className="text-red-700 dark:text-red-300">-{diffStats.deletions}</span>
-            </span>
-          )}
-          {isAgentTarget && (displayPr ? (
-            <Button size="xs" variant="outline" asChild>
-              <a
-                href={displayPr.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group"
+          {isAgentTarget &&
+            diffStats &&
+            (diffStats.additions > 0 || diffStats.deletions > 0) && (
+              <span className="flex items-center gap-1 font-mono text-[10px]">
+                <span className="text-green-700 dark:text-green-300">
+                  +{diffStats.additions}
+                </span>
+                <span className="text-red-700 dark:text-red-300">
+                  -{diffStats.deletions}
+                </span>
+              </span>
+            )}
+          {isAgentTarget &&
+            (displayPr ? (
+              <Button size="xs" variant="outline" asChild>
+                <a
+                  href={displayPr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group"
+                >
+                  <GitPullRequest />#{displayPr.number}
+                  <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
+                </a>
+              </Button>
+            ) : (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={handleCreatePr}
+                disabled={!activeTab || isAgentBusy || anyChatStreaming}
+                title={
+                  isAgentBusy
+                    ? "Sandbox still starting…"
+                    : anyChatStreaming
+                      ? "Agent is working on this branch…"
+                      : undefined
+                }
               >
                 <GitPullRequest />
-                #{displayPr.number}
-                <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
-              </a>
-            </Button>
-          ) : (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={handleCreatePr}
-              disabled={!activeTab || isAgentBusy || anyChatStreaming}
-              title={
-                isAgentBusy
-                  ? "Sandbox still starting…"
-                  : anyChatStreaming
-                    ? "Agent is working on this branch…"
-                    : undefined
-              }
-            >
-              <GitPullRequest />
-              Create PR
-            </Button>
-          ))}
+                Create PR
+              </Button>
+            ))}
         </div>
       </div>
       <div className="flex border-b border-border bg-background">
-        <ScrollArea orientation="horizontal" className="flex-1 min-w-0">
+        <ScrollArea orientation="horizontal" className="min-w-0 flex-1">
           <TabsList variant="line" className="h-9 px-2">
             {isAgentTarget && (
               <TabsTrigger
@@ -447,31 +516,33 @@ export function ChatPanel({
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="group/tab relative min-w-[100px] text-xs px-2 pr-2 py-1"
+                className="group/tab relative min-w-[100px] px-2 py-1 pr-2 text-xs"
               >
                 {tab.kind === "terminal" ? (
                   <TerminalTabLabel terminal={tab.terminal} />
                 ) : (
                   <ChatTabLabel chat={tab.chat} />
                 )}
-                <div className="absolute right-0 top-0 bottom-0 flex items-center pr-0.5 opacity-0 group-hover/tab:opacity-100 transition-opacity bg-[var(--background)]">
-                  <div className="absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)] pointer-events-none" />
+                <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
+                  <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
                   <span
                     role="button"
                     tabIndex={0}
                     title="Rename"
-                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       const newLabel = prompt("Rename chat", tab.label)
-                      if (newLabel?.trim()) onRenameChat(tab.id, newLabel.trim())
+                      if (newLabel?.trim())
+                        onRenameChat(tab.id, newLabel.trim())
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         e.stopPropagation()
                         const newLabel = prompt("Rename chat", tab.label)
-                        if (newLabel?.trim()) onRenameChat(tab.id, newLabel.trim())
+                        if (newLabel?.trim())
+                          onRenameChat(tab.id, newLabel.trim())
                       }
                     }}
                   >
@@ -481,7 +552,7 @@ export function ChatPanel({
                     role="button"
                     tabIndex={0}
                     title="Close"
-                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       onCloseChat(tab.id)
@@ -509,7 +580,7 @@ export function ChatPanel({
                       <Button
                         variant="ghost"
                         size="icon-xs"
-                        className="in-data-[slot=button-group]:rounded-md group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                        className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                         onClick={() => createTab(stickyTabKind)}
                         disabled={isAgentBusy}
                         aria-label={
@@ -535,7 +606,7 @@ export function ChatPanel({
                     <Button
                       variant="ghost"
                       size="icon-xs"
-                      className="w-4 min-w-0 px-0 opacity-0 in-data-[slot=button-group]:rounded-md group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground group-focus-within/newtab:opacity-100 aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                      className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                       disabled={isAgentBusy}
                       title="New chat or terminal"
                       aria-label="New chat or terminal"
@@ -559,7 +630,7 @@ export function ChatPanel({
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="shrink-0 ml-1"
+                className="ml-1 shrink-0"
                 onClick={onCreateChat}
                 disabled={isAgentBusy}
                 title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
@@ -573,11 +644,7 @@ export function ChatPanel({
           <div className="flex shrink-0 items-center px-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Closed chats"
-                >
+                <Button variant="ghost" size="icon-xs" title="Closed chats">
                   <Archive className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -604,7 +671,10 @@ export function ChatPanel({
           className="flex-1 overflow-hidden data-[state=inactive]:hidden"
           forceMount
         >
-          <LogsPanel sandboxName={agent.sandboxName} onConnected={handleLogsConnected} />
+          <LogsPanel
+            sandboxName={agent.sandboxName}
+            onConnected={handleLogsConnected}
+          />
         </TabsContent>
       )}
 
@@ -638,7 +708,8 @@ export function ChatPanel({
           (c) =>
             c.id !== chat.id &&
             ((chat.branchId && c.branchId === chat.branchId) ||
-              (chat.markdownLayerId && c.markdownLayerId === chat.markdownLayerId)),
+              (chat.markdownLayerId &&
+                c.markdownLayerId === chat.markdownLayerId))
         )
         return (
           <TabsContent
@@ -653,7 +724,11 @@ export function ChatPanel({
               sandboxId={agent?.id}
               sandboxName={agent?.sandboxName}
               branch={agent?.ref}
-              markdownLayerId={layerTarget?.layerKind === "markdown-layer" ? layerTarget.layer.id : undefined}
+              markdownLayerId={
+                layerTarget?.layerKind === "markdown-layer"
+                  ? layerTarget.layer.id
+                  : undefined
+              }
               isFirstChat={isFirst}
               autoNamedBranch={agent?.autoNamedBranch}
               planMode={chat.planMode}
@@ -683,7 +758,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
         branch={target.agent.ref}
         colorKey={target.agent.id}
         colorIndex={target.agent.colorIndex}
-        className="text-[11px] py-0 px-1.5"
+        className="px-1.5 py-0 text-[11px]"
       />
     )
   }
@@ -692,7 +767,7 @@ function TargetPill({ target }: { target: ChatPanelTarget }) {
   const label = descriptor.getLabel(target.layer as never)
   return (
     <span className="inline-flex items-center gap-2 text-sm">
-      <span className="truncate max-w-[14rem]">{label}</span>
+      <span className="max-w-[14rem] truncate">{label}</span>
     </span>
   )
 }
@@ -720,11 +795,16 @@ function TargetPicker({
   onSelectLayer: (layerKind: string, layerId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const pickableAgents = agents.filter((a) => a.ref && a.status !== "error" && a.status !== "stopped")
+  const pickableAgents = agents.filter(
+    (a) => a.ref && a.status !== "error" && a.status !== "stopped"
+  )
 
   // Keyed by `descriptor.kind` so the picker loop below can look up each
   // chat-targetable kind without a per-kind branch.
-  const layersByKind: Record<string, Array<{ id: string } & Record<string, unknown>>> = {
+  const layersByKind: Record<
+    string,
+    Array<{ id: string } & Record<string, unknown>>
+  > = {
     "markdown-layer": markdownLayers,
   }
 
@@ -744,8 +824,10 @@ function TargetPicker({
             {pickableAgents.length > 0 && (
               <CommandGroup heading="Branches">
                 {pickableAgents.map((a) => {
-                  const isBusy = a.status === "creating" || a.status === "starting"
-                  const isCurrent = target.kind === "agent" && a.id === target.agent.id
+                  const isBusy =
+                    a.status === "creating" || a.status === "starting"
+                  const isCurrent =
+                    target.kind === "agent" && a.id === target.agent.id
                   return (
                     <CommandItem
                       key={a.id}
@@ -755,8 +837,15 @@ function TargetPicker({
                         setOpen(false)
                       }}
                     >
-                      <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
-                      <BranchBadge branch={a.ref} colorKey={a.id} colorIndex={a.colorIndex} className="text-[11px] py-0 px-1.5" />
+                      <Check
+                        className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
+                      />
+                      <BranchBadge
+                        branch={a.ref}
+                        colorKey={a.id}
+                        colorIndex={a.colorIndex}
+                        className="px-1.5 py-0 text-[11px]"
+                      />
                       {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>
                   )
@@ -767,7 +856,10 @@ function TargetPicker({
               const items = layersByKind[descriptor.kind] ?? []
               if (items.length === 0) return null
               return (
-                <CommandGroup key={descriptor.kind} heading={descriptor.pluralLabel}>
+                <CommandGroup
+                  key={descriptor.kind}
+                  heading={descriptor.pluralLabel}
+                >
                   {items.map((item) => {
                     const isCurrent =
                       target.kind === "layer" &&
@@ -783,7 +875,9 @@ function TargetPicker({
                           setOpen(false)
                         }}
                       >
-                        <Check className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`} />
+                        <Check
+                          className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
+                        />
                         <span className="truncate">{label}</span>
                       </CommandItem>
                     )
@@ -797,4 +891,3 @@ function TargetPicker({
     </Popover>
   )
 }
-

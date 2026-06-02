@@ -65,9 +65,8 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
           // end" API for the parser; round-trip loses inline marks but
           // preserves the title verbatim.
           const existingBody = fragmentBodyToPlainText(fragment)
-          const next = existingBody.length > 0
-            ? `${existingBody}\n\n${content}`
-            : content
+          const next =
+            existingBody.length > 0 ? `${existingBody}\n\n${content}` : content
           replaceFragmentBodyPreservingTitle(fragment, next)
         })
         return `Appended ${content.length} characters to the document.`

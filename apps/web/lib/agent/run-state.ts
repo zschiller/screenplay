@@ -76,7 +76,7 @@ export interface RunStateRepo {
   applyTransition(
     runId: string,
     to: RunStatus,
-    endedAt: Date | null,
+    endedAt: Date | null
   ): Promise<void>
   /** Move every still-active run for a chat to `superseded`. */
   supersedeActiveRuns(chatId: string): Promise<void>
@@ -97,7 +97,7 @@ export interface RunStateRepo {
    */
   resolvePlan(
     planId: string,
-    resolution: PlanResolution,
+    resolution: PlanResolution
   ): Promise<{ runId: string } | null>
 }
 
@@ -108,7 +108,7 @@ export interface RunState {
   pauseForPlan(runId: string, planCall: PendingPlanCall): Promise<void>
   resolvePlan(
     planId: string,
-    resolution: PlanResolution,
+    resolution: PlanResolution
   ): Promise<{ runId: string } | null>
 }
 
@@ -145,7 +145,7 @@ export function createRunState(repo: RunStateRepo): RunState {
 
   async function pauseForPlan(
     runId: string,
-    planCall: PendingPlanCall,
+    planCall: PendingPlanCall
   ): Promise<void> {
     const current = await repo.loadStatus(runId)
     if (current === null) {
@@ -163,7 +163,7 @@ export function createRunState(repo: RunStateRepo): RunState {
 
   async function resolvePlan(
     planId: string,
-    resolution: PlanResolution,
+    resolution: PlanResolution
   ): Promise<{ runId: string } | null> {
     // The pending-status and run-supersede guards live in the atomic repo
     // write itself (one transaction), so there is no read-then-write window
@@ -202,8 +202,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
         .where(
           and(
             eq(agentRun.chatId, chatId),
-            inArray(agentRun.status, ["running", "paused_for_plan"]),
-          ),
+            inArray(agentRun.status, ["running", "paused_for_plan"])
+          )
         )
     },
     async insertRunning(chatId) {
@@ -259,8 +259,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
           .where(
             and(
               eq(agentPendingToolCall.id, planId),
-              eq(agentPendingToolCall.status, "pending"),
-            ),
+              eq(agentPendingToolCall.status, "pending")
+            )
           ),
         database
           .update(agentRun)
@@ -268,8 +268,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
           .where(
             and(
               eq(agentRun.id, pending.runId),
-              inArray(agentRun.status, ["running", "paused_for_plan"]),
-            ),
+              inArray(agentRun.status, ["running", "paused_for_plan"])
+            )
           ),
       ])
       return { runId: pending.runId }

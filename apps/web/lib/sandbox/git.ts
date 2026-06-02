@@ -18,17 +18,20 @@ export async function createAgentBranch(
   repo: RepoData,
   branchName: string,
   fromBranch?: string,
-  ghToken?: string,
+  ghToken?: string
 ): Promise<SandboxActionResult<void>> {
   const result = await createBranch(
     repo.repoOwner,
     repo.repoName,
     branchName,
     fromBranch || repo.defaultBranch,
-    ghToken,
+    ghToken
   )
   if (result.success) return { success: true, value: undefined }
-  return { success: false, error: redactSensitiveInfo(result.error ?? "Failed to create branch") }
+  return {
+    success: false,
+    error: redactSensitiveInfo(result.error ?? "Failed to create branch"),
+  }
 }
 
 /**
@@ -42,7 +45,7 @@ export async function renameAgentBranch(
   repo: RepoData,
   sandboxName: string,
   oldBranch: string,
-  newBranch: string,
+  newBranch: string
 ): Promise<SandboxActionResult<void>> {
   const local = await runSandboxAction(sandboxName, async (sandbox) => {
     await step(sandbox, "git", ["branch", "-m", newBranch])
@@ -54,11 +57,13 @@ export async function renameAgentBranch(
     repo.repoOwner,
     repo.repoName,
     oldBranch,
-    newBranch,
+    newBranch
   )
   if (!remote.success) {
     // Branch doesn't exist on GitHub yet — fine, it'll be pushed with the new name.
-    console.log(`GitHub branch rename skipped (${remote.error}), will push as ${newBranch}`)
+    console.log(
+      `GitHub branch rename skipped (${remote.error}), will push as ${newBranch}`
+    )
   }
 
   return { success: true, value: undefined }
@@ -71,7 +76,7 @@ export async function renameAgentBranch(
  * attribution stays with whoever triggered this command.
  */
 async function buildSandboxGitEnv(
-  userId: string,
+  userId: string
 ): Promise<Record<string, string> | undefined> {
   const token = await getGitHubTokenForUser(userId)
   if (!token) return undefined
@@ -86,16 +91,21 @@ async function buildSandboxGitEnv(
  */
 export async function getDiffStats(
   sandboxName: string,
-  defaultBranch: string,
+  defaultBranch: string
 ): Promise<{ additions: number; deletions: number } | null> {
   try {
-    const sandbox = await sandboxProvider.get({ name: sandboxName, resume: false })
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
     if (!isSandboxRunning(sandbox)) return null
 
     // Try fetching silently — may fail on private repos without token, that's ok
     try {
       const actingUserId = await getUserId()
-      const gitEnv = actingUserId ? await buildSandboxGitEnv(actingUserId) : undefined
+      const gitEnv = actingUserId
+        ? await buildSandboxGitEnv(actingUserId)
+        : undefined
       await sandbox.runCommand({
         cmd: "git",
         args: ["fetch", "origin", defaultBranch, "--quiet"],
@@ -150,13 +160,18 @@ export async function getDiffStats(
 export async function configureAgentGit(
   sandboxName: string,
   repo: RepoData,
-  branch: string,
+  branch: string
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     // Ensure we're on the actual branch, not a detached HEAD.
     // sandboxProvider.create with `revision` may check out the commit directly.
     await sandbox.runCommand("git", ["checkout", "-B", branch])
-    await sandbox.runCommand("git", ["branch", "--set-upstream-to", `origin/${branch}`, branch])
+    await sandbox.runCommand("git", [
+      "branch",
+      "--set-upstream-to",
+      `origin/${branch}`,
+      branch,
+    ])
 
     await step(sandbox, "git", [
       "remote",
@@ -165,7 +180,11 @@ export async function configureAgentGit(
       `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
     ])
 
-    await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
+    await sandbox.runCommand("git", [
+      "config",
+      "user.email",
+      "agent@screenplay.dev",
+    ])
     await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
     await sandbox.runCommand("git", ["config", "push.default", "current"])
 

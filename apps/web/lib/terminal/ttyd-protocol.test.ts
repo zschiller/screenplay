@@ -27,7 +27,11 @@ describe("encodeHandshake", () => {
   })
 
   it("carries the minted credential through as the AuthToken", () => {
-    const frame = encodeHandshake({ authToken: "tok-123", columns: 120, rows: 40 })
+    const frame = encodeHandshake({
+      authToken: "tok-123",
+      columns: 120,
+      rows: 40,
+    })
     expect(JSON.parse(decoder.decode(frame)).AuthToken).toBe("tok-123")
   })
 })
@@ -92,25 +96,25 @@ describe("decodeServerMessage", () => {
 describe("terminalWebSocketUrl", () => {
   it("upgrades https to wss and appends /ws", () => {
     expect(terminalWebSocketUrl("https://abc-7681.vercel.run")).toBe(
-      "wss://abc-7681.vercel.run/ws",
+      "wss://abc-7681.vercel.run/ws"
     )
   })
 
   it("upgrades http to ws and appends /ws", () => {
     expect(terminalWebSocketUrl("http://localhost:7681")).toBe(
-      "ws://localhost:7681/ws",
+      "ws://localhost:7681/ws"
     )
   })
 
   it("does not double a trailing slash before /ws", () => {
     expect(terminalWebSocketUrl("https://abc-7681.vercel.run/")).toBe(
-      "wss://abc-7681.vercel.run/ws",
+      "wss://abc-7681.vercel.run/ws"
     )
   })
 
   it("appends the tmux session as ttyd's ?arg= when given one command arg", () => {
     expect(
-      terminalWebSocketUrl("https://abc-7681.vercel.run", ["screenplay-tab1"]),
+      terminalWebSocketUrl("https://abc-7681.vercel.run", ["screenplay-tab1"])
     ).toBe("wss://abc-7681.vercel.run/ws?arg=screenplay-tab1")
   })
 
@@ -124,15 +128,15 @@ describe("terminalWebSocketUrl", () => {
         "sh",
         "-c",
         "claude; exec $SHELL",
-      ]),
+      ])
     ).toBe(
-      "wss://abc-7681.vercel.run/ws?arg=screenplay-tab1&arg=sh&arg=-c&arg=claude%3B+exec+%24SHELL",
+      "wss://abc-7681.vercel.run/ws?arg=screenplay-tab1&arg=sh&arg=-c&arg=claude%3B+exec+%24SHELL"
     )
   })
 
   it("returns the bare /ws endpoint when given no command args", () => {
     expect(terminalWebSocketUrl("https://abc-7681.vercel.run", [])).toBe(
-      "wss://abc-7681.vercel.run/ws",
+      "wss://abc-7681.vercel.run/ws"
     )
   })
 })

@@ -162,7 +162,13 @@ interface LayerTitleTextProps {
  * `max-width` its container imposes (frames clamp to leave room for action
  * buttons; docs let the bar's outer max-width do the clipping).
  */
-export function LayerTitleText({ title, selected, onSelectLayer, onRename, placeholder }: LayerTitleTextProps) {
+export function LayerTitleText({
+  title,
+  selected,
+  onSelectLayer,
+  onRename,
+  placeholder,
+}: LayerTitleTextProps) {
   const colorClass = selected ? "text-fuchsia-500" : "text-foreground/70"
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return
@@ -177,7 +183,7 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
         placeholder={placeholder}
         onCommit={onRename}
         onPointerDown={handlePointerDown}
-        className={cn("text-xs font-medium min-w-0", colorClass)}
+        className={cn("min-w-0 text-xs font-medium", colorClass)}
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
@@ -190,8 +196,8 @@ export function LayerTitleText({ title, selected, onSelectLayer, onRename, place
   return (
     <span
       className={cn(
-        "text-xs font-medium truncate min-w-0 cursor-grab active:cursor-grabbing",
-        colorClass,
+        "min-w-0 cursor-grab truncate text-xs font-medium active:cursor-grabbing",
+        colorClass
       )}
       onPointerDown={handlePointerDown}
     >

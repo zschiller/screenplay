@@ -79,7 +79,7 @@ function roomDoc(roomId: string): Y.Doc {
 vi.mock("@/lib/yjs/server", () => ({
   mutateRoomDoc: async (
     roomId: string,
-    fn: (collections: { doc: Y.Doc }) => unknown,
+    fn: (collections: { doc: Y.Doc }) => unknown
   ) => fn({ doc: roomDoc(roomId) }),
 }))
 
@@ -93,10 +93,7 @@ import {
   markThreadUnread,
   setThreadResolved,
 } from "@/lib/comments"
-import {
-  readCommentsRead,
-  readCommentsRevision,
-} from "@/lib/comments-signals"
+import { readCommentsRead, readCommentsRevision } from "@/lib/comments-signals"
 
 beforeEach(() => {
   docs.clear()
@@ -144,17 +141,30 @@ describe("content mutations ring the room doorbell exactly once", () => {
     ],
     [
       "appendComment",
-      () => appendComment({ threadId: "thread-1", authorId: "author-1", body: "hi" }),
+      () =>
+        appendComment({
+          threadId: "thread-1",
+          authorId: "author-1",
+          body: "hi",
+        }),
     ],
     [
       "editComment",
-      () => editComment({ commentId: "comment-1", authorId: "author-1", body: "edited" }),
+      () =>
+        editComment({
+          commentId: "comment-1",
+          authorId: "author-1",
+          body: "edited",
+        }),
     ],
     [
       "deleteComment",
       () => deleteComment({ commentId: "comment-1", authorId: "author-1" }),
     ],
-    ["setThreadResolved", () => setThreadResolved({ threadId: "thread-1", resolved: true })],
+    [
+      "setThreadResolved",
+      () => setThreadResolved({ threadId: "thread-1", resolved: true }),
+    ],
     ["deleteThread", () => deleteThread("thread-1")],
   ]
 

@@ -28,15 +28,15 @@ function normalize(raw: unknown): OrganizationState {
             typeof f === "object" &&
             typeof f.id === "string" &&
             typeof f.name === "string" &&
-            typeof f.createdAt === "number",
+            typeof f.createdAt === "number"
         )
       : [],
     fileFolder:
       source.fileFolder && typeof source.fileFolder === "object"
         ? Object.fromEntries(
             Object.entries(source.fileFolder).filter(
-              ([, v]) => typeof v === "string",
-            ),
+              ([, v]) => typeof v === "string"
+            )
           )
         : {},
     pinnedFiles: Array.isArray(source.pinnedFiles)
@@ -59,7 +59,7 @@ async function readState(userId: string): Promise<OrganizationState> {
 
 async function writeState(
   userId: string,
-  next: OrganizationState,
+  next: OrganizationState
 ): Promise<OrganizationState> {
   await db
     .update(schema.user)
@@ -90,7 +90,7 @@ export async function createFolder(name: string): Promise<OrganizationState> {
 
 export async function renameFolder(
   folderId: string,
-  name: string,
+  name: string
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   if (folderId === DRAFTS_FOLDER_ID) {
@@ -101,13 +101,13 @@ export async function renameFolder(
   return writeState(userId, {
     ...state,
     folders: state.folders.map((f) =>
-      f.id === folderId ? { ...f, name: trimmed } : f,
+      f.id === folderId ? { ...f, name: trimmed } : f
     ),
   })
 }
 
 export async function deleteFolder(
-  folderId: string,
+  folderId: string
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   if (folderId === DRAFTS_FOLDER_ID) {
@@ -128,7 +128,7 @@ export async function deleteFolder(
 
 export async function moveFile(
   fileId: string,
-  folderId: string,
+  folderId: string
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   const state = await readState(userId)
@@ -145,7 +145,7 @@ export async function moveFile(
 
 export async function setFilePinned(
   fileId: string,
-  pinned: boolean,
+  pinned: boolean
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   const state = await readState(userId)
@@ -160,7 +160,7 @@ export async function setFilePinned(
 
 export async function setFolderPinned(
   folderId: string,
-  pinned: boolean,
+  pinned: boolean
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   if (folderId === DRAFTS_FOLDER_ID) {
@@ -177,7 +177,7 @@ export async function setFolderPinned(
 }
 
 export async function cleanupMissingFiles(
-  existingFileIds: string[],
+  existingFileIds: string[]
 ): Promise<OrganizationState> {
   const userId = await requireUserId()
   const state = await readState(userId)

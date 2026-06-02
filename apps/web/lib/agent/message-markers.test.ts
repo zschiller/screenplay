@@ -64,12 +64,16 @@ describe("parseUserMessage", () => {
   })
 
   it("round-trips plan present vs absent", () => {
-    expect(parseUserMessage(prependTurnMarkers("a", { planMode: true })).planMode).toBe(true)
+    expect(
+      parseUserMessage(prependTurnMarkers("a", { planMode: true })).planMode
+    ).toBe(true)
     expect(parseUserMessage(prependTurnMarkers("a", {})).planMode).toBe(false)
   })
 
   it("round-trips branch present vs absent", () => {
-    expect(parseUserMessage(prependTurnMarkers("a", { branch: "dev" })).branch).toBe("dev")
+    expect(
+      parseUserMessage(prependTurnMarkers("a", { branch: "dev" })).branch
+    ).toBe("dev")
     expect(parseUserMessage(prependTurnMarkers("a", {})).branch).toBeUndefined()
   })
 
@@ -126,13 +130,15 @@ describe("skillMarkersToPills", () => {
   })
 
   it("rewrites every marker in a body, leaving other text intact", () => {
-    expect(skillMarkersToPills("run [skill: tdd] then [skill: diagnose] now")).toBe(
-      "run [/tdd](skill:tdd) then [/diagnose](skill:diagnose) now",
-    )
+    expect(
+      skillMarkersToPills("run [skill: tdd] then [skill: diagnose] now")
+    ).toBe("run [/tdd](skill:tdd) then [/diagnose](skill:diagnose) now")
   })
 
   it("is a no-op on a body with no skill markers", () => {
-    expect(skillMarkersToPills("just a normal message")).toBe("just a normal message")
+    expect(skillMarkersToPills("just a normal message")).toBe(
+      "just a normal message"
+    )
   })
 
   it("round-trips serializeSkill through parseUserMessage back to the pill", () => {
@@ -175,7 +181,7 @@ describe("buildReferencedDocsFooter", () => {
 
   it("falls back to Untitled when a doc has no title", () => {
     expect(buildReferencedDocsFooter([{ id: "doc-9" }])).toContain(
-      "- markdown-layer doc-9: Untitled",
+      "- markdown-layer doc-9: Untitled"
     )
   })
 
@@ -199,7 +205,7 @@ describe("buildReferencedDocsFooter", () => {
   it("strips the footer even alongside server turn prefixes", () => {
     const wire = prependTurnMarkers(
       "ship it" + buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]),
-      { planMode: true, branch: "feat/x" },
+      { planMode: true, branch: "feat/x" }
     )
 
     const parsed = parseUserMessage(wire)

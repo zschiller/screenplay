@@ -31,7 +31,7 @@ export async function getCurrentSession() {
  * the `account` row created when the user signed in with GitHub.
  */
 export async function getGitHubTokenForUser(
-  userId: string,
+  userId: string
 ): Promise<string | null> {
   const rows = await db
     .select({ accessToken: schema.account.accessToken })
@@ -39,8 +39,8 @@ export async function getGitHubTokenForUser(
     .where(
       and(
         eq(schema.account.userId, userId),
-        eq(schema.account.providerId, "github"),
-      ),
+        eq(schema.account.providerId, "github")
+      )
     )
     .limit(1)
   return rows[0]?.accessToken ?? null
@@ -87,7 +87,7 @@ export async function getUsersByIds(ids: string[]): Promise<PublicUserInfo[]> {
 }
 
 export async function getUserByEmail(
-  email: string,
+  email: string
 ): Promise<PublicUserInfo | null> {
   const rows = await db
     .select({

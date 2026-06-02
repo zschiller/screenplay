@@ -75,14 +75,20 @@ const repo = {
  * implemented; everything else throws so an accidental dependency is loud.
  */
 function fakeSandbox(
-  respond: (cmd: string, args: string[]) => { exitCode: number; stdout?: string; stderr?: string },
-  status = "running",
+  respond: (
+    cmd: string,
+    args: string[]
+  ) => { exitCode: number; stdout?: string; stderr?: string },
+  status = "running"
 ): SandboxInstance {
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -133,14 +139,16 @@ describe("configureAgentGit", () => {
       fakeSandbox((cmd, args) => {
         seen.push([cmd, ...args].join(" "))
         return { exitCode: 0 }
-      }),
+      })
     )
 
     await configureAgentGit("sandbox-a", repo, "feature")
 
     const joined = seen.join("\n")
-    expect(joined).toContain("/home/vercel-sandbox/.screenplay/git-credential-helper.sh")
-    expect(joined).toContain('git config --global credential.helper')
+    expect(joined).toContain(
+      "/home/vercel-sandbox/.screenplay/git-credential-helper.sh"
+    )
+    expect(joined).toContain("git config --global credential.helper")
   })
 
   it("redacts a GitHub token out of a failed remote-url rewrite", async () => {
@@ -149,8 +157,8 @@ describe("configureAgentGit", () => {
       fakeSandbox((cmd, args) =>
         args.includes("set-url")
           ? { exitCode: 128, stderr: `fatal: bad url with ${token}` }
-          : { exitCode: 0 },
-      ),
+          : { exitCode: 0 }
+      )
     )
 
     const result = await configureAgentGit("sandbox-a", repo, "feature")
@@ -165,16 +173,26 @@ describe("configureAgentGit", () => {
 describe("renameAgentBranch", () => {
   it("renames in the sandbox and reports success even when the remote branch is absent", async () => {
     fake.setInstance(fakeSandbox(() => ({ exitCode: 0 })))
-    renameBranch.mockResolvedValue({ success: false, error: "Branch not found" })
+    renameBranch.mockResolvedValue({
+      success: false,
+      error: "Branch not found",
+    })
 
     const result = await renameAgentBranch(repo, "sandbox-a", "old", "new")
 
     expect(result).toEqual({ success: true, value: undefined })
-    expect(renameBranch).toHaveBeenCalledWith("octocat", "hello-world", "old", "new")
+    expect(renameBranch).toHaveBeenCalledWith(
+      "octocat",
+      "hello-world",
+      "old",
+      "new"
+    )
   })
 
   it("returns a failure result when the in-sandbox rename exits non-zero", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 128, stderr: "branch already exists" })))
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 128, stderr: "branch already exists" }))
+    )
 
     const result = await renameAgentBranch(repo, "sandbox-a", "old", "new")
 
@@ -192,8 +210,8 @@ describe("getDiffStats", () => {
       fakeSandbox((cmd, args) =>
         args.includes("--numstat")
           ? { exitCode: 0, stdout: "3\t1\ta.ts\n10\t2\tb.ts\n" }
-          : { exitCode: 0 },
-      ),
+          : { exitCode: 0 }
+      )
     )
 
     const result = await getDiffStats("sandbox-a", "main")
@@ -206,8 +224,8 @@ describe("getDiffStats", () => {
       fakeSandbox((cmd, args) =>
         args.includes("--numstat")
           ? { exitCode: 0, stdout: "-\t-\timage.png\n4\t0\tc.ts\n" }
-          : { exitCode: 0 },
-      ),
+          : { exitCode: 0 }
+      )
     )
 
     const result = await getDiffStats("sandbox-a", "main")
@@ -236,7 +254,7 @@ describe("createAgentBranch", () => {
       "hello-world",
       "feature",
       "main",
-      undefined,
+      undefined
     )
   })
 
@@ -245,12 +263,21 @@ describe("createAgentBranch", () => {
 
     await createAgentBranch(repo, "feature", undefined, "tok")
 
-    expect(createBranch).toHaveBeenCalledWith("octocat", "hello-world", "feature", "main", "tok")
+    expect(createBranch).toHaveBeenCalledWith(
+      "octocat",
+      "hello-world",
+      "feature",
+      "main",
+      "tok"
+    )
   })
 
   it("surfaces a redacted failure when GitHub branch creation fails", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
-    createBranch.mockResolvedValue({ success: false, error: `auth failed for ${token}` })
+    createBranch.mockResolvedValue({
+      success: false,
+      error: `auth failed for ${token}`,
+    })
 
     const result = await createAgentBranch(repo, "feature")
 

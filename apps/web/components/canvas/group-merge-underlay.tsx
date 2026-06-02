@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from "react"
 
-function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
+function resolveColor(
+  el: HTMLElement,
+  varName: string,
+  fallback: string
+): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
   if (!raw) return fallback
   const temp = document.createElement("div")

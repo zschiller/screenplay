@@ -54,7 +54,8 @@ export function DeleteRoomDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete &ldquo;{roomName}&rdquo;?</AlertDialogTitle>
           <AlertDialogDescription>
-            This project and all of its contents will be permanently deleted. This cannot be undone.
+            This project and all of its contents will be permanently deleted.
+            This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -71,7 +72,9 @@ export function DeleteRoomDialog({
                 await onConfirm()
               } catch (err) {
                 setError(
-                  err instanceof Error ? err.message : "Failed to delete project",
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to delete project"
                 )
                 setDeleting(false)
               }

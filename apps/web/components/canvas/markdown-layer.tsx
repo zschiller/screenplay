@@ -18,7 +18,10 @@ import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
-import { LayerTitleBar, LayerTitleText } from "@/components/canvas/layer-title-bar"
+import {
+  LayerTitleBar,
+  LayerTitleText,
+} from "@/components/canvas/layer-title-bar"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import {
@@ -68,7 +71,11 @@ const TitleEnterBehavior = Extension.create({
         // title is the only block; otherwise insert one and land on it.
         const after = state.doc.resolve(titleEnd).nodeAfter
         if (after && after.type.name === "paragraph") {
-          return this.editor.chain().setTextSelection(titleEnd + 1).focus().run()
+          return this.editor
+            .chain()
+            .setTextSelection(titleEnd + 1)
+            .focus()
+            .run()
         }
         return this.editor
           .chain()
@@ -137,14 +144,14 @@ interface MarkdownLayerProps {
     dy: number,
     totalDx: number,
     totalDy: number,
-    metaKey: boolean,
+    metaKey: boolean
   ) => void
   onMoveSelected: (
     dx: number,
     dy: number,
     totalDx: number,
     totalDy: number,
-    metaKey: boolean,
+    metaKey: boolean
   ) => void
   /** Fires once when a group-move drag begins (after the move threshold). */
   onGroupDragStart?: () => void
@@ -236,19 +243,18 @@ export function MarkdownLayer({
   // focus effect can land the cursor where the user clicked instead of at
   // the doc's end. Cleared after one consumption.
   const pendingFocusCoordsRef = useRef<{ left: number; top: number } | null>(
-    null,
+    null
   )
 
   // Latest non-empty selection inside the editor, used to drive the inline
   // "Comment" bubble button. The pos pair survives editor blur (which would
   // otherwise clear the selection on click) so the click handler can encode
   // anchors against the still-fresh range.
-  const pendingSelectionRef = useRef<{ from: number; to: number } | null>(
-    null,
-  )
-  const [bubbleAnchor, setBubbleAnchor] = useState<
-    { left: number; top: number } | null
-  >(null)
+  const pendingSelectionRef = useRef<{ from: number; to: number } | null>(null)
+  const [bubbleAnchor, setBubbleAnchor] = useState<{
+    left: number
+    top: number
+  } | null>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
 
   // Portal target lives outside the world transform so the bubble can sit
@@ -308,7 +314,8 @@ export function MarkdownLayer({
               ...this.parent?.(),
               kind: {
                 default: "markdown-layer",
-                parseHTML: (el) => el.getAttribute("data-kind") ?? "markdown-layer",
+                parseHTML: (el) =>
+                  el.getAttribute("data-kind") ?? "markdown-layer",
                 renderHTML: (attrs) =>
                   attrs.kind ? { "data-kind": attrs.kind as string } : {},
               },
@@ -320,12 +327,14 @@ export function MarkdownLayer({
               "mention-doc-pill inline-block rounded bg-primary/10 px-1 py-0.5 text-[0.95em] leading-none text-primary no-underline",
           },
           renderText({ node }) {
-            const label = (node.attrs.label as string | undefined) ?? node.attrs.id
+            const label =
+              (node.attrs.label as string | undefined) ?? node.attrs.id
             return `@${label}`
           },
           renderHTML({ options, node }) {
             const label =
-              (node.attrs.label as string | undefined) ?? (node.attrs.id as string)
+              (node.attrs.label as string | undefined) ??
+              (node.attrs.id as string)
             return ["span", options.HTMLAttributes, label]
           },
           deleteTriggerWithBackspace: true,
@@ -359,7 +368,7 @@ export function MarkdownLayer({
         },
       },
     },
-    [fragment, provider],
+    [fragment, provider]
   )
 
   // Keep the cached title (sidebar/mention label) in sync with the editor's
@@ -469,7 +478,9 @@ export function MarkdownLayer({
   // directly to the bubble's style.
   useEffect(() => {
     if (!bubbleAnchor || !editing || !bubblePortalTarget) return
-    const canvasWrapper = document.querySelector<HTMLDivElement>("[data-canvas-wrapper]")
+    const canvasWrapper = document.querySelector<HTMLDivElement>(
+      "[data-canvas-wrapper]"
+    )
     if (!canvasWrapper) return
     let rafId = 0
     const tick = () => {
@@ -506,7 +517,7 @@ export function MarkdownLayer({
     const { lineFrom, lineTo } = getLineNumbers(
       editor.state.doc,
       sel.from,
-      sel.to,
+      sel.to
     )
     const rect = rootRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -527,7 +538,14 @@ export function MarkdownLayer({
     })
     setBubbleAnchor(null)
     pendingSelectionRef.current = null
-  }, [editor, layer.id, layer.width, onStartInlineComment, zoom, setBubbleAnchor])
+  }, [
+    editor,
+    layer.id,
+    layer.width,
+    onStartInlineComment,
+    zoom,
+    setBubbleAnchor,
+  ])
 
   useEffect(() => {
     if (!editing) return
@@ -570,12 +588,12 @@ export function MarkdownLayer({
       dy: number,
       totalDx: number,
       totalDy: number,
-      metaKey: boolean,
+      metaKey: boolean
     ) => {
       if (selected) onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
       else onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
     },
-    [selected, onMoveGroup, onMoveSelected],
+    [selected, onMoveGroup, onMoveSelected]
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -616,11 +634,11 @@ export function MarkdownLayer({
       dx: number,
       dy: number,
       dw: number,
-      dh: number,
+      dh: number
     ) => {
       onResize(layer.id, dx, dy, dw, dh)
     },
-    [layer.id, onResize],
+    [layer.id, onResize]
   )
 
   const { makeHandleProps } = useIframeLayerResize({
@@ -662,11 +680,16 @@ export function MarkdownLayer({
         transform,
         // Dragged/popped doc floats above siblings; otherwise paint order
         // follows the group's sidebar position.
-        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 9999 : zIndex,
+        zIndex:
+          dragPopped || dragTranslateX != null || dragTranslateY != null
+            ? 9999
+            : zIndex,
         // The lifted doc is non-interactive so drop hit-testing falls through;
         // otherwise the tile catches its own events.
         pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : "auto",
+          dragPopped || dragTranslateX != null || dragTranslateY != null
+            ? "none"
+            : "auto",
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
@@ -695,7 +718,7 @@ export function MarkdownLayer({
          *  content and the title runs past the tile's right edge. Mirrors
          *  the equivalent row in IframeLayerLabel. */}
         <div
-          className="flex min-h-[18px] items-center max-w-full"
+          className="flex min-h-[18px] max-w-full items-center"
           style={{ maxWidth: layer.width * zoom }}
         >
           <LayerTitleText
@@ -719,7 +742,10 @@ export function MarkdownLayer({
        *  source of truth is still the editor's first heading, which is the
        *  cached `layer.title` field. The wrapper below holds the editor
        *  itself (title heading + body) in a Notion-style stacked surface. */}
-      <div data-markdown-layer-scroll className="relative flex-1 overflow-y-auto">
+      <div
+        data-markdown-layer-scroll
+        className="relative flex-1 overflow-y-auto"
+      >
         <div
           // `relative` + `z-10` lifts the editor above the layer-selection
           // overlay below so comment-highlight spans (which set their own
@@ -759,46 +785,49 @@ export function MarkdownLayer({
         <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
 
-      {bubbleAnchor && editing && bubblePortalTarget && createPortal(
-        // Floating "Comment" button anchored above the start of the user's
-        // selection — Google-Docs style. Portaled out of the world transform
-        // so it sits above the SelectionOverlay (see canvas.tsx for the
-        // portal target). Positioned every frame by the rAF loop above
-        // (translate is set imperatively from the tile's client rect), so
-        // it tracks pan/zoom/drag without needing inverse-scale tricks.
-        // mousedown is preventDefaulted so clicking the button doesn't
-        // blur the editor (mousedown is what shifts focus in browsers;
-        // pointerdown alone isn't enough). The button also fires on
-        // mousedown rather than click so the gesture completes before any
-        // later focus/selection event has a chance to tear down the bubble.
-        <div
-          ref={bubbleRef}
-          className="pointer-events-none absolute left-0 top-0"
-        >
+      {bubbleAnchor &&
+        editing &&
+        bubblePortalTarget &&
+        createPortal(
+          // Floating "Comment" button anchored above the start of the user's
+          // selection — Google-Docs style. Portaled out of the world transform
+          // so it sits above the SelectionOverlay (see canvas.tsx for the
+          // portal target). Positioned every frame by the rAF loop above
+          // (translate is set imperatively from the tile's client rect), so
+          // it tracks pan/zoom/drag without needing inverse-scale tricks.
+          // mousedown is preventDefaulted so clicking the button doesn't
+          // blur the editor (mousedown is what shifts focus in browsers;
+          // pointerdown alone isn't enough). The button also fires on
+          // mousedown rather than click so the gesture completes before any
+          // later focus/selection event has a chance to tear down the bubble.
           <div
-            className="pointer-events-auto"
-            style={{
-              transform: "translate(-50%, -100%) translateY(-6px)",
-              transformOrigin: "bottom center",
-            }}
+            ref={bubbleRef}
+            className="pointer-events-none absolute top-0 left-0"
           >
-            <button
-              type="button"
-              tabIndex={-1}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                handleStartInlineComment()
+            <div
+              className="pointer-events-auto"
+              style={{
+                transform: "translate(-50%, -100%) translateY(-6px)",
+                transformOrigin: "bottom center",
               }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
             >
-              <MessageSquare className="size-3.5" />
-              Comment
-            </button>
-          </div>
-        </div>,
-        bubblePortalTarget,
-      )}
+              <button
+                type="button"
+                tabIndex={-1}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleStartInlineComment()
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
+              >
+                <MessageSquare className="size-3.5" />
+                Comment
+              </button>
+            </div>
+          </div>,
+          bubblePortalTarget
+        )}
     </div>
   )
 }

@@ -91,7 +91,7 @@ export type CanvasOps = {
   patch<K extends CollectionKey>(
     key: K,
     id: string,
-    fields: Partial<RecordByKey[K]>,
+    fields: Partial<RecordByKey[K]>
   ): void
   /**
    * Persist the saved viewport (the singleton restored on room load). A thin
@@ -127,7 +127,7 @@ export type CanvasOps = {
    */
   createBlankFrame(
     anchor: { x: number; y: number },
-    size: { width: number; height: number },
+    size: { width: number; height: number }
   ): string
   /**
    * Create an Iframe Layer bound to `agentId` in a fresh single-member Group,
@@ -139,7 +139,7 @@ export type CanvasOps = {
   createFrameForAgent(
     agentId: string,
     anchor: { x: number; y: number },
-    label?: string,
+    label?: string
   ): { layerId: string; groupId: string }
   /**
    * Create one agent-bound Iframe Layer per discovered route, gathered into a
@@ -152,7 +152,7 @@ export type CanvasOps = {
   createFramesForRoutes(
     agentId: string,
     routes: { route: string; label: string }[],
-    anchor: { x: number; y: number },
+    anchor: { x: number; y: number }
   ): { groupId: string; firstLayerId: string } | undefined
   /**
    * Create a Document (Markdown Layer) in a fresh single-member Group anchored
@@ -163,7 +163,7 @@ export type CanvasOps = {
    */
   createDocument(
     anchor: { x: number; y: number },
-    size: { width: number; height: number },
+    size: { width: number; height: number }
   ): { docId: string; groupId: string; chatId: string }
   /**
    * Create a Branch record from `spec`, allocating its id and setting the
@@ -183,7 +183,7 @@ export type CanvasOps = {
   seedFrameForAgent(
     agentId: string,
     anchor: { x: number; y: number },
-    label?: string,
+    label?: string
   ): { layerId: string; groupId: string }
   /**
    * Navigate the Iframe Layer with `layerId` to `route`: write its new route
@@ -201,7 +201,7 @@ export type CanvasOps = {
   navigateRoute(
     layerId: string,
     route: string,
-    options: { cloneTrail: boolean },
+    options: { cloneTrail: boolean }
   ): { viewportShift: number }
   /**
    * Append a new Iframe Layer to an existing Group, created from the resolved
@@ -219,7 +219,7 @@ export type CanvasOps = {
       label: string
       branchId?: string
       route?: string
-    },
+    }
   ): string | undefined
   /**
    * Rename a Document (Markdown Layer) from outside the editor (sidebar, agent
@@ -316,7 +316,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function patch<K extends CollectionKey>(
     key: K,
     id: string,
-    fields: Partial<RecordByKey[K]>,
+    fields: Partial<RecordByKey[K]>
   ): void {
     batch(() => {
       ;(collections[key] as YjsCollection<RecordByKey[K]>).update(id, fields)
@@ -342,7 +342,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   // emptied. Caller must already be inside a `batch`. `toArray()` is a
   // transaction-stable snapshot, so a single pass over the Groups is correct
   // even as members are rewritten underneath.
-  function removeMembersMatching(match: (member: GroupMember) => boolean): void {
+  function removeMembersMatching(
+    match: (member: GroupMember) => boolean
+  ): void {
     for (const group of collections.iframeLayerGroups.toArray()) {
       const before = getGroupMembers(group)
       const remaining = before.filter((m) => !match(m))
@@ -381,7 +383,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   // Default frame size for a new Iframe Layer bound to `agentId`: the size
   // preset configured on the agent's repo, falling back to the default
   // preset. React-free and Y.Doc-only, so it lives behind the seam.
-  function defaultSizeForAgent(agentId: string): { width: number; height: number } {
+  function defaultSizeForAgent(agentId: string): {
+    width: number
+    height: number
+  } {
     const agent = collections.branches.get(agentId)
     const repo = agent ? collections.repos.get(agent.repoId) : undefined
     const preset = getIframeLayerSizePreset(repo?.defaultIframeLayerSizeId)
@@ -390,7 +395,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function createBlankFrame(
     anchor: { x: number; y: number },
-    size: { width: number; height: number },
+    size: { width: number; height: number }
   ): string {
     const layerId = nanoid()
     const groupId = nanoid()
@@ -416,7 +421,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function createFrameForAgent(
     agentId: string,
     anchor: { x: number; y: number },
-    label = "Frame 1",
+    label = "Frame 1"
   ): { layerId: string; groupId: string } {
     const layerId = nanoid()
     const groupId = nanoid()
@@ -429,7 +434,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height,
+        height
       )
       collections.iframeLayers.set(layerId, {
         id: layerId,
@@ -453,7 +458,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function createFramesForRoutes(
     agentId: string,
     routes: { route: string; label: string }[],
-    anchor: { x: number; y: number },
+    anchor: { x: number; y: number }
   ): { groupId: string; firstLayerId: string } | undefined {
     if (routes.length === 0) return undefined
     const layerIds = routes.map(() => nanoid())
@@ -466,7 +471,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         collections.iframeLayers.toArray(),
         anchor,
         width,
-        height,
+        height
       )
       routes.forEach((r, i) => {
         collections.iframeLayers.set(layerIds[i]!, {
@@ -492,7 +497,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function createDocument(
     anchor: { x: number; y: number },
-    size: { width: number; height: number },
+    size: { width: number; height: number }
   ): { docId: string; groupId: string; chatId: string } {
     const docId = nanoid()
     const groupId = nanoid()
@@ -529,7 +534,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return { docId, groupId, chatId }
   }
 
-  function createBranch(spec: CreateBranchSpec): { branchId: string; chatId?: string } {
+  function createBranch(spec: CreateBranchSpec): {
+    branchId: string
+    chatId?: string
+  } {
     const branchId = nanoid()
     let chatId: string | undefined
     batch(() => {
@@ -558,7 +566,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function seedFrameForAgent(
     agentId: string,
     anchor: { x: number; y: number },
-    label = "Frame 1",
+    label = "Frame 1"
   ): { layerId: string; groupId: string } {
     let result: { layerId: string; groupId: string }
     batch(() => {
@@ -574,7 +582,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function navigateRoute(
     layerId: string,
     route: string,
-    options: { cloneTrail: boolean },
+    options: { cloneTrail: boolean }
   ): { viewportShift: number } {
     let viewportShift = 0
     batch(() => {
@@ -614,7 +622,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
             { kind: "iframe-layer", id: cloneId },
             ...members.slice(idx),
           ]
-          collections.iframeLayerGroups.update(group.id, { members: nextMembers })
+          collections.iframeLayerGroups.update(group.id, {
+            members: nextMembers,
+          })
           viewportShift = layer.width + (group.gap ?? IFRAME_LAYER_GROUP_GAP)
         }
       }
@@ -642,7 +652,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       label: string
       branchId?: string
       route?: string
-    },
+    }
   ): string | undefined {
     const layerId = nanoid()
     let created = false
@@ -659,7 +669,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         ...(frame.route ? { route: frame.route } : {}),
       })
       collections.iframeLayerGroups.update(groupId, {
-        members: [...getGroupMembers(group), { kind: "iframe-layer", id: layerId }],
+        members: [
+          ...getGroupMembers(group),
+          { kind: "iframe-layer", id: layerId },
+        ],
       })
       created = true
     })
@@ -699,7 +712,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
           removedChatIds.push(chat.id)
         }
       }
-      removeMembersMatching((m) => m.kind === "markdown-layer" && idSet.has(m.id))
+      removeMembersMatching(
+        (m) => m.kind === "markdown-layer" && idSet.has(m.id)
+      )
     })
     return { removedChatIds }
   }
@@ -722,7 +737,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         }
       }
       removeMembersMatching(
-        (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id),
+        (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id)
       )
     })
     return { removedChatIds }
@@ -753,7 +768,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         }
       }
       removeMembersMatching(
-        (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id),
+        (m) => m.kind === "iframe-layer" && removedLayerIds.has(m.id)
       )
     })
     return { removedChatIds }
@@ -783,7 +798,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function moveLayerToGroup(
     layerId: string,
     targetGroupId: string,
-    index?: number,
+    index?: number
   ): void {
     batch(() => {
       const target = collections.iframeLayerGroups.get(targetGroupId)
@@ -795,19 +810,28 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const member = getGroupMembers(source).find((m) => m.id === layerId)
       if (!member) return
 
-      const sourceRemaining = getGroupMembers(source).filter((m) => m.id !== layerId)
+      const sourceRemaining = getGroupMembers(source).filter(
+        (m) => m.id !== layerId
+      )
       // Drop any existing copy from the target's own list so a same-Group
       // reorder (source === target) splices the Member back in at `index`
       // rather than duplicating it.
-      const targetMembers = getGroupMembers(target).filter((m) => m.id !== layerId)
-      const at = index == null ? targetMembers.length : Math.max(0, Math.min(index, targetMembers.length))
+      const targetMembers = getGroupMembers(target).filter(
+        (m) => m.id !== layerId
+      )
+      const at =
+        index == null
+          ? targetMembers.length
+          : Math.max(0, Math.min(index, targetMembers.length))
       const nextTarget: GroupMember[] = [
         ...targetMembers.slice(0, at),
         member,
         ...targetMembers.slice(at),
       ]
 
-      collections.iframeLayerGroups.update(source.id, { members: sourceRemaining })
+      collections.iframeLayerGroups.update(source.id, {
+        members: sourceRemaining,
+      })
       collections.iframeLayerGroups.update(target.id, { members: nextTarget })
       pruneIfEmpty(source.id)
     })
@@ -831,7 +855,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
 
   function splitToNewGroup(
     memberIds: string[],
-    anchor: { x: number; y: number },
+    anchor: { x: number; y: number }
   ): string {
     const newGroupId = nanoid()
     batch(() => {

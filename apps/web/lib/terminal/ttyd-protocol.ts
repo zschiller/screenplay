@@ -50,7 +50,7 @@ export function encodeHandshake(input: {
       AuthToken: input.authToken,
       columns: input.columns,
       rows: input.rows,
-    }),
+    })
   )
 }
 
@@ -111,7 +111,7 @@ export function decodeServerMessage(data: Uint8Array): TtydServerMessage {
  */
 export function terminalWebSocketUrl(
   httpUrl: string,
-  commandArgs: string[] = [],
+  commandArgs: string[] = []
 ): string {
   const url = new URL(httpUrl)
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:"

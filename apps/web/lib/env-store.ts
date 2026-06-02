@@ -5,14 +5,14 @@ const PREFIX = "sandbox-env:"
 
 export async function storeEnvVars(
   sandboxName: string,
-  env: Record<string, string>,
+  env: Record<string, string>
 ): Promise<void> {
   const encrypted = encrypt(JSON.stringify(env))
   await kv.set(`${PREFIX}${sandboxName}`, encrypted)
 }
 
 export async function getEnvVars(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<Record<string, string> | null> {
   const data = await kv.get<string>(`${PREFIX}${sandboxName}`)
   if (!data) return null

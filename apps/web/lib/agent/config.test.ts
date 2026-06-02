@@ -6,8 +6,16 @@ import type { OriginTaggedSkill } from "@/lib/skills/merged"
 const EMPTY_DIRECTORY = { documents: [] }
 
 const APP_SKILLS: OriginTaggedSkill[] = [
-  { name: "screenplay-add-knob", description: "Add interactive controls.", origin: "app" },
-  { name: "screenplay-share-state", description: "Share state across artboards.", origin: "app" },
+  {
+    name: "screenplay-add-knob",
+    description: "Add interactive controls.",
+    origin: "app",
+  },
+  {
+    name: "screenplay-share-state",
+    description: "Share state across artboards.",
+    origin: "app",
+  },
 ]
 
 describe("buildAgentSystemPrompt — skills block", () => {
@@ -84,7 +92,7 @@ describe("buildAgentSystemPrompt — skills block", () => {
     expect(prompt).toContain("Workspace context:")
     expect(prompt).toContain("Targets apps/web.")
     expect(prompt.indexOf("Skills available:")).toBeLessThan(
-      prompt.indexOf("Workspace context:"),
+      prompt.indexOf("Workspace context:")
     )
   })
 })

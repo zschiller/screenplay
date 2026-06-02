@@ -15,14 +15,16 @@ export interface CreateGitHubPrResult {
 }
 
 export async function createGitHubPr(
-  input: CreateGitHubPrInput,
+  input: CreateGitHubPrInput
 ): Promise<CreateGitHubPrResult> {
   const { userId, roomId, sandboxName, title, body } = input
 
   const { branch, repoOwner, repoName, defaultBranch } = await readRoomDoc(
     roomId,
     ({ branches, repos }) => {
-      const agent = branches.toArray().find((a) => a.sandboxName === sandboxName)
+      const agent = branches
+        .toArray()
+        .find((a) => a.sandboxName === sandboxName)
       if (!agent) return {}
       const ws = repos.get(agent.repoId)
       return {
@@ -31,7 +33,7 @@ export async function createGitHubPr(
         repoName: ws?.repoName,
         defaultBranch: ws?.defaultBranch,
       }
-    },
+    }
   )
 
   if (!branch) throw new Error("Agent branch not found in storage")
@@ -58,7 +60,7 @@ export async function createGitHubPr(
         head: branch,
         base: defaultBranch,
       }),
-    },
+    }
   )
 
   if (!res.ok) {

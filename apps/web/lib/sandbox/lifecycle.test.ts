@@ -31,7 +31,8 @@ const fake = vi.hoisted(() => {
     create: vi.fn(async (opts: SandboxCreateOptions) => {
       createCalls.push(opts)
       if (createError) throw createError
-      if (!createInstance) throw new Error("test did not set a fake create instance")
+      if (!createInstance)
+        throw new Error("test did not set a fake create instance")
       return createInstance
     }),
   }
@@ -70,7 +71,8 @@ const fake = vi.hoisted(() => {
 // mirrors `lib/sandbox/types.ts`.
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
-  supportsHibernation: (s: { isRunning?: unknown }) => typeof s?.isRunning === "function",
+  supportsHibernation: (s: { isRunning?: unknown }) =>
+    typeof s?.isRunning === "function",
   isSandboxRunning: (s: { isRunning?: () => boolean }) =>
     typeof s?.isRunning === "function" ? s.isRunning() : true,
 }))
@@ -84,10 +86,14 @@ vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
 // read persisted repo env. Both need a request context / KV we don't have
 // under plain Node — stub them so the action's create + result shaping is what's
 // under test.
-const getGitHubToken = vi.hoisted(() => vi.fn(async () => null as string | null))
+const getGitHubToken = vi.hoisted(() =>
+  vi.fn(async () => null as string | null)
+)
 vi.mock("@/lib/auth-helpers", () => ({ getGitHubToken }))
 
-const getEnvVars = vi.hoisted(() => vi.fn(async () => undefined as Record<string, string> | undefined))
+const getEnvVars = vi.hoisted(() =>
+  vi.fn(async () => undefined as Record<string, string> | undefined)
+)
 const deleteEnvVars = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock("@/lib/env-store", () => ({ getEnvVars, deleteEnvVars }))
 
@@ -95,10 +101,21 @@ vi.mock("@/lib/env-store", () => ({ getEnvVars, deleteEnvVars }))
 // install to the other action modules. Those are exercised by their own tests —
 // here they're external boundaries, faked so the restart's branching + result
 // shaping is what's pinned.
-const configureAgentGit = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined }) as { success: boolean; error?: string; value?: undefined }))
+const configureAgentGit = vi.hoisted(() =>
+  vi.fn(
+    async () =>
+      ({ success: true, value: undefined }) as {
+        success: boolean
+        error?: string
+        value?: undefined
+      }
+  )
+)
 vi.mock("@/lib/sandbox/git", () => ({ configureAgentGit }))
 
-const installHarnesses = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
+const installHarnesses = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true, value: undefined }))
+)
 vi.mock("@/lib/sandbox/provision", () => ({ installHarnesses }))
 
 // The bridge module ships large generated scripts; stub the constants so the
@@ -142,16 +159,20 @@ function fakeSandbox(
     snapshotError?: boolean
     writeError?: string
     extendTimeout?: (ms: number) => void
-  } = {},
+  } = {}
 ): SandboxInstance {
   const hibernating = opts.hibernating ?? true
   const status = opts.status ?? "running"
-  const respond: (cmd: string, args: string[]) => Scripted = opts.respond ?? (() => ({ exitCode: 0 }))
+  const respond: (cmd: string, args: string[]) => Scripted =
+    opts.respond ?? (() => ({ exitCode: 0 }))
   const notUsed = (name: string) => () => {
     throw new Error(`fake sandbox: ${name} should not be called`)
   }
   const runCommand = (cmdOrOpts: unknown, maybeArgs?: string[]) => {
-    const cmd = typeof cmdOrOpts === "string" ? cmdOrOpts : (cmdOrOpts as { cmd: string }).cmd
+    const cmd =
+      typeof cmdOrOpts === "string"
+        ? cmdOrOpts
+        : (cmdOrOpts as { cmd: string }).cmd
     const args =
       typeof cmdOrOpts === "string"
         ? (maybeArgs ?? [])
@@ -220,7 +241,12 @@ beforeEach(() => {
 describe("keepAliveSandbox", () => {
   it("extends the timeout and returns success when the sandbox is running", async () => {
     const extended: number[] = []
-    fake.setGet(fakeSandbox({ status: "running", extendTimeout: (ms) => extended.push(ms) }))
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        extendTimeout: (ms) => extended.push(ms),
+      })
+    )
 
     const result = await keepAliveSandbox("sandbox-a")
 
@@ -232,7 +258,12 @@ describe("keepAliveSandbox", () => {
 
   it("reports failure without extending when the sandbox is not running", async () => {
     const extended: number[] = []
-    fake.setGet(fakeSandbox({ status: "stopped", extendTimeout: (ms) => extended.push(ms) }))
+    fake.setGet(
+      fakeSandbox({
+        status: "stopped",
+        extendTimeout: (ms) => extended.push(ms),
+      })
+    )
 
     const result = await keepAliveSandbox("sandbox-a")
 
@@ -279,10 +310,16 @@ describe("restartSandbox", () => {
 
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "sandbox-a",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     // New VM booted from the captured snapshot…
-    expect(fake.createCalls[0]!.source).toEqual({ type: "snapshot", snapshotId: "snap-1" })
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "snapshot",
+      snapshotId: "snap-1",
+    })
     // …so the install/git pipeline is skipped entirely.
     expect(configureAgentGit).not.toHaveBeenCalled()
   })
@@ -297,7 +334,10 @@ describe("restartSandbox", () => {
 
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "sandbox-a",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     expect(fake.createCalls[0]!.source).toEqual({
       type: "git",
@@ -309,7 +349,9 @@ describe("restartSandbox", () => {
 
   it("returns a failure when the setup script exits non-zero on the fresh path", async () => {
     fake.setGet(fakeSandbox({ snapshotError: true }))
-    fake.setCreate(fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) }))
+    fake.setCreate(
+      fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) })
+    )
 
     const result = await restartSandbox("sandbox-a", repo, "feature")
 
@@ -342,7 +384,10 @@ describe("restartSandbox", () => {
 
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "sandbox-a", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "sandbox-a",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     // Took the reclone-fresh branch: created from a git source and ran the
     // full provision pipeline rather than booting from a snapshot.
@@ -366,7 +411,10 @@ describe("reconnectSandbox", () => {
     // relaunch a dev server that's already running.
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "fake-sandbox", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     expect(fake.getCalls).toHaveLength(1)
     expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
@@ -379,7 +427,10 @@ describe("reconnectSandbox", () => {
 
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "fake-sandbox", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     // Probed without resuming, then resolved again to relaunch — no reclone.
     expect(fake.getCalls).toHaveLength(2)
@@ -397,7 +448,10 @@ describe("reconnectSandbox", () => {
 
     expect(result).toEqual({
       success: true,
-      value: { sandboxName: "fake-sandbox", previewDomain: "https://fake-4000.example.com" },
+      value: {
+        sandboxName: "fake-sandbox",
+        previewDomain: "https://fake-4000.example.com",
+      },
     })
     // A single probe, no second resolve, and crucially no create — the handle
     // was reused rather than recloned.
@@ -409,7 +463,12 @@ describe("reconnectSandbox", () => {
   it("returns a redacted failure when the resume + relaunch throws", async () => {
     // First probe sees a stopped VM; the runner then resolves it and relaunches
     // the dev server, and that relaunch throws with a token in the message.
-    fake.setGet(fakeSandbox({ status: "stopped", writeError: `relaunch failed using ${GH_TOKEN}` }))
+    fake.setGet(
+      fakeSandbox({
+        status: "stopped",
+        writeError: `relaunch failed using ${GH_TOKEN}`,
+      })
+    )
 
     const result = await reconnectSandbox("sandbox-a", repo)
 
@@ -439,20 +498,29 @@ describe("probeSandboxUrl", () => {
   it("returns true when the proxy serves real HTML markup", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({ ok: true, text: async () => "<html><body>hi</body></html>" })),
+      vi.fn(async () => ({
+        ok: true,
+        text: async () => "<html><body>hi</body></html>",
+      }))
     )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
   })
 
   it("returns false for an empty placeholder page with no markup", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, text: async () => "   " })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, text: async () => "   " }))
+    )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
   })
 
   it("returns false on a non-ok response", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, text: async () => "<body>" })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, text: async () => "<body>" }))
+    )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
   })
@@ -462,7 +530,7 @@ describe("probeSandboxUrl", () => {
       "fetch",
       vi.fn(async () => {
         throw new Error("ECONNREFUSED")
-      }),
+      })
     )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(false)

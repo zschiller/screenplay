@@ -56,7 +56,11 @@ async function generateOne(prompt: string): Promise<NameResult> {
       .trim()
       .split("\n")
       .map((l: string) =>
-        l.trim().replace(/^["'`]+|["'`]+$/g, "").replace(/^[-*\d.)\s]+/, "").trim(),
+        l
+          .trim()
+          .replace(/^["'`]+|["'`]+$/g, "")
+          .replace(/^[-*\d.)\s]+/, "")
+          .trim()
       )
       .filter(Boolean)
     const branchRaw = sanitizeBranch(lines[0] ?? "")
@@ -66,11 +70,16 @@ async function generateOne(prompt: string): Promise<NameResult> {
         ? branchRaw
         : deriveFallbackBranch(prompt)
     const label =
-      labelRaw.length >= 2 && labelRaw.length <= 60 ? labelRaw : deriveFallbackLabel(prompt)
+      labelRaw.length >= 2 && labelRaw.length <= 60
+        ? labelRaw
+        : deriveFallbackLabel(prompt)
     return { branch, label }
   } catch (e) {
     console.error("Branch/chat name generation failed:", e)
-    return { branch: deriveFallbackBranch(prompt), label: deriveFallbackLabel(prompt) }
+    return {
+      branch: deriveFallbackBranch(prompt),
+      label: deriveFallbackLabel(prompt),
+    }
   }
 }
 
@@ -78,12 +87,17 @@ async function branchExistsOnGitHub(
   repoOwner: string,
   repoName: string,
   branch: string,
-  token: string,
+  token: string
 ): Promise<boolean> {
   try {
     const res = await fetch(
       `https://api.github.com/repos/${repoOwner}/${repoName}/git/ref/heads/${branch}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+        },
+      }
     )
     if (res.status === 404) return false
     return res.ok
@@ -121,7 +135,14 @@ export async function POST(req: Request) {
       if (suffix > 50) break
     }
     if (repo && token) {
-      while (await branchExistsOnGitHub(repo.repoOwner, repo.repoName, candidate, token)) {
+      while (
+        await branchExistsOnGitHub(
+          repo.repoOwner,
+          repo.repoName,
+          candidate,
+          token
+        )
+      ) {
         candidate = `${item.branch}-${suffix++}`
         if (suffix > 50) break
       }

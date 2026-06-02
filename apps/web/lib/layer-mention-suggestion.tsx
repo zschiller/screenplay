@@ -2,7 +2,10 @@
 
 import { ReactRenderer } from "@tiptap/react"
 import type { MentionOptions } from "@tiptap/extension-mention"
-import { MentionList, type MentionListHandle } from "@/components/agent/mention-list"
+import {
+  MentionList,
+  type MentionListHandle,
+} from "@/components/agent/mention-list"
 import type { MarkdownLayerData } from "@/lib/types"
 
 /**
@@ -67,9 +70,7 @@ export function buildLayerMentionSuggestion(opts: {
         if (!containerEl || !rect) return
         const anchor = opts.getAnchorRect?.()
         const minLeft = anchor ? anchor.left + 4 : 4
-        const maxLeft = anchor
-          ? anchor.right - 280
-          : window.innerWidth - 280
+        const maxLeft = anchor ? anchor.right - 280 : window.innerWidth - 280
         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
         containerEl.style.left = `${left}px`
         containerEl.style.bottom = `${window.innerHeight - rect.top + 4}px`

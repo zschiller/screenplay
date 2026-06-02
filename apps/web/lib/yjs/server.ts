@@ -13,7 +13,7 @@ import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
  */
 export async function mutateRoomDoc<T = void>(
   roomId: string,
-  fn: (collections: RoomCollections) => T | Promise<T>,
+  fn: (collections: RoomCollections) => T | Promise<T>
 ): Promise<T> {
   return yjsHost.mutateDoc(roomId, (doc) => fn(getRoomCollections(doc)))
 }
@@ -21,7 +21,7 @@ export async function mutateRoomDoc<T = void>(
 /** Read-only convenience — same plumbing without writing back. */
 export async function readRoomDoc<T>(
   roomId: string,
-  fn: (collections: RoomCollections) => T | Promise<T>,
+  fn: (collections: RoomCollections) => T | Promise<T>
 ): Promise<T> {
   return yjsHost.readDoc(roomId, (doc) => fn(getRoomCollections(doc)))
 }
@@ -55,9 +55,12 @@ type ChatBroadcastInput = ChatBroadcastEvent extends infer T
  */
 export async function broadcastChatEventViaDoc(
   roomId: string,
-  event: ChatBroadcastInput,
+  event: ChatBroadcastInput
 ): Promise<void> {
-  const withId = { ...event, id: event.id ?? randomUUID() } as ChatBroadcastEvent
+  const withId = {
+    ...event,
+    id: event.id ?? randomUUID(),
+  } as ChatBroadcastEvent
   await yjsHost.mutateDoc(roomId, (doc) => {
     const map = doc.getMap(STREAM_EVENTS_KEY) as Y.Map<Y.Array<unknown>>
     let arr = map.get(event.chatId)

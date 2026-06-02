@@ -1,4 +1,7 @@
-import type { SkillMenuItem, SkillsResponse } from "@/app/api/agent/skills/route"
+import type {
+  SkillMenuItem,
+  SkillsResponse,
+} from "@/app/api/agent/skills/route"
 
 export type { SkillMenuItem }
 
@@ -21,7 +24,7 @@ const pending = new Map<string, Promise<SkillsResponse>>()
  * working tree to enumerate.
  */
 export async function getSkillMenuItems(
-  sandboxName?: string,
+  sandboxName?: string
 ): Promise<SkillMenuItem[]> {
   const key = sandboxName ?? ""
   let inflight = pending.get(key)

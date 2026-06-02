@@ -23,13 +23,13 @@ export interface LayerDirectory {
  * directory doesn't list the doc itself (the targeted doc's full body is
  * already inlined elsewhere in the prompt).
  */
-function renderLayerDirectory(
-  dir: LayerDirectory,
-  excludeId?: string,
-): string {
+function renderLayerDirectory(dir: LayerDirectory, excludeId?: string): string {
   const docs = dir.documents.filter((d) => d.id !== excludeId)
   if (docs.length === 0) return ""
-  const lines: string[] = ["", "Layers on this canvas (call `read_document` with the id):"]
+  const lines: string[] = [
+    "",
+    "Layers on this canvas (call `read_document` with the id):",
+  ]
   lines.push("  Documents:")
   for (const d of docs) lines.push(`    - ${d.id}: ${d.title || "Untitled"}`)
   return lines.join("\n")

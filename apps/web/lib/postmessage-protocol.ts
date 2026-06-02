@@ -26,7 +26,16 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:init"; state: JsonObject }
   | { type: "screenplay:state-update"; state: JsonObject }
   | { type: "screenplay:scroll-to"; scrollX: number; scrollY: number }
-  | { type: "screenplay:dom-query"; id: string; op: DomOp; selector?: string; selectors?: string[]; handle?: string; x?: number; y?: number }
+  | {
+      type: "screenplay:dom-query"
+      id: string
+      op: DomOp
+      selector?: string
+      selectors?: string[]
+      handle?: string
+      x?: number
+      y?: number
+    }
   | { type: "screenplay:pick-start"; id: string }
   | { type: "screenplay:pick-stop"; id: string }
   | { type: "screenplay:set-forward-input"; id: string; enabled: boolean }
@@ -40,9 +49,23 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:state-changed"; state: JsonObject }
   | { type: "screenplay:dom-result"; id: string; ok: true; value: JsonValue }
   | { type: "screenplay:dom-result"; id: string; ok: false; error: string }
-  | { type: "screenplay:picked"; handle: string; selector: string; rect: DomRect; outerHTML: string }
+  | {
+      type: "screenplay:picked"
+      handle: string
+      selector: string
+      rect: DomRect
+      outerHTML: string
+    }
   | { type: "screenplay:hover"; rect: DomRect | null }
-  | { type: "screenplay:wheel"; deltaX: number; deltaY: number; ctrlKey: boolean; metaKey: boolean; clientX: number; clientY: number }
+  | {
+      type: "screenplay:wheel"
+      deltaX: number
+      deltaY: number
+      ctrlKey: boolean
+      metaKey: boolean
+      clientX: number
+      clientY: number
+    }
   | { type: "screenplay:pan-start" }
   | { type: "screenplay:pan-delta"; dx: number; dy: number }
   | { type: "screenplay:pan-end" }
@@ -55,7 +78,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:shared-state"; state: JsonObject }
 
 export function isScreenplayMessage(
-  data: unknown,
+  data: unknown
 ): data is CanvasToIframeMessage | IframeToCanvasMessage {
   return (
     typeof data === "object" &&

@@ -75,7 +75,11 @@ interface SelectionOverlayProps {
   snapGuides?: SnapGuide[]
 }
 
-function resolveColor(el: HTMLElement, varName: string, fallback: string): string {
+function resolveColor(
+  el: HTMLElement,
+  varName: string,
+  fallback: string
+): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
   if (!raw) return fallback
   const temp = document.createElement("div")
@@ -145,7 +149,11 @@ export function SelectionOverlay({
     const HALF = 0.5 / dpr
 
     // Draw hover frame (only if not already selected/focused)
-    if (hoveredIframeLayerId && !selectedIframeLayerIds.has(hoveredIframeLayerId) && focusedIframeLayerId !== hoveredIframeLayerId) {
+    if (
+      hoveredIframeLayerId &&
+      !selectedIframeLayerIds.has(hoveredIframeLayerId) &&
+      focusedIframeLayerId !== hoveredIframeLayerId
+    ) {
       const layout = iframeLayerLayouts.get(hoveredIframeLayerId)
       if (layout) {
         const tl = toScreen(layout.x, layout.y)
@@ -181,17 +189,26 @@ export function SelectionOverlay({
     }
 
     // Compute rounded frame edges for selected/focused/group-selected iframeLayers
-    const frameEdges = new Map<string, { l: number; t: number; r: number; b: number }>()
+    const frameEdges = new Map<
+      string,
+      { l: number; t: number; r: number; b: number }
+    >()
     for (const layout of iframeLayerLayouts.values()) {
       const inDirect = selectedIframeLayerIds.has(layout.id)
       const inGroup = groupSelectedIframeLayerIds.has(layout.id)
       if (!inDirect && !inGroup && focusedIframeLayerId !== layout.id) continue
       // Lifted iframeLayer's outline tracks its translated DOM position.
-      const shift = reorderDragShift && reorderDragShift.iframeLayerId === layout.id ? reorderDragShift : null
+      const shift =
+        reorderDragShift && reorderDragShift.iframeLayerId === layout.id
+          ? reorderDragShift
+          : null
       const ox = shift ? shift.dx : 0
       const oy = shift ? shift.dy : 0
       const tl = toScreen(layout.x + ox, layout.y + oy)
-      const br = toScreen(layout.x + layout.width + ox, layout.y + layout.height + oy)
+      const br = toScreen(
+        layout.x + layout.width + ox,
+        layout.y + layout.height + oy
+      )
       frameEdges.set(layout.id, {
         l: snap(tl.x),
         t: snap(tl.y),
@@ -209,7 +226,11 @@ export function SelectionOverlay({
 
     // Draw resize handles for single iframeLayer selection
     const totalSelected = selectedIframeLayerIds.size
-    if (selectedIframeLayerIds.size === 1 && totalSelected === 1 && !hideResizeHandles) {
+    if (
+      selectedIframeLayerIds.size === 1 &&
+      totalSelected === 1 &&
+      !hideResizeHandles
+    ) {
       const id = selectedIframeLayerIds.values().next().value as string
       const edges = frameEdges.get(id)
       if (edges) {
@@ -220,22 +241,36 @@ export function SelectionOverlay({
         const hh = hs / 2
 
         const handles = [
-          [l, t], [r, t], [l, b], [r, b],
-          [mx, t], [mx, b], [l, my], [r, my],
+          [l, t],
+          [r, t],
+          [l, b],
+          [r, b],
+          [mx, t],
+          [mx, b],
+          [l, my],
+          [r, my],
         ]
         for (const [hx, hy] of handles) {
           ctx.fillStyle = bgColor
           ctx.fillRect(hx - hh, hy - hh, hs, hs)
           ctx.strokeStyle = primaryColor
           ctx.lineWidth = 1
-          ctx.strokeRect(hx - hh + HALF, hy - hh + HALF, hs - 2 * HALF, hs - 2 * HALF)
+          ctx.strokeRect(
+            hx - hh + HALF,
+            hy - hh + HALF,
+            hs - 2 * HALF,
+            hs - 2 * HALF
+          )
         }
       }
     }
 
     // Draw union bounding rect when multiple iframeLayers are selected
     if (totalSelected > 1) {
-      let uLeft = Infinity, uTop = Infinity, uRight = -Infinity, uBottom = -Infinity
+      let uLeft = Infinity,
+        uTop = Infinity,
+        uRight = -Infinity,
+        uBottom = -Infinity
       for (const id of selectedIframeLayerIds) {
         const layout = iframeLayerLayouts.get(id)
         if (!layout) continue
@@ -260,7 +295,10 @@ export function SelectionOverlay({
     // Draw inspect rect (hovered or picked element)
     if (inspectRect) {
       const tl = toScreen(inspectRect.x, inspectRect.y)
-      const br = toScreen(inspectRect.x + inspectRect.width, inspectRect.y + inspectRect.height)
+      const br = toScreen(
+        inspectRect.x + inspectRect.width,
+        inspectRect.y + inspectRect.height
+      )
       const l = snap(tl.x)
       const t = snap(tl.y)
       const r = snap(br.x)
@@ -303,7 +341,10 @@ export function SelectionOverlay({
     // back to primary).
     if (reorderHandles && reorderHandles.length > 0) {
       for (const h of reorderHandles) {
-        const shift = reorderDragShift && reorderDragShift.iframeLayerId === h.iframeLayerId ? reorderDragShift : null
+        const shift =
+          reorderDragShift && reorderDragShift.iframeLayerId === h.iframeLayerId
+            ? reorderDragShift
+            : null
         const ox = shift ? shift.dx : 0
         const oy = shift ? shift.dy : 0
         const center = toScreen(h.centerX + ox, h.centerY + oy)
@@ -482,7 +523,26 @@ export function SelectionOverlay({
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-  }, [zoom, viewportPos, selectedIframeLayerIds, groupSelectedIframeLayerIds, focusedIframeLayerId, hoveredIframeLayerId, iframeLayerLayouts, marquee, frameDraft, documentDraft, othersSelections, hideResizeHandles, inspectRect, gapHandles, reorderHandles, hoveredReorderIframeLayerId, reorderDragShift, snapGuides])
+  }, [
+    zoom,
+    viewportPos,
+    selectedIframeLayerIds,
+    groupSelectedIframeLayerIds,
+    focusedIframeLayerId,
+    hoveredIframeLayerId,
+    iframeLayerLayouts,
+    marquee,
+    frameDraft,
+    documentDraft,
+    othersSelections,
+    hideResizeHandles,
+    inspectRect,
+    gapHandles,
+    reorderHandles,
+    hoveredReorderIframeLayerId,
+    reorderDragShift,
+    snapGuides,
+  ])
 
   // Keep canvas sized to container
   useEffect(() => {

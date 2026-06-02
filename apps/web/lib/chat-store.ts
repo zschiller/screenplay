@@ -1,4 +1,8 @@
-import type { AgentMessage, AgentStreamEvent, CustomToolName } from "@/lib/agent/types"
+import type {
+  AgentMessage,
+  AgentStreamEvent,
+  CustomToolName,
+} from "@/lib/agent/types"
 
 export type ChatState = {
   messages: AgentMessage[]
@@ -43,7 +47,7 @@ const DEFAULT_STATE: ChatState = {
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
   const res = await fetch(
-    `/api/agent/history?chatId=${encodeURIComponent(chatId)}`,
+    `/api/agent/history?chatId=${encodeURIComponent(chatId)}`
   )
   if (!res.ok) return []
   return res.json()
@@ -63,7 +67,7 @@ async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
  */
 function mergeHistoryWithLive(
   history: AgentMessage[],
-  live: AgentMessage[],
+  live: AgentMessage[]
 ): AgentMessage[] {
   if (live.length === 0) return history
   const anchorIdx = live.findIndex((m) => m.role === "user")
@@ -212,7 +216,7 @@ class ChatStore {
     cbs: {
       onBranchRename?: (branch: string) => void
       onChatRename?: (label: string) => void
-    },
+    }
   ) {
     this.callbacks.set(chatId, cbs)
   }
@@ -262,7 +266,7 @@ class ChatStore {
           const body = await res.json().catch(() => null)
           if (body?.error === "session_terminated") {
             throw new Error(
-              "This chat's session has ended and can't be resumed. Please start a new chat to continue.",
+              "This chat's session has ended and can't be resumed. Please start a new chat to continue."
             )
           }
         }
@@ -274,10 +278,7 @@ class ChatStore {
       const current = this.getOrCreate(chatId)
       this.update(chatId, {
         error: msg,
-        messages: [
-          ...current.messages,
-          { role: "error", content: msg },
-        ],
+        messages: [...current.messages, { role: "error", content: msg }],
       })
     }
   }
@@ -466,7 +467,7 @@ class ChatStore {
           messages: prev.map((m) =>
             m.role === "plan" && m.planId === event.planId
               ? { ...m, status: "approved" as const }
-              : m,
+              : m
           ),
         })
         break
@@ -478,7 +479,7 @@ class ChatStore {
           messages: prev.map((m) =>
             m.role === "plan" && m.planId === event.planId
               ? { ...m, status: "rejected" as const }
-              : m,
+              : m
           ),
         })
         break
@@ -524,12 +525,23 @@ class ChatStore {
     }
   }
 
-  async rejectPlan(roomId: string, chatId: string, planId: string, feedback: string) {
+  async rejectPlan(
+    roomId: string,
+    chatId: string,
+    planId: string,
+    feedback: string
+  ) {
     try {
       const res = await fetch("/api/agent/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatId, planId, approved: false, feedback }),
+        body: JSON.stringify({
+          roomId,
+          chatId,
+          planId,
+          approved: false,
+          feedback,
+        }),
       })
       if (!res.ok) {
         const errorText = await res.text()

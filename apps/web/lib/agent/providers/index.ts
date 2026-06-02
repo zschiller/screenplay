@@ -31,7 +31,7 @@ const PROVIDERS: ModelProvider[] = [
 ]
 
 const PROVIDERS_BY_KEY = new Map<string, ModelProvider>(
-  PROVIDERS.map((p) => [p.key, p]),
+  PROVIDERS.map((p) => [p.key, p])
 )
 
 /**
@@ -59,7 +59,7 @@ export function parseModelId(id: string): {
   const idx = id.indexOf(":")
   if (idx === -1) {
     throw new Error(
-      `Model id "${id}" is missing a provider prefix. Use "<provider>:<model>", e.g. "anthropic:claude-sonnet-4-6".`,
+      `Model id "${id}" is missing a provider prefix. Use "<provider>:<model>", e.g. "anthropic:claude-sonnet-4-6".`
     )
   }
   return { providerKey: id.slice(0, idx), model: id.slice(idx + 1) }
@@ -70,7 +70,7 @@ export function resolveLanguageModel(modelId: string): LanguageModel {
   const provider = PROVIDERS_BY_KEY.get(providerKey)
   if (!provider) {
     throw new Error(
-      `Unknown provider "${providerKey}" in model id "${modelId}". Available: ${PROVIDERS.map((p) => p.key).join(", ")}.`,
+      `Unknown provider "${providerKey}" in model id "${modelId}". Available: ${PROVIDERS.map((p) => p.key).join(", ")}.`
     )
   }
   return provider.resolve(model)
@@ -95,7 +95,7 @@ export async function enumerateModels(): Promise<ModelInfo[]> {
         ...m,
         provider: { key: p.key, label: p.label },
       }))
-    }),
+    })
   )
   return lists.flat()
 }

@@ -28,7 +28,7 @@ import {
  */
 
 async function enumerateRepoSkillsForSandbox(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<OriginTaggedSkill[]> {
   try {
     const sandbox = await sandboxProvider.get({ name: sandboxName })
@@ -36,7 +36,7 @@ async function enumerateRepoSkillsForSandbox(
   } catch (e) {
     console.error(
       `Repo Skill enumeration failed for sandbox "${sandboxName}":`,
-      e,
+      e
     )
     return []
   }
@@ -50,7 +50,7 @@ async function enumerateRepoSkillsForSandbox(
  * unknown-name listing in `read_skill`.
  */
 export async function getMergedSkillIndexForSandbox(
-  sandboxName: string,
+  sandboxName: string
 ): Promise<OriginTaggedSkill[]> {
   const repo = await enumerateRepoSkillsForSandbox(sandboxName)
   return mergeSkillIndexes(getSkillIndex(), repo)
@@ -63,7 +63,7 @@ export async function getMergedSkillIndexForSandbox(
  */
 export async function resolveSkillBodyForSandbox(
   sandboxName: string,
-  name: string,
+  name: string
 ): Promise<string | null> {
   return resolveSkillBody(name, {
     readRepoBody: async (n) => {

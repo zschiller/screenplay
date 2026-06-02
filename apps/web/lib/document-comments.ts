@@ -65,7 +65,7 @@ export function getQuotedText(doc: PMNode, from: number, to: number): string {
 export function getLineNumbers(
   doc: PMNode,
   from: number,
-  to: number,
+  to: number
 ): { lineFrom: number; lineTo: number } {
   const titleEnd = doc.firstChild ? doc.firstChild.nodeSize : 0
   const fromBody = Math.max(from, titleEnd)
@@ -110,7 +110,8 @@ export function formatQuoteForChat(opts: {
   documentTitle?: string | null
 }): string {
   const { quotedText, lineFrom, lineTo, documentTitle } = opts
-  const range = lineFrom === lineTo ? `Line ${lineFrom}` : `Lines ${lineFrom}–${lineTo}`
+  const range =
+    lineFrom === lineTo ? `Line ${lineFrom}` : `Lines ${lineFrom}–${lineTo}`
   const where = documentTitle ? `${documentTitle} · ${range}` : range
   // Block-quote each line of the captured text so multi-line quotes render
   // cleanly in markdown.

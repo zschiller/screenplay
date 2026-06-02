@@ -25,7 +25,7 @@ export const LAYER_KINDS: ReadonlyArray<AnyLayerKindDescriptor> = [
 ]
 
 const KIND_BY_KEY = new Map<string, AnyLayerKindDescriptor>(
-  LAYER_KINDS.map((k) => [k.kind, k]),
+  LAYER_KINDS.map((k) => [k.kind, k])
 )
 
 /** Lookup helper. Returns `undefined` for unregistered kinds — callers

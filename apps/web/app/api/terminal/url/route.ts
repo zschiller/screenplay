@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   if (!roomId || !sessionId || !sandboxName) {
     return NextResponse.json(
       { error: "room, session and sandboxName are required" },
-      { status: 400 },
+      { status: 400 }
     )
   }
 
@@ -87,13 +87,13 @@ export async function POST(req: Request) {
   // key, or a harness no longer installed) means the tab opens a plain shell.
   const installable = selectHarnesses(
     process.env.SANDBOX_HARNESSES,
-    getModelProviders(),
+    getModelProviders()
   ).installable
   const harnesses = installable.map((h) => ({ key: h.key, label: h.label }))
   const launchArgv = resolveLaunchArgv(harnessKey, installable)
 
   return NextResponse.json(
     { url: result.value.url, ...credential, harnesses, launchArgv },
-    { status: 200 },
+    { status: 200 }
   )
 }

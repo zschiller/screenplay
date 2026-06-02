@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Maximize2, MousePointer, Move, Play, RotateCw, Route } from "lucide-react"
+import {
+  Maximize2,
+  MousePointer,
+  Move,
+  Play,
+  RotateCw,
+  Route,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Tooltip,
@@ -11,9 +18,15 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
-import { useIframeLayerResize, type ResizeEdge } from "@/hooks/use-iframe-layer-resize"
+import {
+  useIframeLayerResize,
+  type ResizeEdge,
+} from "@/hooks/use-iframe-layer-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
-import { useScreenplayDom, type ScreenplayDom } from "@/hooks/use-screenplay-dom"
+import {
+  useScreenplayDom,
+  type ScreenplayDom,
+} from "@/hooks/use-screenplay-dom"
 import { probeSandboxUrl } from "@/lib/sandbox/lifecycle"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { DeviceSizeMenu } from "./device-size-menu"
@@ -21,7 +34,12 @@ import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { ResizeHandles } from "./resize-handles"
 import type { BranchData } from "@/lib/types"
-import type { DomRect, HmrStatus, JsonObject, JsonValue } from "@/lib/postmessage-protocol"
+import type {
+  DomRect,
+  HmrStatus,
+  JsonObject,
+  JsonValue,
+} from "@/lib/postmessage-protocol"
 
 const PROBE_INTERVAL_MS = 2000
 const MAX_PROBES = 60 // ~2 minutes
@@ -72,14 +90,14 @@ interface IframeLayerProps {
     dy: number,
     totalDx: number,
     totalDy: number,
-    metaKey: boolean,
+    metaKey: boolean
   ) => void
   onMoveSelected: (
     dx: number,
     dy: number,
     totalDx: number,
     totalDy: number,
-    metaKey: boolean,
+    metaKey: boolean
   ) => void
   /** Fires once when a group-move drag actually begins (after the move threshold). */
   onGroupDragStart?: () => void
@@ -91,14 +109,24 @@ interface IframeLayerProps {
    * which case the caller skips its own drag), `false` for single-member
    * groups where reorder doesn't apply.
    */
-  onRequestReorderDrag?: (iframeLayerId: string, e: React.PointerEvent) => boolean
+  onRequestReorderDrag?: (
+    iframeLayerId: string,
+    e: React.PointerEvent
+  ) => boolean
   /**
    * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
    * edges leave the group anchor in place. The iframeLayer's own width/height
    * always change by (dw, dh). `edge` lets the canvas snap to device-size
    * presets along the axes the user is actually dragging.
    */
-  onResize: (id: string, edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => void
+  onResize: (
+    id: string,
+    edge: ResizeEdge,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
+  ) => void
   /** Fired when a resize gesture begins so the canvas can render the snap underlay. */
   onResizeStart?: (id: string, edge: ResizeEdge) => void
   /** Fired when a resize gesture ends so the canvas can clear the snap underlay. */
@@ -225,7 +253,7 @@ export function IframeLayer({
       dy: number,
       totalDx: number,
       totalDy: number,
-      metaKey: boolean,
+      metaKey: boolean
     ) => {
       if (selected) {
         onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
@@ -233,7 +261,7 @@ export function IframeLayer({
         onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
       }
     },
-    [selected, onMoveGroup, onMoveSelected],
+    [selected, onMoveGroup, onMoveSelected]
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -268,14 +296,14 @@ export function IframeLayer({
     (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
       onResize(iframeLayer.id, edge, dx, dy, dw, dh)
     },
-    [iframeLayer.id, onResize],
+    [iframeLayer.id, onResize]
   )
 
   const handleResizeStart = useCallback(
     (edge: ResizeEdge) => {
       onResizeStart?.(iframeLayer.id, edge)
     },
-    [iframeLayer.id, onResizeStart],
+    [iframeLayer.id, onResizeStart]
   )
 
   const handleResizeEnd = useCallback(() => {
@@ -307,7 +335,7 @@ export function IframeLayer({
       reportedPathRef.current = path
       onRouteChange?.(id, path)
     },
-    [onRouteChange],
+    [onRouteChange]
   )
 
   const reloadIframe = useCallback(() => {
@@ -337,7 +365,7 @@ export function IframeLayer({
       }
       reloadIframe()
     },
-    [iframeLayer.branchId, reloadIframe],
+    [iframeLayer.branchId, reloadIframe]
   )
 
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
@@ -368,7 +396,9 @@ export function IframeLayer({
   // canvas-wrapper-relative offset directly to the toolbar's style.
   useEffect(() => {
     if (!showToolbar || !toolbarPortalTarget) return
-    const canvasWrapper = document.querySelector<HTMLDivElement>("[data-canvas-wrapper]")
+    const canvasWrapper = document.querySelector<HTMLDivElement>(
+      "[data-canvas-wrapper]"
+    )
     if (!canvasWrapper) return
     let rafId = 0
     const tick = () => {
@@ -396,7 +426,7 @@ export function IframeLayer({
     (id: string, scrollX: number, scrollY: number) => {
       onScrollChange?.(id, scrollX, scrollY)
     },
-    [onScrollChange],
+    [onScrollChange]
   )
 
   usePostMessage({
@@ -449,14 +479,15 @@ export function IframeLayer({
       // pixels. Without this the hit-test drifts further off as zoom shrinks.
       const x = (clientX - rect.left) / zoom
       const y = (clientY - rect.top) / zoom
-      if (x < 0 || y < 0 || x > iframeLayer.width || y > iframeLayer.height) return null
+      if (x < 0 || y < 0 || x > iframeLayer.width || y > iframeLayer.height)
+        return null
       try {
         return await dom.elementAtPoint(x, y)
       } catch {
         return null
       }
     },
-    [dom, iframeRef, zoom, iframeLayer.width, iframeLayer.height],
+    [dom, iframeRef, zoom, iframeLayer.width, iframeLayer.height]
   )
 
   const desiredSrc = iframeLayer.iframeUrl
@@ -517,7 +548,9 @@ export function IframeLayer({
     }
 
     poll()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [desiredSrc, serverReady])
 
   // Both interact mode and Create Flow mode forward pointer events to the
@@ -545,11 +578,16 @@ export function IframeLayer({
             : undefined,
         // Dragged/popped frame floats above its siblings; otherwise paint
         // order follows the group's sidebar position.
-        zIndex: dragPopped || dragTranslateX != null || dragTranslateY != null ? 9999 : zIndex,
+        zIndex:
+          dragPopped || dragTranslateX != null || dragTranslateY != null
+            ? 9999
+            : zIndex,
         // The lifted frame is non-interactive so drop hit-testing falls
         // through to whatever sits beneath the cursor.
         pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null ? "none" : "auto",
+          dragPopped || dragTranslateX != null || dragTranslateY != null
+            ? "none"
+            : "auto",
       }}
     >
       <IframeLayerLabel
@@ -563,9 +601,15 @@ export function IframeLayer({
         iframeLayerWidth={iframeLayer.width}
         dragHandlers={interactive ? undefined : dragHandlers}
         onRequestReorderDrag={interactive ? undefined : onRequestReorderDrag}
-        groupLabelDragHandlers={interactive ? undefined : groupLabelDragHandlers}
+        groupLabelDragHandlers={
+          interactive ? undefined : groupLabelDragHandlers
+        }
         assignableBranches={assignableBranches}
-        onAssignBranch={onAssignBranch ? (branchId) => onAssignBranch(iframeLayer.id, branchId) : undefined}
+        onAssignBranch={
+          onAssignBranch
+            ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
+            : undefined
+        }
         discoveredRoutes={discoveredRoutes}
         onSelectRoute={
           onSelectRoute && iframeLayer.branchId
@@ -575,10 +619,14 @@ export function IframeLayer({
         selected={selected || groupSelected}
         groupLabel={groupLabel}
         groupSelected={groupSelected}
-        onSelectGroup={onSelectGroup ? (shiftKey) => {
-          selectedOnPointerDown.current = true
-          onSelectGroup(shiftKey)
-        } : undefined}
+        onSelectGroup={
+          onSelectGroup
+            ? (shiftKey) => {
+                selectedOnPointerDown.current = true
+                onSelectGroup(shiftKey)
+              }
+            : undefined
+        }
         onRenameGroup={onRenameGroup}
         onSelectFrame={(shiftKey) => {
           if (selected && !shiftKey) return
@@ -586,114 +634,119 @@ export function IframeLayer({
           selectedOnPointerDown.current = true
           onSelect(iframeLayer.id, shiftKey)
         }}
-        onRename={onRename ? (next) => onRename(iframeLayer.id, next) : undefined}
+        onRename={
+          onRename ? (next) => onRename(iframeLayer.id, next) : undefined
+        }
         reorderDragTranslateX={dragTranslateX}
         reorderDragTranslateY={dragTranslateY}
         reorderDragPopped={dragPopped}
       />
-      {iframeLayer.branchId && showToolbar && toolbarPortalTarget && createPortal(
-        <div
-          ref={toolbarRef}
-          // Positioned every frame by the rAF loop above (translate is set
-          // imperatively from the frame's getBoundingClientRect). Lives
-          // outside the world transform, so it's already at constant screen
-          // size — no inverse-zoom scaling needed.
-          className="pointer-events-auto absolute left-0 top-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xxs"
-                  variant={focused ? "default" : "ghost"}
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                >
-                  {focused ? <Move /> : <MousePointer />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {focused ? "Back to canvas" : "Interact"}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xxs"
-                  variant={createFlow ? "default" : "ghost"}
-                  onClick={() =>
-                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                  }
-                >
-                  <Route />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {createFlow ? "Stop Create Flow" : "Create Flow"}
-              </TooltipContent>
-            </Tooltip>
-            {onSetSize && (
-              <DeviceSizeMenu
-                width={iframeLayer.width}
-                height={iframeLayer.height}
-                onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-              />
-            )}
-            <KnobsPopover
-              knobs={iframeLayer.knobs}
-              values={iframeLayer.knobValues}
-              onChange={(values) => onKnobValuesChange?.(iframeLayer.id, values)}
-            />
-            {showFit && (
+      {iframeLayer.branchId &&
+        showToolbar &&
+        toolbarPortalTarget &&
+        createPortal(
+          <div
+            ref={toolbarRef}
+            // Positioned every frame by the rAF loop above (translate is set
+            // imperatively from the frame's getBoundingClientRect). Lives
+            // outside the world transform, so it's already at constant screen
+            // size — no inverse-zoom scaling needed.
+            className="pointer-events-auto absolute top-0 left-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon-xxs"
-                    variant="ghost"
-                    onClick={handleFitToContent}
+                    variant={focused ? "default" : "ghost"}
+                    onClick={() => onFocus(focused ? null : iframeLayer.id)}
                   >
-                    <Maximize2 />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">Fit to content</TooltipContent>
-              </Tooltip>
-            )}
-            {showPlay && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-xxs"
-                    variant="ghost"
-                    onClick={() => onPlay?.(iframeLayer.id)}
-                  >
-                    <Play />
+                    {focused ? <Move /> : <MousePointer />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  Open prototype player
+                  {focused ? "Back to canvas" : "Interact"}
                 </TooltipContent>
               </Tooltip>
-            )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xxs"
-                  variant={showReload ? "default" : "ghost"}
-                  onClick={reloadIframe}
-                >
-                  <RotateCw />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Reload</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>,
-        toolbarPortalTarget,
-      )}
-      <div
-        className="relative h-full w-full overflow-hidden"
-      >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xxs"
+                    variant={createFlow ? "default" : "ghost"}
+                    onClick={() =>
+                      onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                    }
+                  >
+                    <Route />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {createFlow ? "Stop Create Flow" : "Create Flow"}
+                </TooltipContent>
+              </Tooltip>
+              {onSetSize && (
+                <DeviceSizeMenu
+                  width={iframeLayer.width}
+                  height={iframeLayer.height}
+                  onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                />
+              )}
+              <KnobsPopover
+                knobs={iframeLayer.knobs}
+                values={iframeLayer.knobValues}
+                onChange={(values) =>
+                  onKnobValuesChange?.(iframeLayer.id, values)
+                }
+              />
+              {showFit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant="ghost"
+                      onClick={handleFitToContent}
+                    >
+                      <Maximize2 />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Fit to content</TooltipContent>
+                </Tooltip>
+              )}
+              {showPlay && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon-xxs"
+                      variant="ghost"
+                      onClick={() => onPlay?.(iframeLayer.id)}
+                    >
+                      <Play />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    Open prototype player
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xxs"
+                    variant={showReload ? "default" : "ghost"}
+                    onClick={reloadIframe}
+                  >
+                    <RotateCw />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Reload</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>,
+          toolbarPortalTarget
+        )}
+      <div className="relative h-full w-full overflow-hidden">
         {iframeSrc && serverReady ? (
           <iframe
             ref={iframeRef}
@@ -731,7 +784,10 @@ export function IframeLayer({
                   // handled by the canvas-level handleCanvasClick (which
                   // also re-runs elementAtPoint to capture the selector).
                   onPointerMove: async (e: React.PointerEvent) => {
-                    const result = await queryElementAtPoint(e.clientX, e.clientY)
+                    const result = await queryElementAtPoint(
+                      e.clientX,
+                      e.clientY
+                    )
                     onHover(iframeLayer.id, result ? result.rect : null)
                   },
                   onPointerLeave: () => onHover(iframeLayer.id, null),

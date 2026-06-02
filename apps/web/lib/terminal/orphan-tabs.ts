@@ -14,7 +14,7 @@ import type { TerminalTabData } from "@/lib/types"
  */
 export function partitionTerminalsByBranch(
   terminals: readonly TerminalTabData[],
-  liveBranchIds: ReadonlySet<string>,
+  liveBranchIds: ReadonlySet<string>
 ): { kept: TerminalTabData[]; orphaned: TerminalTabData[] } {
   const kept: TerminalTabData[] = []
   const orphaned: TerminalTabData[] = []

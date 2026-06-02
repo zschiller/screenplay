@@ -47,7 +47,12 @@ export type AgentStreamEvent =
   | { type: "error"; message: string }
   | { type: "branch_rename"; branch: string }
   | { type: "chat_rename"; label: string }
-  | { type: "plan_submitted"; planId: string; plan: string; toolEventId: string }
+  | {
+      type: "plan_submitted"
+      planId: string
+      plan: string
+      toolEventId: string
+    }
   | { type: "plan_approved"; planId: string }
   | { type: "plan_rejected"; planId: string; feedback: string }
   | { type: "done" }

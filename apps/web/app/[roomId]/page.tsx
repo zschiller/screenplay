@@ -50,7 +50,7 @@ export default async function RoomPage({
 
   const cookieStore = await cookies()
   const initialLayout = parsePanelLayoutValue(
-    cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value,
+    cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value
   )
 
   // Pre-fetch threads server-side so comment pins render on the very first
@@ -65,7 +65,7 @@ export default async function RoomPage({
   // synced Y.Doc). The client-side `listTerminalTabsAction` would otherwise
   // resolve a beat after load, making terminal tabs pop in late.
   const initialTerminalTabs = await listTerminalTabs({ userId, roomId }).catch(
-    () => [],
+    () => []
   )
 
   return (

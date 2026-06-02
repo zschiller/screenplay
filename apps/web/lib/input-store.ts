@@ -24,7 +24,8 @@ class InputStore {
   }
 
   subscribeSend(chatId: string, listener: Listener): () => void {
-    if (!this.sendListeners.has(chatId)) this.sendListeners.set(chatId, new Set())
+    if (!this.sendListeners.has(chatId))
+      this.sendListeners.set(chatId, new Set())
     this.sendListeners.get(chatId)!.add(listener)
     return () => {
       const set = this.sendListeners.get(chatId)
