@@ -3,6 +3,7 @@ import "server-only"
 import type { ModelProvider } from "@/lib/agent/providers"
 import { claudeCodeHarness } from "./claude-code"
 import { codexHarness } from "./codex"
+import { opencodeCompatHarness, opencodeGatewayHarness } from "./opencode"
 import { BROKERED_VALUE } from "./types"
 import type { Harness, HarnessSelection, SkippedHarness } from "./types"
 
@@ -18,7 +19,12 @@ export type { Harness, HarnessSelection, SkippedHarness } from "./types"
  *
  * Order is preserved through selection, so entries install in catalog order.
  */
-const HARNESSES: Harness[] = [claudeCodeHarness, codexHarness]
+const HARNESSES: Harness[] = [
+  claudeCodeHarness,
+  codexHarness,
+  opencodeGatewayHarness,
+  opencodeCompatHarness,
+]
 
 const HARNESSES_BY_KEY = new Map<string, Harness>(
   HARNESSES.map((h) => [h.key, h]),
