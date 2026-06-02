@@ -1,14 +1,18 @@
 "use server"
 
 import { getModelProviders } from "@/lib/agent/providers"
+import {
+  buildBrokeredEnv,
+  parseHarnessKeys,
+  resolveHarnesses,
+} from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { sandboxProvider } from "@/lib/sandbox"
 import { configureAgentGit } from "@/lib/sandbox/git"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
-import { installClaudeCode } from "@/lib/sandbox/provision"
+import { installHarnesses } from "@/lib/sandbox/provision"
 import {
-  BROKERED_ANTHROPIC_ENV,
   PROXY_PORT_OFFSET,
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
@@ -52,8 +56,11 @@ export async function reprovisionFromGit(
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
     const port = repo.devServerPort
 
-    const networkPolicy = buildNetworkPolicy(getModelProviders())
-    const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(env ?? {}) }
+    const providers = getModelProviders()
+    const networkPolicy = buildNetworkPolicy(providers)
+    const harnessKeys = parseHarnessKeys(process.env.SANDBOX_HARNESSES)
+    const { installable } = resolveHarnesses(harnessKeys, providers)
+    const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source: ghToken
@@ -67,14 +74,14 @@ export async function reprovisionFromGit(
       networkPolicy,
     })
 
-    // Fresh provision. Mirror the create pipeline: deps + Claude Code in
-    // parallel, then git setup, then dev launch. Claude Code is best-effort —
-    // the create route ignores its result, and so do we.
+    // Fresh provision. Mirror the create pipeline: deps + harness install in
+    // parallel, then git setup, then dev launch. The harness install is
+    // best-effort — the create route ignores its result, and so do we.
     const setup = repo.setupScript?.trim() || "npm install"
     const [setupCmd, ...setupArgs] = setup.split(/\s+/)
     const [setupResult] = await Promise.all([
       runLogged(sandbox, setupCmd, setupArgs),
-      installClaudeCode(sandbox.name),
+      installHarnesses(sandbox.name, harnessKeys),
     ])
     if (setupResult.exitCode !== 0) {
       throw new Error(`Setup script failed (exit ${setupResult.exitCode})`)

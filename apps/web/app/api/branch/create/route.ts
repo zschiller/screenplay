@@ -5,10 +5,11 @@ import { kv } from "@/lib/kv"
 import {
   cloneSandbox,
   installDependencies,
-  installClaudeCode,
+  installHarnesses,
   installRipgrep,
   startDevServer,
 } from "@/lib/sandbox/provision"
+import { parseHarnessKeys } from "@/lib/agent/harnesses"
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
 import { parseEnvVars } from "@/lib/env-utils"
@@ -123,14 +124,16 @@ async function runNewOrFromBranchPipeline(
   }
   const clonedSandboxName = cloneResult.value.sandboxName
 
-  // Step 3: Install dependencies + Claude Code + ripgrep in parallel.
-  // Claude Code and ripgrep are best-effort — their results are intentionally
-  // ignored here so a failed CLI/tool install doesn't fail the pipeline (each
-  // action still reports failure truthfully; this caller chooses to swallow it).
+  // Step 3: Install dependencies + the selected harnesses + ripgrep in parallel.
+  // The harness install and ripgrep are best-effort — their results are
+  // intentionally ignored here so a failed CLI/tool install doesn't fail the
+  // pipeline (each action still reports failure truthfully; this caller chooses
+  // to swallow it). The harness keys come from SANDBOX_HARNESSES; unset → none.
   await updateBranch(roomId, branchId, { statusMessage: "Installing dependencies…" })
+  const harnessKeys = parseHarnessKeys(process.env.SANDBOX_HARNESSES)
   const [installResult] = await Promise.all([
     installDependencies(clonedSandboxName, repo.setupScript),
-    installClaudeCode(clonedSandboxName),
+    installHarnesses(clonedSandboxName, harnessKeys),
     installRipgrep(clonedSandboxName),
   ])
   if (!installResult.success) {

@@ -1,13 +1,19 @@
 "use server"
 
 import { getModelProviders } from "@/lib/agent/providers"
+import {
+  buildBrokeredEnv,
+  resolveHarnesses,
+  selectHarnesses,
+  type Harness,
+} from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { storeEnvVars } from "@/lib/env-store"
 import { sandboxProvider } from "@/lib/sandbox"
+import type { SandboxInstance } from "@/lib/sandbox/types"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
-  BROKERED_ANTHROPIC_ENV,
   PROXY_PORT_OFFSET,
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
@@ -38,8 +44,13 @@ export async function cloneSandbox(
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
 
-    const networkPolicy = buildNetworkPolicy(getModelProviders())
-    const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(env ?? {}) }
+    const providers = getModelProviders()
+    const networkPolicy = buildNetworkPolicy(providers)
+    // The brokered gate vars (ANTHROPIC_API_KEY=brokered, …) are derived from
+    // the harnesses the operator selected via SANDBOX_HARNESSES, beside the
+    // network policy. No real key is emitted — the firewall injects it on egress.
+    const installable = selectHarnesses(process.env.SANDBOX_HARNESSES, providers).installable
+    const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
 
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
@@ -133,114 +144,54 @@ export async function installRipgrep(
 }
 
 /**
- * Install the Claude Code CLI globally so `sandbox ssh <name>` lands in a box
- * where `claude` just works, then pre-seed the onboarding state, a user-level
- * CLAUDE.md, and the per-command git credential helper.
- *
- * The global install is load-bearing: a non-zero exit throws (with redacted
- * stderr) so the action reports failure truthfully. "Best-effort" is a caller
- * policy — the `agent/create` route chooses to ignore this result; the action
- * itself does not swallow the failure. The config writes that follow are
- * fire-and-forget (their exit codes are ignored, matching the prior behavior).
+ * Install one harness: a global `npm install -g <package>` followed by the
+ * descriptor's `seed()`. The global install is load-bearing — a non-zero exit
+ * throws (with redacted stderr) the same `SandboxStepError` the runner maps to
+ * a failure result. The seed writes that follow are fire-and-forget.
  */
-export async function installClaudeCode(
+async function installOneHarness(
+  sandbox: SandboxInstance,
+  harness: Harness,
+): Promise<void> {
+  // `step` can't express `sudo`, so run the global install directly and turn a
+  // non-zero exit into the same redacted SandboxStepError the runner maps to a
+  // failure result.
+  const install = await sandbox.runCommand({
+    cmd: "npm",
+    args: ["install", "-g", harness.installPackage],
+    sudo: true,
+  })
+  if (install.exitCode !== 0) {
+    const stderr = redactSensitiveInfo(await install.stderr()).slice(0, 500)
+    throw new SandboxStepError(
+      `npm install -g ${harness.installPackage}`,
+      install.exitCode,
+      stderr,
+    )
+  }
+
+  await harness.seed(sandbox)
+}
+
+/**
+ * Install the operator-selected harnesses into a sandbox: a best-effort,
+ * parallel fold over the installable descriptors resolved from `harnessKeys`
+ * against the live provider registry (a key whose broker provider isn't
+ * configured/brokerable is dropped). For each, run a global `npm install -g`
+ * then the descriptor's `seed()`. Replaces `installClaudeCode`.
+ *
+ * The per-harness install is load-bearing (a failed `npm install -g` surfaces a
+ * redacted failure result); "best-effort" is a caller policy — the
+ * `branch/create` route ignores the result. With no installable harnesses
+ * (unset `SANDBOX_HARNESSES`, or none brokerable) this is a no-op success.
+ */
+export async function installHarnesses(
   sandboxName: string,
+  harnessKeys: string[],
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    // `step` can't express `sudo`, so run the global install directly and turn
-    // a non-zero exit into the same redacted SandboxStepError the runner maps
-    // to a failure result.
-    const install = await sandbox.runCommand({
-      cmd: "npm",
-      args: ["install", "-g", "@anthropic-ai/claude-code"],
-      sudo: true,
-    })
-    if (install.exitCode !== 0) {
-      const stderr = redactSensitiveInfo(await install.stderr()).slice(0, 500)
-      throw new SandboxStepError("npm install -g @anthropic-ai/claude-code", install.exitCode, stderr)
-    }
-
-    // The checkout location and the writable home are provider-supplied, so the
-    // onboarding seed follows the actual sandbox layout instead of a hardcoded
-    // backend path. `homeDir` is the home of the unprivileged user these
-    // (non-`sudo`) writes — and the interactive terminal shell — run as, so the
-    // seeded config is the same `$HOME/.claude.json` that `claude` reads in the
-    // tmux session. On Vercel these are /vercel/sandbox and /home/vercel-sandbox.
-    const { worktreePath, homeDir } = sandbox
-
-    // Pre-seed ~/.claude.json so the user lands in an already-onboarded state:
-    // theme set, API-key prompt approved for our "brokered" placeholder, and
-    // the checked-out worktree pre-trusted.
-    const claudeConfig = JSON.stringify({
-      theme: "auto",
-      hasCompletedOnboarding: true,
-      customApiKeyResponses: { approved: ["brokered"], rejected: [] },
-      projects: {
-        [worktreePath]: {
-          hasTrustDialogAccepted: true,
-          projectOnboardingSeenCount: 1,
-          allowedTools: [],
-          mcpContextUris: [],
-          mcpServers: {},
-          enabledMcpjsonServers: [],
-          disabledMcpjsonServers: [],
-        },
-      },
-    })
-    await sandbox.runCommand({
-      cmd: "sh",
-      args: ["-c", `printf '%s' "$CLAUDE_CONFIG" > "${homeDir}/.claude.json"`],
-      env: { CLAUDE_CONFIG: claudeConfig },
-    })
-
-    // User-level CLAUDE.md so every session in this sandbox inherits the
-    // always-commit-and-push rule. Lives in the home dir (not the cloned repo)
-    // so it doesn't pollute the user's git history.
-    const claudeMd = [
-      "# Screenplay sandbox rules",
-      "",
-      "## CRITICAL — always commit and push after changes",
-      "",
-      "After ANY file change, you MUST run these three commands before ending your turn. Never skip. This is the most important rule.",
-      "",
-      "1. `git add -A`",
-      '2. `git commit -m "<concise description of changes>"`',
-      "3. `git push`",
-      "",
-      "If you do not push, the user will not see your changes in the Screenplay UI. Always push.",
-      "",
-    ].join("\n")
-    await sandbox.runCommand({
-      cmd: "sh",
-      args: [
-        "-c",
-        `mkdir -p "${homeDir}/.claude" && printf '%s' "$CLAUDE_MD" > "${homeDir}/.claude/CLAUDE.md"`,
-      ],
-      env: { CLAUDE_MD: claudeMd },
-    })
-
-    // Per-command credential helper: git invokes it whenever it needs
-    // GitHub auth, and it reads SCREENPLAY_GH_TOKEN from the env the server
-    // set on the triggering runCommand. No token is persisted in the
-    // sandbox — every command brings its own, so two users sharing this
-    // sandbox correctly push as themselves rather than riding on whoever
-    // provisioned it first.
-    const credentialHelper = [
-      "#!/bin/sh",
-      `[ "\${1:-}" = "get" ] || exit 0`,
-      "cat >/dev/null",
-      `[ -n "\${SCREENPLAY_GH_TOKEN:-}" ] || exit 0`,
-      `printf 'username=x-access-token\\npassword=%s\\n' "$SCREENPLAY_GH_TOKEN"`,
-      "",
-    ].join("\n")
-    await sandbox.runCommand({
-      cmd: "sh",
-      args: [
-        "-c",
-        `mkdir -p "${homeDir}/.screenplay" && printf '%s' "$HELPER" > "${homeDir}/.screenplay/git-credential-helper.sh" && chmod +x "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.helper "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
-      ],
-      env: { HELPER: credentialHelper },
-    })
+    const { installable } = resolveHarnesses(harnessKeys, getModelProviders())
+    await Promise.all(installable.map((harness) => installOneHarness(sandbox, harness)))
   })
 }
 
