@@ -91,15 +91,15 @@ const getEnvVars = vi.hoisted(() => vi.fn(async () => undefined as Record<string
 const deleteEnvVars = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock("@/lib/env-store", () => ({ getEnvVars, deleteEnvVars }))
 
-// restartSandbox's fresh-provision path delegates git setup and the Claude Code
+// restartSandbox's fresh-provision path delegates git setup and the harness
 // install to the other action modules. Those are exercised by their own tests —
 // here they're external boundaries, faked so the restart's branching + result
 // shaping is what's pinned.
 const configureAgentGit = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined }) as { success: boolean; error?: string; value?: undefined }))
 vi.mock("@/lib/sandbox/git", () => ({ configureAgentGit }))
 
-const installClaudeCode = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
-vi.mock("@/lib/sandbox/provision", () => ({ installClaudeCode }))
+const installHarnesses = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
+vi.mock("@/lib/sandbox/provision", () => ({ installHarnesses }))
 
 // The bridge module ships large generated scripts; stub the constants so the
 // test pins the action's launch + result behavior, not the bundled payload.
@@ -212,7 +212,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   fake.reset()
   configureAgentGit.mockResolvedValue({ success: true, value: undefined })
-  installClaudeCode.mockResolvedValue({ success: true, value: undefined })
+  installHarnesses.mockResolvedValue({ success: true, value: undefined })
   getEnvVars.mockResolvedValue(undefined)
   getGitHubToken.mockResolvedValue(null)
 })

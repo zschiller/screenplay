@@ -1,12 +1,12 @@
 "use server"
 
 import { getModelProviders } from "@/lib/agent/providers"
+import { buildBrokeredEnv, selectHarnesses } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
 import { isSandboxRunning, sandboxProvider, supportsHibernation } from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
-  BROKERED_ANTHROPIC_ENV,
   PROXY_PORT_OFFSET,
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
@@ -193,8 +193,10 @@ export async function restartSandbox(
     // and the working tree (uncommitted changes included) all survived. Boot a
     // new VM from the snapshot and just relaunch the dev server, skipping the
     // setup/install/configure pipeline entirely.
-    const networkPolicy = buildNetworkPolicy(getModelProviders())
-    const mergedEnv = { ...BROKERED_ANTHROPIC_ENV, ...(safeEnv ?? {}) }
+    const providers = getModelProviders()
+    const networkPolicy = buildNetworkPolicy(providers)
+    const installable = selectHarnesses(process.env.SANDBOX_HARNESSES, providers).installable
+    const mergedEnv = { ...buildBrokeredEnv(installable), ...(safeEnv ?? {}) }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
       source: { type: "snapshot", snapshotId },

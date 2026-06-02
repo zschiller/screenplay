@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { ModelProvider } from "@/lib/agent/providers"
 import type {
   SandboxCommandResult,
   SandboxCreateOptions,
@@ -47,10 +48,27 @@ const fake = vi.hoisted(() => {
 
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
-// These actions fold the provider registry into the sandbox network policy.
-// Stub it to an empty set — the egress policy is covered by
-// network-policy.test.ts, and the real registry drags in the kv/db chain.
-vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
+// These actions fold the provider registry into the sandbox network policy and
+// resolve harness brokers from it. A reconfigurable stub lets each test set the
+// registry it needs (the real one drags in the kv/db chain); it defaults to an
+// empty set, so the brokered-env/egress folds contribute nothing unless a test
+// opts in.
+const getModelProviders = vi.hoisted(() => vi.fn(() => [] as ModelProvider[]))
+vi.mock("@/lib/agent/providers", () => ({ getModelProviders }))
+
+/** A configured, header-brokerable Anthropic stub — the claude-code broker. */
+function configuredAnthropic(): ModelProvider {
+  return {
+    key: "anthropic",
+    label: "Anthropic",
+    isConfigured: () => true,
+    listModels: async () => [],
+    resolve: () => {
+      throw new Error("stub provider: resolve should not be called")
+    },
+    egress: () => ({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+  }
+}
 
 // cloneSandbox falls back to the session's GitHub token and persists repo
 // env vars. Both need a request context / KV we don't have under plain Node —
@@ -75,7 +93,7 @@ import {
   cloneSandbox,
   getBridgeVersion,
   installBridge,
-  installClaudeCode,
+  installHarnesses,
   installDependencies,
   installRipgrep,
   startDevServer,
@@ -148,6 +166,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   fake.reset()
   fake.createCalls.length = 0
+  getModelProviders.mockReturnValue([])
 })
 
 describe("installBridge", () => {
@@ -215,16 +234,59 @@ function isClaudeInstall(cmd: string, args: string[]): boolean {
   return cmd === "npm" && args.includes("-g") && args.includes("@anthropic-ai/claude-code")
 }
 
-describe("installClaudeCode", () => {
-  it("returns success when the global install exits 0", async () => {
-    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 })))
+describe("installHarnesses", () => {
+  it("installs the claude-code package when it's selected and its broker is configured", async () => {
+    getModelProviders.mockReturnValue([configuredAnthropic()])
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      }),
+    )
 
-    const result = await installClaudeCode("sandbox-a")
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
 
     expect(result).toEqual({ success: true, value: undefined })
+    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(true)
   })
 
-  it("reports failure truthfully when the global install exits non-zero", async () => {
+  it("is a no-op success when no harness keys are given", async () => {
+    getModelProviders.mockReturnValue([configuredAnthropic()])
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      }),
+    )
+
+    const result = await installHarnesses("sandbox-a", [])
+
+    expect(result).toEqual({ success: true, value: undefined })
+    // Nothing is installed when the selection resolves to no harnesses.
+    expect(seen.some((c) => isClaudeInstall(c.split(" ")[0]!, c.split(" ").slice(1)))).toBe(false)
+  })
+
+  it("installs nothing (success) when the broker provider isn't configured", async () => {
+    // Default registry is empty → claude-code's anthropic broker is absent, so
+    // the harness is skipped rather than failing the action.
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      }),
+    )
+
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
+
+    expect(result).toEqual({ success: true, value: undefined })
+    expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(false)
+  })
+
+  it("reports failure truthfully when a global install exits non-zero", async () => {
+    getModelProviders.mockReturnValue([configuredAnthropic()])
     fake.setInstance(
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
@@ -233,7 +295,7 @@ describe("installClaudeCode", () => {
       ),
     )
 
-    const result = await installClaudeCode("sandbox-a")
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -241,6 +303,7 @@ describe("installClaudeCode", () => {
   })
 
   it("redacts a GitHub token out of an install failure", async () => {
+    getModelProviders.mockReturnValue([configuredAnthropic()])
     fake.setInstance(
       fakeSandbox((cmd, args) =>
         isClaudeInstall(cmd, args)
@@ -249,7 +312,7 @@ describe("installClaudeCode", () => {
       ),
     )
 
-    const result = await installClaudeCode("sandbox-a")
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
@@ -257,12 +320,13 @@ describe("installClaudeCode", () => {
     expect(result.error).toContain("[REDACTED]")
   })
 
-  // Path-seam regression: the onboarding seed must follow the provider-supplied
+  // Path-seam regression: the claude-code seed must follow the provider-supplied
   // `worktreePath` / `homeDir` rather than the hardcoded Vercel literals. Drive
   // a mock whose paths differ from the Vercel defaults and assert the emitted
-  // commands and config track the mock — so a second provider with a different
-  // filesystem layout seeds itself correctly.
-  it("derives the .claude.json project key and home-dir writes from the sandbox paths", async () => {
+  // config tracks the mock — so a second provider with a different filesystem
+  // layout seeds itself correctly.
+  it("seeds .claude.json + CLAUDE.md from the sandbox paths (git infra stays in configureAgentGit)", async () => {
+    getModelProviders.mockReturnValue([configuredAnthropic()])
     const calls: RecordedCall[] = []
     fake.setInstance(
       fakeSandbox(() => ({ exitCode: 0 }), {
@@ -272,7 +336,7 @@ describe("installClaudeCode", () => {
       }),
     )
 
-    const result = await installClaudeCode("sandbox-a")
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
     expect(result).toEqual({ success: true, value: undefined })
 
     // The .claude.json write is the `sh -c` whose env carries CLAUDE_CONFIG.
@@ -284,10 +348,11 @@ describe("installClaudeCode", () => {
     // …and the file lands in the mock home dir, not /root or a shell $HOME.
     expect(configCall!.args.at(-1)).toContain('"/home/agent/.claude.json"')
 
-    // The CLAUDE.md and credential-helper writes target the same home dir.
+    // The CLAUDE.md write targets the same home dir.
     const shArgs = calls.map((c) => c.args.join(" ")).join("\n")
     expect(shArgs).toContain("/home/agent/.claude/CLAUDE.md")
-    expect(shArgs).toContain("/home/agent/.screenplay/git-credential-helper.sh")
+    // The git credential helper is NOT seeded here — it moved to configureAgentGit.
+    expect(shArgs).not.toContain("git-credential-helper.sh")
     // No Vercel default leaks through once the provider supplies its own paths.
     expect(shArgs).not.toContain("/vercel/sandbox")
     expect(shArgs).not.toContain("/root/")
