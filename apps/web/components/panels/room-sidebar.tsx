@@ -42,7 +42,6 @@ import {
   Play,
   Route,
   PanelLeftClose,
-  Terminal,
   Palette,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
@@ -124,7 +123,6 @@ import {
   DocumentRowMenu,
 } from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches, type GitHubBranch } from "@/lib/github-actions"
-import { getSandboxCliContext } from "@/lib/sandbox-cli-context"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRepoConfigs } from "@/lib/repo-configs-actions"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
@@ -491,7 +489,6 @@ export function RoomSidebar({
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<string | null>(null)
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
-  const [sandboxCliContext, setSandboxCliContext] = useState<{ scope?: string; project?: string }>({})
   // Per-repo cache of remote branch names, fetched lazily on first
   // render of a repo and refreshed whenever the repo list changes.
   // Used to block inline-renames that would collide with an existing branch.
@@ -909,16 +906,6 @@ export function RoomSidebar({
   )
 
   useEffect(() => {
-    let cancelled = false
-    getSandboxCliContext().then((ctx) => {
-      if (!cancelled) setSandboxCliContext(ctx)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
     if (!showPicker) return
     let cancelled = false
     listRepoConfigs().then((list) => {
@@ -1247,21 +1234,6 @@ export function RoomSidebar({
                                                         >
                                                           <Route />
                                                           Show all routes
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                          disabled={!branch.sandboxName}
-                                                          onClick={() => {
-                                                            if (!branch.sandboxName) return
-                                                            const parts = ["sandbox run"]
-                                                            if (sandboxCliContext.scope) parts.push(`--scope ${sandboxCliContext.scope}`)
-                                                            if (sandboxCliContext.project) parts.push(`--project ${sandboxCliContext.project}`)
-                                                            parts.push(`--name ${branch.sandboxName}`)
-                                                            parts.push("-i", "-t", "--", "claude")
-                                                            navigator.clipboard.writeText(parts.join(" "))
-                                                          }}
-                                                        >
-                                                          <Terminal />
-                                                          Copy connection string
                                                         </DropdownMenuItem>
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
