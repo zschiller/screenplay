@@ -17,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
 import {
   useIframeLayerResize,
@@ -27,7 +28,6 @@ import {
   useScreenplayDom,
   type ScreenplayDom,
 } from "@/hooks/use-screenplay-dom"
-import { probeSandboxUrl } from "@/lib/sandbox/lifecycle"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { DeviceSizeMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
@@ -40,9 +40,6 @@ import type {
   JsonObject,
   JsonValue,
 } from "@/lib/postmessage-protocol"
-
-const PROBE_INTERVAL_MS = 2000
-const MAX_PROBES = 60 // ~2 minutes
 
 // Cached expected bridge version — fetched once per session.
 let expectedBridgeVersionPromise: Promise<string> | null = null
@@ -527,31 +524,10 @@ export function IframeLayer({
   }, [iframeLayer.iframeUrl, iframeLayer.route])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const [serverReady, setServerReady] = useState(false)
-
-  useEffect(() => {
-    if (!desiredSrc || serverReady) return
-
-    let cancelled = false
-    let probes = 0
-
-    async function poll() {
-      while (!cancelled && probes < MAX_PROBES) {
-        const up = await probeSandboxUrl(desiredSrc!)
-        if (up && !cancelled) {
-          setServerReady(true)
-          return
-        }
-        probes++
-        await new Promise((r) => setTimeout(r, PROBE_INTERVAL_MS))
-      }
-    }
-
-    poll()
-    return () => {
-      cancelled = true
-    }
-  }, [desiredSrc, serverReady])
+  // Probe the dev server as an explicit state machine: spinner while
+  // `waiting`, the live iframe on `ready`, an actionable error with a working
+  // Retry on `timedout` — never an infinite spinner.
+  const { state: probeState, retry: retryProbe } = useDevServerProbe(desiredSrc)
 
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures
@@ -747,7 +723,7 @@ export function IframeLayer({
           toolbarPortalTarget
         )}
       <div className="relative h-full w-full overflow-hidden">
-        {iframeSrc && serverReady ? (
+        {iframeSrc && probeState === "ready" ? (
           <iframe
             ref={iframeRef}
             src={iframeSrc}
@@ -756,15 +732,35 @@ export function IframeLayer({
             style={{ pointerEvents: interactive ? "auto" : "none" }}
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white dark:bg-zinc-900">
-            {desiredSrc && (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-                <span className="text-xs text-muted-foreground">
-                  Waiting for dev server...
-                </span>
-              </>
-            )}
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
+            {desiredSrc &&
+              (probeState === "timedout" ? (
+                <>
+                  <span className="text-xs font-medium text-foreground">
+                    Dev server not responding
+                  </span>
+                  <span className="max-w-[240px] text-xs text-muted-foreground">
+                    The preview couldn&apos;t be reached. It may still be
+                    starting up.
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="pointer-events-auto mt-1"
+                    onClick={retryProbe}
+                  >
+                    <RotateCw />
+                    Retry
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                  <span className="text-xs text-muted-foreground">
+                    Waiting for dev server...
+                  </span>
+                </>
+              ))}
           </div>
         )}
 
