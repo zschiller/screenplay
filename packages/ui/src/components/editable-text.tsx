@@ -124,6 +124,12 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
           if (shouldCommit) toCommit = next
         }
         setIsEditing(false)
+        // Drop any text-selection range still inside our element so the
+        // highlight doesn't linger over the now read-only label when focus
+        // leaves to a non-text target (e.g. a button) that wouldn't collapse
+        // it on its own.
+        const sel = window.getSelection()
+        if (sel && el && el.contains(sel.anchorNode)) sel.removeAllRanges()
         if (toCommit !== null) onCommit(toCommit)
         onEditEnd?.()
       },

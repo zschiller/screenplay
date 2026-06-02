@@ -422,9 +422,6 @@ export function ChatPanel({
     installedHarnesses.some((h) => h.key === storedHarnessKey)
       ? storedHarnessKey
       : (installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY)
-  const defaultHarnessLabel = installedHarnesses.find(
-    (h) => h.key === defaultHarnessKey
-  )?.label
 
   const createChatTab = useCallback(() => {
     setLastTabKind("chat")
@@ -658,9 +655,7 @@ export function ChatPanel({
                         disabled={isAgentBusy}
                         aria-label={
                           stickyTabKind === "terminal"
-                            ? defaultHarnessLabel
-                              ? `New ${defaultHarnessLabel} terminal`
-                              : "New terminal"
+                            ? "New terminal"
                             : "New chat"
                         }
                       >
@@ -671,9 +666,7 @@ export function ChatPanel({
                       {isAgentBusy
                         ? "Sandbox still starting…"
                         : stickyTabKind === "terminal"
-                          ? defaultHarnessLabel
-                            ? `New ${defaultHarnessLabel} terminal`
-                            : "New terminal"
+                          ? "New terminal"
                           : "New chat"}
                     </TooltipContent>
                   </Tooltip>
@@ -696,9 +689,11 @@ export function ChatPanel({
                       <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
                       New chat
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {installedHarnesses.length > 0 ? (
+                    {installedHarnesses.length > 1 ? (
+                      // Multiple harnesses — a labelled section listing each by
+                      // name, since "New terminal" alone wouldn't say which.
                       <>
+                        <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
                           New terminal
                         </DropdownMenuLabel>
@@ -709,19 +704,21 @@ export function ChatPanel({
                           >
                             <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
                             <span className="truncate">{h.label}</span>
-                            {stickyTabKind === "terminal" &&
-                              h.key === defaultHarnessKey && (
-                                <Check className="ml-auto size-3 shrink-0" />
-                              )}
                           </DropdownMenuItem>
                         ))}
                       </>
                     ) : (
-                      // List not loaded yet (or no harnesses installed) — keep a
-                      // single working "New terminal" that opens the default
-                      // harness, so the menu never strands the operator.
+                      // One harness (or the list isn't loaded / none installed) —
+                      // there's nothing to choose between, so collapse to a single
+                      // "New terminal" with no section header. Opens the lone
+                      // harness, else the default, so the menu never strands the
+                      // operator.
                       <DropdownMenuItem
-                        onSelect={() => createTerminalTab(DEFAULT_HARNESS_KEY)}
+                        onSelect={() =>
+                          createTerminalTab(
+                            installedHarnesses[0]?.key ?? DEFAULT_HARNESS_KEY
+                          )
+                        }
                       >
                         <SquareTerminal className="size-3 shrink-0 text-muted-foreground" />
                         New terminal
