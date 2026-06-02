@@ -11,6 +11,7 @@ import {
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
 import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
+import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
 
 export async function generateMetadata({
@@ -59,6 +60,14 @@ export default async function RoomPage({
   // were waiting on the iframe.
   const initialThreads = await listThreads(roomId, userId).catch(() => [])
 
+  // Pre-fetch this User's terminal tabs server-side too, so restored terminals
+  // render on the first client paint alongside chats (which arrive in the
+  // synced Y.Doc). The client-side `listTerminalTabsAction` would otherwise
+  // resolve a beat after load, making terminal tabs pop in late.
+  const initialTerminalTabs = await listTerminalTabs({ userId, roomId }).catch(
+    () => [],
+  )
+
   return (
     <YjsRoomProvider
       roomId={roomId}
@@ -71,6 +80,7 @@ export default async function RoomPage({
         parentFolderName={parentFolderName}
         initialLayout={initialLayout}
         initialThreads={initialThreads}
+        initialTerminalTabs={initialTerminalTabs}
       />
     </YjsRoomProvider>
   )

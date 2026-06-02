@@ -1,6 +1,6 @@
 "use server"
 
-import { SANDBOX_LOG_PATH, TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
+import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { SandboxInstance } from "@/lib/sandbox/types"
@@ -35,6 +35,14 @@ function ttydUrl(arch: string): string {
 // launch is needed.
 const TTYD_PIDFILE = "/tmp/screenplay/terminal.pid"
 
+// The terminal daemon's own stdout/stderr (ttyd's connection/diagnostic chatter)
+// goes here rather than the shared sandbox log. The logs tab streams
+// `SANDBOX_LOG_PATH`, and ttyd's daemon logging isn't sandbox output the operator
+// wants to read there — the terminal's real content is the PTY served over the
+// WebSocket, never this stream. Kept as a file (not /dev/null) so it's still
+// available for debugging.
+const TERMINAL_LOG_PATH = "/tmp/screenplay/terminal.log"
+
 // Pin a known-good static `tmux` build. The base @vercel/sandbox image ships
 // NO `tmux` (confirmed by spike #255 and re-confirmed on a live sandbox — see
 // ADR 0002's 2026-06-01 addendum, which also records that `new`/`attach`/`kill`
@@ -47,6 +55,13 @@ const TTYD_PIDFILE = "/tmp/screenplay/terminal.pid"
 const TMUX_VERSION = "3.6b"
 const TMUX_BIN = "/tmp/screenplay/tmux"
 const TMUX_TARBALL = "/tmp/screenplay/tmux.tar.gz"
+// Per-server tmux config, loaded via `-f`. `status off` hides tmux's green
+// bottom status bar: this is a single-session-per-tab web terminal embedded in
+// our own chrome, so the bar's window list / clock add nothing and just eat a
+// row. Kept as a config file (not inline `set` commands) because ttyd appends
+// the session name as the final argv, leaving no room for a `\;`-chained command
+// after `new`.
+const TMUX_CONF = "/tmp/screenplay/tmux.conf"
 
 // Map the sandbox's `uname -m` machine name to tmux-builds' own arch token.
 // Unlike ttyd (whose assets ARE the `uname -m` names), tmux-builds calls the
@@ -192,7 +207,19 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
  *
  * `setsid` makes the daemon its own session leader so the recorded PID is the
  * process group; `& disown` returns the outer shell immediately while the
- * daemon keeps running. Output is tee'd to the shared sandbox log.
+ * daemon keeps running. The daemon's output goes to its own
+ * {@link TERMINAL_LOG_PATH}, not the shared sandbox log, so ttyd's connection
+ * chatter never shows up in the logs tab.
+ *
+ * `tmux -u` forces UTF-8 output regardless of the sandbox's detected locale. The
+ * base @vercel/sandbox image leaves `LANG`/`LC_*` unset, so tmux would otherwise
+ * decide the terminal isn't UTF-8 and fall back to VT100 ACS line-drawing —
+ * which renders Claude Code's Unicode box-drawing/rounded-corner glyphs as
+ * literal junk (`qqqq`, `lqk`, mojibake). `-u` is the documented override.
+ *
+ * `-f ${TMUX_CONF}` loads a one-line config that hides the bottom status bar
+ * (see {@link TMUX_CONF}). Both flags precede `new` because they're server/global
+ * options; the session name lands last as ttyd's appended url-arg.
  */
 async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
   await sandbox.runCommand({
@@ -200,9 +227,10 @@ async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
     args: [
       "-c",
       `mkdir -p /tmp/screenplay; ` +
+        `printf 'set -g status off\\n' > ${TMUX_CONF}; ` +
         `setsid ${TTYD_BIN} --writable --url-arg --port ${TERMINAL_PORT} ` +
-        `${TMUX_BIN} new -A -s ` +
-        `</dev/null >> ${SANDBOX_LOG_PATH} 2>&1 & ` +
+        `${TMUX_BIN} -u -f ${TMUX_CONF} new -A -s ` +
+        `</dev/null >> ${TERMINAL_LOG_PATH} 2>&1 & ` +
         `echo $! > ${TTYD_PIDFILE}; ` +
         `disown`,
     ],

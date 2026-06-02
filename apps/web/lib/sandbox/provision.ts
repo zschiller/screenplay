@@ -162,7 +162,10 @@ export async function installClaudeCode(
 
     // The checkout location and the writable home are provider-supplied, so the
     // onboarding seed follows the actual sandbox layout instead of a hardcoded
-    // backend path. On Vercel these are /vercel/sandbox and /root.
+    // backend path. `homeDir` is the home of the unprivileged user these
+    // (non-`sudo`) writes — and the interactive terminal shell — run as, so the
+    // seeded config is the same `$HOME/.claude.json` that `claude` reads in the
+    // tmux session. On Vercel these are /vercel/sandbox and /home/vercel-sandbox.
     const { worktreePath, homeDir } = sandbox
 
     // Pre-seed ~/.claude.json so the user lands in an already-onboarded state:

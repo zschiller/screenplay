@@ -26,6 +26,14 @@ interface CreateRequest {
   branch: string
   repoId: string
   sourceBranch?: string
+  /**
+   * Whether the server should auto-create the branch's first chat once it's
+   * provisioned. The client sets this false when the user's default-tab pref is
+   * "terminal" — it has already seeded a terminal tab, so the branch should open
+   * to that alone rather than also getting a chat. Defaults to true (the
+   * historic behaviour) when absent.
+   */
+  seedChat?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +160,11 @@ async function runNewOrFromBranchPipeline(
     status: "running",
     statusMessage: undefined,
   })
-  await ensureChatForBranch(roomId, branchId)
+  // Skipped when the client pre-seeded a terminal as the branch's default tab
+  // (seedChat === false) so the branch isn't also given an auto chat.
+  if (req.seedChat !== false) {
+    await ensureChatForBranch(roomId, branchId)
+  }
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
