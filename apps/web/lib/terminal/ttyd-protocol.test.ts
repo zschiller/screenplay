@@ -108,9 +108,31 @@ describe("terminalWebSocketUrl", () => {
     )
   })
 
-  it("appends the tmux session as ttyd's ?arg= when given a command arg", () => {
+  it("appends the tmux session as ttyd's ?arg= when given one command arg", () => {
     expect(
-      terminalWebSocketUrl("https://abc-7681.vercel.run", "screenplay-tab1"),
+      terminalWebSocketUrl("https://abc-7681.vercel.run", ["screenplay-tab1"]),
     ).toBe("wss://abc-7681.vercel.run/ws?arg=screenplay-tab1")
+  })
+
+  it("appends multiple command args as repeated ?arg=s in order", () => {
+    // The session name followed by the harness launch command (#285): each
+    // element becomes its own ttyd argv, so the daemon runs
+    // `tmux new -A -s screenplay-tab1 sh -c 'claude; exec $SHELL'`.
+    expect(
+      terminalWebSocketUrl("https://abc-7681.vercel.run", [
+        "screenplay-tab1",
+        "sh",
+        "-c",
+        "claude; exec $SHELL",
+      ]),
+    ).toBe(
+      "wss://abc-7681.vercel.run/ws?arg=screenplay-tab1&arg=sh&arg=-c&arg=claude%3B+exec+%24SHELL",
+    )
+  })
+
+  it("returns the bare /ws endpoint when given no command args", () => {
+    expect(terminalWebSocketUrl("https://abc-7681.vercel.run", [])).toBe(
+      "wss://abc-7681.vercel.run/ws",
+    )
   })
 })

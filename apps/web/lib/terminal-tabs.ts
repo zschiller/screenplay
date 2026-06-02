@@ -16,6 +16,8 @@ export type TerminalTabRecord = {
   roomId: string
   branch: string
   label: string
+  /** The harness key the tab launches into, or null for a plain shell (#285). */
+  harnessKey: string | null
   createdAt: number
 }
 
@@ -28,6 +30,7 @@ function toRecord(
     roomId: row.roomId,
     branch: row.branch,
     label: row.label,
+    harnessKey: row.harnessKey,
     createdAt: row.createdAt.getTime(),
   }
 }
@@ -69,6 +72,7 @@ export async function insertTerminalTab(opts: {
   roomId: string
   branch: string
   label: string
+  harnessKey?: string | null
   createdAt?: Date
 }): Promise<TerminalTabRecord> {
   const [row] = await db
@@ -79,6 +83,7 @@ export async function insertTerminalTab(opts: {
       roomId: opts.roomId,
       branch: opts.branch,
       label: opts.label,
+      harnessKey: opts.harnessKey ?? null,
       ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
     })
     .returning()

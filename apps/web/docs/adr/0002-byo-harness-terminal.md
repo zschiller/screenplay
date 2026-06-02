@@ -324,3 +324,38 @@ making them transparent and adding feedback, not new transport.
   genuinely deleted Branch, not an unhydrated collection. Pruning runs on
   load/connect off the branch + local-terminal state — no background job — and
   the delete is best-effort/idempotent (deleting an already-gone row is a no-op).
+
+## Addendum (2026-06-02): per-tab harness auto-launch (slice #285)
+
+The launch-side tracer bullet the catalog (#284) set up: a new Terminal Tab
+lands straight in a harness instead of a bare login shell, proven with
+`claude-code`. One harness, no picker yet — the `+` button always launches
+Claude Code. It falls out of the existing `?arg=` transport with no new
+reconnect path.
+
+- **The tab stores the harness *key*, not the launch argv.** `TerminalTabData`
+  and the `terminal_tab` table gain a nullable `harnessKey` column (migration
+  `0015`). The server resolves key → argv from the catalog
+  (`resolveLaunchArgv`) at connect time, so the launch command can change in a
+  descriptor later without rewriting stored rows. A null `harnessKey` (a row
+  created before this slice, or a key no longer installed) opens a plain shell —
+  a graceful fall-through, never an error.
+
+- **`/api/terminal/url` returns the installed harnesses + the tab's resolved
+  launch argv.** The route runs the same `selectHarnesses(SANDBOX_HARNESSES,
+  providers)` fold provisioning uses, returns the installable `{ key, label }`
+  list (the menu a future picker draws from), and resolves the requesting tab's
+  `harnessKey` against that set. The harness is wrapped as
+  `sh -c '<launchCommand>; exec $SHELL'` so quitting it (Ctrl-D) `exec`s a login
+  shell in the same persistent tmux session rather than killing the tab.
+
+- **The launch rides the existing per-tab `?arg=` transport — the daemon stays
+  harness-agnostic.** `launchTerminal` is unchanged: one ttyd daemon, base
+  command `tmux new -A -s`. The client appends the session name *and* the
+  resolved launch argv as ordered `?arg=`s, yielding
+  `tmux new -A -s screenplay-<tabId> sh -c '<harness>; exec $SHELL'`. Because
+  `tmux new -A` ignores the command when attaching to a live session, a reload
+  reattaches to the still-running harness while a rebuilt sandbox (no session)
+  relaunches it on create — the same `-A` behavior the #259/#260 addenda rest
+  on, now carrying a command. Two tabs on one Branch keep their isolated
+  sessions.

@@ -326,6 +326,12 @@ export const terminalTab = pgTable(
     // intentionally not a foreign key.
     branch: text("branch").notNull(),
     label: text("label").notNull(),
+    // The harness this tab launches into (`Harness.key`, e.g. "claude-code"),
+    // resolved key → launch argv from the catalog at connect time rather than
+    // storing the argv, so the launch command can change without rewriting
+    // rows. Nullable: tabs created before harness auto-launch (#285), or whose
+    // stored key is no longer installable, open a plain login shell.
+    harnessKey: text("harness_key"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
