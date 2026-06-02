@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Spinner } from "@workspace/ui/components/spinner"
 import "@xterm/xterm/css/xterm.css"
+import "./terminal-tab.css"
 import {
   decodeServerMessage,
   encodeHandshake,
@@ -45,6 +46,24 @@ function resolveColor(value: string, fallback: string): string {
   ctx.fillStyle = fallback
   ctx.fillStyle = value
   return ctx.fillStyle
+}
+
+/**
+ * Resolve a CSS system-color keyword (e.g. `Highlight`, `HighlightText`) to a
+ * concrete `rgb(...)` string. These keywords map to the OS's real selection
+ * colors and track light/dark mode and the user's accent — so we get the
+ * genuine system selection rather than a hand-picked approximation. The keyword
+ * has to be resolved on an element that's actually in the document; a detached
+ * node yields an empty/unresolved value, so we attach a hidden probe briefly.
+ */
+function systemColor(keyword: string, fallback: string): string {
+  const probe = document.createElement("span")
+  probe.style.color = keyword
+  probe.style.display = "none"
+  document.body.appendChild(probe)
+  const resolved = getComputedStyle(probe).color
+  probe.remove()
+  return resolved || fallback
 }
 
 /**
@@ -137,24 +156,129 @@ export function TerminalTab({
       // Match the app's theme + monospace font so the terminal reads as native
       // chrome rather than a foreign embedded page.
       const styles = getComputedStyle(host)
-      const fontFamily =
-        getComputedStyle(document.documentElement)
-          .getPropertyValue("--font-mono")
-          .trim() || "ui-monospace, SFMono-Regular, Menlo, monospace"
+      // `next/font` resolves `--font-mono` to a two-font list — the real Geist
+      // face plus a *proportional* `size-adjust`ed system fallback that is NOT
+      // monospace. Take only the real Geist face (the first token) and append
+      // genuine monospace generics, so any glyph Geist can't supply still falls
+      // back to a fixed-width font rather than that proportional fallback.
+      const monoFamily = styles.getPropertyValue("--font-mono").split(",")[0]?.trim()
+      const fontFamily = [monoFamily, "ui-monospace", "'SF Mono'", "Menlo", "monospace"]
+        .filter(Boolean)
+        .join(", ")
+      const fontSize = 13
+
+      // Geist Mono is loaded asynchronously (`next/font`, `font-display: swap`).
+      // xterm measures the character cell exactly once, at `open()`, and never
+      // re-measures — so if the font isn't ready yet it locks in the fallback's
+      // metrics. That single wrong measurement skews every monospace assumption:
+      // ASCII art / box-drawing stops aligning, substituted glyphs overflow
+      // their cell, and `fit()` derives the wrong rows so the viewport spuriously
+      // scrolls. Wait for the actual font before opening so we measure for real.
+      try {
+        const primaryFamily = fontFamily.split(",")[0]?.trim()
+        if (primaryFamily) await document.fonts.load(`${fontSize}px ${primaryFamily}`)
+        await document.fonts.ready
+      } catch {
+        // Font Loading API unavailable or rejected — fall through and open
+        // anyway; worst case we're back to the previous (fallback-metric)
+        // behavior rather than a dead terminal.
+      }
+      if (cancelled) return
+
+      // Use the OS's real selection background via the CSS system-color keyword
+      // `Highlight`. Unlike a hard-coded hex, it tracks light/dark mode and the
+      // user's accent color, so the selection matches native chrome in either
+      // theme. We deliberately leave `selectionForeground` unset so selected
+      // glyphs keep their original (ANSI/foreground) color rather than being
+      // recolored — matching how a native terminal highlights text. (Theme
+      // tokens like `--primary` were no good here: they're authored as
+      // `oklch(...)`, which the canvas/regex resolve pipeline can't normalize.)
+      const foreground = resolveColor(styles.color, "#ffffff")
       const term = new Terminal({
         cursorBlink: true,
         fontFamily,
-        fontSize: 13,
+        fontSize,
         theme: {
           background: resolveColor(styles.backgroundColor, "#000000"),
-          foreground: resolveColor(styles.color, "#ffffff"),
-          cursor: resolveColor(styles.color, "#ffffff"),
+          foreground,
+          cursor: foreground,
+          selectionBackground: systemColor("Highlight", "#b3d7ff"),
         },
       })
       const fit = new FitAddon()
       term.loadAddon(fit)
       term.open(host)
-      fit.fit()
+
+      // Disable font shaping. Geist Mono ships programming ligatures (`liga`/
+      // `calt` for `--`, `->`, `..`, `...`, etc.) and standard ligatures are ON
+      // by default in CSS. xterm's DOM renderer merges a run of same-styled
+      // cells into a single span, so the browser shapes the whole run and those
+      // ligatures fire — collapsing N glyphs into fewer, which xterm then
+      // spreads across the N reserved monospace cells. The visible result is
+      // runs of `.` and `-` rendering with gaps ("wide" punctuation). Forcing
+      // 1:1 glyph rendering on the xterm root (it cascades to the rows) keeps
+      // every cell fixed-width. Must live on `term.element`, which only exists
+      // after `open()`.
+      const el = term.element
+      if (el) {
+        el.style.fontVariantLigatures = "none"
+        el.style.fontFeatureSettings = '"liga" 0, "calt" 0, "dlig" 0'
+      }
+
+      // Fit the terminal to the pane — but only when it's actually visible AND
+      // xterm has a real character-cell measurement to fit against.
+      //
+      // Terminal tabs are force-mounted and merely hidden with `display:none`
+      // when inactive, so a tab switch collapses the host to zero size and fires
+      // the ResizeObserver below. Two failure modes have to be avoided:
+      //
+      //  - Fitting while hidden: at 0 width FitAddon proposes a 1-column
+      //    geometry and ships `encodeResize(1, …)` to the real PTY, reflowing
+      //    tmux's scrollback to a single column — which survives the switch
+      //    back. `offsetParent` is null precisely when an ancestor is
+      //    `display:none`, so the guard skips that case.
+      //
+      //  - Fitting before xterm re-measures: a terminal `open()`ed while hidden
+      //    measures its cell as 0×0 and pauses rendering. xterm only re-measures
+      //    when *its own* IntersectionObserver reports the pane visible — and per
+      //    the HTML rendering steps that lands *after* the ResizeObserver tick
+      //    that detects the reveal. So a synchronous `fit()` right after a tab
+      //    switch still reads a 0-width cell; FitAddon's `proposeDimensions()`
+      //    bails and the terminal is stranded at its default 80×24, overflowing
+      //    the pane with a scrollbar that scrolls only dead space. Polling
+      //    `proposeDimensions()` across frames waits out that race without
+      //    depending on observer ordering, then fits once metrics are real.
+      let fitFrame = 0
+      const fitWhenReady = (attempt = 0) => {
+        cancelAnimationFrame(fitFrame)
+        if (cancelled) return
+        if (!host.offsetParent || host.clientWidth === 0 || host.clientHeight === 0) return
+        if (fit.proposeDimensions()) {
+          fit.fit()
+          return
+        }
+        // Visible but xterm hasn't re-measured yet — retry next frame, capped so
+        // a never-measuring terminal can't spin forever.
+        if (attempt < 30) {
+          fitFrame = requestAnimationFrame(() => fitWhenReady(attempt + 1))
+        }
+      }
+      const safeFit = () => fitWhenReady()
+      safeFit()
+
+      // Belt-and-braces: if the mono font only finishes loading after we opened
+      // (the `await` above can resolve before a same-tick `@font-face` settles),
+      // drop xterm's cached glyph atlas and re-measure so a late arrival can't
+      // leave the first frame skewed.
+      void document.fonts.ready.then(() => {
+        if (cancelled) return
+        try {
+          term.clearTextureAtlas()
+          safeFit()
+        } catch {
+          // Terminal may already be disposed; ignore.
+        }
+      })
 
       // Native copy: with a selection, Cmd/Ctrl+C copies to the clipboard rather
       // than sending an interrupt; paste rides xterm's own textarea handling.
@@ -218,7 +342,7 @@ export function TerminalTab({
       })
       const observer = new ResizeObserver(() => {
         try {
-          fit.fit()
+          safeFit()
         } catch {
           // The pane can be momentarily zero-sized (tab switch); ignore.
         }
@@ -226,6 +350,7 @@ export function TerminalTab({
       observer.observe(host)
 
       cleanup = () => {
+        cancelAnimationFrame(fitFrame)
         observer.disconnect()
         dataSub.dispose()
         resizeSub.dispose()

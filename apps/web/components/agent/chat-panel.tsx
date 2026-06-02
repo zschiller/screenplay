@@ -35,34 +35,12 @@ import { TerminalTab } from "./terminal-tab"
 import { BranchBadge } from "@/components/branch-badge"
 import type { BranchData, ChatSessionData, MarkdownLayerData, TabKind, TerminalTabData } from "@/lib/types"
 import { CHAT_TARGETABLE_LAYER_KINDS, getLayerKind } from "@/lib/layer-kinds"
+import { readLastTabKind, writeLastTabKind } from "@/lib/canvas/tab-kind"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
-
-// Per-user pref backing the sticky "+" new-tab button: it repeats whichever
-// kind (chat or terminal) was created last. Stored in localStorage so the
-// choice survives reloads. Mirrors the `agent-last-model` pref in agent-chat.
-const LAST_TAB_KIND_STORAGE_KEY = "agent-last-tab-kind"
-
-function readLastTabKind(): TabKind {
-  if (typeof window === "undefined") return "chat"
-  try {
-    return window.localStorage.getItem(LAST_TAB_KIND_STORAGE_KEY) === "terminal"
-      ? "terminal"
-      : "chat"
-  } catch {
-    return "chat"
-  }
-}
-
-function writeLastTabKind(kind: TabKind) {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(LAST_TAB_KIND_STORAGE_KEY, kind)
-  } catch {}
-}
 
 function useLatestPr(chatId: string): { url: string; number: string } | null {
   const messages = useSyncExternalStore(
@@ -512,7 +490,9 @@ export function ChatPanel({
               </TabsTrigger>
             ))}
             {onCreateTerminal ? (
-              <ButtonGroup className="group/newtab ml-1 shrink-0">
+              <ButtonGroup
+                className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
+              >
                 <TooltipProvider delayDuration={500}>
                   <Tooltip>
                     <TooltipTrigger asChild>

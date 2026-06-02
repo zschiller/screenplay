@@ -1,0 +1,26 @@
+/*
+ * Terminal-tab overrides, layered after `@xterm/xterm/css/xterm.css` (import
+ * order in terminal-tab.tsx decides the cascade).
+ *
+ * Hide the *native* scrollbar on xterm's scroll container. xterm v6 scrolls via
+ * the `.xterm-viewport` element (`overflow-y: scroll`, with `overflow-x`
+ * coerced to `auto`) but ALSO paints its own custom overlay slider
+ * (`.xterm-scrollable-element > .scrollbar`) synced to that scroll position.
+ * That's two scrollbars for one scroller. On macOS's default overlay-scrollbar
+ * setting the native one is invisible, so they don't collide — but with "Show
+ * scroll bars: Always" (or a mouse attached, which flips many Macs to classic
+ * space-taking bars) the native bar shows on top of the overlay slider, and on
+ * the "Automatically based on input device" setting it *flashes in* whenever the
+ * content or size changes. A tab switch (the pane goes `display:none` → visible
+ * and re-fits) and a reload (reconnect + reflow) both churn the size, so the
+ * native bar blinks on — the "errant scrollbars when switching tabs or reloading"
+ * report. Suppressing the native bar leaves xterm's own overlay slider as the
+ * single, consistent scrollbar; scrolling itself is untouched (the element still
+ * scrolls; only its native bar is hidden).
+ */
+.xterm .xterm-viewport {
+  scrollbar-width: none; /* Firefox / Chromium 121+ */
+}
+.xterm .xterm-viewport::-webkit-scrollbar {
+  display: none; /* WebKit / Chromium (Electron, Safari) */
+}

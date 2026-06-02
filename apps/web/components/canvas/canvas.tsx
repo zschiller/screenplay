@@ -24,13 +24,14 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { createTerminalTab } from "@/lib/canvas/tab-kind"
+import { createTerminalTab, readLastTabKind } from "@/lib/canvas/tab-kind"
 import {
   createTerminalTabAction,
   deleteTerminalTabAction,
   killTerminalSessionAction,
   listTerminalTabsAction,
 } from "@/lib/terminal-tabs-actions"
+import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useSession } from "@/lib/auth-client"
 import { ChevronDown, FileText, Frame, MessageSquare, MousePointer2, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from "lucide-react"
@@ -103,7 +104,7 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData, TerminalTabData } from "@/lib/types"
+import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData, TabKind, TerminalTabData } from "@/lib/types"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
@@ -172,7 +173,7 @@ function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () =
   return null
 }
 
-export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads }: { roomId: string; roomName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[] }) {
+export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Drafts", initialLayout, initialThreads, initialTerminalTabs }: { roomId: string; roomName: string; hasThumbnail: boolean; parentFolderName?: string; initialLayout?: PanelLayout; initialThreads?: ThreadWithComments[]; initialTerminalTabs?: TerminalTabRecord[] }) {
   const router = useRouter()
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -207,16 +208,29 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // restores them and they follow the User across devices. Only the tab
   // identity is stored, never scrollback. Co-view across clients is still a
   // deliberate non-goal — see ADR 0002 / follow-up.
-  const [localTerminals, setLocalTerminals] = useState<TerminalTabData[]>([])
+  // Seed from the server-fetched tabs (page.tsx) so restored terminals are on
+  // the very first client paint — same as chats (which arrive in the synced
+  // Y.Doc). Without this seed they'd pop in a beat late, after the client-side
+  // `listTerminalTabsAction` round-trip below resolves.
+  const [localTerminals, setLocalTerminals] = useState<TerminalTabData[]>(() =>
+    (initialTerminalTabs ?? []).map((r) =>
+      createTerminalTab({
+        id: r.id,
+        branchId: r.branch,
+        createdAt: r.createdAt,
+        label: r.label,
+      }),
+    ),
+  )
   const isLocalTerminal = useCallback(
     (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
     [localTerminals],
   )
-  // Restore this User's persisted terminal tabs for the whole room on load, so
-  // a reload reopens them and they follow the User across devices (#258). We
-  // fetch every Branch's tabs in one round-trip and group by `branchId` when
-  // handing them to the panel, so switching Branches is instant. Merge rather
-  // than replace, so a tab the user opened before this resolved isn't dropped.
+  // Re-fetch this User's persisted terminal tabs for the room (#258): keeps the
+  // seeded set fresh on client-side Branch/room navigation (when the component
+  // doesn't remount, so the seed above is stale) and reconciles tabs opened on
+  // another device. Merge rather than replace, so a tab the user opened before
+  // this resolved isn't dropped.
   useEffect(() => {
     let cancelled = false
     listTerminalTabsAction({ roomId })
@@ -2124,13 +2138,72 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [roomId],
   )
 
+  /**
+   * Create the user's preferred default tab (chat or terminal) for an agent
+   * branch. This is the one place the "open a fresh branch" and "the last tab
+   * was just closed" flows share, so the auto-created tab always follows the
+   * per-user pref ({@link readLastTabKind}) rather than whatever kind happened
+   * to be closed. Selects the new tab unless `select` is false (branch-create
+   * defers selection to when the sandbox is ready). Returns the new tab id.
+   */
+  const createDefaultTabForBranch = useCallback(
+    (branchId: string, kind: TabKind, options?: { select?: boolean }) => {
+      const select = options?.select !== false
+      if (kind === "terminal") {
+        const tab = createTerminalTab({
+          id: nanoid(),
+          branchId,
+          createdAt: Date.now(),
+        })
+        setLocalTerminals((prev) => [...prev, tab])
+        if (select) setSelectedChatId(tab.id)
+        createTerminalTabAction({
+          roomId,
+          branch: branchId,
+          id: tab.id,
+          label: tab.label,
+          createdAt: tab.createdAt,
+        }).catch((err) => {
+          console.error("Failed to persist terminal tab", err)
+        })
+        return tab.id
+      }
+      const id = nanoid()
+      addChatSession(id, {
+        id,
+        branchId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      })
+      if (select) setSelectedChatId(id)
+      return id
+    },
+    [roomId, addChatSession],
+  )
+
+  /**
+   * Seed a freshly-created branch's default tab to the user's pref. A chat is
+   * left to the server (`ensureChatForBranch`), so the chat pref needs nothing
+   * here. A terminal pref is seeded client-side now (selection deferred until
+   * the sandbox is ready) and the server is told to skip the auto chat. Returns
+   * the `seedChat` flag to forward to the create API.
+   */
+  const seedDefaultTabForNewBranch = useCallback(
+    (branchId: string): boolean => {
+      if (readLastTabKind() !== "terminal") return true
+      createDefaultTabForBranch(branchId, "terminal", { select: false })
+      return false
+    },
+    [createDefaultTabForBranch],
+  )
+
   // Close a local terminal tab: it's ephemeral, so closing simply drops it
   // (no closed-chats archive). The panel must keep at least one tab of *either*
   // kind per agent, so if this terminal is the last tab on its branch — no
-  // sibling terminal and no open chat — recreate a terminal (the kind just
-  // closed, i.e. the most recently used tab). This parallels the replacement
-  // chat in handleCloseChat. Otherwise, if it was selected, fall back to a
-  // sibling terminal, then an open chat, then clear selection.
+  // sibling terminal and no open chat — recreate the user's preferred default
+  // tab kind (which may be a chat, not another terminal). This parallels the
+  // replacement in handleCloseChat. Otherwise, if it was selected, fall back to
+  // a sibling terminal, then an open chat, then clear selection.
   const handleCloseTerminal = useCallback(
     (id: string) => {
       const closing = localTerminals.find((t) => t.id === id)
@@ -2143,16 +2216,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
             .filter((c) => c.branchId === branchId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
         : []
-      const replacement =
-        branchId && terminalSiblings.length === 0 && chatSiblings.length === 0
-          ? createTerminalTab({ id: nanoid(), branchId, createdAt: Date.now() })
-          : null
-      setLocalTerminals((prev) => {
-        const remaining = prev.filter((t) => t.id !== id)
-        return replacement ? [...remaining, replacement] : remaining
-      })
-      if (replacement) {
-        setSelectedChatId(replacement.id)
+      const needsReplacement =
+        !!branchId && terminalSiblings.length === 0 && chatSiblings.length === 0
+      setLocalTerminals((prev) => prev.filter((t) => t.id !== id))
+      if (needsReplacement && branchId) {
+        // createDefaultTabForBranch creates + selects the replacement (and
+        // persists it when it's a terminal), so no inline add/select here.
+        createDefaultTabForBranch(branchId, readLastTabKind())
       } else if (selectedChatId === id) {
         setSelectedChatId(terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null)
       }
@@ -2174,20 +2244,8 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           console.error("Failed to kill terminal session", err)
         })
       }
-      // The auto-created replacement is a brand-new tab — persist it too.
-      if (replacement && branchId) {
-        createTerminalTabAction({
-          roomId,
-          branch: branchId,
-          id: replacement.id,
-          label: replacement.label,
-          createdAt: replacement.createdAt,
-        }).catch((err) => {
-          console.error("Failed to persist replacement terminal tab", err)
-        })
-      }
     },
-    [selectedChatId, chatSessions, localTerminals, roomId, agents],
+    [selectedChatId, chatSessions, localTerminals, roomId, agents, createDefaultTabForBranch],
   )
 
   /**
@@ -2350,26 +2408,30 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         : []
       updateChatSession(chatId, { closedAt: Date.now() })
       if (chat && siblings.length === 0 && terminalSiblings.length === 0) {
-        // No tab of either kind survives on this target — recreate a chat (the
-        // kind just closed, i.e. the most recently used tab) so the panel is
-        // never left empty.
-        const newId = nanoid()
-        addChatSession(newId, {
-          id: newId,
-          branchId: chat.branchId,
-          markdownLayerId: chat.markdownLayerId,
-          label: "Untitled",
-          createdAt: Date.now(),
-        })
-        setSelectedChatId(newId)
-        if (chat.markdownLayerId) {
-          selectedChatByDocumentRef.current[chat.markdownLayerId] = newId
+        // No tab of either kind survives on this target — recreate the user's
+        // preferred default tab so the panel is never left empty. For an agent
+        // target that's whichever kind the pref names (chat or terminal); doc
+        // targets have no terminals, so they always recreate a chat.
+        if (chat.branchId) {
+          createDefaultTabForBranch(chat.branchId, readLastTabKind())
+        } else {
+          const newId = nanoid()
+          addChatSession(newId, {
+            id: newId,
+            markdownLayerId: chat.markdownLayerId,
+            label: "Untitled",
+            createdAt: Date.now(),
+          })
+          setSelectedChatId(newId)
+          if (chat.markdownLayerId) {
+            selectedChatByDocumentRef.current[chat.markdownLayerId] = newId
+          }
         }
       } else if (selectedChatId === chatId) {
         setSelectedChatId(siblings[0]?.id ?? terminalSiblings[0]?.id ?? null)
       }
     },
-    [selectedChatId, chatSessions, localTerminals, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal],
+    [selectedChatId, chatSessions, localTerminals, updateChatSession, addChatSession, isLocalTerminal, handleCloseTerminal, createDefaultTabForBranch],
   )
 
   const handleReopenChat = useCallback(
@@ -2704,6 +2766,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       setPendingAgentIds((prev) =>
         prev.includes(agentId) ? prev : [...prev, agentId],
       )
+      const seedChat = seedDefaultTabForNewBranch(agentId)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -2715,10 +2778,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           sandboxName,
           branch,
           repoId: id,
+          seedChat,
         }),
       })
     },
-    [addRepoToStorage, ops, roomId],
+    [addRepoToStorage, ops, roomId, seedDefaultTabForNewBranch],
   )
 
   const handleCreateAgent = useCallback(
@@ -2747,6 +2811,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      const seedChat = seedDefaultTabForNewBranch(id)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -2758,10 +2823,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           sandboxName,
           branch,
           repoId,
+          seedChat,
         }),
       })
     },
-    [repos, ops, roomId],
+    [repos, ops, roomId, seedDefaultTabForNewBranch],
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -2786,6 +2852,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      const seedChat = seedDefaultTabForNewBranch(id)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -2797,10 +2864,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           sandboxName,
           branch,
           repoId,
+          seedChat,
         }),
       })
     },
-    [repos, ops, roomId],
+    [repos, ops, roomId, seedDefaultTabForNewBranch],
   )
 
   const handleDuplicateBranch = useCallback(
@@ -2829,6 +2897,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         },
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      const seedChat = seedDefaultTabForNewBranch(id)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -2841,10 +2910,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           branch: newBranch,
           sourceBranch: branch,
           repoId,
+          seedChat,
         }),
       })
     },
-    [repos, ops, roomId],
+    [repos, ops, roomId, seedDefaultTabForNewBranch],
   )
 
   const handleForkAgent = useCallback(
