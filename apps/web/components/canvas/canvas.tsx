@@ -45,10 +45,10 @@ import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useSession } from "@/lib/auth-client"
 import {
-  ChevronDown,
   FileText,
   Frame,
   MessageSquare,
+  MoreHorizontal,
   MousePointer2,
   PanelLeftOpen,
   PanelRightClose,
@@ -76,17 +76,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
-import { Input } from "@workspace/ui/components/input"
+  EditableText,
+  type EditableTextHandle,
+} from "@workspace/ui/components/editable-text"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { deleteRoom, renameRoom } from "@/lib/rooms-actions"
@@ -236,9 +232,31 @@ export function Canvas({
   const router = useRouter()
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
-  const [renameDraft, setRenameDraft] = useState("")
-  const [renaming, setRenaming] = useState(false)
+  // Inline rename of the room name in the floating breadcrumb. The menu's
+  // "Rename" item flags a pending edit and `onCloseAutoFocus` starts it once
+  // the menu's focus trap has released (see iframe-layer-row for the pattern).
+  const roomNameEditableRef = useRef<EditableTextHandle>(null)
+  const pendingRoomRenameRef = useRef(false)
+  const onRoomMenuCloseAutoFocus = useCallback((e: Event) => {
+    if (!pendingRoomRenameRef.current) return
+    pendingRoomRenameRef.current = false
+    e.preventDefault()
+    roomNameEditableRef.current?.startEditing()
+  }, [])
+  const handleRoomRename = useCallback(
+    async (next: string) => {
+      const trimmed = next.trim()
+      if (!trimmed || trimmed === currentRoomName) return
+      const previous = currentRoomName
+      setCurrentRoomName(trimmed) // optimistic
+      try {
+        await renameRoom(roomId, trimmed)
+      } catch {
+        setCurrentRoomName(previous)
+      }
+    },
+    [currentRoomName, roomId]
+  )
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<
@@ -5444,28 +5462,41 @@ export function Canvas({
                     <BreadcrumbSeparator className="text-muted-foreground/60">
                       /
                     </BreadcrumbSeparator>
-                    <BreadcrumbItem className="gap-0">
+                    <BreadcrumbItem className="gap-0.5">
+                      <EditableText
+                        ref={roomNameEditableRef}
+                        as="span"
+                        value={currentRoomName}
+                        onCommit={handleRoomRename}
+                        placeholder="Untitled"
+                        className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
+                        viewClassName="truncate"
+                        editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 mx-1 my-0.5"
+                      />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="h-6 gap-1 px-1.5 text-xs font-medium text-foreground"
+                            size="icon-xs"
+                            className="h-6 w-6 text-muted-foreground"
                           >
-                            {currentRoomName}
-                            <ChevronDown className="h-3 w-3 opacity-60" />
+                            <MoreHorizontal className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
+                        <DropdownMenuContent
+                          align="start"
+                          className="w-48"
+                          onCloseAutoFocus={onRoomMenuCloseAutoFocus}
+                        >
                           <DropdownMenuItem
                             onSelect={() => {
-                              setRenameDraft(currentRoomName)
-                              setRenameDialogOpen(true)
+                              pendingRoomRenameRef.current = true
                             }}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                             Rename
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
                             onSelect={() => setDeleteDialogOpen(true)}
@@ -5478,58 +5509,6 @@ export function Canvas({
                     </BreadcrumbItem>
                   </BreadcrumbList>
                 </Breadcrumb>
-                <Dialog
-                  open={renameDialogOpen}
-                  onOpenChange={(next) => {
-                    if (renaming) return
-                    setRenameDialogOpen(next)
-                  }}
-                >
-                  <DialogContent className="sm:max-w-md">
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault()
-                        const trimmed = renameDraft.trim() || "Untitled"
-                        setRenaming(true)
-                        try {
-                          await renameRoom(roomId, trimmed)
-                          setCurrentRoomName(trimmed)
-                          setRenameDialogOpen(false)
-                        } finally {
-                          setRenaming(false)
-                        }
-                      }}
-                    >
-                      <DialogHeader>
-                        <DialogTitle>Rename project</DialogTitle>
-                        <DialogDescription>
-                          Give this project a new name.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="my-4">
-                        <Input
-                          autoFocus
-                          value={renameDraft}
-                          onChange={(e) => setRenameDraft(e.target.value)}
-                          placeholder="Untitled"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setRenameDialogOpen(false)}
-                          disabled={renaming}
-                        >
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={renaming}>
-                          {renaming ? "Saving…" : "Save"}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
                 <DeleteRoomDialog
                   open={deleteDialogOpen}
                   onOpenChange={setDeleteDialogOpen}
