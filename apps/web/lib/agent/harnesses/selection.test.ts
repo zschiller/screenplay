@@ -6,6 +6,7 @@ import {
   buildBrokeredEnv,
   resolveLaunchArgv,
   selectHarnesses,
+  unconfiguredBannerArgv,
   type Harness,
 } from "@/lib/agent/harnesses"
 
@@ -208,5 +209,19 @@ describe("resolveLaunchArgv", () => {
     // unconfigured): fall through to a shell, never an error.
     expect(resolveLaunchArgv("claude-code", [])).toEqual([])
     expect(resolveLaunchArgv("ghost", installable)).toEqual([])
+  })
+})
+
+describe("unconfiguredBannerArgv", () => {
+  it("wraps a SANDBOX_HARNESSES banner around a login shell (exec $SHELL)", () => {
+    const argv = unconfiguredBannerArgv()
+
+    // Wrapped like the harness launch so the operator lands in a normal shell
+    // after the banner prints.
+    expect(argv[0]).toBe("sh")
+    expect(argv[1]).toBe("-c")
+    const script = argv[2]!
+    expect(script).toContain("SANDBOX_HARNESSES")
+    expect(script).toMatch(/exec \$SHELL$/)
   })
 })

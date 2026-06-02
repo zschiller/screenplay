@@ -149,3 +149,22 @@ export function resolveLaunchArgv(
   if (!harness) return []
   return ["sh", "-c", `${harness.launchCommand}; exec $SHELL`]
 }
+
+/**
+ * Launch argv for a terminal tab when no harness is configured at all
+ * (`SANDBOX_HARNESSES` unset/empty): a bare login shell preceded by a banner
+ * telling the operator to set `SANDBOX_HARNESSES`, so an empty config explains
+ * itself instead of presenting a silent blank shell. Wrapped like the harness
+ * launch (`exec $SHELL`) so the operator lands in a normal shell after the
+ * banner prints. Used only when the tab would otherwise open a plain shell *and*
+ * nothing is configured — a tab whose harness launches never shows it.
+ */
+export function unconfiguredBannerArgv(): string[] {
+  const banner =
+    "No coding harness is configured. " +
+    "Set SANDBOX_HARNESSES (e.g. SANDBOX_HARNESSES=claude-code) and reprovision " +
+    "to launch a CLI in this terminal."
+  // The banner is a fixed literal with no single quotes, so a single-quoted
+  // shell arg is safe; printf interprets the `\n`s in the format string.
+  return ["sh", "-c", `printf '\\n%s\\n\\n' '${banner}'; exec $SHELL`]
+}

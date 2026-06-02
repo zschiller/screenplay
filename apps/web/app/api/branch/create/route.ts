@@ -142,10 +142,11 @@ async function runNewOrFromBranchPipeline(
   const clonedSandboxName = cloneResult.value.sandboxName
 
   // Step 3: Install dependencies + the selected harnesses + ripgrep in parallel.
-  // The harness install and ripgrep are best-effort — their results are
-  // intentionally ignored here so a failed CLI/tool install doesn't fail the
-  // pipeline (each action still reports failure truthfully; this caller chooses
-  // to swallow it). The harness keys come from SANDBOX_HARNESSES; unset → none.
+  // The harness install and ripgrep are best-effort: `installHarnesses` logs and
+  // swallows a failed CLI internally (one bad harness can't dark the Sandbox) and
+  // ripgrep's result is ignored here, so neither can fail the pipeline. Only the
+  // dependency install is load-bearing. Harness keys come from SANDBOX_HARNESSES;
+  // unset → none.
   await updateBranch(roomId, branchId, {
     statusMessage: "Installing dependencies…",
   })
