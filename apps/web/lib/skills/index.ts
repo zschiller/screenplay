@@ -1,5 +1,4 @@
 import { readFileSync, readdirSync, statSync } from "node:fs"
-import { createHash } from "node:crypto"
 import { join } from "node:path"
 
 import { parseFrontmatter, type SkillMetadata } from "./frontmatter"
@@ -31,8 +30,6 @@ const dir = join(process.cwd(), "lib", "skills")
 interface LoadedSkill {
   metadata: SkillMetadata
   body: string
-  /** Raw on-disk content — used for cache-busting the agent when skills change. */
-  rawSource: string
 }
 
 const skills = loadAllSkills()
@@ -76,7 +73,7 @@ function loadSkillFromDir(skillDir: string): LoadedSkill | null {
     return null
   }
   const { metadata, body } = parseFrontmatter(raw, skillMd)
-  return { metadata, body, rawSource: raw }
+  return { metadata, body }
 }
 
 export function getSkillIndex(): SkillMetadata[] {
@@ -96,20 +93,3 @@ export function getSkill(name: string): string | null {
 export function hasSkill(name: string): boolean {
   return skills.has(name)
 }
-
-/**
- * Stable hash over every skill's source. Mixed into the agent cache key so
- * editing a SKILL.md rolls a fresh agent on next deploy without needing a
- * manual version bump.
- */
-export const SKILLS_HASH: string = (() => {
-  const hash = createHash("sha256")
-  const names = Array.from(skills.keys()).sort()
-  for (const name of names) {
-    hash.update(name)
-    hash.update("\0")
-    const skill = skills.get(name)
-    if (skill) hash.update(skill.rawSource)
-  }
-  return hash.digest("hex").slice(0, 12)
-})()

@@ -25,7 +25,6 @@ import type {
   IframeLayerGroupData,
   ChatSessionData,
   MarkdownLayerData,
-  PlanData,
   ViewportData,
   RepoData,
 } from "@/lib/types"
@@ -90,10 +89,6 @@ export function useBranches(): Array<BranchData> {
 
 export function useChatSessions(): Array<ChatSessionData> {
   return useCollectionArray(useRoomCollections().chatSessions)
-}
-
-export function usePlans(): Array<PlanData> {
-  return useCollectionArray(useRoomCollections().plans)
 }
 
 export function useSavedViewport(): ViewportData | null {
@@ -270,20 +265,6 @@ export function useSelfPresence(): CanvasPresence | null {
   return useAwarenessSnapshot(SELECT_SELF)
 }
 
-export function useSelfClientId(): number {
-  const awareness = useAwareness()
-  return awareness.doc.clientID
-}
-
-/** Force-rerender hook used internally — exported for legacy patterns. */
-export function useY(doc: Y.Doc) {
-  const [, set] = useState(0)
-  useEffect(() => {
-    const handler = () => set((n) => n + 1)
-    doc.on("update", handler)
-    return () => doc.off("update", handler)
-  }, [doc])
-}
 
 /**
  * Subscribe to the agent stream events written into the Y.Doc by the agent

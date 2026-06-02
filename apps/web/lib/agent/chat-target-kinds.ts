@@ -180,24 +180,6 @@ export const markdownLayerChatTarget: ChatTargetSpec<
   },
 }
 
-// ---------------------------------------------------------------------------
-// Registry + lookup.
-// ---------------------------------------------------------------------------
-
-const REGISTRY: ReadonlyArray<ChatTargetSpec<never, never>> = [
-  agentChatTarget as unknown as ChatTargetSpec<never, never>,
-  markdownLayerChatTarget as unknown as ChatTargetSpec<never, never>,
-]
-
-const REGISTRY_BY_KIND = new Map(REGISTRY.map((s) => [s.kind, s]))
-
-/** Returns the registered spec for a target kind, or `undefined`. */
-export function getChatTargetSpec(
-  kind: string
-): ChatTargetSpec<never, never> | undefined {
-  return REGISTRY_BY_KIND.get(kind)
-}
-
 /** A loaded chat target — produced by `prepareChatTarget` for the route. */
 export type PreparedChatTarget = {
   kind: string

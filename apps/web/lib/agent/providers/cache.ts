@@ -62,8 +62,3 @@ export async function discover(opts: {
     return opts.fallback
   }
 }
-
-/** Test/admin hook — manually invalidate every cached listing. */
-export function clearAll() {
-  memoryCache.clear()
-}

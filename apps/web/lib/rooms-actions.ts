@@ -161,11 +161,3 @@ export async function removeCollaborator(
 
   return listCollaborators(roomId)
 }
-
-/**
- * Used by sandbox webhooks (unauthenticated) to resolve a stable acting user.
- */
-export async function getRoomOwnerId(roomId: string): Promise<string | null> {
-  const room = await getRoom(roomId)
-  return room?.ownerId ?? null
-}
