@@ -1,7 +1,11 @@
 import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
-import { BROKERED_VALUE, type Harness } from "./types"
+import {
+  BROKERED_VALUE,
+  commitAndPushRuleMarkdown,
+  type Harness,
+} from "./types"
 
 /**
  * Reproduce today's Claude Code seeding: pre-seed `~/.claude.json` so the user
@@ -44,20 +48,7 @@ async function seedClaudeCode(sandbox: SandboxInstance): Promise<void> {
   // User-level CLAUDE.md so every session in this sandbox inherits the
   // always-commit-and-push rule. Lives in the home dir (not the cloned repo)
   // so it doesn't pollute the user's git history.
-  const claudeMd = [
-    "# Screenplay sandbox rules",
-    "",
-    "## CRITICAL — always commit and push after changes",
-    "",
-    "After ANY file change, you MUST run these three commands before ending your turn. Never skip. This is the most important rule.",
-    "",
-    "1. `git add -A`",
-    '2. `git commit -m "<concise description of changes>"`',
-    "3. `git push`",
-    "",
-    "If you do not push, the user will not see your changes in the Screenplay UI. Always push.",
-    "",
-  ].join("\n")
+  const claudeMd = commitAndPushRuleMarkdown()
   await sandbox.runCommand({
     cmd: "sh",
     args: [
@@ -79,5 +70,6 @@ export const claudeCodeHarness: Harness = {
   installPackage: "@anthropic-ai/claude-code",
   brokerProviderKey: "anthropic",
   gateEnvVar: "ANTHROPIC_API_KEY",
+  launchArgv: ["claude"],
   seed: seedClaudeCode,
 }

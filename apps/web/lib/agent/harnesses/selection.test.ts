@@ -36,6 +36,12 @@ const anthropicConfigured = provider("anthropic", {
 })
 const anthropicUnconfigured = provider("anthropic", null)
 
+const openaiConfigured = provider("openai", {
+  host: "api.openai.com",
+  headers: { authorization: "Bearer real-openai-key" },
+})
+const openaiUnconfigured = provider("openai", null)
+
 describe("selectHarnesses", () => {
   it("yields no installable harnesses when SANDBOX_HARNESSES is unset", () => {
     expect(selectHarnesses(undefined, [anthropicConfigured])).toEqual({
@@ -45,18 +51,24 @@ describe("selectHarnesses", () => {
   })
 
   it("yields none for an empty / whitespace-only value", () => {
-    expect(selectHarnesses("   ", [anthropicConfigured]).installable).toEqual([])
+    expect(selectHarnesses("   ", [anthropicConfigured]).installable).toEqual(
+      [],
+    )
   })
 
   it("selects claude-code when its broker provider is configured and brokerable", () => {
-    const { installable, skipped } = selectHarnesses("claude-code", [anthropicConfigured])
+    const { installable, skipped } = selectHarnesses("claude-code", [
+      anthropicConfigured,
+    ])
 
     expect(installable.map((h) => h.key)).toEqual(["claude-code"])
     expect(skipped).toEqual([])
   })
 
   it("drops an unknown key with a skip reason, never a hard failure", () => {
-    const { installable, skipped } = selectHarnesses("nope", [anthropicConfigured])
+    const { installable, skipped } = selectHarnesses("nope", [
+      anthropicConfigured,
+    ])
 
     expect(installable).toEqual([])
     expect(skipped).toHaveLength(1)
@@ -65,7 +77,9 @@ describe("selectHarnesses", () => {
   })
 
   it("skips a known harness whose broker provider is unconfigured / non-brokerable", () => {
-    const { installable, skipped } = selectHarnesses("claude-code", [anthropicUnconfigured])
+    const { installable, skipped } = selectHarnesses("claude-code", [
+      anthropicUnconfigured,
+    ])
 
     expect(installable).toEqual([])
     expect(skipped).toHaveLength(1)
@@ -81,19 +95,49 @@ describe("selectHarnesses", () => {
   })
 
   it("collapses duplicates, keeping a single installable entry", () => {
-    const { installable } = selectHarnesses("claude-code,claude-code", [anthropicConfigured])
+    const { installable } = selectHarnesses("claude-code,claude-code", [
+      anthropicConfigured,
+    ])
 
     expect(installable.map((h) => h.key)).toEqual(["claude-code"])
   })
 
   it("preserves order and reports both installable and skipped together", () => {
-    const { installable, skipped } = selectHarnesses(
-      "ghost,claude-code",
-      [anthropicConfigured],
-    )
+    const { installable, skipped } = selectHarnesses("ghost,claude-code", [
+      anthropicConfigured,
+    ])
 
     expect(installable.map((h) => h.key)).toEqual(["claude-code"])
     expect(skipped.map((s) => s.key)).toEqual(["ghost"])
+  })
+
+  it("installs codex only when OpenAI is configured and brokerable", () => {
+    const { installable, skipped } = selectHarnesses("codex", [
+      openaiConfigured,
+    ])
+
+    expect(installable.map((h) => h.key)).toEqual(["codex"])
+    expect(skipped).toEqual([])
+  })
+
+  it("skips codex (logged, non-fatal) when OpenAI isn't configured / brokerable", () => {
+    const { installable, skipped } = selectHarnesses("codex", [
+      openaiUnconfigured,
+    ])
+
+    expect(installable).toEqual([])
+    expect(skipped).toHaveLength(1)
+    expect(skipped[0]!.key).toBe("codex")
+    expect(skipped[0]!.reason).toContain("openai")
+  })
+
+  it("selects claude-code and codex side by side from a mixed provider registry", () => {
+    const { installable } = selectHarnesses("claude-code,codex", [
+      anthropicConfigured,
+      openaiConfigured,
+    ])
+
+    expect(installable.map((h) => h.key)).toEqual(["claude-code", "codex"])
   })
 })
 
@@ -108,6 +152,7 @@ describe("buildBrokeredEnv", () => {
     brokerProviderKey: "fake-provider",
     gateEnvVar: "FAKE_API_KEY",
     baseUrlEnv: { name: "FAKE_BASE_URL", value: "https://broker.example/v1" },
+    launchArgv: ["fake"],
     seed: async () => {},
   }
 
@@ -116,7 +161,9 @@ describe("buildBrokeredEnv", () => {
   })
 
   it("emits the dummy gate var (BROKERED_VALUE) for each harness, never a real key", () => {
-    const { installable } = selectHarnesses("claude-code", [anthropicConfigured])
+    const { installable } = selectHarnesses("claude-code", [
+      anthropicConfigured,
+    ])
 
     const env = buildBrokeredEnv(installable)
 
