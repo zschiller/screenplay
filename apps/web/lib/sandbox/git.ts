@@ -129,18 +129,23 @@ export async function getDiffStats(
 
 /**
  * Configure git identity and normalize the branch / remote state so the agent
- * can push commits. Auth is NOT baked into the remote URL — the credential
- * helper installed by `installClaudeCode` reads SCREENPLAY_GH_TOKEN from the
- * env of the command that invoked git, and the server attaches the acting
- * user's token per command. Each collaborator's pushes are attributed to them
- * rather than to whoever provisioned the sandbox.
+ * can push commits. Auth is NOT baked into the remote URL — the per-command
+ * credential helper installed here reads SCREENPLAY_GH_TOKEN from the env of
+ * the command that invoked git, and the server attaches the acting user's token
+ * per command. Each collaborator's pushes are attributed to them rather than to
+ * whoever provisioned the sandbox.
+ *
+ * The credential helper is git infrastructure (not harness-specific), so it
+ * lives here on the always-run git-setup path rather than riding along with a
+ * harness install — git push works regardless of which harnesses (if any) the
+ * operator selected.
  *
  * Only the remote-URL rewrite is load-bearing — if it fails the agent can't
  * push, so it runs through `step` (a non-zero exit becomes a redacted failure
- * result). The checkout / upstream / identity commands are best-effort: a fresh
- * branch has no `origin/<branch>` yet, so `--set-upstream-to` routinely exits
- * non-zero and that's fine. They run via `runCommand` so their exit code is
- * ignored, matching the pre-refactor behavior.
+ * result). The checkout / upstream / identity / credential-helper commands are
+ * best-effort: a fresh branch has no `origin/<branch>` yet, so
+ * `--set-upstream-to` routinely exits non-zero and that's fine. They run via
+ * `runCommand` so their exit code is ignored, matching the pre-refactor behavior.
  */
 export async function configureAgentGit(
   sandboxName: string,
@@ -163,5 +168,29 @@ export async function configureAgentGit(
     await sandbox.runCommand("git", ["config", "user.email", "agent@screenplay.dev"])
     await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
     await sandbox.runCommand("git", ["config", "push.default", "current"])
+
+    // Per-command credential helper: git invokes it whenever it needs GitHub
+    // auth, and it reads SCREENPLAY_GH_TOKEN from the env the server set on the
+    // triggering runCommand. No token is persisted in the sandbox — every
+    // command brings its own, so two users sharing this sandbox correctly push
+    // as themselves rather than riding on whoever provisioned it first. The
+    // home dir is provider-supplied so the helper follows the actual layout.
+    const { homeDir } = sandbox
+    const credentialHelper = [
+      "#!/bin/sh",
+      `[ "\${1:-}" = "get" ] || exit 0`,
+      "cat >/dev/null",
+      `[ -n "\${SCREENPLAY_GH_TOKEN:-}" ] || exit 0`,
+      `printf 'username=x-access-token\\npassword=%s\\n' "$SCREENPLAY_GH_TOKEN"`,
+      "",
+    ].join("\n")
+    await sandbox.runCommand({
+      cmd: "sh",
+      args: [
+        "-c",
+        `mkdir -p "${homeDir}/.screenplay" && printf '%s' "$HELPER" > "${homeDir}/.screenplay/git-credential-helper.sh" && chmod +x "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.helper "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
+      ],
+      env: { HELPER: credentialHelper },
+    })
   })
 }

@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { ModelProvider } from "@/lib/agent/providers"
 import type {
   SandboxCommandResult,
   SandboxCreateOptions,
@@ -47,10 +48,26 @@ const fake = vi.hoisted(() => {
 
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
-// The action folds the provider registry into the sandbox network policy. Stub
-// it to an empty set — the egress policy is covered by network-policy.test.ts,
-// and the real registry drags in the kv/db chain.
-vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
+// The action folds the provider registry into the sandbox network policy and
+// resolves the selected harnesses' brokers from it. Stub it with a configured
+// Anthropic provider (claude-code's broker) so the brokered-env fold emits the
+// gate var — the egress policy itself is covered by network-policy.test.ts.
+const getModelProviders = vi.hoisted(() => vi.fn(() => [] as ModelProvider[]))
+vi.mock("@/lib/agent/providers", () => ({ getModelProviders }))
+
+/** A configured, header-brokerable Anthropic stub — the claude-code broker. */
+function configuredAnthropic(): ModelProvider {
+  return {
+    key: "anthropic",
+    label: "Anthropic",
+    isConfigured: () => true,
+    listModels: async () => [],
+    resolve: () => {
+      throw new Error("stub provider: resolve should not be called")
+    },
+    egress: () => ({ host: "api.anthropic.com", headers: { "x-api-key": "real-key" } }),
+  }
+}
 
 // reprovisionFromGit falls back to the session's GitHub token when none is
 // passed. That needs a request context we don't have under plain Node — stub it
@@ -58,7 +75,7 @@ vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
 const getGitHubToken = vi.hoisted(() => vi.fn(async () => null as string | null))
 vi.mock("@/lib/auth-helpers", () => ({ getGitHubToken }))
 
-// Git setup and the Claude Code install live in their own action modules,
+// Git setup and the harness install live in their own action modules,
 // exercised by their own tests. Here they're external boundaries — faked so the
 // reprovision pipeline's branching + result shaping is what's pinned.
 const configureAgentGit = vi.hoisted(() =>
@@ -69,8 +86,8 @@ const configureAgentGit = vi.hoisted(() =>
 )
 vi.mock("@/lib/sandbox/git", () => ({ configureAgentGit }))
 
-const installClaudeCode = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
-vi.mock("@/lib/sandbox/provision", () => ({ installClaudeCode }))
+const installHarnesses = vi.hoisted(() => vi.fn(async () => ({ success: true, value: undefined })))
+vi.mock("@/lib/sandbox/provision", () => ({ installHarnesses }))
 
 // The bridge module ships large generated scripts; stub the constants so the
 // test pins the action's launch + result behavior, not the bundled payload.
@@ -141,13 +158,25 @@ const repo = {
   repoName: "hello-world",
 } as RepoData
 
+let savedHarnesses: string | undefined
+
 beforeEach(() => {
   vi.clearAllMocks()
   fake.reset()
   fake.createCalls.length = 0
   configureAgentGit.mockResolvedValue({ success: true, value: undefined })
-  installClaudeCode.mockResolvedValue({ success: true, value: undefined })
+  installHarnesses.mockResolvedValue({ success: true, value: undefined })
   getGitHubToken.mockResolvedValue(null)
+  getModelProviders.mockReturnValue([configuredAnthropic()])
+  // The deployment under test selects Claude Code; the brokered-env + install
+  // folds key off this var.
+  savedHarnesses = process.env.SANDBOX_HARNESSES
+  process.env.SANDBOX_HARNESSES = "claude-code"
+})
+
+afterEach(() => {
+  if (savedHarnesses === undefined) delete process.env.SANDBOX_HARNESSES
+  else process.env.SANDBOX_HARNESSES = savedHarnesses
 })
 
 describe("reprovisionFromGit", () => {
@@ -173,8 +202,9 @@ describe("reprovisionFromGit", () => {
     })
     // …and the dev/proxy + terminal ports are forwarded.
     expect(fake.createCalls[0]!.ports).toEqual([3000, 4000, 7681])
-    // …then the full provision pipeline ran against the created VM.
-    expect(installClaudeCode).toHaveBeenCalledWith("sandbox-a")
+    // …then the full provision pipeline ran against the created VM, installing
+    // the selected harness keys.
+    expect(installHarnesses).toHaveBeenCalledWith("sandbox-a", ["claude-code"])
     expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
   })
 

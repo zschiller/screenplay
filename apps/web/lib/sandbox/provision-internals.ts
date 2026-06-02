@@ -30,10 +30,6 @@ export const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 const PIDFILE_DEV = "/tmp/screenplay/dev.pid"
 const PIDFILE_PROXY = "/tmp/screenplay/proxy.pid"
 
-// Claude Code gates on ANTHROPIC_API_KEY being set — the value doesn't matter
-// since the firewall proxy overrides the header on egress.
-export const BROKERED_ANTHROPIC_ENV = { ANTHROPIC_API_KEY: "brokered" }
-
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
 //   progress (vs. its default silent/summary mode when not on a TTY)

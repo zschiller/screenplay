@@ -124,6 +124,25 @@ describe("configureAgentGit", () => {
     expect(result).toEqual({ success: true, value: undefined })
   })
 
+  it("installs the per-command git credential helper into the home dir", async () => {
+    // The credential helper is git infrastructure (it moved here from the
+    // harness install), so configureAgentGit must seed it on every fresh
+    // provision regardless of which harnesses were selected.
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push([cmd, ...args].join(" "))
+        return { exitCode: 0 }
+      }),
+    )
+
+    await configureAgentGit("sandbox-a", repo, "feature")
+
+    const joined = seen.join("\n")
+    expect(joined).toContain("/home/vercel-sandbox/.screenplay/git-credential-helper.sh")
+    expect(joined).toContain('git config --global credential.helper')
+  })
+
   it("redacts a GitHub token out of a failed remote-url rewrite", async () => {
     const token = "ghp_0123456789abcdefABCDEF0123456789abcd"
     fake.setInstance(
