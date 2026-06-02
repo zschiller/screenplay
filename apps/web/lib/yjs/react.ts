@@ -284,7 +284,9 @@ export function useY(doc: Y.Doc) {
 export function useChatStreamEvents(onEvent: (event: ChatBroadcastEvent) => void) {
   const { doc } = useYjs()
   const onEventRef = useRef(onEvent)
-  onEventRef.current = onEvent
+  useEffect(() => {
+    onEventRef.current = onEvent
+  })
 
   useEffect(() => {
     const map = doc.getMap("streamEventsByChat") as Y.Map<Y.Array<ChatBroadcastEvent>>

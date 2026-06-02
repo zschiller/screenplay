@@ -75,15 +75,22 @@ function SyncGate({
   const provider = useMemo(() => getYjsProviderForRoom(room), [room])
   const [synced, setSynced] = useState(provider.synced)
   useEffect(() => {
-    if (provider.synced) {
-      setSynced(true)
-      return
-    }
     const onSync = (isSynced: boolean) => {
       if (isSynced) setSynced(true)
     }
+    // Subscribe first, then feed the provider's current sync state through the
+    // same callback path. Deferring the initial read to a microtask avoids a
+    // bare synchronous setState in the effect body while still catching a
+    // provider that was already synced before we subscribed (and won't fire a
+    // fresh "sync" event). `cancelled` guards against the microtask running
+    // after cleanup if the provider changes.
+    let cancelled = false
     provider.on("sync", onSync)
+    queueMicrotask(() => {
+      if (!cancelled) onSync(provider.synced)
+    })
     return () => {
+      cancelled = true
       provider.off("sync", onSync)
     }
   }, [provider])

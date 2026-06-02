@@ -206,7 +206,12 @@ export function Comments({
   // Latest snapshot for the polling tick to read without re-running on every
   // yjs update (the effect's deps are intentionally narrow).
   const trackedPositionsRef = useRef(trackedPositions)
-  trackedPositionsRef.current = trackedPositions
+  // Keep the latest snapshot in the ref (written after commit, not during
+  // render) so the polling tick can read it without re-running on every yjs
+  // update.
+  useEffect(() => {
+    trackedPositionsRef.current = trackedPositions
+  })
 
   // Drop yjs entries for threads that no longer exist so the doc doesn't
   // grow forever as comments get resolved/deleted. Gated on the initial
@@ -1038,8 +1043,8 @@ function CommentRow({
 
 function PillAvatar({ name, avatar }: { name: string; avatar: string | null }) {
   if (avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={avatar}
         alt={name}
@@ -1057,8 +1062,8 @@ function PillAvatar({ name, avatar }: { name: string; avatar: string | null }) {
 
 function Avatar({ name, avatar }: { name: string; avatar: string | null }) {
   if (avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={avatar}
         alt={name}

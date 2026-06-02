@@ -197,7 +197,10 @@ export function AgentChat({
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(null)
-  const [storedModel, setStoredModel] = useState<string | null>(null)
+  // Read the last-used model from localStorage during render (SSR-safe — the
+  // reader returns null when `window` is undefined) rather than syncing it in
+  // via an effect, which would trigger a cascading render on mount.
+  const [storedModel, setStoredModel] = useState<string | null>(readStoredModel)
   const [hasContent, setHasContent] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
@@ -217,7 +220,6 @@ export function AgentChat({
   // captured at editor-construction time, so it can't read these arrays
   // directly — funnel through refs so the latest list is always visible.
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
-  markdownLayersRef.current = markdownLayers
 
   // Merged App ∪ Repo Skill index for the `/` menu, fetched once on chat open
   // (see effect below) and read through a ref for the same closure reason as
@@ -235,9 +237,11 @@ export function AgentChat({
   // skill, not submit the draft.
   const skillMentionOpenRef = useRef(false)
 
+  // Keep the latest markdownLayers in a ref (written after commit, not during
+  // render) so the editor's suggestion closures always see the current list.
   useEffect(() => {
-    setStoredModel(readStoredModel())
-  }, [])
+    markdownLayersRef.current = markdownLayers
+  })
 
   // Keep the message list pinned to the bottom as content resolves —
   // react-markdown / code blocks / streaming tokens all grow the height
@@ -359,6 +363,10 @@ export function AgentChat({
         // matching `mentionSuggestionChar` so the renderers above can tell
         // them apart.
         suggestions: [
+          // The getters below read these refs lazily — the Mention extension
+          // invokes them at suggestion-time (long after commit), never during
+          // render — so the ref reads are deferred and safe here.
+          // eslint-disable-next-line react-hooks/refs
           buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
             getAnchorRect: () =>
@@ -369,6 +377,9 @@ export function AgentChat({
           }),
           ...(isAgentChat
             ? [
+                // Same deferred-read reasoning as the layer suggestion above:
+                // these ref reads happen at suggestion-time, not during render.
+                // eslint-disable-next-line react-hooks/refs
                 buildSkillMentionSuggestion({
                   getSkills: () => skillsRef.current,
                   getLoading: () => skillsLoadingRef.current,
@@ -619,9 +630,17 @@ function EmptyAwarePlaceholder({
 }) {
   const [empty, setEmpty] = useState(true)
 
+  // Seed the empty state from the editor during render (and re-seed when the
+  // editor instance changes) instead of in the effect, which would call
+  // setState synchronously on mount. The subscription below keeps it in sync.
+  const [lastEditor, setLastEditor] = useState(editor)
+  if (editor !== lastEditor) {
+    setLastEditor(editor)
+    setEmpty(editor ? editor.isEmpty : true)
+  }
+
   useEffect(() => {
     if (!editor) return undefined
-    setEmpty(editor.isEmpty)
     const update = () => setEmpty(editor.isEmpty)
     editor.on("update", update)
     editor.on("create", update)

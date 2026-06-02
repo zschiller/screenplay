@@ -74,15 +74,37 @@ export function ParallelCreateDialog({
 
   // Reset rows whenever the dialog re-opens so reopening the dialog gives a
   // fresh starting state instead of stale prompts from the previous session.
-  useEffect(() => {
-    if (!open) return
-    setRows([{ baseBranch: defaultBranch, model: initialModel, prompt: "" }])
-  }, [open, defaultBranch, initialModel])
+  // Done with the render-phase previous-value pattern (react.dev "You Might
+  // Not Need an Effect") so we don't call setState synchronously in an effect.
+  // The reset re-runs if the seed values change while open (e.g. the model id
+  // resolves asynchronously after the dialog opens), matching prior behavior.
+  const rowSeedKey = `${open}|${defaultBranch}|${initialModel}`
+  const [prevRowSeedKey, setPrevRowSeedKey] = useState(rowSeedKey)
+  if (rowSeedKey !== prevRowSeedKey) {
+    setPrevRowSeedKey(rowSeedKey)
+    if (open) {
+      setRows([{ baseBranch: defaultBranch, model: initialModel, prompt: "" }])
+    }
+  }
+
+  // Flip the loading flag on as soon as a new branch fetch is about to start,
+  // using the render-phase previous-value pattern so we avoid a synchronous
+  // setState inside the effect below; the effect performs the fetch and clears
+  // the flag from its async callback.
+  const branchFetchKey = open
+    ? `${repoOwner}|${repoName}|${defaultBranch}`
+    : null
+  const [prevBranchFetchKey, setPrevBranchFetchKey] = useState<string | null>(
+    null,
+  )
+  if (branchFetchKey !== prevBranchFetchKey) {
+    setPrevBranchFetchKey(branchFetchKey)
+    if (branchFetchKey) setBranchesLoading(true)
+  }
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setBranchesLoading(true)
     listRepoBranches(repoOwner, repoName)
       .then((data) => {
         if (cancelled) return

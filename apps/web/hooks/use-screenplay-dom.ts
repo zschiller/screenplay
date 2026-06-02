@@ -60,21 +60,27 @@ export function useScreenplayDom(
   const pending = useRef(new Map<string, Pending>())
   const seq = useRef(0)
   const onPickedRef = useRef(onPicked)
-  onPickedRef.current = onPicked
   const onHoverRef = useRef(onHover)
-  onHoverRef.current = onHover
   const onWheelRef = useRef(onWheel)
-  onWheelRef.current = onWheel
   const onPanStartRef = useRef(onPanStart)
-  onPanStartRef.current = onPanStart
   const onPanDeltaRef = useRef(onPanDelta)
-  onPanDeltaRef.current = onPanDelta
   const onPanEndRef = useRef(onPanEnd)
-  onPanEndRef.current = onPanEnd
   const onSpaceDownRef = useRef(onSpaceDown)
-  onSpaceDownRef.current = onSpaceDown
   const onSpaceUpRef = useRef(onSpaceUp)
-  onSpaceUpRef.current = onSpaceUp
+
+  // Keep the latest callbacks in refs (written after commit, not during
+  // render) so the long-lived message/key listeners below can read them
+  // without re-subscribing on every render.
+  useEffect(() => {
+    onPickedRef.current = onPicked
+    onHoverRef.current = onHover
+    onWheelRef.current = onWheel
+    onPanStartRef.current = onPanStart
+    onPanDeltaRef.current = onPanDelta
+    onPanEndRef.current = onPanEnd
+    onSpaceDownRef.current = onSpaceDown
+    onSpaceUpRef.current = onSpaceUp
+  })
 
   const request = useCallback(
     <T,>(msg: {

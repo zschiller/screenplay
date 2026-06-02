@@ -213,18 +213,24 @@ export function MarkdownLayer({
   // popover always reflects the current titles and excludes self-references.
   const markdownLayers = useMarkdownLayers()
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
-  markdownLayersRef.current = markdownLayers
   const layerIdRef = useRef(layer.id)
-  layerIdRef.current = layer.id
 
   // Title cache lives on `MarkdownLayerData.title` — sidebar rows, mentions,
   // agent context all read it. The editor's first heading is the source of
   // truth; this callback is what writes derived title text back to the cache.
   // Stash on a ref so the editor closure doesn't capture a stale handler.
   const onTitleChangeRef = useRef(onTitleChange)
-  onTitleChangeRef.current = onTitleChange
   const titleCacheRef = useRef(layer.title)
-  titleCacheRef.current = layer.title
+
+  // Refresh the editor-facing refs after each commit (never during render).
+  // The editor closes over its initial config, so these refs are how the
+  // mention popover and title-writeback see current values every keystroke.
+  useEffect(() => {
+    markdownLayersRef.current = markdownLayers
+    layerIdRef.current = layer.id
+    onTitleChangeRef.current = onTitleChange
+    titleCacheRef.current = layer.title
+  })
 
   // Coords of the double-click that started edit mode, captured so the next
   // focus effect can land the cursor where the user clicked instead of at
@@ -248,14 +254,18 @@ export function MarkdownLayer({
   // Portal target lives outside the world transform so the bubble can sit
   // above the SelectionOverlay (z-30 sibling vs. the TransformWrapper's
   // stacking context, where an internal z-index would be capped). Resolved
-  // on mount; null until then.
-  const [bubblePortalTarget, setBubblePortalTarget] = useState<HTMLElement | null>(null)
-  useEffect(() => {
-    setBubblePortalTarget(document.getElementById("inline-comment-bubble-portal"))
-  }, [])
+  // lazily during render — it's only read once `bubbleAnchor` is set by a user
+  // interaction, well after the ancestor portal node has mounted, and
+  // getElementById returns a stable node reference so dependents don't churn.
+  const bubblePortalTarget =
+    typeof document !== "undefined"
+      ? document.getElementById("inline-comment-bubble-portal")
+      : null
 
   const onSelectInlineThreadRef = useRef(onSelectInlineThread)
-  onSelectInlineThreadRef.current = onSelectInlineThread
+  useEffect(() => {
+    onSelectInlineThreadRef.current = onSelectInlineThread
+  })
 
   const editor = useEditor(
     {
@@ -319,6 +329,11 @@ export function MarkdownLayer({
             return ["span", options.HTMLAttributes, label]
           },
           deleteTriggerWithBackspace: true,
+          // These getters read refs, but TipTap only invokes them while the
+          // user types (suggestion lookup) — never during render — so the
+          // deferred ref access is safe. The lint rule can't see that the
+          // closures are deferred past render, so it's suppressed here.
+          // eslint-disable-next-line react-hooks/refs
           suggestion: buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
             getExcludeId: () => layerIdRef.current,
@@ -326,6 +341,10 @@ export function MarkdownLayer({
               rootRef.current?.getBoundingClientRect() ?? null,
           }),
         }),
+        // onSelectThread reads a ref, but TipTap only invokes it when a
+        // comment thread is clicked, never during render — the deferred ref
+        // access is safe and the rule can't see that.
+        // eslint-disable-next-line react-hooks/refs
         DocumentCommentsExtension.configure({
           onSelectThread: (threadId) =>
             onSelectInlineThreadRef.current?.(threadId),
@@ -508,7 +527,7 @@ export function MarkdownLayer({
     })
     setBubbleAnchor(null)
     pendingSelectionRef.current = null
-  }, [editor, layer.id, layer.width, onStartInlineComment, zoom])
+  }, [editor, layer.id, layer.width, onStartInlineComment, zoom, setBubbleAnchor])
 
   useEffect(() => {
     if (!editing) return
