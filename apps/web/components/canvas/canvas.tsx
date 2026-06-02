@@ -104,8 +104,8 @@ import {
   type PanelLayout,
   writePanelLayout,
 } from "@/lib/panel-layout"
-import type { BranchData, IframeLayerGroupData, ChatSessionData, MarkdownLayerData, GroupMember, ViewportData, RepoData, TabKind, TerminalTabData } from "@/lib/types"
-import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
+import type { BranchData, IframeLayerGroupData, ChatSessionData, GroupMember, ViewportData, RepoData, TabKind, TerminalTabData } from "@/lib/types"
+import { chatStore } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -146,7 +146,9 @@ import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 // streaming logs — otherwise flipping selection now shows an empty chat panel.
 function LogProbe({ sandboxName, onReady }: { sandboxName: string; onReady: () => void }) {
   const onReadyRef = useRef(onReady)
-  onReadyRef.current = onReady
+  useEffect(() => {
+    onReadyRef.current = onReady
+  })
   useEffect(() => {
     const abort = new AbortController()
     ;(async () => {
@@ -415,6 +417,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const [groupDragSnapRects, setGroupDragSnapRects] = useState<MoveSnapRect[] | null>(null)
   /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
   const [reorderDragCursor, setReorderDragCursor] = useState<{ x: number; y: number } | null>(null)
+  /** Grab offset for the active reorder drag, mirrored into state (set
+   *  alongside `reorderDragRef` at drag-start) so layout math can read it
+   *  during render without touching the ref. Constant for a drag's duration. */
+  const [reorderGrabOffset, setReorderGrabOffset] = useState<{ x: number; y: number } | null>(null)
   /** True while the user is holding the meta/cmd key during a reorder drag —
    * pops the iframeLayer out of its source group as a preview. The pop is only
    * committed (new group created, source group updated) on pointer-up if the
@@ -477,9 +483,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // text lives in awareness so peers see each keystroke (`presence.message`).
   const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(null)
   const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
-  selfPointerRef.current = self?.pointer ?? null
   const selfMessageRef = useRef<string | null>(null)
-  selfMessageRef.current = self?.message ?? null
   const closeCursorChat = useCallback(() => {
     setChatAnchor(null)
     setPresence({ message: null })
@@ -493,19 +497,27 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
 
   // Refs so keyboard handler stays current without re-binding
   const selectedIframeLayerIdsRef = useRef(selectedIframeLayerIds)
-  selectedIframeLayerIdsRef.current = selectedIframeLayerIds
   const selectedGroupIdsRef = useRef(selectedGroupIds)
-  selectedGroupIdsRef.current = selectedGroupIds
   const selectedDocumentLayerIdsRef = useRef(selectedDocumentLayerIds)
-  selectedDocumentLayerIdsRef.current = selectedDocumentLayerIds
   const editingDocumentLayerIdRef = useRef(editingDocumentLayerId)
-  editingDocumentLayerIdRef.current = editingDocumentLayerId
   const documentModeRef = useRef(documentMode)
-  documentModeRef.current = documentMode
   const frameModeRef = useRef(frameMode)
-  frameModeRef.current = frameMode
   const removeIframeLayersRef = useRef<(ids: string[]) => void>(() => {})
   const removeDocumentLayersRef = useRef<(ids: string[]) => void>(() => {})
+
+  // Keep the above "latest value" refs current — written after commit (not
+  // during render) so the long-lived keyboard/pointer handlers below can read
+  // them without re-binding on every render.
+  useEffect(() => {
+    selfPointerRef.current = self?.pointer ?? null
+    selfMessageRef.current = self?.message ?? null
+    selectedIframeLayerIdsRef.current = selectedIframeLayerIds
+    selectedGroupIdsRef.current = selectedGroupIds
+    selectedDocumentLayerIdsRef.current = selectedDocumentLayerIds
+    editingDocumentLayerIdRef.current = editingDocumentLayerId
+    documentModeRef.current = documentMode
+    frameModeRef.current = frameMode
+  })
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -694,7 +706,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat])
+  }, [commentMode, newCommentPos, focusedIframeLayerId, createFlowIframeLayerId, history, openCursorChat, closeCursorChat, collections])
 
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
@@ -707,7 +719,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // `requestReorderDrag` computing the cursor's grab offset) can read it
   // without re-binding on every layout change.
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
-  iframeLayerLayoutsRef.current = iframeLayerLayouts
+  useEffect(() => {
+    iframeLayerLayoutsRef.current = iframeLayerLayouts
+  })
   const reorderDragRef_iframeLayerId = reorderDraggingIframeLayerId
   /**
    * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
@@ -717,9 +731,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
    * renders the result. The effective layout diverges from `iframeLayerLayouts`
    * only while a reorder drag has popped a member out of its group's flex flow.
    */
-  // Grab offset captured at drag-start, read once here so the geometry memo
-  // stays a pure function of plain values (the ref isn't a render input).
-  const reorderGrabOffset = reorderDragRef.current?.grabOffset ?? null
   const canvasLayout = useMemo(
     () =>
       deriveCanvasLayout({
@@ -798,12 +809,16 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   const gapHandles = canvasLayout.gapHandles
 
   const gapHandlesRef = useRef(gapHandles)
-  gapHandlesRef.current = gapHandles
 
   const reorderHandles = canvasLayout.reorderHandles
 
   const reorderHandlesRef = useRef(reorderHandles)
-  reorderHandlesRef.current = reorderHandles
+  // Mirror the latest hit-test geometry into refs after commit (not during
+  // render) so the pointer hit-testers can read it without re-binding.
+  useEffect(() => {
+    gapHandlesRef.current = gapHandles
+    reorderHandlesRef.current = reorderHandles
+  })
   const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] = useState<string | null>(null)
 
   /**
@@ -875,11 +890,15 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // safe to also delete the persisted row, not just drop the tab from the strip.
   // Depends on `localTerminals` too so a row restored from Postgres for an
   // already-deleted branch is pruned on connect/load, with no background job.
+  // The state update here reconciles React state with externally-sourced data
+  // (Postgres-restored terminal rows vs. live branches), which is a legitimate
+  // effect sync rather than an avoidable render cascade.
   useEffect(() => {
     const branchIds = new Set(agents.map((a) => a.id))
     const { orphaned } = partitionTerminalsByBranch(localTerminals, branchIds)
     if (orphaned.length === 0) return
     // Drop the orphans from the tab strip…
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalTerminals((prev) => prev.filter((t) => branchIds.has(t.branchId)))
     // …and delete their `terminalTab` rows so they don't resurrect next load.
     // Best-effort + idempotent: deleting an already-gone row is a no-op.
@@ -1112,17 +1131,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         y: (e.clientY - rect.top - positionY) / scale,
       }
       const layout = iframeLayerLayoutsRef.current.get(iframeLayerId)
+      const grabOffset = layout
+        ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
+        : { x: 0, y: 0 }
       reorderDragRef.current = {
         groupId: group.id,
         iframeLayerId,
         startCanvas: canvas,
-        grabOffset: layout
-          ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
-          : { x: 0, y: 0 },
+        grabOffset,
         startShiftKey: e.shiftKey,
         selectOnNoMove: true,
       }
       setReorderDraggingIframeLayerId(iframeLayerId)
+      setReorderGrabOffset(grabOffset)
       wrapper.setPointerCapture(e.pointerId)
       e.stopPropagation()
       e.preventDefault()
@@ -1402,7 +1423,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [collections],
   )
 
-  const handleResizeEnd = useCallback((_id: string) => {
+  const handleResizeEnd = useCallback(() => {
     resizeRawRef.current = null
     setResizeSnap(null)
   }, [])
@@ -1515,7 +1536,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     },
     [ops],
   )
-  removeIframeLayersRef.current = removeIframeLayers
+  useEffect(() => {
+    removeIframeLayersRef.current = removeIframeLayers
+  })
 
   /**
    * After deleting a single iframeLayer, prefer keeping the user near the same
@@ -1555,7 +1578,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
   // places) sees the latest Create Flow selection without forcing every
   // consumer to re-bind on toggle.
   const createFlowIframeLayerIdRef = useRef<string | null>(null)
-  createFlowIframeLayerIdRef.current = createFlowIframeLayerId
+  useEffect(() => {
+    createFlowIframeLayerIdRef.current = createFlowIframeLayerId
+  })
 
   const updateIframeLayerRoute = useCallback(
     (id: string, route: string) => {
@@ -1862,7 +1887,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     },
     [ops],
   )
-  removeDocumentLayersRef.current = removeDocumentLayers
+  useEffect(() => {
+    removeDocumentLayersRef.current = removeDocumentLayers
+  })
 
   // --- Agent mutations ---
 
@@ -2271,42 +2298,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [addChatSession],
   )
 
-  const handleSubmitAsPlan = useCallback(
-    (text: string, agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.ref) return
-
-      const chatId = nanoid()
-      const isFirstChat = !chatSessions.some((c) => c.branchId === agentId)
-
-      addChatSession(chatId, {
-        id: chatId,
-        branchId: agentId,
-        label: "Untitled",
-        createdAt: Date.now(),
-        planMode: true,
-      })
-
-      chatStore.sendMessage({
-        roomId,
-        chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message: text,
-        isFirstChat,
-        autoNamedBranch: agent.autoNamedBranch,
-        planMode: true,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, { ref: branch, autoNamedBranch: false }),
-        onChatRename: (label) => updateChatSession(chatId, { label }),
-      })
-
-      setSelectedAgentId(agentId)
-      setSelectedChatId(chatId)
-    },
-    [agents, chatSessions, roomId, addChatSession, updateChatSession, updateAgentInStorage],
-  )
-
   const handleRebaseOnDefault = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -2629,7 +2620,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       iframeLayers,
       roomId,
       addChatSession,
-      updateChatSession,
     ],
   )
 
@@ -3055,7 +3045,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setPendingAgentIds((prev) => (prev.includes(d.id) ? prev : [...prev, d.id]))
       }
     },
-    [repos, collections, roomId],
+    [repos, ops, roomId],
   )
 
   const handleRefreshAgent = useCallback(
@@ -3121,10 +3111,12 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     [agents, repos, updateAgentInStorage],
   )
 
-  inspectHandlersRef.current = {
-    branchRename: handleBranchRename,
-    renameChat: handleRenameChat,
-  }
+  useEffect(() => {
+    inspectHandlersRef.current = {
+      branchRename: handleBranchRename,
+      renameChat: handleRenameChat,
+    }
+  })
 
   // Load history for all chat sessions so other clients can see past
   // messages for chats they haven't opened yet. Terminal tabs can't reach this
@@ -3186,8 +3178,13 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     // The verb creates the frame and clears `pendingIframeLayerSeed` in one
     // transaction, so this reactive trigger is the only seed logic left here.
     const { layerId } = ops.seedFrameForAgent(target.id, { x: cx, y: cy })
+    // Selecting the just-seeded frame is the intended reaction to a Yjs
+    // mutation triggered by externally-driven agent state, not an avoidable
+    // render cascade.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setSelectedIframeLayerIds(new Set([layerId]))
     setSelectedGroupIds(new Set())
+    /* eslint-enable react-hooks/set-state-in-effect */
     // Wait for the new iframeLayer DOM node to mount before zooming.
     requestAnimationFrame(() => {
       handleSelectIframeLayer(layerId)
@@ -3317,7 +3314,6 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         })
       })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agents, repos, updateAgentInStorage, roomId])
 
   // Heartbeat: extend sandbox timeouts while the tab is visible so they
@@ -3355,8 +3351,11 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     const followed = others.find(
       (o) => o.clientId === followingConnectionId,
     )
-    // If the user we're following disconnected, stop following
+    // If the user we're following disconnected, stop following. Reacting to
+    // another client leaving (external presence data) is a legitimate effect
+    // sync, not an avoidable render cascade.
     if (!followed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFollowingConnectionId(null)
       return
     }
@@ -3487,17 +3486,19 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
           )
           if (group) {
             const layout = iframeLayerLayouts.get(reorderHit.iframeLayerId)
+            const grabOffset = layout
+              ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
+              : { x: 0, y: 0 }
             reorderDragRef.current = {
               groupId: group.id,
               iframeLayerId: reorderHit.iframeLayerId,
               startCanvas: { x: canvas.x, y: canvas.y },
-              grabOffset: layout
-                ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
-                : { x: 0, y: 0 },
+              grabOffset,
               startShiftKey: e.shiftKey,
               selectOnNoMove: false,
             }
             setReorderDraggingIframeLayerId(reorderHit.iframeLayerId)
+            setReorderGrabOffset(grabOffset)
             e.currentTarget.setPointerCapture(e.pointerId)
             e.stopPropagation()
             e.preventDefault()
@@ -3522,7 +3523,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       e.stopPropagation()
       e.preventDefault()
     },
-    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups],
+    [spaceHeld, focusedIframeLayerId, commentMode, documentMode, frameMode, screenToCanvas, hitTestGapHandle, hitTestReorderHandle, zoom, collections, iframeLayerGroups, iframeLayerLayouts],
   )
 
   // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
@@ -3582,7 +3583,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
       }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
-    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds, hitTestGapHandle, zoom, collections],
+    [spaceHeld, commentMode, focusedIframeLayerId, frameMode, documentMode, screenToCanvas, selectedIframeLayerIds, selectedDocumentLayerIds],
   )
 
   const handleCanvasPointerMove = useCallback(
@@ -3748,6 +3749,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         setReorderDraggingIframeLayerId(null)
         setReorderDragCursor(null)
         setReorderDragPopped(false)
+        setReorderGrabOffset(null)
 
         // Click-no-move on a drag initiated from a layer's name label →
         // forward to the regular select path for whichever kind of layer
@@ -3916,7 +3918,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
         }
       }
     },
-    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom],
+    [screenToCanvas, addDocumentLayer, addFrame, hitTestReorderHandle, zoom, collections, ops],
   )
 
   // Click on iframeLayer to select. Clicking a child frame whose parent group is
@@ -4238,6 +4240,9 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
     if (selectedDocumentChatTargetId) return
     if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
     const firstRunning = agents.find((a) => a.status === "running" && a.sandboxName)
+    // Picking a default once async-loaded agent data arrives is a legitimate
+    // effect sync, not an avoidable render cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (firstRunning) setSelectedAgentId(firstRunning.id)
   }, [selectedAgentId, agents, selectedDocumentChatTargetId])
 
@@ -4583,7 +4588,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                         reorderDraggingIframeLayerId === member.id &&
                         reorderDragCursor != null
                       ) {
-                        const grab = reorderDragRef.current?.grabOffset ?? {
+                        const grab = reorderGrabOffset ?? {
                           x: layout.width / 2,
                           y: layout.height / 2,
                         }
@@ -4634,11 +4639,18 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                                 : undefined
                             }
                             onSelect={handleDocumentLayerSelect}
-                            onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
+                            onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) => {
+                              // Event handler (fires on drag), so the ref
+                              // access inside is deferred past render; the rule
+                              // can't see that through the inline closure.
+                              // eslint-disable-next-line react-hooks/refs
                               handleMoveGroupForLayer(doc.id, dx, dy, totalDx, totalDy, metaKey)
-                            }
+                            }}
                             onMoveSelected={handleMoveSelected}
-                            onGroupDragStart={() => handleLayerGroupDragStart(doc.id)}
+                            onGroupDragStart={() => {
+                              // eslint-disable-next-line react-hooks/refs
+                              handleLayerGroupDragStart(doc.id)
+                            }}
                             onGroupDragEnd={handleLayerGroupDragEnd}
                             onRequestReorderDrag={requestReorderDrag}
                             onResize={resizeDocumentLayer}
@@ -4841,7 +4853,7 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
                   if (!reorderDraggingIframeLayerId || !reorderDragCursor || reorderDragPopped) return null
                   const layout = iframeLayerLayouts.get(reorderDraggingIframeLayerId)
                   if (!layout) return null
-                  const grab = reorderDragRef.current?.grabOffset ?? {
+                  const grab = reorderGrabOffset ?? {
                     x: layout.width / 2,
                     y: layout.height / 2,
                   }
@@ -5212,7 +5224,10 @@ export function Canvas({ roomId, roomName, hasThumbnail, parentFolderName = "Dra
               onSelectChat={handleSelectChat}
               onCreateChat={() => {
                 if (target.kind === "agent") handleCreateChat(target.agent.id)
+                // Event handler (fires on click), so the ref write inside
+                // handleCreateDocumentChat is deferred past render.
                 else if (target.layerKind === "markdown-layer")
+                  // eslint-disable-next-line react-hooks/refs
                   handleCreateDocumentChat(target.layer.id)
               }}
               onCreateTerminal={

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Anser from "anser"
 
 const MAX_TOKENS = 10_000
@@ -75,16 +75,20 @@ export function LogsPanel({
   sandboxName: string
   onConnected?: () => void
 }) {
-  const tokensRef = useRef<Token[]>([])
   const pendingRef = useRef("")
   const rafRef = useRef<number | null>(null)
-  const [renderTick, bump] = useReducer((x: number) => x + 1, 0)
+  const [tokens, setTokens] = useState<Token[]>([])
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const onConnectedRef = useRef(onConnected)
-  onConnectedRef.current = onConnected
+
+  // Keep the latest onConnected callback in a ref (written after commit, not
+  // during render) so the streaming loop always invokes the current handler.
+  useEffect(() => {
+    onConnectedRef.current = onConnected
+  })
 
   const flush = useCallback(() => {
     rafRef.current = null
@@ -104,10 +108,10 @@ export function LogsPanel({
     if (parsed.length === 0) return
     const tagged = parsed as Token[]
     for (const t of tagged) t._id = nextTokenId++
-    const next = tokensRef.current.concat(tagged)
-    tokensRef.current =
-      next.length > MAX_TOKENS ? next.slice(next.length - MAX_TOKENS) : next
-    bump()
+    setTokens((prev) => {
+      const next = prev.concat(tagged)
+      return next.length > MAX_TOKENS ? next.slice(next.length - MAX_TOKENS) : next
+    })
   }, [])
 
   const schedule = useCallback(() => {
@@ -115,13 +119,22 @@ export function LogsPanel({
     rafRef.current = requestAnimationFrame(flush)
   }, [flush])
 
-  useEffect(() => {
-    const abort = new AbortController()
-    tokensRef.current = []
-    pendingRef.current = ""
+  // Reset the rendered stream state synchronously during render whenever the
+  // target sandbox changes, instead of in the streaming effect below — a
+  // setState in the effect body would cascade an extra render. The effect still
+  // owns the fetch/reconnect loop and updates `connected`/`error` from its
+  // async callbacks (allowed) as the stream progresses.
+  const [lastSandboxName, setLastSandboxName] = useState(sandboxName)
+  if (sandboxName !== lastSandboxName) {
+    setLastSandboxName(sandboxName)
+    setTokens([])
     setError(null)
     setConnected(false)
-    bump()
+  }
+
+  useEffect(() => {
+    const abort = new AbortController()
+    pendingRef.current = ""
     let seenNonWhitespace = false
     let isReconnect = false
 
@@ -181,7 +194,7 @@ export function LogsPanel({
     if (stickToBottomRef.current) {
       el.scrollTop = el.scrollHeight
     }
-  }, [renderTick])
+  }, [tokens])
 
   const handleScroll = () => {
     const el = scrollRef.current
@@ -189,8 +202,6 @@ export function LogsPanel({
     stickToBottomRef.current =
       el.scrollHeight - el.scrollTop - el.clientHeight < 20
   }
-
-  const tokens = tokensRef.current
 
   return (
     <div className="flex h-full flex-col bg-background">

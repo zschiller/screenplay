@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,13 +34,18 @@ export function DeleteRepoDialog({
   const [error, setError] = useState<string | null>(null)
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(true)
 
-  useEffect(() => {
+  // Reset transient state when the dialog is dismissed, so reopening starts
+  // clean. Done during render via the previous-prop pattern rather than in an
+  // effect (see react.dev "You Might Not Need an Effect").
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (!open) {
       setDeleting(false)
       setError(null)
       setDeleteBranchesOnRemote(true)
     }
-  }, [open])
+  }
 
   const branchCount = branches.length
 

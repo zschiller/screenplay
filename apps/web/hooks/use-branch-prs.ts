@@ -16,8 +16,12 @@ export function useBranchPrs(
   const [prMap, setPrMap] = useState<Map<string, BranchPrInfo>>(new Map())
   const agentsRef = useRef(agents)
   const reposRef = useRef(repos)
-  agentsRef.current = agents
-  reposRef.current = repos
+  // Latest inputs kept in refs (updated after commit) so the polling loop
+  // reads current values without restarting on every render.
+  useEffect(() => {
+    agentsRef.current = agents
+    reposRef.current = repos
+  })
 
   const fetchAll = useCallback(async () => {
     const currentAgents = agentsRef.current

@@ -38,14 +38,25 @@ export function ShareRoomDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) {
+  // Reset transient state when the dialog is dismissed, so reopening starts
+  // clean. Done during render via the previous-prop pattern rather than in an
+  // effect (see react.dev "You Might Not Need an Effect").
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      // Entering the loading state here (rather than synchronously inside the
+      // fetch effect) keeps the effect free of synchronous setState calls.
+      setLoading(true)
+    } else {
       setCollaborators([])
       setEmail("")
       setError(null)
-      return
     }
-    setLoading(true)
+  }
+
+  useEffect(() => {
+    if (!open) return
     listCollaborators(roomId)
       .then(setCollaborators)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)))
