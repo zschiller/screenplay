@@ -3183,14 +3183,32 @@ export function Canvas({
     [repos, ops, roomId, seedDefaultTabForNewBranch]
   )
 
+  // Prompts queued by the prompt-first create handlers (handleCreateWorkspace,
+  // handleCreateParallelAgents) that should fire as soon as the agent's sandbox
+  // transitions to `running`. Held in a ref because the dispatch effect already
+  // re-runs on every `agents` change.
+  const pendingPromptsRef = useRef<
+    Map<
+      string,
+      { chatId: string; prompt: string; model: string; planMode?: boolean }
+    >
+  >(new Map())
+
   // Prompt-first "New Workspace" create (PRD #314). The pure planner owns the
   // decision; this handler is thin orchestration over the existing
-  // `/api/branch/create` contract. This first slice wires the empty-prompt
-  // outcome — a bare scratch Branch off the default branch (random name,
-  // `flow:"new"`, no Chat Session, nothing fired). Prompt-seeded creation lands
-  // in a later slice.
+  // `/api/branch/create` contract.
+  //
+  // Empty prompt (#323) -> a bare scratch Branch off the default branch (random
+  // name, `flow:"new"`, no Chat Session, nothing queued).
+  //
+  // Non-empty prompt (#324) -> the full seeded path: a Branch name derived from
+  // the prompt via the existing name endpoint, a Chat Session pre-seeded with
+  // the chosen model, and the prompt queued to fire as the first message
+  // exactly once the Sandbox reaches `running`. The fired body is the
+  // Composer's Message-Markers wire text, so model, plan-mode, `@`-Layer
+  // mentions, and `/`-Skills all ride through unchanged.
   const handleCreateWorkspace = useCallback(
-    (repoId: string, spec: ComposerSpec) => {
+    async (repoId: string, spec: ComposerSpec) => {
       const repo = repos.find((w) => w.id === repoId)
       if (!repo) return
 
@@ -3199,18 +3217,90 @@ export function Canvas({
         [spec]
       )
       if (!plan) return
-      // Prompt-seeded Branches (name derived from the prompt, a seeded Chat
-      // Session, the prompt fired on `running`) are a later slice.
-      if (plan.nameSource !== "random") return
 
       const sandboxName = `sp-${nanoid(10)}`
-      const branch = uniqueNamesGenerator({
-        dictionaries: [adjectives, colors, animals],
-        separator: "-",
-        length: 3,
-      })
 
-      const { branchId: id } = ops.createBranch({
+      // Empty-prompt case (#323): a bare scratch Branch — random name, no Chat
+      // Session, nothing queued to fire.
+      if (plan.nameSource === "random") {
+        const branch = uniqueNamesGenerator({
+          dictionaries: [adjectives, colors, animals],
+          separator: "-",
+          length: 3,
+        })
+
+        const { branchId: id } = ops.createBranch({
+          branch: {
+            repoId,
+            sandboxName,
+            gitUrl: repo.cloneUrl,
+            ref: branch,
+            previewDomain: "",
+            port: repo.devServerPort ?? 3000,
+            status: "creating",
+            statusMessage: "Creating branch…",
+            createdAt: Date.now(),
+            autoNamedBranch: plan.autoNamedBranch,
+          },
+        })
+        setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+
+        fetch("/api/branch/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flow: plan.flow,
+            roomId,
+            branchId: id,
+            sandboxName,
+            branch,
+            repoId,
+            seedChat: plan.seedChat,
+          }),
+        })
+        return
+      }
+
+      // Non-empty prompt (#324): derive the branch name from the prompt via the
+      // existing name endpoint, falling back to a random name if it fails so a
+      // transient error never blocks creation.
+      const prompt = spec.prompt.trim()
+      let branch = ""
+      let label = "Untitled"
+      try {
+        const res = await fetch("/api/agent/generate-names", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, prompts: [prompt] }),
+        })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            results: Array<{ branch: string; label: string }>
+          }
+          const first = data.results?.[0]
+          if (first) {
+            branch = first.branch
+            label = first.label
+          }
+        }
+      } catch {
+        // Fall through to the local fallback below.
+      }
+      if (!branch) {
+        branch = uniqueNamesGenerator({
+          dictionaries: [adjectives, colors, animals],
+          separator: "-",
+          length: 3,
+        })
+      }
+
+      const model = plan.model ?? spec.model
+
+      // Pre-seed the Chat Session (with the chosen model) before the Sandbox is
+      // running so the queued prompt has a stable chatId. The server's
+      // ensureChatForBranch is idempotent — it skips creation when this chat
+      // already exists — so passing `seedChat` here is a no-op on the server.
+      const { branchId: id, chatId } = ops.createBranch({
         branch: {
           repoId,
           sandboxName,
@@ -3223,7 +3313,19 @@ export function Canvas({
           createdAt: Date.now(),
           autoNamedBranch: plan.autoNamedBranch,
         },
+        chat: { label, model },
       })
+
+      // Queue the seed prompt; the dispatch effect below fires it exactly once,
+      // when the Sandbox reaches `running` (and drops it on error).
+      if (plan.firePromptOnRunning) {
+        pendingPromptsRef.current.set(id, {
+          chatId: chatId!,
+          prompt,
+          model,
+          planMode: spec.planMode,
+        })
+      }
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
 
       fetch("/api/branch/create", {
@@ -3338,13 +3440,6 @@ export function Canvas({
     },
     [agents, handleDuplicateBranch]
   )
-
-  // Prompts queued by handleCreateParallelAgents that should fire as soon as
-  // the agent's sandbox transitions to `running`. Held in a ref because the
-  // dispatch effect already re-runs on every `agents` change.
-  const pendingPromptsRef = useRef<
-    Map<string, { chatId: string; prompt: string; model: string }>
-  >(new Map())
 
   const handleCreateParallelAgents = useCallback(
     async (repoId: string, specs: ParallelAgentSpec[]) => {
@@ -3580,9 +3675,12 @@ export function Canvas({
     }
   }, [chatSessions])
 
-  // Dispatch prompts that were queued by handleCreateParallelAgents once
-  // their agent's sandbox reaches `running`. Drop the queue entry if the
-  // agent errored out so failed builds don't leak forever.
+  // Dispatch prompts queued by the prompt-first create handlers
+  // (handleCreateWorkspace, handleCreateParallelAgents) once their agent's
+  // sandbox reaches `running`. Deleting the entry before sending means the
+  // prompt fires exactly once — never before `running`, and never re-sent on a
+  // later reconnect. Drop the queue entry if the agent errored out so failed
+  // builds don't leak forever.
   useEffect(() => {
     if (pendingPromptsRef.current.size === 0) return
     for (const agent of agents) {
@@ -3604,6 +3702,7 @@ export function Canvas({
         isFirstChat: true,
         autoNamedBranch: agent.autoNamedBranch,
         model: queued.model,
+        planMode: queued.planMode,
         onBranchRename: (branch) =>
           updateAgentInStorage(agent.id, {
             ref: branch,
