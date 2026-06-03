@@ -29,6 +29,13 @@ export interface ComposerSpec {
   model: string
   /** The seed prompt; empty (or whitespace-only) means a bare Branch. */
   prompt: string
+  /**
+   * Plan-mode toggle for the seed turn. The planner ignores it — it changes
+   * only *how* the fired first message runs, not which Branch to create — but
+   * it rides along on the Composer spec so the caller can carry it through to
+   * the fired turn unchanged.
+   */
+  planMode?: boolean
 }
 
 /** The slice of Repo context the planner needs. */
