@@ -106,8 +106,7 @@ export function CreateBranchDialog({
   const [planMode, setPlanMode] = useState(false)
   const composerRef = useRef<ComposerHandle>(null)
 
-  // Load the model catalog + server default while the dialog is open, mirroring
-  // ParallelCreateDialog.
+  // Load the model catalog + server default while the dialog is open.
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -154,7 +153,7 @@ export function CreateBranchDialog({
 
   // Seed the selected model from the resolved default, re-seeding if the
   // resolved value changes while open (e.g. the catalog finishes loading) —
-  // the render-phase previous-value pattern, as in ParallelCreateDialog.
+  // the render-phase previous-value pattern.
   const [model, setModel] = useState(initialModel)
   const modelSeedKey = `${open}|${initialModel}`
   const [prevModelSeedKey, setPrevModelSeedKey] = useState(modelSeedKey)
