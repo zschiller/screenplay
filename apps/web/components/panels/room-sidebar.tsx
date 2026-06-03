@@ -1,8 +1,10 @@
 "use client"
 
 import {
+  createContext,
   Fragment,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -15,10 +17,14 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
+  type ClientRect,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
 import {
@@ -128,7 +134,7 @@ import type {
   RepoData,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
-import { reorderedIds, sortForSidebar } from "@/lib/sidebar-order"
+import { sortForSidebar } from "@/lib/sidebar-order"
 import {
   IframeLayerRowMenu,
   makeIframeLayerRow,
@@ -203,14 +209,213 @@ function parseSortableId(id: string): ParsedRowId | null {
 }
 
 /**
+ * Which edge of `rect` a drop lands on — purely from the live POINTER Y vs the
+ * row's vertical midpoint. Never the drag *direction* and never the dragged
+ * item's center: a given pixel always resolves to the same edge, so the
+ * indicator never depends on whether you approached from above or below
+ * (no "drag up doesn't work until you wiggle back down").
+ */
+function pointerSide(rect: ClientRect, pointerY: number): "before" | "after" {
+  return pointerY < rect.top + rect.height / 2 ? "before" : "after"
+}
+
+/**
+ * The single drop indicator for the whole Canvas list, computed once by the
+ * parent on each drag move and read by every {@link SortableRow}. Exactly one
+ * row matches at a time, so a given gap is ALWAYS painted at one pixel — the
+ * line can't flicker between the bottom of one row and the top of the next.
+ *   - `into`: nest the dragged member into this container row (full ring).
+ *   - `line`: a thin rule on this row's `before`/`after` edge.
+ */
+type DropHint =
+  | { kind: "into"; rowId: string }
+  | { kind: "line"; rowId: string; edge: "before" | "after" }
+
+const DropHintContext = createContext<DropHint | null>(null)
+
+function sameDropHint(a: DropHint | null, b: DropHint | null): boolean {
+  if (a === b) return true
+  if (!a || !b || a.kind !== b.kind || a.rowId !== b.rowId) return false
+  return a.kind === "line" && b.kind === "line" ? a.edge === b.edge : true
+}
+
+/**
+ * Fully pointer-driven collision for the Canvas list — the row (or gap) the
+ * cursor is over, or, in the thin dead-spaces between rows, the one the cursor
+ * is vertically closest to. It NEVER consults the dragged item's own rect, so
+ * there is no center-distance hysteresis: the target depends only on where the
+ * pointer IS, never on which direction you approached from. (This is the whole
+ * fix for "drag up and you can't reach the top / drag down and you can't reach
+ * the bottom unless you overshoot": that artifact comes from dragged-rect
+ * collision, which this avoids.)
+ *
+ * When a whole GROUP is dragged, only the `gap:` strips are eligible. Groups
+ * reorder strictly between other groups, and the gap strips already own those
+ * positions — letting group/flat ROWS also light up would paint a second
+ * indicator a couple pixels off the gap line, which reads as flicker as the
+ * pointer crosses the row/gap boundary. Restricting to gaps makes the gap line
+ * the single source of truth.
+ */
+const canvasCollision: CollisionDetection = (args) => {
+  const draggingGroup =
+    (args.active.data.current as { kind?: string } | undefined)?.kind ===
+    "group-header"
+  const eligible = (id: string | number) =>
+    !draggingGroup || String(id).startsWith("gap:")
+
+  const within = pointerWithin(args).filter((c) => eligible(c.id))
+  if (within.length > 0) return within
+
+  const y = args.pointerCoordinates?.y
+  let best: { id: string | number } | null = null
+  let bestDist = Number.POSITIVE_INFINITY
+  if (y != null) {
+    for (const container of args.droppableContainers) {
+      if (!eligible(container.id)) continue
+      const rect = args.droppableRects.get(container.id)
+      if (!rect) continue
+      const dist =
+        y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
+      if (dist < bestDist) {
+        bestDist = dist
+        best = { id: container.id }
+      }
+    }
+  }
+  if (best) return [best]
+  return closestCenter(args).filter((c) => eligible(c.id))
+}
+
+/**
+ * The single before/after indicator for the Branches section (one for the repo
+ * list, normalized per list so each gap is one pixel). No "into" — repos and
+ * branches only reorder, never nest.
+ */
+type LineHint = { rowId: string; edge: "before" | "after" } | null
+
+const BranchesDropHintContext = createContext<LineHint>(null)
+
+function sameLineHint(a: LineHint, b: LineHint): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.rowId === b.rowId && a.edge === b.edge
+}
+
+/**
+ * Drop strip between (and around) whole repos — the repo analogue of the
+ * canvas {@link GapDrop}. Repos reorder by landing in these gaps, so the
+ * before/after boundary sits between entire repos (header AND branches) and the
+ * pointer flips at each repo's *full-extent* midpoint, not its header's.
+ */
+function RepoGap({ index }: { index: number }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `repogap:${index}`,
+    data: { kind: "repogap" },
+  })
+  return (
+    <li ref={setNodeRef} aria-hidden className="relative -my-px h-1">
+      {isOver ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-fuchsia-500" />
+      ) : null}
+    </li>
+  )
+}
+
+/** True when droppable `data` is a legal target for the active Branches drag. */
+/** Is droppable `target` a legal landing spot for the active Branches drag? */
+function branchesEligible(
+  active: { kind?: string; repoId?: string } | undefined,
+  target: { kind?: string; repoId?: string } | undefined
+): boolean {
+  // A repo reorders by dropping into a `repogap` strip between whole repos
+  // (just like a canvas group drops into a gap) — never onto a row.
+  if (active?.kind === "repo") return target?.kind === "repogap"
+  // A branch reorders only among sibling branches in its own repo.
+  if (active?.kind === "branch")
+    return target?.kind === "branch" && target.repoId === active.repoId
+  return false
+}
+
+/**
+ * Pointer-driven collision for the Branches list, mirroring {@link
+ * canvasCollision} but with the section's constraints folded in: only droppables
+ * the active drag is ALLOWED to land on are eligible (repo → gap strips; branch
+ * → sibling branches in its own repo). A branch dragged over another repo yields
+ * no target at all, rather than a misleading indicator.
+ */
+const branchesCollision: CollisionDetection = (args) => {
+  const active = args.active.data.current as
+    | { kind?: string; repoId?: string }
+    | undefined
+  const dataOf = (id: string | number) =>
+    args.droppableContainers.find((c) => c.id === id)?.data.current as
+      | { kind?: string; repoId?: string }
+      | undefined
+
+  const within = pointerWithin(args).filter((c) =>
+    branchesEligible(active, dataOf(c.id))
+  )
+  if (within.length > 0) return within
+
+  const y = args.pointerCoordinates?.y
+  if (y == null) return []
+  let best: { id: string | number } | null = null
+  let bestDist = Number.POSITIVE_INFINITY
+  let blockTop = Number.POSITIVE_INFINITY
+  let blockBottom = Number.NEGATIVE_INFINITY
+  for (const container of args.droppableContainers) {
+    const data = container.data.current as
+      | { kind?: string; repoId?: string }
+      | undefined
+    if (!branchesEligible(active, data)) continue
+    const rect = args.droppableRects.get(container.id)
+    if (!rect) continue
+    blockTop = Math.min(blockTop, rect.top)
+    blockBottom = Math.max(blockBottom, rect.bottom)
+    const dist =
+      y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0
+    if (dist < bestDist) {
+      bestDist = dist
+      best = { id: container.id }
+    }
+  }
+  if (!best) return []
+  // Branch drags clamp to their repo's branch list span so a branch never
+  // lights up a target while the pointer is off in another repo. Repo drags
+  // snap to the nearest gap anywhere in the list.
+  if (active?.kind === "branch" && (y < blockTop || y > blockBottom)) return []
+  return [best]
+}
+
+/**
+ * Move `activeId` to the `before`/`after` side of `overId` within `ids`. Unlike
+ * arrayMove (which places by index and so depends on drag direction), this is
+ * driven purely by the resolved side, so the commit lands exactly where the
+ * indicator pointed.
+ */
+function reorderToSide(
+  ids: readonly string[],
+  activeId: string,
+  overId: string,
+  after: boolean
+): string[] {
+  const without = ids.filter((x) => x !== activeId)
+  let idx = without.indexOf(overId)
+  if (idx < 0) return [...ids]
+  if (after) idx += 1
+  without.splice(idx, 0, activeId)
+  return without
+}
+
+/**
  * A row wired into dnd-kit's sortable context. We intentionally DON'T
  * apply `useSortable`'s `transform`/`transition` to the rendered div:
  * the strategy assumes a flat equal-height list, but this Canvas list
  * mixes group headers, indented members, and flat rows — letting the
  * strategy translate them mid-drag makes nested items fly around. The
  * dragged source goes opacity 0, the cursor preview is rendered by
- * `<DragOverlay>`, and `isOver` is exposed via `data-over` so callers
- * can render a static drop indicator instead.
+ * `<DragOverlay>`, and the drop indicator is driven by a single parent-
+ * computed {@link DropHint} (read from context) instead of per-row state.
  */
 function SortableRow({
   id,
@@ -220,51 +425,26 @@ function SortableRow({
   ...rest
 }: {
   id: string
-  /** Group this row belongs to. Used to suppress the "into" indicator
-   *  when the dragged member is already a child of this row's group. */
+  /** Group this row belongs to — tags the sortable so the parent's drop-hint
+   *  computation can tell same-group reorders from cross-group nests. */
   groupId: string
   className?: string
   children: React.ReactNode
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    isDragging,
-    isOver,
-    over,
-    active,
-  } = useSortable({ id, data: { groupId } })
-  // Three indicator states:
-  //   "into"   — dropping a member onto a container (group header / flat
-  //              row / closed group): full ring around the row.
-  //   before / after — dropping adjacent to a row: thin top/bottom line.
-  let indicator: "before" | "after" | "into" | null = null
-  if (isOver && over && active) {
-    const activeParsed = parseSortableId(String(active.id))
-    const thisParsed = parseSortableId(id)
-    const activeGroupId = (
-      active.data.current as { groupId?: string } | undefined
-    )?.groupId
-    if (activeParsed && thisParsed && activeParsed.kind !== "gap") {
-      const activeIsMemberLike =
-        activeParsed.kind === "member" || activeParsed.kind === "flat"
-      const thisIsContainer =
-        thisParsed.kind === "group-header" || thisParsed.kind === "flat"
-      const sameGroup = activeGroupId !== undefined && activeGroupId === groupId
-      if (activeIsMemberLike && thisIsContainer && !sameGroup) {
-        indicator = "into"
-      } else if (activeParsed.kind === "group-header" && sameGroup) {
-        // Dragging a group header over one of its own children — no
-        // sensible action; suppress the indicator entirely.
-        indicator = null
-      } else {
-        const activeInitialTop = active.rect.current.initial?.top ?? 0
-        const overTop = over.rect.top
-        indicator = activeInitialTop < overTop ? "after" : "before"
-      }
-    }
-  }
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+    id,
+    data: { groupId, kind: parseSortableId(id)?.kind },
+  })
+  // The parent computes ONE hint for the whole list (pointer-based, gap-
+  // normalized) and we just render the part that targets this row. Exactly one
+  // row ever matches, so the line can't flicker between adjacent rows.
+  const hint = useContext(DropHintContext)
+  const indicator: "before" | "after" | "into" | null =
+    hint && hint.rowId === id
+      ? hint.kind === "into"
+        ? "into"
+        : hint.edge
+      : null
   return (
     <div
       ref={setNodeRef}
@@ -283,26 +463,36 @@ function SortableRow({
     >
       {children}
       {indicator === "before" || indicator === "after" ? (
-        <DropLine side={indicator} />
+        // Canvas before/after lines only ever land between members of a group
+        // (a 4px `gap-1` list), so center the line in that gap.
+        <DropLine side={indicator} offsetPx={3} />
       ) : null}
     </div>
   )
 }
 
 /**
- * The single canonical drop indicator — a 2px fuchsia line flush with the
- * row's top or bottom edge. Matches the canvas selection color
- * (`#d946ef`, Tailwind `fuchsia-500`) so the sidebar and canvas share one
- * "active target" visual language. No rounded corners, no shadows.
+ * The single canonical drop indicator — a 2px fuchsia line. Matches the canvas
+ * selection color (`#d946ef`, Tailwind `fuchsia-500`) so the sidebar and canvas
+ * share one "active target" visual language. No rounded corners, no shadows.
+ *
+ * `offsetPx` is how far past the row's edge the line sits — tuned to land in
+ * the MIDDLE of the gap to the neighbouring row. The 2px line centers on the
+ * gap mid-line when `offsetPx === gap/2 + 1` (e.g. a 4px `gap-1` member list
+ * wants `offsetPx = 3`). Defaults to 1 (flush) for the tight Branches list.
  */
-function DropLine({ side }: { side: "before" | "after" }) {
+function DropLine({
+  side,
+  offsetPx = 1,
+}: {
+  side: "before" | "after"
+  offsetPx?: number
+}) {
   return (
     <div
       aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-fuchsia-500",
-        side === "before" ? "-top-px" : "-bottom-px"
-      )}
+      className="pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-fuchsia-500"
+      style={side === "before" ? { top: -offsetPx } : { bottom: -offsetPx }}
     />
   )
 }
@@ -335,29 +525,17 @@ function BranchesSortableRow({
   className?: string
   children: React.ReactNode
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    isDragging,
-    isOver,
-    over,
-    active,
-  } = useSortable({ id, data: { kind, repoId } })
-  let indicator: "before" | "after" | null = null
-  if (isOver && over && active && String(active.id) !== id) {
-    const activeData = active.data.current as
-      | { kind?: string; repoId?: string }
-      | undefined
-    const compatible =
-      activeData?.kind === kind &&
-      (kind === "repo" || activeData?.repoId === repoId)
-    if (compatible) {
-      const activeInitialTop = active.rect.current.initial?.top ?? 0
-      const overTop = over.rect.top
-      indicator = activeInitialTop < overTop ? "after" : "before"
-    }
-  }
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+    id,
+    data: { kind, repoId },
+  })
+  // Same model as the Canvas SortableRow: the parent resolves ONE pointer-based,
+  // gap-normalized hint and we render only the part that targets this row.
+  const hint = useContext(BranchesDropHintContext)
+  // Only branch rows draw a line here. Repos reorder via the RepoGap strips
+  // between whole repos, so a repo never produces a row-level hint.
+  const indicator =
+    kind === "branch" && hint && hint.rowId === id ? hint.edge : null
   return (
     <div
       ref={setNodeRef}
@@ -368,7 +546,8 @@ function BranchesSortableRow({
       {...rest}
     >
       {children}
-      {indicator ? <DropLine side={indicator} /> : null}
+      {/* branch rows sit in a 4px `gap-1` list — center the line in the gap. */}
+      {indicator ? <DropLine side={indicator} offsetPx={3} /> : null}
     </div>
   )
 }
@@ -670,6 +849,14 @@ export function RoomSidebar({
   const [activeDragRow, setActiveDragRow] = useState<SidebarDragRow | null>(
     null
   )
+  // The single drop indicator for the Canvas list, recomputed on each move.
+  const [dropHint, setDropHint] = useState<DropHint | null>(null)
+  // Live pointer Y. dnd-kit's move events don't carry the pointer, so we track
+  // it ourselves while a drag is active and read it when deciding before/after.
+  const pointerYRef = useRef(0)
+  const handlePointerMove = useCallback((e: PointerEvent) => {
+    pointerYRef.current = e.clientY
+  }, [])
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -677,13 +864,108 @@ export function RoomSidebar({
         (r) => rowSortableId(r) === String(event.active.id)
       )
       setActiveDragRow(row ?? null)
+      const ae = event.activatorEvent as { clientY?: number }
+      if (typeof ae.clientY === "number") pointerYRef.current = ae.clientY
+      window.addEventListener("pointermove", handlePointerMove)
+    },
+    [flattenedRows, handlePointerMove]
+  )
+
+  const endDrag = useCallback(() => {
+    window.removeEventListener("pointermove", handlePointerMove)
+    setActiveDragRow(null)
+    setDropHint(null)
+  }, [handlePointerMove])
+
+  const handleDragCancel = useCallback(() => {
+    endDrag()
+  }, [endDrag])
+
+  /** Group a parsed `over` row belongs to (members don't carry it in the id). */
+  const overRowGroupId = useCallback(
+    (over: ParsedRowId): string | undefined => {
+      if (over.kind === "group-header" || over.kind === "flat")
+        return over.groupId
+      if (over.kind === "member")
+        return flattenedRows.find(
+          (r) =>
+            r.kind === "member" &&
+            r.member.kind === over.memberKind &&
+            r.member.id === over.memberId
+        )?.groupId
+      return undefined
     },
     [flattenedRows]
   )
 
-  const handleDragCancel = useCallback(() => {
-    setActiveDragRow(null)
-  }, [])
+  /**
+   * The one canonical hint for the current pointer position. `before`/`after`
+   * comes purely from the pointer vs the over row's midpoint; an `after` on a
+   * member is normalized to `before` of the next member in the SAME group so a
+   * given gap always renders at one fixed pixel.
+   */
+  const computeDropHint = useCallback(
+    (
+      activeRow: SidebarDragRow,
+      overId: string,
+      overRect: ClientRect,
+      pointerY: number
+    ): DropHint | null => {
+      const over = parseSortableId(overId)
+      if (!over || over.kind === "gap") return null
+      const overIsContainer =
+        over.kind === "group-header" || over.kind === "flat"
+      const overGroupId = overRowGroupId(over)
+
+      // A whole group resolves to a gap strip (see canvasCollision); it never
+      // produces a row line.
+      if (activeRow.kind === "group-header") return null
+
+      const sameGroup =
+        overGroupId !== undefined && overGroupId === activeRow.groupId
+      // Member dropped on a DIFFERENT group's container → nest (ring). On its
+      // OWN group's header there's nothing to show: extraction to a new group
+      // is owned by the gap strip directly above the group.
+      if (overIsContainer) return sameGroup ? null : { kind: "into", rowId: overId }
+
+      const edge = pointerSide(overRect, pointerY)
+      // Collapse "after this member" onto "before the next member" so the gap
+      // between two members of one group is a single pixel, not two.
+      if (edge === "after" && over.kind === "member") {
+        const idx = flattenedRows.findIndex((r) => rowSortableId(r) === overId)
+        const next = flattenedRows[idx + 1]
+        if (next && next.kind === "member" && next.groupId === overGroupId)
+          return { kind: "line", rowId: rowSortableId(next), edge: "before" }
+      }
+      return { kind: "line", rowId: overId, edge }
+    },
+    [flattenedRows, overRowGroupId]
+  )
+
+  // onDragMove (not onDragOver): the latter only fires when the `over` row
+  // CHANGES, so the before/after edge wouldn't flip as the pointer crosses a
+  // row's own midpoint. onDragMove fires on every move; the equality guard
+  // keeps it from re-rendering unless the resolved hint actually changes.
+  const handleDragMove = useCallback(
+    (event: DragMoveEvent) => {
+      const { active, over } = event
+      const activeRow =
+        over && String(active.id) !== String(over.id)
+          ? flattenedRows.find((r) => rowSortableId(r) === String(active.id))
+          : undefined
+      const next =
+        activeRow && over
+          ? computeDropHint(
+              activeRow,
+              String(over.id),
+              over.rect,
+              pointerYRef.current
+            )
+          : null
+      setDropHint((prev) => (sameDropHint(prev, next) ? prev : next))
+    },
+    [flattenedRows, computeDropHint]
+  )
 
   // --- "Branches" section drag (repos + their branches) ---
 
@@ -718,6 +1000,7 @@ export function RoomSidebar({
     | { kind: "branch"; branch: BranchData }
     | null
   >(null)
+  const [branchesDropHint, setBranchesDropHint] = useState<LineHint>(null)
 
   const handleBranchesDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -729,40 +1012,99 @@ export function RoomSidebar({
         const ag = branches.find((a) => a.id === id.slice(7))
         setActiveBranchesDrag(ag ? { kind: "branch", branch: ag } : null)
       }
+      const ae = event.activatorEvent as { clientY?: number }
+      if (typeof ae.clientY === "number") pointerYRef.current = ae.clientY
+      window.addEventListener("pointermove", handlePointerMove)
     },
-    [repos, branches]
+    [repos, branches, handlePointerMove]
   )
 
-  const handleBranchesDragCancel = useCallback(() => {
+  const endBranchesDrag = useCallback(() => {
+    window.removeEventListener("pointermove", handlePointerMove)
     setActiveBranchesDrag(null)
-  }, [])
+    setBranchesDropHint(null)
+  }, [handlePointerMove])
+
+  const handleBranchesDragCancel = useCallback(() => {
+    endBranchesDrag()
+  }, [endBranchesDrag])
+
+  // Only branch drags use the before/after line hint; repo drags land in a gap
+  // strip that paints its own indicator (so there's no hint to compute).
+  const handleBranchesDragMove = useCallback(
+    (event: DragMoveEvent) => {
+      const { active, over } = event
+      const a = active.data.current as
+        | { kind?: "repo" | "branch"; repoId?: string }
+        | undefined
+      if (
+        !over ||
+        a?.kind !== "branch" ||
+        !a.repoId ||
+        String(active.id) === String(over.id)
+      ) {
+        setBranchesDropHint(null)
+        return
+      }
+      const overId = String(over.id)
+      const edge = pointerSide(over.rect, pointerYRef.current)
+      // Collapse "after X" → "before next sibling" so a gap renders once.
+      let next: LineHint = { rowId: overId, edge }
+      if (edge === "after") {
+        const peers = branchesByRepo(a.repoId).map((x) => `branch:${x.id}`)
+        const idx = peers.indexOf(overId)
+        if (idx >= 0 && idx < peers.length - 1)
+          next = { rowId: peers[idx + 1]!, edge: "before" }
+      }
+      setBranchesDropHint((prev) => (sameLineHint(prev, next) ? prev : next))
+    },
+    [branchesByRepo]
+  )
+
+  /**
+   * Slot a repo into the list at gap index `gapIndex` (0 = before first,
+   * N = after last). Accounts for the source repo's own removal so a `repogap:N`
+   * drop maps straight through. Mirrors {@link reorderGroupToGap}.
+   */
+  const reorderRepoToGap = useCallback(
+    (repoId: string, gapIndex: number) => {
+      const currentIds = sortedRepos.map((w) => w.id)
+      const currentIdx = currentIds.indexOf(repoId)
+      if (currentIdx < 0) return
+      let target = gapIndex
+      if (currentIdx < gapIndex) target -= 1
+      const without = currentIds.filter((_, i) => i !== currentIdx)
+      const clamped = Math.max(0, Math.min(target, without.length))
+      const newOrder = [
+        ...without.slice(0, clamped),
+        repoId,
+        ...without.slice(clamped),
+      ]
+      if (newOrder.join(",") === currentIds.join(",")) return
+      onReorderRepos(newOrder)
+    },
+    [sortedRepos, onReorderRepos]
+  )
 
   const handleBranchesDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveBranchesDrag(null)
+      const pointerY = pointerYRef.current
+      endBranchesDrag()
       const { active, over } = event
       if (!over) return
       const activeId = String(active.id)
       const overId = String(over.id)
       if (activeId === overId) return
 
-      // Top-level repo reorder — first drag stamps explicit `sidebarOrder` on
-      // every repo (the ops verb renumbers 0..n), so manual order takes over.
-      if (activeId.startsWith("repo:") && overId.startsWith("repo:")) {
-        const currentIds = sortedRepos.map((w) => w.id)
-        const newOrder = reorderedIds(
-          currentIds,
-          activeId.slice(5),
-          overId.slice(5)
-        )
-        if (newOrder.join(",") !== currentIds.join(","))
-          onReorderRepos(newOrder)
+      // Repo reorder — the repo lands in a `repogap` strip between whole repos.
+      if (activeId.startsWith("repo:") && overId.startsWith("repogap:")) {
+        reorderRepoToGap(activeId.slice(5), Number(overId.slice("repogap:".length)))
         return
       }
 
-      // Branch reorder — confined to a single repo. A drop whose source and
-      // target repos differ (or a drop onto a repo row) is ignored, so a
-      // branch can never be filed under a repo it doesn't belong to.
+      // Branch reorder — confined to a single repo. The collision already keeps
+      // a branch's targets within its own repo; this guard is the belt-and-
+      // braces backstop so a branch can never be filed under a foreign repo.
       if (activeId.startsWith("branch:") && overId.startsWith("branch:")) {
         const activeWs = (
           active.data.current as { repoId?: string } | undefined
@@ -771,16 +1113,18 @@ export function RoomSidebar({
           ?.repoId
         if (!activeWs || activeWs !== overWs) return
         const currentIds = branchesByRepo(activeWs).map((a) => a.id)
-        const newOrder = reorderedIds(
+        const after = pointerSide(over.rect, pointerY) === "after"
+        const newOrder = reorderToSide(
           currentIds,
           activeId.slice(7),
-          overId.slice(7)
+          overId.slice(7),
+          after
         )
         if (newOrder.join(",") !== currentIds.join(","))
           onReorderBranches(activeWs, newOrder)
       }
     },
-    [sortedRepos, branchesByRepo, onReorderRepos, onReorderBranches]
+    [branchesByRepo, onReorderBranches, reorderRepoToGap, endBranchesDrag]
   )
 
   /**
@@ -811,7 +1155,8 @@ export function RoomSidebar({
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      setActiveDragRow(null)
+      const pointerY = pointerYRef.current
+      endDrag()
       const { active, over } = event
       if (!over) return
       const activeId = String(active.id)
@@ -866,7 +1211,7 @@ export function RoomSidebar({
         if (!overGroupId || overGroupId === activeRow.groupId) return
         const overIdx = iframeLayerGroups.findIndex((g) => g.id === overGroupId)
         if (overIdx < 0) return
-        const insertAfter = event.delta.y > 0
+        const insertAfter = pointerSide(over.rect, pointerY) === "after"
         const sidebarIndex = insertAfter ? overIdx + 1 : overIdx
         reorderGroupToGap(activeRow.groupId, sidebarIndex)
         return
@@ -942,14 +1287,11 @@ export function RoomSidebar({
       )
       if (overMemberIdx < 0) return
 
-      // Direction = standard sortable semantics: if the dragged row
-      // started above the over row in document order, dropping on it
-      // means "after"; if it started below, "before". This matches the
-      // drop indicator rendered by `SortableRow`, so the commit always
-      // lands where the indicator pointed.
-      const activeInitialTop = active.rect.current.initial?.top ?? 0
-      const overTop = over.rect.top
-      const insertAfter = activeInitialTop < overTop
+      // before/after comes from the live pointer vs the over row's midpoint —
+      // the exact same rule the drop hint uses — so the commit always lands
+      // where the indicator pointed. (Visual `after X` normalizes to `before
+      // X+1`, but both resolve to this same gap index, so no extra handling.)
+      const insertAfter = pointerSide(over.rect, pointerY) === "after"
       let targetIndex = insertAfter ? overMemberIdx + 1 : overMemberIdx
 
       // moveMember's same-group path expects an index in post-removal space.
@@ -966,7 +1308,7 @@ export function RoomSidebar({
         index: targetIndex,
       })
     },
-    [flattenedRows, iframeLayerGroups, onMoveMember, reorderGroupToGap]
+    [flattenedRows, iframeLayerGroups, onMoveMember, reorderGroupToGap, endDrag]
   )
 
   useEffect(() => {
@@ -1024,11 +1366,13 @@ export function RoomSidebar({
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={branchesCollision}
           onDragStart={handleBranchesDragStart}
+          onDragMove={handleBranchesDragMove}
           onDragEnd={handleBranchesDragEnd}
           onDragCancel={handleBranchesDragCancel}
         >
+          <BranchesDropHintContext.Provider value={branchesDropHint}>
           <SidebarGroup className="pt-0">
             <SidebarGroupLabel>Branches</SidebarGroupLabel>
             <Popover open={showPicker} onOpenChange={setShowPicker}>
@@ -1048,21 +1392,30 @@ export function RoomSidebar({
               </PopoverContent>
             </Popover>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-3">
+              {/* gap-0 + RepoGap strips (not flex `gap`) so repos reorder by
+                  dropping between whole repos, exactly like the canvas list. */}
+              <SidebarMenu className="gap-0">
                 <SortableContext
                   items={sortedRepos.map((w) => `repo:${w.id}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {sortedRepos.map((repo) => {
+                  {sortedRepos.map((repo, repoIdx) => {
                     const repoBranches = branchesByRepo(repo.id)
+                    const isRepoDragging =
+                      activeBranchesDrag?.kind === "repo" &&
+                      activeBranchesDrag.repo.id === repo.id
                     return (
+                      <Fragment key={repo.id}>
+                      <RepoGap index={repoIdx} />
                       <Collapsible
-                        key={repo.id}
                         asChild
                         defaultOpen
                         className="group/collapsible"
                       >
-                        <SidebarMenuItem className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100">
+                        <SidebarMenuItem
+                          className="!group-hover/menu-item:[&>[data-sidebar=menu-action]]:opacity-100"
+                          style={isRepoDragging ? { opacity: 0 } : undefined}
+                        >
                           <BranchesSortableRow
                             id={`repo:${repo.id}`}
                             kind="repo"
@@ -1573,8 +1926,10 @@ export function RoomSidebar({
                           </CollapsibleContent>
                         </SidebarMenuItem>
                       </Collapsible>
+                      </Fragment>
                     )
                   })}
+                  <RepoGap index={sortedRepos.length} />
                 </SortableContext>
               </SidebarMenu>
 
@@ -1585,6 +1940,7 @@ export function RoomSidebar({
               )}
             </SidebarGroupContent>
           </SidebarGroup>
+          </BranchesDropHintContext.Provider>
           <DragOverlay dropAnimation={null}>
             {activeBranchesDrag ? (
               <div className="rounded-md bg-sidebar opacity-95 shadow-lg ring-1 ring-sidebar-border">
@@ -1621,14 +1977,16 @@ export function RoomSidebar({
 
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={canvasCollision}
           onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
           <SidebarGroup>
             <SidebarGroupLabel>Canvas</SidebarGroupLabel>
             <SidebarGroupContent>
+              <DropHintContext.Provider value={dropHint}>
               <SortableContext
                 items={sortableIds}
                 strategy={verticalListSortingStrategy}
@@ -1817,6 +2175,7 @@ export function RoomSidebar({
                   <GapDrop sidebarIndex={iframeLayerGroups.length} />
                 </div>
               </SortableContext>
+              </DropHintContext.Provider>
               {iframeLayerGroups.length === 0 && (
                 <div className="py-8 text-center text-xs text-sidebar-foreground/50">
                   No frames yet

@@ -67,7 +67,7 @@ export function DocumentRow({
     <SidebarMenuSubButton asChild isActive={selected}>
       <button
         type="button"
-        className="w-full cursor-pointer pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+        className="w-full cursor-pointer !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
         onClick={(e) => {
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
