@@ -175,6 +175,21 @@ export interface ComposerProps {
   /** Plan-mode toggle state. Omit `onPlanModeChange` to hide the toggle. */
   planMode?: boolean
   onPlanModeChange?: (planMode: boolean) => void
+  /**
+   * Which keystroke commits the draft — a per-mount choice, not a global of the
+   * component (ADR 0004). `"enter"` (default) is chat's binding: Enter submits,
+   * Shift+Enter inserts a newline. `"mod-enter"` is the seed binding used by the
+   * `CreateBranchDialog`: ⌘/Ctrl+Enter creates and a bare Enter inserts a
+   * newline, so a stray Enter can't fire the heavier, less-reversible Branch
+   * creation.
+   */
+  submitMode?: "enter" | "mod-enter"
+  /**
+   * Allow committing an empty draft. Off in chat (an empty turn is
+   * meaningless); on in the seed Composer, where an empty prompt is a
+   * deliberate request for a bare scratch Branch.
+   */
+  allowEmptySubmit?: boolean
   /** Fired on submit with the decorated wire body and chosen model. */
   onSubmit: (payload: ComposerSubmitPayload) => void
   /**
@@ -214,6 +229,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       modelLocked = false,
       planMode,
       onPlanModeChange,
+      submitMode = "enter",
+      allowEmptySubmit = false,
       onSubmit,
       isStreaming = false,
       onStop,
@@ -240,6 +257,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // Same idea for the `/` skill popover — Enter should pick the highlighted
     // skill, not submit the draft.
     const skillMentionOpenRef = useRef(false)
+
+    // The keydown handler is captured once at editor construction, so the
+    // current submit binding has to reach it through a ref rather than the prop.
+    const submitModeRef = useRef(submitMode)
+    useEffect(() => {
+      submitModeRef.current = submitMode
+    })
 
     // Keep the latest sources in refs (written after commit, not during render)
     // so the editor's suggestion closures always see the current lists.
@@ -346,13 +370,21 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           "data-placeholder": placeholder,
         },
         handleKeyDown(_view, event) {
-          if (event.key !== "Enter" || event.shiftKey) return false
+          if (event.key !== "Enter") return false
           // ProseMirror checks direct editorProps before plugin props, so the
           // mention suggestion plugin hasn't had a chance to consume Enter
           // yet — bail so it can pick the highlighted doc instead of us
           // submitting the draft with a literal `@query` token.
           if (mentionOpenRef.current || skillMentionOpenRef.current)
             return false
+          if (submitModeRef.current === "mod-enter") {
+            // Seed binding: only ⌘/Ctrl+Enter creates; a bare Enter falls
+            // through to ProseMirror as a newline.
+            if (!event.metaKey && !event.ctrlKey) return false
+          } else if (event.shiftKey) {
+            // Chat binding: Shift+Enter is a newline.
+            return false
+          }
           event.preventDefault()
           submitRef.current()
           return true
@@ -365,10 +397,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
 
     const handleSubmit = useCallback(() => {
       if (!editor || isStreaming) return
-      if (editor.isEmpty) return
+      // An empty draft only submits where the caller opted in — the seed
+      // Composer treats it as a deliberate request for a bare scratch Branch.
+      if (editor.isEmpty && !allowEmptySubmit) return
       const json = editor.getJSON()
       const { text, mentions } = extractTextAndMentions(json)
-      if (!text.trim()) return
+      if (!text.trim() && !allowEmptySubmit) return
       // Resolve each `@<title>` mention to its current title, then let the
       // Message Markers codec build the referenced-documents footer (a no-op
       // suffix when there are no mentions). Bodies are NOT inlined — the agent
@@ -377,11 +411,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         id: m.id,
         title: markdownLayersRef.current.find((d) => d.id === m.id)?.title,
       }))
-      const decorated = text.trim() + buildReferencedDocsFooter(docs)
+      const trimmed = text.trim()
+      const decorated = trimmed ? trimmed + buildReferencedDocsFooter(docs) : ""
       onSubmit({ text: decorated, model })
       editor.commands.clearContent()
       setHasContent(false)
-    }, [editor, isStreaming, onSubmit, model])
+    }, [editor, isStreaming, onSubmit, model, allowEmptySubmit])
 
     // Stash the latest submit handler in a ref so the editor's `handleKeyDown`
     // (registered once at construction) always calls the current closure.
@@ -481,9 +516,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             ) : (
               <InputGroupButton
                 size="icon-xs"
-                variant={hasContent ? "default" : "ghost"}
+                variant={hasContent || allowEmptySubmit ? "default" : "ghost"}
                 onClick={handleSubmit}
-                disabled={!hasContent || isStreaming}
+                disabled={(!hasContent && !allowEmptySubmit) || isStreaming}
                 title="Send"
                 className="ml-auto"
               >

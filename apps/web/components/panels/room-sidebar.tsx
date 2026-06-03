@@ -48,6 +48,7 @@ import {
   GitPullRequestClosed,
   RefreshCw,
   Rows3,
+  Sparkles,
   FolderOpen,
   Trash2,
   MoreHorizontal,
@@ -154,6 +155,8 @@ import {
   ParallelCreateDialog,
   type ParallelAgentSpec,
 } from "@/components/parallel-create-dialog"
+import { CreateBranchDialog } from "@/components/create-branch-dialog"
+import type { ComposerSpec } from "@/lib/branch-create-planner"
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -593,6 +596,8 @@ interface RoomSidebarProps {
   onCreateBranch: (repoId: string) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
   onCreateParallelBranches: (repoId: string, specs: ParallelAgentSpec[]) => void
+  /** Prompt-first "New Workspace" create — resolves one spec via the planner. */
+  onCreateWorkspace: (repoId: string, spec: ComposerSpec) => void
   onDuplicateBranch: (repoId: string, branch: string) => void
   onForkBranch: (branchId: string) => void
   onRebaseOnDefault: (branchId: string) => void
@@ -668,6 +673,7 @@ export function RoomSidebar({
   onCreateBranch,
   onCreateBranchFromGitBranch,
   onCreateParallelBranches,
+  onCreateWorkspace,
   onDuplicateBranch,
   onForkBranch,
   onRebaseOnDefault,
@@ -702,6 +708,9 @@ export function RoomSidebar({
     null
   )
   const [parallelRepoId, setParallelRepoId] = useState<string | null>(null)
+  const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
+    null
+  )
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -1425,7 +1434,7 @@ export function RoomSidebar({
                             }
                           >
                             <SidebarMenuButton
-                              className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-[6.5rem] group-hover/workspace-row:!pr-[6.5rem] group-data-[settings-open]/workspace-row:!pr-[6.5rem]"
+                              className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-[8rem] group-hover/workspace-row:!pr-[8rem] group-data-[settings-open]/workspace-row:!pr-[8rem]"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <CollapsibleTrigger
@@ -1449,6 +1458,16 @@ export function RoomSidebar({
                               </span>
                             </SidebarMenuButton>
 
+                            <SidebarMenuAction
+                              className="right-[6.25rem] group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setNewWorkspaceRepoId(repo.id)
+                              }}
+                              title="New Workspace"
+                            >
+                              <Sparkles />
+                            </SidebarMenuAction>
                             <Popover
                               open={settingsRepoId === repo.id}
                               onOpenChange={(open) =>
@@ -2240,6 +2259,21 @@ export function RoomSidebar({
             repoName={repo.repoName}
             defaultBranch={repo.defaultBranch}
             onSubmit={(specs) => onCreateParallelBranches(repo.id, specs)}
+          />
+        ) : null
+      })()}
+      {(() => {
+        const repo = newWorkspaceRepoId
+          ? repos.find((w) => w.id === newWorkspaceRepoId)
+          : null
+        return repo ? (
+          <CreateBranchDialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setNewWorkspaceRepoId(null)
+            }}
+            defaultBranch={repo.defaultBranch}
+            onSubmit={(spec) => onCreateWorkspace(repo.id, spec)}
           />
         ) : null
       })()}
