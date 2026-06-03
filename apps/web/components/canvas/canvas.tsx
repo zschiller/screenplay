@@ -3255,6 +3255,10 @@ export function Canvas({
             sandboxName,
             branch,
             repoId,
+            // A non-default base derives `flow:"duplicate-branch"` (#325); the
+            // chosen base rides along as the source the server forks from.
+            sourceBranch:
+              plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
             seedChat: plan.seedChat,
           }),
         })
@@ -3338,6 +3342,10 @@ export function Canvas({
           sandboxName,
           branch,
           repoId,
+          // A non-default base derives `flow:"duplicate-branch"` (#325); the
+          // chosen base rides along as the source the server forks from.
+          sourceBranch:
+            plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
           seedChat: plan.seedChat,
         }),
       })
