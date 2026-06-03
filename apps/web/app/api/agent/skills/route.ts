@@ -1,6 +1,5 @@
 import { getUserId } from "@/lib/auth-helpers"
-import { getSkillIndex } from "@/lib/skills"
-import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
+import { getSkillMenuSource } from "@/lib/skills/sandbox-index"
 import type { SkillOrigin } from "@/lib/skills/merged"
 
 /**
@@ -27,14 +26,7 @@ export async function GET(request: Request) {
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
   const sandboxName = new URL(request.url).searchParams.get("sandbox")
-  const tagged: { name: string; description: string; origin: SkillOrigin }[] =
-    sandboxName
-      ? await getMergedSkillIndexForSandbox(sandboxName)
-      : getSkillIndex().map((s) => ({
-          name: s.name,
-          description: s.description,
-          origin: "app" as const,
-        }))
+  const tagged = await getSkillMenuSource(sandboxName)
 
   const skills: SkillMenuItem[] = tagged.map((s) => ({
     name: s.name,
