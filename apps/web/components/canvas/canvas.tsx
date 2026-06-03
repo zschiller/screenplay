@@ -137,7 +137,6 @@ import type {
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
-import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
 import {
   planBranchCreations,
   type ComposerSpec,
@@ -3138,55 +3137,10 @@ export function Canvas({
     [addRepoToStorage, ops, roomId, seedDefaultTabForNewBranch]
   )
 
-  const handleCreateAgent = useCallback(
-    (repoId: string) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-
-      const sandboxName = `sp-${nanoid(10)}`
-      const branch = uniqueNamesGenerator({
-        dictionaries: [adjectives, colors, animals],
-        separator: "-",
-        length: 3,
-      })
-
-      const { branchId: id } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: branch,
-          previewDomain: "",
-          port: repo.devServerPort ?? 3000,
-          status: "creating",
-          statusMessage: "Creating branch…",
-          createdAt: Date.now(),
-        },
-      })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
-      const seedChat = seedDefaultTabForNewBranch(id)
-
-      fetch("/api/branch/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "new",
-          roomId,
-          branchId: id,
-          sandboxName,
-          branch,
-          repoId,
-          seedChat,
-        }),
-      })
-    },
-    [repos, ops, roomId, seedDefaultTabForNewBranch]
-  )
-
-  // Prompts queued by the prompt-first create handlers (handleCreateWorkspace,
-  // handleCreateParallelAgents) that should fire as soon as the agent's sandbox
-  // transitions to `running`. Held in a ref because the dispatch effect already
-  // re-runs on every `agents` change.
+  // Prompts queued by the prompt-first create handler (handleCreateWorkspace)
+  // that should fire as soon as the agent's sandbox transitions to `running`.
+  // Held in a ref because the dispatch effect already re-runs on every `agents`
+  // change.
   const pendingPromptsRef = useRef<
     Map<
       string,
@@ -3449,141 +3403,6 @@ export function Canvas({
     [agents, handleDuplicateBranch]
   )
 
-  const handleCreateParallelAgents = useCallback(
-    async (repoId: string, specs: ParallelAgentSpec[]) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-
-      const trimmedSpecs = specs
-        .map((s) => ({ ...s, prompt: s.prompt.trim() }))
-        .filter((s) => s.prompt.length > 0)
-      if (trimmedSpecs.length === 0) return
-
-      // Generate branch names + chat labels from the prompts up front so each
-      // parallel agent gets a distinct, prompt-derived branch. Doing this at
-      // submit time (instead of letting each agent's first chat trigger a
-      // server-side rename) avoids the race where two agents with the same
-      // prompt independently land on the same branch and clobber each other.
-      let nameResults: Array<{ branch: string; label: string }> = []
-      try {
-        const res = await fetch("/api/agent/generate-names", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomId,
-            prompts: trimmedSpecs.map((s) => s.prompt),
-          }),
-        })
-        if (res.ok) {
-          const data = (await res.json()) as {
-            results: Array<{ branch: string; label: string }>
-          }
-          nameResults = data.results ?? []
-        }
-      } catch {
-        // Fall through to local fallback below.
-      }
-      if (nameResults.length !== trimmedSpecs.length) {
-        const taken = new Set<string>()
-        nameResults = trimmedSpecs.map(() => {
-          let branch = uniqueNamesGenerator({
-            dictionaries: [adjectives, colors, animals],
-            separator: "-",
-            length: 3,
-          })
-          while (taken.has(branch)) {
-            branch = uniqueNamesGenerator({
-              dictionaries: [adjectives, colors, animals],
-              separator: "-",
-              length: 3,
-            })
-          }
-          taken.add(branch)
-          return { branch, label: "Untitled" }
-        })
-      }
-
-      const dispatched: Array<{
-        id: string
-        sandboxName: string
-        branch: string
-        flow: "new" | "duplicate-branch"
-        sourceBranch: string | undefined
-      }> = []
-
-      ops.batch(() => {
-        trimmedSpecs.forEach((spec, idx) => {
-          const sandboxName = `sp-${nanoid(10)}`
-          const { branch, label } = nameResults[idx]!
-          const isDefault = spec.baseBranch === repo.defaultBranch
-          // The "new" flow creates a fresh branch off the repo default.
-          // For any other base, we use "duplicate-branch" so the API forks
-          // the named source into our generated branch name.
-          const flow: "new" | "duplicate-branch" = isDefault
-            ? "new"
-            : "duplicate-branch"
-
-          // createAgent owns the agent record (with the deferred-seed flag) and
-          // pre-creates the chat targeting it, so the queued prompt has a
-          // stable chatId before the agent finishes provisioning. The server's
-          // ensureChatForAgent skips creation when a chat already exists.
-          const { branchId: id, chatId } = ops.createBranch({
-            branch: {
-              repoId,
-              sandboxName,
-              gitUrl: repo.cloneUrl,
-              ref: branch,
-              previewDomain: "",
-              port: repo.devServerPort ?? 3000,
-              status: "creating",
-              statusMessage: "Creating branch…",
-              createdAt: Date.now(),
-              // Names are already prompt-derived and deduped — block the
-              // first-chat server rename so it can't override them.
-              autoNamedBranch: false,
-            },
-            chat: { label, model: spec.model },
-          })
-
-          pendingPromptsRef.current.set(id, {
-            chatId: chatId!,
-            prompt: spec.prompt,
-            model: spec.model,
-          })
-
-          dispatched.push({
-            id,
-            sandboxName,
-            branch,
-            flow,
-            sourceBranch:
-              flow === "duplicate-branch" ? spec.baseBranch : undefined,
-          })
-        })
-      })
-
-      for (const d of dispatched) {
-        fetch("/api/branch/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            flow: d.flow,
-            roomId,
-            branchId: d.id,
-            sandboxName: d.sandboxName,
-            branch: d.branch,
-            repoId,
-            sourceBranch: d.sourceBranch,
-          }),
-        })
-        setPendingAgentIds((prev) =>
-          prev.includes(d.id) ? prev : [...prev, d.id]
-        )
-      }
-    },
-    [repos, ops, roomId]
-  )
-
   const handleRefreshAgent = useCallback(
     async (id: string) => {
       const agent = agents.find((a) => a.id === id)
@@ -3683,12 +3502,11 @@ export function Canvas({
     }
   }, [chatSessions])
 
-  // Dispatch prompts queued by the prompt-first create handlers
-  // (handleCreateWorkspace, handleCreateParallelAgents) once their agent's
-  // sandbox reaches `running`. Deleting the entry before sending means the
-  // prompt fires exactly once — never before `running`, and never re-sent on a
-  // later reconnect. Drop the queue entry if the agent errored out so failed
-  // builds don't leak forever.
+  // Dispatch prompts queued by the prompt-first create handler
+  // (handleCreateWorkspace) once their agent's sandbox reaches `running`.
+  // Deleting the entry before sending means the prompt fires exactly once —
+  // never before `running`, and never re-sent on a later reconnect. Drop the
+  // queue entry if the agent errored out so failed builds don't leak forever.
   useEffect(() => {
     if (pendingPromptsRef.current.size === 0) return
     for (const agent of agents) {
@@ -5017,11 +4835,8 @@ export function Canvas({
               }
               removeRepoFromStorage(id)
             }}
-            onCreateBranch={handleCreateAgent}
             onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
-            onCreateParallelBranches={handleCreateParallelAgents}
             onCreateWorkspace={handleCreateWorkspace}
-            onDuplicateBranch={handleDuplicateBranch}
             onForkBranch={handleForkAgent}
             onRebaseOnDefault={handleRebaseOnDefault}
             onRefreshBranch={handleRefreshAgent}

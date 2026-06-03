@@ -34,7 +34,6 @@ import {
 } from "@dnd-kit/sortable"
 import {
   FolderPlus,
-  Plus,
   Folder,
   Loader2,
   Settings,
@@ -46,7 +45,6 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   RefreshCw,
-  Rows3,
   Sparkles,
   FolderOpen,
   Trash2,
@@ -141,10 +139,6 @@ import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
-import {
-  ParallelCreateDialog,
-  type ParallelAgentSpec,
-} from "@/components/parallel-create-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
@@ -587,12 +581,9 @@ interface RoomSidebarProps {
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
-  onCreateBranch: (repoId: string) => void
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
-  onCreateParallelBranches: (repoId: string, specs: ParallelAgentSpec[]) => void
   /** Prompt-first "New Workspace" create — resolves one spec via the planner. */
   onCreateWorkspace: (repoId: string, spec: ComposerSpec) => void
-  onDuplicateBranch: (repoId: string, branch: string) => void
   onForkBranch: (branchId: string) => void
   onRebaseOnDefault: (branchId: string) => void
   onRefreshBranch: (id: string) => void
@@ -664,11 +655,8 @@ export function RoomSidebar({
   onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
-  onCreateBranch,
   onCreateBranchFromGitBranch,
-  onCreateParallelBranches,
   onCreateWorkspace,
-  onDuplicateBranch,
   onForkBranch,
   onRebaseOnDefault,
   onRefreshBranch,
@@ -701,7 +689,6 @@ export function RoomSidebar({
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
     null
   )
-  const [parallelRepoId, setParallelRepoId] = useState<string | null>(null)
   const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
     null
   )
@@ -1434,7 +1421,7 @@ export function RoomSidebar({
                                 }
                               >
                                 <SidebarMenuButton
-                                  className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-[8rem] group-hover/workspace-row:!pr-[8rem] group-data-[settings-open]/workspace-row:!pr-[8rem]"
+                                  className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-14 group-hover/workspace-row:!pr-14 group-data-[settings-open]/workspace-row:!pr-14"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <CollapsibleTrigger
@@ -1458,8 +1445,11 @@ export function RoomSidebar({
                                   </span>
                                 </SidebarMenuButton>
 
+                                {/* The Repo row collapses to two affordances:
+                                    the primary "New Workspace" button and a `…`
+                                    overflow menu (PRD #314). */}
                                 <SidebarMenuAction
-                                  className="right-[6.25rem] group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
+                                  className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setNewWorkspaceRepoId(repo.id)
@@ -1468,57 +1458,43 @@ export function RoomSidebar({
                                 >
                                   <Sparkles />
                                 </SidebarMenuAction>
-                                <Popover
-                                  open={settingsRepoId === repo.id}
-                                  onOpenChange={(open) =>
-                                    setSettingsRepoId(open ? repo.id : null)
-                                  }
-                                >
-                                  <PopoverTrigger asChild>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
                                     <SidebarMenuAction
-                                      className="right-[4.75rem] group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+                                      className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
                                       onClick={(e) => e.stopPropagation()}
-                                      title="Settings"
+                                      title="More"
+                                    >
+                                      <MoreHorizontal />
+                                    </SidebarMenuAction>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    side="right"
+                                    align="start"
+                                    className="w-48"
+                                  >
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        setBranchPickerRepoId(repo.id)
+                                      }
+                                    >
+                                      <GitBranch />
+                                      Open existing branch
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => setSettingsRepoId(repo.id)}
                                     >
                                       <Settings />
-                                    </SidebarMenuAction>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    className="w-72 p-3"
-                                    side="bottom"
-                                    align="start"
-                                  >
-                                    <RepoSettings
-                                      repo={repo}
-                                      onUpdate={onUpdateRepo}
-                                      onRemove={() => {
-                                        setSettingsRepoId(null)
-                                        setPendingDeleteRepoId(repo.id)
-                                      }}
-                                      onClose={() => setSettingsRepoId(null)}
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                                <SidebarMenuAction
-                                  className="right-[3.25rem] group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setParallelRepoId(repo.id)
-                                  }}
-                                  title="Spin up parallel branches"
-                                >
-                                  <Rows3 />
-                                </SidebarMenuAction>
-                                <SidebarMenuAction
-                                  className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setBranchPickerRepoId(repo.id)
-                                  }}
-                                  title="New branch from branch"
-                                >
-                                  <GitBranch />
-                                </SidebarMenuAction>
+                                      Settings
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                                {/* "Open existing branch" reattaches to a
+                                    remote branch (flow:"from-branch", no new
+                                    branch, no prompt, autoNamedBranch:false) —
+                                    a single Enter action (no onDuplicate);
+                                    forking now lives in the branch menu. */}
                                 <Dialog
                                   open={branchPickerRepoId === repo.id}
                                   onOpenChange={(open) =>
@@ -1527,7 +1503,9 @@ export function RoomSidebar({
                                 >
                                   <DialogContent className="max-w-sm gap-0 p-0">
                                     <DialogHeader className="px-4 pt-4 pb-2">
-                                      <DialogTitle>Select a branch</DialogTitle>
+                                      <DialogTitle>
+                                        Open existing branch
+                                      </DialogTitle>
                                     </DialogHeader>
                                     <BranchPicker
                                       owner={repo.repoOwner}
@@ -1539,23 +1517,30 @@ export function RoomSidebar({
                                           branch
                                         )
                                       }}
-                                      onDuplicate={(branch) => {
-                                        setBranchPickerRepoId(null)
-                                        onDuplicateBranch(repo.id, branch)
-                                      }}
                                     />
                                   </DialogContent>
                                 </Dialog>
-                                <SidebarMenuAction
-                                  className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    onCreateBranch(repo.id)
-                                  }}
-                                  title="New branch"
+                                <Dialog
+                                  open={settingsRepoId === repo.id}
+                                  onOpenChange={(open) =>
+                                    setSettingsRepoId(open ? repo.id : null)
+                                  }
                                 >
-                                  <Plus />
-                                </SidebarMenuAction>
+                                  <DialogContent className="max-w-sm">
+                                    <DialogHeader className="sr-only">
+                                      <DialogTitle>Settings</DialogTitle>
+                                    </DialogHeader>
+                                    <RepoSettings
+                                      repo={repo}
+                                      onUpdate={onUpdateRepo}
+                                      onRemove={() => {
+                                        setSettingsRepoId(null)
+                                        setPendingDeleteRepoId(repo.id)
+                                      }}
+                                      onClose={() => setSettingsRepoId(null)}
+                                    />
+                                  </DialogContent>
+                                </Dialog>
                               </BranchesSortableRow>
 
                               <CollapsibleContent>
@@ -2275,23 +2260,6 @@ export function RoomSidebar({
             }}
           />
         )
-      })()}
-      {(() => {
-        const repo = parallelRepoId
-          ? repos.find((w) => w.id === parallelRepoId)
-          : null
-        return repo ? (
-          <ParallelCreateDialog
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) setParallelRepoId(null)
-            }}
-            repoOwner={repo.repoOwner}
-            repoName={repo.repoName}
-            defaultBranch={repo.defaultBranch}
-            onSubmit={(specs) => onCreateParallelBranches(repo.id, specs)}
-          />
-        ) : null
       })()}
       {(() => {
         const repo = newWorkspaceRepoId
