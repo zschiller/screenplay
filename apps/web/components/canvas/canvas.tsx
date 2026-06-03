@@ -138,6 +138,10 @@ import type {
 import { chatStore } from "@/lib/chat-store"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { ParallelAgentSpec } from "@/components/parallel-create-dialog"
+import {
+  planBranchCreations,
+  type ComposerSpec,
+} from "@/lib/branch-create-planner"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
@@ -3179,6 +3183,66 @@ export function Canvas({
     [repos, ops, roomId, seedDefaultTabForNewBranch]
   )
 
+  // Prompt-first "New Workspace" create (PRD #314). The pure planner owns the
+  // decision; this handler is thin orchestration over the existing
+  // `/api/branch/create` contract. This first slice wires the empty-prompt
+  // outcome — a bare scratch Branch off the default branch (random name,
+  // `flow:"new"`, no Chat Session, nothing fired). Prompt-seeded creation lands
+  // in a later slice.
+  const handleCreateWorkspace = useCallback(
+    (repoId: string, spec: ComposerSpec) => {
+      const repo = repos.find((w) => w.id === repoId)
+      if (!repo) return
+
+      const [plan] = planBranchCreations(
+        { defaultBranch: repo.defaultBranch },
+        [spec]
+      )
+      if (!plan) return
+      // Prompt-seeded Branches (name derived from the prompt, a seeded Chat
+      // Session, the prompt fired on `running`) are a later slice.
+      if (plan.nameSource !== "random") return
+
+      const sandboxName = `sp-${nanoid(10)}`
+      const branch = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+        length: 3,
+      })
+
+      const { branchId: id } = ops.createBranch({
+        branch: {
+          repoId,
+          sandboxName,
+          gitUrl: repo.cloneUrl,
+          ref: branch,
+          previewDomain: "",
+          port: repo.devServerPort ?? 3000,
+          status: "creating",
+          statusMessage: "Creating branch…",
+          createdAt: Date.now(),
+          autoNamedBranch: plan.autoNamedBranch,
+        },
+      })
+      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+
+      fetch("/api/branch/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flow: plan.flow,
+          roomId,
+          branchId: id,
+          sandboxName,
+          branch,
+          repoId,
+          seedChat: plan.seedChat,
+        }),
+      })
+    },
+    [repos, ops, roomId]
+  )
+
   const handleCreateAgentFromBranch = useCallback(
     (repoId: string, branch: string) => {
       const repo = repos.find((w) => w.id === repoId)
@@ -4849,6 +4913,7 @@ export function Canvas({
             onCreateBranch={handleCreateAgent}
             onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
             onCreateParallelBranches={handleCreateParallelAgents}
+            onCreateWorkspace={handleCreateWorkspace}
             onDuplicateBranch={handleDuplicateBranch}
             onForkBranch={handleForkAgent}
             onRebaseOnDefault={handleRebaseOnDefault}
