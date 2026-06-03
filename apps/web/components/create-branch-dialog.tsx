@@ -20,7 +20,9 @@ import {
   type ModelInfo,
 } from "@/lib/models-store"
 import { resolveDefaultModel } from "@/lib/model-selection"
+import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
+import type { MarkdownLayerData } from "@/lib/types"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -42,6 +44,12 @@ interface CreateBranchDialogProps {
    * it to derive the `"new"` flow.
    */
   defaultBranch: string
+  /**
+   * The Room's Markdown Layers — the `@`-mention source for a non-empty seed
+   * prompt. Empty before any Layer exists; mentions serialize through the
+   * Composer's Message-Markers codec into the submitted text.
+   */
+  markdownLayers: MarkdownLayerData[]
   /** Fired with the resolved Composer spec when the user submits. */
   onSubmit: (spec: ComposerSpec) => void
 }
@@ -50,23 +58,36 @@ interface CreateBranchDialogProps {
  * The prompt-first "New Workspace" dialog (ADR 0004, PRD #314).
  *
  * Opens focused on the shared {@link Composer} with a `Base` chip beside it and
- * the Composer's own `Model` picker as the model chip. This first slice wires
- * the empty-prompt case end to end: submitting an empty prompt hands a single
- * {@link ComposerSpec} up to the caller, which runs it through the pure planner
- * to create a bare Branch off the default branch (random name, `flow:"new"`, no
- * Chat Session). Non-empty prompts, base selection, and parallel mode arrive in
- * later slices.
+ * the Composer's own `Model` picker as the model chip. The dialog hands a single
+ * {@link ComposerSpec} (prompt, model, base, plan-mode) up to the caller, which
+ * runs it through the pure planner:
+ *
+ *  - An **empty prompt** creates a bare Branch off the default branch (random
+ *    name, `flow:"new"`, no Chat Session, nothing fired).
+ *  - A **non-empty prompt** (#324) drives the full seeded path: a Branch name
+ *    derived from the prompt, a Chat Session pre-seeded with the chosen model,
+ *    and the prompt fired as the first message once the Sandbox is `running`.
+ *    `@`-Layer mentions and `/`-Skills (App Skills only, pre-Sandbox) serialize
+ *    through the Composer's Message-Markers codec into the submitted text.
+ *
+ * Base selection and parallel mode arrive in later slices.
  */
 export function CreateBranchDialog({
   open,
   onOpenChange,
   defaultBranch,
+  markdownLayers,
   onSubmit,
 }: CreateBranchDialogProps) {
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
   )
+  const [skills, setSkills] = useState<SkillMenuItem[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
+  // Plan-mode for the seed turn. Reset on each open by mounting fresh — the
+  // dialog is conditionally rendered by its caller, so a fresh open starts here.
+  const [planMode, setPlanMode] = useState(false)
   const composerRef = useRef<ComposerHandle>(null)
 
   // Load the model catalog + server default while the dialog is open, mirroring
@@ -81,6 +102,27 @@ export function CreateBranchDialog({
         setServerDefaultModel(def)
       })
       .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  // Load the `/`-Skill menu while the dialog is open. There's no Sandbox yet,
+  // so this is App Skills only (resolveSkillMenuSource with no Sandbox, #320);
+  // `getSkillMenuItems()` with no sandbox returns exactly that App-only set.
+  // `skillsLoading` starts true and is cleared from the async callback — the
+  // dialog mounts fresh on open, so there's no synchronous flip to make here.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    getSkillMenuItems()
+      .then((list) => {
+        if (!cancelled) setSkills(list)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setSkillsLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -117,6 +159,7 @@ export function CreateBranchDialog({
       baseBranch: defaultBranch,
       model: payload.model,
       prompt: payload.text,
+      planMode,
     })
     onOpenChange(false)
   }
@@ -147,12 +190,18 @@ export function CreateBranchDialog({
 
         <Composer
           ref={composerRef}
-          // `@`-Layer mentions matter only for non-empty seed prompts, which
-          // are a later slice; this empty-prompt cut needs no mention source.
-          markdownLayers={[]}
+          // A non-empty seed prompt is a real chat turn: `@`-Layer mentions and
+          // `/`-Skills are enabled and serialize through the Message-Markers
+          // codec into the submitted text, exactly as in a live chat.
+          markdownLayers={markdownLayers}
+          skills={skills}
+          skillsLoading={skillsLoading}
+          enableSkills
           models={models}
           model={model}
           onModelChange={setModel}
+          planMode={planMode}
+          onPlanModeChange={setPlanMode}
           onSubmit={handleSubmit}
           submitMode="mod-enter"
           allowEmptySubmit

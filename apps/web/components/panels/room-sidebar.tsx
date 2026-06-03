@@ -578,7 +578,10 @@ interface RoomSidebarProps {
   iframeLayers: Array<
     Pick<IframeLayerData, "id" | "branchId" | "label" | "route">
   >
-  markdownLayers: Array<Pick<MarkdownLayerData, "id" | "title">>
+  // Full layer data (not just id/title): the New-Workspace dialog forwards it
+  // to the seed Composer as the `@`-mention source, which types it as
+  // `MarkdownLayerData[]`. Canvas already passes the full records.
+  markdownLayers: MarkdownLayerData[]
   /** Already sorted by sidebarOrder. */
   iframeLayerGroups: IframeLayerGroupData[]
   selectedIframeLayerIds: Set<string>
@@ -2273,6 +2276,7 @@ export function RoomSidebar({
               if (!open) setNewWorkspaceRepoId(null)
             }}
             defaultBranch={repo.defaultBranch}
+            markdownLayers={markdownLayers}
             onSubmit={(spec) => onCreateWorkspace(repo.id, spec)}
           />
         ) : null
