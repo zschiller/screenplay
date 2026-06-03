@@ -14,6 +14,7 @@ import {
   resolveSkillBody,
   type OriginTaggedSkill,
 } from "./merged"
+import { resolveSkillMenuSource } from "./menu-source"
 
 /**
  * Server-side bridge between the pure Skill modules and a live sandbox. This
@@ -54,6 +55,23 @@ export async function getMergedSkillIndexForSandbox(
 ): Promise<OriginTaggedSkill[]> {
   const repo = await enumerateRepoSkillsForSandbox(sandboxName)
   return mergeSkillIndexes(getSkillIndex(), repo)
+}
+
+/**
+ * The `/`-menu Skill source for a Composer, honest about the pre-Sandbox case.
+ * With a `sandboxName` it returns the Branch's merged App ∪ Repo index
+ * (Repo-wins on collision); without one — the seed Composer of the
+ * New-Workspace dialog, which renders before any Sandbox exists — it returns
+ * App Skills only, so the menu offers the bundled `screenplay-*` Skills rather
+ * than bailing. Repo enumeration is skipped entirely when there is no Sandbox.
+ */
+export async function getSkillMenuSource(
+  sandboxName?: string | null
+): Promise<OriginTaggedSkill[]> {
+  const repo = sandboxName
+    ? await enumerateRepoSkillsForSandbox(sandboxName)
+    : null
+  return resolveSkillMenuSource(getSkillIndex(), repo)
 }
 
 /**
