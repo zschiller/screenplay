@@ -28,6 +28,7 @@ import {
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
+import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import {
   createTerminalTab,
@@ -906,6 +907,31 @@ export function Canvas({
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
+  // Drop out of Focus or Create Flow mode the instant the frame it targets is
+  // gone, so the canvas pans/zooms/scrolls again with no Escape needed. We
+  // reconcile against the live layer set rather than patching each delete
+  // call-site, so every removal path is covered at once — single-frame remove,
+  // keyboard Delete/Backspace, Group-cascade delete, and a remote collaborator
+  // deleting the frame out from under us. Writes back only when an id actually
+  // changed, so unrelated layer edits don't churn state or fight the Escape
+  // handler.
+  useEffect(() => {
+    const existingLayerIds = new Set(iframeLayers.map((layer) => layer.id))
+    const next = reconcileInteractionMode({
+      focusedId: focusedIframeLayerId,
+      createFlowId: createFlowIframeLayerId,
+      existingLayerIds,
+    })
+    if (next.focusedId !== focusedIframeLayerId) {
+      // Syncing mode state down from the external Y.Doc layer set; the guard
+      // above keeps this from looping.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFocusedIframeLayerId(next.focusedId)
+    }
+    if (next.createFlowId !== createFlowIframeLayerId) {
+      setCreateFlowIframeLayerId(next.createFlowId)
+    }
+  }, [iframeLayers, focusedIframeLayerId, createFlowIframeLayerId])
   const iframeLayerLayouts = useMemo(
     () =>
       computeIframeLayerLayouts(
