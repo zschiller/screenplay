@@ -582,8 +582,12 @@ interface RoomSidebarProps {
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
   onCreateBranchFromGitBranch: (repoId: string, branch: string) => void
-  /** Prompt-first "New Workspace" create — resolves one spec via the planner. */
-  onCreateWorkspace: (repoId: string, spec: ComposerSpec) => void
+  /**
+   * Prompt-first "New Workspace" create — resolves one spec per row via the
+   * planner. A single row is the common case; parallel mode (#327) hands
+   * several, each becoming its own Branch.
+   */
+  onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onForkBranch: (branchId: string) => void
   onRebaseOnDefault: (branchId: string) => void
   onRefreshBranch: (id: string) => void
@@ -2275,7 +2279,7 @@ export function RoomSidebar({
             repoOwner={repo.repoOwner}
             repoName={repo.repoName}
             markdownLayers={markdownLayers}
-            onSubmit={(spec) => onCreateWorkspace(repo.id, spec)}
+            onSubmit={(specs) => onCreateWorkspace(repo.id, specs)}
           />
         ) : null
       })()}
