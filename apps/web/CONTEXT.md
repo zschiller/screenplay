@@ -174,6 +174,16 @@ _Avoid_: engine, agent (screenplay's owned AI loop, never a BYO CLI); treating a
 Harness as a Chat Session (it produces no messages, runs, or Y.Doc state — its
 scrollback dies with the sandbox).
 
+**Composer**:
+The shared rich-text input for authoring a single chat turn — owns model
+selection, plan-mode, `@`-Layer mentions and `/`-Skill insertion, and serializes
+its content to Message Markers. One component, rendered both inside a Chat
+Session and in the New-Workspace dialog as a Branch's seed prompt (where it fires
+as the first message once the Sandbox reaches `running`). An empty seed prompt
+creates a bare Branch and applies no model; a non-empty one seeds a Chat Session.
+_Avoid_: input box, prompt field, textarea; standing up a second divergent copy
+of this UI per surface.
+
 **Message Markers**:
 The wire format that encodes a chat turn's metadata into the user-message
 string the Engine replays. The server prepends `[plan mode: enabled]` and
