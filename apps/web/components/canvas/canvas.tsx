@@ -3150,159 +3150,176 @@ export function Canvas({
 
   // Prompt-first "New Workspace" create (PRD #314). The pure planner owns the
   // decision; this handler is thin orchestration over the existing
-  // `/api/branch/create` contract.
+  // `/api/branch/create` contract. It takes one {@link ComposerSpec} per dialog
+  // row — a single row is the common case; parallel mode (#327) hands several,
+  // each resolved independently and created as its own Branch.
   //
-  // Empty prompt (#323) -> a bare scratch Branch off the default branch (random
-  // name, `flow:"new"`, no Chat Session, nothing queued).
-  //
-  // Non-empty prompt (#324) -> the full seeded path: a Branch name derived from
-  // the prompt via the existing name endpoint, a Chat Session pre-seeded with
-  // the chosen model, and the prompt queued to fire as the first message
-  // exactly once the Sandbox reaches `running`. The fired body is the
-  // Composer's Message-Markers wire text, so model, plan-mode, `@`-Layer
-  // mentions, and `/`-Skills all ride through unchanged.
+  // Empty prompt (#323) -> a bare scratch Branch (random name, no Chat Session,
+  // nothing queued). Non-empty prompt (#324) -> the full seeded path: a Branch
+  // name derived from the prompt, a Chat Session pre-seeded with the chosen
+  // model, and the prompt queued to fire as the first message exactly once the
+  // Sandbox reaches `running`. The fired body is the Composer's Message-Markers
+  // wire text, so model, plan-mode, `@`-Layer mentions, and `/`-Skills all ride
+  // through unchanged. A non-default base derives `flow:"duplicate-branch"`
+  // (#325); the chosen base rides along as the source the server forks from.
   const handleCreateWorkspace = useCallback(
-    async (repoId: string, spec: ComposerSpec) => {
+    async (repoId: string, specs: ComposerSpec[]) => {
       const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
+      if (!repo || specs.length === 0) return
 
-      const [plan] = planBranchCreations(
+      const plans = planBranchCreations(
         { defaultBranch: repo.defaultBranch },
-        [spec]
+        specs
       )
-      if (!plan) return
 
-      const sandboxName = `sp-${nanoid(10)}`
-
-      // Empty-prompt case (#323): a bare scratch Branch — random name, no Chat
-      // Session, nothing queued to fire.
-      if (plan.nameSource === "random") {
-        const branch = uniqueNamesGenerator({
+      // Mint deduped random `adjective-color-animal` names, never colliding with
+      // a name already assigned in this batch.
+      const taken = new Set<string>()
+      const randomName = () => {
+        let name = uniqueNamesGenerator({
           dictionaries: [adjectives, colors, animals],
           separator: "-",
           length: 3,
         })
+        while (taken.has(name)) {
+          name = uniqueNamesGenerator({
+            dictionaries: [adjectives, colors, animals],
+            separator: "-",
+            length: 3,
+          })
+        }
+        taken.add(name)
+        return name
+      }
 
-        const { branchId: id } = ops.createBranch({
-          branch: {
-            repoId,
-            sandboxName,
-            gitUrl: repo.cloneUrl,
-            ref: branch,
-            previewDomain: "",
-            port: repo.devServerPort ?? 3000,
-            status: "creating",
-            statusMessage: "Creating branch…",
-            createdAt: Date.now(),
-            autoNamedBranch: plan.autoNamedBranch,
-          },
+      // Generate prompt-derived names for every seeded row up front in one
+      // request, so identical prompts can't independently land on the same
+      // branch and clobber each other. Bare rows (and any seeded row the
+      // endpoint didn't name) fall back to a deduped random name.
+      const names = new Array<{ branch: string; label: string }>(specs.length)
+      const seededIdx = plans
+        .map((plan, i) => (plan.nameSource === "from-prompt" ? i : -1))
+        .filter((i) => i >= 0)
+
+      if (seededIdx.length > 0) {
+        let results: Array<{ branch: string; label: string }> = []
+        try {
+          const res = await fetch("/api/agent/generate-names", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roomId,
+              prompts: seededIdx.map((i) => specs[i]!.prompt.trim()),
+            }),
+          })
+          if (res.ok) {
+            const data = (await res.json()) as {
+              results: Array<{ branch: string; label: string }>
+            }
+            results = data.results ?? []
+          }
+        } catch {
+          // Fall through to the per-row random fallback below.
+        }
+        seededIdx.forEach((specIndex, k) => {
+          const result = results[k]
+          const label = result?.label || "Untitled"
+          let branch: string
+          if (result?.branch && !taken.has(result.branch)) {
+            taken.add(result.branch)
+            branch = result.branch
+          } else {
+            branch = randomName()
+          }
+          names[specIndex] = { branch, label }
         })
-        setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      }
 
+      plans.forEach((_, i) => {
+        if (!names[i]) names[i] = { branch: randomName(), label: "Untitled" }
+      })
+
+      const dispatched: Array<{
+        id: string
+        sandboxName: string
+        branch: string
+        flow: "new" | "duplicate-branch"
+        sourceBranch: string | undefined
+        seedChat: boolean
+      }> = []
+
+      // Create all Branch records (and pre-seed each prompted row's Chat Session
+      // so its queued prompt has a stable chatId) in one Yjs transaction.
+      ops.batch(() => {
+        plans.forEach((plan, i) => {
+          const spec = specs[i]!
+          const { branch, label } = names[i]!
+          const sandboxName = `sp-${nanoid(10)}`
+          const model = plan.model ?? spec.model
+
+          const { branchId: id, chatId } = ops.createBranch({
+            branch: {
+              repoId,
+              sandboxName,
+              gitUrl: repo.cloneUrl,
+              ref: branch,
+              previewDomain: "",
+              port: repo.devServerPort ?? 3000,
+              status: "creating",
+              statusMessage: "Creating branch…",
+              createdAt: Date.now(),
+              autoNamedBranch: plan.autoNamedBranch,
+            },
+            // Seed a Chat Session only for prompted rows; bare rows get none.
+            ...(plan.seedChat ? { chat: { label, model } } : {}),
+          })
+
+          // Queue the seed prompt; the dispatch effect below fires it exactly
+          // once, when the Sandbox reaches `running` (and drops it on error).
+          if (plan.firePromptOnRunning && chatId) {
+            pendingPromptsRef.current.set(id, {
+              chatId,
+              prompt: spec.prompt.trim(),
+              model,
+              planMode: spec.planMode,
+            })
+          }
+
+          dispatched.push({
+            id,
+            sandboxName,
+            branch,
+            flow: plan.flow,
+            sourceBranch:
+              plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
+            seedChat: plan.seedChat,
+          })
+        })
+      })
+
+      setPendingAgentIds((prev) => {
+        const additions = dispatched
+          .map((d) => d.id)
+          .filter((id) => !prev.includes(id))
+        return additions.length > 0 ? [...prev, ...additions] : prev
+      })
+
+      for (const d of dispatched) {
         fetch("/api/branch/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            flow: plan.flow,
+            flow: d.flow,
             roomId,
-            branchId: id,
-            sandboxName,
-            branch,
+            branchId: d.id,
+            sandboxName: d.sandboxName,
+            branch: d.branch,
             repoId,
-            // A non-default base derives `flow:"duplicate-branch"` (#325); the
-            // chosen base rides along as the source the server forks from.
-            sourceBranch:
-              plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
-            seedChat: plan.seedChat,
+            sourceBranch: d.sourceBranch,
+            seedChat: d.seedChat,
           }),
         })
-        return
       }
-
-      // Non-empty prompt (#324): derive the branch name from the prompt via the
-      // existing name endpoint, falling back to a random name if it fails so a
-      // transient error never blocks creation.
-      const prompt = spec.prompt.trim()
-      let branch = ""
-      let label = "Untitled"
-      try {
-        const res = await fetch("/api/agent/generate-names", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomId, prompts: [prompt] }),
-        })
-        if (res.ok) {
-          const data = (await res.json()) as {
-            results: Array<{ branch: string; label: string }>
-          }
-          const first = data.results?.[0]
-          if (first) {
-            branch = first.branch
-            label = first.label
-          }
-        }
-      } catch {
-        // Fall through to the local fallback below.
-      }
-      if (!branch) {
-        branch = uniqueNamesGenerator({
-          dictionaries: [adjectives, colors, animals],
-          separator: "-",
-          length: 3,
-        })
-      }
-
-      const model = plan.model ?? spec.model
-
-      // Pre-seed the Chat Session (with the chosen model) before the Sandbox is
-      // running so the queued prompt has a stable chatId. The server's
-      // ensureChatForBranch is idempotent — it skips creation when this chat
-      // already exists — so passing `seedChat` here is a no-op on the server.
-      const { branchId: id, chatId } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: branch,
-          previewDomain: "",
-          port: repo.devServerPort ?? 3000,
-          status: "creating",
-          statusMessage: "Creating branch…",
-          createdAt: Date.now(),
-          autoNamedBranch: plan.autoNamedBranch,
-        },
-        chat: { label, model },
-      })
-
-      // Queue the seed prompt; the dispatch effect below fires it exactly once,
-      // when the Sandbox reaches `running` (and drops it on error).
-      if (plan.firePromptOnRunning) {
-        pendingPromptsRef.current.set(id, {
-          chatId: chatId!,
-          prompt,
-          model,
-          planMode: spec.planMode,
-        })
-      }
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
-
-      fetch("/api/branch/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: plan.flow,
-          roomId,
-          branchId: id,
-          sandboxName,
-          branch,
-          repoId,
-          // A non-default base derives `flow:"duplicate-branch"` (#325); the
-          // chosen base rides along as the source the server forks from.
-          sourceBranch:
-            plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
-          seedChat: plan.seedChat,
-        }),
-      })
     },
     [repos, ops, roomId]
   )
