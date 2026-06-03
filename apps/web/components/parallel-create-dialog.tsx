@@ -29,6 +29,10 @@ import {
   getModels,
   type ModelInfo,
 } from "@/lib/models-store"
+import {
+  groupModelsByProvider,
+  resolveDefaultModel,
+} from "@/lib/model-selection"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
@@ -74,19 +78,14 @@ export function ParallelCreateDialog({
 
   // Stored model wins over the server default so a user who picked a model
   // last time keeps that choice; the server default is only used the first
-  // time. Empty string until both stores have answered to avoid kicking off
-  // with a stale id. Once the catalog has loaded, a stored id that's no
-  // longer in it (e.g. retired when a newer model shipped) falls back to the
-  // server default, then the first listed model, so we never seed an invalid
-  // value into a row's picker.
-  const initialModel = (() => {
-    const preferred = readStoredModel() ?? serverDefaultModel ?? ""
-    if (models.length === 0 || models.some((m) => m.id === preferred))
-      return preferred
-    if (serverDefaultModel && models.some((m) => m.id === serverDefaultModel))
-      return serverDefaultModel
-    return models[0]?.id ?? preferred
-  })()
+  // time. There's no per-session override here — each row seeds from the
+  // shared default. See `resolveDefaultModel` for the full precedence and
+  // stale-id guarding.
+  const initialModel = resolveDefaultModel({
+    stored: readStoredModel(),
+    serverDefault: serverDefaultModel,
+    models,
+  })
 
   // Reset rows whenever the dialog re-opens so reopening the dialog gives a
   // fresh starting state instead of stale prompts from the previous session.
@@ -155,23 +154,7 @@ export function ParallelCreateDialog({
     }
   }, [open])
 
-  const modelGroups = useMemo(() => {
-    const order: string[] = []
-    const byKey = new Map<
-      string,
-      { key: string; label: string; models: ModelInfo[] }
-    >()
-    for (const m of models) {
-      let group = byKey.get(m.provider.key)
-      if (!group) {
-        group = { key: m.provider.key, label: m.provider.label, models: [] }
-        byKey.set(m.provider.key, group)
-        order.push(m.provider.key)
-      }
-      group.models.push(m)
-    }
-    return order.map((k) => byKey.get(k)!)
-  }, [models])
+  const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
   const updateRow = (idx: number, patch: Partial<ParallelAgentSpec>) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
