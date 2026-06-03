@@ -28,6 +28,7 @@ import {
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
+import { resolveEscapeAction } from "@/lib/canvas/escape"
 import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import {
@@ -690,35 +691,52 @@ export function Canvas({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (selfMessageRef.current !== null) {
-          closeCursorChat()
-          return
+        // Precedence (innermost/most-transient first) lives in the React-free
+        // `resolveEscapeAction`; this switch just applies the chosen exit. The
+        // focus / Create Flow steps are the two manual mode exits pinned by
+        // lib/canvas/escape.test.ts.
+        switch (
+          resolveEscapeAction({
+            cursorChatOpen: selfMessageRef.current !== null,
+            editingDocumentLayerId: editingDocumentLayerIdRef.current,
+            documentMode: documentModeRef.current,
+            frameMode: frameModeRef.current,
+            commentMode,
+            hasNewCommentPos: newCommentPos !== null,
+            focusedIframeLayerId,
+            createFlowIframeLayerId,
+          })
+        ) {
+          case "close-cursor-chat":
+            closeCursorChat()
+            break
+          case "stop-editing-document":
+            setEditingDocumentLayerId(null)
+            break
+          case "exit-document-mode":
+            setDocumentMode(false)
+            break
+          case "exit-frame-mode":
+            setFrameMode(false)
+            break
+          case "exit-comment-mode":
+            setCommentMode(false)
+            setNewCommentPos(null)
+            setInspectHover(null)
+            break
+          case "exit-focus-mode":
+            setFocusedIframeLayerId(null)
+            break
+          case "exit-create-flow-mode":
+            setCreateFlowIframeLayerId(null)
+            break
+          case "clear-selection":
+            setSelectedIframeLayerIds(new Set())
+            setSelectedGroupIds(new Set())
+            setSelectedDocumentLayerIds(new Set())
+            break
         }
-        if (editingDocumentLayerIdRef.current) {
-          setEditingDocumentLayerId(null)
-          return
-        }
-        if (documentModeRef.current) {
-          setDocumentMode(false)
-          return
-        }
-        if (frameModeRef.current) {
-          setFrameMode(false)
-          return
-        }
-        if (commentMode || newCommentPos) {
-          setCommentMode(false)
-          setNewCommentPos(null)
-          setInspectHover(null)
-        } else if (focusedIframeLayerId) {
-          setFocusedIframeLayerId(null)
-        } else if (createFlowIframeLayerId) {
-          setCreateFlowIframeLayerId(null)
-        } else {
-          setSelectedIframeLayerIds(new Set())
-          setSelectedGroupIds(new Set())
-          setSelectedDocumentLayerIds(new Set())
-        }
+        return
       }
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode(false)
