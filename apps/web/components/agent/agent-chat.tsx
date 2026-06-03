@@ -45,6 +45,10 @@ import {
   getModels,
   type ModelInfo,
 } from "@/lib/models-store"
+import {
+  groupModelsByProvider,
+  resolveDefaultModel,
+} from "@/lib/model-selection"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import type { MarkdownLayerData } from "@/lib/types"
 
@@ -64,30 +68,6 @@ function writeStoredModel(modelId: string) {
   try {
     window.localStorage.setItem(LAST_MODEL_STORAGE_KEY, modelId)
   } catch {}
-}
-
-/**
- * Group models by their origin provider (Anthropic, OpenAI, Vercel AI
- * Gateway, …) so the dropdown surfaces them under headings the user can
- * scan. Preserves the registry's order both at the group level (which
- * provider showed up first in `enumerateModels`) and within each group.
- */
-function groupModelsByProvider(models: ModelInfo[]) {
-  const order: string[] = []
-  const byKey = new Map<
-    string,
-    { key: string; label: string; models: ModelInfo[] }
-  >()
-  for (const m of models) {
-    let group = byKey.get(m.provider.key)
-    if (!group) {
-      group = { key: m.provider.key, label: m.provider.label, models: [] }
-      byKey.set(m.provider.key, group)
-      order.push(m.provider.key)
-    }
-    group.models.push(m)
-  }
-  return order.map((k) => byKey.get(k)!)
 }
 
 /**
@@ -450,23 +430,13 @@ export function AgentChat({
 
   // Precedence: per-chat override (set by `onModelChange`) → user's stored
   // last-used model from localStorage → server-side default for the
-  // configured provider set. The string is "" while the catalog is still
-  // loading so the dropdown can render a "Loading…" placeholder rather than
-  // a stale id from a different deployment's provider.
-  const preferredModel = model ?? storedModel ?? serverDefaultModel ?? ""
-  // Guard against a stale preference: once the catalog has loaded, a
-  // preferred id that's no longer in it (e.g. the user's last-used model was
-  // retired when a newer one shipped) must not stick — fall back to the
-  // server default, then the first listed model, so the picker never sits on
-  // an invalid value. While the catalog is still loading we keep the
-  // preferred id so the "Loading…" placeholder behaviour is preserved.
-  const effectiveModel = (() => {
-    if (models.length === 0 || models.some((m) => m.id === preferredModel))
-      return preferredModel
-    if (serverDefaultModel && models.some((m) => m.id === serverDefaultModel))
-      return serverDefaultModel
-    return models[0]?.id ?? preferredModel
-  })()
+  // configured provider set → first available. See `resolveDefaultModel`.
+  const effectiveModel = resolveDefaultModel({
+    perSession: model,
+    stored: storedModel,
+    serverDefault: serverDefaultModel,
+    models,
+  })
 
   const handleModelChange = useCallback(
     (m: string) => {
