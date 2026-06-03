@@ -196,10 +196,21 @@ export async function POST(req: Request) {
   })
 
   // First-message branch + chat-label naming so chats get auto-named without
-  // the user picking a branch.
+  // the user picking a branch. The rename *broadcasts* are deferred until
+  // after `chat-stream-start` below: clients only replay events back to the
+  // most recent start marker (see `findActiveStreamStart`), and the event
+  // array is trimmed on each start — so anything emitted before the start is
+  // skipped and then deleted. We compute the names here (the branch marker
+  // baked into the user message needs `effectiveBranch`) but broadcast later.
   let effectiveBranch = branch
-  if (isNewChat && isFirstChat !== false) {
-    const shouldNameBranch = autoNamedBranch !== false
+  let renamedBranch = ""
+  let renamedLabel = ""
+  // Every new chat earns an auto-generated label (gated only on `isNewChat`).
+  // The *branch* rename is narrower: only the first chat on the branch, and
+  // only while the branch is still auto-named — a later chat must not rename
+  // the shared branch out from under its siblings.
+  if (isNewChat) {
+    const shouldNameBranch = autoNamedBranch !== false && isFirstChat !== false
     const { branch: rawBranch, chatLabel } = await generateChatNames({
       message,
       shouldNameBranch,
@@ -207,20 +218,14 @@ export async function POST(req: Request) {
     })
     if (shouldNameBranch && rawBranch) {
       effectiveBranch = await deduplicateBranchName(roomId, rawBranch, userId)
-      await broadcastEvent(roomId, chatId, {
-        type: "branch_rename",
-        branch: effectiveBranch,
-      })
+      renamedBranch = effectiveBranch
     }
     if (chatLabel) {
+      renamedLabel = chatLabel
       // Persist the label directly so it survives a client re-render that
       // momentarily clears the broadcast callback.
       await mutateRoomDoc(roomId, ({ chatSessions }) => {
         chatSessions.update(chatId, { label: chatLabel })
-      })
-      await broadcastEvent(roomId, chatId, {
-        type: "chat_rename",
-        label: chatLabel,
       })
     }
   }
@@ -276,6 +281,23 @@ export async function POST(req: Request) {
   await broadcastSignal(roomId, chatId, "chat-stream-start")
   const broadcaster = new StreamBroadcaster(roomId, chatId)
   await broadcaster.onUserMessage(message)
+
+  // Now that the start marker is in place, emit the first-message rename
+  // events — they land inside the replay window so live and late-joining
+  // clients both pick them up (the broadcast skips/trims anything emitted
+  // before the start marker).
+  if (renamedBranch) {
+    await broadcastEvent(roomId, chatId, {
+      type: "branch_rename",
+      branch: renamedBranch,
+    })
+  }
+  if (renamedLabel) {
+    await broadcastEvent(roomId, chatId, {
+      type: "chat_rename",
+      label: renamedLabel,
+    })
+  }
 
   // Kick off the loop in the background and return immediately — the client
   // receives state via the Y.Doc broadcast channel.
