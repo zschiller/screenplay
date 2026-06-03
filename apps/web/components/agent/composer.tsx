@@ -121,6 +121,28 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
   }
 }
 
+/**
+ * Serialize the editor's current draft to the decorated wire body: the
+ * extracted turn text with each `@`-Layer mention and the optional `/`-Skill
+ * serialized inline, plus the referenced-documents footer for any mentioned
+ * Layers. Bodies are never inlined — the agent loop fetches live state via
+ * `read_document(id)` on demand. An empty draft serializes to `""`. Shared by
+ * the submit path and the live `onChange` mirror so both see identical text.
+ */
+function serializeDraft(
+  editor: Editor,
+  markdownLayers: MarkdownLayerData[]
+): string {
+  const { text, mentions } = extractTextAndMentions(editor.getJSON())
+  const trimmed = text.trim()
+  if (!trimmed) return ""
+  const docs = mentions.map((m) => ({
+    id: m.id,
+    title: markdownLayers.find((d) => d.id === m.id)?.title,
+  }))
+  return trimmed + buildReferencedDocsFooter(docs)
+}
+
 /** What a submit hands back: the decorated wire body and the chosen model. */
 export interface ComposerSubmitPayload {
   /**
@@ -193,6 +215,14 @@ export interface ComposerProps {
   /** Fired on submit with the decorated wire body and chosen model. */
   onSubmit: (payload: ComposerSubmitPayload) => void
   /**
+   * Fired on every draft edit with the same decorated wire body `onSubmit`
+   * would send. Lets a caller mirror the live draft into its own state — the
+   * New Workspace dialog uses it to render a collapsed row's prompt preview
+   * while that row's Composer stays mounted but hidden (#327). Omit it and the
+   * Composer keeps its draft purely internal, as in chat.
+   */
+  onChange?: (payload: ComposerSubmitPayload) => void
+  /**
    * Streaming state — while true the send button becomes a stop button (when
    * `onStop` is given) and submit is suppressed. Seed Composers omit this.
    */
@@ -232,6 +262,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       submitMode = "enter",
       allowEmptySubmit = false,
       onSubmit,
+      onChange,
       isStreaming = false,
       onStop,
       placeholder = "Ask the agent...",
@@ -263,6 +294,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     const submitModeRef = useRef(submitMode)
     useEffect(() => {
       submitModeRef.current = submitMode
+    })
+
+    // `onUpdate` is captured once at editor construction, so the live-draft
+    // mirror reaches it through refs rather than the props directly — same
+    // pattern as the submit handler below.
+    const onChangeRef = useRef(onChange)
+    useEffect(() => {
+      onChangeRef.current = onChange
+    })
+    const modelRef = useRef(model)
+    useEffect(() => {
+      modelRef.current = model
     })
 
     // Keep the latest sources in refs (written after commit, not during render)
@@ -392,6 +435,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       },
       onUpdate: ({ editor }) => {
         setHasContent(!editor.isEmpty)
+        // Mirror the live draft to any caller tracking it (the New Workspace
+        // dialog's collapsed-row preview). Reads markdownLayers/model through
+        // refs so this construction-time closure always serializes the latest.
+        onChangeRef.current?.({
+          text: serializeDraft(editor, markdownLayersRef.current),
+          model: modelRef.current,
+        })
       },
     })
 
@@ -400,19 +450,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       // An empty draft only submits where the caller opted in — the seed
       // Composer treats it as a deliberate request for a bare scratch Branch.
       if (editor.isEmpty && !allowEmptySubmit) return
-      const json = editor.getJSON()
-      const { text, mentions } = extractTextAndMentions(json)
-      if (!text.trim() && !allowEmptySubmit) return
-      // Resolve each `@<title>` mention to its current title, then let the
-      // Message Markers codec build the referenced-documents footer (a no-op
-      // suffix when there are no mentions). Bodies are NOT inlined — the agent
-      // loop fetches live state via `read_document(id)` on demand.
-      const docs = mentions.map((m) => ({
-        id: m.id,
-        title: markdownLayersRef.current.find((d) => d.id === m.id)?.title,
-      }))
-      const trimmed = text.trim()
-      const decorated = trimmed ? trimmed + buildReferencedDocsFooter(docs) : ""
+      const decorated = serializeDraft(editor, markdownLayersRef.current)
+      if (!decorated && !allowEmptySubmit) return
       onSubmit({ text: decorated, model })
       editor.commands.clearContent()
       setHasContent(false)

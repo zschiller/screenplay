@@ -1,11 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronsUpDown, GitBranch } from "lucide-react"
+import { ChevronsUpDown, GitBranch, Plus, Trash2 } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
@@ -14,11 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
-import {
-  Composer,
-  type ComposerHandle,
-  type ComposerSubmitPayload,
-} from "@/components/agent/composer"
+import { Composer, type ComposerHandle } from "@/components/agent/composer"
 import { BranchPicker } from "@/components/branch-picker"
 import {
   getDefaultModelId,
@@ -28,6 +26,14 @@ import {
 import { resolveDefaultModel } from "@/lib/model-selection"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
+import {
+  appendClonedRow,
+  focusAfterRemove,
+  initialRows,
+  removeRow,
+  summarizeRow,
+  type ComposerRow,
+} from "@/lib/composer-rows"
 import type { MarkdownLayerData } from "@/lib/types"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
@@ -41,11 +47,19 @@ function readStoredModel(): string | null {
   }
 }
 
+// Process-wide source of stable row keys. A module counter (rather than a ref
+// read during render) keeps the seed pure from React's view; skipped numbers
+// across dialog instances are harmless — keys only need to be unique.
+let rowKeySeq = 0
+function nextRowKey(): string {
+  return `row-${rowKeySeq++}`
+}
+
 interface CreateBranchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
-   * The Repo's default branch — the base the dialog starts on and the dividing
+   * The Repo's default branch — the base each row starts on and the dividing
    * line the planner reads to derive the flow: submitting on the default branch
    * is `"new"`, any other base is `"duplicate-branch"` (#325).
    */
@@ -59,19 +73,23 @@ interface CreateBranchDialogProps {
    * Composer's Message-Markers codec into the submitted text.
    */
   markdownLayers: MarkdownLayerData[]
-  /** Fired with the resolved Composer spec when the user submits. */
-  onSubmit: (spec: ComposerSpec) => void
+  /**
+   * Fired with one resolved {@link ComposerSpec} per row when the user submits.
+   * A single row is the common case; parallel mode (#327) hands several, which
+   * the caller resolves one create per Branch.
+   */
+  onSubmit: (specs: ComposerSpec[]) => void
 }
 
 /**
  * The prompt-first "New Workspace" dialog (ADR 0004, PRD #314).
  *
- * Opens focused on the shared {@link Composer} with a `Base` chip beside it and
- * the Composer's own `Model` picker as the model chip. The base chip defaults to
- * the Repo's default branch and opens a searchable {@link BranchPicker} only when
- * activated, so choosing a base is available but never in the way (#325). The
- * dialog hands a single {@link ComposerSpec} (prompt, model, base, plan-mode) up
- * to the caller, which runs it through the pure planner:
+ * Opens focused on a single {@link Composer} row — a `Base` chip beside the
+ * Composer's own `Model` picker. The base chip defaults to the Repo's default
+ * branch and opens a searchable {@link BranchPicker} only when activated, so
+ * choosing a base is available but never in the way (#325). Each row hands up
+ * one {@link ComposerSpec} (prompt, model, base, plan-mode); the caller runs
+ * every spec through the pure planner:
  *
  *  - An **empty prompt** creates a bare Branch (random name, no Chat Session,
  *    nothing fired).
@@ -81,10 +99,14 @@ interface CreateBranchDialogProps {
  *    `@`-Layer mentions and `/`-Skills (App Skills only, pre-Sandbox) serialize
  *    through the Composer's Message-Markers codec into the submitted text.
  *
- * The chosen base rides on the spec regardless of prompt content; the planner
- * derives the flow from it (default branch → `"new"`, any other base →
- * `"duplicate-branch"`), so the user never sees a copy-vs-new verb. Parallel
- * mode arrives in a later slice.
+ * **Parallel mode (#327)** is opt-in via "+ Add another", which appends a row
+ * cloning the previous row's base and model with an empty prompt. Each row
+ * carries its own independent `{ baseBranch, model, prompt, planMode }`; the
+ * focused row expands to the full Composer while the rest collapse to a
+ * one-line `base · model · prompt preview` summary so a stack stays scannable.
+ * On submit every row becomes its own {@link ComposerSpec}, resolved
+ * independently by the planner — a mix of bare and seeded Branches across rows
+ * is created in one action.
  */
 export function CreateBranchDialog({
   open,
@@ -101,10 +123,6 @@ export function CreateBranchDialog({
   )
   const [skills, setSkills] = useState<SkillMenuItem[]>([])
   const [skillsLoading, setSkillsLoading] = useState(true)
-  // Plan-mode for the seed turn. Reset on each open by mounting fresh — the
-  // dialog is conditionally rendered by its caller, so a fresh open starts here.
-  const [planMode, setPlanMode] = useState(false)
-  const composerRef = useRef<ComposerHandle>(null)
 
   // Load the model catalog + server default while the dialog is open.
   useEffect(() => {
@@ -125,8 +143,6 @@ export function CreateBranchDialog({
   // Load the `/`-Skill menu while the dialog is open. There's no Sandbox yet,
   // so this is App Skills only (resolveSkillMenuSource with no Sandbox, #320);
   // `getSkillMenuItems()` with no sandbox returns exactly that App-only set.
-  // `skillsLoading` starts true and is cleared from the async callback — the
-  // dialog mounts fresh on open, so there's no synchronous flip to make here.
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -151,43 +167,49 @@ export function CreateBranchDialog({
     models,
   })
 
-  // Seed the selected model from the resolved default, re-seeding if the
-  // resolved value changes while open (e.g. the catalog finishes loading) —
-  // the render-phase previous-value pattern.
-  const [model, setModel] = useState(initialModel)
-  const modelSeedKey = `${open}|${initialModel}`
-  const [prevModelSeedKey, setPrevModelSeedKey] = useState(modelSeedKey)
-  if (modelSeedKey !== prevModelSeedKey) {
-    setPrevModelSeedKey(modelSeedKey)
-    if (open) setModel(initialModel)
+  // Seed the rows from the chosen base + resolved default, re-seeding (back to
+  // a single fresh row) whenever the dialog reopens or the resolved seed values
+  // change — the render-phase previous-value pattern, as in the prior dialog.
+  const [rows, setRows] = useState<ComposerRow[]>(() =>
+    initialRows(defaultBranch, initialModel, nextRowKey)
+  )
+  const [focusedIndex, setFocusedIndex] = useState(0)
+  const rowSeedKey = `${open}|${defaultBranch}|${initialModel}`
+  const [prevRowSeedKey, setPrevRowSeedKey] = useState(rowSeedKey)
+  if (rowSeedKey !== prevRowSeedKey) {
+    setPrevRowSeedKey(rowSeedKey)
+    if (open) {
+      setRows(initialRows(defaultBranch, initialModel, nextRowKey))
+      setFocusedIndex(0)
+    }
   }
 
-  // The chosen base. Defaults to the Repo's default branch and re-seeds each
-  // time the dialog opens (or the default branch changes), so a previous fork
-  // selection never leaks into the next open.
-  const [base, setBase] = useState(defaultBranch)
-  const [basePickerOpen, setBasePickerOpen] = useState(false)
-  const baseSeedKey = `${open}|${defaultBranch}`
-  const [prevBaseSeedKey, setPrevBaseSeedKey] = useState(baseSeedKey)
-  if (baseSeedKey !== prevBaseSeedKey) {
-    setPrevBaseSeedKey(baseSeedKey)
-    if (open) setBase(defaultBranch)
+  const updateRow = (idx: number, patch: Partial<ComposerSpec>) => {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
   }
 
-  // Open focused on the Composer — the prompt-first surface (ADR 0004).
-  useEffect(() => {
-    if (!open) return
-    const id = requestAnimationFrame(() => composerRef.current?.focus())
-    return () => cancelAnimationFrame(id)
-  }, [open])
+  const addRow = () => {
+    // The appended row lands at the current end, so focus follows it there.
+    setFocusedIndex(rows.length)
+    setRows((prev) => appendClonedRow(prev, nextRowKey))
+  }
 
-  const handleSubmit = (payload: ComposerSubmitPayload) => {
-    onSubmit({
-      baseBranch: base,
-      model: payload.model,
-      prompt: payload.text,
-      planMode,
-    })
+  const removeRowAt = (idx: number) => {
+    const nextLength = Math.max(1, rows.length - 1)
+    setRows((prev) => removeRow(prev, idx))
+    setFocusedIndex((f) => focusAfterRemove(f, idx, nextLength))
+  }
+
+  const submitAll = () => {
+    // Drop the row's React `key` — the planner only wants the spec fields.
+    onSubmit(
+      rows.map((row) => ({
+        baseBranch: row.baseBranch,
+        model: row.model,
+        prompt: row.prompt,
+        planMode: row.planMode,
+      }))
+    )
     onOpenChange(false)
   }
 
@@ -197,12 +219,140 @@ export function CreateBranchDialog({
         <DialogHeader>
           <DialogTitle>New Workspace</DialogTitle>
           <DialogDescription>
-            Start a fresh Branch off <span className="font-mono">{base}</span>.
-            Submit an empty prompt for a bare scratch Branch. Press ⌘↵ to
-            create.
+            Start a fresh Branch — submit an empty prompt for a bare scratch
+            Branch. Add more rows to fan out several Branches at once. Press ⌘↵
+            to create.
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
+          {rows.map((row, idx) => (
+            <WorkspaceRow
+              key={row.key}
+              row={row}
+              focused={idx === focusedIndex}
+              canRemove={rows.length > 1}
+              models={models}
+              skills={skills}
+              skillsLoading={skillsLoading}
+              markdownLayers={markdownLayers}
+              repoOwner={repoOwner}
+              repoName={repoName}
+              onFocusRow={() => setFocusedIndex(idx)}
+              onRemove={() => removeRowAt(idx)}
+              onBaseChange={(branch) => updateRow(idx, { baseBranch: branch })}
+              onModelChange={(model) => updateRow(idx, { model })}
+              onPlanModeChange={(planMode) => updateRow(idx, { planMode })}
+              onPromptChange={(prompt) => updateRow(idx, { prompt })}
+              onSubmitAll={submitAll}
+            />
+          ))}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="self-start text-xs"
+            onClick={addRow}
+          >
+            <Plus />
+            Add another
+          </Button>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submitAll}>
+            {rows.length === 1
+              ? "Create Branch"
+              : `Create ${rows.length} Branches`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface WorkspaceRowProps {
+  row: ComposerRow
+  /** The focused row expands to the full Composer; the rest collapse to a summary. */
+  focused: boolean
+  /** Whether a remove control is offered (hidden when a single row remains). */
+  canRemove: boolean
+  models: ModelInfo[]
+  skills: SkillMenuItem[]
+  skillsLoading: boolean
+  markdownLayers: MarkdownLayerData[]
+  repoOwner: string
+  repoName: string
+  onFocusRow: () => void
+  onRemove: () => void
+  onBaseChange: (branch: string) => void
+  onModelChange: (model: string) => void
+  onPlanModeChange: (planMode: boolean) => void
+  onPromptChange: (prompt: string) => void
+  onSubmitAll: () => void
+}
+
+/**
+ * One row of the New Workspace dialog (#327). When focused it expands to the
+ * full Composer (base chip + model picker + plan toggle + draft); otherwise it
+ * collapses to a one-line summary that expands on click.
+ *
+ * The Composer stays mounted even while collapsed — hidden, not unmounted — so
+ * its live draft (including `@`-mention pills, which a plain-text round-trip
+ * couldn't restore) survives expanding and collapsing. The collapsed summary's
+ * prompt preview is fed by the Composer's `onChange` mirror into row state.
+ */
+function WorkspaceRow({
+  row,
+  focused,
+  canRemove,
+  models,
+  skills,
+  skillsLoading,
+  markdownLayers,
+  repoOwner,
+  repoName,
+  onFocusRow,
+  onRemove,
+  onBaseChange,
+  onModelChange,
+  onPlanModeChange,
+  onPromptChange,
+  onSubmitAll,
+}: WorkspaceRowProps) {
+  const composerRef = useRef<ComposerHandle>(null)
+  const [basePickerOpen, setBasePickerOpen] = useState(false)
+
+  // Focus the Composer when this row gains focus (and on first mount of the
+  // initially-focused row), once the body is no longer hidden.
+  useEffect(() => {
+    if (!focused) return
+    const id = requestAnimationFrame(() => composerRef.current?.focus())
+    return () => cancelAnimationFrame(id)
+  }, [focused])
+
+  const modelLabel = models.find((m) => m.id === row.model)?.label ?? row.model
+
+  return (
+    <div className="rounded-lg border border-border bg-background">
+      {!focused && (
+        <button
+          type="button"
+          onClick={onFocusRow}
+          className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+          title="Edit this branch"
+        >
+          <GitBranch className="size-3.5 shrink-0 opacity-60" />
+          <span className="truncate">{summarizeRow(row, modelLabel)}</span>
+        </button>
+      )}
+
+      {/* Kept mounted but hidden when collapsed so the draft persists. */}
+      <div className={focused ? "flex flex-col gap-2 p-2" : "hidden"}>
         <div className="flex items-center gap-2">
           <Popover open={basePickerOpen} onOpenChange={setBasePickerOpen}>
             <PopoverTrigger asChild>
@@ -212,7 +362,7 @@ export function CreateBranchDialog({
                 className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <GitBranch className="size-3.5" />
-                <span className="font-mono">{base}</span>
+                <span className="font-mono">{row.baseBranch}</span>
                 <ChevronsUpDown className="size-3 opacity-60" />
               </button>
             </PopoverTrigger>
@@ -221,13 +371,25 @@ export function CreateBranchDialog({
                 owner={repoOwner}
                 repo={repoName}
                 onSelect={(branch) => {
-                  setBase(branch)
+                  onBaseChange(branch)
                   setBasePickerOpen(false)
                   composerRef.current?.focus()
                 }}
               />
             </PopoverContent>
           </Popover>
+          <div className="flex-1" />
+          {canRemove && (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              title="Remove this row"
+              onClick={onRemove}
+            >
+              <Trash2 />
+            </Button>
+          )}
         </div>
 
         <Composer
@@ -240,17 +402,20 @@ export function CreateBranchDialog({
           skillsLoading={skillsLoading}
           enableSkills
           models={models}
-          model={model}
-          onModelChange={setModel}
-          planMode={planMode}
-          onPlanModeChange={setPlanMode}
-          onSubmit={handleSubmit}
+          model={row.model}
+          onModelChange={onModelChange}
+          planMode={row.planMode}
+          onPlanModeChange={onPlanModeChange}
+          onChange={(payload) => onPromptChange(payload.text)}
+          // A submit from any row creates every row — there's one logical
+          // create action — so ⌘↵ in the focused Composer commits the stack.
+          onSubmit={onSubmitAll}
           submitMode="mod-enter"
           allowEmptySubmit
           placeholder="Describe a task, or leave empty for a bare branch…"
           className="relative rounded-lg border border-border"
         />
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }
