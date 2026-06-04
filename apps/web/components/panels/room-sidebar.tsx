@@ -45,7 +45,7 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   RefreshCw,
-  Sparkles,
+  Plus,
   FolderOpen,
   Trash2,
   MoreHorizontal,
@@ -1460,7 +1460,7 @@ export function RoomSidebar({
                                   }}
                                   title="New Workspace"
                                 >
-                                  <Sparkles />
+                                  <Plus />
                                 </SidebarMenuAction>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>

@@ -3304,6 +3304,20 @@ export function Canvas({
         return additions.length > 0 ? [...prev, ...additions] : prev
       })
 
+      // Every Branch needs a tab waiting on the dev server from the moment it's
+      // created. Prompted rows already got their seeded Chat Session above;
+      // bare rows (no Chat Session) get the operator's preferred default tab —
+      // chat or terminal — so a scratch Branch is never tab-less while it
+      // provisions. Selection is deferred until the Sandbox is running, like
+      // the other branch-create flows. The server still skips its auto chat for
+      // these rows (seedChat: false), since the client owns tab seeding here.
+      const defaultTabKind = readLastTabKind()
+      for (const d of dispatched) {
+        if (!d.seedChat) {
+          createDefaultTabForBranch(d.id, defaultTabKind, { select: false })
+        }
+      }
+
       for (const d of dispatched) {
         fetch("/api/branch/create", {
           method: "POST",
@@ -3321,7 +3335,7 @@ export function Canvas({
         })
       }
     },
-    [repos, ops, roomId]
+    [repos, ops, roomId, createDefaultTabForBranch]
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -5227,13 +5241,21 @@ export function Canvas({
                       const agentInfo = iframeLayer.branchId
                         ? agentDomains[iframeLayer.branchId]
                         : undefined
+                      // Resolve the assigned branch's ref independently of
+                      // preview readiness: the dropdown must reflect the
+                      // selection (and the frame show a "waiting" state) as
+                      // soon as a branch is picked, before its dev server —
+                      // and thus its previewDomain in `agentDomains` — is up.
+                      const assignedAgent = iframeLayer.branchId
+                        ? agents.find((a) => a.id === iframeLayer.branchId)
+                        : undefined
                       return (
                         <IframeLayer
                           key={iframeLayer.id}
                           iframeLayer={{
                             ...iframeLayer,
                             iframeUrl: agentInfo?.previewDomain,
-                            branch: agentInfo?.branch,
+                            branch: agentInfo?.branch ?? assignedAgent?.ref,
                           }}
                           zoom={zoom}
                           focused={focusedIframeLayerId === iframeLayer.id}
