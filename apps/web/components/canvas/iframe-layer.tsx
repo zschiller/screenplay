@@ -733,7 +733,10 @@ export function IframeLayer({
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
-            {desiredSrc &&
+            {/* A branch can be assigned before its dev server is up, so there's
+                no URL to probe yet. Still show the waiting state — the probe
+                holds in `waiting` without a URL — so the frame isn't blank. */}
+            {(desiredSrc || iframeLayer.branchId) &&
               (probeState === "timedout" ? (
                 <>
                   <span className="text-xs font-medium text-foreground">
