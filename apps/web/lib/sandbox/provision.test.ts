@@ -627,6 +627,34 @@ describe("startDevServer", () => {
     expect(devSh).toContain("echo $! > /tmp/screenplay/dev.pid")
   })
 
+  it("group-kills any prior dev/proxy supervisor before launching, so a relaunch doesn't stack a second server", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { calls }))
+
+    await startDevServer("sandbox-a", 3000)
+
+    // The cleanup runs before the dev supervisor is launched: a kill referencing
+    // both pidfiles must appear, and it must come before the detached dev launch.
+    const killIdx = calls.findIndex((c) => {
+      const sh = c.args.join(" ")
+      return (
+        sh.includes("kill -KILL") &&
+        sh.includes("/tmp/screenplay/dev.pid") &&
+        sh.includes("/tmp/screenplay/proxy.pid")
+      )
+    })
+    expect(killIdx).toBeGreaterThanOrEqual(0)
+    const launchIdx = calls.findIndex(
+      (c) => c.detached && c.args.join(" ").includes("dev.pid")
+    )
+    expect(killIdx).toBeLessThan(launchIdx)
+    // The group form (`kill -KILL -<pid>`) takes down the whole setsid session —
+    // supervisor loop, dev child, and the child's Next/esbuild workers — not just
+    // the recorded PID, leaving no orphan to fight for the port or `.next` lock.
+    const killSh = calls[killIdx].args.join(" ")
+    expect(killSh).toContain('kill -KILL "-$p"')
+  })
+
   it("returns a failure result when the bridge install fails", async () => {
     fake.setInstance(
       fakeSandbox(() => ({ exitCode: 0 }), { writeError: "disk full" })

@@ -464,7 +464,14 @@ describe("reconnectSandbox", () => {
     )
     stubProbe(false)
 
-    const result = await reconnectSandbox("sandbox-a", repo)
+    // Probe always fails, so ensurePreviewLive exhausts its retry budget before
+    // relaunching. Fake timers fast-forward the inter-attempt delays so the test
+    // doesn't actually sleep; runAllTimersAsync also flushes the awaited probes.
+    vi.useFakeTimers()
+    const pending = reconnectSandbox("sandbox-a", repo)
+    await vi.runAllTimersAsync()
+    const result = await pending
+    vi.useRealTimers()
 
     expect(result).toEqual({
       success: true,
@@ -570,17 +577,46 @@ describe("ensurePreviewLive", () => {
     expect(relaunched).toBe(false)
   })
 
-  it("relaunches the dev server and proxy when the preview is unreachable", async () => {
+  it("relaunches the dev server and proxy when every probe fails", async () => {
     let relaunched = false
     const sandbox = fakeSandbox({ onWriteFiles: () => (relaunched = true) })
     stubProbe(false)
 
-    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev")
+    // probeDelayMs:0 keeps the retry loop instant; the default attempt count
+    // still exhausts before giving up.
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev", null, {
+      probeDelayMs: 0,
+    })
 
-    // Probe failed, so launchDevAndProxy ran (bridge files written) and the
-    // freshly launched proxy's domain is returned.
+    // Every probe failed, so launchDevAndProxy ran (bridge files written) and
+    // the freshly launched proxy's domain is returned.
     expect(domain).toBe("https://fake-4000.example.com")
     expect(relaunched).toBe(true)
+  })
+
+  it("rides out a transient probe failure without relaunching", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({ onWriteFiles: () => (relaunched = true) })
+    // First probe fails (slow cold start / transient blip), the next succeeds.
+    let calls = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++
+        if (calls === 1) throw new Error("ECONNREFUSED")
+        return { ok: true, text: async () => "<html><body>hi</body></html>" }
+      })
+    )
+
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev", null, {
+      probeDelayMs: 0,
+    })
+
+    // The retry found the server up, so no relaunch — the live server is left
+    // running instead of being torn down and stacked over.
+    expect(domain).toBe("https://fake-4000.example.com")
+    expect(relaunched).toBe(false)
+    expect(calls).toBe(2)
   })
 
   it("propagates a relaunch failure so the caller can redact it", async () => {
@@ -588,7 +624,7 @@ describe("ensurePreviewLive", () => {
     stubProbe(false)
 
     await expect(
-      ensurePreviewLive(sandbox, 3000, "npm run dev")
+      ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
     ).rejects.toThrow("relaunch boom")
   })
 })

@@ -95,11 +95,43 @@ export async function writeBridgeFiles(
 }
 
 /**
- * Launch both the user's dev server and the bridge proxy. Installs the bridge
- * files first (idempotent). Returns the preview domain pointing at the proxy
- * port (port + PROXY_PORT_OFFSET) rather than the devserver port. Throws if the
- * bridge install fails — callers running through the runner turn that into a
- * redacted failure result.
+ * Tear down any dev server and proxy supervisor a previous launch left running.
+ * Both were started under `setsid`, so the PID recorded in each pidfile is its
+ * own process-group leader: `kill -KILL -<pid>` takes down the supervisor loop,
+ * its current child (the dev server / proxy node), and that child's own children
+ * (Next compile workers, esbuild) in a single group kill — the only reliable way
+ * to catch every descendant a port-based kill would miss. The plain `kill -KILL
+ * <pid>` is a fallback for the rare case the PID isn't a group leader. Stale or
+ * missing pidfiles (a fresh VM, a snapshot whose recorded PIDs don't exist in
+ * the new process namespace) are harmless: the kills no-op and we remove the
+ * files. Always succeeds — a relaunch must not be blocked by a failed cleanup.
+ *
+ * This is what makes {@link launchDevAndProxy} idempotent: without it, a second
+ * launch into a still-live VM (a reconnect whose preview probe transiently
+ * failed, racing reconnects, a restart over a running server) stacks a second
+ * supervisor on top of the first. The new dev server then loses the port and
+ * can't acquire `.next/dev/lock`, so it exit-1s and the supervisor respawns it
+ * every second forever — and the overwritten pidfile orphans the original.
+ */
+export async function stopDevAndProxy(sandbox: SandboxInstance): Promise<void> {
+  const kill =
+    `for f in ${PIDFILE_DEV} ${PIDFILE_PROXY}; do ` +
+    `p=$(cat "$f" 2>/dev/null); ` +
+    `if [ -n "$p" ]; then kill -KILL "-$p" 2>/dev/null; kill -KILL "$p" 2>/dev/null; fi; ` +
+    `done; ` +
+    `rm -f ${PIDFILE_DEV} ${PIDFILE_PROXY} 2>/dev/null; true`
+  await sandbox.runCommand({ cmd: "sh", args: ["-c", kill] })
+}
+
+/**
+ * Launch both the user's dev server and the bridge proxy. First tears down any
+ * dev/proxy supervisor a previous launch left running (so a relaunch into a
+ * live VM replaces the old server instead of stacking a second one that fights
+ * it for the port and `.next/dev/lock`), then installs the bridge files
+ * (idempotent). Returns the preview domain pointing at the proxy port (port +
+ * PROXY_PORT_OFFSET) rather than the devserver port. Throws if the bridge
+ * install fails — callers running through the runner turn that into a redacted
+ * failure result.
  */
 export async function launchDevAndProxy(
   sandbox: SandboxInstance,
@@ -107,6 +139,7 @@ export async function launchDevAndProxy(
   devScript?: string,
   env?: Record<string, string> | null
 ): Promise<string> {
+  await stopDevAndProxy(sandbox)
   await writeBridgeFiles(sandbox)
 
   const dev = devScript?.trim() || "npm run dev"
