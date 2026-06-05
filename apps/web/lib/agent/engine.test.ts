@@ -120,8 +120,16 @@ function finishesWithPlan(toolCallId: string, plan: string): StreamDriver {
 function finishesWith(messages: unknown[]): StreamDriver {
   return (config) => ({
     consumeStream: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await config.onFinish?.({ response: { messages }, steps: [] } as any)
+      await config.onFinish?.({
+        response: { messages },
+        steps: [],
+        totalUsage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          inputTokenDetails: { cacheReadTokens: 8, cacheWriteTokens: 2 },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
     },
   })
 }
