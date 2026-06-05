@@ -336,6 +336,14 @@ export function IframeLayer({
   // above the usePostMessage call below — e.g. reloadIframe — can reference it.
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // True once the in-iframe bridge reports the real page is loaded. This is a
+  // postMessage from the iframe itself — no server round-trip — so it's the
+  // fastest signal that there's real content to show, and it lets the loading
+  // overlay drop the moment the page paints instead of waiting for the probe
+  // RPC to come back. The proxy never injects the bridge into its "not ready"
+  // placeholder, so this only fires for genuine dev-server pages.
+  const [contentReady, setContentReady] = useState(false)
+
   const handleNavigation = useCallback(
     (id: string, path: string, replace: boolean) => {
       reportedPathRef.current = path
@@ -347,6 +355,9 @@ export function IframeLayer({
   const reloadIframe = useCallback(() => {
     const iframe = iframeRef.current
     if (!iframe) return
+    // A reload re-fetches the page, so the current content is no longer "ready"
+    // — drop the flag so the overlay re-shows until the bridge reports back.
+    setContentReady(false)
     // Cross-origin iframe: cycle src through about:blank to force a full
     // reload that re-fetches bridge.js and the dev server page.
     const src = iframe.src
@@ -359,6 +370,9 @@ export function IframeLayer({
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
+      // The page is up and interactive — hide the loading overlay immediately,
+      // regardless of the bridge-version housekeeping below.
+      setContentReady(true)
       if (!iframeLayer.branchId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
@@ -519,6 +533,7 @@ export function IframeLayer({
   useEffect(() => {
     if (!iframeLayer.iframeUrl) {
       setIframeSrc(undefined)
+      setContentReady(false)
       lastIframeUrlRef.current = undefined
       return
     }
@@ -529,10 +544,13 @@ export function IframeLayer({
       // matches what the previous iframe last reported.
       lastIframeUrlRef.current = iframeLayer.iframeUrl
       reportedPathRef.current = null
+      // New page incoming — re-show the overlay until the bridge reports back.
+      setContentReady(false)
       setIframeSrc(iframeLayer.iframeUrl + route)
       return
     }
     if (route === reportedPathRef.current) return
+    setContentReady(false)
     setIframeSrc(iframeLayer.iframeUrl + route)
   }, [iframeLayer.iframeUrl, iframeLayer.route])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -548,9 +566,24 @@ export function IframeLayer({
   // which reloads it back onto the previous route. (That stale-src reload was
   // the source of the Create Flow "navigates then snaps back / double frame"
   // bug.) A branch switch still changes `iframeUrl`, so it re-probes correctly.
-  const { state: probeState, retry: retryProbe } = useDevServerProbe(
-    iframeLayer.iframeUrl
-  )
+  const {
+    state: probeState,
+    readyAfterWait,
+    retry: retryProbe,
+  } = useDevServerProbe(iframeLayer.iframeUrl)
+
+  // The iframe mounts immediately (see render below) so the warm path paints
+  // with zero gating — no waiting on the probe before a `src` is even assigned.
+  // The tradeoff: on a cold start the iframe may have loaded the proxy's
+  // placeholder before the dev server was up. `readyAfterWait` is true only when
+  // the probe succeeded *after* an earlier failure, i.e. exactly that case — so
+  // reload once onto the now-live server. The warm path (ready on first probe)
+  // never enters here, so there's no reload/flicker.
+  useEffect(() => {
+    if (probeState === "ready" && readyAfterWait) {
+      reloadIframe()
+    }
+  }, [probeState, readyAfterWait, reloadIframe])
 
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures
@@ -746,21 +779,34 @@ export function IframeLayer({
           toolbarPortalTarget
         )}
       <div className="relative h-full w-full overflow-hidden">
-        {iframeSrc && probeState === "ready" ? (
+        {/* Mount the iframe as soon as there's a URL — don't gate it on the
+            probe. The probe is a server-action round-trip; gating the mount on
+            it meant the browser only started fetching the page *after* the probe
+            had already fetched it once, serializing two full loads. Now the
+            iframe loads in parallel with the probe and the overlay below just
+            hides it until the dev server is confirmed reachable. */}
+        {iframeSrc && (
           <iframe
             ref={iframeRef}
             src={iframeSrc}
-            className="h-full w-full border-0 bg-white dark:bg-zinc-900"
+            className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-zinc-900"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             style={{ pointerEvents: interactive ? "auto" : "none" }}
           />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
-            {/* A branch can be assigned before its dev server is up, so there's
-                no URL to probe yet. Still show the waiting state — the probe
-                holds in `waiting` without a URL — so the frame isn't blank. */}
-            {(desiredSrc || iframeLayer.branchId) &&
-              (probeState === "timedout" ? (
+        )}
+        {/* Overlay covering the still-loading (or placeholder) iframe. It drops
+            the instant the iframe's bridge reports the real page is up
+            (`contentReady`) — a postMessage, no server round-trip — so the warm
+            path doesn't sit on the spinner waiting for the probe RPC to return.
+            `probeState === "ready"` is a fallback for pages that load without
+            the bridge. A branch can be assigned before its dev server is up, so
+            there may be no URL to probe yet — still show the waiting state (the
+            probe holds in `waiting` without a URL) so the frame isn't blank. */}
+        {!contentReady &&
+          probeState !== "ready" &&
+          (desiredSrc || iframeLayer.branchId) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
+              {probeState === "timedout" ? (
                 <>
                   <span className="text-xs font-medium text-foreground">
                     Dev server not responding
@@ -786,9 +832,9 @@ export function IframeLayer({
                     Waiting for dev server...
                   </span>
                 </>
-              ))}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
         {/* Overlay sits above the iframe (which is pointer-events:none unless
             focused). Handles drag-to-move / click; in comment mode it also

@@ -25,24 +25,32 @@ import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
 
 /**
- * Check if a sandbox preview URL is responding with real content. The sandbox
- * proxy may return 200 with an empty/placeholder page before the dev server is
- * actually listening, so we verify the body has HTML markup. A plain boolean
- * probe — no sandbox command runs — so it stays outside the result contract.
+ * Check if a sandbox preview URL is reachable. The bridge proxy serves its
+ * "dev server not ready" placeholder with a 5xx status (see servePlaceholder in
+ * proxy.mjs), so any non-5xx response means the dev server itself answered.
+ *
+ * Deliberately lightweight: it does NOT download or parse the page body. The
+ * old version did a full `GET` + `res.text()` and sniffed for HTML markup, which
+ * meant every preview was fetched twice in series — once here, then again by the
+ * iframe — roughly doubling time-to-first-paint on a warm server. A redirect
+ * (e.g. "/" -> "/login") is a live server too, so it's treated as reachable
+ * instead of following the chain. A plain boolean probe — no sandbox command
+ * runs — so it stays outside the result contract.
  */
 export async function probeSandboxUrl(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, {
       method: "GET",
-      redirect: "follow",
+      redirect: "manual",
       signal: AbortSignal.timeout(5000),
       headers: { Accept: "text/html" },
     })
-    if (!res.ok) return false
-    const body = await res.text()
-    // A real dev server response will contain HTML markup. Proxy placeholders /
-    // blank pages won't have a <body> or <div> tag.
-    return body.includes("<body") || body.includes("<div")
+    // Don't consume the body — reachability is all we need, and the iframe
+    // re-fetches the URL itself. Discard the stream so the connection frees.
+    res.body?.cancel().catch(() => {})
+    // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response; either
+    // way, anything that isn't a 5xx proxy placeholder means the server is up.
+    return res.type === "opaqueredirect" || (res.status >= 200 && res.status < 500)
   } catch {
     return false
   }

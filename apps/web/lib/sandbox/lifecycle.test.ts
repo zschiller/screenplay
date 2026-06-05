@@ -141,7 +141,9 @@ function stubProbe(reachable: boolean) {
     "fetch",
     vi.fn(async () => {
       if (!reachable) throw new Error("ECONNREFUSED")
-      return { ok: true, text: async () => "<html><body>hi</body></html>" }
+      // The proxy answers with a 2xx once the dev server is up; the probe only
+      // looks at the status, not the body.
+      return { status: 200 }
     })
   )
 }
@@ -604,7 +606,7 @@ describe("ensurePreviewLive", () => {
       vi.fn(async () => {
         calls++
         if (calls === 1) throw new Error("ECONNREFUSED")
-        return { ok: true, text: async () => "<html><body>hi</body></html>" }
+        return { status: 200 }
       })
     )
 
@@ -634,32 +636,25 @@ describe("probeSandboxUrl", () => {
     vi.unstubAllGlobals()
   })
 
-  it("returns true when the proxy serves real HTML markup", async () => {
+  it("returns true on a 2xx response (dev server answered)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200 })))
+
+    expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
+  })
+
+  it("treats a redirect as reachable without following it", async () => {
+    // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response. A
+    // live server that redirects (e.g. "/" -> "/login") is still up.
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        text: async () => "<html><body>hi</body></html>",
-      }))
+      vi.fn(async () => ({ status: 0, type: "opaqueredirect" }))
     )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
   })
 
-  it("returns false for an empty placeholder page with no markup", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, text: async () => "   " }))
-    )
-
-    expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
-  })
-
-  it("returns false on a non-ok response", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: false, text: async () => "<body>" }))
-    )
+  it("returns false on the proxy's 5xx placeholder (dev server not up yet)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 503 })))
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
   })

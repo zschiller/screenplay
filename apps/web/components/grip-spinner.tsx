@@ -41,9 +41,15 @@ function randomAnim(): DotAnim {
 export function GripSpinner({ className }: { className?: string }) {
   const [anims, setAnims] = useState<DotAnim[] | null>(null)
 
+  // Seed the randomized per-dot timings on mount only. This deliberately sets
+  // state in an effect: the values use Math.random, so computing them during
+  // render would mismatch the server's deterministic markup. Running once
+  // post-hydration is the intended client-only sync, not a render cascade.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setAnims(DOTS.map(() => randomAnim()))
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <svg
