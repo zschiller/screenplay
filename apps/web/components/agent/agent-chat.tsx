@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem } from "./agent-message"
 import {
@@ -316,7 +317,7 @@ export function AgentChat({
               {isStreaming &&
                 messages[messages.length - 1]?.role !== "assistant" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <GripSpinner className="h-3 w-3" />
                     Thinking...
                   </div>
                 )}
