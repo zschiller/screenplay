@@ -27,6 +27,7 @@ import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
   type ScreenplayDom,
+  type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { DeviceSizeMenu } from "./device-size-menu"
@@ -151,6 +152,13 @@ interface IframeLayerProps {
   commentMode?: boolean
   onHover: (iframeLayerId: string, rect: DomRect | null) => void
   /**
+   * A zoom gesture (pinch / ctrl|cmd-wheel) that landed on the interactive
+   * iframe. The bridge cancels the browser's native page zoom and forwards the
+   * gesture here so the canvas can zoom itself instead. `wheel.clientX/Y` are in
+   * the iframe's own viewport pixels.
+   */
+  onWheel?: (iframeLayerId: string, wheel: WheelForward) => void
+  /**
    * Fired with the iframe DOM accessor on mount and `null` on unmount so the
    * canvas can route selector queries (e.g. for selector-anchored comments)
    * to the right iframeLayer.
@@ -228,6 +236,7 @@ export function IframeLayer({
   spaceHeld,
   commentMode,
   onHover,
+  onWheel,
   onDomReady,
   assignableBranches,
   onAssignBranch,
@@ -370,10 +379,12 @@ export function IframeLayer({
   const frameRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
-  // Floating action toolbar only mounts when the frame itself is selected.
-  // Feature gates (Fit/Play) still hide buttons that don't apply. Reload is
-  // always available; it just highlights (default variant) when HMR drops.
-  const showToolbar = selected
+  // Floating action toolbar only mounts when the frame itself is the sole
+  // selection. With multiple frames selected we hide every toolbar so the
+  // canvas stays clean for group operations. Feature gates (Fit/Play) still
+  // hide buttons that don't apply. Reload is always available; it just
+  // highlights (default variant) when HMR drops.
+  const showToolbar = selected && !multiSelected
 
   // Portal target is created in canvas.tsx at z-30 (above the SelectionOverlay
   // canvas at z-10), so the toolbar isn't painted over by hover rings or
@@ -443,7 +454,9 @@ export function IframeLayer({
     onSharedStateChanged,
   })
 
-  const dom = useScreenplayDom(iframeRef)
+  const dom = useScreenplayDom(iframeRef, {
+    onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
+  })
 
   const handleFitToContent = useCallback(async () => {
     try {

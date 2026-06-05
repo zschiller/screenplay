@@ -263,7 +263,7 @@ export function CreateBranchDialog({
             orientation="vertical"
             className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
           >
-            <div className="flex flex-col gap-4 px-4 pt-2 pb-4">
+            <div className="flex flex-col gap-4 px-4 pb-4">
               {rows.map((row, idx) => (
                 <WorkspaceRow
                   key={row.key}

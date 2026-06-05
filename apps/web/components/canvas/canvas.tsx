@@ -111,7 +111,7 @@ import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
-import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
+import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
@@ -929,19 +929,21 @@ export function Canvas({
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
   // Drop out of Focus or Create Flow mode the instant the frame it targets is
-  // gone, so the canvas pans/zooms/scrolls again with no Escape needed. We
-  // reconcile against the live layer set rather than patching each delete
-  // call-site, so every removal path is covered at once — single-frame remove,
-  // keyboard Delete/Backspace, Group-cascade delete, and a remote collaborator
-  // deleting the frame out from under us. Writes back only when an id actually
-  // changed, so unrelated layer edits don't churn state or fight the Escape
-  // handler.
+  // gone OR deselected, so the canvas pans/zooms/scrolls again with no Escape
+  // needed. We reconcile against the live layer set and the current selection
+  // rather than patching each delete/deselect call-site, so every exit path is
+  // covered at once — single-frame remove, keyboard Delete/Backspace,
+  // Group-cascade delete, a remote collaborator deleting the frame out from
+  // under us, and the user clicking away to deselect the frame. Writes back only
+  // when an id actually changed, so unrelated layer edits don't churn state or
+  // fight the Escape handler.
   useEffect(() => {
     const existingLayerIds = new Set(iframeLayers.map((layer) => layer.id))
     const next = reconcileInteractionMode({
       focusedId: focusedIframeLayerId,
       createFlowId: createFlowIframeLayerId,
       existingLayerIds,
+      selectedLayerIds: selectedIframeLayerIds,
     })
     if (next.focusedId !== focusedIframeLayerId) {
       // Syncing mode state down from the external Y.Doc layer set; the guard
@@ -952,7 +954,12 @@ export function Canvas({
     if (next.createFlowId !== createFlowIframeLayerId) {
       setCreateFlowIframeLayerId(next.createFlowId)
     }
-  }, [iframeLayers, focusedIframeLayerId, createFlowIframeLayerId])
+  }, [
+    iframeLayers,
+    focusedIframeLayerId,
+    createFlowIframeLayerId,
+    selectedIframeLayerIds,
+  ])
   const iframeLayerLayouts = useMemo(
     () =>
       computeIframeLayerLayouts(
@@ -3059,6 +3066,28 @@ export function Canvas({
     [chatSessions, localTerminals]
   )
 
+  // Eagerly seed a single new Branch's canvas frame at creation time, rather
+  // than waiting on the deferred `running`-gated seeder: a single-member Group
+  // at the viewport center, selected and zoomed once its frame mounts. The op
+  // clears `pendingIframeLayerSeed`, so the reactive seeder skips this Branch.
+  // Bulk creates seed their own shared Group inline (see handleCreateWorkspace).
+  const seedEagerFrameForBranch = useCallback(
+    (branchId: string) => {
+      const { cx, cy } = getViewportCenter()
+      const frameGroup = ops.createFramesForAgents([{ agentId: branchId }], {
+        x: cx,
+        y: cy,
+      })
+      if (!frameGroup) return
+      setSelectedGroupIds(new Set([frameGroup.groupId]))
+      setSelectedIframeLayerIds(new Set())
+      const firstLayerId = frameGroup.layerIds[0]
+      if (firstLayerId)
+        requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
+    },
+    [ops, getViewportCenter, handleSelectIframeLayer]
+  )
+
   const handleCreateRepo = useCallback(
     (pick: RepoPickerSelection) => {
       const id = nanoid()
@@ -3124,6 +3153,7 @@ export function Canvas({
         prev.includes(agentId) ? prev : [...prev, agentId]
       )
       const seedChat = seedDefaultTabForNewBranch(agentId)
+      seedEagerFrameForBranch(agentId)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -3139,7 +3169,13 @@ export function Canvas({
         }),
       })
     },
-    [addRepoToStorage, ops, roomId, seedDefaultTabForNewBranch]
+    [
+      addRepoToStorage,
+      ops,
+      roomId,
+      seedDefaultTabForNewBranch,
+      seedEagerFrameForBranch,
+    ]
   )
 
   // Prompts queued by the prompt-first create handler (handleCreateWorkspace)
@@ -3253,6 +3289,14 @@ export function Canvas({
         seedChat: boolean
       }> = []
 
+      // Every created Branch gets its frame eagerly (#338's waiting preview):
+      // one Branch lands a single-member Group, a bulk create lands one Group
+      // holding every Branch's frame. Collected here, created in the same Yjs
+      // transaction below so branch + frame land as one undo step.
+      const frameSpecs: Array<{ agentId: string; label?: string }> = []
+      const { cx, cy } = getViewportCenter()
+      let frameGroup: { groupId: string; layerIds: string[] } | undefined
+
       // Create all Branch records (and pre-seed each prompted row's Chat Session
       // so its queued prompt has a stable chatId) in one Yjs transaction.
       ops.batch(() => {
@@ -3290,6 +3334,8 @@ export function Canvas({
             })
           }
 
+          frameSpecs.push({ agentId: id, label })
+
           dispatched.push({
             id,
             sandboxName,
@@ -3300,6 +3346,10 @@ export function Canvas({
             seedChat: plan.seedChat,
           })
         })
+
+        // Seed the frames inside the same transaction (clears each Branch's
+        // `pendingIframeLayerSeed`, so the deferred reactive seeder skips them).
+        frameGroup = ops.createFramesForAgents(frameSpecs, { x: cx, y: cy })
       })
 
       setPendingAgentIds((prev) => {
@@ -3308,6 +3358,20 @@ export function Canvas({
           .filter((id) => !prev.includes(id))
         return additions.length > 0 ? [...prev, ...additions] : prev
       })
+
+      // Surface the just-created frames: select the new Group and bring it into
+      // view once its frames have mounted. Zooming to the first member's DOM
+      // node (rather than `handleZoomToGroup`, which reads not-yet-updated React
+      // state) mirrors the routes-group and deferred-seed flows.
+      if (frameGroup) {
+        const { groupId, layerIds } = frameGroup
+        setSelectedGroupIds(new Set([groupId]))
+        setSelectedIframeLayerIds(new Set())
+        if (layerIds[0]) {
+          const firstLayerId = layerIds[0]
+          requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
+        }
+      }
 
       // Every Branch needs a tab waiting on the dev server from the moment it's
       // created. Prompted rows already got their seeded Chat Session above;
@@ -3340,7 +3404,14 @@ export function Canvas({
         })
       }
     },
-    [repos, ops, roomId, createDefaultTabForBranch]
+    [
+      repos,
+      ops,
+      roomId,
+      createDefaultTabForBranch,
+      getViewportCenter,
+      handleSelectIframeLayer,
+    ]
   )
 
   const handleCreateAgentFromBranch = useCallback(
@@ -3366,6 +3437,7 @@ export function Canvas({
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
       const seedChat = seedDefaultTabForNewBranch(id)
+      seedEagerFrameForBranch(id)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -3381,7 +3453,7 @@ export function Canvas({
         }),
       })
     },
-    [repos, ops, roomId, seedDefaultTabForNewBranch]
+    [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
   )
 
   const handleDuplicateBranch = useCallback(
@@ -3411,6 +3483,7 @@ export function Canvas({
       })
       setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
       const seedChat = seedDefaultTabForNewBranch(id)
+      seedEagerFrameForBranch(id)
 
       fetch("/api/branch/create", {
         method: "POST",
@@ -3427,7 +3500,7 @@ export function Canvas({
         }),
       })
     },
-    [repos, ops, roomId, seedDefaultTabForNewBranch]
+    [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
   )
 
   const handleForkAgent = useCallback(
@@ -3845,8 +3918,13 @@ export function Canvas({
     if (!el) return
 
     const onWheel = (e: WheelEvent) => {
-      if (focusedIframeLayerId !== null) return
-      if (createFlowIframeLayerId !== null) return
+      // Zoom/pan stays live during interact (focus) and Create Flow modes. We
+      // intentionally do NOT bail out for those modes here: wheel events over
+      // the interactive iframe are captured by the cross-origin iframe (it has
+      // pointerEvents:auto) and never reach this wrapper listener, so scrolling
+      // inside the iframe scrolls its content without panning the canvas. Wheel
+      // over the canvas background / frame chrome still bubbles here and pans or
+      // zooms as usual.
       e.preventDefault()
       const ref = transformRef.current
       if (!ref) return
@@ -3871,7 +3949,7 @@ export function Canvas({
 
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
-  }, [focusedIframeLayerId, createFlowIframeLayerId, followingConnectionId])
+  }, [followingConnectionId])
 
   // Convert screen coordinates to canvas coordinates
   const screenToCanvas = useCallback(
@@ -3885,6 +3963,38 @@ export function Canvas({
       }
     },
     []
+  )
+
+  // Zoom gestures (pinch / ctrl|cmd-wheel) that land on an interactive iframe
+  // can't reach the wrapper-level wheel listener — the cross-origin iframe
+  // captures them. The bridge cancels the browser's native page zoom and
+  // forwards them here so a pinch zooms the canvas (centered on the cursor)
+  // exactly like a pinch over the canvas background would.
+  const handleIframeWheel = useCallback(
+    (iframeLayerId: string, w: WheelForward) => {
+      const ref = transformRef.current
+      const wrapper = canvasWrapperRef.current
+      if (!ref || !wrapper) return
+      const frameEl = document.getElementById(`iframe-layer-${iframeLayerId}`)
+      if (!frameEl) return
+      if (followingConnectionId !== null) setFollowingConnectionId(null)
+      const wrapperRect = wrapper.getBoundingClientRect()
+      const frameRect = frameEl.getBoundingClientRect()
+      const { positionX, positionY, scale } = ref.state
+      // Forwarded clientX/clientY are in the iframe's own (unscaled) viewport
+      // pixels; the iframe paints at `scale`, so convert to screen pixels and
+      // make them wrapper-relative to match the wrapper wheel handler's math.
+      const cursorX = frameRect.left - wrapperRect.left + w.clientX * scale
+      const cursorY = frameRect.top - wrapperRect.top + w.clientY * scale
+      const delta = -w.deltaY
+      const factor = 1 + delta * ZOOM_STEP
+      const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale * factor))
+      const ratio = newScale / scale
+      const newPosX = cursorX - (cursorX - positionX) * ratio
+      const newPosY = cursorY - (cursorY - positionY) * ratio
+      ref.setTransform(newPosX, newPosY, newScale, 0)
+    },
+    [followingConnectionId]
   )
 
   /**
@@ -5319,6 +5429,7 @@ export function Canvas({
                           spaceHeld={spaceHeld}
                           commentMode={commentMode}
                           onHover={handleInspectHover}
+                          onWheel={handleIframeWheel}
                           onDomReady={handleIframeLayerDomReady}
                           assignableBranches={agents}
                           onAssignBranch={assignAgentToIframeLayer}

@@ -1589,7 +1589,7 @@ export function RoomSidebar({
                                                 }) => (
                                                   <>
                                                     <div
-                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
+                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? " opacity-50" : ""}`}
                                                       onClick={(e) => {
                                                         e.stopPropagation()
                                                         onSelectBranch(
