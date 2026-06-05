@@ -573,6 +573,77 @@ describe("createFramesForRoutes", () => {
   })
 })
 
+describe("createFramesForAgents", () => {
+  it("seeds one frame per Branch in a single Group, clearing each Branch's seed flag", () => {
+    const { ops, collections } = makeHarness()
+    collections.branches.set(
+      "agent-1",
+      baseBranch("agent-1", { pendingIframeLayerSeed: true })
+    )
+    collections.branches.set(
+      "agent-2",
+      baseBranch("agent-2", { pendingIframeLayerSeed: true })
+    )
+
+    const result = ops.createFramesForAgents(
+      [
+        { agentId: "agent-1", label: "Alpha" },
+        { agentId: "agent-2", label: "Beta" },
+      ],
+      { x: 0, y: 0 }
+    )
+
+    expect(result).toBeDefined()
+    const { groupId, layerIds } = result!
+    expect(layerIds).toHaveLength(2)
+
+    const group = collections.iframeLayerGroups.get(groupId)
+    expect(group?.members).toEqual([
+      { kind: "iframe-layer", id: layerIds[0] },
+      { kind: "iframe-layer", id: layerIds[1] },
+    ])
+
+    expect(collections.iframeLayers.get(layerIds[0]!)?.branchId).toBe("agent-1")
+    expect(collections.iframeLayers.get(layerIds[0]!)?.label).toBe("Alpha")
+    expect(collections.iframeLayers.get(layerIds[1]!)?.branchId).toBe("agent-2")
+    expect(collections.iframeLayers.get(layerIds[1]!)?.label).toBe("Beta")
+
+    // The eager seed fulfils the deferred-seed contract for both Branches.
+    expect(collections.branches.get("agent-1")?.pendingIframeLayerSeed).toBe(
+      false
+    )
+    expect(collections.branches.get("agent-2")?.pendingIframeLayerSeed).toBe(
+      false
+    )
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("creates a single-member Group for one Branch, defaulting the label", () => {
+    const { ops, collections } = makeHarness()
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+
+    const result = ops.createFramesForAgents(
+      [{ agentId: "agent-1" }],
+      { x: 0, y: 0 }
+    )
+
+    const { groupId, layerIds } = result!
+    expect(layerIds).toHaveLength(1)
+    expect(collections.iframeLayers.get(layerIds[0]!)?.label).toBe("Frame 1")
+    expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
+      { kind: "iframe-layer", id: layerIds[0] },
+    ])
+  })
+
+  it("is a no-op for an empty Branch list", () => {
+    const { ops, collections } = makeHarness()
+
+    expect(ops.createFramesForAgents([], { x: 0, y: 0 })).toBeUndefined()
+    expect(collections.iframeLayers.toArray()).toEqual([])
+    expect(collections.iframeLayerGroups.toArray()).toEqual([])
+  })
+})
+
 describe("createDocument", () => {
   it("seeds the body fragment at the right key and returns a coherent { docId, groupId, chatId }", () => {
     const { ops, collections, doc } = makeHarness()
