@@ -132,7 +132,7 @@ interface IframeLayerProps {
   /** Inline rename triggered by double-clicking the frame name. */
   onRename?: (id: string, label: string) => void
   onStateChanged: (id: string, state: JsonObject) => void
-  onRouteChange?: (id: string, route: string) => void
+  onRouteChange?: (id: string, route: string, replace: boolean) => void
   onScrollChange?: (id: string, scrollX: number, scrollY: number) => void
   onKnobsDeclared?: (id: string, knobs: JsonValue[]) => void
   onKnobValuesChange?: (id: string, values: JsonObject) => void
@@ -328,9 +328,9 @@ export function IframeLayer({
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const handleNavigation = useCallback(
-    (id: string, path: string) => {
+    (id: string, path: string, replace: boolean) => {
       reportedPathRef.current = path
-      onRouteChange?.(id, path)
+      onRouteChange?.(id, path, replace)
     },
     [onRouteChange]
   )
@@ -527,7 +527,17 @@ export function IframeLayer({
   // Probe the dev server as an explicit state machine: spinner while
   // `waiting`, the live iframe on `ready`, an actionable error with a working
   // Retry on `timedout` — never an infinite spinner.
-  const { state: probeState, retry: retryProbe } = useDevServerProbe(desiredSrc)
+  //
+  // Keyed on the host (`iframeUrl`), NOT `desiredSrc` (host + route):
+  // reachability is a property of the dev server, not the path. Keying on the
+  // full route would re-enter `waiting` on every in-iframe navigation, briefly
+  // unmounting the iframe and remounting it onto the now-stale `iframeSrc` —
+  // which reloads it back onto the previous route. (That stale-src reload was
+  // the source of the Create Flow "navigates then snaps back / double frame"
+  // bug.) A branch switch still changes `iframeUrl`, so it re-probes correctly.
+  const { state: probeState, retry: retryProbe } = useDevServerProbe(
+    iframeLayer.iframeUrl
+  )
 
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures

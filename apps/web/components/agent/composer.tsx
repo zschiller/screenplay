@@ -228,6 +228,12 @@ export interface ComposerProps {
    */
   isStreaming?: boolean
   onStop?: () => void
+  /**
+   * Hide the trailing send button. The New Workspace dialog commits via its own
+   * "Create" footer button (and ⌘↵), so an in-Composer send control would be a
+   * redundant second submit affordance.
+   */
+  hideSend?: boolean
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
   /** Outer container className. Defaults to the chat input frame. */
@@ -265,6 +271,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       onChange,
       isStreaming = false,
       onStop,
+      hideSend = false,
       placeholder = "Ask the agent...",
       className = "relative border-t border-border p-3",
     },
@@ -409,7 +416,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       editorProps: {
         attributes: {
           class:
-            "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-3 text-xs focus:outline-none",
+            "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-2.5 text-sm focus:outline-none",
           "data-placeholder": placeholder,
         },
         handleKeyDown(_view, event) {
@@ -489,12 +496,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         <InputGroup className="has-disabled:bg-transparent has-disabled:opacity-100 dark:has-disabled:bg-input/30">
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
-          <InputGroupAddon align="block-end">
+          <InputGroupAddon align="block-end" className="gap-0.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <InputGroupButton
                   size="xs"
-                  className="text-xs"
+                  className="-ml-1 text-xs"
                   disabled={modelLocked}
                   title={
                     modelLocked
@@ -542,7 +549,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 Plan
               </InputGroupButton>
             )}
-            {isStreaming && onStop ? (
+            {hideSend ? null : isStreaming && onStop ? (
               <InputGroupButton
                 size="icon-xs"
                 variant="secondary"
@@ -609,7 +616,7 @@ function EmptyAwarePlaceholder({
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute top-0 left-0 px-2.5 py-3 text-xs text-muted-foreground">
+    <div className="pointer-events-none absolute top-0 left-0 px-2.5 py-2.5 text-sm text-muted-foreground">
       {text}
     </div>
   )

@@ -430,27 +430,35 @@
   }
 
   let lastPath = currentPath()
-  function postNavigation() {
+  // `replace` marks URL changes that edit the current history entry in place
+  // (replaceState, and the initial-load report) rather than pushing a new
+  // step. Frameworks routinely replaceState right after a real navigation to
+  // normalize the path or sync query/scroll state; the parent uses this flag
+  // so Create Flow doesn't leave a trail clone for those non-steps.
+  function postNavigation(replace) {
     const p = currentPath()
     if (p === lastPath) return
     lastPath = p
-    parent.postMessage({ type: "screenplay:navigation", path: p }, "*")
+    parent.postMessage(
+      { type: "screenplay:navigation", path: p, replace: !!replace },
+      "*"
+    )
   }
 
   const origPush = history.pushState
   const origReplace = history.replaceState
   history.pushState = function (...args) {
     const r = origPush.apply(this, args)
-    postNavigation()
+    postNavigation(false)
     return r
   }
   history.replaceState = function (...args) {
     const r = origReplace.apply(this, args)
-    postNavigation()
+    postNavigation(true)
     return r
   }
-  window.addEventListener("popstate", postNavigation)
-  window.addEventListener("hashchange", postNavigation)
+  window.addEventListener("popstate", () => postNavigation(false))
+  window.addEventListener("hashchange", () => postNavigation(false))
 
   // Scroll tracking. Trailing-edge throttle at ~20Hz keeps Yjs writes
   // manageable without feeling laggy. The echo guard (lastScrollX/Y) is also
@@ -486,7 +494,10 @@
     type: "screenplay:ready",
     version: window.__screenplayBridgeVersion || "",
   }, "*")
-  parent.postMessage({ type: "screenplay:navigation", path: lastPath }, "*")
+  parent.postMessage(
+    { type: "screenplay:navigation", path: lastPath, replace: true },
+    "*"
+  )
   // Deliberately not posting an initial "screenplay:scroll" here. The parent
   // applies any saved scroll in response to ready; re-emitting the iframe's
   // starting (0,0) position would race with that apply and clobber saved

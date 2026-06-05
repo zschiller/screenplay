@@ -1866,13 +1866,18 @@ export function Canvas({
   })
 
   const updateIframeLayerRoute = useCallback(
-    (id: string, route: string) => {
+    (id: string, route: string, replace = false) => {
       // In Create Flow mode the verb leaves a clone of the previous route in
       // the group (immediately left of the navigated frame) and reports how far
       // to pan so the navigated frame stays visually anchored as the trail
       // grows leftward. The pan is the only part that touches React/viewport
       // state, so it stays here; every Y.Doc write lives behind the verb.
-      const cloneTrail = createFlowIframeLayerIdRef.current === id
+      //
+      // A `replace` change (replaceState / initial-load report) edits the
+      // current URL in place rather than navigating, so it never leaves a
+      // trail clone — otherwise a framework's post-navigation replaceState
+      // (path normalization, query/scroll sync) would double every step.
+      const cloneTrail = !replace && createFlowIframeLayerIdRef.current === id
       const { viewportShift } = ops.navigateRoute(id, route, { cloneTrail })
 
       if (viewportShift > 0) {
