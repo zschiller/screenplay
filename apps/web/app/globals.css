@@ -7,6 +7,18 @@ body {
   overscroll-behavior: none;
 }
 
+/* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
+   cadence to signal a running agent. See components/grip-spinner.tsx. */
+@keyframes grip-dot-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
 /* Tiptap Collaboration caret — remote user cursors in text layers */
 .collaboration-carets__caret {
   position: relative;
