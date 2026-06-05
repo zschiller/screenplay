@@ -155,6 +155,22 @@ export type CanvasOps = {
     anchor: { x: number; y: number }
   ): { groupId: string; firstLayerId: string } | undefined
   /**
+   * Create one agent-bound Iframe Layer per Branch, all gathered into a single
+   * fresh Group placed beside the existing ones (same placement-race guard as
+   * {@link createFrameForAgent}). This is the eager frame-seed for the
+   * prompt-first New-Workspace create: one Branch yields a single-member Group,
+   * a bulk create yields one Group holding every Branch's frame. Each frame is
+   * sized from its own Branch's Repo preset and labelled (falling back to
+   * "Frame 1"), and every Branch's `pendingIframeLayerSeed` is cleared in the
+   * same transaction so the deferred reactive seeder never adds a duplicate.
+   * Returns the new Group id and its layer ids, or `undefined` for an empty
+   * list.
+   */
+  createFramesForAgents(
+    frames: { agentId: string; label?: string }[],
+    anchor: { x: number; y: number }
+  ): { groupId: string; layerIds: string[] } | undefined
+  /**
    * Create a Document (Markdown Layer) in a fresh single-member Group anchored
    * at `anchor` (canvas-space top-left), `size` clamped to the document floor.
    * Seeds the body fragment's title heading via `documentFragment` (the single
@@ -493,6 +509,54 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       })
     })
     return { groupId, firstLayerId: layerIds[0]! }
+  }
+
+  function createFramesForAgents(
+    frames: { agentId: string; label?: string }[],
+    anchor: { x: number; y: number }
+  ): { groupId: string; layerIds: string[] } | undefined {
+    if (frames.length === 0) return undefined
+    const layerIds = frames.map(() => nanoid())
+    const groupId = nanoid()
+    batch(() => {
+      // Placement reads the first frame's preset; every Branch in one bulk
+      // create shares a Repo, so a single size drives the Group's anchor — the
+      // same shape `createFramesForRoutes` uses for its multi-frame Group.
+      const { width, height } = defaultSizeForAgent(frames[0]!.agentId)
+      // Placement-race guard: read the live Group snapshot inside the transaction.
+      const { x, y } = placeNewIframeLayerGroup(
+        collections.iframeLayerGroups.toArray(),
+        collections.iframeLayers.toArray(),
+        anchor,
+        width,
+        height
+      )
+      frames.forEach((frame, i) => {
+        const size = defaultSizeForAgent(frame.agentId)
+        collections.iframeLayers.set(layerIds[i]!, {
+          id: layerIds[i]!,
+          branchId: frame.agentId,
+          width: size.width,
+          height: size.height,
+          label: frame.label || "Frame 1",
+          iframeState: {},
+        })
+        // Seeding the frame eagerly fulfils the deferred-seed contract, so clear
+        // the flag in the same transaction — the reactive seeder must never add
+        // a second frame for these Branches (mirrors `seedFrameForAgent`).
+        collections.branches.update(frame.agentId, {
+          pendingIframeLayerSeed: false,
+        })
+      })
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        x,
+        y,
+        members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
+      })
+    })
+    return { groupId, layerIds }
   }
 
   function createDocument(
@@ -904,6 +968,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     createBlankFrame,
     createFrameForAgent,
     createFramesForRoutes,
+    createFramesForAgents,
     createDocument,
     createBranch,
     seedFrameForAgent,

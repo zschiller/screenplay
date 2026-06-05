@@ -490,6 +490,34 @@
   }
   window.addEventListener("scroll", onScroll, { passive: true })
 
+  // Zoom gestures over the iframe. A trackpad pinch (and ctrl/cmd + wheel)
+  // arrives here as a wheel event with ctrlKey/metaKey set. We must NOT let the
+  // browser run its default action — that's the native full-page zoom, which
+  // would scale our whole app. The parent can't preventDefault it (this
+  // cross-origin iframe captures the event first), so we cancel it here and
+  // forward the gesture to the canvas to zoom the canvas instead. Plain
+  // scrolling is left untouched so it scrolls the iframe's own content.
+  window.addEventListener(
+    "wheel",
+    (e) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      parent.postMessage(
+        {
+          type: "screenplay:wheel",
+          deltaX: e.deltaX,
+          deltaY: e.deltaY,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          clientX: e.clientX,
+          clientY: e.clientY,
+        },
+        "*"
+      )
+    },
+    { passive: false }
+  )
+
   parent.postMessage({
     type: "screenplay:ready",
     version: window.__screenplayBridgeVersion || "",
