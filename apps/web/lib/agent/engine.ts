@@ -1,6 +1,12 @@
 import "server-only"
 
-import { hasToolCall, stepCountIs, streamText, type ModelMessage } from "ai"
+import {
+  hasToolCall,
+  stepCountIs,
+  streamText,
+  type ModelMessage,
+  type SystemModelMessage,
+} from "ai"
 import type { Tool } from "ai"
 import { resolveLanguageModel } from "./providers"
 import type { ToolContext } from "./tools"
@@ -16,6 +22,56 @@ import { broadcastEvent, broadcastSignal, StreamBroadcaster } from "./broadcast"
 
 const MAX_STEPS = 20
 const ABORT_POLL_INTERVAL_MS = 250
+
+/**
+ * An Anthropic ephemeral prompt-cache breakpoint. Anthropic caches the entire
+ * request prefix up to (and including) a block carrying this marker, then
+ * re-reads that prefix at ~10% of the input rate on the next request that
+ * shares it. Other providers ignore the `anthropic`-namespaced provider
+ * options, so it's safe to attach unconditionally regardless of `model`.
+ *
+ * We place two breakpoints per request:
+ *  1. on the system prompt — caches the tools + system prefix (request order is
+ *     tools → system → messages), which is stable across *every* turn, and
+ *  2. on the last conversation message — caches the message history, stable
+ *     across the up-to-{@link MAX_STEPS} internal tool-loop steps of a turn and
+ *     across back-to-back turns within the 5-minute TTL.
+ *
+ * Without these, each tool-loop step re-bills the full system prompt + tool
+ * schemas + growing history at the base input rate — a ~10x cost multiplier on
+ * a 20-step loop.
+ */
+const ANTHROPIC_CACHE_BREAKPOINT = {
+  anthropic: { cacheControl: { type: "ephemeral" } },
+} as const
+
+/** Wrap the system prompt as a cache-marked system message. */
+function cachedSystem(systemPrompt: string): SystemModelMessage {
+  return {
+    role: "system",
+    content: systemPrompt,
+    providerOptions: ANTHROPIC_CACHE_BREAKPOINT,
+  }
+}
+
+/**
+ * Return a copy of `messages` with a cache breakpoint on the final message, so
+ * the whole conversation prefix is cached. No-op for an empty list (nothing to
+ * mark). The marker sits at message level, which Anthropic applies to that
+ * message's last content block.
+ */
+function withConversationCacheBreakpoint(
+  messages: ModelMessage[]
+): ModelMessage[] {
+  if (messages.length === 0) return messages
+  const out = messages.slice()
+  const last = out[out.length - 1]!
+  out[out.length - 1] = {
+    ...last,
+    providerOptions: { ...last.providerOptions, ...ANTHROPIC_CACHE_BREAKPOINT },
+  }
+  return out
+}
 
 /**
  * The slice of the run-state machine the loop drives: it records the truthful
@@ -117,8 +173,8 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
   try {
     const result = startStream({
       model: resolveLanguageModel(model),
-      system: systemPrompt,
-      messages,
+      system: cachedSystem(systemPrompt),
+      messages: withConversationCacheBreakpoint(messages),
       tools,
       stopWhen: [stepCountIs(MAX_STEPS), hasToolCall("submit_plan")],
       abortSignal: controller.signal,
@@ -157,7 +213,20 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
         broadcaster.startNewTextBlock()
       },
 
-      onFinish: async ({ response, finishReason, steps }) => {
+      onFinish: async ({ response, finishReason, steps, totalUsage }) => {
+        // Surface prompt-cache effectiveness so a regression (caching silently
+        // turning off, a prefix that stopped matching) shows up in logs rather
+        // than only on the bill. cacheReadTokens should dominate inputTokens on
+        // any multi-step turn; a near-zero read with a large input is the tell.
+        const u = totalUsage
+        console.info(
+          `[agent] run=${runId} steps=${steps.length} ` +
+            `input=${u?.inputTokens ?? "?"} ` +
+            `cacheRead=${u?.inputTokenDetails?.cacheReadTokens ?? 0} ` +
+            `cacheWrite=${u?.inputTokenDetails?.cacheWriteTokens ?? 0} ` +
+            `output=${u?.outputTokens ?? "?"}`
+        )
+
         // If we halted on submit_plan, find that tool call and persist a
         // pending row + emit plan_submitted. The hasToolCall stop condition
         // fires when the most recent assistant message in `response.messages`
@@ -188,10 +257,9 @@ export async function runAgentLoop(opts: RunAgentLoopOptions): Promise<void> {
         await broadcastEvent(roomId, chatId, { type: "done" })
         await broadcastSignal(roomId, chatId, "chat-stream-end")
 
-        // Suppress unused warning for finishReason / steps — kept in the
-        // signature so callers have a hook if they want to log usage later.
+        // Suppress unused warning for finishReason — kept in the signature so
+        // callers have a hook if they want to branch on it later.
         void finishReason
-        void steps
       },
     })
 
