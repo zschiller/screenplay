@@ -111,6 +111,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
+import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -1619,9 +1620,10 @@ export function RoomSidebar({
                                                               : undefined
                                                           }
                                                         >
-                                                          {isLoading ||
-                                                          isActive ? (
+                                                          {isLoading ? (
                                                             <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
+                                                          ) : isActive ? (
+                                                            <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
                                                           ) : pr?.state ===
                                                             "merged" ? (
                                                             <GitMerge className="shrink-0 text-purple-600 dark:text-purple-400" />

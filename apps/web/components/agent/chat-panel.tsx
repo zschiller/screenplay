@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { GripSpinner } from "@/components/grip-spinner"
 import { EditableText } from "@workspace/ui/components/editable-text"
 import {
   Tabs,
@@ -173,7 +174,7 @@ function ChatTabLabel({
   return (
     <span className="flex items-center gap-1.5">
       {isStreaming ? (
-        <Spinner className="size-3 shrink-0 text-muted-foreground" />
+        <GripSpinner className="size-3 shrink-0 text-muted-foreground" />
       ) : hasUnread ? (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
       ) : null}

@@ -176,7 +176,7 @@ export function IframeLayerLabel({
           ) : (
             <Badge
               variant="outline"
-              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] duration-200 hover:max-w-full"
+              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-0"
             >
               <span className="truncate">{route || "/"}</span>
               <SharedStateIndicator sharedState={sharedState} />
@@ -241,7 +241,11 @@ function RoutePicker({
         >
           <Badge
             variant="outline"
-            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] duration-200 group-hover:max-w-full group-data-[state=open]:max-w-full"
+            // `delay-200` on the collapse + `delay-0` on expand keeps the pill
+            // from visibly shrinking when the cursor crosses onto the trailing
+            // `{}` indicator and momentarily drops `group-hover` before the
+            // tooltip's delayed-open re-grants it.
+            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-0 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
           >
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
