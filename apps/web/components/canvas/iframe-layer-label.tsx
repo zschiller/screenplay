@@ -252,7 +252,11 @@ function RoutePicker({
           </Badge>
           <ChevronsUpDown
             aria-hidden
-            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+            // Mirror the route badge's `delay-300` collapse / `delay-0` expand
+            // so a one-frame `group-hover` drop — which happens as the cursor
+            // crosses onto the trailing `{}` indicator — doesn't snap the
+            // chevron closed and flicker it. Expansion stays instant.
+            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all delay-300 duration-200 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-0 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100 group-data-[state=open]:delay-0"
           />
         </button>
       </PopoverTrigger>
