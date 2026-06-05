@@ -48,13 +48,34 @@ export async function probeSandboxUrl(url: string): Promise<boolean> {
   }
 }
 
+// How many times to probe the preview before concluding it's actually dead and
+// relaunching. A healthy server answers on the first probe; the extra attempts
+// exist purely to ride out a transient hiccup or a dev server that's still in
+// its cold-start window, so a reconnect doesn't tear down and relaunch a server
+// that was about to answer.
+const PREVIEW_PROBE_ATTEMPTS = 3
+// Delay between those attempts. Short enough that detecting a genuinely dead
+// server still relaunches promptly, long enough to give a slow cold start room
+// to come up. (Each probe itself carries a 5s fetch timeout.)
+const PREVIEW_PROBE_DELAY_MS = 2000
+
+export interface EnsurePreviewLiveOptions {
+  /** Probe attempts before relaunching. Defaults to {@link PREVIEW_PROBE_ATTEMPTS}. */
+  probeAttempts?: number
+  /** Delay between probe attempts in ms. Defaults to {@link PREVIEW_PROBE_DELAY_MS}. */
+  probeDelayMs?: number
+}
+
 /**
  * Ensure a live VM's preview is actually answering, relaunching the dev server
  * and proxy when it isn't. Probes the proxy domain first: a healthy, reachable
  * preview is handed straight back untouched — no needless relaunch of a dev
- * server that's already up. When the probe fails (the VM kept running but the
- * dev server or bridge proxy died), relaunches both and returns the preview
- * domain, which now points at the freshly launched proxy.
+ * server that's already up. The probe is retried a few times before giving up,
+ * so a transient hiccup or a still-warming cold start doesn't trigger a relaunch
+ * of a server that was about to answer. Only when every attempt fails (the VM
+ * kept running but the dev server or bridge proxy truly died) does it relaunch
+ * both and return the preview domain, which now points at the freshly launched
+ * proxy.
  *
  * This is the reachability-check-and-relaunch half of the reconnect self-heal:
  * a page reload onto a stuck-but-live VM recovers the preview instead of handing
@@ -66,11 +87,21 @@ export async function ensurePreviewLive(
   sandbox: SandboxInstance,
   port: number,
   devScript?: string,
-  env?: Record<string, string> | null
+  env?: Record<string, string> | null,
+  options: EnsurePreviewLiveOptions = {}
 ): Promise<string> {
+  const {
+    probeAttempts = PREVIEW_PROBE_ATTEMPTS,
+    probeDelayMs = PREVIEW_PROBE_DELAY_MS,
+  } = options
   const previewDomain = sandbox.domain(port + PROXY_PORT_OFFSET)
-  if (await probeSandboxUrl(previewDomain)) {
-    return previewDomain
+  for (let attempt = 0; attempt < probeAttempts; attempt++) {
+    if (await probeSandboxUrl(previewDomain)) {
+      return previewDomain
+    }
+    if (attempt < probeAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, probeDelayMs))
+    }
   }
   return launchDevAndProxy(sandbox, port, devScript, env)
 }
