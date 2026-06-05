@@ -291,7 +291,7 @@ export function AgentMessageItem({
       )
       return (
         <div className="flex justify-end">
-          <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
+          <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
             <Markdown
               urlTransform={(url) => url}
               components={{

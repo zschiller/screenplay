@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronsUpDown, GitBranch, Plus, Trash2 } from "lucide-react"
+import { ChevronDown, GitBranch, Plus, Trash2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { Kbd } from "@workspace/ui/components/kbd"
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import { cn } from "@workspace/ui/lib/utils"
 import { Composer, type ComposerHandle } from "@/components/agent/composer"
 import { BranchPicker } from "@/components/branch-picker"
 import {
@@ -31,7 +34,6 @@ import {
   focusAfterRemove,
   initialRows,
   removeRow,
-  summarizeRow,
   type ComposerRow,
 } from "@/lib/composer-rows"
 import type { MarkdownLayerData } from "@/lib/types"
@@ -200,6 +202,25 @@ export function CreateBranchDialog({
     setFocusedIndex((f) => focusAfterRemove(f, idx, nextLength))
   }
 
+  // Reveal a hairline + shadow under the header once the scroll body has moved
+  // off its top — the boundary only needs to assert itself while content sits
+  // tucked beneath the header. The viewport is Radix-owned, so we reach it by
+  // data-slot off the wrapper rather than threading a ref through ScrollArea.
+  const scrollWrapRef = useRef<HTMLDivElement>(null)
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const viewport = scrollWrapRef.current?.querySelector<HTMLDivElement>(
+      "[data-slot=scroll-area-viewport]"
+    )
+    if (!viewport) return
+    const onScroll = () => setScrolled(viewport.scrollTop > 0)
+    onScroll()
+    viewport.addEventListener("scroll", onScroll, { passive: true })
+    return () => viewport.removeEventListener("scroll", onScroll)
+    // `rows` re-runs the lookup after the viewport (re)mounts with new content.
+  }, [open, rows])
+
   const submitAll = () => {
     // Drop the row's React `key` — the planner only wants the spec fields.
     onSubmit(
@@ -215,59 +236,79 @@ export function CreateBranchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>New Workspace</DialogTitle>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="px-4 pt-4 pb-3">
+          <DialogTitle>Create branches</DialogTitle>
           <DialogDescription>
-            Start a fresh Branch — submit an empty prompt for a bare scratch
-            Branch. Add more rows to fan out several Branches at once. Press ⌘↵
-            to create.
+            Create one or more branches, each with an optional prompt.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
-          {rows.map((row, idx) => (
-            <WorkspaceRow
-              key={row.key}
-              row={row}
-              focused={idx === focusedIndex}
-              canRemove={rows.length > 1}
-              models={models}
-              skills={skills}
-              skillsLoading={skillsLoading}
-              markdownLayers={markdownLayers}
-              repoOwner={repoOwner}
-              repoName={repoName}
-              onFocusRow={() => setFocusedIndex(idx)}
-              onRemove={() => removeRowAt(idx)}
-              onBaseChange={(branch) => updateRow(idx, { baseBranch: branch })}
-              onModelChange={(model) => updateRow(idx, { model })}
-              onPlanModeChange={(planMode) => updateRow(idx, { planMode })}
-              onPromptChange={(prompt) => updateRow(idx, { prompt })}
-              onSubmitAll={submitAll}
-            />
-          ))}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="self-start text-xs"
-            onClick={addRow}
+        <div ref={scrollWrapRef} className="relative">
+          {/* A single box-shadow draws both the hairline (the crisp 0 1px 0 line)
+              and the soft drop beneath it — revealed only while content is tucked
+              under the header. */}
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 z-10 h-px shadow-[inset_0_1px_0_0_rgb(0_0_0/0.08),0_3px_8px_0_rgb(0_0_0/0.06)] transition-opacity duration-150 dark:shadow-[inset_0_1px_0_0_rgb(255_255_255/0.1),0_3px_8px_0_rgb(255_255_255/0.06)]",
+              scrolled ? "opacity-100" : "opacity-0"
+            )}
+          />
+          {/* The max-height must land on the Radix viewport itself — shadcn
+              hardcodes h-full on it, so a max-h on the outer ScrollArea only
+              shrinks-to-fit and never creates a scroll boundary (shadcn #296,
+              radix #2307). Targeting the viewport gives it the overflow cap. */}
+          <ScrollArea
+            orientation="vertical"
+            className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
           >
-            <Plus />
-            Add another
-          </Button>
+            <div className="flex flex-col gap-4 px-4 pt-2 pb-4">
+              {rows.map((row, idx) => (
+                <WorkspaceRow
+                  key={row.key}
+                  row={row}
+                  focused={idx === focusedIndex}
+                  canRemove={rows.length > 1}
+                  models={models}
+                  skills={skills}
+                  skillsLoading={skillsLoading}
+                  markdownLayers={markdownLayers}
+                  repoOwner={repoOwner}
+                  repoName={repoName}
+                  onRemove={() => removeRowAt(idx)}
+                  onBaseChange={(branch) =>
+                    updateRow(idx, { baseBranch: branch })
+                  }
+                  onModelChange={(model) => updateRow(idx, { model })}
+                  onPlanModeChange={(planMode) => updateRow(idx, { planMode })}
+                  onPromptChange={(prompt) => updateRow(idx, { prompt })}
+                  onSubmitAll={submitAll}
+                />
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                onClick={addRow}
+              >
+                <Plus />
+                Add another
+              </Button>
+            </div>
+          </ScrollArea>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="mx-0 mb-0">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button onClick={submitAll}>
             {rows.length === 1
-              ? "Create Branch"
-              : `Create ${rows.length} Branches`}
+              ? "Create branch"
+              : `Create ${rows.length} branches`}
+            <Kbd>⌘↵</Kbd>
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -277,7 +318,7 @@ export function CreateBranchDialog({
 
 interface WorkspaceRowProps {
   row: ComposerRow
-  /** The focused row expands to the full Composer; the rest collapse to a summary. */
+  /** The focused row auto-focuses its Composer (the initial row, or one just added). */
   focused: boolean
   /** Whether a remove control is offered (hidden when a single row remains). */
   canRemove: boolean
@@ -287,7 +328,6 @@ interface WorkspaceRowProps {
   markdownLayers: MarkdownLayerData[]
   repoOwner: string
   repoName: string
-  onFocusRow: () => void
   onRemove: () => void
   onBaseChange: (branch: string) => void
   onModelChange: (model: string) => void
@@ -297,14 +337,10 @@ interface WorkspaceRowProps {
 }
 
 /**
- * One row of the New Workspace dialog (#327). When focused it expands to the
- * full Composer (base chip + model picker + plan toggle + draft); otherwise it
- * collapses to a one-line summary that expands on click.
- *
- * The Composer stays mounted even while collapsed — hidden, not unmounted — so
- * its live draft (including `@`-mention pills, which a plain-text round-trip
- * couldn't restore) survives expanding and collapsing. The collapsed summary's
- * prompt preview is fed by the Composer's `onChange` mirror into row state.
+ * One row of the New Workspace dialog (#327): the full Composer (base chip +
+ * model picker + plan toggle + draft). Every row stays expanded — a stack of
+ * Branches is edited side by side, never collapsed — so each carries its own
+ * independent base/model/prompt visible at once.
  */
 function WorkspaceRow({
   row,
@@ -316,7 +352,6 @@ function WorkspaceRow({
   markdownLayers,
   repoOwner,
   repoName,
-  onFocusRow,
   onRemove,
   onBaseChange,
   onModelChange,
@@ -327,44 +362,30 @@ function WorkspaceRow({
   const composerRef = useRef<ComposerHandle>(null)
   const [basePickerOpen, setBasePickerOpen] = useState(false)
 
-  // Focus the Composer when this row gains focus (and on first mount of the
-  // initially-focused row), once the body is no longer hidden.
+  // Focus the Composer when this row becomes the focused one — on first mount of
+  // the initial row and when a freshly-added row lands.
   useEffect(() => {
     if (!focused) return
     const id = requestAnimationFrame(() => composerRef.current?.focus())
     return () => cancelAnimationFrame(id)
   }, [focused])
 
-  const modelLabel = models.find((m) => m.id === row.model)?.label ?? row.model
-
   return (
-    <div className="rounded-lg border border-border bg-background">
-      {!focused && (
-        <button
-          type="button"
-          onClick={onFocusRow}
-          className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
-          title="Edit this branch"
-        >
-          <GitBranch className="size-3.5 shrink-0 opacity-60" />
-          <span className="truncate">{summarizeRow(row, modelLabel)}</span>
-        </button>
-      )}
-
-      {/* Kept mounted but hidden when collapsed so the draft persists. */}
-      <div className={focused ? "flex flex-col gap-2 p-2" : "hidden"}>
+    <div>
+      <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <Popover open={basePickerOpen} onOpenChange={setBasePickerOpen}>
             <PopoverTrigger asChild>
-              <button
+              <Button
                 type="button"
+                size="xs"
+                variant="ghost"
                 title="Choose the base branch"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <GitBranch className="size-3.5" />
                 <span className="font-mono">{row.baseBranch}</span>
-                <ChevronsUpDown className="size-3 opacity-60" />
-              </button>
+                <ChevronDown className="size-3 opacity-60" />
+              </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
               <BranchPicker
@@ -412,8 +433,9 @@ function WorkspaceRow({
           onSubmit={onSubmitAll}
           submitMode="mod-enter"
           allowEmptySubmit
+          hideSend
           placeholder="Describe a task, or leave empty for a bare branch…"
-          className="relative rounded-lg border border-border"
+          className="relative"
         />
       </div>
     </div>
