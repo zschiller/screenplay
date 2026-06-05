@@ -25,6 +25,14 @@ export interface UseDevServerProbeOptions {
 
 export interface DevServerProbe {
   state: DevServerProbeState
+  /**
+   * True once `state` is `ready`, but only when at least one probe failed first.
+   * The iframe now mounts immediately (before the probe resolves), so on a cold
+   * start it may have loaded the proxy's placeholder; this flag tells the caller
+   * to reload once onto the now-live server. A server that answers on the first
+   * probe (the warm path) leaves this `false`, so there's no needless reload.
+   */
+  readyAfterWait: boolean
   /** Restart the probe from scratch (back to `waiting`). */
   retry: () => void
 }
@@ -45,6 +53,7 @@ export function useDevServerProbe(
   } = options
 
   const [state, setState] = useState<DevServerProbeState>("waiting")
+  const [readyAfterWait, setReadyAfterWait] = useState(false)
 
   // Bumped by retry() to force the probe effect to re-run from scratch even
   // when the URL is unchanged.
@@ -52,6 +61,7 @@ export function useDevServerProbe(
 
   const retry = useCallback(() => {
     setState("waiting")
+    setReadyAfterWait(false)
     setAttempt((n) => n + 1)
   }, [])
 
@@ -77,6 +87,7 @@ export function useDevServerProbe(
 
     let cancelled = false
     setState("waiting")
+    setReadyAfterWait(false)
 
     async function poll() {
       let probes = 0
@@ -84,6 +95,9 @@ export function useDevServerProbe(
         const up = await probeRef.current(url!)
         if (cancelled) return
         if (up) {
+          // `probes > 0` means an earlier attempt failed, so the iframe likely
+          // mounted against the placeholder and needs a reload.
+          setReadyAfterWait(probes > 0)
           setState("ready")
           return
         }
@@ -101,5 +115,5 @@ export function useDevServerProbe(
   }, [url, attempt])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  return { state, retry }
+  return { state, readyAfterWait, retry }
 }
