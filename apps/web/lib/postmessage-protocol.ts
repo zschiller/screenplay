@@ -71,7 +71,7 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:pan-end" }
   | { type: "screenplay:space-down" }
   | { type: "screenplay:space-up" }
-  | { type: "screenplay:navigation"; path: string }
+  | { type: "screenplay:navigation"; path: string; replace?: boolean }
   | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
   | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }

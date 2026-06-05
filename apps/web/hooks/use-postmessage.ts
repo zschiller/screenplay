@@ -21,7 +21,11 @@ interface UsePostMessageOptions {
   knobValues?: JsonObject
   sharedState?: JsonObject
   onStateChanged: (iframeLayerId: string, state: JsonObject) => void
-  onNavigation?: (iframeLayerId: string, path: string) => void
+  onNavigation?: (
+    iframeLayerId: string,
+    path: string,
+    replace: boolean
+  ) => void
   onScroll?: (iframeLayerId: string, scrollX: number, scrollY: number) => void
   onReady?: (iframeLayerId: string, version: string | undefined) => void
   onHmrStatus?: (iframeLayerId: string, status: HmrStatus) => void
@@ -171,7 +175,7 @@ export function usePostMessage({
       } else if (e.data.type === "screenplay:state-changed") {
         onStateChanged(iframeLayerId, e.data.state)
       } else if (e.data.type === "screenplay:navigation") {
-        onNavigation?.(iframeLayerId, e.data.path)
+        onNavigation?.(iframeLayerId, e.data.path, !!e.data.replace)
       } else if (e.data.type === "screenplay:scroll") {
         lastScrollRef.current = { x: e.data.scrollX, y: e.data.scrollY }
         onScroll?.(iframeLayerId, e.data.scrollX, e.data.scrollY)
