@@ -23,6 +23,7 @@ import {
   MessageCircle,
   SquareTerminal,
 } from "lucide-react"
+import { AnimatePresence, motion, Reorder } from "motion/react"
 import { inputStore } from "@/lib/input-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
@@ -80,8 +81,10 @@ import {
   DEFAULT_HARNESS_KEY,
   readLastHarnessKey,
   readLastTabKind,
+  readTabOrder,
   writeLastHarnessKey,
   writeLastTabKind,
+  writeTabOrder,
 } from "@/lib/canvas/tab-kind"
 import { useSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
@@ -91,6 +94,29 @@ import type { BranchPrInfo } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
+
+// Horizontal scrolling for the tab strip is driven imperatively (sticky
+// right-edge, reveal-on-add) against the Radix ScrollArea's viewport. We reach
+// it through this stable data-attribute rather than threading a ref through the
+// shared ScrollArea wrapper (which forwards to its Root, not the viewport).
+const SCROLL_VIEWPORT_SELECTOR = '[data-slot="scroll-area-viewport"]'
+
+// Within how many px of the right edge counts as "pinned right". A couple of
+// px of slack absorbs sub-pixel rounding from fractional widths/zoom.
+const RIGHT_EDGE_SLACK_PX = 2
+
+// Scroll `viewport` the minimum amount so `el` is fully visible, with a little
+// padding so a revealed tab isn't flush against the edge.
+function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
+  const vpRect = viewport.getBoundingClientRect()
+  const elRect = el.getBoundingClientRect()
+  const pad = 8
+  if (elRect.left < vpRect.left) {
+    viewport.scrollLeft -= vpRect.left - elRect.left + pad
+  } else if (elRect.right > vpRect.right) {
+    viewport.scrollLeft += elRect.right - vpRect.right + pad
+  }
+}
 
 // Scan a chat's messages newest-first for the most recent `create_pr` tool
 // result and pull the PR url/number out of its output. Pure over `messages`
@@ -148,6 +174,67 @@ function useChatStatus(chatId: string) {
     () => false
   )
   return { isStreaming, hasUnread }
+}
+
+// Width of the OS's native scrollbar, in px. 0 means overlay scrollbars (the
+// macOS trackpad default); > 0 means classic space-taking scrollbars, which
+// macOS switches to when a mouse is connected, and which Windows/Linux use
+// always. So a positive width is a proactive "a mouse is (probably) present"
+// signal available at load — no scroll required.
+function measureScrollbarWidth(): number {
+  const probe = document.createElement("div")
+  probe.style.cssText =
+    "position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll"
+  document.body.appendChild(probe)
+  const width = probe.offsetWidth - probe.clientWidth
+  probe.remove()
+  return width
+}
+
+// A physical mouse wheel scrolls in discrete notches; a trackpad scrolls
+// smoothly. There's no direct API for the device (a trackpad is also
+// `pointer: fine`), so as a secondary signal we sniff the wheel event: Firefox
+// reports line/page deltas for a real wheel (`deltaMode !== 0`), while
+// Chromium/WebKit expose a legacy `wheelDeltaY` that's a multiple of 120 per
+// notch. Trackpads emit small, fractional, pixel-mode deltas that never land on
+// clean 120s.
+function wheelLooksLikeMouse(e: WheelEvent): boolean {
+  if (e.deltaMode !== 0) return true
+  const wheelDeltaY = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY
+  return (
+    typeof wheelDeltaY === "number" &&
+    wheelDeltaY !== 0 &&
+    Math.abs(wheelDeltaY) % 120 === 0
+  )
+}
+
+// Whether to treat the user as a mouse user — drives showing the tab strip's
+// scrollbar (trackpad users two-finger scroll and don't need it; matches the
+// macOS "based on mouse or trackpad" scrollbar default). Primary signal is the
+// native scrollbar width, re-checked on window focus so connecting/removing a
+// mouse mid-session is picked up (macOS swaps scrollbar style live). A detected
+// mouse wheel latches it on too, covering the macOS "show scrollbars only when
+// scrolling" config where the gutter stays overlay (width 0) even with a mouse.
+function useUsingMouse(): boolean {
+  const [usingMouse, setUsingMouse] = useState(false)
+  useEffect(() => {
+    let sawWheel = false
+    const sync = () => setUsingMouse(sawWheel || measureScrollbarWidth() > 0)
+    sync()
+    const onWheel = (e: WheelEvent) => {
+      if (!sawWheel && wheelLooksLikeMouse(e)) {
+        sawWheel = true
+        setUsingMouse(true)
+      }
+    }
+    window.addEventListener("focus", sync)
+    window.addEventListener("wheel", onWheel, { passive: true })
+    return () => {
+      window.removeEventListener("focus", sync)
+      window.removeEventListener("wheel", onWheel)
+    }
+  }, [])
+  return usingMouse
 }
 
 // A tab's inline-rename field. ALL geometry — the padding and the negative
@@ -285,7 +372,11 @@ interface ChatPanelProps {
   onCreateTerminal?: (harnessKey: string) => void
   onRenameChat: (chatId: string, label: string) => void
   onRemoveChat: (chatId: string) => void
-  onCloseChat: (chatId: string) => void
+  /** Close a tab. `nextSelectedId` is the visual neighbour to fall back to when
+   *  the closed tab was selected — the tab after it in the displayed order, or
+   *  the one before it when closing the last tab. Undefined when no other tab
+   *  survives (the parent then recreates a default tab). */
+  onCloseChat: (chatId: string, nextSelectedId?: string) => void
   onReopenChat: (chatId: string) => void
   onBranchRename: (branch: string) => void
   onPlanModeChange: (chatId: string, planMode: boolean) => void
@@ -456,10 +547,133 @@ export function ChatPanel({
   // would cascade an extra render after the target switch.
   const targetKey = agent?.id ?? layerTarget?.layer.id ?? ""
   const [lastTargetKey, setLastTargetKey] = useState(targetKey)
+  // Operator's drag-chosen tab order for this target (ids), seeded from
+  // localStorage. Reconciled with the live tab set in `orderedTabs` below.
+  const [tabOrder, setTabOrder] = useState<string[]>(() =>
+    readTabOrder(targetKey)
+  )
   if (targetKey !== lastTargetKey) {
     setLastTargetKey(targetKey)
     setShowLogs(false)
+    // Switching targets swaps in that target's own saved arrangement.
+    setTabOrder(readTabOrder(targetKey))
   }
+
+  // The displayed tab order: stored ids first (in saved order, skipping any
+  // that have since closed), then any tabs not yet in the saved order appended
+  // in their createdAt order. So a brand-new tab always lands at the end and a
+  // never-reordered target falls back to pure createdAt order.
+  const orderedTabs = useMemo<OpenTab[]>(() => {
+    if (tabOrder.length === 0) return openTabs
+    const byId = new Map(openTabs.map((t) => [t.id, t] as const))
+    const result: OpenTab[] = []
+    for (const id of tabOrder) {
+      const tab = byId.get(id)
+      if (tab) {
+        result.push(tab)
+        byId.delete(id)
+      }
+    }
+    for (const tab of openTabs) if (byId.has(tab.id)) result.push(tab)
+    return result
+  }, [openTabs, tabOrder])
+
+  const handleReorder = useCallback(
+    (nextIds: string[]) => {
+      setTabOrder(nextIds)
+      writeTabOrder(targetKey, nextIds)
+    },
+    [targetKey]
+  )
+
+  // Show the tab strip's scrollbar only once we've seen a real mouse wheel;
+  // trackpad users two-finger scroll and don't need it.
+  const usingMouse = useUsingMouse()
+
+  // The tab to select when `closingId` is closed: its neighbour in the *displayed*
+  // order — the next tab, or the previous one when closing the last tab. Undefined
+  // when it's the only tab. The parent prefers this over its own createdAt-ordered
+  // fallback so closing a tab lands on the visually adjacent one, not the oldest.
+  const neighbourTabId = useCallback(
+    (closingId: string) => {
+      const idx = orderedTabs.findIndex((t) => t.id === closingId)
+      if (idx === -1) return undefined
+      return (orderedTabs[idx + 1] ?? orderedTabs[idx - 1])?.id
+    },
+    [orderedTabs]
+  )
+
+  // Imperative horizontal scrolling of the tab strip. `tabBarRef` wraps the
+  // ScrollArea; we look up its viewport on demand rather than holding a ref the
+  // shared wrapper doesn't expose. `pinnedRightRef` tracks whether the operator
+  // is parked at the right edge (so we can keep them there as tabs are added).
+  const tabBarRef = useRef<HTMLDivElement>(null)
+  const pinnedRightRef = useRef(false)
+  const prevTabCountRef = useRef(openTabs.length)
+  const getViewport = useCallback(
+    () =>
+      tabBarRef.current?.querySelector<HTMLElement>(SCROLL_VIEWPORT_SELECTOR) ??
+      null,
+    []
+  )
+
+  // Keep `pinnedRightRef` current as the operator scrolls, and re-pin to the
+  // right edge whenever the strip's content grows while they're parked there
+  // (e.g. a tab added by another client in the room). The ResizeObserver
+  // watches the viewport's content wrapper, which widens as tabs are added.
+  useEffect(() => {
+    const vp = getViewport()
+    if (!vp) return
+    const updatePinned = () => {
+      // Only "pinned right" when the strip actually overflows *and* the operator
+      // is parked at that right edge. Without the overflow guard, a strip that
+      // fits (or isn't laid out yet on mount) reads as pinned — and the
+      // ResizeObserver's initial fire would then jump scrollLeft to the end,
+      // landing a freshly-loaded strip scrolled all the way right.
+      const overflow = vp.scrollWidth - vp.clientWidth
+      pinnedRightRef.current =
+        overflow > RIGHT_EDGE_SLACK_PX &&
+        overflow - vp.scrollLeft <= RIGHT_EDGE_SLACK_PX
+    }
+    updatePinned()
+    vp.addEventListener("scroll", updatePinned, { passive: true })
+    const content = vp.firstElementChild
+    const ro = content
+      ? new ResizeObserver(() => {
+          if (pinnedRightRef.current) vp.scrollLeft = vp.scrollWidth
+        })
+      : null
+    if (content && ro) ro.observe(content)
+    return () => {
+      vp.removeEventListener("scroll", updatePinned)
+      ro?.disconnect()
+    }
+  }, [getViewport])
+
+  // When a tab is added, reveal the right end — the new tab lands there, and
+  // this also brings the "+" button back into view.
+  useEffect(() => {
+    const prev = prevTabCountRef.current
+    prevTabCountRef.current = openTabs.length
+    if (openTabs.length > prev) {
+      const vp = getViewport()
+      if (!vp) return
+      vp.scrollLeft = vp.scrollWidth
+      pinnedRightRef.current = true
+    }
+  }, [openTabs.length, getViewport])
+
+  // Reveal the active tab whenever the selection changes (e.g. picking a tab
+  // that's scrolled off-screen, or the freshly-created tab becoming active).
+  useEffect(() => {
+    if (!selectedChatId) return
+    const vp = getViewport()
+    if (!vp) return
+    const el = vp.querySelector<HTMLElement>(
+      `[data-tab-id="${CSS.escape(selectedChatId)}"]`
+    )
+    if (el) ensureTabVisible(vp, el)
+  }, [selectedChatId, getViewport])
 
   // Fired by LogsPanel the first time it successfully connects to the stream.
   // We only auto-open logs at this point (not on agent.status === "starting")
@@ -587,8 +801,20 @@ export function ChatPanel({
             ))}
         </div>
       </div>
-      <div className="flex border-b border-border bg-background">
-        <ScrollArea orientation="horizontal" className="min-w-0 flex-1">
+      <div
+        ref={tabBarRef}
+        className="flex border-b border-border bg-background"
+      >
+        <ScrollArea
+          orientation="horizontal"
+          // Scrollbar styling, scoped to the bar via its data-slot:
+          // - z-10 keeps it above a tab being dragged (motion gives the dragged
+          //   Reorder.Item `z-index: 1`, which would otherwise cover the bar).
+          // - hidden until a mouse is detected, so trackpad users never see it.
+          className={`min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:z-10 ${
+            usingMouse ? "" : "[&_[data-slot=scroll-area-scrollbar]]:hidden"
+          }`}
+        >
           <TabsList variant="line" className="h-9 px-2">
             {isAgentTarget && (
               <TabsTrigger
@@ -600,47 +826,108 @@ export function ChatPanel({
                 <Logs className="size-3.5" />
               </TabsTrigger>
             )}
-            {openTabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="group/tab relative min-w-[100px] px-2 py-1 pr-2 text-xs"
-              >
-                {tab.kind === "terminal" ? (
-                  <TerminalTabLabel
-                    terminal={tab.terminal}
-                    onRename={(label) => onRenameChat(tab.id, label)}
-                  />
-                ) : (
-                  <ChatTabLabel
-                    chat={tab.chat}
-                    onRename={(label) => onRenameChat(tab.id, label)}
-                  />
-                )}
-                <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
-                  <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    title="Close"
-                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onCloseChat(tab.id)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onCloseChat(tab.id)
-                      }
-                    }}
+            {/* Drag-reorderable chat/terminal tabs. The logs trigger and the
+                "+" button stay fixed (outside the group); only these tabs
+                reorder. `values`/`onReorder` are controlled by `tabOrder`. */}
+            <Reorder.Group
+              // Keyed by the target so switching branches/layers REMOUNTS the
+              // whole group instead of diffing this target's tab ids against the
+              // previous one's. Without it, every tab from the old target exits
+              // and every tab from the new one enters on each switch — the tabs
+              // animate/jitter. A fresh mount (with AnimatePresence
+              // `initial={false}`) paints the new target's tabs with no anim.
+              key={targetKey}
+              as="div"
+              axis="x"
+              values={orderedTabs.map((t) => t.id)}
+              onReorder={handleReorder}
+              className="flex h-full items-stretch gap-1 overflow-visible"
+            >
+              <AnimatePresence initial={false}>
+                {orderedTabs.map((tab) => (
+                  <Reorder.Item
+                    key={tab.id}
+                    value={tab.id}
+                    as="div"
+                    data-tab-id={tab.id}
+                    className="flex shrink-0 items-stretch"
                   >
-                    <X className="size-3" />
-                  </span>
-                </div>
-              </TabsTrigger>
-            ))}
+                    {/* Enter/exit lives on this inner wrapper, NOT the
+                        Reorder.Item: the item runs a layout animation while
+                        dragging (that's how neighbours slide aside), and driving
+                        `width` on the same element fights that projection and
+                        jitters. Here the wrapper collapses its width 0↔auto while
+                        the trigger keeps its min-width, so the tab clips instead
+                        of truncating its label. `overflow-x-clip` (not
+                        `overflow-x-hidden`, which would force overflow-y to auto)
+                        keeps the active underline — an ::after at bottom-[-5px] —
+                        visible. `initial={false}` on AnimatePresence skips this on
+                        first paint, so only tabs added/removed after mount
+                        animate. */}
+                    <motion.div
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: "auto", opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      className="flex items-stretch overflow-x-clip bg-background"
+                    >
+                      <TabsTrigger
+                        value={tab.id}
+                        className="group/tab relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
+                      >
+                        {tab.kind === "terminal" ? (
+                          <TerminalTabLabel
+                            terminal={tab.terminal}
+                            onRename={(label) => onRenameChat(tab.id, label)}
+                          />
+                        ) : (
+                          <ChatTabLabel
+                            chat={tab.chat}
+                            onRename={(label) => onRenameChat(tab.id, label)}
+                          />
+                        )}
+                        <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
+                          <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            title="Close"
+                            className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            // The X lives inside a Radix TabsTrigger, which selects
+                            // the tab on pointer/mouse-down and on focus. Stop those
+                            // from reaching the trigger and preventDefault so the X
+                            // never takes focus (whose focusin would bubble up and
+                            // auto-activate the tab) — otherwise closing an
+                            // unselected tab selects it first.
+                            onPointerDown={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                            }}
+                            onMouseDown={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onCloseChat(tab.id, neighbourTabId(tab.id))
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                onCloseChat(tab.id, neighbourTabId(tab.id))
+                              }
+                            }}
+                          >
+                            <X className="size-3" />
+                          </span>
+                        </div>
+                      </TabsTrigger>
+                    </motion.div>
+                  </Reorder.Item>
+                ))}
+              </AnimatePresence>
+            </Reorder.Group>
             {onCreateTerminal ? (
               <ButtonGroup
                 className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}

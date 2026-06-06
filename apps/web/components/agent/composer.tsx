@@ -202,10 +202,24 @@ export interface ComposerProps {
    * component (ADR 0004). `"enter"` (default) is chat's binding: Enter submits,
    * Shift+Enter inserts a newline. `"mod-enter"` is the seed binding used by the
    * `CreateBranchDialog`: ⌘/Ctrl+Enter creates and a bare Enter inserts a
-   * newline, so a stray Enter can't fire the heavier, less-reversible Branch
-   * creation.
+   * newline (or fires {@link ComposerProps.onEnter} when given), so a stray
+   * Enter can't fire the heavier, less-reversible Branch creation.
    */
   submitMode?: "enter" | "mod-enter"
+  /**
+   * Optional handler for a bare Enter in `mod-enter` mode. When given, a plain
+   * Enter (no modifier, no Shift) fires this instead of inserting a newline —
+   * the New Workspace dialog binds it to "Add another" so Enter stacks a row,
+   * Shift+Enter is a newline, and ⌘/Ctrl+Enter creates. Ignored in `enter` mode.
+   */
+  onEnter?: () => void
+  /**
+   * Optional handler for Backspace/Delete on an already-empty draft. The New
+   * Workspace dialog binds it to removing the row, so emptying a row and
+   * hitting Delete once more pops it off the stack. Ignored while a mention or
+   * skill popover is open. Omit it and Backspace on an empty draft is a no-op.
+   */
+  onRemoveWhenEmpty?: () => void
   /**
    * Allow committing an empty draft. Off in chat (an empty turn is
    * meaningless); on in the seed Composer, where an empty prompt is a
@@ -266,6 +280,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       planMode,
       onPlanModeChange,
       submitMode = "enter",
+      onEnter,
+      onRemoveWhenEmpty,
       allowEmptySubmit = false,
       onSubmit,
       onChange,
@@ -302,6 +318,24 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     useEffect(() => {
       submitModeRef.current = submitMode
     })
+
+    // Same deferral for the bare-Enter handler: the keydown closure is captured
+    // at construction, so the latest `onEnter` reaches it through a ref.
+    const onEnterRef = useRef(onEnter)
+    useEffect(() => {
+      onEnterRef.current = onEnter
+    })
+
+    // Same deferral for the empty-Backspace handler.
+    const onRemoveWhenEmptyRef = useRef(onRemoveWhenEmpty)
+    useEffect(() => {
+      onRemoveWhenEmptyRef.current = onRemoveWhenEmpty
+    })
+
+    // Whether the draft is currently empty — read synchronously by the
+    // construction-time keydown handler (which can't see `editor` directly) to
+    // decide if Backspace/Delete should pop the row.
+    const isEmptyRef = useRef(true)
 
     // `onUpdate` is captured once at editor construction, so the live-draft
     // mirror reaches it through refs rather than the props directly — same
@@ -420,17 +454,34 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           "data-placeholder": placeholder,
         },
         handleKeyDown(_view, event) {
-          if (event.key !== "Enter") return false
           // ProseMirror checks direct editorProps before plugin props, so the
-          // mention suggestion plugin hasn't had a chance to consume Enter
-          // yet — bail so it can pick the highlighted doc instead of us
-          // submitting the draft with a literal `@query` token.
+          // mention suggestion plugin hasn't had a chance to consume the key
+          // yet — bail so it can pick the highlighted doc / delete a trigger
+          // instead of us acting on it.
           if (mentionOpenRef.current || skillMentionOpenRef.current)
             return false
+          // Backspace/Delete on an already-empty draft pops the row (the New
+          // Workspace dialog), so a cleared row is one keystroke from gone.
+          if (
+            (event.key === "Backspace" || event.key === "Delete") &&
+            onRemoveWhenEmptyRef.current &&
+            isEmptyRef.current
+          ) {
+            event.preventDefault()
+            onRemoveWhenEmptyRef.current()
+            return true
+          }
+          if (event.key !== "Enter") return false
           if (submitModeRef.current === "mod-enter") {
-            // Seed binding: only ⌘/Ctrl+Enter creates; a bare Enter falls
-            // through to ProseMirror as a newline.
-            if (!event.metaKey && !event.ctrlKey) return false
+            // Seed binding: ⌘/Ctrl+Enter creates. A bare Enter fires the
+            // optional `onEnter` (the dialog's "Add another"); Shift+Enter, or
+            // no handler, falls through to ProseMirror as a newline.
+            if (!event.metaKey && !event.ctrlKey) {
+              if (event.shiftKey || !onEnterRef.current) return false
+              event.preventDefault()
+              onEnterRef.current()
+              return true
+            }
           } else if (event.shiftKey) {
             // Chat binding: Shift+Enter is a newline.
             return false
@@ -441,6 +492,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         },
       },
       onUpdate: ({ editor }) => {
+        isEmptyRef.current = editor.isEmpty
         setHasContent(!editor.isEmpty)
         // Mirror the live draft to any caller tracking it (the New Workspace
         // dialog's collapsed-row preview). Reads markdownLayers/model through
@@ -461,6 +513,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       if (!decorated && !allowEmptySubmit) return
       onSubmit({ text: decorated, model })
       editor.commands.clearContent()
+      isEmptyRef.current = true
       setHasContent(false)
     }, [editor, isStreaming, onSubmit, model, allowEmptySubmit])
 
