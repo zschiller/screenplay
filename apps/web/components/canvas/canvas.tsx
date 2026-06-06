@@ -1485,14 +1485,36 @@ export function Canvas({
       setHoveredIframeLayerId(null)
       const selectedAb = selectedIframeLayerIdsRef.current
       const selectedDoc = selectedDocumentLayerIdsRef.current
+      const selectedGroups = selectedGroupIdsRef.current
+      const allGroups = collections.iframeLayerGroups.toArray()
       const layerSelected = selectedAb.has(layerId) || selectedDoc.has(layerId)
-      const involved = layerSelected
-        ? new Set<string>([...selectedAb, ...selectedDoc])
-        : new Set<string>([layerId])
+      const layerGroupSelected = allGroups.some(
+        (g) =>
+          selectedGroups.has(g.id) &&
+          getGroupMembers(g).some((m) => m.id === layerId)
+      )
+      // Collect every group this drag will translate, mirroring the move
+      // routing (see IframeLayer.handleDrag): grabbing a selected layer or a
+      // member of a selected group drags the whole selection — all selected
+      // frames' groups plus all selected groups; anything else drags just the
+      // grabbed layer's group. Snapping only arms for a single moving group, so
+      // a multi-group (e.g. mixed) drag falls through to the bail below.
       const groupIds = new Set<string>()
-      for (const g of collections.iframeLayerGroups.toArray()) {
-        if (getGroupMembers(g).some((m) => involved.has(m.id)))
-          groupIds.add(g.id)
+      if (layerSelected || layerGroupSelected) {
+        for (const g of allGroups) {
+          if (
+            getGroupMembers(g).some(
+              (m) => selectedAb.has(m.id) || selectedDoc.has(m.id)
+            )
+          )
+            groupIds.add(g.id)
+        }
+        for (const gid of selectedGroups) groupIds.add(gid)
+      } else {
+        for (const g of allGroups) {
+          if (getGroupMembers(g).some((m) => m.id === layerId))
+            groupIds.add(g.id)
+        }
       }
       if (groupIds.size !== 1) {
         groupDragSourceRef.current = null
@@ -4537,14 +4559,33 @@ export function Canvas({
     ]
   )
 
+  /** Id of the group containing `memberId`, or undefined for an ungrouped layer. */
+  const findGroupIdForMember = useCallback(
+    (memberId: string): string | undefined =>
+      collections.iframeLayerGroups
+        .toArray()
+        .find((g) => getGroupMembers(g).some((m) => m.id === memberId))?.id,
+    [collections]
+  )
+
   // Click on iframeLayer to select. Clicking a child frame whose parent group is
   // currently selected pierces — the click moves selection to the child. To
   // keep group drag working, callers must skip selection on pointerdown when
   // the group is selected (see IframeLayer.onPointerDownCapture).
+  //
+  // Shift-click extends the selection and supports a *mixed* set of frames,
+  // documents, and whole groups. Two rules keep group/child selection from
+  // overlapping (a member is only ever represented once):
+  //   - A frame whose parent group is already selected can't be added on its
+  //     own — the group owns it. We no-op rather than splitting the group.
+  //   - Selecting a group (below) drops any of its members that were
+  //     individually selected, so the group supersedes its children.
   const handleIframeLayerSelect = useCallback(
     (id: string, shiftKey: boolean) => {
-      setSelectedGroupIds(new Set())
       if (shiftKey) {
+        const parentGroupId = findGroupIdForMember(id)
+        if (parentGroupId && selectedGroupIdsRef.current.has(parentGroupId))
+          return
         setSelectedIframeLayerIds((prev) => {
           const next = new Set(prev)
           if (next.has(id)) next.delete(id)
@@ -4552,38 +4593,53 @@ export function Canvas({
           return next
         })
       } else {
+        setSelectedGroupIds(new Set())
         setSelectedIframeLayerIds(new Set([id]))
         setSelectedDocumentLayerIds(new Set())
       }
     },
-    []
+    [findGroupIdForMember]
   )
 
   const handleGroupSelect = useCallback(
     (groupId: string, shiftKey: boolean) => {
-      setSelectedIframeLayerIds(new Set())
-      setSelectedDocumentLayerIds(new Set())
       if (shiftKey) {
+        const group = collections.iframeLayerGroups.get(groupId)
+        const memberIds = group
+          ? new Set(getGroupMembers(group).map((m) => m.id))
+          : new Set<string>()
         setSelectedGroupIds((prev) => {
           const next = new Set(prev)
           if (next.has(groupId)) next.delete(groupId)
           else next.add(groupId)
           return next
         })
+        // Taking the group supersedes any of its members that were selected
+        // individually — drop them so the member isn't represented twice.
+        const dropMembers = (prev: Set<string>) => {
+          if (![...memberIds].some((mid) => prev.has(mid))) return prev
+          const next = new Set(prev)
+          for (const mid of memberIds) next.delete(mid)
+          return next
+        }
+        setSelectedIframeLayerIds(dropMembers)
+        setSelectedDocumentLayerIds(dropMembers)
       } else {
+        setSelectedIframeLayerIds(new Set())
+        setSelectedDocumentLayerIds(new Set())
         setSelectedGroupIds(new Set([groupId]))
       }
     },
-    []
+    [collections]
   )
 
   const handleDocumentLayerSelect = useCallback(
     (id: string, shiftKey: boolean) => {
-      // Mirrors handleIframeLayerSelect: clear group selection so the doc owns
-      // the selection from here on (the click-guard upstream prevents this
-      // path from running while a parent group is selected without shift).
-      setSelectedGroupIds(new Set())
+      // Mirrors handleIframeLayerSelect for documents.
       if (shiftKey) {
+        const parentGroupId = findGroupIdForMember(id)
+        if (parentGroupId && selectedGroupIdsRef.current.has(parentGroupId))
+          return
         setSelectedDocumentLayerIds((prev) => {
           const next = new Set(prev)
           if (next.has(id)) next.delete(id)
@@ -4591,11 +4647,12 @@ export function Canvas({
           return next
         })
       } else {
+        setSelectedGroupIds(new Set())
         setSelectedDocumentLayerIds(new Set([id]))
         setSelectedIframeLayerIds(new Set())
       }
     },
-    []
+    [findGroupIdForMember]
   )
 
   /**
@@ -4661,12 +4718,20 @@ export function Canvas({
       // groups, so `moveIframeLayersByDelta` finds every group referenced by
       // any of the ids and shifts its anchor.
       const groupMemberIds = [...abIds, ...docIds]
+      // Selected groups move too: contribute one member id per selected group
+      // so `moveIframeLayersByDelta` translates the whole group. Without this a
+      // mixed selection would drag its loose frames but leave its groups behind.
+      for (const g of collections.iframeLayerGroups.toArray()) {
+        if (!selectedGroupIdsRef.current.has(g.id)) continue
+        const firstMember = getGroupMembers(g)[0]
+        if (firstMember) groupMemberIds.push(firstMember.id)
+      }
       if (groupMemberIds.length > 0)
         moveIframeLayersByDelta(groupMemberIds, adjDx, adjDy)
       // Source position has moved — recompute the merge preview off-render.
       applyMergeSnap(metaKey)
     },
-    [moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap]
+    [collections, moveIframeLayersByDelta, applyMoveSnap, applyMergeSnap]
   )
 
   /**
@@ -4843,15 +4908,35 @@ export function Canvas({
   useEffect(() => {
     setPresence({
       selectedIframeLayerIds: Array.from(overlaySelectedIds),
+      groupSelectedIframeLayerIds: Array.from(groupSelectedIframeLayerIds),
     })
-  }, [overlaySelectedIds, setPresence])
+  }, [overlaySelectedIds, groupSelectedIframeLayerIds, setPresence])
 
   // Collect other users' selections for the overlay
   const othersSelections = others.map(({ presence }) => ({
     selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
+    groupSelectedIframeLayerIds: presence.groupSelectedIframeLayerIds ?? [],
     color: presence.color,
     name: presence.identity.name || "Anonymous",
   }))
+
+  // Per-layer color of the remote user who has it selected, used to tint that
+  // frame/doc name and group label to match the remote selection rect.
+  // `remoteSelectionColors` covers directly-selected *and* group-member ids
+  // (both get a tinted name); `remoteGroupSelectionColors` covers only group
+  // members (drives the group label). First writer wins if two users overlap.
+  const remoteSelectionColors = new Map<string, string>()
+  const remoteGroupSelectionColors = new Map<string, string>()
+  for (const o of othersSelections) {
+    for (const id of o.selectedIframeLayerIds) {
+      if (!remoteSelectionColors.has(id)) remoteSelectionColors.set(id, o.color)
+    }
+    for (const id of o.groupSelectedIframeLayerIds) {
+      if (!remoteSelectionColors.has(id)) remoteSelectionColors.set(id, o.color)
+      if (!remoteGroupSelectionColors.has(id))
+        remoteGroupSelectionColors.set(id, o.color)
+    }
+  }
 
   // Auto-select the first running agent when none is selected. Booting
   // agents aren't picked here — a LogProbe (rendered for each pending id)
@@ -5236,6 +5321,17 @@ export function Canvas({
                       const groupLabel = showGroupLabel
                         ? groupDisplayNames.get(group.id)
                         : undefined
+                      // Tint this member's name (and, on the leftmost member,
+                      // the group label) to match a remote user's selection
+                      // rect. Skipped when we've selected it locally — our own
+                      // fuchsia takes precedence.
+                      const remoteSelectedColor = remoteSelectionColors.get(
+                        member.id
+                      )
+                      const remoteGroupSelectedColor =
+                        index === 0
+                          ? remoteGroupSelectionColors.get(member.id)
+                          : undefined
                       const layout = effectiveIframeLayerLayouts.get(member.id)
                       if (!layout) return null
 
@@ -5297,6 +5393,8 @@ export function Canvas({
                             dragTranslateX={dragTranslateX}
                             dragTranslateY={dragTranslateY}
                             dragPopped={dragPopped}
+                            remoteSelectedColor={remoteSelectedColor}
+                            remoteGroupSelectedColor={remoteGroupSelectedColor}
                             groupLabel={index === 0 ? groupLabel : undefined}
                             groupSelected={groupSelected}
                             onSelectGroup={
@@ -5437,6 +5535,8 @@ export function Canvas({
                           onAssignBranch={assignAgentToIframeLayer}
                           discoveredRoutes={agentInfo?.discoveredRoutes}
                           onSelectRoute={updateIframeLayerRoute}
+                          remoteSelectedColor={remoteSelectedColor}
+                          remoteGroupSelectedColor={remoteGroupSelectedColor}
                           groupLabel={index === 0 ? groupLabel : undefined}
                           groupSelected={groupSelected}
                           onSelectGroup={
@@ -5555,7 +5655,9 @@ export function Canvas({
               focusedIframeLayerId={focusedIframeLayerId}
               hoveredIframeLayerId={hoveredIframeLayerId}
               iframeLayerLayouts={effectiveIframeLayerLayouts}
-              hideResizeHandles={editingDocumentLayerId !== null}
+              hideResizeHandles={
+                editingDocumentLayerId !== null || selectedGroupIds.size > 0
+              }
               gapHandles={gapHandles}
               reorderHandles={reorderHandles}
               hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}

@@ -7,6 +7,10 @@ interface GroupLabelProps {
   label: string
   /** True when the parent group is selected — colors the label fuchsia. */
   groupSelected?: boolean
+  /** Color of a *remote* user's group selection. When set (and not locally
+   *  `groupSelected`), the label is tinted to this color to match that user's
+   *  selection rect. Local selection (fuchsia) takes precedence. */
+  color?: string
   /** When provided, the label becomes an interactive button. Pointer-down
    *  fires immediately to mirror the frame body's instant-select. */
   onSelectGroup?: (shiftKey: boolean) => void
@@ -30,10 +34,15 @@ interface GroupLabelProps {
 export function GroupLabel({
   label,
   groupSelected,
+  color,
   onSelectGroup,
   dragHandlers,
   onRename,
 }: GroupLabelProps) {
+  // Local selection (fuchsia) wins; a remote selector's color applies only
+  // when the group isn't locally selected.
+  const remoteColor = !groupSelected && color ? color : undefined
+  const colorStyle = remoteColor ? { color: remoteColor } : undefined
   if (onSelectGroup) {
     const dragPointerDown = dragHandlers?.onPointerDown as
       | ((e: React.PointerEvent) => void)
@@ -49,7 +58,9 @@ export function GroupLabel({
     }
     const colorClass = groupSelected
       ? "text-fuchsia-500"
-      : "text-muted-foreground"
+      : remoteColor
+        ? undefined
+        : "text-muted-foreground"
 
     if (onRename) {
       // Match the frame-label structure exactly: EditableText as a direct
@@ -70,6 +81,7 @@ export function GroupLabel({
             value={label}
             onCommit={onRename}
             placeholder="Group"
+            style={colorStyle}
             className={cn("min-w-[0.75em] text-xs font-medium", colorClass)}
             viewClassName="truncate cursor-grab active:cursor-grabbing"
             editClassName="relative z-10 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
@@ -85,6 +97,7 @@ export function GroupLabel({
           "mb-0.5 min-w-0 cursor-grab truncate text-xs font-medium outline-none active:cursor-grabbing",
           colorClass
         )}
+        style={colorStyle}
         {...dragHandlers}
         onPointerDown={handleSelectPointerDown}
         onClick={(e) => {
@@ -99,8 +112,13 @@ export function GroupLabel({
     <div
       className={cn(
         "mb-0.5 min-w-0 truncate text-xs font-medium",
-        groupSelected ? "text-fuchsia-500" : "text-muted-foreground"
+        groupSelected
+          ? "text-fuchsia-500"
+          : remoteColor
+            ? undefined
+            : "text-muted-foreground"
       )}
+      style={colorStyle}
     >
       {label}
     </div>

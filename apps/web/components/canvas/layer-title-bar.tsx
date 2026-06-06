@@ -28,6 +28,10 @@ interface LayerTitleBarProps {
    *  group (rendered above the layer-specific row). */
   groupLabel?: string
   groupSelected?: boolean
+  /** Color for the group label when it's selected by a *remote* user. When
+   *  set (and not locally `groupSelected`), the label is tinted to this
+   *  color to match that user's selection rect. */
+  groupSelectedColor?: string
   onSelectGroup?: (shiftKey: boolean) => void
   /** Optional inline rename for the group label. */
   onRenameGroup?: (next: string) => void
@@ -74,6 +78,7 @@ export function LayerTitleBar({
   onRequestReorderDrag,
   groupLabel,
   groupSelected,
+  groupSelectedColor,
   onSelectGroup,
   onRenameGroup,
   groupLabelDragHandlers,
@@ -126,6 +131,7 @@ export function LayerTitleBar({
           <GroupLabel
             label={groupLabel}
             groupSelected={groupSelected}
+            color={groupSelectedColor}
             onSelectGroup={onSelectGroup}
             onRename={onRenameGroup}
             dragHandlers={groupLabelDragHandlers}
@@ -142,6 +148,10 @@ interface LayerTitleTextProps {
   /** True when the layer is selected (directly or via its group). Drives the
    *  fuchsia coloring that mirrors the canvas selection highlight. */
   selected?: boolean
+  /** Color of a *remote* user's selection. When set (and not locally
+   *  `selected`), the title is tinted to this color to match that user's
+   *  selection rect. Local selection (fuchsia) takes precedence. */
+  color?: string
   /** Pointer-down handler — selects the layer on press. Mirrors the layer
    *  body's instant-select so the title click feels identical to clicking
    *  the layer itself. */
@@ -165,11 +175,20 @@ interface LayerTitleTextProps {
 export function LayerTitleText({
   title,
   selected,
+  color,
   onSelectLayer,
   onRename,
   placeholder,
 }: LayerTitleTextProps) {
-  const colorClass = selected ? "text-fuchsia-500" : "text-foreground/70"
+  // Local selection (fuchsia) wins; a remote selector's color applies only
+  // when we haven't selected the layer ourselves.
+  const remoteColor = !selected && color ? color : undefined
+  const colorClass = selected
+    ? "text-fuchsia-500"
+    : remoteColor
+      ? undefined
+      : "text-foreground/70"
+  const colorStyle = remoteColor ? { color: remoteColor } : undefined
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return
     onSelectLayer(e.shiftKey)
@@ -183,6 +202,7 @@ export function LayerTitleText({
         placeholder={placeholder}
         onCommit={onRename}
         onPointerDown={handlePointerDown}
+        style={colorStyle}
         className={cn("min-w-0 text-xs font-medium", colorClass)}
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
@@ -199,6 +219,7 @@ export function LayerTitleText({
         "min-w-0 cursor-grab truncate text-xs font-medium active:cursor-grabbing",
         colorClass
       )}
+      style={colorStyle}
       onPointerDown={handlePointerDown}
     >
       {title}

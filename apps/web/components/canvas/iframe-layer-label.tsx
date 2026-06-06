@@ -65,6 +65,10 @@ interface IframeLayerLabelProps {
   onSelectRoute?: (route: string) => void
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
+  /** Remote selector's color for the name. Ignored while locally selected. */
+  remoteSelectedColor?: string
+  /** Remote selector's color for the group label. */
+  remoteGroupSelectedColor?: string
   /** Group display name — only passed for the leftmost iframeLayer in a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected — colors the group label. */
@@ -110,6 +114,8 @@ export function IframeLayerLabel({
   discoveredRoutes,
   onSelectRoute,
   selected,
+  remoteSelectedColor,
+  remoteGroupSelectedColor,
   groupLabel,
   groupSelected,
   onSelectGroup,
@@ -129,6 +135,7 @@ export function IframeLayerLabel({
       onRequestReorderDrag={onRequestReorderDrag}
       groupLabel={groupLabel}
       groupSelected={groupSelected}
+      groupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
       groupLabelDragHandlers={groupLabelDragHandlers}
@@ -155,12 +162,13 @@ export function IframeLayerLabel({
             colorIndex={
               assignableBranches?.find((a) => a.id === branchId)?.colorIndex
             }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
+            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
           />
         ) : null}
         <LayerTitleText
           title={label}
           selected={selected}
+          color={remoteSelectedColor}
           onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
           onRename={onRename}
           placeholder="Untitled"
@@ -176,7 +184,7 @@ export function IframeLayerLabel({
           ) : (
             <Badge
               variant="outline"
-              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-0"
+              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
             >
               <span className="truncate">{route || "/"}</span>
               <SharedStateIndicator sharedState={sharedState} />
@@ -241,22 +249,23 @@ function RoutePicker({
         >
           <Badge
             variant="outline"
-            // `delay-200` on the collapse + `delay-0` on expand keeps the pill
-            // from visibly shrinking when the cursor crosses onto the trailing
-            // `{}` indicator and momentarily drops `group-hover` before the
-            // tooltip's delayed-open re-grants it.
-            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-0 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
+            // `delay-300` on the collapse keeps the pill from visibly
+            // shrinking when the cursor crosses onto the trailing `{}`
+            // indicator and momentarily drops `group-hover` before the
+            // tooltip's delayed-open re-grants it. Expansion waits `delay-500`
+            // to match the branch pill.
+            className="max-w-[9rem] min-w-[20px] border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 group-hover:max-w-full group-hover:delay-500 group-data-[state=open]:max-w-full group-data-[state=open]:delay-0"
           >
             <span className="truncate">{currentRoute}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
           <ChevronsUpDown
             aria-hidden
-            // Mirror the route badge's `delay-300` collapse / `delay-0` expand
-            // so a one-frame `group-hover` drop — which happens as the cursor
-            // crosses onto the trailing `{}` indicator — doesn't snap the
-            // chevron closed and flicker it. Expansion stays instant.
-            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all delay-300 duration-200 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-0 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100 group-data-[state=open]:delay-0"
+            // Mirror the route badge's `delay-300` collapse / `delay-500`
+            // expand so a one-frame `group-hover` drop — which happens as the
+            // cursor crosses onto the trailing `{}` indicator — doesn't snap
+            // the chevron closed and flicker it.
+            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all delay-300 duration-200 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100 group-data-[state=open]:delay-0"
           />
         </button>
       </PopoverTrigger>
@@ -404,7 +413,7 @@ function BranchPicker({
               branch={branch}
               colorKey={colorKey}
               colorIndex={colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-300 group-data-[state=open]:max-w-[30rem]"
+              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -415,7 +424,7 @@ function BranchPicker({
             aria-hidden
             className={
               branch
-                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-300 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
                 : "ml-1 h-3 w-3 shrink-0 text-muted-foreground"
             }
           />

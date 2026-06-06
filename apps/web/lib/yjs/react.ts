@@ -162,6 +162,11 @@ export type CanvasPresence = {
   viewport: { x: number; y: number; zoom: number }
   color: string
   selectedIframeLayerIds: string[]
+  // Members of groups this user has selected. Broadcast separately from
+  // `selectedIframeLayerIds` so remote viewers can mirror the local
+  // selection visuals exactly (outline every member, but draw the enclosing
+  // union only for a mixed group-plus-frame selection, not a lone group).
+  groupSelectedIframeLayerIds?: string[]
   // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
   // an empty string while the bubble is open but nothing has been typed yet.
   message?: string | null

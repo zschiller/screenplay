@@ -17,6 +17,11 @@ export type EditableTextProps = {
   onCommit: (next: string) => void
   placeholder?: string
   className?: string
+  /** Inline styles applied in both view and edit modes. Merged ahead of the
+   *  component's own inline styles (e.g. the edit-mode locked max-width). Use
+   *  for dynamic values that can't be expressed as a class, like a remote
+   *  user's selection color. */
+  style?: React.CSSProperties
   /** Extra classes applied only in view (non-editing) mode. Use for things
    *  like `truncate` that should clip the read-only label but not the
    *  caret/text while the user is typing. */
@@ -58,6 +63,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       onCommit,
       placeholder,
       className,
+      style,
       viewClassName,
       editClassName,
       disabled,
@@ -295,8 +301,8 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         className: cn(sharedClass, editClassName),
         style:
           lockWidthOnEdit && lockedWidthRef.current != null
-            ? { maxWidth: lockedWidthRef.current }
-            : undefined,
+            ? { ...style, maxWidth: lockedWidthRef.current }
+            : style,
         onKeyDown: handleKeyDown,
         onPaste: handlePaste,
         onDrop: handleDrop,
@@ -329,6 +335,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         ref: elRef as React.Ref<HTMLElement>,
         "data-placeholder": placeholder,
         "data-editable-text": "idle",
+        style,
         tabIndex: disabled ? -1 : 0,
         onPointerDown:
           editTrigger === "manual" ? onPointerDown : handleIdlePointerDown,
