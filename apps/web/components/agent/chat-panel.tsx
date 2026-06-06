@@ -582,11 +582,31 @@ export function ChatPanel({
   const [tabOrder, setTabOrder] = useState<string[]>(() =>
     readTabOrder(targetKey)
   )
+  // Tabs whose enter animation has finished (or that were already present when
+  // this target's strip mounted). motion's Reorder REMOUNTS the dragged tab on
+  // each swap; for a freshly-created tab that remount replays its width/opacity
+  // enter for one frame — a visible flash/flicker, worst when moving rightward.
+  // motion suppresses that replay for tabs present at an AnimatePresence's first
+  // render, which is why older tabs reorder cleanly. So once a new tab finishes
+  // entering we bump `reRegisterKey` to remount the AnimatePresence (still
+  // `initial={false}`), re-registering every current tab — the new one included
+  // — as "initial-present". From then on it reorders as cleanly as an older tab.
+  const [enteredIds, setEnteredIds] = useState<Set<string>>(
+    () => new Set(openTabs.map((t) => t.id))
+  )
+  const [reRegisterKey, setReRegisterKey] = useState(0)
+  // A remount mid-drag would drop the gesture, so if a tab settles while the
+  // operator is dragging, defer the re-register until the pointer is released.
+  const draggingRef = useRef(false)
+  const pendingReRegisterRef = useRef(false)
   if (targetKey !== lastTargetKey) {
     setLastTargetKey(targetKey)
     setShowLogs(false)
     // Switching targets swaps in that target's own saved arrangement.
     setTabOrder(readTabOrder(targetKey))
+    // The targetKey-keyed Reorder.Group remounts on switch, so this target's
+    // tabs are already initial-present — seed them so they don't re-register.
+    setEnteredIds(new Set(openTabs.map((t) => t.id)))
   }
 
   // The displayed tab order: stored ids first (in saved order, skipping any
@@ -615,6 +635,46 @@ export function ChatPanel({
     },
     [targetKey]
   )
+
+  // Called when a tab's enter animation completes. The first time we see a tab
+  // that wasn't already registered, remount the AnimatePresence so motion treats
+  // it as initial-present (see `enteredIds` above) — deferred if a drag is in
+  // flight so the remount can't interrupt the gesture.
+  const markTabEntered = useCallback(
+    (id: string) => {
+      if (enteredIds.has(id)) return
+      setEnteredIds((prev) => {
+        if (prev.has(id)) return prev
+        const next = new Set(prev)
+        next.add(id)
+        return next
+      })
+      if (draggingRef.current) {
+        pendingReRegisterRef.current = true
+        return
+      }
+      setReRegisterKey((k) => k + 1)
+    },
+    [enteredIds]
+  )
+
+  // Clear the drag flag (and flush any deferred re-register) on pointer release —
+  // pointerup can land outside the strip after a drag, so listen on the window.
+  useEffect(() => {
+    const onPointerUp = () => {
+      draggingRef.current = false
+      if (pendingReRegisterRef.current) {
+        pendingReRegisterRef.current = false
+        setReRegisterKey((k) => k + 1)
+      }
+    }
+    window.addEventListener("pointerup", onPointerUp)
+    window.addEventListener("pointercancel", onPointerUp)
+    return () => {
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerUp)
+    }
+  }, [])
 
   // Show the tab strip's scrollbar only once we've seen a real mouse wheel;
   // trackpad users two-finger scroll and don't need it.
@@ -871,9 +931,18 @@ export function ChatPanel({
               axis="x"
               values={orderedTabs.map((t) => t.id)}
               onReorder={handleReorder}
+              // Mark a drag (or click) as in-flight so a tab settling mid-gesture
+              // defers its AnimatePresence re-register until pointer release.
+              onPointerDownCapture={() => {
+                draggingRef.current = true
+              }}
               className="flex h-full items-stretch gap-1 overflow-visible"
             >
-              <AnimatePresence initial={false}>
+              {/* `key={reRegisterKey}` remounts this AnimatePresence whenever a
+                  newly-created tab finishes entering, re-registering all tabs as
+                  initial-present so motion stops replaying the new tab's enter on
+                  its reorder-remounts (the rightward-drag flash). */}
+              <AnimatePresence key={reRegisterKey} initial={false}>
                 {orderedTabs.map((tab) => (
                   <Reorder.Item
                     key={tab.id}
@@ -899,6 +968,7 @@ export function ChatPanel({
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                      onAnimationComplete={() => markTabEntered(tab.id)}
                       className="flex items-stretch overflow-x-clip bg-background"
                     >
                       <TabsTrigger
