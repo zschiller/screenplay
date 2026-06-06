@@ -18,6 +18,7 @@ import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
+import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import {
   LayerTitleBar,
   LayerTitleText,
@@ -322,9 +323,10 @@ export function MarkdownLayer({
             }
           },
         }).configure({
+          // The node view (MarkdownLayerMentionNodeView) drives the in-editor
+          // render; these attrs cover the serialized/static-render path.
           HTMLAttributes: {
-            class:
-              "mention-doc-pill inline-block rounded bg-primary/10 px-1 py-0.5 text-[0.95em] leading-none text-primary no-underline",
+            class: MENTION_TEXT_CLASS,
           },
           renderText({ node }) {
             const label =
@@ -335,7 +337,7 @@ export function MarkdownLayer({
             const label =
               (node.attrs.label as string | undefined) ??
               (node.attrs.id as string)
-            return ["span", options.HTMLAttributes, label]
+            return ["span", options.HTMLAttributes, `@${label}`]
           },
           deleteTriggerWithBackspace: true,
           // These getters read refs, but TipTap only invokes them while the
@@ -564,23 +566,26 @@ export function MarkdownLayer({
     return () => window.removeEventListener("pointerdown", onDown, true)
   }, [editing, onStopEdit])
 
-  // Wheel inside a doc should scroll the doc, not pan the canvas. The canvas
-  // attaches a non-passive wheel listener on its wrapper that always
-  // preventDefaults, so we stop propagation here before the event reaches it.
-  // Cmd/Ctrl+wheel falls through so the canvas can still zoom from inside a
-  // doc. We swallow horizontal/vertical scroll regardless of whether the
-  // doc currently overflows — interactions inside a doc shouldn't move the
-  // surrounding canvas.
+  // Wheel inside a doc should scroll the doc, not pan the canvas — but only
+  // while the doc is selected (or being edited). The canvas attaches a
+  // non-passive wheel listener on its wrapper that always preventDefaults, so
+  // when we stop propagation here the event never reaches it and the doc's
+  // inner overflow scroller runs natively. When the doc is NOT selected we let
+  // the event fall through: the canvas preventDefaults (cancelling the doc's
+  // own scroll) and pans instead, so an unselected doc behaves like canvas.
+  // Cmd/Ctrl+wheel always falls through so the canvas can still zoom.
+  const wheelActive = selected || editing
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) return
+      if (!wheelActive) return
       e.stopPropagation()
     }
     root.addEventListener("wheel", onWheel)
     return () => root.removeEventListener("wheel", onWheel)
-  }, [])
+  }, [wheelActive])
 
   const handleDrag = useCallback(
     (

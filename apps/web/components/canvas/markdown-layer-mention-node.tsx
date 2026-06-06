@@ -3,6 +3,7 @@
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useMarkdownLayers } from "@/lib/yjs/react"
+import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 
 /**
  * Renders a mention pill with the *live* title of the target layer. The
@@ -21,9 +22,9 @@ export function MarkdownLayerMentionNodeView({ node }: NodeViewProps) {
       as="span"
       data-mention-id={id}
       data-mention-kind="markdown-layer"
-      className="mention-doc-pill inline-block rounded bg-primary/10 px-1 py-0.5 text-[0.95em] leading-none text-primary no-underline"
+      className={MENTION_TEXT_CLASS}
     >
-      {label}
+      @{label}
     </NodeViewWrapper>
   )
 }

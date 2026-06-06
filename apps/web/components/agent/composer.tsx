@@ -19,7 +19,7 @@ import {
 import { EditorContent, useEditor, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
-import type { JSONContent } from "@tiptap/core"
+import { mergeAttributes, type JSONContent } from "@tiptap/core"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { buildSkillMentionSuggestion } from "@/lib/skill-mention-suggestion"
 import type { SkillMenuItem } from "@/lib/skills-store"
@@ -44,6 +44,7 @@ import {
 import type { ModelInfo } from "@/lib/models-store"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
+import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 
 /**
  * Walk a TipTap JSON document and return:
@@ -379,10 +380,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           dropcursor: false,
         }),
         Mention.configure({
-          HTMLAttributes: {
-            class:
-              "mention-doc-pill inline-flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary",
-          },
+          // Mentions render as plain inline text for now — no pill background,
+          // icon, or color. The previous pill styling wasn't vertically
+          // centered and its background ate too much space; we're starting from
+          // unstyled text and will re-add affordances deliberately over time.
+          // The leading `@` (docs) / `/` (skills) is the only visible marker.
           renderText({ node }) {
             const label =
               (node.attrs.label as string | undefined) ?? node.attrs.id
@@ -394,18 +396,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             const label =
               (node.attrs.label as string | undefined) ??
               (node.attrs.id as string)
-            if (node.attrs.mentionSuggestionChar === "/") {
-              return [
-                "span",
-                {
-                  ...options.HTMLAttributes,
-                  class:
-                    "mention-skill-pill inline-flex items-center gap-1 rounded bg-violet-500/15 px-1 py-0.5 font-medium text-violet-600 dark:text-violet-300",
-                },
-                `/${label}`,
-              ]
-            }
-            return ["span", options.HTMLAttributes, label]
+            const prefix = node.attrs.mentionSuggestionChar === "/" ? "/" : "@"
+            // Both `@`-doc and `/`-skill mentions render blue + medium weight so
+            // they read as distinct affordances within the plaintext draft.
+            return [
+              "span",
+              mergeAttributes(options.HTMLAttributes, {
+                class: MENTION_TEXT_CLASS,
+              }),
+              `${prefix}${label}`,
+            ]
           },
           deleteTriggerWithBackspace: true,
           // Two pickers on one extension: `@` for canvas docs (fires anywhere)

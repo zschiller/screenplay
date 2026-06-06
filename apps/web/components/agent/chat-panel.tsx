@@ -196,10 +196,21 @@ function measureScrollbarWidth(): number {
 // `pointer: fine`), so as a secondary signal we sniff the wheel event: Firefox
 // reports line/page deltas for a real wheel (`deltaMode !== 0`), while
 // Chromium/WebKit expose a legacy `wheelDeltaY` that's a multiple of 120 per
-// notch. Trackpads emit small, fractional, pixel-mode deltas that never land on
-// clean 120s.
-function wheelLooksLikeMouse(e: WheelEvent): boolean {
-  if (e.deltaMode !== 0) return true
+// notch.
+//
+// The 120 heuristic isn't airtight, though: in Chromium `wheelDeltaY ≈ -1.2 ·
+// deltaY`, so a clean 120-multiple just means `deltaY` is a multiple of 100 —
+// which a *fast* trackpad pan hits routinely (deltaY 100, 200, …), and a
+// pinch-zoom (synthesized as ctrl-wheel) can hit too. A real wheel lands on a
+// clean multiple on *every* notch; a trackpad only does so by coincidence and
+// can't sustain it. So we ignore modifier-held (zoom) wheels and require a run
+// of consecutive notch-looking events before trusting the signal.
+const MOUSE_NOTCH_RUN = 3
+
+// One pixel-mode wheel event: true if it looks like a discrete mouse notch.
+// Line/page mode (Firefox real wheel) is handled by the caller as an immediate,
+// unambiguous latch.
+function wheelNotchLooksLikeMouse(e: WheelEvent): boolean {
   const wheelDeltaY = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY
   return (
     typeof wheelDeltaY === "number" &&
@@ -219,13 +230,32 @@ function useUsingMouse(): boolean {
   const [usingMouse, setUsingMouse] = useState(false)
   useEffect(() => {
     let sawWheel = false
+    let notchRun = 0
+    const latch = () => {
+      sawWheel = true
+      setUsingMouse(true)
+    }
     const sync = () => setUsingMouse(sawWheel || measureScrollbarWidth() > 0)
     sync()
     const onWheel = (e: WheelEvent) => {
-      if (!sawWheel && wheelLooksLikeMouse(e)) {
-        sawWheel = true
-        setUsingMouse(true)
+      if (sawWheel) return
+      // Pinch-zoom (trackpad) and modifier-wheel zoom synthesize wheel events
+      // that aren't clean notch signals — never infer a mouse from them.
+      if (e.ctrlKey || e.metaKey) return
+      // Firefox reports line/page deltas only for a real wheel — unambiguous,
+      // latch on the first one.
+      if (e.deltaMode !== 0) {
+        latch()
+        return
       }
+      // Pixel mode: a single 120-multiple can be a fast-pan coincidence, so
+      // require a sustained run; any non-notch event resets it.
+      if (!wheelNotchLooksLikeMouse(e)) {
+        notchRun = 0
+        return
+      }
+      notchRun += 1
+      if (notchRun >= MOUSE_NOTCH_RUN) latch()
     }
     window.addEventListener("focus", sync)
     window.addEventListener("wheel", onWheel, { passive: true })
