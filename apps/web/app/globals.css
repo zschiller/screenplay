@@ -75,22 +75,6 @@ body {
   margin-top: 0;
 }
 
-/* Document mention pill — show a FileText glyph in place of the `@` sign.
-   The icon is painted via a mask so it picks up `currentColor` and stays
-   crisp at small sizes. SVG path mirrors lucide's FileText icon. */
-.mention-doc-pill::before {
-  content: "";
-  display: inline-block;
-  width: 0.85em;
-  height: 0.85em;
-  margin-right: 0.2em;
-  vertical-align: -0.1em;
-  background-color: currentColor;
-  -webkit-mask: var(--mention-doc-icon) no-repeat center / contain;
-  mask: var(--mention-doc-icon) no-repeat center / contain;
-  --mention-doc-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v4a2 2 0 0 0 2 2h4'/><path d='M10 9H8'/><path d='M16 13H8'/><path d='M16 17H8'/></svg>");
-}
-
 /* Inline document-comment highlight — yellow underlay on text spans that
    have a comment thread anchored to them. Click goes through to the
    ProseMirror plugin, which dispatches `onSelectThread`. The explicit

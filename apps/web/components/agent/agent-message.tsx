@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useState } from "react"
 import Markdown from "react-markdown"
 import {
   ChevronDown,
@@ -26,6 +26,7 @@ import {
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
 import { chatStore } from "@/lib/chat-store"
+import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -296,29 +297,17 @@ export function AgentMessageItem({
               urlTransform={(url) => url}
               components={{
                 a: ({ href, children, ...props }) => {
-                  if (typeof href === "string" && href.startsWith("skill:")) {
+                  // `/`-skill and `@`-doc references render as plain inline,
+                  // sky-colored text — matching the composer chips. The
+                  // serialized children already carry the leading `/` or `@`
+                  // marker; no pill, icon, or background.
+                  if (
+                    typeof href === "string" &&
+                    (href.startsWith("skill:") || href.startsWith("mention:"))
+                  ) {
                     return (
-                      <span className="inline-flex items-center gap-1 rounded bg-primary-foreground/15 px-1 py-0.5 text-[0.95em] font-medium no-underline">
-                        <Sparkles className="size-3.5 shrink-0" />
+                      <span className={MENTION_TEXT_CLASS_INVERTED}>
                         {children}
-                      </span>
-                    )
-                  }
-                  if (typeof href === "string" && href.startsWith("mention:")) {
-                    // Markdown text was serialized as `@<label>`; strip the
-                    // leading `@` so the doc icon stands in for it.
-                    const stripAt = (n: ReactNode): ReactNode => {
-                      if (typeof n === "string") return n.replace(/^@/, "")
-                      if (Array.isArray(n)) {
-                        const [first, ...rest] = n
-                        return [stripAt(first), ...rest]
-                      }
-                      return n
-                    }
-                    return (
-                      <span className="inline-flex items-center gap-1 rounded bg-primary-foreground/15 px-1 py-0.5 text-[0.95em] no-underline">
-                        <FileText className="size-3.5 shrink-0" />
-                        {stripAt(children)}
                       </span>
                     )
                   }
