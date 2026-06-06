@@ -128,6 +128,12 @@ interface MarkdownLayerProps {
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */
   groupSelected?: boolean
+  /** Color of a remote user who has this doc selected — tints the name to
+   *  match their selection rect. Ignored while locally selected. */
+  remoteSelectedColor?: string
+  /** Color of a remote user who has this doc's group selected — tints the
+   *  group label. Only meaningful on the leftmost member. */
+  remoteGroupSelectedColor?: string
   /** Click handler for the group label. */
   onSelectGroup?: (shiftKey: boolean) => void
   /** Inline rename for the group label. */
@@ -194,6 +200,8 @@ export function MarkdownLayer({
   dragPopped,
   groupLabel,
   groupSelected,
+  remoteSelectedColor,
+  remoteGroupSelectedColor,
   onSelectGroup,
   onRenameGroup,
   onRequestReorderDrag,
@@ -595,10 +603,12 @@ export function MarkdownLayer({
       totalDy: number,
       metaKey: boolean
     ) => {
-      if (selected) onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
+      // See IframeLayer.handleDrag: a selected group drags the whole selection.
+      if (selected || groupSelected)
+        onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
       else onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
     },
-    [selected, onMoveGroup, onMoveSelected]
+    [selected, groupSelected, onMoveGroup, onMoveSelected]
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -710,6 +720,7 @@ export function MarkdownLayer({
         onRequestReorderDrag={spaceHeld ? undefined : onRequestReorderDrag}
         groupLabel={groupLabel}
         groupSelected={groupSelected}
+        groupSelectedColor={remoteGroupSelectedColor}
         onSelectGroup={onSelectGroup}
         onRenameGroup={onRenameGroup}
         groupLabelDragHandlers={spaceHeld ? undefined : groupLabelDragHandlers}
@@ -730,6 +741,7 @@ export function MarkdownLayer({
             title={layer.title}
             placeholder="Untitled"
             selected={selected || groupSelected}
+            color={remoteSelectedColor}
             onSelectLayer={(shiftKey) => {
               // Defer to the group's selection while the group is selected
               // (shift drills through to additive doc selection). Mirrors

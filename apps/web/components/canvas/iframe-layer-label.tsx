@@ -65,6 +65,10 @@ interface IframeLayerLabelProps {
   onSelectRoute?: (route: string) => void
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
+  /** Remote selector's color for the name. Ignored while locally selected. */
+  remoteSelectedColor?: string
+  /** Remote selector's color for the group label. */
+  remoteGroupSelectedColor?: string
   /** Group display name — only passed for the leftmost iframeLayer in a multi-iframeLayer group. */
   groupLabel?: string
   /** True when the parent group is selected — colors the group label. */
@@ -110,6 +114,8 @@ export function IframeLayerLabel({
   discoveredRoutes,
   onSelectRoute,
   selected,
+  remoteSelectedColor,
+  remoteGroupSelectedColor,
   groupLabel,
   groupSelected,
   onSelectGroup,
@@ -129,6 +135,7 @@ export function IframeLayerLabel({
       onRequestReorderDrag={onRequestReorderDrag}
       groupLabel={groupLabel}
       groupSelected={groupSelected}
+      groupSelectedColor={remoteGroupSelectedColor}
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
       groupLabelDragHandlers={groupLabelDragHandlers}
@@ -161,6 +168,7 @@ export function IframeLayerLabel({
         <LayerTitleText
           title={label}
           selected={selected}
+          color={remoteSelectedColor}
           onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
           onRename={onRename}
           placeholder="Untitled"

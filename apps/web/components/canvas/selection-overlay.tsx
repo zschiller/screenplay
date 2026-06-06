@@ -10,6 +10,10 @@ import type { SnapGuide } from "@/lib/canvas/snap"
 
 interface OtherSelection {
   selectedIframeLayerIds: string[]
+  /** Members of groups the other user has selected. Outlined like directly-
+   *  selected frames but never given resize handles — mirrors the local
+   *  `groupSelectedIframeLayerIds` path. */
+  groupSelectedIframeLayerIds: string[]
   color: string
   name: string
 }
@@ -148,6 +152,33 @@ export function SelectionOverlay({
     // Offset to put a 1px stroke between two device pixels.
     const HALF = 0.5 / dpr
 
+    // Outside-stroke convention shared by every selection rect: the 1px line
+    // sits just outside the snapped world-space bounds.
+    const strokeWorldRect = (l: number, t: number, r: number, b: number) => {
+      ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
+    }
+    // Union bounding rect spanning the given iframeLayer ids. Used by both the
+    // local multi-selection and remote users' multi-selections so they render
+    // identically.
+    const strokeUnionRect = (ids: Iterable<string>) => {
+      let uLeft = Infinity,
+        uTop = Infinity,
+        uRight = -Infinity,
+        uBottom = -Infinity
+      for (const id of ids) {
+        const layout = iframeLayerLayouts.get(id)
+        if (!layout) continue
+        uLeft = Math.min(uLeft, layout.x)
+        uTop = Math.min(uTop, layout.y)
+        uRight = Math.max(uRight, layout.x + layout.width)
+        uBottom = Math.max(uBottom, layout.y + layout.height)
+      }
+      if (uLeft === Infinity) return
+      const tl = toScreen(uLeft, uTop)
+      const br = toScreen(uRight, uBottom)
+      strokeWorldRect(snap(tl.x), snap(tl.y), snap(br.x), snap(br.y))
+    }
+
     // Draw hover frame (only if not already selected/focused)
     if (
       hoveredIframeLayerId &&
@@ -165,26 +196,38 @@ export function SelectionOverlay({
         ctx.globalAlpha = 0.4
         ctx.strokeStyle = primaryColor
         ctx.lineWidth = 1
-        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
+        strokeWorldRect(l, t, r, b)
         ctx.globalAlpha = 1
       }
     }
 
-    // Draw other users' selections
+    // Draw other users' selections — same per-frame outlines + multi-selection
+    // union rect as the local selection, just without resize handles. Group
+    // members are outlined alongside directly-selected frames. The union spans
+    // both sets and (matching the local rule) appears only when there's more
+    // than one directly-selected frame, or at least one directly-selected
+    // frame plus a selected group. A lone group selection shows just its
+    // member outlines, no enclosing union.
+    const strokeOutline = (id: string) => {
+      const layout = iframeLayerLayouts.get(id)
+      if (!layout) return false
+      const tl = toScreen(layout.x, layout.y)
+      const br = toScreen(layout.x + layout.width, layout.y + layout.height)
+      strokeWorldRect(snap(tl.x), snap(tl.y), snap(br.x), snap(br.y))
+      return true
+    }
     for (const other of othersSelections) {
-      if (other.selectedIframeLayerIds.length === 0) continue
+      const directIds = other.selectedIframeLayerIds
+      const groupIds = other.groupSelectedIframeLayerIds
+      if (directIds.length === 0 && groupIds.length === 0) continue
       ctx.strokeStyle = other.color
       ctx.lineWidth = 1
-      for (const id of other.selectedIframeLayerIds) {
-        const layout = iframeLayerLayouts.get(id)
-        if (!layout) continue
-        const tl = toScreen(layout.x, layout.y)
-        const br = toScreen(layout.x + layout.width, layout.y + layout.height)
-        const l = snap(tl.x)
-        const t = snap(tl.y)
-        const r = snap(br.x)
-        const b = snap(br.y)
-        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
+      let directDrawn = 0
+      for (const id of directIds) if (strokeOutline(id)) directDrawn++
+      let groupDrawn = 0
+      for (const id of groupIds) if (strokeOutline(id)) groupDrawn++
+      if (directDrawn > 1 || (directDrawn >= 1 && groupDrawn > 0)) {
+        strokeUnionRect([...directIds, ...groupIds])
       }
     }
 
@@ -221,7 +264,7 @@ export function SelectionOverlay({
     ctx.strokeStyle = primaryColor
     ctx.lineWidth = 1
     for (const { l, t, r, b } of frameEdges.values()) {
-      ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
+      strokeWorldRect(l, t, r, b)
     }
 
     // Draw resize handles for single iframeLayer selection
@@ -265,31 +308,20 @@ export function SelectionOverlay({
       }
     }
 
-    // Draw union bounding rect when multiple iframeLayers are selected
-    if (totalSelected > 1) {
-      let uLeft = Infinity,
-        uTop = Infinity,
-        uRight = -Infinity,
-        uBottom = -Infinity
-      for (const id of selectedIframeLayerIds) {
-        const layout = iframeLayerLayouts.get(id)
-        if (!layout) continue
-        uLeft = Math.min(uLeft, layout.x)
-        uTop = Math.min(uTop, layout.y)
-        uRight = Math.max(uRight, layout.x + layout.width)
-        uBottom = Math.max(uBottom, layout.y + layout.height)
-      }
-      if (uLeft < Infinity) {
-        const tl = toScreen(uLeft, uTop)
-        const br = toScreen(uRight, uBottom)
-        const l = snap(tl.x)
-        const t = snap(tl.y)
-        const r = snap(br.x)
-        const b = snap(br.y)
-        ctx.strokeStyle = primaryColor
-        ctx.lineWidth = 1
-        ctx.strokeRect(l - HALF, t - HALF, r - l + 2 * HALF, b - t + 2 * HALF)
-      }
+    // Draw union bounding rect across a multi-selection. Spans every
+    // individually-selected frame/doc *and* every member of a selected group,
+    // so a mixed group-plus-frame selection gets one rect around the whole set.
+    // A lone group selection (no individually-selected members) shows no union
+    // — each selected group already outlines its own members.
+    const showUnion =
+      totalSelected > 1 ||
+      (totalSelected >= 1 && groupSelectedIframeLayerIds.size > 0)
+    if (showUnion) {
+      const unionIds = new Set<string>(selectedIframeLayerIds)
+      for (const id of groupSelectedIframeLayerIds) unionIds.add(id)
+      ctx.strokeStyle = primaryColor
+      ctx.lineWidth = 1
+      strokeUnionRect(unionIds)
     }
 
     // Draw inspect rect (hovered or picked element)

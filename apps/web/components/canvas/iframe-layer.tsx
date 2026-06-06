@@ -174,6 +174,12 @@ interface IframeLayerProps {
   groupLabel?: string
   /** True when the parent group is selected. Drives label color + group-pink frame. */
   groupSelected?: boolean
+  /** Color of a remote user who has this frame selected — tints the name to
+   *  match their selection rect. Ignored while locally selected. */
+  remoteSelectedColor?: string
+  /** Color of a remote user who has this frame's group selected — tints the
+   *  group label. Only meaningful on the leftmost member. */
+  remoteGroupSelectedColor?: string
   /** Click handler for the group label (only meaningful when `groupLabel` is set). */
   onSelectGroup?: (shiftKey: boolean) => void
   /** Inline rename for the group label (only meaningful when `groupLabel` is set). */
@@ -244,6 +250,8 @@ export function IframeLayer({
   onSelectRoute,
   groupLabel,
   groupSelected,
+  remoteSelectedColor,
+  remoteGroupSelectedColor,
   onSelectGroup,
   onRenameGroup,
   worldX,
@@ -261,13 +269,16 @@ export function IframeLayer({
       totalDy: number,
       metaKey: boolean
     ) => {
-      if (selected) {
+      // `groupSelected` routes through the selection mover too, so grabbing a
+      // selected group (its label or any member) drags the whole selection —
+      // including other selected groups and loose frames — not just this group.
+      if (selected || groupSelected) {
         onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
       } else {
         onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
       }
     },
-    [selected, onMoveGroup, onMoveSelected]
+    [selected, groupSelected, onMoveGroup, onMoveSelected]
   )
 
   const selectedOnPointerDown = useRef(false)
@@ -649,6 +660,8 @@ export function IframeLayer({
             : undefined
         }
         selected={selected || groupSelected}
+        remoteSelectedColor={remoteSelectedColor}
+        remoteGroupSelectedColor={remoteGroupSelectedColor}
         groupLabel={groupLabel}
         groupSelected={groupSelected}
         onSelectGroup={
