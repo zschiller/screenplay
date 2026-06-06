@@ -14,11 +14,9 @@ import {
  * extension (v3's `suggestions` array), so picked skills become Mention nodes
  * tagged with `mentionSuggestionChar: "/"`.
  *
- * Two behaviors set it apart from `@`:
- *  - **start-of-input only** — the menu opens only when `/` is the very first
- *    character of the message, so a literal slash mid-sentence is preserved;
- *  - **at most one Skill per message** — once a skill chip exists, `/` no
- *    longer triggers the menu.
+ * It behaves just like `@`: the menu fires anywhere in the message, and any
+ * number of skills can be picked. Each becomes its own `[skill: <name>]`
+ * marker, which the Engine treats as a mandatory `read_skill` invocation.
  */
 export function buildSkillMentionSuggestion(opts: {
   getSkills: () => SkillMentionItem[]
@@ -31,31 +29,15 @@ export function buildSkillMentionSuggestion(opts: {
 }): NonNullable<MentionOptions["suggestion"]> {
   return {
     char: "/",
-    // `/` is a deliberate explicit-invocation affordance, not a free-text
-    // trigger: it fires only at the start of the message and only when no
-    // skill chip is present yet (one Skill per message).
+    // `/` is an explicit Skill-invocation affordance that fires anywhere in
+    // the message, like `@`, with no per-message cap.
     allow: ({ state, range }) => {
-      // Start-of-input: position 1 is the first character slot of the doc's
-      // first block, so a `/` anywhere else (mid-sentence) is left literal.
-      if (range.from !== 1) return false
       // The node must be insertable here (mirrors the extension's default
       // content-match guard).
       const $from = state.doc.resolve(range.from)
       const type = state.schema.nodes.mention
       if (type && !$from.parent.type.contentMatch.matchType(type)) return false
-      // One Skill per message: bail if a skill chip already exists.
-      let hasSkill = false
-      state.doc.descendants((node) => {
-        if (
-          node.type.name === "mention" &&
-          node.attrs.mentionSuggestionChar === "/"
-        ) {
-          hasSkill = true
-          return false
-        }
-        return undefined
-      })
-      return !hasSkill
+      return true
     },
     items: ({ query }) => {
       const q = query.toLowerCase()
