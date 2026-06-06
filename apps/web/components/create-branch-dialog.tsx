@@ -283,6 +283,7 @@ export function CreateBranchDialog({
                   onModelChange={(model) => updateRow(idx, { model })}
                   onPlanModeChange={(planMode) => updateRow(idx, { planMode })}
                   onPromptChange={(prompt) => updateRow(idx, { prompt })}
+                  onAddRow={addRow}
                   onSubmitAll={submitAll}
                 />
               ))}
@@ -295,6 +296,7 @@ export function CreateBranchDialog({
               >
                 <Plus />
                 Add another
+                <Kbd>↵</Kbd>
               </Button>
             </div>
           </ScrollArea>
@@ -333,6 +335,8 @@ interface WorkspaceRowProps {
   onModelChange: (model: string) => void
   onPlanModeChange: (planMode: boolean) => void
   onPromptChange: (prompt: string) => void
+  /** Append a new row — Enter in the Composer stacks one, like "Add another". */
+  onAddRow: () => void
   onSubmitAll: () => void
 }
 
@@ -357,6 +361,7 @@ function WorkspaceRow({
   onModelChange,
   onPlanModeChange,
   onPromptChange,
+  onAddRow,
   onSubmitAll,
 }: WorkspaceRowProps) {
   const composerRef = useRef<ComposerHandle>(null)
@@ -432,9 +437,14 @@ function WorkspaceRow({
           // create action — so ⌘↵ in the focused Composer commits the stack.
           onSubmit={onSubmitAll}
           submitMode="mod-enter"
+          // Enter stacks another row (mirrors the "Add another" button);
+          // Shift+Enter is a newline, ⌘↵ creates the whole stack.
+          onEnter={onAddRow}
+          // Backspace/Delete on an emptied row pops it off the stack — but not
+          // the last remaining row, which has nothing to fall back to.
+          onRemoveWhenEmpty={canRemove ? onRemove : undefined}
           allowEmptySubmit
           hideSend
-          placeholder="Describe a task, or leave empty for a bare branch…"
           className="relative"
         />
       </div>

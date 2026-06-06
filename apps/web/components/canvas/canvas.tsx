@@ -2564,7 +2564,7 @@ export function Canvas({
   // replacement in handleCloseChat. Otherwise, if it was selected, fall back to
   // a sibling terminal, then an open chat, then clear selection.
   const handleCloseTerminal = useCallback(
-    (id: string) => {
+    (id: string, nextSelectedId?: string) => {
       const closing = localTerminals.find((t) => t.id === id)
       const branchId = closing?.branchId
       const terminalSiblings = localTerminals
@@ -2584,7 +2584,7 @@ export function Canvas({
         createDefaultTabForBranch(branchId, readLastTabKind())
       } else if (selectedChatId === id) {
         setSelectedChatId(
-          terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null
+          nextSelectedId ?? terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null
         )
       }
       // Closing an X permanently deletes the row (a reload alone never does).
@@ -2720,9 +2720,9 @@ export function Canvas({
   )
 
   const handleCloseChat = useCallback(
-    (chatId: string) => {
+    (chatId: string, nextSelectedId?: string) => {
       if (isLocalTerminal(chatId)) {
-        handleCloseTerminal(chatId)
+        handleCloseTerminal(chatId, nextSelectedId)
         return
       }
       const chat = chatSessions.find((c) => c.id === chatId)
@@ -2772,7 +2772,9 @@ export function Canvas({
           }
         }
       } else if (selectedChatId === chatId) {
-        setSelectedChatId(siblings[0]?.id ?? terminalSiblings[0]?.id ?? null)
+        setSelectedChatId(
+          nextSelectedId ?? siblings[0]?.id ?? terminalSiblings[0]?.id ?? null
+        )
       }
     },
     [

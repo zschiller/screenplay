@@ -124,7 +124,7 @@ export function PlayerChatHost({
   )
 
   const handleCloseChat = useCallback(
-    (chatId: string) => {
+    (chatId: string, nextSelectedId?: string) => {
       const chat = chatSessions.find((c) => c.id === chatId)
       const siblings = chat
         ? chatSessions
@@ -142,7 +142,7 @@ export function PlayerChatHost({
         })
         setSelectedChatId(newId)
       } else if (selectedChatId === chatId) {
-        setSelectedChatId(siblings[0]?.id ?? null)
+        setSelectedChatId(nextSelectedId ?? siblings[0]?.id ?? null)
       }
     },
     [selectedChatId, chatSessions, updateChatSession, addChatSession]
