@@ -65,6 +65,15 @@ truth about what a second provider would actually cost.
 _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
 guaranteed (it is an optional capability, not part of the core).
 
+**Dev Server Restart**:
+Bouncing the `devScript` process (and its bridge proxy) inside the *existing*
+Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common
+recovery for a wedged preview, and the only restart that stays available while
+the Agent is working, so a broken preview can be fixed mid-turn.
+_Shown to users as_: "Restart dev server".
+_Avoid_: "restart" unqualified (it collapses this with the VM-cycling Sandbox
+Restart and the destructive Recreate — say which one).
+
 **Agent**:
 The AI runtime that operates inside a Branch — concretely the Engine (the agent
 loop), its tools, providers, and persisted runs (`lib/agent/`, the

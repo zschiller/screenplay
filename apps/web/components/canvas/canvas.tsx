@@ -7,6 +7,7 @@ import {
   type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch"
 import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import {
   uniqueNamesGenerator,
   adjectives,
@@ -146,6 +147,7 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
   restartSandbox,
+  restartDevServer,
   reconnectSandbox,
   keepAliveSandbox,
 } from "@/lib/sandbox/lifecycle"
@@ -3484,6 +3486,36 @@ export function Canvas({
     [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
   )
 
+  const handleRestartDevServer = useCallback(
+    async (id: string) => {
+      const agent = agents.find((a) => a.id === id)
+      if (!agent?.sandboxName) return
+
+      const repo = repos.find((w) => w.id === agent.repoId)
+      if (!repo) {
+        toast.error("Couldn't restart dev server", {
+          description: "Workspace not found",
+        })
+        return
+      }
+
+      // No VM cycle and no status flip: bouncing the dev server leaves the
+      // Sandbox (and any in-flight agent turn) running, and the preview points
+      // at the same proxy port as before, so there's nothing to persist — the
+      // only signal is a toast. This is the one restart that stays available
+      // while the agent is working.
+      const result = await restartDevServer(agent.sandboxName, repo)
+      if (result.success) {
+        toast.success("Dev server restarted")
+      } else {
+        toast.error("Couldn't restart dev server", {
+          description: result.error || undefined,
+        })
+      }
+    },
+    [agents, repos]
+  )
+
   const handleRefreshAgent = useCallback(
     async (id: string) => {
       const agent = agents.find((a) => a.id === id)
@@ -5019,6 +5051,7 @@ export function Canvas({
             onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
             onCreateWorkspace={handleCreateWorkspace}
             onRebaseOnDefault={handleRebaseOnDefault}
+            onRestartDevServer={handleRestartDevServer}
             onRefreshBranch={handleRefreshAgent}
             onRemoveBranch={async (id, { deleteOnRemote }) => {
               if (deleteOnRemote) {
