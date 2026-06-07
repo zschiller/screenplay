@@ -38,22 +38,16 @@ import {
   Loader2,
   Settings,
   ChevronRight,
-  ExternalLink,
   GitBranch,
-  GitBranchPlus,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
-  RefreshCw,
   Plus,
   FolderOpen,
   Trash2,
   MoreHorizontal,
   Pencil,
-  Play,
-  Route,
   PanelLeftClose,
-  Palette,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -82,15 +76,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { BRANCH_COLORS } from "@/lib/branch-colors"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   Popover,
@@ -143,6 +131,7 @@ import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
+import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -1727,212 +1716,39 @@ export function RoomSidebar({
                                                               )}
                                                               <BranchDropdownSlot
                                                                 menuContent={
-                                                                  <DropdownMenuContent
-                                                                    side="right"
-                                                                    align="start"
-                                                                    className="w-48"
+                                                                  <BranchOverflowMenuContent
+                                                                    branch={
+                                                                      branch
+                                                                    }
+                                                                    repo={repo}
+                                                                    onPlay={
+                                                                      onPlayBranch
+                                                                    }
+                                                                    onRename={
+                                                                      triggerBranchRename
+                                                                    }
+                                                                    onUpdateBranch={
+                                                                      onUpdateBranch
+                                                                    }
+                                                                    onDuplicate={
+                                                                      onForkBranch
+                                                                    }
+                                                                    onRestart={
+                                                                      onRefreshBranch
+                                                                    }
+                                                                    onShowRoutes={
+                                                                      onShowRoutes
+                                                                    }
+                                                                    onRebase={
+                                                                      onRebaseOnDefault
+                                                                    }
+                                                                    onDelete={
+                                                                      setPendingDeleteBranchId
+                                                                    }
                                                                     onCloseAutoFocus={
                                                                       onBranchMenuCloseAutoFocus
                                                                     }
-                                                                  >
-                                                                    <DropdownMenuItem
-                                                                      disabled={
-                                                                        !branch.previewDomain
-                                                                      }
-                                                                      onClick={() =>
-                                                                        onPlayBranch(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <Play />
-                                                                      Open
-                                                                      prototype
-                                                                      player
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                    <DropdownMenuItem
-                                                                      disabled={
-                                                                        !branch.ref
-                                                                      }
-                                                                      onClick={
-                                                                        triggerBranchRename
-                                                                      }
-                                                                    >
-                                                                      <Pencil />
-                                                                      Rename
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSub>
-                                                                      <DropdownMenuSubTrigger>
-                                                                        <Palette />
-                                                                        Color
-                                                                      </DropdownMenuSubTrigger>
-                                                                      <DropdownMenuSubContent className="w-40">
-                                                                        <DropdownMenuRadioGroup
-                                                                          value={
-                                                                            branch.colorIndex !==
-                                                                            undefined
-                                                                              ? String(
-                                                                                  branch.colorIndex
-                                                                                )
-                                                                              : ""
-                                                                          }
-                                                                          onValueChange={(
-                                                                            v
-                                                                          ) =>
-                                                                            onUpdateBranch(
-                                                                              branch.id,
-                                                                              {
-                                                                                colorIndex:
-                                                                                  Number(
-                                                                                    v
-                                                                                  ),
-                                                                              }
-                                                                            )
-                                                                          }
-                                                                        >
-                                                                          {BRANCH_COLORS.map(
-                                                                            (
-                                                                              c,
-                                                                              i
-                                                                            ) => (
-                                                                              <DropdownMenuRadioItem
-                                                                                key={
-                                                                                  c.name
-                                                                                }
-                                                                                value={String(
-                                                                                  i
-                                                                                )}
-                                                                              >
-                                                                                <span
-                                                                                  className={cn(
-                                                                                    "size-4 rounded-[3px]",
-                                                                                    c.swatch
-                                                                                  )}
-                                                                                />
-                                                                                <span className="capitalize">
-                                                                                  {
-                                                                                    c.name
-                                                                                  }
-                                                                                </span>
-                                                                              </DropdownMenuRadioItem>
-                                                                            )
-                                                                          )}
-                                                                        </DropdownMenuRadioGroup>
-                                                                        <DropdownMenuSeparator />
-                                                                        <DropdownMenuItem
-                                                                          disabled={
-                                                                            branch.colorIndex ===
-                                                                            undefined
-                                                                          }
-                                                                          onClick={() =>
-                                                                            onUpdateBranch(
-                                                                              branch.id,
-                                                                              {
-                                                                                colorIndex:
-                                                                                  undefined,
-                                                                              }
-                                                                            )
-                                                                          }
-                                                                        >
-                                                                          Reset
-                                                                          to
-                                                                          default
-                                                                        </DropdownMenuItem>
-                                                                      </DropdownMenuSubContent>
-                                                                    </DropdownMenuSub>
-                                                                    <DropdownMenuItem
-                                                                      onClick={() =>
-                                                                        onForkBranch(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <GitBranchPlus />
-                                                                      Duplicate
-                                                                      branch
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                      onClick={() =>
-                                                                        onRefreshBranch(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <RefreshCw />
-                                                                      Restart
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                      disabled={
-                                                                        !branch.discoveredRoutes ||
-                                                                        branch
-                                                                          .discoveredRoutes
-                                                                          .length ===
-                                                                          0
-                                                                      }
-                                                                      onClick={() =>
-                                                                        onShowRoutes(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <Route />
-                                                                      Show all
-                                                                      routes
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                    <DropdownMenuItem
-                                                                      disabled={
-                                                                        !branch.sandboxName ||
-                                                                        !branch.ref
-                                                                      }
-                                                                      onClick={() =>
-                                                                        onRebaseOnDefault(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <GitMerge />
-                                                                      Rebase on{" "}
-                                                                      {
-                                                                        repo.defaultBranch
-                                                                      }
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                      disabled={
-                                                                        !branch.ref
-                                                                      }
-                                                                      onClick={() => {
-                                                                        if (
-                                                                          !branch.ref
-                                                                        )
-                                                                          return
-                                                                        const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(branch.ref)}`
-                                                                        window.open(
-                                                                          url,
-                                                                          "_blank",
-                                                                          "noopener,noreferrer"
-                                                                        )
-                                                                      }}
-                                                                    >
-                                                                      <ExternalLink />
-                                                                      Open
-                                                                      branch on
-                                                                      GitHub
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                    <DropdownMenuItem
-                                                                      variant="destructive"
-                                                                      onClick={() =>
-                                                                        setPendingDeleteBranchId(
-                                                                          branch.id
-                                                                        )
-                                                                      }
-                                                                    >
-                                                                      <Trash2 />
-                                                                      Delete
-                                                                    </DropdownMenuItem>
-                                                                  </DropdownMenuContent>
+                                                                  />
                                                                 }
                                                               />
                                                             </>
