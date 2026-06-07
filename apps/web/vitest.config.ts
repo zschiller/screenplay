@@ -19,9 +19,15 @@ export default defineConfig({
       { find: /^@\//, replacement: `${rootDir}` },
     ],
   },
+  // The app's tsconfig sets `jsx: "preserve"` (for Next.js), which the bundler
+  // would otherwise inherit and leave raw JSX in the output. Force the
+  // automatic runtime so component (`.test.tsx`) tests transform correctly.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
+    // Default to node; component tests opt into jsdom via a per-file
+    // `// @vitest-environment jsdom` docblock.
     environment: "node",
-    include: ["**/*.test.ts"],
+    include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["node_modules/**", ".next/**"],
   },
 })
