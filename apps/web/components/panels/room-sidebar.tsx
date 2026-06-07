@@ -127,6 +127,7 @@ import { listRepoConfigs } from "@/lib/repo-configs-actions"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
+import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
 import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
@@ -583,7 +584,10 @@ interface RoomSidebarProps {
   onRestartDevServer: (id: string) => void
   /** Opens a GitHub PR for the branch via the direct server action (#355). */
   onCreatePr: (branchId: string) => void
+  /** Snapshot-restore the sandbox, preserving the working tree. */
   onRefreshBranch: (id: string) => void
+  /** Destructive reclone from git — discards the working tree. */
+  onRecreateBranch: (id: string) => void | Promise<void>
   onRemoveBranch: (
     id: string,
     options: { deleteOnRemote: boolean }
@@ -658,6 +662,7 @@ export function RoomSidebar({
   onRestartDevServer,
   onCreatePr,
   onRefreshBranch,
+  onRecreateBranch,
   onRemoveBranch,
   onPlayBranch,
   onShowRoutes,
@@ -697,6 +702,9 @@ export function RoomSidebar({
     string | null
   >(null)
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
+    string | null
+  >(null)
+  const [pendingRecreateBranchId, setPendingRecreateBranchId] = useState<
     string | null
   >(null)
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(
@@ -1758,6 +1766,9 @@ export function RoomSidebar({
                                                                     onRestart={
                                                                       onRefreshBranch
                                                                     }
+                                                                    onRecreate={
+                                                                      setPendingRecreateBranchId
+                                                                    }
                                                                     onShowRoutes={
                                                                       onShowRoutes
                                                                     }
@@ -2107,6 +2118,25 @@ export function RoomSidebar({
               if (!branch) return
               await onRemoveBranch(branch.id, { deleteOnRemote })
               setPendingDeleteBranchId(null)
+            }}
+          />
+        )
+      })()}
+      {(() => {
+        const branch = pendingRecreateBranchId
+          ? branches.find((a) => a.id === pendingRecreateBranchId)
+          : null
+        return (
+          <RecreateBranchDialog
+            open={!!branch}
+            onOpenChange={(open) => {
+              if (!open) setPendingRecreateBranchId(null)
+            }}
+            branchName={branch?.ref ?? ""}
+            onConfirm={async () => {
+              if (!branch) return
+              await onRecreateBranch(branch.id)
+              setPendingRecreateBranchId(null)
             }}
           />
         )

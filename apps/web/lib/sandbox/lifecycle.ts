@@ -50,7 +50,9 @@ export async function probeSandboxUrl(url: string): Promise<boolean> {
     res.body?.cancel().catch(() => {})
     // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response; either
     // way, anything that isn't a 5xx proxy placeholder means the server is up.
-    return res.type === "opaqueredirect" || (res.status >= 200 && res.status < 500)
+    return (
+      res.type === "opaqueredirect" || (res.status >= 200 && res.status < 500)
+    )
   } catch {
     return false
   }
@@ -172,8 +174,8 @@ export async function keepAliveSandbox(
  * relaunches the dev + proxy, preserving the in-VM working tree.
  *
  * If the probe throws (the sandbox is gone), the failure surfaces and the caller
- * recreates from git via {@link restartSandbox} — so reconnect itself never needs
- * a reclone branch or a git source. Returns the uniform contract.
+ * recreates from git via {@link recreateSandbox} — so reconnect itself never
+ * needs a reclone branch or a git source. Returns the uniform contract.
  */
 export async function reconnectSandbox(
   sandboxName: string,
@@ -240,24 +242,23 @@ export async function reconnectSandbox(
  * from that snapshot. Preserves the working tree — including uncommitted local
  * changes — across the restart, while still cycling the VM (fresh processes,
  * dev server, port forwards). Doesn't fetch from the remote: this is a pure
- * restart, not a sync. Falls back to a clean git clone if the old sandbox is
- * gone or snapshotting fails.
+ * restart, not a sync.
  *
- * Snapshot/restore is the hibernation path. A non-hibernating provider can't
- * snapshot, so it skips straight to the reclone-fresh branch (working-tree
- * preservation is the accepted degradation there).
+ * Snapshot/restore is the hibernation path, and it is the *only* path: on a
+ * snapshot miss — snapshotting failed, or the provider can't hibernate at all —
+ * this **fails loud** rather than quietly recloning. The old silent reclone
+ * fallback was removed deliberately so a restart can never discard uncommitted
+ * work; rebuilding from git is now only ever the explicit, confirmed
+ * {@link recreateSandbox} ("Recreate from scratch"). See ADR 0005.
  *
  * Creates a VM rather than resolving an existing one, so it can't ride the
  * `get`-based runner — it builds the uniform contract itself and redacts the
- * error on the failure path (a clone or provider failure can spill the GitHub
- * token baked into the source URL). The internal setup/git failures throw so
- * the single catch redacts them uniformly.
+ * error on the failure path (a provider failure can spill credentials). The
+ * internal setup/git failures throw so the single catch redacts them uniformly.
  */
 export async function restartSandbox(
   sandboxName: string,
-  repo: RepoData,
-  branch: string,
-  ghToken?: string
+  repo: RepoData
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
@@ -269,8 +270,8 @@ export async function restartSandbox(
     // VM can boot from the same filesystem state. snapshot() stops the VM as a
     // side effect — we still delete() afterwards so the name is free for the
     // new sandbox to claim. Either step may fail (sandbox missing, snapshot
-    // expired, provider hiccup); we fall back to a fresh git clone when no
-    // snapshotId is captured.
+    // expired, provider hiccup); on any miss we fail loud below rather than
+    // recloning and discarding the working tree.
     let snapshotId: string | undefined
     try {
       const old = await sandboxProvider.get({
@@ -278,7 +279,7 @@ export async function restartSandbox(
         resume: false,
       })
       // Only a hibernating provider can capture a snapshot; a portable one
-      // leaves snapshotId unset and falls through to the reclone path below.
+      // leaves snapshotId unset and falls into the fail-loud branch below.
       if (supportsHibernation(old)) {
         try {
           const snap = await old.snapshot({ expiration: SNAPSHOT_EXPIRATION })
@@ -291,10 +292,14 @@ export async function restartSandbox(
     } catch {}
 
     if (!snapshotId) {
-      // No snapshot available — reclone fresh from git. reprovisionFromGit owns
-      // that whole path (create-from-git through dev launch) and returns the
-      // uniform redacted contract, so we hand back its result directly.
-      return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
+      // No snapshot captured (snapshotting failed, or a non-hibernating
+      // provider). Fail rather than silently recloning — discarding uncommitted
+      // work is reserved for the explicit, confirmed "Recreate from scratch".
+      return {
+        success: false,
+        error:
+          "Couldn't snapshot the sandbox to restart it. Use “Recreate from scratch” to rebuild it from git (this discards uncommitted changes).",
+      }
     }
 
     // Restored from snapshot — node_modules, git config, the credential helper,
@@ -335,6 +340,42 @@ export async function restartSandbox(
       error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
     }
   }
+}
+
+/**
+ * Recreate a sandbox from scratch: delete the existing VM and reclone the repo
+ * fresh from git, running the full setup pipeline. This is the **destructive**
+ * path — it discards the in-VM working tree, including any uncommitted changes —
+ * so it is the explicit, separately-routed operation the UI gates behind a
+ * confirm, never a silent fallback ({@link restartSandbox} fails loud instead of
+ * recloning; see ADR 0005).
+ *
+ * Used both by the "Recreate from scratch" menu action and by auto-recovery on
+ * reconnect when a sandbox's snapshot has fully expired (so there is nothing
+ * left to restore from and recloning is the only way back to a live preview).
+ *
+ * Frees the old name first (best-effort — a missing or wedged VM shouldn't block
+ * recreating) then delegates to {@link reprovisionFromGit}, which owns the whole
+ * create-from-git-through-dev-launch path and returns the uniform redacted
+ * contract.
+ */
+export async function recreateSandbox(
+  sandboxName: string,
+  repo: RepoData,
+  branch: string,
+  ghToken?: string
+): Promise<
+  SandboxActionResult<{ sandboxName: string; previewDomain: string }>
+> {
+  const safeEnv = await getEnvVars(sandboxName)
+  // Free the name so the fresh clone can claim it. Best-effort: the old VM may
+  // be gone (expired snapshot) or wedged, neither of which should block a
+  // recreate.
+  try {
+    const old = await sandboxProvider.get({ name: sandboxName, resume: false })
+    await old.delete()
+  } catch {}
+  return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
 }
 
 /**
