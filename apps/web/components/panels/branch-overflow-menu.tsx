@@ -9,6 +9,7 @@ import {
   Pencil,
   Play,
   RefreshCw,
+  RotateCcw,
   Route,
   Trash2,
 } from "lucide-react"
@@ -93,6 +94,8 @@ export interface BranchOverflowMenuContentProps {
    * prompt (#353) — no longer an immediate fork with a random name.
    */
   onNewBranchFromHere: (branchId: string) => void
+  /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
+  onRestartDevServer: (branchId: string) => void
   onRestart: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   onRebase: (branchId: string) => void
@@ -120,6 +123,7 @@ export function BranchOverflowMenuContent({
   onRename,
   onUpdateBranch,
   onNewBranchFromHere,
+  onRestartDevServer,
   onRestart,
   onShowRoutes,
   onRebase,
@@ -196,10 +200,34 @@ export function BranchOverflowMenuContent({
       </DropdownMenuItem>
     ),
     restart: (
-      <DropdownMenuItem onClick={() => onRestart(branch.id)}>
-        <RefreshCw />
-        Restart
-      </DropdownMenuItem>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <RefreshCw />
+          Restart
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-48">
+          {/*
+            Restart dev server bounces the dev process inside the existing
+            Sandbox — no VM cycle, working tree untouched — so it stays enabled
+            even while the agent is working, the one restart that can fix a
+            wedged preview mid-turn.
+          */}
+          <DropdownMenuItem
+            disabled={!branch.sandboxName}
+            onClick={() => onRestartDevServer(branch.id)}
+          >
+            <RefreshCw />
+            Restart dev server
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!branch.sandboxName}
+            onClick={() => onRestart(branch.id)}
+          >
+            <RotateCcw />
+            Restart sandbox
+          </DropdownMenuItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
     ),
     rebase: (
       <DropdownMenuItem

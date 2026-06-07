@@ -73,7 +73,15 @@ const branch: BranchData = {
 
 function renderMenu(
   overrides: Partial<BranchData> = {},
-  { isBusy = false }: { isBusy?: boolean } = {}
+  {
+    isBusy = false,
+    onRestartDevServer,
+    onRestart,
+  }: {
+    isBusy?: boolean
+    onRestartDevServer?: () => void
+    onRestart?: () => void
+  } = {}
 ) {
   return render(
     <DropdownMenu open>
@@ -85,7 +93,8 @@ function renderMenu(
         onRename={vi.fn()}
         onUpdateBranch={vi.fn()}
         onNewBranchFromHere={vi.fn()}
-        onRestart={vi.fn()}
+        onRestartDevServer={onRestartDevServer ?? vi.fn()}
+        onRestart={onRestart ?? vi.fn()}
         onShowRoutes={vi.fn()}
         onRebase={vi.fn()}
         onDelete={vi.fn()}
@@ -258,6 +267,7 @@ function MenuToDialogHarness() {
             setBase(branch.ref ?? null)
             setOpen(true)
           }}
+          onRestartDevServer={vi.fn()}
           onRestart={vi.fn()}
           onShowRoutes={vi.fn()}
           onRebase={vi.fn()}
@@ -306,5 +316,54 @@ describe('"New branch from here…" opens the create dialog', () => {
       .getByText("New branch from here…")
       .closest("[role=menuitem]")
     expect(item?.getAttribute("aria-disabled")).toBe("true")
+  })
+})
+
+describe("Restart submenu", () => {
+  it("renders Restart as a submenu trigger, not a flat action", () => {
+    renderMenu()
+    // A submenu trigger advertises a nested menu via aria-haspopup; a plain
+    // DropdownMenuItem does not. That's the structural tell that "Restart" was
+    // converted from one button into a submenu.
+    const restart = screen.getByText("Restart").closest("[role='menuitem']")
+    expect(restart).not.toBeNull()
+    expect(restart?.getAttribute("aria-haspopup")).toBe("menu")
+  })
+
+  it("lists Restart dev server first and keeps it enabled", () => {
+    renderMenu()
+    // Open the submenu by activating its trigger from the keyboard — Radix opens
+    // a sub-content on ArrowRight, which jsdom can drive without real hover.
+    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
+    fireEvent.keyDown(trigger, { key: "ArrowRight" })
+
+    const items = screen
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent?.trim())
+    const devIdx = items.indexOf("Restart dev server")
+    const sandboxIdx = items.indexOf("Restart sandbox")
+    expect(devIdx).toBeGreaterThanOrEqual(0)
+    // Dev server is the submenu's first item, ahead of Restart sandbox.
+    expect(sandboxIdx).toBeGreaterThan(devIdx)
+
+    // It stays enabled (no data-disabled / aria-disabled) so a wedged preview
+    // can be fixed even while the agent is working.
+    const devItem = screen
+      .getAllByRole("menuitem")
+      .find((el) => el.textContent?.trim() === "Restart dev server")!
+    expect(devItem.getAttribute("data-disabled")).toBeNull()
+    expect(devItem.getAttribute("aria-disabled")).not.toBe("true")
+  })
+
+  it("invokes the dev-server restart handler with the branch id", () => {
+    const onRestartDevServer = vi.fn()
+    renderMenu({}, { onRestartDevServer })
+    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
+    fireEvent.keyDown(trigger, { key: "ArrowRight" })
+    const devItem = screen
+      .getAllByRole("menuitem")
+      .find((el) => el.textContent?.trim() === "Restart dev server")!
+    fireEvent.click(devItem)
+    expect(onRestartDevServer).toHaveBeenCalledWith("branch-1")
   })
 })

@@ -579,6 +579,8 @@ interface RoomSidebarProps {
    */
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
   onRebaseOnDefault: (branchId: string) => void
+  /** Bounce the dev server in place (no VM cycle) — the cheap preview recovery. */
+  onRestartDevServer: (id: string) => void
   onRefreshBranch: (id: string) => void
   onRemoveBranch: (
     id: string,
@@ -651,6 +653,7 @@ export function RoomSidebar({
   onCreateBranchFromGitBranch,
   onCreateWorkspace,
   onRebaseOnDefault,
+  onRestartDevServer,
   onRefreshBranch,
   onRemoveBranch,
   onPlayBranch,
@@ -1746,6 +1749,9 @@ export function RoomSidebar({
                                                                         branch.repoId
                                                                       )
                                                                     }}
+                                                                    onRestartDevServer={
+                                                                      onRestartDevServer
+                                                                    }
                                                                     onRestart={
                                                                       onRefreshBranch
                                                                     }
