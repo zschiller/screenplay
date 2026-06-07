@@ -31,15 +31,15 @@ Because the oAuthProxy plugin signs state on production and verifies it on the p
 
 For local development you have two choices:
 
-- **Option A — share the production secret** (simplest). Copy `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `BETTER_AUTH_PRODUCTION_URL` into `apps/web/.env.local`. Sign-ins locally take a detour through the production callback and bounce back to `localhost`.
+- **Option A — share the production secret** (simplest). Copy `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `BETTER_AUTH_PRODUCTION_URL` into `apps/app/.env.local`. Sign-ins locally take a detour through the production callback and bounce back to `localhost`.
 - **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/api/auth/callback/github`. In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
 
 ### Database setup
 
 1. Provision a Postgres database anywhere (Neon, Vercel Postgres, Supabase, a self-hosted server — anything) and copy the connection string into `DATABASE_URL`. The default build targets Neon's serverless HTTP driver; see [Using a different Postgres driver](#using-a-different-postgres-driver) if your provider doesn't speak that protocol.
-2. That's it. Checked-in SQL migrations under `apps/web/drizzle/` are applied automatically at build time — the `apps/web` `build` script is `drizzle-kit migrate && next build`, so every Vercel deploy lands any new migrations before starting the app. `drizzle-kit migrate` is idempotent (skips migrations already recorded in `__drizzle_migrations`).
+2. That's it. Checked-in SQL migrations under `apps/app/drizzle/` are applied automatically at build time — the `apps/app` `build` script is `drizzle-kit migrate && next build`, so every Vercel deploy lands any new migrations before starting the app. `drizzle-kit migrate` is idempotent (skips migrations already recorded in `__drizzle_migrations`).
 
-Schema lives in `apps/web/lib/db/schema.ts`:
+Schema lives in `apps/app/lib/db/schema.ts`:
 - Better Auth's `user` / `session` / `account` / `verification` tables, plus a per-user `organization` JSONB column for folders/pins.
 - `kv_store` — backs `lib/kv` (TTL-aware key/value with distributed locks).
 - `room` / `room_member` — project rooms and access control. Source of truth for who can open a canvas; the `/api/yjs/auth` route gates Yjs-host token issuance against `room_member`.
@@ -50,9 +50,9 @@ Schema lives in `apps/web/lib/db/schema.ts`:
 #### Changing the schema
 
 ```bash
-# 1. Edit apps/web/lib/db/schema.ts
-# 2. Generate the migration (SQL file under apps/web/drizzle/)
-cd apps/web && pnpm db:generate
+# 1. Edit apps/app/lib/db/schema.ts
+# 2. Generate the migration (SQL file under apps/app/drizzle/)
+cd apps/app && pnpm db:generate
 # 3. Commit the generated .sql file alongside the schema change
 # 4. The next deploy applies it via `drizzle-kit migrate`
 ```
@@ -63,10 +63,10 @@ For throwaway local experiments you can still use `pnpm db:push` to skip the mig
 
 #### Using a different Postgres driver
 
-`apps/web/lib/db/index.ts` picks the default driver via `createNeonDb()` in `neon.ts`. The exported `db` is typed as the driver-agnostic `DB` alias (`PgDatabase<PgQueryResultHKT, typeof schema>`), so any Drizzle Postgres driver is a drop-in replacement. To switch:
+`apps/app/lib/db/index.ts` picks the default driver via `createNeonDb()` in `neon.ts`. The exported `db` is typed as the driver-agnostic `DB` alias (`PgDatabase<PgQueryResultHKT, typeof schema>`), so any Drizzle Postgres driver is a drop-in replacement. To switch:
 
 1. Install the driver package you want (`postgres`, `pg`, `@vercel/postgres`, …).
-2. Add a sibling factory — e.g. `apps/web/lib/db/postgres-js.ts`:
+2. Add a sibling factory — e.g. `apps/app/lib/db/postgres-js.ts`:
 
    ```ts
    import postgres from "postgres"
@@ -86,14 +86,14 @@ For throwaway local experiments you can still use `pnpm db:push` to skip the mig
 
 ### Sandbox provider
 
-Each workspace runs its coding agent and dev server inside a live sandbox VM. The default backend is [`@vercel/sandbox`](https://vercel.com/docs/vercel-sandbox) via `apps/web/lib/sandbox/vercel.ts`, fronted by a thin re-export in `apps/web/lib/sandbox/index.ts` that exposes a driver-agnostic `SandboxProvider` interface. Any backend that can provision a Linux VM, run commands, and read/write files can drop in — E2B, Modal, a remote Firecracker service, a local Docker daemon for development, etc.
+Each workspace runs its coding agent and dev server inside a live sandbox VM. The default backend is [`@vercel/sandbox`](https://vercel.com/docs/vercel-sandbox) via `apps/app/lib/sandbox/vercel.ts`, fronted by a thin re-export in `apps/app/lib/sandbox/index.ts` that exposes a driver-agnostic `SandboxProvider` interface. Any backend that can provision a Linux VM, run commands, and read/write files can drop in — E2B, Modal, a remote Firecracker service, a local Docker daemon for development, etc.
 
 #### Using a different sandbox provider
 
-`apps/web/lib/sandbox/index.ts` picks the default provider via `getVercelSandboxProvider()` in `vercel.ts`. The exported `sandboxProvider` is typed as the backend-agnostic `SandboxProvider` interface defined in `apps/web/lib/sandbox/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
+`apps/app/lib/sandbox/index.ts` picks the default provider via `getVercelSandboxProvider()` in `vercel.ts`. The exported `sandboxProvider` is typed as the backend-agnostic `SandboxProvider` interface defined in `apps/app/lib/sandbox/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
 
 1. Install whatever SDK your backend needs.
-2. Add a sibling factory — e.g. `apps/web/lib/sandbox/e2b.ts`:
+2. Add a sibling factory — e.g. `apps/app/lib/sandbox/e2b.ts`:
 
    ```ts
    import "server-only"
@@ -111,18 +111,18 @@ Each workspace runs its coding agent and dev server inside a live sandbox VM. Th
 
 3. Change the single import in `index.ts` to point at your new factory.
 
-The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`, plus provider-supplied path seams like `worktreePath` / `homeDir`) — see `apps/web/lib/sandbox/types.ts` for the exact shape. Everything else in the app — the agent's tool executor, the logs SSE route, the terminal plumbing — is written against this interface and needs no changes when the backend swaps. Capabilities a backend can't offer (e.g. Hibernation) are guarded behind optional predicates rather than baked into the core interface; see [ADR 0003](apps/web/docs/adr/0003-honest-sandbox-provider-seam.md) for the portable-core-plus-optional-capability design.
+The `SandboxInstance` interface the provider must return is small (`runCommand`, `writeFiles`, `readFileToBuffer`, `domain`, `extendTimeout`, `name`, `status`, plus provider-supplied path seams like `worktreePath` / `homeDir`) — see `apps/app/lib/sandbox/types.ts` for the exact shape. Everything else in the app — the agent's tool executor, the logs SSE route, the terminal plumbing — is written against this interface and needs no changes when the backend swaps. Capabilities a backend can't offer (e.g. Hibernation) are guarded behind optional predicates rather than baked into the core interface; see [ADR 0003](apps/app/docs/adr/0003-honest-sandbox-provider-seam.md) for the portable-core-plus-optional-capability design.
 
 ### Blob store
 
-Project thumbnails are screenshotted by a headless browser, resized, and uploaded to a public-readable blob store. The default backend is [`@vercel/blob`](https://vercel.com/docs/vercel-blob) via `apps/web/lib/blob/vercel.ts`, fronted by a thin re-export in `apps/web/lib/blob/index.ts` that exposes a backend-agnostic `BlobStore` interface. Any object store with a public-URL read path works — S3, R2, GCS, Supabase Storage, a self-hosted MinIO bucket, etc.
+Project thumbnails are screenshotted by a headless browser, resized, and uploaded to a public-readable blob store. The default backend is [`@vercel/blob`](https://vercel.com/docs/vercel-blob) via `apps/app/lib/blob/vercel.ts`, fronted by a thin re-export in `apps/app/lib/blob/index.ts` that exposes a backend-agnostic `BlobStore` interface. Any object store with a public-URL read path works — S3, R2, GCS, Supabase Storage, a self-hosted MinIO bucket, etc.
 
 #### Using a different blob backend
 
-`apps/web/lib/blob/index.ts` picks the default store via `getVercelBlobStore()` in `vercel.ts`. The exported `blobStore` is typed as the backend-agnostic `BlobStore` interface defined in `apps/web/lib/blob/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
+`apps/app/lib/blob/index.ts` picks the default store via `getVercelBlobStore()` in `vercel.ts`. The exported `blobStore` is typed as the backend-agnostic `BlobStore` interface defined in `apps/app/lib/blob/types.ts`, so any implementation of that interface is a drop-in replacement. To switch:
 
 1. Install whatever SDK your backend needs.
-2. Add a sibling factory — e.g. `apps/web/lib/blob/s3.ts`:
+2. Add a sibling factory — e.g. `apps/app/lib/blob/s3.ts`:
 
    ```ts
    import "server-only"
@@ -139,11 +139,11 @@ Project thumbnails are screenshotted by a headless browser, resized, and uploade
 
 3. Change the single import in `index.ts` to point at your new factory.
 
-The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`) — see `apps/web/lib/blob/types.ts` for the exact shape. Callers (`lib/thumbnail/capture.ts`) only ever see the abstract interface and need no changes when the backend swaps.
+The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`) — see `apps/app/lib/blob/types.ts` for the exact shape. Callers (`lib/thumbnail/capture.ts`) only ever see the abstract interface and need no changes when the backend swaps.
 
 ### Model providers
 
-The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider is one concrete file under `apps/web/lib/agent/providers/` (`anthropic`, `openai`, `google`, `vercel` for the AI Gateway, and `openai-compatible`), composed into the active set in `apps/web/lib/agent/providers/index.ts`. The shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a `ModelProvider` interface in `types.ts`, one file per implementation, and an `index.ts` that picks which ones are live.
+The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider is one concrete file under `apps/app/lib/agent/providers/` (`anthropic`, `openai`, `google`, `vercel` for the AI Gateway, and `openai-compatible`), composed into the active set in `apps/app/lib/agent/providers/index.ts`. The shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a `ModelProvider` interface in `types.ts`, one file per implementation, and an `index.ts` that picks which ones are live.
 
 Model ids are fully qualified: `<provider>:<model>` (e.g. `anthropic:claude-sonnet-4-6`, `openai:gpt-4o`, `vercel:anthropic/claude-sonnet-4-6` for a model routed through the AI Gateway, `compat:llama-3.3-70b` for an OpenAI-compatible endpoint). Bare ids are rejected — provider routing is always explicit, so a deployment configured only for OpenAI never silently routes a stray `claude-*` id to Anthropic.
 
@@ -173,7 +173,7 @@ Each provider falls back to a small curated list if its discovery call fails —
 #### Adding a new provider
 
 1. Install the AI SDK adapter for your provider (e.g. `pnpm add @ai-sdk/mistral`).
-2. Drop a sibling factory under `apps/web/lib/agent/providers/` modeled on the existing files:
+2. Drop a sibling factory under `apps/app/lib/agent/providers/` modeled on the existing files:
 
    ```ts
    import "server-only"
@@ -196,9 +196,9 @@ Each provider falls back to a small curated list if its discovery call fails —
    }
    ```
 
-3. Import the factory and add it to the `PROVIDERS` array in `apps/web/lib/agent/providers/index.ts`.
+3. Import the factory and add it to the `PROVIDERS` array in `apps/app/lib/agent/providers/index.ts`.
 
-The `ModelProvider` interface is small (`key`, `label`, `isConfigured`, `listModels`, `resolve`) — see `apps/web/lib/agent/providers/types.ts` for the exact shape. The agent engine, model picker, and `/api/agent/models` route are all written against this interface and need no changes.
+The `ModelProvider` interface is small (`key`, `label`, `isConfigured`, `listModels`, `resolve`) — see `apps/app/lib/agent/providers/types.ts` for the exact shape. The agent engine, model picker, and `/api/agent/models` route are all written against this interface and need no changes.
 
 ### Environment variables
 
@@ -296,7 +296,7 @@ BLOB_READ_WRITE_TOKEN=...
 
 #### BYO coding harnesses (`SANDBOX_HARNESSES`)
 
-Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs** that run *inside* a sandbox's [Terminal Tab](apps/web/CONTEXT.md). Each is a descriptor in `apps/web/lib/agent/harnesses/`, keyed by a stable catalog key, and brokered through one of the model providers above. The current catalog:
+Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs** that run *inside* a sandbox's [Terminal Tab](apps/app/CONTEXT.md). Each is a descriptor in `apps/app/lib/agent/harnesses/`, keyed by a stable catalog key, and brokered through one of the model providers above. The current catalog:
 
 | Key | CLI | Broker provider (gate var) |
 | --- | --- | --- |
@@ -314,7 +314,7 @@ SANDBOX_HARNESSES=claude-code               # install Claude Code
 # (unset) ⇒ no harness is installed
 ```
 
-Selection is a pure fold over the keys and your configured model providers (`apps/web/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a known catalog entry and (b) its broker model provider is configured **and** header-brokerable (`egress()` non-null) — e.g. `claude-code` needs `ANTHROPIC_API_KEY` set, `codex` needs `OPENAI_API_KEY`. Unknown keys and unconfigured/non-brokerable harnesses are silently dropped with a skip reason, never a hard failure. The harness never holds the real key: it boots against a dummy `brokered` placeholder and the sandbox firewall injects the operator's real key on egress — see [ADR 0002](apps/web/docs/adr/0002-byo-harness-terminal.md) for the trust boundary (single-trusted-operator, generalized egress injection, no per-tenant metering).
+Selection is a pure fold over the keys and your configured model providers (`apps/app/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a known catalog entry and (b) its broker model provider is configured **and** header-brokerable (`egress()` non-null) — e.g. `claude-code` needs `ANTHROPIC_API_KEY` set, `codex` needs `OPENAI_API_KEY`. Unknown keys and unconfigured/non-brokerable harnesses are silently dropped with a skip reason, never a hard failure. The harness never holds the real key: it boots against a dummy `brokered` placeholder and the sandbox firewall injects the operator's real key on egress — see [ADR 0002](apps/app/docs/adr/0002-byo-harness-terminal.md) for the trust boundary (single-trusted-operator, generalized egress injection, no per-tenant metering).
 
 > ⚠️ **Breaking change for existing deployments.** There is **no longer a default harness.** Earlier versions always installed Claude Code into every sandbox; now nothing is installed unless `SANDBOX_HARNESSES` names it. **To keep today's behavior, set `SANDBOX_HARNESSES=claude-code`** (with `ANTHROPIC_API_KEY` configured) before upgrading — otherwise Claude Code disappears from your Terminal Tabs.
 
@@ -329,7 +329,7 @@ vercel env pull .env.local
 
 This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run `vercel env pull` when it expires).
 
-If you've swapped in a different provider under `apps/web/lib/sandbox/`, set whatever env vars that backend needs instead (e.g. `E2B_API_KEY`) and consume them inside the provider's factory function.
+If you've swapped in a different provider under `apps/app/lib/sandbox/`, set whatever env vars that backend needs instead (e.g. `E2B_API_KEY`) and consume them inside the provider's factory function.
 
 ### Deploying to Vercel
 
@@ -344,8 +344,8 @@ If you've swapped in a different provider under `apps/web/lib/sandbox/`, set wha
 
 ```bash
 pnpm install
-cp apps/web/.env.local.example apps/web/.env.local   # then fill in values
-cd apps/web && pnpm db:migrate                        # apply migrations to your database
+cp apps/app/.env.local.example apps/app/.env.local   # then fill in values
+cd apps/app && pnpm db:migrate                        # apply migrations to your database
 pnpm dev
 ```
 
@@ -359,9 +359,9 @@ pnpm build       # production build (runs drizzle-kit migrate, then next build)
 pnpm lint        # ESLint
 pnpm typecheck   # tsc --noEmit
 pnpm format      # Prettier
-pnpm test        # Vitest (run from apps/web for watch mode: pnpm test:watch)
+pnpm test        # Vitest (run from apps/app for watch mode: pnpm test:watch)
 
-# Database (run from apps/web)
+# Database (run from apps/app)
 pnpm db:generate # generate a new SQL migration from schema changes — commit the output
 pnpm db:migrate  # apply committed migrations to $DATABASE_URL
 pnpm db:push     # push the schema directly without a migration file (throwaway dev only)

@@ -7,7 +7,7 @@ decisions live in `docs/adr/`, context-scoped ones in `<context>/docs/adr/`.
 
 ## Contexts
 
-- [apps/web](./apps/web/CONTEXT.md) — the collaborative canvas and agent runtime
+- [apps/app](./apps/app/CONTEXT.md) — the collaborative canvas and agent runtime
   (rooms, layers, groups, chat targets, tools, agent runs).
 
 _Other workspaces (`apps/docs`, `packages/*`) don't have a `CONTEXT.md` yet;

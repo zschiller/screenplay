@@ -27,53 +27,7 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
-  apps/docs:
-    dependencies:
-      '@workspace/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      next:
-        specifier: 16.1.7
-        version: 16.1.7(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      next-themes:
-        specifier: ^0.4.6
-        version: 0.4.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.5
-      react-dom:
-        specifier: ^19.2.4
-        version: 19.2.5(react@19.2.5)
-    devDependencies:
-      '@tailwindcss/postcss':
-        specifier: ^4.2.1
-        version: 4.2.3
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.6.0
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      '@workspace/eslint-config':
-        specifier: workspace:*
-        version: link:../../packages/eslint-config
-      '@workspace/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
-      eslint:
-        specifier: ^9.39.4
-        version: 9.39.4(jiti@2.6.1)
-      eslint-config-next:
-        specifier: 16.1.7
-        version: 16.1.7(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  apps/web:
+  apps/app:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.75
@@ -268,6 +222,52 @@ importers:
       vitest:
         specifier: ^4.1.7
         version: 4.1.7(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.13.4(@types/node@25.6.0)(typescript@5.9.3))(vite@8.0.14(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0))
+
+  apps/docs:
+    dependencies:
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      next:
+        specifier: 16.1.7
+        version: 16.1.7(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      next-themes:
+        specifier: ^0.4.6
+        version: 0.4.6(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react:
+        specifier: ^19.2.4
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.5(react@19.2.5)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.2.1
+        version: 4.2.3
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      '@workspace/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@workspace/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.7
+        version: 16.1.7(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   packages/eslint-config:
     devDependencies:
@@ -5013,11 +5013,6 @@ packages:
     resolution: {integrity: sha512-dkEJPVvun4FryqBmZ5KhDo0K9iDXAwn08tMLDinNdRBNPcYEDiWYysLcc6k3mjTMlbP9KyylvRpd4wFtwrT9rw==}
     engines: {node: ^20.17.0 || >=22.9.0}
 
-  nanoid@3.3.11:
-    resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
-    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
-    hasBin: true
-
   nanoid@3.3.12:
     resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -8327,7 +8322,7 @@ snapshots:
       '@alloc/quick-lru': 5.2.0
       '@tailwindcss/node': 4.2.3
       '@tailwindcss/oxide': 4.2.3
-      postcss: 8.5.10
+      postcss: 8.5.15
       tailwindcss: 4.2.3
 
   '@tailwindcss/typography@0.5.19(tailwindcss@4.2.3)':
@@ -11054,8 +11049,6 @@ snapshots:
 
   mute-stream@3.0.0: {}
 
-  nanoid@3.3.11: {}
-
   nanoid@3.3.12: {}
 
   nanoid@5.1.9: {}
@@ -11329,13 +11322,13 @@ snapshots:
 
   postcss@8.4.31:
     dependencies:
-      nanoid: 3.3.11
+      nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
   postcss@8.5.10:
     dependencies:
-      nanoid: 3.3.11
+      nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
