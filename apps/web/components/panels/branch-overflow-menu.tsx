@@ -5,6 +5,7 @@ import {
   ExternalLink,
   GitBranchPlus,
   GitMerge,
+  GitPullRequest,
   Palette,
   Pencil,
   Play,
@@ -42,6 +43,7 @@ export type BranchMenuItemKey =
   | "routes"
   | "new-branch-from-here"
   | "restart"
+  | "create-pr"
   | "rebase"
   | "open-github"
   | "delete"
@@ -78,7 +80,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
     label: "Branch & sandbox",
     itemKeys: ["new-branch-from-here", "restart"],
   },
-  { id: "git", label: "Git", itemKeys: ["rebase", "open-github"] },
+  { id: "git", label: "Git", itemKeys: ["create-pr", "rebase", "open-github"] },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
 ]
 
@@ -98,6 +100,11 @@ export interface BranchOverflowMenuContentProps {
   onRestartDevServer: (branchId: string) => void
   onRestart: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
+  /**
+   * Opens a GitHub PR for this branch via the direct server action (#355) —
+   * deterministic title/body, no model turn. Disabled while the branch is busy.
+   */
+  onCreatePr: (branchId: string) => void
   onRebase: (branchId: string) => void
   onDelete: (branchId: string) => void
   onCloseAutoFocus?: (event: Event) => void
@@ -126,6 +133,7 @@ export function BranchOverflowMenuContent({
   onRestartDevServer,
   onRestart,
   onShowRoutes,
+  onCreatePr,
   onRebase,
   onDelete,
   onCloseAutoFocus,
@@ -228,6 +236,15 @@ export function BranchOverflowMenuContent({
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+    ),
+    "create-pr": (
+      <DropdownMenuItem
+        disabled={!branch.sandboxName || !branch.ref || isBusy}
+        onClick={() => onCreatePr(branch.id)}
+      >
+        <GitPullRequest />
+        Create pull request
+      </DropdownMenuItem>
     ),
     rebase: (
       <DropdownMenuItem

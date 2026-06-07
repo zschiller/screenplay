@@ -581,6 +581,8 @@ interface RoomSidebarProps {
   onRebaseOnDefault: (branchId: string) => void
   /** Bounce the dev server in place (no VM cycle) — the cheap preview recovery. */
   onRestartDevServer: (id: string) => void
+  /** Opens a GitHub PR for the branch via the direct server action (#355). */
+  onCreatePr: (branchId: string) => void
   onRefreshBranch: (id: string) => void
   onRemoveBranch: (
     id: string,
@@ -654,6 +656,7 @@ export function RoomSidebar({
   onCreateWorkspace,
   onRebaseOnDefault,
   onRestartDevServer,
+  onCreatePr,
   onRefreshBranch,
   onRemoveBranch,
   onPlayBranch,
@@ -1757,6 +1760,9 @@ export function RoomSidebar({
                                                                     }
                                                                     onShowRoutes={
                                                                       onShowRoutes
+                                                                    }
+                                                                    onCreatePr={
+                                                                      onCreatePr
                                                                     }
                                                                     onRebase={
                                                                       onRebaseOnDefault
