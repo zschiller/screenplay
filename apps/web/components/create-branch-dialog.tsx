@@ -66,6 +66,14 @@ interface CreateBranchDialogProps {
    * is `"new"`, any other base is `"duplicate-branch"` (#325).
    */
   defaultBranch: string
+  /**
+   * The base each row starts on. Defaults to {@link defaultBranch}; the
+   * "New branch from here…" menu item (#353) seeds it with the originating
+   * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
+   * default resolves to the planner's `duplicate-branch` flow), still with an
+   * empty prompt.
+   */
+  baseBranch?: string
   /** Repo identity, used to fetch the searchable branch list for the base picker. */
   repoOwner: string
   repoName: string
@@ -114,11 +122,15 @@ export function CreateBranchDialog({
   open,
   onOpenChange,
   defaultBranch,
+  baseBranch,
   repoOwner,
   repoName,
   markdownLayers,
   onSubmit,
 }: CreateBranchDialogProps) {
+  // The base each row seeds on: the explicit `baseBranch` (the "New branch from
+  // here…" source, #353) when given, else the Repo default.
+  const seedBase = baseBranch ?? defaultBranch
   const [models, setModels] = useState<ModelInfo[]>([])
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
@@ -173,15 +185,15 @@ export function CreateBranchDialog({
   // a single fresh row) whenever the dialog reopens or the resolved seed values
   // change — the render-phase previous-value pattern, as in the prior dialog.
   const [rows, setRows] = useState<ComposerRow[]>(() =>
-    initialRows(defaultBranch, initialModel, nextRowKey)
+    initialRows(seedBase, initialModel, nextRowKey)
   )
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const rowSeedKey = `${open}|${defaultBranch}|${initialModel}`
+  const rowSeedKey = `${open}|${seedBase}|${initialModel}`
   const [prevRowSeedKey, setPrevRowSeedKey] = useState(rowSeedKey)
   if (rowSeedKey !== prevRowSeedKey) {
     setPrevRowSeedKey(rowSeedKey)
     if (open) {
-      setRows(initialRows(defaultBranch, initialModel, nextRowKey))
+      setRows(initialRows(seedBase, initialModel, nextRowKey))
       setFocusedIndex(0)
     }
   }

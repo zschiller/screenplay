@@ -578,7 +578,6 @@ interface RoomSidebarProps {
    * several, each becoming its own Branch.
    */
   onCreateWorkspace: (repoId: string, specs: ComposerSpec[]) => void
-  onForkBranch: (branchId: string) => void
   onRebaseOnDefault: (branchId: string) => void
   onRefreshBranch: (id: string) => void
   onRemoveBranch: (
@@ -651,7 +650,6 @@ export function RoomSidebar({
   onRemoveRepo,
   onCreateBranchFromGitBranch,
   onCreateWorkspace,
-  onForkBranch,
   onRebaseOnDefault,
   onRefreshBranch,
   onRemoveBranch,
@@ -686,6 +684,12 @@ export function RoomSidebar({
   const [newWorkspaceRepoId, setNewWorkspaceRepoId] = useState<string | null>(
     null
   )
+  // The base the create dialog seeds on when opened from "New branch from
+  // here…" (#353). Null for the plain "New Workspace" entry, which seeds on the
+  // Repo default.
+  const [newWorkspaceBaseBranch, setNewWorkspaceBaseBranch] = useState<
+    string | null
+  >(null)
   const [pendingDeleteBranchId, setPendingDeleteBranchId] = useState<
     string | null
   >(null)
@@ -1446,6 +1450,7 @@ export function RoomSidebar({
                                   className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
                                   onClick={(e) => {
                                     e.stopPropagation()
+                                    setNewWorkspaceBaseBranch(null)
                                     setNewWorkspaceRepoId(repo.id)
                                   }}
                                   title="New Workspace"
@@ -1487,8 +1492,10 @@ export function RoomSidebar({
                                 {/* "Open existing branch" reattaches to a
                                     remote branch (flow:"from-branch", no new
                                     branch, no prompt, autoNamedBranch:false) —
-                                    a single Enter action (no onDuplicate);
-                                    forking now lives in the branch menu. */}
+                                    a single Enter action. Forking lives in the
+                                    branch menu's "New branch from here…", which
+                                    opens the create dialog based on that branch
+                                    (#353). */}
                                 <Dialog
                                   open={branchPickerRepoId === repo.id}
                                   onOpenChange={(open) =>
@@ -1579,7 +1586,7 @@ export function RoomSidebar({
                                                 }) => (
                                                   <>
                                                     <div
-                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? " bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? " opacity-50" : ""}`}
+                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? "opacity-50" : ""}`}
                                                       onClick={(e) => {
                                                         e.stopPropagation()
                                                         onSelectBranch(
@@ -1730,9 +1737,15 @@ export function RoomSidebar({
                                                                     onUpdateBranch={
                                                                       onUpdateBranch
                                                                     }
-                                                                    onDuplicate={
-                                                                      onForkBranch
-                                                                    }
+                                                                    onNewBranchFromHere={() => {
+                                                                      setNewWorkspaceBaseBranch(
+                                                                        branch.ref ??
+                                                                          null
+                                                                      )
+                                                                      setNewWorkspaceRepoId(
+                                                                        branch.repoId
+                                                                      )
+                                                                    }}
                                                                     onRestart={
                                                                       onRefreshBranch
                                                                     }
@@ -2094,9 +2107,13 @@ export function RoomSidebar({
           <CreateBranchDialog
             open={true}
             onOpenChange={(open) => {
-              if (!open) setNewWorkspaceRepoId(null)
+              if (!open) {
+                setNewWorkspaceRepoId(null)
+                setNewWorkspaceBaseBranch(null)
+              }
             }}
             defaultBranch={repo.defaultBranch}
+            baseBranch={newWorkspaceBaseBranch ?? undefined}
             repoOwner={repo.repoOwner}
             repoName={repo.repoName}
             markdownLayers={markdownLayers}

@@ -39,7 +39,7 @@ export type BranchMenuItemKey =
   | "color"
   | "play"
   | "routes"
-  | "duplicate"
+  | "new-branch-from-here"
   | "restart"
   | "rebase"
   | "open-github"
@@ -75,7 +75,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "branch-sandbox",
     label: "Branch & sandbox",
-    itemKeys: ["duplicate", "restart"],
+    itemKeys: ["new-branch-from-here", "restart"],
   },
   { id: "git", label: "Git", itemKeys: ["rebase", "open-github"] },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
@@ -88,7 +88,11 @@ export interface BranchOverflowMenuContentProps {
   /** Opens the inline branch-name editor — already bound to this branch. */
   onRename: () => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
-  onDuplicate: (branchId: string) => void
+  /**
+   * Opens the create dialog seeded with this branch as the base and an empty
+   * prompt (#353) — no longer an immediate fork with a random name.
+   */
+  onNewBranchFromHere: (branchId: string) => void
   onRestart: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   onRebase: (branchId: string) => void
@@ -115,7 +119,7 @@ export function BranchOverflowMenuContent({
   onPlay,
   onRename,
   onUpdateBranch,
-  onDuplicate,
+  onNewBranchFromHere,
   onRestart,
   onShowRoutes,
   onRebase,
@@ -182,10 +186,13 @@ export function BranchOverflowMenuContent({
         Show all routes
       </DropdownMenuItem>
     ),
-    duplicate: (
-      <DropdownMenuItem onClick={() => onDuplicate(branch.id)}>
+    "new-branch-from-here": (
+      <DropdownMenuItem
+        disabled={!branch.ref}
+        onClick={() => onNewBranchFromHere(branch.id)}
+      >
         <GitBranchPlus />
-        Duplicate branch
+        New branch from here…
       </DropdownMenuItem>
     ),
     restart: (

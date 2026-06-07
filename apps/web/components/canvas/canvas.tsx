@@ -2607,7 +2607,10 @@ export function Canvas({
         createDefaultTabForBranch(branchId, readLastTabKind())
       } else if (selectedChatId === id) {
         setSelectedChatId(
-          nextSelectedId ?? terminalSiblings[0]?.id ?? chatSiblings[0]?.id ?? null
+          nextSelectedId ??
+            terminalSiblings[0]?.id ??
+            chatSiblings[0]?.id ??
+            null
         )
       }
       // Closing an X permanently deletes the row (a reload alone never does).
@@ -3479,62 +3482,6 @@ export function Canvas({
       })
     },
     [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
-  )
-
-  const handleDuplicateBranch = useCallback(
-    (repoId: string, branch: string) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-
-      const sandboxName = `sp-${nanoid(10)}`
-      const newBranch = uniqueNamesGenerator({
-        dictionaries: [adjectives, colors, animals],
-        separator: "-",
-        length: 3,
-      })
-
-      const { branchId: id } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: newBranch,
-          previewDomain: "",
-          port: repo.devServerPort ?? 3000,
-          status: "creating",
-          statusMessage: "Creating branch…",
-          createdAt: Date.now(),
-        },
-      })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
-      const seedChat = seedDefaultTabForNewBranch(id)
-      seedEagerFrameForBranch(id)
-
-      fetch("/api/branch/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "duplicate-branch",
-          roomId,
-          branchId: id,
-          sandboxName,
-          branch: newBranch,
-          sourceBranch: branch,
-          repoId,
-          seedChat,
-        }),
-      })
-    },
-    [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
-  )
-
-  const handleForkAgent = useCallback(
-    (agentId: string) => {
-      const sourceAgent = agents.find((a) => a.id === agentId)
-      if (!sourceAgent?.ref || !sourceAgent.sandboxName) return
-      handleDuplicateBranch(sourceAgent.repoId, sourceAgent.ref)
-    },
-    [agents, handleDuplicateBranch]
   )
 
   const handleRefreshAgent = useCallback(
@@ -5071,7 +5018,6 @@ export function Canvas({
             }}
             onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
             onCreateWorkspace={handleCreateWorkspace}
-            onForkBranch={handleForkAgent}
             onRebaseOnDefault={handleRebaseOnDefault}
             onRefreshBranch={handleRefreshAgent}
             onRemoveBranch={async (id, { deleteOnRemote }) => {
