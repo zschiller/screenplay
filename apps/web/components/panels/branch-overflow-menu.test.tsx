@@ -77,10 +77,12 @@ function renderMenu(
     isBusy = false,
     onRestartDevServer,
     onRestart,
+    onRecreate,
   }: {
     isBusy?: boolean
     onRestartDevServer?: () => void
     onRestart?: () => void
+    onRecreate?: () => void
   } = {}
 ) {
   return render(
@@ -95,6 +97,7 @@ function renderMenu(
         onNewBranchFromHere={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
+        onRecreate={onRecreate ?? vi.fn()}
         onShowRoutes={vi.fn()}
         onCreatePr={vi.fn()}
         onRebase={vi.fn()}
@@ -299,6 +302,7 @@ function MenuToDialogHarness() {
           }}
           onRestartDevServer={vi.fn()}
           onRestart={vi.fn()}
+          onRecreate={vi.fn()}
           onShowRoutes={vi.fn()}
           onCreatePr={vi.fn()}
           onRebase={vi.fn()}
@@ -396,5 +400,52 @@ describe("Restart submenu", () => {
       .find((el) => el.textContent?.trim() === "Restart dev server")!
     fireEvent.click(devItem)
     expect(onRestartDevServer).toHaveBeenCalledWith("branch-1")
+  })
+
+  function openSubmenu() {
+    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
+    fireEvent.keyDown(trigger, { key: "ArrowRight" })
+  }
+
+  function submenuItem(label: string) {
+    return screen
+      .getAllByRole("menuitem")
+      .find((el) => el.textContent?.trim() === label)
+  }
+
+  it("lists Recreate from scratch last, after Restart sandbox", () => {
+    renderMenu()
+    openSubmenu()
+    const items = screen
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent?.trim())
+    const sandboxIdx = items.indexOf("Restart sandbox")
+    const recreateIdx = items.indexOf("Recreate from scratch")
+    expect(recreateIdx).toBeGreaterThan(sandboxIdx)
+  })
+
+  it("invokes the recreate handler with the branch id", () => {
+    const onRecreate = vi.fn()
+    renderMenu({}, { onRecreate })
+    openSubmenu()
+    fireEvent.click(submenuItem("Recreate from scratch")!)
+    expect(onRecreate).toHaveBeenCalledWith("branch-1")
+  })
+
+  it("disables Restart sandbox and Recreate while busy, but not Restart dev server", () => {
+    renderMenu({}, { isBusy: true })
+    openSubmenu()
+    // Dev server stays enabled mid-turn — the one restart that can fix a wedged
+    // preview without cycling the VM.
+    expect(
+      submenuItem("Restart dev server")?.getAttribute("aria-disabled")
+    ).not.toBe("true")
+    // The two VM-cycling actions are gated while the agent works.
+    expect(submenuItem("Restart sandbox")?.getAttribute("aria-disabled")).toBe(
+      "true"
+    )
+    expect(
+      submenuItem("Recreate from scratch")?.getAttribute("aria-disabled")
+    ).toBe("true")
   })
 })

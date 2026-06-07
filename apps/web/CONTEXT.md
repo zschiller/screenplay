@@ -74,6 +74,27 @@ _Shown to users as_: "Restart dev server".
 _Avoid_: "restart" unqualified (it collapses this with the VM-cycling Sandbox
 Restart and the destructive Recreate — say which one).
 
+**Sandbox Restart**:
+Cycling the whole Sandbox VM (fresh processes, dev server, port forwards) while
+**preserving the working tree** — including uncommitted changes — by
+snapshot-restoring onto a new VM (the Hibernation path). It is snapshot-only and
+**fails loud** on a snapshot miss: it never silently reclones, because a restart
+must not discard un-pushed work (see ADR 0005). Disabled while the Agent is
+working, since it cycles the VM mid-turn.
+_Shown to users as_: "Restart sandbox".
+_Avoid_: conflating with Dev Server Restart (no VM cycle) or Recreate (which
+destroys the working tree).
+
+**Recreate** (Recreate from scratch):
+The explicit, destructive rebuild of a Sandbox: delete the VM and reclone the
+branch fresh from git, discarding the working tree. This is the only path that
+throws away uncommitted work, so it is gated behind a confirm and is never a
+silent fallback (see ADR 0005). Also the auto-recovery path when a Sandbox's
+snapshot has fully expired and there is nothing left to restore.
+_Shown to users as_: "Recreate from scratch".
+_Avoid_: "reset", "reclone" (casual); using it for the working-tree-preserving
+Sandbox Restart.
+
 **Agent**:
 The AI runtime that operates inside a Branch — concretely the Engine (the agent
 loop), its tools, providers, and persisted runs (`lib/agent/`, the

@@ -10,6 +10,7 @@ import {
   Pencil,
   Play,
   RefreshCw,
+  Recycle,
   RotateCcw,
   Route,
   Trash2,
@@ -98,7 +99,13 @@ export interface BranchOverflowMenuContentProps {
   onNewBranchFromHere: (branchId: string) => void
   /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
   onRestartDevServer: (branchId: string) => void
+  /** Snapshot-restore the sandbox onto a fresh VM, preserving the working tree. */
   onRestart: (branchId: string) => void
+  /**
+   * Destructive reclone from git — discards the working tree. The handler opens
+   * the AlertDialog confirm; the actual recreate runs only on confirm.
+   */
+  onRecreate: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   /**
    * Opens a GitHub PR for this branch via the direct server action (#355) —
@@ -132,6 +139,7 @@ export function BranchOverflowMenuContent({
   onNewBranchFromHere,
   onRestartDevServer,
   onRestart,
+  onRecreate,
   onShowRoutes,
   onCreatePr,
   onRebase,
@@ -227,12 +235,31 @@ export function BranchOverflowMenuContent({
             <RefreshCw />
             Restart dev server
           </DropdownMenuItem>
+          {/*
+            Restart sandbox snapshot-restores onto a fresh VM, preserving the
+            working tree. It cycles the VM, so — like Recreate — it's disabled
+            while the agent is working.
+          */}
           <DropdownMenuItem
-            disabled={!branch.sandboxName}
+            disabled={!branch.sandboxName || isBusy}
             onClick={() => onRestart(branch.id)}
           >
             <RotateCcw />
             Restart sandbox
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {/*
+            Recreate from scratch is the destructive reclone from git — it
+            discards uncommitted work — so it's fenced off behind a separator and
+            gated behind an AlertDialog confirm (opened by the handler).
+          */}
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={!branch.sandboxName || isBusy}
+            onClick={() => onRecreate(branch.id)}
+          >
+            <Recycle />
+            Recreate from scratch
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
