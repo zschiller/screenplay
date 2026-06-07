@@ -136,6 +136,7 @@ import type {
   TerminalTabData,
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
+import { isBranchBusy } from "@/lib/branch-busy"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import {
   planBranchCreations,
@@ -5119,9 +5120,9 @@ export function Canvas({
             onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
             activeBranchIds={
               new Set(
-                chatSessions
-                  .filter((c) => c.isStreaming && !c.closedAt && c.branchId)
-                  .map((c) => c.branchId as string)
+                agents
+                  .filter((a) => isBranchBusy(a.id, chatSessions))
+                  .map((a) => a.id)
               )
             }
             chatPanelBranchId={chatCollapsed ? null : selectedAgentId}

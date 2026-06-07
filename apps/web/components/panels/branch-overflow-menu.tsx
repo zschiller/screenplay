@@ -94,6 +94,13 @@ export interface BranchOverflowMenuContentProps {
   onRebase: (branchId: string) => void
   onDelete: (branchId: string) => void
   onCloseAutoFocus?: (event: Event) => void
+  /**
+   * Whether this Branch's agent is currently working (`isBranchBusy`). Gates
+   * the "disable while working" items — Rebase on `main` today. Routing is
+   * unchanged; an enabled click while busy would be a silent no-op because the
+   * chat store ignores messages mid-stream.
+   */
+  isBusy?: boolean
 }
 
 /**
@@ -114,6 +121,7 @@ export function BranchOverflowMenuContent({
   onRebase,
   onDelete,
   onCloseAutoFocus,
+  isBusy = false,
 }: BranchOverflowMenuContentProps) {
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     rename: (
@@ -188,7 +196,7 @@ export function BranchOverflowMenuContent({
     ),
     rebase: (
       <DropdownMenuItem
-        disabled={!branch.sandboxName || !branch.ref}
+        disabled={!branch.sandboxName || !branch.ref || isBusy}
         onClick={() => onRebase(branch.id)}
       >
         <GitMerge />
@@ -209,7 +217,10 @@ export function BranchOverflowMenuContent({
       </DropdownMenuItem>
     ),
     delete: (
-      <DropdownMenuItem variant="destructive" onClick={() => onDelete(branch.id)}>
+      <DropdownMenuItem
+        variant="destructive"
+        onClick={() => onDelete(branch.id)}
+      >
         <Trash2 />
         Delete
       </DropdownMenuItem>
