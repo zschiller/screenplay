@@ -131,6 +131,7 @@ import {
   keepAliveSandbox,
   probeSandboxUrl,
   reconnectSandbox,
+  recreateSandbox,
   removeSandboxEnv,
   restartDevServer,
   restartSandbox,
@@ -326,7 +327,7 @@ describe("restartSandbox", () => {
     fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await restartSandbox("sandbox-a", repo, "feature")
+    const result = await restartSandbox("sandbox-a", repo)
 
     expect(result).toEqual({
       success: true,
@@ -344,63 +345,64 @@ describe("restartSandbox", () => {
     expect(configureAgentGit).not.toHaveBeenCalled()
   })
 
-  it("falls back to a fresh git clone + provision when no snapshot is captured", async () => {
-    // Snapshotting the old VM fails, so the new one is cloned from git and the
-    // full setup pipeline runs.
+  it("fails loud on a snapshot miss instead of recloning", async () => {
+    // Snapshotting the old VM fails. The silent reclone fallback was removed, so
+    // the restart must report a failure — never create a fresh git-sourced VM —
+    // so uncommitted work is never quietly discarded.
     fake.setGet(fakeSandbox({ snapshotError: true }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await restartSandbox("sandbox-a", repo, "feature")
-
-    expect(result).toEqual({
-      success: true,
-      value: {
-        sandboxName: "sandbox-a",
-        previewDomain: "https://fake-4000.example.com",
-      },
-    })
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/octocat/hello-world.git",
-      revision: "feature",
-    })
-    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
-  })
-
-  it("returns a failure when the setup script exits non-zero on the fresh path", async () => {
-    fake.setGet(fakeSandbox({ snapshotError: true }))
-    fake.setCreate(
-      fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) })
-    )
-
-    const result = await restartSandbox("sandbox-a", repo, "feature")
+    const result = await restartSandbox("sandbox-a", repo)
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
-    expect(result.error).toContain("Setup script failed")
-    // Bailed before configuring git.
+    expect(result.error).toMatch(/recreate from scratch/i)
+    // Crucially: no reclone. No VM was created and the provision pipeline never
+    // ran.
+    expect(fake.createCalls).toHaveLength(0)
     expect(configureAgentGit).not.toHaveBeenCalled()
   })
 
-  it("returns a redacted failure when creating the new sandbox throws", async () => {
-    fake.setGet(fakeSandbox({ snapshotError: true }))
+  it("fails loud on a non-hibernating provider without snapshotting or recloning", async () => {
+    // The old instance can't hibernate (its snapshot() throws if reached), so no
+    // snapshot is captured. With the fallback gone this fails rather than
+    // recloning — preserving the working tree is impossible, so it refuses
+    // rather than destroying it silently.
+    fake.setGet(fakeSandbox({ hibernating: false }))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+
+    const result = await restartSandbox("sandbox-a", repo)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).toMatch(/recreate from scratch/i)
+    expect(fake.createCalls).toHaveLength(0)
+    expect(configureAgentGit).not.toHaveBeenCalled()
+  })
+
+  it("returns a redacted failure when booting from the snapshot throws", async () => {
+    // Snapshot captured fine, but creating the new VM from it throws with a
+    // token in the message — the single catch must redact it.
+    fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
     fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
 
-    const result = await restartSandbox("sandbox-a", repo, "feature")
+    const result = await restartSandbox("sandbox-a", repo)
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
     expect(result.error).not.toContain(GH_TOKEN)
     expect(result.error).toContain("[REDACTED]")
   })
+})
 
-  it("reclones fresh on a non-hibernating provider without ever snapshotting", async () => {
-    // The old instance can't hibernate (its snapshot() throws if reached), so the
-    // restart skips snapshot/restore and reclones from git instead.
-    fake.setGet(fakeSandbox({ hibernating: false }))
+describe("recreateSandbox", () => {
+  it("reclones fresh from git and runs the full provision pipeline", async () => {
+    // The old VM is fetched and deleted to free the name, then a new one is
+    // cloned from git with the whole setup pipeline.
+    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
     fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
 
-    const result = await restartSandbox("sandbox-a", repo, "feature")
+    const result = await recreateSandbox("sandbox-a", repo, "feature")
 
     expect(result).toEqual({
       success: true,
@@ -409,14 +411,56 @@ describe("restartSandbox", () => {
         previewDomain: "https://fake-4000.example.com",
       },
     })
-    // Took the reclone-fresh branch: created from a git source and ran the
-    // full provision pipeline rather than booting from a snapshot.
+    // Created from a git source and the git/setup pipeline ran — never a
+    // snapshot restore.
     expect(fake.createCalls[0]!.source).toEqual({
       type: "git",
       url: "https://github.com/octocat/hello-world.git",
       revision: "feature",
     })
     expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
+  })
+
+  it("still reclones when the old sandbox is already gone", async () => {
+    // Freeing the name is best-effort: a missing old VM (e.g. expired snapshot)
+    // must not block the recreate — it just clones fresh.
+    fake.setGetError(new Error("sandbox not found"))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+
+    const result = await recreateSandbox("sandbox-a", repo, "feature")
+
+    expect(result.success).toBe(true)
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "git",
+      url: "https://github.com/octocat/hello-world.git",
+      revision: "feature",
+    })
+  })
+
+  it("returns a failure when the setup script exits non-zero", async () => {
+    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
+    fake.setCreate(
+      fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) })
+    )
+
+    const result = await recreateSandbox("sandbox-a", repo, "feature")
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).toContain("Setup script failed")
+    expect(configureAgentGit).not.toHaveBeenCalled()
+  })
+
+  it("returns a redacted failure when creating the new sandbox throws", async () => {
+    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
+    fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
+
+    const result = await recreateSandbox("sandbox-a", repo, "feature")
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).not.toContain(GH_TOKEN)
+    expect(result.error).toContain("[REDACTED]")
   })
 })
 
@@ -723,7 +767,10 @@ describe("probeSandboxUrl", () => {
   })
 
   it("returns true on a 2xx response (dev server answered)", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200 })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 200 }))
+    )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
   })
@@ -740,7 +787,10 @@ describe("probeSandboxUrl", () => {
   })
 
   it("returns false on the proxy's 5xx placeholder (dev server not up yet)", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 503 })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 503 }))
+    )
 
     expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
   })

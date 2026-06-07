@@ -147,6 +147,7 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
   restartSandbox,
+  recreateSandbox,
   restartDevServer,
   reconnectSandbox,
   keepAliveSandbox,
@@ -3544,6 +3545,9 @@ export function Canvas({
     [agents, repos]
   )
 
+  // "Restart sandbox": snapshot-restore onto a fresh VM, preserving the working
+  // tree. On a snapshot miss this now fails loud (no silent reclone) — surfaced
+  // as a toast — and the user can fall back to "Recreate from scratch".
   const handleRefreshAgent = useCallback(
     async (id: string) => {
       const agent = agents.find((a) => a.id === id)
@@ -3555,6 +3559,9 @@ export function Canvas({
           status: "error",
           error: "Workspace not found",
         })
+        toast.error("Couldn't restart sandbox", {
+          description: "Workspace not found",
+        })
         return
       }
 
@@ -3563,7 +3570,7 @@ export function Canvas({
         statusMessage: "Restarting sandbox…",
       })
 
-      const result = await restartSandbox(agent.sandboxName, repo, agent.ref)
+      const result = await restartSandbox(agent.sandboxName, repo)
       if (result.success) {
         updateAgentInStorage(id, {
           sandboxName: result.value.sandboxName,
@@ -3572,11 +3579,64 @@ export function Canvas({
           statusMessage: "",
           error: "",
         })
+        toast.success("Sandbox restarted")
       } else {
         updateAgentInStorage(id, {
           status: "error",
           statusMessage: "",
           error: result.error || "",
+        })
+        toast.error("Couldn't restart sandbox", {
+          description: result.error || undefined,
+        })
+      }
+    },
+    [agents, repos, updateAgentInStorage]
+  )
+
+  // "Recreate from scratch": the explicit, destructive reclone from git. Runs
+  // only after the AlertDialog confirm in the sidebar, and discards the in-VM
+  // working tree (uncommitted changes included).
+  const handleRecreateAgent = useCallback(
+    async (id: string) => {
+      const agent = agents.find((a) => a.id === id)
+      if (!agent?.sandboxName) return
+
+      const repo = repos.find((w) => w.id === agent.repoId)
+      if (!repo) {
+        updateAgentInStorage(id, {
+          status: "error",
+          error: "Workspace not found",
+        })
+        toast.error("Couldn't recreate sandbox", {
+          description: "Workspace not found",
+        })
+        return
+      }
+
+      updateAgentInStorage(id, {
+        status: "starting",
+        statusMessage: "Recreating sandbox…",
+      })
+
+      const result = await recreateSandbox(agent.sandboxName, repo, agent.ref)
+      if (result.success) {
+        updateAgentInStorage(id, {
+          sandboxName: result.value.sandboxName,
+          previewDomain: result.value.previewDomain || agent.previewDomain,
+          status: "running",
+          statusMessage: "",
+          error: "",
+        })
+        toast.success("Sandbox recreated")
+      } else {
+        updateAgentInStorage(id, {
+          status: "error",
+          statusMessage: "",
+          error: result.error || "",
+        })
+        toast.error("Couldn't recreate sandbox", {
+          description: result.error || undefined,
         })
       }
     },
@@ -3817,14 +3877,16 @@ export function Canvas({
           return
         }
         // Resume failed — likely the snapshot has fully expired (>24h) and
-        // been deleted. Auto-recreate from git instead of stranding the user
-        // at "stopped" waiting to click refresh.
+        // been deleted, so there's nothing left to restore from. Reclone fresh
+        // from git (recreateSandbox) instead of stranding the user at "stopped":
+        // a plain restart would just fail loud on the snapshot miss now that the
+        // silent reclone fallback is gone.
         updateAgentInStorage(agent.id, {
           status: "starting",
           statusMessage: "Recreating expired sandbox…",
           error: "",
         })
-        restartSandbox(sandboxName, repo, agent.ref).then((restartResult) => {
+        recreateSandbox(sandboxName, repo, agent.ref).then((restartResult) => {
           if (restartResult.success) {
             updateAgentInStorage(agent.id, {
               sandboxName: restartResult.value.sandboxName,
@@ -5082,6 +5144,7 @@ export function Canvas({
             onRestartDevServer={handleRestartDevServer}
             onCreatePr={handleCreatePullRequest}
             onRefreshBranch={handleRefreshAgent}
+            onRecreateBranch={handleRecreateAgent}
             onRemoveBranch={async (id, { deleteOnRemote }) => {
               if (deleteOnRemote) {
                 const agent = agents.find((a) => a.id === id)
