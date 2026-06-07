@@ -152,6 +152,7 @@ import {
   keepAliveSandbox,
 } from "@/lib/sandbox/lifecycle"
 import { deleteBranch } from "@/lib/github-actions"
+import { createPullRequestAction } from "@/lib/create-pr-action"
 import {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -2747,6 +2748,33 @@ export function Canvas({
     ]
   )
 
+  // Open a GitHub PR for a branch directly — the deterministic server action
+  // (#355), no model turn. Shared by the Branch menu's "Create pull request"
+  // item and the chat panel's button (which calls the action itself); both
+  // surface the same toast. Disabled-while-busy is enforced at each trigger.
+  const handleCreatePullRequest = useCallback(
+    async (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent?.sandboxName) return
+      const result = await createPullRequestAction(roomId, agent.sandboxName)
+      if (result.success) {
+        const { url, number } = result.value
+        toast.success("Pull request created", {
+          description: `#${number}`,
+          action: {
+            label: "View on GitHub",
+            onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
+          },
+        })
+      } else {
+        toast.error("Couldn't create pull request", {
+          description: result.error,
+        })
+      }
+    },
+    [agents, roomId]
+  )
+
   const handleCloseChat = useCallback(
     (chatId: string, nextSelectedId?: string) => {
       if (isLocalTerminal(chatId)) {
@@ -5052,6 +5080,7 @@ export function Canvas({
             onCreateWorkspace={handleCreateWorkspace}
             onRebaseOnDefault={handleRebaseOnDefault}
             onRestartDevServer={handleRestartDevServer}
+            onCreatePr={handleCreatePullRequest}
             onRefreshBranch={handleRefreshAgent}
             onRemoveBranch={async (id, { deleteOnRemote }) => {
               if (deleteOnRemote) {
