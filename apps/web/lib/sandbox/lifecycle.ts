@@ -336,3 +336,46 @@ export async function restartSandbox(
     }
   }
 }
+
+/**
+ * Restart just the dev server inside an already-running Sandbox. Bounces the
+ * `devScript` process (and the bridge proxy) in place — no VM cycle, so the
+ * filesystem and working tree, including uncommitted changes, are untouched.
+ * This is the cheap, common recovery for a wedged preview, and stays usable even
+ * while the agent is working because it never touches the VM lifecycle.
+ *
+ * Resolves the live handle with `resume:false` and bails when the VM isn't
+ * running: a dev-server bounce is meaningless on a stopped VM, and waking one
+ * would be a VM cycle in disguise ({@link restartSandbox} owns that). It only
+ * ever `get`s an existing instance and relaunches through it — no `create` is
+ * issued — so the operation provably doesn't cycle the VM. Builds the uniform
+ * contract itself and redacts the error on the failure path (launchDevAndProxy
+ * can surface provider messages).
+ */
+export async function restartDevServer(
+  sandboxName: string,
+  repo: RepoData
+): Promise<SandboxActionResult<{ previewDomain: string }>> {
+  try {
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
+    if (!isSandboxRunning(sandbox)) {
+      return { success: false, error: "Sandbox is not running" }
+    }
+    const safeEnv = await getEnvVars(sandboxName)
+    const previewDomain = await launchDevAndProxy(
+      sandbox,
+      repo.devServerPort,
+      repo.devScript,
+      safeEnv
+    )
+    return { success: true, value: { previewDomain } }
+  } catch (e) {
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
+  }
+}

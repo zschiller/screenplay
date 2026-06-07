@@ -132,6 +132,7 @@ import {
   probeSandboxUrl,
   reconnectSandbox,
   removeSandboxEnv,
+  restartDevServer,
   restartSandbox,
 } from "@/lib/sandbox/lifecycle"
 
@@ -416,6 +417,91 @@ describe("restartSandbox", () => {
       revision: "feature",
     })
     expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
+  })
+})
+
+describe("restartDevServer", () => {
+  it("bounces the dev server in place without ever cycling the VM", async () => {
+    // launchDevAndProxy writes the bridge files first, so a writeFiles call is
+    // the signal the dev server was relaunched.
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+
+    const result = await restartDevServer("sandbox-a", repo)
+
+    expect(result).toEqual({
+      success: true,
+      value: { previewDomain: "https://fake-4000.example.com" },
+    })
+    // Resolved the live handle without resuming, relaunched through it…
+    expect(fake.getCalls).toHaveLength(1)
+    expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
+    expect(relaunched).toBe(true)
+    // …and, crucially, never created a new VM — the operation does not cycle
+    // the VM (filesystem and working tree untouched).
+    expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("reuses the live handle on a non-hibernating provider (no VM cycle)", async () => {
+    // A portable provider has no stopped-but-present state — its handle is live
+    // while it exists — so the bounce runs against it directly, still no create.
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        hibernating: false,
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+
+    const result = await restartDevServer("sandbox-a", repo)
+
+    expect(result).toEqual({
+      success: true,
+      value: { previewDomain: "https://fake-4000.example.com" },
+    })
+    expect(relaunched).toBe(true)
+    expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("fails without relaunching or cycling when the VM is not running", async () => {
+    let relaunched = false
+    fake.setGet(
+      fakeSandbox({
+        status: "stopped",
+        onWriteFiles: () => (relaunched = true),
+      })
+    )
+
+    const result = await restartDevServer("sandbox-a", repo)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).toContain("not running")
+    // No relaunch, and still no VM cycle — waking a stopped VM is restartSandbox's
+    // job, not the dev-server bounce's.
+    expect(relaunched).toBe(false)
+    expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("returns a redacted failure when the relaunch throws", async () => {
+    fake.setGet(
+      fakeSandbox({
+        status: "running",
+        writeError: `relaunch failed using ${GH_TOKEN}`,
+      })
+    )
+
+    const result = await restartDevServer("sandbox-a", repo)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error("expected failure")
+    expect(result.error).not.toContain(GH_TOKEN)
+    expect(result.error).toContain("[REDACTED]")
   })
 })
 
