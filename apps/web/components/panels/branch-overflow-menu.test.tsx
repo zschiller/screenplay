@@ -55,7 +55,10 @@ const branch: BranchData = {
   discoveredRoutes: [{ route: "/", label: "Home" }],
 }
 
-function renderMenu(overrides: Partial<BranchData> = {}) {
+function renderMenu(
+  overrides: Partial<BranchData> = {},
+  { isBusy = false }: { isBusy?: boolean } = {}
+) {
   return render(
     <DropdownMenu open>
       <DropdownMenuTrigger>open</DropdownMenuTrigger>
@@ -70,9 +73,14 @@ function renderMenu(overrides: Partial<BranchData> = {}) {
         onShowRoutes={vi.fn()}
         onRebase={vi.fn()}
         onDelete={vi.fn()}
+        isBusy={isBusy}
       />
     </DropdownMenu>
   )
+}
+
+function rebaseItem() {
+  return screen.getByText("Rebase on main").closest('[role="menuitem"]')
 }
 
 afterEach(cleanup)
@@ -166,5 +174,31 @@ describe("BranchOverflowMenuContent rendering", () => {
   it("does not surface git fetch/pull/push/sync actions", () => {
     renderMenu()
     expect(screen.queryByText(/fetch|pull|push|sync/i)).toBeNull()
+  })
+})
+
+// Radix marks a disabled menu item with `aria-disabled="true"` (and a bare
+// `data-disabled` attribute); an enabled item carries neither. No jest-dom is
+// wired up, so assert the attribute directly.
+function isRebaseDisabled() {
+  return rebaseItem()?.getAttribute("aria-disabled") === "true"
+}
+
+describe("Rebase on main — disable while working", () => {
+  it("is enabled when the branch is not busy", () => {
+    renderMenu({}, { isBusy: false })
+    expect(isRebaseDisabled()).toBe(false)
+  })
+
+  it("is disabled when the branch is busy", () => {
+    renderMenu({}, { isBusy: true })
+    expect(isRebaseDisabled()).toBe(true)
+  })
+
+  it("stays disabled while busy even with a sandbox + ref present", () => {
+    // Guards against the disable collapsing to only the data-availability
+    // checks (`sandboxName`/`ref`) and dropping the busy gate.
+    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: true })
+    expect(isRebaseDisabled()).toBe(true)
   })
 })
