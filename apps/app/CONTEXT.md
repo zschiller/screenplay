@@ -1,4 +1,4 @@
-# apps/web — Canvas & Agent Runtime
+# apps/app — Canvas & Agent Runtime
 
 Domain language for the screenplay web app: the collaborative canvas (the
 spatial, real-time surface of a room and the layers, groups, and chat tabs on

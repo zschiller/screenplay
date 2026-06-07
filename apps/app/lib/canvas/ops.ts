@@ -35,7 +35,7 @@ import type {
 
 /**
  * Canvas Operations — the deep write-seam fronting the generic `YjsCollection`
- * CRDT wrapper for the room Y.Doc (see `apps/web/CONTEXT.md`, "Canvas
+ * CRDT wrapper for the room Y.Doc (see `apps/app/CONTEXT.md`, "Canvas
  * Operation"). `canvas.tsx` calls verbs here; orchestration, the Group
  * invariant, and transaction scoping live behind the seam, React-free.
  *

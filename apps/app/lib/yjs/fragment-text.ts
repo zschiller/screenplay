@@ -7,7 +7,7 @@ import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap"
 /**
  * Resolve a Document layer's body fragment from the room Y.Doc. Every Markdown
  * Layer's body lives in a `Y.XmlFragment` keyed `markdown-layer-{id}` (see
- * `apps/web/CONTEXT.md`). This is the single owner of that key string — the key
+ * `apps/app/CONTEXT.md`). This is the single owner of that key string — the key
  * is the persisted identity of a document in every existing room, so call sites
  * resolve through here rather than constructing it inline.
  */
