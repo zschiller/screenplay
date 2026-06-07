@@ -24,7 +24,8 @@ import {
   SquareTerminal,
 } from "lucide-react"
 import { AnimatePresence, motion, Reorder } from "motion/react"
-import { inputStore } from "@/lib/input-store"
+import { toast } from "sonner"
+import { createPullRequestAction } from "@/lib/create-pr-action"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { EditableText } from "@workspace/ui/components/editable-text"
@@ -513,6 +514,7 @@ export function ChatPanel({
   )
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const [showLogs, setShowLogs] = useState(false)
+  const [creatingPr, setCreatingPr] = useState(false)
   const tabsValue = showLogs ? LOGS_TAB_VALUE : activeTab
 
   // Sticky new-tab action. Read the last-used kind from localStorage during
@@ -791,12 +793,31 @@ export function ChatPanel({
     prevStatusRef.current = agent?.status
   }, [agent])
 
-  const handleCreatePr = () => {
-    if (!activeTab) return
-    inputStore.send(
-      activeTab,
-      "Create a pull request for the changes on this branch."
-    )
+  // Calls the direct PR-creation server action (#355) — same path as the Branch
+  // menu's "Create pull request" item, no model turn. The created PR (or a
+  // redacted error) surfaces in a toast.
+  const handleCreatePr = async () => {
+    if (!agent?.sandboxName || creatingPr) return
+    setCreatingPr(true)
+    try {
+      const result = await createPullRequestAction(roomId, agent.sandboxName)
+      if (result.success) {
+        const { url, number } = result.value
+        toast.success("Pull request created", {
+          description: `#${number}`,
+          action: {
+            label: "View on GitHub",
+            onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
+          },
+        })
+      } else {
+        toast.error("Couldn't create pull request", {
+          description: result.error,
+        })
+      }
+    } finally {
+      setCreatingPr(false)
+    }
   }
 
   const handleTabChange = (value: string) => {
@@ -876,7 +897,12 @@ export function ChatPanel({
                 size="xs"
                 variant="outline"
                 onClick={handleCreatePr}
-                disabled={!activeTab || isAgentBusy || anyChatStreaming}
+                disabled={
+                  !agent?.sandboxName ||
+                  isAgentBusy ||
+                  anyChatStreaming ||
+                  creatingPr
+                }
                 title={
                   isAgentBusy
                     ? "Sandbox still starting…"

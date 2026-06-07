@@ -96,6 +96,7 @@ function renderMenu(
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
         onShowRoutes={vi.fn()}
+        onCreatePr={vi.fn()}
         onRebase={vi.fn()}
         onDelete={vi.fn()}
         isBusy={isBusy}
@@ -138,7 +139,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
       "new-branch-from-here",
       "restart",
     ])
-    expect(bySection.git).toEqual(["rebase", "open-github"])
+    expect(bySection.git).toEqual(["create-pr", "rebase", "open-github"])
     expect(bySection.danger).toEqual(["delete"])
   })
 
@@ -181,6 +182,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "New branch from here…",
       "Restart",
       "Git",
+      "Create pull request",
       "Rebase on main",
       "Open branch on GitHub",
       "Danger",
@@ -201,7 +203,9 @@ describe("BranchOverflowMenuContent rendering", () => {
 
   it("does not surface git fetch/pull/push/sync actions", () => {
     renderMenu()
-    expect(screen.queryByText(/fetch|pull|push|sync/i)).toBeNull()
+    // Match whole-label items only — "Create pull request" legitimately
+    // contains "pull" but isn't one of the redundant always-push actions.
+    expect(screen.queryByText(/^(Fetch|Pull|Push|Sync)$/i)).toBeNull()
   })
 })
 
@@ -228,6 +232,32 @@ describe("Rebase on main — disable while working", () => {
     // checks (`sandboxName`/`ref`) and dropping the busy gate.
     renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: true })
     expect(isRebaseDisabled()).toBe(true)
+  })
+})
+
+function createPrDisabled() {
+  return (
+    screen
+      .getByText("Create pull request")
+      .closest('[role="menuitem"]')
+      ?.getAttribute("aria-disabled") === "true"
+  )
+}
+
+describe("Create pull request — disable while working", () => {
+  it("is enabled when the branch is not busy", () => {
+    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: false })
+    expect(createPrDisabled()).toBe(false)
+  })
+
+  it("is disabled when the branch is busy", () => {
+    renderMenu({ sandboxName: "sb-1", ref: "feature/foo" }, { isBusy: true })
+    expect(createPrDisabled()).toBe(true)
+  })
+
+  it("is disabled for a branch with no ref to open a PR from", () => {
+    renderMenu({ ref: undefined }, { isBusy: false })
+    expect(createPrDisabled()).toBe(true)
   })
 })
 
@@ -270,6 +300,7 @@ function MenuToDialogHarness() {
           onRestartDevServer={vi.fn()}
           onRestart={vi.fn()}
           onShowRoutes={vi.fn()}
+          onCreatePr={vi.fn()}
           onRebase={vi.fn()}
           onDelete={vi.fn()}
         />
