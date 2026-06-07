@@ -1748,6 +1748,9 @@ export function RoomSidebar({
                                                                     onCloseAutoFocus={
                                                                       onBranchMenuCloseAutoFocus
                                                                     }
+                                                                    isBusy={
+                                                                      isActive
+                                                                    }
                                                                   />
                                                                 }
                                                               />
