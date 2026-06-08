@@ -211,6 +211,37 @@ describe("AcpUpdateConsumer — text path", () => {
     })
   }
 
+  // A clean ACP cancellation arrives as `done` with `stopReason: "cancelled"`
+  // (the path a real ACP agent takes when it acknowledges a `session/cancel`).
+  // The consumer must treat it as a stop, never a completion: no `completed`
+  // transition, the "Stopped by user" outcome surfaced, the stream closed.
+  it("treats a cancelled done as a stop, not a completion", async () => {
+    const h = harness("aborted")
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("partial") },
+      { kind: "done", stopReason: "cancelled" },
+    ])
+
+    expect(h.errors).toEqual(["Stopped by user"])
+    // The run keeps the terminal outcome the watchdog already recorded.
+    expect(h.statusOf()).toBe("aborted")
+    // No durable record on a stop — the partial text was broadcast only.
+    expect(h.records).toEqual([])
+    expect(h.endCount()).toBe(1)
+  })
+
+  it("never completes a cancelled done even if the run is somehow still live", async () => {
+    // Guards the contract directly: the consumer does not own the stop, so it
+    // must not mark a cancelled turn `completed` — it leaves the run untouched
+    // for the run lifecycle to have terminated.
+    const h = harness("running")
+    await feed(h.consumer, [{ kind: "done", stopReason: "cancelled" }])
+
+    expect(h.statusOf()).toBe("running")
+    expect(h.errors).toEqual(["Stopped by user"])
+    expect(h.endCount()).toBe(1)
+  })
+
   it("maps a plan-mode permission request onto the pause: pending tool-call, paused run, broadcast, no completion", async () => {
     const h = harness()
     const request = planPermissionRequest({
