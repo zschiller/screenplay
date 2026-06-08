@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/app",
+      "destination": "https://screenplay-space-app.vercel.app/app"
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "https://screenplay-space-app.vercel.app/app/:path*"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://screenplay-space-docs.vercel.app/docs"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://screenplay-space-docs.vercel.app/docs/:path*"
+    }
+  ]
+}

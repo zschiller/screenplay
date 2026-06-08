@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { signIn } from "@/lib/auth-client"
+import { BASE_PATH } from "@/lib/base-path"
 
 export default function SignInPage() {
   const [loading, setLoading] = useState(false)
@@ -18,7 +19,9 @@ export default function SignInPage() {
         disabled={loading}
         onClick={async () => {
           setLoading(true)
-          await signIn.social({ provider: "github", callbackURL: "/" })
+          // Land back on the product home, which sits at `/app` under the
+          // basePath — a bare "/" would resolve to the apex marketing site.
+          await signIn.social({ provider: "github", callbackURL: BASE_PATH })
         }}
       >
         {loading ? "Redirecting…" : "Continue with GitHub"}
