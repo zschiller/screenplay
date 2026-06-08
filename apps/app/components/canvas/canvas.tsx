@@ -199,7 +199,7 @@ function LogProbe({
       while (!abort.signal.aborted) {
         try {
           const res = await fetch(
-            `/api/sandbox/${encodeURIComponent(sandboxName)}/logs`,
+            withBasePath(`/api/sandbox/${encodeURIComponent(sandboxName)}/logs`),
             { signal: abort.signal, cache: "no-store" }
           )
           if (res.ok) {

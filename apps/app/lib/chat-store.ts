@@ -75,7 +75,7 @@ const DEFAULT_STATE: ChatState = {
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
   const res = await fetch(
-    `/api/agent/history?chatId=${encodeURIComponent(chatId)}`
+    withBasePath(`/api/agent/history?chatId=${encodeURIComponent(chatId)}`)
   )
   if (!res.ok) return []
   return res.json()
