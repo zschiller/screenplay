@@ -5,6 +5,7 @@ import {
   agentChunksToRecord,
   aiSdkChunkToAcpUpdate,
   cachedSystem,
+  thoughtChunksToRecord,
   withConversationCacheBreakpoint,
   ANTHROPIC_CACHE_BREAKPOINT,
 } from "./adapter"
@@ -39,6 +40,20 @@ describe("acpHistoryToModelMessages (ACP-native history → ModelMessage[])", ()
   it("is deterministic — identical history rebuilds byte-identically", () => {
     const h = history()
     expect(acpHistoryToModelMessages(h)).toEqual(acpHistoryToModelMessages(h))
+  })
+
+  // Reasoning survives to history/screen but is never replayed as model input,
+  // so the rebuilt request — and its cached prefix — is unaffected by thoughts.
+  it("drops thought records from the rebuilt model input", () => {
+    const rebuilt = acpHistoryToModelMessages([
+      { role: "user", content: [textBlock("hello")] },
+      { role: "thought", content: [textBlock("let me think")] },
+      { role: "agent", content: [textBlock("hi there")] },
+    ])
+    expect(rebuilt).toEqual<ModelMessage[]>([
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi there" },
+    ])
   })
 
   it("keeps a stable prefix when a turn is appended (cache stays warm)", () => {
@@ -90,6 +105,18 @@ describe("aiSdkChunkToAcpUpdate (streamText chunk → ACP update)", () => {
     })
   })
 
+  it("maps a reasoning-delta to an agent_thought_chunk", () => {
+    const chunk = {
+      type: "reasoning-delta",
+      id: "r1",
+      text: "hmm",
+    } as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toEqual({
+      sessionUpdate: "agent_thought_chunk",
+      content: { type: "text", text: "hmm" },
+    })
+  })
+
   it("drops chunks with no text-path ACP signal (e.g. tool-call)", () => {
     const chunk = {
       type: "tool-call",
@@ -98,6 +125,19 @@ describe("aiSdkChunkToAcpUpdate (streamText chunk → ACP update)", () => {
       input: {},
     } as unknown as TextStreamPart<Record<string, Tool>>
     expect(aiSdkChunkToAcpUpdate(chunk)).toBeNull()
+  })
+})
+
+describe("thoughtChunksToRecord (streamed reasoning deltas → durable record)", () => {
+  it("folds deltas into one thought record with a single text block", () => {
+    expect(thoughtChunksToRecord(["think", "ing"])).toEqual({
+      role: "thought",
+      content: [textBlock("thinking")],
+    })
+  })
+
+  it("yields an empty content list for a turn with no reasoning", () => {
+    expect(thoughtChunksToRecord([])).toEqual({ role: "thought", content: [] })
   })
 })
 

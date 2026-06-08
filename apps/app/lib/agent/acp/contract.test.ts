@@ -45,7 +45,7 @@ function contractFor(
         async broadcastEnd() {
           ended = true
         },
-        async appendAgentMessage(r) {
+        async appendRecord(r) {
           records.push(r)
         },
         async transition(to) {

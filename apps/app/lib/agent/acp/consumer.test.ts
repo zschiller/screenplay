@@ -8,7 +8,11 @@ vi.mock("@/lib/db", () => ({ db: {} }))
 import { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
 import type { EngineUpdate } from "./engine-seam"
 import type { AcpMessageRecord } from "./record"
-import { agentMessageChunk, type SessionUpdate } from "./schema"
+import {
+  agentMessageChunk,
+  agentThoughtChunk,
+  type SessionUpdate,
+} from "./schema"
 import { createRunState, type RunStateRepo, type RunStatus } from "../run-state"
 
 /**
@@ -53,7 +57,7 @@ function harness(seedStatus: RunStatus = "running") {
     async broadcastEnd() {
       ends++
     },
-    async appendAgentMessage(record) {
+    async appendRecord(record) {
       records.push(record)
     },
     async transition(to) {
@@ -95,6 +99,44 @@ describe("AcpUpdateConsumer — text path", () => {
     ])
     expect(h.statusOf()).toBe("completed")
     expect(h.endCount()).toBe(1)
+  })
+
+  it("broadcasts reasoning and persists it as a thought record before the agent reply", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentThoughtChunk("think") },
+      { kind: "session_update", update: agentThoughtChunk("ing") },
+      { kind: "session_update", update: agentMessageChunk("Hello") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    // Reasoning chunks are broadcast ACP-shaped alongside the message stream so
+    // a streaming agent's thinking isn't dropped.
+    expect(h.broadcasts).toEqual([
+      agentThoughtChunk("think"),
+      agentThoughtChunk("ing"),
+      agentMessageChunk("Hello"),
+    ])
+    // The turn persists ACP-native: the reasoning record first, then the reply.
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      { role: "thought", content: [{ type: "text", text: "thinking" }] },
+      { role: "agent", content: [{ type: "text", text: "Hello" }] },
+    ])
+    expect(h.statusOf()).toBe("completed")
+    expect(h.endCount()).toBe(1)
+  })
+
+  it("persists a thought record even when the turn produced only reasoning", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentThoughtChunk("just musing") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      { role: "thought", content: [{ type: "text", text: "just musing" }] },
+    ])
+    expect(h.statusOf()).toBe("completed")
   })
 
   it("does not persist a record for a turn that produced no text", async () => {

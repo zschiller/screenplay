@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { chatStore } from "./chat-store"
-import { agentMessageChunk } from "./agent/acp/schema"
+import { agentMessageChunk, agentThoughtChunk } from "./agent/acp/schema"
 
 let seq = 0
 const nextId = () => `evt_${++seq}`
@@ -63,6 +63,40 @@ describe("chat-store — ACP text path (renders the server's broadcast)", () => 
     expect(chatStore.getSnapshot(chatId).messages).toEqual([
       { role: "assistant", content: "first" },
       { role: "assistant", content: "second" },
+    ])
+    chatStore.cleanup(chatId)
+  })
+
+  it("accumulates thought chunks into a reasoning message, distinct from the reply", () => {
+    const chatId = `chat_${++seq}`
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: agentThoughtChunk("let me "),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: agentThoughtChunk("think"),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: agentMessageChunk("Answer"),
+      },
+      { type: "chat-stream-end", chatId, id: nextId() },
+    ])
+
+    // Reasoning lands in its own `reasoning` message, ahead of the assistant
+    // reply — the renderer shows it in a collapsible block apart from the body.
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      { role: "reasoning", content: "let me think" },
+      { role: "assistant", content: "Answer" },
     ])
     chatStore.cleanup(chatId)
   })

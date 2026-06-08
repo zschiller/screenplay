@@ -16,6 +16,10 @@ export type CustomToolName = keyof AllTools
 export type AgentMessage =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string }
+  // The agent's reasoning (ACP `agent_thought_chunk`), rendered in a collapsible
+  // block distinct from the assistant message body so streamed thinking isn't
+  // silently dropped.
+  | { role: "reasoning"; content: string }
   | {
       role: "tool_use"
       name: CustomToolName
