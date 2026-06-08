@@ -138,6 +138,9 @@ async function runConsumerToBus(
     async transition(to) {
       await runState.transition(runId, to)
     },
+    // Plan-gate ports — unused by the text-only fan-out streams here.
+    async broadcastPermissionRequest() {},
+    async pauseForPlan() {},
   }
 
   const consumer = new AcpUpdateConsumer(ports)

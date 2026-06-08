@@ -1,7 +1,10 @@
 import "server-only"
 
 import type { AgentStreamEvent } from "@/lib/agent/types"
-import type { SessionUpdate } from "@/lib/agent/acp/schema"
+import type {
+  RequestPermissionRequest,
+  SessionUpdate,
+} from "@/lib/agent/acp/schema"
 import { broadcastChatEventViaDoc } from "@/lib/yjs/server"
 
 /**
@@ -24,6 +27,29 @@ export async function broadcastAcpUpdate(
     })
   } catch (e) {
     console.error("acp broadcast failed:", e)
+  }
+}
+
+/**
+ * Broadcast an ACP permission request (the plan-mode approval gate) to every
+ * client in the Room (ADR 0006). ACP's permission round-trip is a JSON-RPC
+ * *request*, not a `session/update`, so it rides its own envelope; the server is
+ * still the sole ACP peer and the human responds through the run lifecycle, not
+ * a per-browser ACP connection.
+ */
+export async function broadcastPermissionRequest(
+  roomId: string,
+  chatId: string,
+  request: RequestPermissionRequest
+): Promise<void> {
+  try {
+    await broadcastChatEventViaDoc(roomId, {
+      type: "chat-acp-permission",
+      chatId,
+      request: JSON.parse(JSON.stringify(request)),
+    })
+  } catch (e) {
+    console.error("acp permission broadcast failed:", e)
   }
 }
 

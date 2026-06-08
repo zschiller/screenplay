@@ -7,10 +7,18 @@ vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
 
-import { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
+import {
+  AcpUpdateConsumer,
+  type AcpConsumerPorts,
+  type ConsumerPlanCall,
+} from "./consumer"
 import type { EngineUpdate, Engine } from "./engine-seam"
 import type { AcpMessageRecord } from "./record"
-import { textBlock, type SessionUpdate } from "./schema"
+import {
+  textBlock,
+  type RequestPermissionRequest,
+  type SessionUpdate,
+} from "./schema"
 import { InProcessAiSdkEngine, type StreamDriver } from "./in-process-engine"
 
 /**
@@ -51,6 +59,8 @@ function contractFor(
         async transition(to) {
           if (to === "completed") completed = true
         },
+        async broadcastPermissionRequest() {},
+        async pauseForPlan() {},
       }
       const consumer = new AcpUpdateConsumer(ports)
 
@@ -104,8 +114,97 @@ function contractFor(
       expect(ended).toBe(true)
     })
 
-    // Weighted heavily once the ACP engine lands (PRD design goal 1).
-    it.todo("plan-mode permission request maps to the approval gate")
+    // Weighted heavily for the swap to a real ACP client (PRD design goal 1):
+    // a `submit_plan` call must surface as an ACP *permission request* that maps
+    // onto the approval-gate pause — never a completion, never the informational
+    // `plan` update.
+    it("plan-mode permission request maps to the approval gate", async () => {
+      const broadcasts: SessionUpdate[] = []
+      const permissionRequests: RequestPermissionRequest[] = []
+      const records: AcpMessageRecord[] = []
+      const pausedCalls: ConsumerPlanCall[] = []
+      let completed = false
+      let ended = false
+      const ports: AcpConsumerPorts = {
+        async broadcastUpdate(u) {
+          broadcasts.push(u)
+        },
+        async broadcastError() {},
+        async broadcastEnd() {
+          ended = true
+        },
+        async appendRecord(r) {
+          records.push(r)
+        },
+        async transition(to) {
+          if (to === "completed") completed = true
+        },
+        async broadcastPermissionRequest(r) {
+          permissionRequests.push(r)
+        },
+        async pauseForPlan(c) {
+          pausedCalls.push(c)
+        },
+      }
+      const consumer = new AcpUpdateConsumer(ports)
+
+      // The model streams a line of narration, then calls `submit_plan`, then
+      // the turn finishes (the tool has no result, so the loop halts).
+      const driver: StreamDriver = (config) => ({
+        consumeStream: async () => {
+          await config.onChunk?.({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chunk: { type: "text-delta", id: "t1", text: "My plan:" } as any,
+          })
+          await config.onChunk?.({
+            chunk: {
+              type: "tool-call",
+              toolCallId: "toolu_plan_1",
+              toolName: "submit_plan",
+              input: { plan: "1. ship it" },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+          })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await config.onFinish?.({ finishReason: "tool-calls" } as any)
+        },
+      })
+
+      const engine = makeEngine(driver)
+      await engine.run(
+        {
+          chatId: "chat_1",
+          runId: "run_1",
+          roomId: "room_1",
+          systemPrompt: "sys",
+          model: "anthropic:test",
+          history: [{ role: "user", content: [textBlock("plan it")] }],
+        },
+        (u: EngineUpdate) => consumer.handle(u),
+        new AbortController().signal
+      )
+
+      // Observable ACP outcome: an approval gate, not a completion.
+      expect(permissionRequests).toHaveLength(1)
+      expect(permissionRequests[0]!.options.map((o) => o.optionId)).toEqual([
+        "approve",
+        "reject",
+      ])
+      expect(pausedCalls).toEqual<ConsumerPlanCall[]>([
+        {
+          toolCallId: "toolu_plan_1",
+          toolName: "submit_plan",
+          input: { plan: "1. ship it" },
+        },
+      ])
+      // Pre-plan narration persists; the run pauses rather than completing.
+      expect(records).toEqual<AcpMessageRecord[]>([
+        { role: "agent", content: [textBlock("My plan:")] },
+      ])
+      expect(completed).toBe(false)
+      expect(ended).toBe(true)
+    })
+
     it.todo(
       "/stop cancels the in-flight turn and reports a stop, not a failure"
     )

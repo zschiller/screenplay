@@ -7,7 +7,17 @@ export * from "./schema"
 export * from "./record"
 export * from "./engine-seam"
 export * from "./adapter"
-export { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
+export * from "./markers"
+export {
+  AcpUpdateConsumer,
+  type AcpConsumerPorts,
+  type ConsumerPlanCall,
+} from "./consumer"
+export {
+  resolvePlanGate,
+  planResolutionRecord,
+  type PlanResolutionPorts,
+} from "./resolution"
 export { InProcessAiSdkEngine, inProcessEngine } from "./in-process-engine"
 export {
   AcpSession,
