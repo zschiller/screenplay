@@ -24,7 +24,11 @@ export default function middleware(request: NextRequest) {
   // out of the UI.
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
-    const signInUrl = new URL("/sign-in", request.url)
+    // Clone `nextUrl` (not `new URL(..., request.url)`) so the redirect keeps
+    // the `/app` basePath — `NextResponse.redirect` won't re-apply it, but the
+    // basePath-aware `nextUrl` carries it into the serialized Location.
+    const signInUrl = request.nextUrl.clone()
+    signInUrl.pathname = "/sign-in"
     return NextResponse.redirect(signInUrl)
   }
 

@@ -21,7 +21,7 @@ Before deploying, create accounts and projects for each of the following:
 Auth is handled by [Better Auth](https://www.better-auth.com) with GitHub as the only provider. The sandbox clones repos and pushes commits using the OAuth access token Better Auth stores in the `account` table (keyed by `providerId = 'github'`).
 
 1. Create a new OAuth App at https://github.com/settings/developers.
-2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL/api/auth/callback/github` (e.g. `https://build.screenplay.space/api/auth/callback/github`). Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL — one OAuth app is enough for production and every preview.
+2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL/app/api/auth/callback/github` (e.g. `https://build.screenplay.space/app/api/auth/callback/github`). The `/app` segment is the product's Next.js `basePath` — the product is served under `/app` so the auth handler lives there too. Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL — one OAuth app is enough for production and every preview.
 3. Copy the Client ID + Secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
 4. The app requests `repo`, `read:user`, and `user:email` on first sign-in — no extra GitHub-side config needed.
 
@@ -32,7 +32,7 @@ Because the oAuthProxy plugin signs state on production and verifies it on the p
 For local development you have two choices:
 
 - **Option A — share the production secret** (simplest). Copy `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `BETTER_AUTH_PRODUCTION_URL` into `apps/app/.env.local`. Sign-ins locally take a detour through the production callback and bounce back to `localhost`.
-- **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/api/auth/callback/github`. In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
+- **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/app/api/auth/callback/github`. In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
 
 ### Database setup
 
@@ -349,7 +349,7 @@ cd apps/app && pnpm db:migrate                        # apply migrations to your
 pnpm dev
 ```
 
-The app runs on http://localhost:3000.
+The app runs on http://localhost:3000/app (the product is served under the `/app` basePath; the marketing site and docs run separately on ports 3001 and 3002).
 
 ## Development
 

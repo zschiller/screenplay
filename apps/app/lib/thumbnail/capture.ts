@@ -2,6 +2,7 @@ import "server-only"
 
 import sharp from "sharp"
 import { getBaseURL } from "@/lib/base-url"
+import { BASE_PATH } from "@/lib/base-path"
 import { blobStore } from "@/lib/blob"
 import { setRoomThumbnail } from "@/lib/rooms"
 import { signRenderToken } from "./token"
@@ -42,7 +43,10 @@ async function launchBrowser(): Promise<Browser> {
 export async function captureRoomThumbnail(roomId: string): Promise<string> {
   const baseURL = getBaseURL()
   const token = signRenderToken(roomId)
-  const renderUrl = `${baseURL}/${roomId}/render?token=${encodeURIComponent(token)}`
+  // The render page lives under the product's `/app` basePath, so the headless
+  // browser must hit `${origin}/app/${roomId}/render` — whether `${origin}` is
+  // the apex (which proxies `/app/*` here) or this deploy's own URL.
+  const renderUrl = `${baseURL}${BASE_PATH}/${roomId}/render?token=${encodeURIComponent(token)}`
 
   const browser = await launchBrowser()
   let pngBuffer: Buffer
