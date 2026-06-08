@@ -18,10 +18,10 @@ export {
   planResolutionRecord,
   type PlanResolutionPorts,
 } from "./resolution"
-export { InProcessAiSdkEngine, inProcessEngine } from "./in-process-engine"
+export { InProcessEngine, inProcessEngine } from "./in-process-engine"
 export {
-  AcpEngine,
-  type AcpEngineConfig,
+  ExternalEngine,
+  type ExternalEngineConfig,
   type AcpSessionFactory,
 } from "./acp-engine"
 export {

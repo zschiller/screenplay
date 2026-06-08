@@ -7,7 +7,7 @@ vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
 
-import { AcpEngine } from "./acp-engine"
+import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 import { supportsUsageReporting } from "./engine-seam"
 
@@ -18,8 +18,8 @@ import { supportsUsageReporting } from "./engine-seam"
  * entirely. The `supports*` type guard narrows it out and the caller takes the
  * no-usage branch — never a half-implemented method on the core.
  */
-describe("AcpEngine — graceful capability degradation", () => {
-  const engine = new AcpEngine({
+describe("ExternalEngine — graceful capability degradation", () => {
+  const engine = new ExternalEngine({
     sessionFactory: {
       open: async () => {
         throw new Error("session factory unused in this test")
@@ -27,8 +27,8 @@ describe("AcpEngine — graceful capability degradation", () => {
     },
   })
 
-  it("identifies itself as the acp engine", () => {
-    expect(engine.id).toBe("acp")
+  it("identifies itself as the external engine", () => {
+    expect(engine.id).toBe("external")
   })
 
   it("does not advertise usage reporting, so the type guard narrows it out", () => {
