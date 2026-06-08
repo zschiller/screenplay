@@ -2,13 +2,21 @@
 
 Date: 2026-05-30
 
-Status: Accepted
+Status: Accepted — the byte-perfect `ModelMessage[]` replay rationale below is
+superseded by ADR 0006 (ACP-native storage + deterministic `ModelMessage[]`
+rebuild for the in-process engine). The decision to keep the Engine owned rather
+than offload to an in-sandbox CLI stands; only its *justification* is restated.
 
 ## Context
 
 The owned **Engine** (Agent Loop) deliberately does not offload its turn loop to
 an in-sandbox CLI — byte-perfect `ModelMessage[]` replay and shared/durable chat
-outweigh adopting a harness's toolset (CONTEXT.md). That leaves a real gap: a
+outweigh adopting a harness's toolset (CONTEXT.md). _(Superseded by ADR 0006:
+the durable conversation log is now ACP-native and the in-process engine rebuilds
+`ModelMessage[]` from it deterministically at turn time. The spirit invoked here
+— the Engine owns a durable, shared, replayable conversation and is not a Harness
+— is preserved and becomes the definition of the ACP seam both engines honor; a
+BYO CLI in a Terminal Tab still does not qualify.)_ That leaves a real gap: a
 power user has no path to "run my own harness (Claude Code, Codex, aider) in
 here." #187 fills it with a **second-class, opt-out** path alongside the Engine:
 an **ephemeral in-sandbox web terminal** — a ttyd-style daemon launched via a
