@@ -171,13 +171,23 @@ function contractFor(
       }
       const consumer = new AcpUpdateConsumer(ports)
 
-      // The model streams a line of narration, then calls `submit_plan`, then
-      // the turn finishes (the tool has no result, so the loop halts).
+      // The model streams a line of narration, then calls `submit_plan` — first
+      // the streaming-input opener (`tool-input-start`, as the real AI SDK
+      // does), then the resolved `tool-call` — then the turn finishes (the tool
+      // has no result, so the loop halts).
       const driver: StreamDriver = (config) => ({
         consumeStream: async () => {
           await config.onChunk?.({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             chunk: { type: "text-delta", id: "t1", text: "My plan:" } as any,
+          })
+          await config.onChunk?.({
+            chunk: {
+              type: "tool-input-start",
+              id: "toolu_plan_1",
+              toolName: "submit_plan",
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
           })
           await config.onChunk?.({
             chunk: {
@@ -226,6 +236,16 @@ function contractFor(
       ])
       expect(completed).toBe(false)
       expect(ended).toBe(true)
+      // The gate surfaces *only* as the permission request: its streaming-input
+      // opener must not leak a `tool_call` chip, which — never completed — would
+      // spin forever next to the approval card.
+      expect(
+        broadcasts.filter(
+          (u) =>
+            u.sessionUpdate === "tool_call" ||
+            u.sessionUpdate === "tool_call_update"
+        )
+      ).toEqual([])
     })
 
     it("a tool call advances pending → in_progress → completed keyed by id, persisted in place", async () => {
@@ -464,6 +484,16 @@ function acpSessionFactoryFromDriver(driver: StreamDriver): AcpSessionFactory {
       }: {
         chunk: TextStreamPart<Record<string, Tool>>
       }) => {
+        // The plan gate streams its arguments first — a conforming agent does
+        // *not* publish that as a `tool_call`, since the gate surfaces only as
+        // the permission request below; an emitted pending call would never
+        // complete and would spin on screen.
+        if (
+          chunk.type === "tool-input-start" &&
+          chunk.toolName === SUBMIT_PLAN_TOOL
+        ) {
+          return
+        }
         // A `submit_plan` tool-call is screenplay's plan gate — a real ACP agent
         // raises it as an ACP *permission request*, not a `session/update`.
         if (chunk.type === "tool-call" && chunk.toolName === SUBMIT_PLAN_TOOL) {

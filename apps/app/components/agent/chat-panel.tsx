@@ -974,6 +974,13 @@ export function ChatPanel({
                     key={tab.id}
                     value={tab.id}
                     as="div"
+                    // Animate only position, not size, during a reorder. The
+                    // enter/exit on the inner wrapper drives `width` (0↔auto);
+                    // a full `layout` animation here would also project the
+                    // size change and fight that width tween, jittering the
+                    // tab. `layout="position"` reorders by sliding neighbours
+                    // aside while leaving width to the wrapper alone.
+                    layout="position"
                     data-tab-id={tab.id}
                     className="flex shrink-0 items-stretch"
                   >
