@@ -1,5 +1,5 @@
 import type { RunStatus } from "../run-state"
-import { agentChunksToRecord } from "./adapter"
+import { agentChunksToRecord, thoughtChunksToRecord } from "./adapter"
 import type { AcpMessageRecord } from "./record"
 import { blockText, isUpdate, type SessionUpdate } from "./schema"
 import type { EngineUpdate } from "./engine-seam"
@@ -21,8 +21,8 @@ export interface AcpConsumerPorts {
   broadcastError(message: string): Promise<void>
   /** Broadcast the `chat-stream-end` signal that closes the turn for clients. */
   broadcastEnd(): Promise<void>
-  /** Append the turn's ACP-native agent message record to the durable log. */
-  appendAgentMessage(record: AcpMessageRecord): Promise<void>
+  /** Append one ACP-native message record (agent reply or reasoning) to the log. */
+  appendRecord(record: AcpMessageRecord): Promise<void>
   /** Record a run-state transition (no-ops on an already-terminal run). */
   transition(to: RunStatus): Promise<void>
 }
@@ -35,18 +35,22 @@ export interface AcpConsumerPorts {
  *
  * It is the one place ACP becomes screenplay state, so both engines — the
  * in-process AI-SDK translator and a future real ACP client — feed the same
- * consumer and produce identical observable outcomes. For the first tracer
- * bullet it handles the text path (`agent_message_chunk` + `done`), plus the
- * terminal error/stop outcomes; other `sessionUpdate` kinds are broadcast
- * through verbatim (so nothing is dropped) and gain persistence in later slices.
+ * consumer and produce identical observable outcomes. It handles the text path
+ * (`agent_message_chunk` + `done`) and the agent's reasoning
+ * (`agent_thought_chunk`), plus the terminal error/stop outcomes; other
+ * `sessionUpdate` kinds are broadcast through verbatim (so nothing is dropped)
+ * and gain persistence in later slices.
  *
- * Feed every {@link EngineUpdate} to {@link handle} in order. Streamed text
- * chunks are broadcast live *and* accumulated, so the single ACP-native agent
- * record persisted at `done` reflects the whole turn.
+ * Feed every {@link EngineUpdate} to {@link handle} in order. Streamed text and
+ * thought chunks are broadcast live *and* accumulated, so the ACP-native
+ * records persisted at `done` reflect the whole turn — the reasoning record
+ * first, then the agent reply, the order they're rendered.
  */
 export class AcpUpdateConsumer {
   /** Streamed `agent_message_chunk` text, accumulated for the durable record. */
   private agentText: string[] = []
+  /** Streamed `agent_thought_chunk` text (reasoning), accumulated likewise. */
+  private thoughtText: string[] = []
   /** Guards against a double-close (e.g. `done` after an `error`). */
   private closed = false
 
@@ -67,10 +71,13 @@ export class AcpUpdateConsumer {
   }
 
   private async onSessionUpdate(update: SessionUpdate): Promise<void> {
-    // Accumulate streamed agent text for the durable ACP-native record. We
-    // still broadcast every chunk so clients render the reply as it streams.
+    // Accumulate streamed agent / reasoning text for the durable ACP-native
+    // records. We still broadcast every chunk so clients render both the reply
+    // and the reasoning as they stream.
     if (isUpdate(update, "agent_message_chunk")) {
       this.agentText.push(blockText(update.content))
+    } else if (isUpdate(update, "agent_thought_chunk")) {
+      this.thoughtText.push(blockText(update.content))
     }
     await this.ports.broadcastUpdate(update)
   }
@@ -78,12 +85,16 @@ export class AcpUpdateConsumer {
   private async onDone(): Promise<void> {
     if (this.closed) return
     this.closed = true
-    // Persist the whole turn's text as one ACP-native agent record. An empty
-    // turn (no text) yields an empty content list, which we skip — there's
-    // nothing to replay.
+    // Persist the whole turn's reasoning and reply as ACP-native records, in
+    // render order (reasoning precedes the answer). An empty record (no text of
+    // that kind) yields an empty content list, which we skip — nothing to keep.
+    const thought = thoughtChunksToRecord(this.thoughtText)
+    if (thought.content.length > 0) {
+      await this.ports.appendRecord(thought)
+    }
     const record = agentChunksToRecord(this.agentText)
     if (record.content.length > 0) {
-      await this.ports.appendAgentMessage(record)
+      await this.ports.appendRecord(record)
     }
     await this.ports.transition("completed")
     await this.ports.broadcastEnd()

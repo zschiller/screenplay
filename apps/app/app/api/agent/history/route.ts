@@ -74,6 +74,13 @@ function convertMessage(
     if (text) out.push({ role: "assistant", content: text })
     return
   }
+  // ACP-native reasoning record (role `"thought"`): the agent's streamed
+  // thinking, rendered as a collapsible reasoning block on reload/late-join.
+  if ((m.role as string) === "thought") {
+    const text = stringifyContent(m.content)
+    if (text) out.push({ role: "reasoning", content: text })
+    return
+  }
   switch (m.role) {
     case "user": {
       const text = stringifyContent(m.content)

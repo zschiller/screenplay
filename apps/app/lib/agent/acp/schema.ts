@@ -112,6 +112,17 @@ export function agentMessageChunk(text: string): SessionUpdate {
   return { sessionUpdate: "agent_message_chunk", content: textBlock(text) }
 }
 
+/**
+ * An `agent_thought_chunk` session update carrying a run of the agent's
+ * streamed reasoning/thinking. Same content shape as
+ * {@link agentMessageChunk}, but ACP keeps it a distinct `sessionUpdate` so the
+ * UI can render reasoning apart from the assistant's message body and agents
+ * that stream thinking aren't silently dropped.
+ */
+export function agentThoughtChunk(text: string): SessionUpdate {
+  return { sessionUpdate: "agent_thought_chunk", content: textBlock(text) }
+}
+
 /** A `user_message_chunk` session update carrying the user's prompt text. */
 export function userMessageChunk(text: string): SessionUpdate {
   return { sessionUpdate: "user_message_chunk", content: textBlock(text) }
