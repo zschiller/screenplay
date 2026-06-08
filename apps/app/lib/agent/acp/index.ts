@@ -9,3 +9,10 @@ export * from "./engine-seam"
 export * from "./adapter"
 export { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
 export { InProcessAiSdkEngine, inProcessEngine } from "./in-process-engine"
+export {
+  AcpSession,
+  type AcpSessionPorts,
+  type AcpTransport,
+  type OpenSessionOptions,
+  type PlanDecision,
+} from "./session"
