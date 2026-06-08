@@ -31,6 +31,8 @@ import {
   ndJsonStream,
   PROTOCOL_VERSION,
   promptResponseSchema,
+  requestPermissionRequestSchema,
+  requestPermissionResponseSchema,
   sessionNotificationSchema,
   type Agent,
   type AnyMessage,
@@ -46,6 +48,7 @@ import {
   type RequestPermissionResponse,
   type SessionNotification,
   type Stream,
+  type ToolCallUpdate,
 } from "@zed-industries/agent-client-protocol"
 
 export {
@@ -55,6 +58,8 @@ export {
   ndJsonStream,
   PROTOCOL_VERSION,
   promptResponseSchema,
+  requestPermissionRequestSchema,
+  requestPermissionResponseSchema,
   sessionNotificationSchema,
   type Agent,
   type AnyMessage,
@@ -70,7 +75,11 @@ export {
   type RequestPermissionResponse,
   type SessionNotification,
   type Stream,
+  type ToolCallUpdate,
 }
+
+/** The human's decision on a {@link RequestPermissionResponse}. */
+export type RequestPermissionOutcome = RequestPermissionResponse["outcome"]
 
 /**
  * The body of an ACP `session/update` notification — the discriminated union
@@ -126,4 +135,105 @@ export function agentThoughtChunk(text: string): SessionUpdate {
 /** A `user_message_chunk` session update carrying the user's prompt text. */
 export function userMessageChunk(text: string): SessionUpdate {
   return { sessionUpdate: "user_message_chunk", content: textBlock(text) }
+}
+
+/**
+ * The screenplay plan-mode approval gate, expressed in ACP.
+ *
+ * screenplay's gate (`submit_plan` halt → `RunState.pauseForPlan` → resume via
+ * `/api/agent/plan`) maps onto ACP's **permission request** (`RequestPermission`
+ * — the agent asking the client to authorise an operation before proceeding),
+ * *not* onto ACP's informational `plan` `session/update` (the agent's evolving
+ * TODO list, which is a separate signal the UI may also render). Conflating the
+ * two would make a real ACP client's `plan` updates trip the approval gate and
+ * break the swap (PRD #375, design goal 1).
+ *
+ * The two are kept structurally distinct: the gate is a `permission_request`
+ * EngineUpdate carrying a {@link RequestPermissionRequest}; the TODO list is a
+ * `session_update` whose `sessionUpdate` is `"plan"`. {@link isPlanGate}
+ * recognises *our* gate among arbitrary permission requests by its option ids.
+ */
+
+/** The submit-plan tool name the gate's `toolCall` is reported under. */
+export const SUBMIT_PLAN_TOOL = "submit_plan"
+
+/** Option id the human selects to approve a plan and let the agent proceed. */
+export const PLAN_APPROVE_OPTION_ID = "approve"
+/** Option id the human selects to reject a plan (feedback drives a revision). */
+export const PLAN_REJECT_OPTION_ID = "reject"
+
+/**
+ * Build the ACP permission request for screenplay's plan-mode gate. The plan
+ * text rides the request's `toolCall` as an ACP content block (its native
+ * slot); `toolCallId` is the verbatim submit-plan tool-call id, so it lines up
+ * with the pending row the pause inserts and the id the resume keys off.
+ */
+export function planPermissionRequest(opts: {
+  sessionId: string
+  toolCallId: string
+  plan: string
+}): RequestPermissionRequest {
+  return {
+    sessionId: opts.sessionId,
+    toolCall: {
+      toolCallId: opts.toolCallId,
+      title: "Review plan",
+      kind: "other",
+      status: "pending",
+      content: [{ type: "content", content: textBlock(opts.plan) }],
+      rawInput: { plan: opts.plan },
+    },
+    options: [
+      {
+        optionId: PLAN_APPROVE_OPTION_ID,
+        name: "Approve",
+        kind: "allow_once",
+      },
+      {
+        optionId: PLAN_REJECT_OPTION_ID,
+        name: "Request changes",
+        kind: "reject_once",
+      },
+    ],
+  }
+}
+
+/**
+ * Whether a permission request is screenplay's plan-mode gate (rather than some
+ * other ACP permission round-trip a generic agent might raise). Recognised by
+ * the gate's two option ids — keeping the gate distinct from the informational
+ * `plan` update *and* from unrelated permission requests.
+ */
+export function isPlanGate(request: RequestPermissionRequest): boolean {
+  const ids = new Set(request.options.map((o) => o.optionId))
+  return ids.has(PLAN_APPROVE_OPTION_ID) && ids.has(PLAN_REJECT_OPTION_ID)
+}
+
+/** Recover the `{ toolCallId, plan }` a plan-gate permission request carries. */
+export function planFromPermissionRequest(request: RequestPermissionRequest): {
+  toolCallId: string
+  plan: string
+} {
+  const raw = request.toolCall.rawInput as { plan?: string } | undefined
+  const fromContent = (request.toolCall.content ?? [])
+    .map((c) => (c.type === "content" ? blockText(c.content) : ""))
+    .join("")
+  return {
+    toolCallId: request.toolCall.toolCallId,
+    plan: raw?.plan ?? fromContent,
+  }
+}
+
+/**
+ * The ACP-native record of the human's decision on a plan gate — the
+ * `RequestPermissionResponse` outcome that the swap target produces verbatim.
+ * Approve selects the approve option; reject selects the reject option.
+ */
+export function planResolutionOutcome(
+  approved: boolean
+): RequestPermissionOutcome {
+  return {
+    outcome: "selected",
+    optionId: approved ? PLAN_APPROVE_OPTION_ID : PLAN_REJECT_OPTION_ID,
+  }
 }

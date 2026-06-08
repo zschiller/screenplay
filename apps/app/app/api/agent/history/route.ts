@@ -33,6 +33,7 @@ export async function GET(req: Request) {
       .select({
         id: agentPendingToolCall.id,
         status: agentPendingToolCall.status,
+        feedback: agentPendingToolCall.feedback,
       })
       .from(agentPendingToolCall)
       .where(
@@ -43,17 +44,17 @@ export async function GET(req: Request) {
       ),
   ])
 
-  const planStatusByToolCallId = new Map<
+  const planByToolCallId = new Map<
     string,
-    "pending" | "approved" | "rejected"
+    { status: "pending" | "approved" | "rejected"; feedback: string | null }
   >()
   for (const r of planRows) {
-    planStatusByToolCallId.set(r.id, r.status)
+    planByToolCallId.set(r.id, { status: r.status, feedback: r.feedback })
   }
 
   const messages: AgentMessage[] = []
   for (const m of history) {
-    convertMessage(m, planStatusByToolCallId, messages)
+    convertMessage(m, planByToolCallId, messages)
   }
 
   return Response.json(messages)
@@ -61,7 +62,10 @@ export async function GET(req: Request) {
 
 function convertMessage(
   m: ModelMessage,
-  planStatuses: Map<string, "pending" | "approved" | "rejected">,
+  plans: Map<
+    string,
+    { status: "pending" | "approved" | "rejected"; feedback: string | null }
+  >,
   out: AgentMessage[]
 ): void {
   // ACP-native agent record (ADR 0006): role `"agent"`, content is a list of
@@ -105,11 +109,15 @@ function convertMessage(
         } else if (part.type === "tool-call") {
           if (part.toolName === "submit_plan") {
             const plan = (part.input as { plan?: string })?.plan ?? ""
+            const resolved = plans.get(part.toolCallId)
             out.push({
               role: "plan",
               content: plan,
-              status: planStatuses.get(part.toolCallId) ?? "pending",
+              status: resolved?.status ?? "pending",
               planId: part.toolCallId,
+              // Surface the stored rejection feedback so a reload shows it on the
+              // card, not just the live `plan_rejected` broadcast (#379).
+              ...(resolved?.feedback ? { feedback: resolved.feedback } : {}),
             })
           } else {
             out.push({

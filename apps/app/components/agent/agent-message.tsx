@@ -265,6 +265,16 @@ function PlanMessage({
               </Button>
             </div>
           )}
+          {isRejected && message.feedback && (
+            <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
+              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                <XCircle className="h-3 w-3" /> Your feedback
+              </div>
+              <div className="prose prose-sm max-w-none text-xs prose-neutral dark:prose-invert prose-p:my-0.5">
+                <Markdown>{message.feedback}</Markdown>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

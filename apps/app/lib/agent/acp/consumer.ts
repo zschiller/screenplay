@@ -1,8 +1,26 @@
 import type { RunStatus } from "../run-state"
 import { agentChunksToRecord, thoughtChunksToRecord } from "./adapter"
 import type { AcpMessageRecord } from "./record"
-import { blockText, isUpdate, type SessionUpdate } from "./schema"
+import {
+  blockText,
+  isUpdate,
+  planFromPermissionRequest,
+  SUBMIT_PLAN_TOOL,
+  type RequestPermissionRequest,
+  type SessionUpdate,
+} from "./schema"
 import type { EngineUpdate } from "./engine-seam"
+
+/**
+ * The tool call halting a turn for human approval, derived by the consumer from
+ * a plan-gate permission request. `chatId` is filled in by the live ports (the
+ * consumer is chat-agnostic, like {@link AcpConsumerPorts.appendRecord}).
+ */
+export interface ConsumerPlanCall {
+  toolCallId: string
+  toolName: string
+  input: Record<string, unknown>
+}
 
 /**
  * The side-effecting boundary the {@link AcpUpdateConsumer} drives. Split out
@@ -25,6 +43,20 @@ export interface AcpConsumerPorts {
   appendRecord(record: AcpMessageRecord): Promise<void>
   /** Record a run-state transition (no-ops on an already-terminal run). */
   transition(to: RunStatus): Promise<void>
+  /**
+   * Broadcast an ACP permission request to the Room. ACP's permission round-trip
+   * is a JSON-RPC *request*, not a `session/update`, so it rides its own channel
+   * — the browser renders the gate from this and the human responds (much later,
+   * possibly after a reload) through the existing run lifecycle, not a live ACP
+   * connection.
+   */
+  broadcastPermissionRequest(request: RequestPermissionRequest): Promise<void>
+  /**
+   * Pause the run for human plan approval: move it `running → paused_for_plan`
+   * and record the pending tool-call atomically (ADR 0006). The live port adds
+   * the `chatId` the run-state machine needs.
+   */
+  pauseForPlan(planCall: ConsumerPlanCall): Promise<void>
 }
 
 /**
@@ -61,6 +93,9 @@ export class AcpUpdateConsumer {
       case "session_update":
         await this.onSessionUpdate(update.update)
         break
+      case "permission_request":
+        await this.onPermissionRequest(update.request)
+        break
       case "done":
         await this.onDone()
         break
@@ -80,6 +115,44 @@ export class AcpUpdateConsumer {
       this.thoughtText.push(blockText(update.content))
     }
     await this.ports.broadcastUpdate(update)
+  }
+
+  /**
+   * The agent raised an ACP permission request — screenplay's plan-mode gate
+   * (PRD #375). The turn halts here: any agent narration streamed before the
+   * plan is flushed to a durable record, the request is broadcast so the Room
+   * renders the approval card, and the run moves to `paused_for_plan` (carrying
+   * the pending tool-call) instead of `completed`. The human's resolution
+   * arrives later via the run lifecycle, not this stream, so we close the turn
+   * with `broadcastEnd` — exactly like a normal terminal outcome.
+   */
+  private async onPermissionRequest(
+    request: RequestPermissionRequest
+  ): Promise<void> {
+    if (this.closed) return
+    this.closed = true
+
+    // Flush any reasoning/narration streamed before the plan, in render order
+    // (reasoning precedes the reply) — same as a normal turn close.
+    const thought = thoughtChunksToRecord(this.thoughtText)
+    if (thought.content.length > 0) {
+      await this.ports.appendRecord(thought)
+    }
+    const record = agentChunksToRecord(this.agentText)
+    if (record.content.length > 0) {
+      await this.ports.appendRecord(record)
+    }
+
+    await this.ports.broadcastPermissionRequest(request)
+
+    const { toolCallId, plan } = planFromPermissionRequest(request)
+    await this.ports.pauseForPlan({
+      toolCallId,
+      toolName: SUBMIT_PLAN_TOOL,
+      input: { plan },
+    })
+
+    await this.ports.broadcastEnd()
   }
 
   private async onDone(): Promise<void> {

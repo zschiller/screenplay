@@ -3,7 +3,13 @@ import type {
   AgentStreamEvent,
   CustomToolName,
 } from "@/lib/agent/types"
-import { blockText, isUpdate, type SessionUpdate } from "@/lib/agent/acp/schema"
+import {
+  blockText,
+  isUpdate,
+  planFromPermissionRequest,
+  type RequestPermissionRequest,
+  type SessionUpdate,
+} from "@/lib/agent/acp/schema"
 import { withBasePath } from "@/lib/base-path"
 
 export type ChatState = {
@@ -46,6 +52,15 @@ export type ChatBroadcastEvent =
       chatId: string
       id: string
       update: SessionUpdate
+    }
+  // ACP permission request broadcast by the server — screenplay's plan-mode
+  // approval gate (ADR 0006). ACP's permission round-trip is a JSON-RPC request,
+  // not a `session/update`, so it rides its own envelope and renders a plan card.
+  | {
+      type: "chat-acp-permission"
+      chatId: string
+      id: string
+      request: RequestPermissionRequest
     }
   | { type: "chat-stream-start"; chatId: string; id: string }
   | { type: "chat-stream-end"; chatId: string; id: string }
@@ -393,7 +408,39 @@ class ChatStore {
       case "chat-acp-update":
         this.applyAcpUpdate(chatId, event.update)
         break
+
+      case "chat-acp-permission":
+        this.applyAcpPermission(chatId, event.request)
+        break
     }
+  }
+
+  /**
+   * Render an ACP permission request as a pending plan card (ADR 0006) — the
+   * ACP-shaped equivalent of the legacy `plan_submitted` event. The plan text
+   * and its tool-call id ride the request's `toolCall`; the human approves or
+   * rejects through the same `/api/agent/plan` lifecycle.
+   */
+  private applyAcpPermission(
+    chatId: string,
+    request: RequestPermissionRequest
+  ) {
+    const { toolCallId, plan } = planFromPermissionRequest(request)
+    // A permission request closes any in-flight agent text block.
+    this.currentTextId.delete(chatId)
+    this.acpAgentText.delete(chatId)
+    const prev = this.getOrCreate(chatId).messages
+    this.update(chatId, {
+      messages: [
+        ...prev,
+        {
+          role: "plan" as const,
+          content: plan,
+          status: "pending" as const,
+          planId: toolCallId,
+        },
+      ],
+    })
   }
 
   /**
@@ -581,7 +628,9 @@ class ChatStore {
         this.update(chatId, {
           messages: prev.map((m) =>
             m.role === "plan" && m.planId === event.planId
-              ? { ...m, status: "rejected" as const }
+              ? // Carry the rejection feedback onto the card so it's shown — it
+                // was sent on this event all along but previously dropped (#379).
+                { ...m, status: "rejected" as const, feedback: event.feedback }
               : m
           ),
         })

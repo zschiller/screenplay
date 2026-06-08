@@ -13,7 +13,11 @@ import type {
   PromptCacheUsage,
   UsageReportingEngine,
 } from "./engine-seam"
-import type { StopReason } from "./schema"
+import {
+  planPermissionRequest,
+  SUBMIT_PLAN_TOOL,
+  type StopReason,
+} from "./schema"
 
 const MAX_STEPS = 20
 
@@ -39,9 +43,11 @@ export type StreamDriver = (
  * which the caller reads only after narrowing through `supportsUsageReporting`.
  * A generic ACP agent that can't surface usage simply omits the capability.
  *
- * This slice implements the **text path** (`agent_message_chunk` + `done`);
- * tool-call and plan translation arrive in later slices, at which point this
- * engine replaces the legacy `runAgentLoop` outright.
+ * It translates the **text path** (`agent_message_chunk` + `done`) and the
+ * **plan-mode gate** — a `submit_plan` tool-call becomes an ACP
+ * `permission_request` (see {@link planPermissionRequest}), distinct from ACP's
+ * informational `plan` update. Other tool-call translation arrives in later
+ * slices, at which point this engine replaces the legacy `runAgentLoop` outright.
  */
 export class InProcessAiSdkEngine implements UsageReportingEngine {
   readonly id = "in-process-ai-sdk"
@@ -81,6 +87,27 @@ export class InProcessAiSdkEngine implements UsageReportingEngine {
           // Drop chunks the model buffered before the abort propagated, so a
           // `/stop` doesn't keep streaming text after the user stopped.
           if (signal.aborted) return
+          // A `submit_plan` tool-call is screenplay's plan-mode approval gate.
+          // Translate it to an ACP permission request — *not* an informational
+          // `plan` update — so it maps onto `pauseForPlan` downstream (PRD #375,
+          // design goal 1). The model halts after it (the tool has no result),
+          // and the consumer ignores the subsequent `done` once paused.
+          if (
+            chunk.type === "tool-call" &&
+            chunk.toolName === SUBMIT_PLAN_TOOL
+          ) {
+            await sink({
+              kind: "permission_request",
+              request: planPermissionRequest({
+                sessionId: turn.chatId,
+                toolCallId: chunk.toolCallId,
+                plan: String(
+                  (chunk.input as { plan?: unknown } | undefined)?.plan ?? ""
+                ),
+              }),
+            })
+            return
+          }
           const update = aiSdkChunkToAcpUpdate(chunk)
           if (update) await sink({ kind: "session_update", update })
         },
