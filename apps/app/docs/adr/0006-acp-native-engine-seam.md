@@ -261,18 +261,23 @@ the legacy machinery is **deleted**, not parallel.
   contract test is the executable proof the seam is honest and the swap target
   will be compatible; the **text path**, the **plan-mode permission-request
   mapping**, and the **`/stop` stop-not-failure mapping** all pass today.
-- This slice is intentionally **hybrid**: the text path _and_ the plan-mode
-  permission-request mapping are modeled ACP-native at the seam (the consumer,
-  the in-process engine's `submit_plan` → `permission_request` translation, the
-  `resolvePlanGate` resolution, and the Message-Markers reconciliation, all
-  unit-/contract-tested), while the _live_ `/api/agent/stream` and
-  `/api/agent/plan` routes still drive the legacy `runAgentLoop` / `ModelMessage`
-  machinery (the PRD sequences the route cutover into a later slice). The one
-  user-visible behaviour landed on the live path here is **plan rejection
-  feedback**, which was sent but never shown. Cutting the routes over to drive
-  `InProcessEngine` through the consumer — and retiring `AgentStreamEvent`
-  and the `ModelMessage` log — is the next move, now guarded by the
-  contract/consumer/adapter/resolution tests landed here.
+- **The cutover has landed; the live path is ACP-native end-to-end.** The
+  `/api/agent/stream` and `/api/agent/plan` routes drive `selectEngine →
+  Engine.run → AcpUpdateConsumer` through `driveEngineTurn` (which owns the abort
+  watchdog at the boundary). Persistence and broadcast are ACP-native on the live
+  path, and the legacy machinery — `runAgentLoop` + helpers, `StreamBroadcaster`,
+  the `AgentStreamEvent` type, and the `ModelMessage` persistence/repair functions
+  — is **deleted**, not parallel. The text path, the plan-mode permission-request
+  mapping (including plan-rejection feedback, which was previously sent but never
+  shown), and the `/stop` stop-not-failure mapping now run through the seam in
+  production, guarded by the keystone end-to-end live-route seam test alongside the
+  contract/consumer/adapter/resolution tests.
+- **The sole remaining deferral is the external ACP transport** — a production
+  backing that spawns or connects to a real external ACP agent over its own
+  stdio/stream. The seam, the consumer, and the contract test prove that swap is
+  subtractive (`contractFor("acp", …)` already crosses a real in-memory ACP
+  transport to a fake agent); pointing a live deployment at a running subprocess
+  is the only move still outstanding.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
   an external implementation," keeping the **Harness** distinction intact.
