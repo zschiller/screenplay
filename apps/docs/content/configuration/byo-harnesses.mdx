@@ -1,0 +1,43 @@
+# BYO coding harnesses
+
+Beyond the owned agent loop, an operator can offer **bring-your-own coding CLIs**
+that run *inside* a sandbox's Terminal Tab. Each is a descriptor in
+`apps/app/lib/agent/harnesses/`, keyed by a stable catalog key, and brokered
+through one of the [model providers](/configuration/model-providers). The current
+catalog:
+
+| Key | CLI | Broker provider (gate var) |
+| --- | --- | --- |
+| `claude-code` | Claude Code (`@anthropic-ai/claude-code`) | `anthropic` (`ANTHROPIC_API_KEY`) |
+| `codex` | Codex (`@openai/codex`) | `openai` (`OPENAI_API_KEY`) |
+| `opencode-gateway` | opencode pointed at the Vercel AI Gateway | `vercel` (`AI_GATEWAY_API_KEY`) |
+| `opencode-compat` | opencode pointed at an OpenAI-compatible endpoint | `compat` (`OPENAI_COMPATIBLE_API_KEY`) |
+
+`SANDBOX_HARNESSES` is the comma-separated list of keys to install into every
+sandbox:
+
+```bash
+SANDBOX_HARNESSES=claude-code               # install Claude Code
+# SANDBOX_HARNESSES=claude-code,codex       # several, in listed order
+# SANDBOX_HARNESSES=opencode-gateway        # opencode via the AI Gateway
+# (unset) ⇒ no harness is installed
+```
+
+Selection is a pure fold over the keys and your configured model providers
+(`apps/app/lib/agent/harnesses/index.ts`): a key is honored only when (a) it's a
+known catalog entry and (b) its broker model provider is configured **and**
+header-brokerable (`egress()` non-null) — e.g. `claude-code` needs
+`ANTHROPIC_API_KEY` set, `codex` needs `OPENAI_API_KEY`. Unknown keys and
+unconfigured/non-brokerable harnesses are silently dropped with a skip reason,
+never a hard failure. The harness never holds the real key: it boots against a
+dummy `brokered` placeholder and the sandbox firewall injects the operator's real
+key on egress — see `apps/app/docs/adr/0002-byo-harness-terminal.md` for the
+trust boundary (single-trusted-operator, generalized egress injection, no
+per-tenant metering).
+
+> ⚠️ **Breaking change for existing deployments.** There is **no longer a default
+> harness.** Earlier versions always installed Claude Code into every sandbox;
+> now nothing is installed unless `SANDBOX_HARNESSES` names it. **To keep today's
+> behavior, set `SANDBOX_HARNESSES=claude-code`** (with `ANTHROPIC_API_KEY`
+> configured) before upgrading — otherwise Claude Code disappears from your
+> Terminal Tabs.
