@@ -1,6 +1,10 @@
 import type { ModelMessage, SystemModelMessage, TextStreamPart } from "ai"
 import type { Tool } from "ai"
-import type { AcpMessageRecord } from "./record"
+import {
+  repairOrphanedAcpToolCalls,
+  type AcpMessageRecord,
+  type AcpToolCallRecord,
+} from "./record"
 import {
   agentMessageChunk,
   agentThoughtChunk,
@@ -94,6 +98,17 @@ export function recordText(record: AcpMessageRecord): string {
  * record → user message, `agent` record → assistant message), which is the
  * shape Anthropic caches most cheaply.
  *
+ * A `tool_call` record rebuilds into the assistant `tool-call` part **plus** the
+ * matching `tool` result message the provider requires before a follow-up turn,
+ * so the engine sees its own prior tool calls and their results on the next turn
+ * (see {@link toolCallToModelMessages}). To keep the rebuild **well-formed** —
+ * every tool-call part guaranteed a matching result — the history is first run
+ * through {@link repairOrphanedAcpToolCalls}, which closes any call a crash
+ * froze mid-flight to `failed` with an interrupted marker. That reuses the one
+ * definition of the orphan-repair invariant rather than re-deriving "interrupted"
+ * here, and is idempotent — a history already repaired on load
+ * ({@link import("../persistence").loadAcpHistoryForModel}) is unchanged.
+ *
  * `thought` records (the agent's reasoning) are **dropped** from the rebuild:
  * they survive to the screen and to durable history, but reasoning is not fed
  * back as model input. Skipping them is still a pure, order-preserving map, so
@@ -102,19 +117,74 @@ export function recordText(record: AcpMessageRecord): string {
 export function acpHistoryToModelMessages(
   history: AcpMessageRecord[]
 ): ModelMessage[] {
-  return history.flatMap((record) => {
-    // `thought` records carry reasoning, not model input (see the docblock).
-    // Tool-call records carry the tool lifecycle, not conversation turns;
-    // rebuilding them into assistant `tool-call` + `tool` result pairs (so the
-    // model sees its own tool context) is the adapter's "both directions" work
-    // tracked separately in the PRD. Both are dropped from the text rebuild.
-    if (record.role === "thought" || record.role === "tool_call") return []
-    return [
-      record.role === "user"
-        ? { role: "user" as const, content: recordText(record) }
-        : { role: "assistant" as const, content: recordText(record) },
-    ]
+  return repairOrphanedAcpToolCalls(history).flatMap((record) => {
+    switch (record.role) {
+      // Reasoning survives to history/screen but is never replayed as input.
+      case "thought":
+        return []
+      case "user":
+        return [{ role: "user" as const, content: recordText(record) }]
+      case "agent":
+        return [{ role: "assistant" as const, content: recordText(record) }]
+      case "tool_call":
+        return toolCallToModelMessages(record)
+    }
   })
+}
+
+/**
+ * Flatten an ACP tool call's structured {@link ToolCallContent} blocks into the
+ * single text string an AI-SDK `tool-result` carries — the same text path
+ * {@link toolOutputToContent} produced on the way out. Non-text blocks (file
+ * `diff`, `terminal`) contribute nothing to the model-facing text; richer block
+ * round-tripping is a later slice.
+ */
+function toolResultText(content: ToolCallContent[]): string {
+  return content
+    .map((block) => (block.type === "content" ? blockText(block.content) : ""))
+    .join("")
+}
+
+/**
+ * Rebuild one durable {@link AcpToolCallRecord} into the `[assistant tool-call,
+ * tool result]` pair the provider requires (ADR 0006). The two messages are
+ * emitted **adjacently** — an assistant message carrying the `tool-call` part
+ * immediately followed by the `tool` message carrying its `tool-result` — which
+ * is the only shape Anthropic accepts (a `tool_result` must follow its
+ * `tool_use`).
+ *
+ * `title` is the tool name (the in-process engine reports its tools' names
+ * there) and `rawInput` the call's arguments. The result's text is every
+ * content block flattened; by the time we get here {@link
+ * repairOrphanedAcpToolCalls} has already closed any interrupted call, so an
+ * orphan's content carries the interrupted marker and needs no special-casing —
+ * the pair is well-formed for terminal and interrupted calls alike.
+ */
+function toolCallToModelMessages(record: AcpToolCallRecord): ModelMessage[] {
+  return [
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: record.toolCallId,
+          toolName: record.title,
+          input: record.rawInput ?? {},
+        },
+      ],
+    },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: record.toolCallId,
+          toolName: record.title,
+          output: { type: "text", value: toolResultText(record.content) },
+        },
+      ],
+    },
+  ]
 }
 
 /**
