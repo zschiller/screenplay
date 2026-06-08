@@ -1,6 +1,10 @@
 import type { RunStatus } from "../run-state"
 import { agentChunksToRecord, thoughtChunksToRecord } from "./adapter"
-import type { AcpMessageRecord } from "./record"
+import {
+  applyToolCallUpdate,
+  type AcpMessageRecord,
+  type AcpToolCallRecord,
+} from "./record"
 import {
   blockText,
   isUpdate,
@@ -41,6 +45,14 @@ export interface AcpConsumerPorts {
   broadcastEnd(): Promise<void>
   /** Append one ACP-native message record (agent reply or reasoning) to the log. */
   appendRecord(record: AcpMessageRecord): Promise<void>
+  /**
+   * Persist a tool-call record *in place* by `toolCallId` — an upsert, so the
+   * `pending` → `in_progress` → `completed`/`failed` lifecycle updates the same
+   * durable row rather than appending. Called on every `tool_call` /
+   * `tool_call_update`, so a crash mid-turn leaves the call's last known state
+   * on disk (repairable on next load).
+   */
+  upsertToolCall(record: AcpToolCallRecord): Promise<void>
   /** Record a run-state transition (no-ops on an already-terminal run). */
   transition(to: RunStatus): Promise<void>
   /**
@@ -83,6 +95,12 @@ export class AcpUpdateConsumer {
   private agentText: string[] = []
   /** Streamed `agent_thought_chunk` text (reasoning), accumulated likewise. */
   private thoughtText: string[] = []
+  /**
+   * In-flight tool calls, keyed by `toolCallId`, so a `tool_call_update` merges
+   * onto the record we already hold rather than starting a new one — the same
+   * in-place model the renderer uses.
+   */
+  private toolCalls = new Map<string, AcpToolCallRecord>()
   /** Guards against a double-close (e.g. `done` after an `error`). */
   private closed = false
 
@@ -113,6 +131,18 @@ export class AcpUpdateConsumer {
       this.agentText.push(blockText(update.content))
     } else if (isUpdate(update, "agent_thought_chunk")) {
       this.thoughtText.push(blockText(update.content))
+    } else if (
+      isUpdate(update, "tool_call") ||
+      isUpdate(update, "tool_call_update")
+    ) {
+      // Update the one durable tool-call record in place by id, then persist
+      // it immediately (an upsert) so each status transition is on disk before
+      // the next arrives. The broadcast below carries the ACP update verbatim,
+      // so clients update their own record in place too.
+      const id = update.toolCallId
+      const merged = applyToolCallUpdate(this.toolCalls.get(id), update)
+      this.toolCalls.set(id, merged)
+      await this.ports.upsertToolCall(merged)
     }
     await this.ports.broadcastUpdate(update)
   }

@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
+import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import {
   parseUserMessage,
   skillMarkersToPills,
@@ -62,6 +63,37 @@ function formatToolName(name: string): string {
     toolLabels[name] ??
     name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
   )
+}
+
+// Fallback icons by ACP tool `kind` (read/edit/execute/…), used when the tool
+// isn't one of screenplay's own named tools — so a generic ACP agent's calls
+// still get a sensible icon rather than the bare default.
+const kindIcons: Record<string, typeof FileText> = {
+  read: FileText,
+  edit: Pencil,
+  execute: Terminal,
+  fetch: ExternalLink,
+  think: Sparkles,
+}
+
+/** A short, human-readable detail for a tool call, derived from its raw input. */
+function toolDetail(
+  title: string,
+  rawInput: Record<string, unknown> | undefined
+): string | null {
+  if (!rawInput) return null
+  if (title === "run_command") {
+    const cmd = [
+      rawInput.command,
+      ...((rawInput.args as string[] | undefined) ?? []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+    return cmd || null
+  }
+  if (title === "read_skill") return (rawInput.name as string) ?? null
+  if (title === "set_document_title") return (rawInput.title as string) ?? null
+  return rawInput.path ? String(rawInput.path) : null
 }
 
 function CreatePrIndicator({
@@ -193,6 +225,130 @@ function ToolIndicator({
           {result.output}
         </pre>
       )}
+    </button>
+  )
+}
+
+/**
+ * Render one ACP {@link ToolCallContent} block *structurally* — a file `diff`
+ * as path + added/removed text, a `terminal` as its handle, a text `content`
+ * block as preformatted text. The point is that ACP's richer output is carried
+ * as structure, not flattened to one `<pre>`; the visual polish (a real diff
+ * viewer, a terminal emulator) is deferred.
+ */
+function ToolContentBlock({ block }: { block: ToolCallContent }) {
+  if (block.type === "diff") {
+    return (
+      <div
+        data-testid="tool-content-diff"
+        className="mt-1 overflow-hidden rounded-md border border-border bg-background"
+      >
+        <div className="border-b border-border bg-muted/50 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+          {block.path}
+        </div>
+        {block.oldText != null && (
+          <pre className="overflow-auto bg-red-50 px-2 py-1 font-mono text-[10px] text-red-700 dark:bg-red-950/40 dark:text-red-300">
+            {block.oldText}
+          </pre>
+        )}
+        <pre className="overflow-auto bg-green-50 px-2 py-1 font-mono text-[10px] text-green-700 dark:bg-green-950/40 dark:text-green-300">
+          {block.newText}
+        </pre>
+      </div>
+    )
+  }
+  if (block.type === "terminal") {
+    return (
+      <div
+        data-testid="tool-content-terminal"
+        className="mt-1 flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground"
+      >
+        <Terminal className="h-3 w-3 shrink-0" />
+        terminal {block.terminalId}
+      </div>
+    )
+  }
+  // A standard content block — render its text; non-text blocks (image, …) are
+  // deferred polish.
+  const text = block.content.type === "text" ? block.content.text : ""
+  return (
+    <pre
+      data-testid="tool-content-text"
+      className="mt-1 max-h-32 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground"
+    >
+      {text}
+    </pre>
+  )
+}
+
+/**
+ * Render an ACP-native tool call (issue #377), keyed by id and advancing
+ * through its status lifecycle in place — generalizing the old `create_pr`-only
+ * spinner to *every* tool. `pending`/`in_progress` show a spinner; `completed`
+ * shows its (optional) structured content; `failed` is flagged red.
+ */
+function ToolCallIndicator({
+  message,
+}: {
+  message: AgentMessage & { role: "tool_call" }
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const running =
+    message.status === "pending" || message.status === "in_progress"
+  const failed = message.status === "failed"
+  const Icon =
+    toolIcons[message.title] ??
+    (message.kind ? kindIcons[message.kind] : undefined) ??
+    Terminal
+  const label = formatToolName(message.title)
+  const detail = toolDetail(message.title, message.rawInput)
+  const hasContent = message.content.length > 0
+
+  return (
+    <button
+      onClick={() => hasContent && setExpanded(!expanded)}
+      className="w-full text-left"
+      data-testid="tool-call"
+      data-status={message.status}
+    >
+      <div
+        className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
+          failed
+            ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+            : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        {running ? (
+          <Loader2
+            data-testid="tool-call-spinner"
+            className="h-3 w-3 shrink-0 animate-spin"
+          />
+        ) : failed ? (
+          <AlertCircle className="h-3 w-3 shrink-0" />
+        ) : (
+          <Icon className="h-3 w-3 shrink-0" />
+        )}
+        <span className="flex-1 truncate">
+          {label}
+          {detail ? (
+            <>
+              {" "}
+              <code className="align-baseline font-mono text-[11px]">
+                {detail}
+              </code>
+            </>
+          ) : null}
+        </span>
+        {hasContent && (
+          <ChevronDown
+            className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
+          />
+        )}
+      </div>
+      {expanded &&
+        message.content.map((block, i) => (
+          <ToolContentBlock key={i} block={block} />
+        ))}
     </button>
   )
 }
@@ -387,6 +543,9 @@ export function AgentMessageItem({
 
     case "tool_result":
       return null
+
+    case "tool_call":
+      return <ToolCallIndicator message={message} />
 
     case "plan":
       return roomId && chatId ? (

@@ -4,6 +4,7 @@ import { getUserId } from "@/lib/auth-helpers"
 import { db } from "@/lib/db"
 import { agentPendingToolCall } from "@/lib/db/schema"
 import type { AgentMessage, CustomToolName } from "@/lib/agent/types"
+import type { AcpToolCallRecord } from "@/lib/agent/acp/record"
 import { loadChatHistory } from "@/lib/agent/persistence"
 import { parseUserMessage } from "@/lib/agent/message-markers"
 
@@ -83,6 +84,23 @@ function convertMessage(
   if ((m.role as string) === "thought") {
     const text = stringifyContent(m.content)
     if (text) out.push({ role: "reasoning", content: text })
+    return
+  }
+  // ACP-native tool-call record (issue #377): role `"tool_call"`, persisted in
+  // place through its status lifecycle. Replays as the same `tool_call` UI row
+  // the live broadcast produces, so a reload shows the call's final status and
+  // its structured content blocks — not a flattened `<pre>`.
+  if ((m.role as string) === "tool_call") {
+    const r = m as unknown as AcpToolCallRecord
+    out.push({
+      role: "tool_call",
+      toolCallId: r.toolCallId,
+      title: r.title,
+      kind: r.kind,
+      status: r.status,
+      content: r.content,
+      rawInput: r.rawInput,
+    })
     return
   }
   switch (m.role) {

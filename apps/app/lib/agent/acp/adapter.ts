@@ -6,7 +6,11 @@ import {
   agentThoughtChunk,
   blockText,
   textBlock,
+  toolCallStart,
+  toolCallUpdate,
   type SessionUpdate,
+  type ToolCallContent,
+  type ToolKind,
 } from "./schema"
 
 /**
@@ -67,10 +71,11 @@ export function withConversationCacheBreakpoint(
 
 /**
  * Concatenate every text {@link import("./schema").ContentBlock} of a record
- * into a single string. The text path only carries text blocks; richer block
- * types are added (structurally) by later slices.
+ * into a single string. Tool-call records carry structured tool output, not
+ * conversation text, so they contribute nothing here.
  */
 export function recordText(record: AcpMessageRecord): string {
+  if (record.role === "tool_call") return ""
   return record.content.map(blockText).join("")
 }
 
@@ -98,19 +103,70 @@ export function acpHistoryToModelMessages(
   history: AcpMessageRecord[]
 ): ModelMessage[] {
   return history.flatMap((record) => {
-    if (record.role === "thought") return []
+    // `thought` records carry reasoning, not model input (see the docblock).
+    // Tool-call records carry the tool lifecycle, not conversation turns;
+    // rebuilding them into assistant `tool-call` + `tool` result pairs (so the
+    // model sees its own tool context) is the adapter's "both directions" work
+    // tracked separately in the PRD. Both are dropped from the text rebuild.
+    if (record.role === "thought" || record.role === "tool_call") return []
     return [
       record.role === "user"
-        ? { role: "user", content: recordText(record) }
-        : { role: "assistant", content: recordText(record) },
+        ? { role: "user" as const, content: recordText(record) }
+        : { role: "assistant" as const, content: recordText(record) },
     ]
   })
 }
 
 /**
+ * The ACP {@link ToolKind} (icon/category hint) for one of screenplay's tools.
+ * A generic ACP agent supplies its own `kind`; this is the in-process engine's
+ * mapping for the tools it runs, defaulting to `"other"` for anything new.
+ */
+export function toolKindFor(toolName: string): ToolKind {
+  switch (toolName) {
+    case "read_file":
+    case "read_document":
+    case "read_skill":
+    case "list_files":
+      return "read"
+    case "write_file":
+    case "edit_file":
+    case "replace_document_body":
+    case "append_to_document_body":
+    case "set_document_title":
+      return "edit"
+    case "run_command":
+      return "execute"
+    default:
+      return "other"
+  }
+}
+
+/**
+ * Wrap a tool's return value as ACP {@link ToolCallContent}. The in-process
+ * engine's tools return strings (or JSON-serialisable values), so this is the
+ * text path — a single `content` block. A real ACP agent emits richer blocks
+ * (file `diff`, `terminal`) directly, which flow through untouched.
+ */
+export function toolOutputToContent(output: unknown): ToolCallContent[] {
+  const text = typeof output === "string" ? output : JSON.stringify(output)
+  return text ? [{ type: "content", content: textBlock(text) }] : []
+}
+
+/**
  * Map a single `streamText` chunk to an ACP `session/update`, or `null` for
- * chunks that carry no ACP signal on the text path (tool calls/results, which
- * later slices translate). Text deltas become `agent_message_chunk`s.
+ * chunks that carry no ACP signal. Text deltas become `agent_message_chunk`s;
+ * the tool chunks drive ACP's tool-call status lifecycle, keyed by tool-call id
+ * (issue #377):
+ *
+ *  - `tool-input-start` → `tool_call` (`pending`): the call exists, args still
+ *    streaming;
+ *  - `tool-call` → `tool_call_update` (`in_progress`): args complete, executing;
+ *  - `tool-result` → `tool_call_update` (`completed`) with structured content;
+ *  - `tool-error` → `tool_call_update` (`failed`).
+ *
+ * `tool-input-start` keys on `id`; the later chunks key on `toolCallId` — the
+ * same value — so every update lands on one record.
  */
 export function aiSdkChunkToAcpUpdate(
   chunk: TextStreamPart<Record<string, Tool>>
@@ -122,6 +178,32 @@ export function aiSdkChunkToAcpUpdate(
       // The agent's streamed thinking → ACP `agent_thought_chunk`, so reasoning
       // survives to broadcast/persistence instead of being dropped on the floor.
       return agentThoughtChunk(chunk.text)
+    case "tool-input-start":
+      return toolCallStart({
+        toolCallId: chunk.id,
+        title: chunk.toolName,
+        kind: toolKindFor(chunk.toolName),
+        status: "pending",
+      })
+    case "tool-call":
+      return toolCallUpdate({
+        toolCallId: chunk.toolCallId,
+        status: "in_progress",
+        title: chunk.toolName,
+        rawInput: chunk.input as Record<string, unknown>,
+      })
+    case "tool-result":
+      return toolCallUpdate({
+        toolCallId: chunk.toolCallId,
+        status: "completed",
+        content: toolOutputToContent(chunk.output),
+      })
+    case "tool-error":
+      return toolCallUpdate({
+        toolCallId: chunk.toolCallId,
+        status: "failed",
+        content: toolOutputToContent(chunk.error),
+      })
     default:
       return null
   }
