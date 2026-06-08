@@ -37,8 +37,8 @@ import {
   type Stream,
 } from "./schema"
 import { aiSdkChunkToAcpUpdate } from "./adapter"
-import { InProcessAiSdkEngine, type StreamDriver } from "./in-process-engine"
-import { AcpEngine, type AcpSessionFactory } from "./acp-engine"
+import { InProcessEngine, type StreamDriver } from "./in-process-engine"
+import { ExternalEngine, type AcpSessionFactory } from "./acp-engine"
 import { AcpSession } from "./session"
 import { createRunState, type RunStateRepo, type RunStatus } from "../run-state"
 
@@ -406,7 +406,7 @@ function contractFor(
   })
 }
 
-contractFor("in-process AI-SDK", (driver) => new InProcessAiSdkEngine(driver))
+contractFor("in-process", (driver) => new InProcessEngine(driver))
 
 // The ACP engine plugs into the *same* contract, driven by the *same* scenario:
 // a generic ACP agent scripted by the `StreamDriver` runs the turn over a real
@@ -414,9 +414,9 @@ contractFor("in-process AI-SDK", (driver) => new InProcessAiSdkEngine(driver))
 // to the consumer. Both engines reaching the identical observable outcome is the
 // executable proof the seam is honest, not nominal (ADR 0006, PRD #375).
 contractFor(
-  "acp",
+  "external",
   (driver) =>
-    new AcpEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
+    new ExternalEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
 )
 
 const CONTRACT_SESSION_ID = "sess_contract"
@@ -446,7 +446,7 @@ function inMemoryStreams(): { client: Stream; agent: Stream } {
 /**
  * Stand up a generic ACP agent whose turn is scripted by the *same*
  * {@link StreamDriver} the in-process engine consumes, then hand the
- * {@link AcpEngine} a factory that opens a session to it. The agent emits genuine
+ * {@link ExternalEngine} a factory that opens a session to it. The agent emits genuine
  * ACP `session/update`s and raises a real permission request for `submit_plan`,
  * exactly as a conforming agent would — so a single scenario drives both engines
  * to the same observable outcome.
@@ -544,7 +544,7 @@ class DriverAgent implements Agent {
   async cancel(): Promise<void> {}
 }
 
-describe("InProcessAiSdkEngine — capability + cancellation", () => {
+describe("InProcessEngine — capability + cancellation", () => {
   it("captures prompt-cache usage from onFinish", async () => {
     const driver: StreamDriver = (config) => ({
       consumeStream: async () => {
@@ -559,7 +559,7 @@ describe("InProcessAiSdkEngine — capability + cancellation", () => {
         } as any)
       },
     })
-    const engine = new InProcessAiSdkEngine(driver)
+    const engine = new InProcessEngine(driver)
     await engine.run(
       {
         chatId: "c",
@@ -589,7 +589,7 @@ describe("InProcessAiSdkEngine — capability + cancellation", () => {
     })
     const controller = new AbortController()
     controller.abort()
-    const engine = new InProcessAiSdkEngine(driver)
+    const engine = new InProcessEngine(driver)
     await engine.run(
       {
         chatId: "c",

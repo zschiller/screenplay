@@ -82,7 +82,7 @@ sink, signal)` drives one turn to completion, reporting `EngineUpdate`s — ACP
 
 - **Engine selection is a per-deployment env var.** Two implementations justify
   a selection mechanism; the surface (settled by the second-engine slice #383) is
-  deliberately **minimal and explicit** — `AGENT_ENGINE=in-process|acp` (default
+  deliberately **minimal and explicit** — `AGENT_ENGINE=in-process|external` (default
   in-process), read at the engine boundary, **not** a per-Chat-Session schema
   column. A deployment runs entirely on one engine, so the choice never migrates
   data or branches per row, and an unrecognised value stays on the default rather
@@ -233,9 +233,9 @@ The second implementation lands, proving the seam is honest rather than nominal:
   machinery (the PRD sequences the route cutover into a later slice). The one
   user-visible behaviour landed on the live path here is **plan rejection
   feedback**, which was sent but never shown. Cutting the routes over to drive
-  `InProcessAiSdkEngine` through the consumer — and retiring `AgentStreamEvent`
+  `InProcessEngine` through the consumer — and retiring `AgentStreamEvent`
   and the `ModelMessage` log — is the next move, now guarded by the
   contract/consumer/adapter/resolution tests landed here.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
-  an ACP implementation," keeping the **Harness** distinction intact.
+  an external implementation," keeping the **Harness** distinction intact.
