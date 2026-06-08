@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react"
+import Link from "next/link"
 import { animate, motion, useMotionValue } from "motion/react"
 import {
   ArrowLeft,
@@ -238,9 +239,9 @@ export function PlayerHud({
                 size="icon-xs"
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <a href={`/${roomId}`}>
+                <Link href={`/${roomId}`}>
                   <ArrowLeft className="h-3.5 w-3.5" />
-                </a>
+                </Link>
               </Button>
             </TooltipTrigger>
             <TooltipContent side={tooltipSide}>

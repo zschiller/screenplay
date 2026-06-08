@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { File as FileIcon, MoreHorizontal, Pin } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -35,7 +36,7 @@ function FileRow({ file }: { file: RoomSummary }) {
   return (
     <TableRow className="group">
       <TableCell className="w-full">
-        <a href={`/${file.id}`} className="flex items-center gap-2">
+        <Link href={`/${file.id}`} className="flex items-center gap-2">
           <FileIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate font-medium hover:underline">
             {file.name}
@@ -43,7 +44,7 @@ function FileRow({ file }: { file: RoomSummary }) {
           {pinned && (
             <Pin className="size-3 shrink-0 fill-foreground/60 text-foreground/60" />
           )}
-        </a>
+        </Link>
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">
         {folderName}
