@@ -1,22 +1,19 @@
-import type { ModelMessage } from "ai"
-import { and, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { getUserId } from "@/lib/auth-helpers"
 import { db } from "@/lib/db"
-import { agentPendingToolCall } from "@/lib/db/schema"
-import type { AgentMessage, CustomToolName } from "@/lib/agent/types"
-import type { AcpToolCallRecord } from "@/lib/agent/acp/record"
-import { loadChatHistory } from "@/lib/agent/persistence"
-import { parseUserMessage } from "@/lib/agent/message-markers"
+import { agentMessage, agentPendingToolCall } from "@/lib/db/schema"
+import type { AcpMessageRecord } from "@/lib/agent/acp/record"
+import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
 
 export const runtime = "nodejs"
 
 /**
- * Convert stored ModelMessages back to the v1 `AgentMessage[]` shape so
- * existing chat UI renders v2 chats without changes.
- *
- * `submit_plan` calls are surfaced as `role: "plan"` rows so the UI can render
- * them as plan cards. Status comes from the `agent_pending_tool_call` table
- * (pending if no row, otherwise approved/rejected).
+ * Reload a chat from its ACP-native durable log (ADR 0006). The four ACP record
+ * kinds (`user`/`agent`/`thought`/`tool_call`) are merged with the chat's plan
+ * gates — reconstructed from their `submit_plan` pending-tool-call rows — by
+ * `createdAt`, so a reload rebuilds the same conversation the live broadcast
+ * produced. The legacy `ModelMessage` conversion switch is gone; legacy rows
+ * carry no ACP role and render as nothing (reset per ADR 0006, not migrated).
  */
 export async function GET(req: Request) {
   const userId = await getUserId()
@@ -26,15 +23,24 @@ export async function GET(req: Request) {
   const chatId = searchParams.get("chatId")
   if (!chatId) return Response.json([])
 
-  const [history, planRows] = await Promise.all([
-    loadChatHistory(chatId),
-    // The pending-tool-call row id IS the AI SDK tool-call id, so it lines
-    // up directly with the toolCallId on the assistant's submit_plan part.
+  const [rows, planRows] = await Promise.all([
+    db
+      .select({
+        message: agentMessage.message,
+        createdAt: agentMessage.createdAt,
+      })
+      .from(agentMessage)
+      .where(eq(agentMessage.chatId, chatId))
+      .orderBy(asc(agentMessage.createdAt)),
+    // The pending-tool-call row id IS the tool-call id, so it lines up directly
+    // with the planId the client holds; its status drives the card's resolved
+    // state on reload.
     db
       .select({
         id: agentPendingToolCall.id,
+        input: agentPendingToolCall.input,
         status: agentPendingToolCall.status,
-        feedback: agentPendingToolCall.feedback,
+        createdAt: agentPendingToolCall.createdAt,
       })
       .from(agentPendingToolCall)
       .where(
@@ -45,149 +51,27 @@ export async function GET(req: Request) {
       ),
   ])
 
-  const planByToolCallId = new Map<
-    string,
-    { status: "pending" | "approved" | "rejected"; feedback: string | null }
-  >()
-  for (const r of planRows) {
-    planByToolCallId.set(r.id, { status: r.status, feedback: r.feedback })
-  }
-
-  const messages: AgentMessage[] = []
-  for (const m of history) {
-    convertMessage(m, planByToolCallId, messages)
-  }
-
-  return Response.json(messages)
-}
-
-function convertMessage(
-  m: ModelMessage,
-  plans: Map<
-    string,
-    { status: "pending" | "approved" | "rejected"; feedback: string | null }
-  >,
-  out: AgentMessage[]
-): void {
-  // ACP-native agent record (ADR 0006): role `"agent"`, content is a list of
-  // ACP text ContentBlocks. ACP-native `user` records carry the same text-block
-  // shape and fall through to the `user` case below, where `stringifyContent`
-  // already reads `.text` off each block. The browser renders the server's ACP
-  // shapes; it never opens an ACP connection of its own.
-  if ((m.role as string) === "agent") {
-    const text = stringifyContent(m.content)
-    if (text) out.push({ role: "assistant", content: text })
-    return
-  }
-  // ACP-native reasoning record (role `"thought"`): the agent's streamed
-  // thinking, rendered as a collapsible reasoning block on reload/late-join.
-  if ((m.role as string) === "thought") {
-    const text = stringifyContent(m.content)
-    if (text) out.push({ role: "reasoning", content: text })
-    return
-  }
-  // ACP-native tool-call record (issue #377): role `"tool_call"`, persisted in
-  // place through its status lifecycle. Replays as the same `tool_call` UI row
-  // the live broadcast produces, so a reload shows the call's final status and
-  // its structured content blocks — not a flattened `<pre>`.
-  if ((m.role as string) === "tool_call") {
-    const r = m as unknown as AcpToolCallRecord
-    out.push({
-      role: "tool_call",
-      toolCallId: r.toolCallId,
-      title: r.title,
-      kind: r.kind,
-      status: r.status,
-      content: r.content,
-      rawInput: r.rawInput,
+  // Merge the two streams into one time-ordered timeline so the plan card lands
+  // between the narration that preceded it and the resolution that followed.
+  const timeline: Array<{ createdAt: Date; entry: HistoryEntry }> = []
+  for (const r of rows) {
+    timeline.push({
+      createdAt: r.createdAt,
+      entry: { kind: "record", record: r.message as AcpMessageRecord },
     })
-    return
   }
-  switch (m.role) {
-    case "user": {
-      const text = stringifyContent(m.content)
-      // Strip the [plan mode: enabled] / [branch: ...] prefixes the stream
-      // route prepends — they're routing metadata for the model, not for the
-      // UI. The Message Markers codec is the one decoder for this format.
-      const { body: cleaned } = parseUserMessage(text)
-      if (cleaned) out.push({ role: "user", content: cleaned })
-      break
-    }
-
-    case "assistant": {
-      if (typeof m.content === "string") {
-        if (m.content) out.push({ role: "assistant", content: m.content })
-        return
-      }
-      // Multi-part assistant: text parts → assistant messages, tool-call parts
-      // → tool_use rows (with submit_plan special-cased to plan rows).
-      for (const part of m.content) {
-        if (part.type === "text" && part.text) {
-          out.push({ role: "assistant", content: part.text })
-        } else if (part.type === "tool-call") {
-          if (part.toolName === "submit_plan") {
-            const plan = (part.input as { plan?: string })?.plan ?? ""
-            const resolved = plans.get(part.toolCallId)
-            out.push({
-              role: "plan",
-              content: plan,
-              status: resolved?.status ?? "pending",
-              planId: part.toolCallId,
-              // Surface the stored rejection feedback so a reload shows it on the
-              // card, not just the live `plan_rejected` broadcast (#379).
-              ...(resolved?.feedback ? { feedback: resolved.feedback } : {}),
-            })
-          } else {
-            out.push({
-              role: "tool_use",
-              name: part.toolName as CustomToolName,
-              input: (part.input as Record<string, unknown>) ?? {},
-            })
-          }
-        }
-      }
-      break
-    }
-
-    case "tool": {
-      if (typeof m.content === "string") return
-      for (const part of m.content) {
-        if (part.type !== "tool-result") continue
-        // Hide the synthetic submit_plan resolution — the plan card already
-        // shows its own approved/rejected state.
-        if (part.toolName === "submit_plan") continue
-        const output = extractToolResultText(part.output)
-        out.push({
-          role: "tool_result",
-          name: part.toolName as CustomToolName,
-          output,
-        })
-      }
-      break
-    }
-
-    case "system":
-      // System messages don't surface to the chat UI.
-      break
+  for (const p of planRows) {
+    timeline.push({
+      createdAt: p.createdAt,
+      entry: {
+        kind: "plan",
+        planId: p.id,
+        plan: String((p.input as { plan?: unknown }).plan ?? ""),
+        status: p.status,
+      },
+    })
   }
-}
+  timeline.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
 
-function stringifyContent(content: ModelMessage["content"]): string {
-  if (typeof content === "string") return content
-  let s = ""
-  for (const part of content) {
-    if ("text" in part && typeof part.text === "string") s += part.text
-  }
-  return s
-}
-
-function extractToolResultText(output: unknown): string {
-  if (typeof output === "string") return output
-  if (output && typeof output === "object") {
-    const o = output as { type?: string; value?: unknown; text?: string }
-    if (o.type === "text" && typeof o.value === "string") return o.value
-    if (typeof o.text === "string") return o.text
-    return JSON.stringify(output)
-  }
-  return String(output)
+  return Response.json(renderHistory(timeline.map((t) => t.entry)))
 }

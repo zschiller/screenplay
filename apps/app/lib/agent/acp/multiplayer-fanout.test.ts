@@ -124,9 +124,9 @@ async function runConsumerToBus(
     },
     async broadcastError(message) {
       bus.push({
-        type: "chat-stream",
+        type: "chat-control",
         id: randomUUID(),
-        event: { type: "error", message },
+        control: { kind: "error", message },
       })
     },
     async broadcastEnd() {

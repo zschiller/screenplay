@@ -5,14 +5,13 @@ import { agentChat } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { toolsetFor } from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
-import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
-import {
-  appendMessage,
-  findPendingToolCall,
-  loadChatHistoryForModel,
-} from "@/lib/agent/persistence"
-import { resolvePlan, startRun, transition } from "@/lib/agent/run-state"
-import { broadcastEvent, broadcastSignal } from "@/lib/agent/broadcast"
+import { findPendingToolCall } from "@/lib/agent/persistence"
+import { startRun } from "@/lib/agent/run-state"
+import { broadcastSignal } from "@/lib/agent/broadcast"
+import { resolvePlanGate } from "@/lib/agent/acp/resolution"
+import { livePlanResolutionPorts } from "@/lib/agent/acp/consumer-live"
+import { selectEngine } from "@/lib/agent/acp/engine-select"
+import { launchEngineTurn } from "@/lib/agent/launch-turn"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -29,6 +28,10 @@ export async function POST(req: Request) {
   const userId = await getUserId()
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
+  // Resolve the engine up front so a misconfigured deployment fails loud here
+  // rather than silently falling back (ADR 0006).
+  const engine = selectEngine()
+
   const body: RequestBody = await req.json()
   const { roomId, chatId, planId, approved, feedback } = body
   if (!roomId || !chatId || !planId) {
@@ -44,13 +47,21 @@ export async function POST(req: Request) {
     return new Response("Plan/chat mismatch", { status: 400 })
   }
 
-  // Resolve the plan and supersede its run atomically: the tool-call is marked
-  // approved/rejected and the paused run moves to `superseded` in one
-  // transaction. Starting the continuation is a separate `startRun` below.
-  await resolvePlan(planId, { approved, feedback })
+  // Resolve the plan gate, ACP-native (ADR 0006): supersede the paused run,
+  // persist the human resolution as an ACP-native `user` record (the
+  // continuation the agent acts on next — approve → "proceed", reject → the
+  // feedback), and broadcast the outcome (flip the plan card + echo the
+  // continuation as a live user turn). Returns null when nothing was still
+  // pending (a double-submit or a gate a /stop already tore down).
+  const resolved = await resolvePlanGate(
+    livePlanResolutionPorts(roomId, chatId),
+    planId,
+    { approved, feedback }
+  )
+  if (!resolved) return new Response("Plan already resolved", { status: 409 })
 
-  // Look up the chat's recorded model + system prompt so the resume call uses
-  // the same agent configuration as the original run.
+  // Look up the chat's recorded model + system prompt so the resume uses the
+  // same agent configuration as the original run.
   const [chat] = await db
     .select({
       sandboxName: agentChat.sandboxName,
@@ -68,58 +79,23 @@ export async function POST(req: Request) {
     userId,
   }
 
-  // Append the human-side resolution as a tool message so the model sees a
-  // valid tool-call → tool-result pair for submit_plan, then resume. The
-  // row id IS the tool-call id, so `pending.id` is what the AI SDK is
-  // expecting in the tool-result.
-  const toolResultMsg = buildPlanToolResultMessage({
-    toolCallId: pending.id,
-    approved,
-    feedback,
-  })
-  await appendMessage(chatId, toolResultMsg)
-
-  const history = await loadChatHistoryForModel(chatId)
   const runId = await startRun(chatId)
 
-  // Mirror v1's approval/rejection broadcast so the UI updates the plan card.
-  if (approved) {
-    await broadcastEvent(roomId, chatId, { type: "plan_approved", planId })
-  } else {
-    await broadcastEvent(roomId, chatId, {
-      type: "plan_rejected",
-      planId,
-      feedback: feedback ?? "No feedback provided",
-    })
-  }
-
-  // Broadcast the resume signal synchronously so the UI re-enters the
-  // streaming state before the response returns; a failed `after()` won't
-  // leave the chat stuck on the plan card with no progress.
+  // Re-enter the streaming state before the response returns; a failed `after()`
+  // won't leave the chat stuck on the plan card with no progress.
   await broadcastSignal(roomId, chatId, "chat-stream-start")
 
-  after(async () => {
-    try {
-      await runAgentLoop({
-        chatId,
-        runId,
-        roomId,
-        systemPrompt: chat.systemPrompt,
-        model: chat.model,
-        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
-        messages: history,
-      })
-    } catch (e) {
-      console.error("runAgentLoop failed (plan resume):", e)
-      const msg = e instanceof Error ? e.message : String(e)
-      try {
-        await broadcastEvent(roomId, chatId, { type: "error", message: msg })
-      } finally {
-        await transition(runId, "failed").catch(() => {})
-        await broadcastSignal(roomId, chatId, "chat-stream-end")
-      }
-    }
-  })
+  after(() =>
+    launchEngineTurn({
+      engine,
+      roomId,
+      chatId,
+      runId,
+      systemPrompt: chat.systemPrompt,
+      model: chat.model,
+      tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+    })
+  )
 
   return Response.json({ success: true, runId })
 }

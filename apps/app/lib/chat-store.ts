@@ -1,8 +1,4 @@
-import type {
-  AgentMessage,
-  AgentStreamEvent,
-  CustomToolName,
-} from "@/lib/agent/types"
+import type { AgentMessage } from "@/lib/agent/types"
 import {
   blockText,
   isUpdate,
@@ -38,16 +34,34 @@ export interface SendMessageOptions {
 }
 
 /**
+ * A non-ACP control signal that rides its own broadcast envelope (ADR 0006).
+ * ACP has no slot for these — auto-naming renames, the human plan resolution,
+ * and turn errors — so they stay screenplay-shaped on a dedicated channel,
+ * structurally distinct from the ACP `session/update` and permission-request
+ * envelopes (the way the permission request is already kept apart).
+ */
+export type ChatControlEvent =
+  | { kind: "branch_rename"; branch: string }
+  | { kind: "chat_rename"; label: string }
+  // The human resolved a plan gate — flip the matching plan card. The
+  // continuation (and any reject feedback) rides its own `user` turn, so the
+  // card carries only the resolved status.
+  | { kind: "plan_resolved"; planId: string; approved: boolean }
+  // A turn failure. ACP expresses errors out of band of the update stream, so
+  // this is not a `session/update`; it surfaces the error in chat.
+  | { kind: "error"; message: string }
+
+/**
  * Envelope broadcast via the room Y.Doc to all clients. `id` is generated at
  * the broadcast boundary (`broadcastChatEventViaDoc`) and lets clients dedup
  * the same event when multiple subscribers feed it into the same store.
  */
 export type ChatBroadcastEvent =
-  | { type: "chat-stream"; chatId: string; id: string; event: AgentStreamEvent }
   // ACP-shaped update broadcast by the server (ADR 0006). The browser renders
-  // the server's broadcast; it never opens an ACP connection of its own. For
-  // the text path this carries `agent_message_chunk` (a streamed text delta);
-  // richer `sessionUpdate` kinds are rendered by later slices.
+  // the server's broadcast; it never opens an ACP connection of its own. Carries
+  // the streamed `session/update`s — `agent_message_chunk`/`agent_thought_chunk`
+  // deltas, the `tool_call` lifecycle, and the synchronous `user_message_chunk`
+  // echo that transitions the client into streaming.
   | {
       type: "chat-acp-update"
       chatId: string
@@ -62,6 +76,14 @@ export type ChatBroadcastEvent =
       chatId: string
       id: string
       request: RequestPermissionRequest
+    }
+  // Non-ACP control signals (renames, plan resolution, error) on their own
+  // dedicated envelope.
+  | {
+      type: "chat-control"
+      chatId: string
+      id: string
+      control: ChatControlEvent
     }
   | { type: "chat-stream-start"; chatId: string; id: string }
   | { type: "chat-stream-end"; chatId: string; id: string }
@@ -143,14 +165,6 @@ class ChatStore {
    * effects produce the same hazard. Trim entries on cleanup.
    */
   private appliedEventIds = new Map<string, Set<string>>()
-
-  /**
-   * Most-recent text-block id seen per chat. When the broadcaster moves to a
-   * new text block (a new `textId`) we append a fresh assistant message
-   * instead of replacing the trailing one, so multiple text blocks within a
-   * single agent step don't clobber each other.
-   */
-  private currentTextId = new Map<string, string>()
 
   /**
    * Per-chat accumulator for the ACP text path (ADR 0006). ACP
@@ -380,10 +394,9 @@ class ChatStore {
 
     switch (event.type) {
       case "chat-stream-start":
-        // Reset the text-block trackers so the next text event starts a fresh
+        // Reset the text-block accumulators so the next delta starts a fresh
         // assistant message rather than replacing the last one from a
         // previous turn.
-        this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
         this.update(chatId, { isStreaming: true })
@@ -395,16 +408,11 @@ class ChatStore {
         // already cleared it.
         const wasStreaming = this.getOrCreate(chatId).isStreaming
         if (wasStreaming) this.unreadChats.add(chatId)
-        this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
         this.update(chatId, { isStreaming: false })
         break
       }
-
-      case "chat-stream":
-        this.applyEvent(chatId, event.event)
-        break
 
       case "chat-acp-update":
         this.applyAcpUpdate(chatId, event.update)
@@ -412,6 +420,53 @@ class ChatStore {
 
       case "chat-acp-permission":
         this.applyAcpPermission(chatId, event.request)
+        break
+
+      case "chat-control":
+        this.applyControl(chatId, event.control)
+        break
+    }
+  }
+
+  /**
+   * Apply a non-ACP control signal (ADR 0006): an auto-naming rename (delegated
+   * to the registered callback), a plan resolution (flip the matching plan
+   * card), or a turn error (surface it in chat). These have no ACP slot, so they
+   * ride their own envelope rather than a `session/update`.
+   */
+  private applyControl(chatId: string, control: ChatControlEvent) {
+    const cbs = this.callbacks.get(chatId)
+    switch (control.kind) {
+      case "branch_rename":
+        cbs?.onBranchRename?.(control.branch)
+        break
+      case "chat_rename":
+        cbs?.onChatRename?.(control.label)
+        break
+      case "plan_resolved": {
+        const prev = this.getOrCreate(chatId).messages
+        this.update(chatId, {
+          messages: prev.map((m) =>
+            m.role === "plan" && m.planId === control.planId
+              ? {
+                  ...m,
+                  status: control.approved
+                    ? ("approved" as const)
+                    : ("rejected" as const),
+                }
+              : m
+          ),
+        })
+        break
+      }
+      case "error":
+        this.update(chatId, {
+          error: control.message,
+          messages: [
+            ...this.getOrCreate(chatId).messages,
+            { role: "error" as const, content: control.message },
+          ],
+        })
         break
     }
   }
@@ -428,7 +483,6 @@ class ChatStore {
   ) {
     const { toolCallId, plan } = planFromPermissionRequest(request)
     // A permission request closes any in-flight agent text block.
-    this.currentTextId.delete(chatId)
     this.acpAgentText.delete(chatId)
     const prev = this.getOrCreate(chatId).messages
     this.update(chatId, {
@@ -455,6 +509,10 @@ class ChatStore {
    * until later slices render them.
    */
   private applyAcpUpdate(chatId: string, update: SessionUpdate) {
+    if (isUpdate(update, "user_message_chunk")) {
+      this.appendUserEcho(chatId, blockText(update.content))
+      return
+    }
     if (isUpdate(update, "agent_message_chunk")) {
       this.appendAcpDelta(
         chatId,
@@ -479,6 +537,25 @@ class ChatStore {
       this.applyAcpToolCall(chatId, update)
       return
     }
+  }
+
+  /**
+   * Append the synchronous user-message echo (ADR 0006) — the ACP
+   * `user_message_chunk` the route broadcasts so the client transitions into
+   * streaming. Dedups against the optimistic add the sending client already
+   * made (its trailing message is the identical user turn); other browsers and
+   * late joiners append it fresh. The echo closes any in-flight agent/thought
+   * block so the next agent delta starts a new message.
+   */
+  private appendUserEcho(chatId: string, text: string) {
+    this.acpAgentText.delete(chatId)
+    this.acpThoughtText.delete(chatId)
+    const prev = this.getOrCreate(chatId).messages
+    const last = prev[prev.length - 1]
+    if (last?.role === "user" && last.content === text) return
+    this.update(chatId, {
+      messages: [...prev, { role: "user" as const, content: text }],
+    })
   }
 
   /**
@@ -532,7 +609,6 @@ class ChatStore {
     // delta should start a fresh message rather than replacing this one.
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
-    this.currentTextId.delete(chatId)
 
     const prev = this.getOrCreate(chatId).messages
     const idx = prev.findIndex(
@@ -559,155 +635,6 @@ class ChatStore {
       this.update(chatId, { messages: next })
     } else {
       this.update(chatId, { messages: [...prev, message] })
-    }
-  }
-
-  /** Apply a single agent stream event to local state. */
-  private applyEvent(chatId: string, event: AgentStreamEvent) {
-    const cbs = this.callbacks.get(chatId)
-
-    switch (event.type) {
-      case "user_message": {
-        const prev = this.getOrCreate(chatId).messages
-        const last = prev[prev.length - 1]
-        // Avoid duplicating if the sending client already added it optimistically
-        if (last?.role === "user" && last.content === event.text) break
-        this.update(chatId, {
-          messages: [...prev, { role: "user" as const, content: event.text }],
-        })
-        break
-      }
-
-      case "text": {
-        const prev = this.getOrCreate(chatId).messages
-        const last = prev[prev.length - 1]
-        const prevTextId = this.currentTextId.get(chatId)
-        // Replace the trailing assistant message only when the broadcaster
-        // is still emitting deltas for the same text block. A new textId
-        // means the model started a fresh block (a second paragraph after a
-        // tool-call within one step, or text from the next step) — append
-        // instead so the prior text isn't overwritten.
-        const sameBlock =
-          last?.role === "assistant" &&
-          (event.textId === undefined || prevTextId === event.textId)
-        if (event.textId !== undefined) {
-          this.currentTextId.set(chatId, event.textId)
-        }
-        if (sameBlock) {
-          this.update(chatId, {
-            messages: [
-              ...prev.slice(0, -1),
-              { role: "assistant" as const, content: event.text },
-            ],
-          })
-        } else {
-          this.update(chatId, {
-            messages: [
-              ...prev,
-              { role: "assistant" as const, content: event.text },
-            ],
-          })
-        }
-        break
-      }
-
-      case "tool_use":
-        // A tool call breaks the current text block — the next text event
-        // should append a new assistant message even if its textId happens
-        // to repeat. The ACP agent text block is broken too.
-        this.currentTextId.delete(chatId)
-        this.acpAgentText.delete(chatId)
-        this.acpThoughtText.delete(chatId)
-        this.update(chatId, {
-          messages: [
-            ...this.getOrCreate(chatId).messages,
-            {
-              role: "tool_use" as const,
-              name: event.name as CustomToolName,
-              input: event.input,
-            },
-          ],
-        })
-        break
-
-      case "tool_result":
-        this.currentTextId.delete(chatId)
-        this.acpAgentText.delete(chatId)
-        this.acpThoughtText.delete(chatId)
-        this.update(chatId, {
-          messages: [
-            ...this.getOrCreate(chatId).messages,
-            {
-              role: "tool_result" as const,
-              name: event.name as CustomToolName,
-              output: event.output,
-            },
-          ],
-        })
-        break
-
-      case "branch_rename":
-        cbs?.onBranchRename?.(event.branch)
-        break
-
-      case "chat_rename":
-        cbs?.onChatRename?.(event.label)
-        break
-
-      case "plan_submitted": {
-        const prev = this.getOrCreate(chatId).messages
-        this.update(chatId, {
-          messages: [
-            ...prev,
-            {
-              role: "plan" as const,
-              content: event.plan,
-              status: "pending" as const,
-              planId: event.planId,
-            },
-          ],
-        })
-        break
-      }
-
-      case "plan_approved": {
-        const prev = this.getOrCreate(chatId).messages
-        this.update(chatId, {
-          messages: prev.map((m) =>
-            m.role === "plan" && m.planId === event.planId
-              ? { ...m, status: "approved" as const }
-              : m
-          ),
-        })
-        break
-      }
-
-      case "plan_rejected": {
-        const prev = this.getOrCreate(chatId).messages
-        this.update(chatId, {
-          messages: prev.map((m) =>
-            m.role === "plan" && m.planId === event.planId
-              ? // Carry the rejection feedback onto the card so it's shown — it
-                // was sent on this event all along but previously dropped (#379).
-                { ...m, status: "rejected" as const, feedback: event.feedback }
-              : m
-          ),
-        })
-        break
-      }
-
-      case "error":
-        this.update(chatId, {
-          error: event.message,
-          messages: [
-            ...this.getOrCreate(chatId).messages,
-            { role: "error" as const, content: event.message },
-          ],
-        })
-        break
-
-      case "done":
-        break
     }
   }
 
@@ -791,7 +718,6 @@ class ChatStore {
     this.callbacks.delete(chatId)
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)
-    this.currentTextId.delete(chatId)
     this.acpAgentText.delete(chatId)
     this.acpThoughtText.delete(chatId)
     this.notify(chatId)
