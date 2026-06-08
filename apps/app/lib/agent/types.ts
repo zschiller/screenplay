@@ -6,6 +6,11 @@
 import type { buildSandboxTools } from "@/lib/agent/tools"
 import type { buildMarkdownLayerTools } from "@/lib/agent/markdown-layer-tools"
 import type { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
+import type {
+  ToolCallContent,
+  ToolCallStatus,
+  ToolKind,
+} from "@/lib/agent/acp/schema"
 
 type AllTools = ReturnType<typeof buildSandboxTools> &
   ReturnType<typeof buildMarkdownLayerTools> &
@@ -42,6 +47,21 @@ export type AgentMessage =
        * — previously dropped, which is the "feedback never shown" gap #379 closes.
        */
       feedback?: string
+    }
+  // ACP-native tool call (issue #377), keyed by `toolCallId` and updated in
+  // place through its status lifecycle. Unlike the legacy `tool_use`/
+  // `tool_result` pair (matched by the parent at render time), this single row
+  // carries the whole call — its status and its structured `content` blocks
+  // (text, file `diff`, `terminal`) — so the renderer never re-pairs and never
+  // flattens the richer output.
+  | {
+      role: "tool_call"
+      toolCallId: string
+      title: string
+      kind?: ToolKind
+      status: ToolCallStatus
+      content: ToolCallContent[]
+      rawInput?: Record<string, unknown>
     }
 
 export type AgentStreamEvent =

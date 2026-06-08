@@ -132,9 +132,11 @@ async function runConsumerToBus(
     async broadcastEnd() {
       bus.push({ type: "chat-stream-end", id: randomUUID() })
     },
-    // The durable record append is not part of the broadcast fan-out — browsers
-    // render the live stream, not the persisted log — so it is a no-op here.
+    // The durable record append / tool-call upsert are not part of the
+    // broadcast fan-out — browsers render the live stream, not the persisted
+    // log — so they are no-ops here.
     async appendRecord() {},
+    async upsertToolCall() {},
     async transition(to) {
       await runState.transition(runId, to)
     },

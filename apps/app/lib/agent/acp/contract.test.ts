@@ -13,7 +13,7 @@ import {
   type ConsumerPlanCall,
 } from "./consumer"
 import type { EngineUpdate, Engine } from "./engine-seam"
-import type { AcpMessageRecord } from "./record"
+import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
   textBlock,
   type RequestPermissionRequest,
@@ -56,6 +56,7 @@ function contractFor(
         async appendRecord(r) {
           records.push(r)
         },
+        async upsertToolCall() {},
         async transition(to) {
           if (to === "completed") completed = true
         },
@@ -136,6 +137,7 @@ function contractFor(
         async appendRecord(r) {
           records.push(r)
         },
+        async upsertToolCall() {},
         async transition(to) {
           if (to === "completed") completed = true
         },
@@ -203,6 +205,94 @@ function contractFor(
       ])
       expect(completed).toBe(false)
       expect(ended).toBe(true)
+    })
+
+    it("a tool call advances pending → in_progress → completed keyed by id, persisted in place", async () => {
+      const broadcasts: SessionUpdate[] = []
+      const toolCalls = new Map<string, AcpToolCallRecord>()
+      const ports: AcpConsumerPorts = {
+        async broadcastUpdate(u) {
+          broadcasts.push(u)
+        },
+        async broadcastError() {},
+        async broadcastEnd() {},
+        async appendRecord() {},
+        async upsertToolCall(r) {
+          toolCalls.set(r.toolCallId, r)
+        },
+        async transition() {},
+        async broadcastPermissionRequest() {},
+        async pauseForPlan() {},
+      }
+      const consumer = new AcpUpdateConsumer(ports)
+
+      // A driver that streams a tool through input-start → call → result.
+      const driver: StreamDriver = (config) => ({
+        consumeStream: async () => {
+          await config.onChunk?.({
+            chunk: {
+              type: "tool-input-start",
+              id: "call_1",
+              toolName: "read_file",
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+          })
+          await config.onChunk?.({
+            chunk: {
+              type: "tool-call",
+              toolCallId: "call_1",
+              toolName: "read_file",
+              input: { path: "a.ts" },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+          })
+          await config.onChunk?.({
+            chunk: {
+              type: "tool-result",
+              toolCallId: "call_1",
+              toolName: "read_file",
+              output: "file contents",
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any,
+          })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await config.onFinish?.({ finishReason: "stop" } as any)
+        },
+      })
+
+      const engine = makeEngine(driver)
+      await engine.run(
+        {
+          chatId: "c",
+          runId: "r",
+          roomId: "rm",
+          systemPrompt: "s",
+          model: "anthropic:test",
+          history: [],
+        },
+        (u: EngineUpdate) => consumer.handle(u),
+        new AbortController().signal
+      )
+
+      // The engine emits ACP tool-call + tool-call updates with the lifecycle.
+      expect(
+        broadcasts.map((u) => [
+          u.sessionUpdate,
+          "status" in u ? u.status : undefined,
+        ])
+      ).toEqual([
+        ["tool_call", "pending"],
+        ["tool_call_update", "in_progress"],
+        ["tool_call_update", "completed"],
+      ])
+      // One record, merged in place, with structured content (not flattened).
+      const record = toolCalls.get("call_1")
+      expect(record?.status).toBe("completed")
+      expect(record?.kind).toBe("read")
+      expect(record?.rawInput).toEqual({ path: "a.ts" })
+      expect(record?.content).toEqual([
+        { type: "content", content: { type: "text", text: "file contents" } },
+      ])
     })
 
     it.todo(

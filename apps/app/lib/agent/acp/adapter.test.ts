@@ -6,6 +6,8 @@ import {
   aiSdkChunkToAcpUpdate,
   cachedSystem,
   thoughtChunksToRecord,
+  toolKindFor,
+  toolOutputToContent,
   withConversationCacheBreakpoint,
   ANTHROPIC_CACHE_BREAKPOINT,
 } from "./adapter"
@@ -33,6 +35,24 @@ describe("acpHistoryToModelMessages (ACP-native history → ModelMessage[])", ()
       { role: "agent", content: [textBlock("foo"), textBlock("bar")] },
     ])
     expect(rebuilt).toEqual([{ role: "assistant", content: "foobar" }])
+  })
+
+  it("drops tool-call records from the text-path rebuild", () => {
+    const rebuilt = acpHistoryToModelMessages([
+      { role: "user", content: [textBlock("hi")] },
+      {
+        role: "tool_call",
+        toolCallId: "c1",
+        title: "read_file",
+        status: "completed",
+        content: [],
+      },
+      { role: "agent", content: [textBlock("done")] },
+    ])
+    expect(rebuilt).toEqual<ModelMessage[]>([
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "done" },
+    ])
   })
 
   // The carried prompt-cache risk: the rebuild must be deterministic so the
@@ -117,12 +137,70 @@ describe("aiSdkChunkToAcpUpdate (streamText chunk → ACP update)", () => {
     })
   })
 
-  it("drops chunks with no text-path ACP signal (e.g. tool-call)", () => {
+  it("maps tool-input-start to a pending tool_call with the tool's kind", () => {
+    const chunk = {
+      type: "tool-input-start",
+      id: "c1",
+      toolName: "read_file",
+    } as unknown as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toEqual({
+      sessionUpdate: "tool_call",
+      toolCallId: "c1",
+      title: "read_file",
+      kind: "read",
+      status: "pending",
+    })
+  })
+
+  it("maps tool-call to an in_progress tool_call_update carrying the input", () => {
     const chunk = {
       type: "tool-call",
       toolCallId: "c1",
-      toolName: "x",
-      input: {},
+      toolName: "run_command",
+      input: { command: "ls" },
+    } as unknown as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toEqual({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "c1",
+      status: "in_progress",
+      title: "run_command",
+      rawInput: { command: "ls" },
+    })
+  })
+
+  it("maps tool-result to a completed update with structured content", () => {
+    const chunk = {
+      type: "tool-result",
+      toolCallId: "c1",
+      toolName: "read_file",
+      output: "contents",
+    } as unknown as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toEqual({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "c1",
+      status: "completed",
+      content: [{ type: "content", content: textBlock("contents") }],
+    })
+  })
+
+  it("maps tool-error to a failed update", () => {
+    const chunk = {
+      type: "tool-error",
+      toolCallId: "c1",
+      toolName: "read_file",
+      error: "boom",
+    } as unknown as TextStreamPart<Record<string, Tool>>
+    expect(aiSdkChunkToAcpUpdate(chunk)).toMatchObject({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "c1",
+      status: "failed",
+    })
+  })
+
+  it("still drops chunks with no ACP signal (e.g. text-start)", () => {
+    const chunk = {
+      type: "text-start",
+      id: "t1",
     } as unknown as TextStreamPart<Record<string, Tool>>
     expect(aiSdkChunkToAcpUpdate(chunk)).toBeNull()
   })
@@ -138,6 +216,36 @@ describe("thoughtChunksToRecord (streamed reasoning deltas → durable record)",
 
   it("yields an empty content list for a turn with no reasoning", () => {
     expect(thoughtChunksToRecord([])).toEqual({ role: "thought", content: [] })
+  })
+})
+
+describe("toolKindFor (screenplay tool → ACP kind)", () => {
+  it("maps reads, edits, and execution; defaults to other", () => {
+    expect(toolKindFor("read_file")).toBe("read")
+    expect(toolKindFor("list_files")).toBe("read")
+    expect(toolKindFor("edit_file")).toBe("edit")
+    expect(toolKindFor("write_file")).toBe("edit")
+    expect(toolKindFor("run_command")).toBe("execute")
+    expect(toolKindFor("create_pr")).toBe("other")
+    expect(toolKindFor("brand_new_tool")).toBe("other")
+  })
+})
+
+describe("toolOutputToContent (tool output → ACP content)", () => {
+  it("wraps a string as a single text content block", () => {
+    expect(toolOutputToContent("hello")).toEqual([
+      { type: "content", content: textBlock("hello") },
+    ])
+  })
+
+  it("JSON-encodes a non-string output", () => {
+    expect(toolOutputToContent({ ok: true })).toEqual([
+      { type: "content", content: textBlock('{"ok":true}') },
+    ])
+  })
+
+  it("yields no content for empty output", () => {
+    expect(toolOutputToContent("")).toEqual([])
   })
 })
 
