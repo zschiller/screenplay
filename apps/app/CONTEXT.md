@@ -182,12 +182,20 @@ name — the checked-out repo overrides screenplay's bundled default.
 _Avoid_: project skill, local skill.
 
 **Engine** (Agent Loop):
-The owned, server-side turn loop that drives a Chat Session against a model
-via the AI SDK — it replays the persisted conversation, runs Tools, and
-broadcasts deltas to every client in the room. The app owns this loop; it is
-deliberately **not** an external coding harness (Claude Code, Codex, …).
+A seam that drives one turn of a Chat Session to completion, **speaking ACP**:
+its update vocabulary is the genuine Agent Client Protocol `session/update`
+(not a bespoke wire format), and the conversation is persisted ACP-native. Two
+implementations sit behind the seam — a default **in-process AI-SDK** engine
+(which still runs `streamText` but now *translates*: it rebuilds its model
+input from ACP-native history and emits ACP updates) and, in later slices, an
+**ACP engine** driving a generic ACP agent. The server is the sole ACP peer;
+browsers render the server's ACP-shaped broadcast over the Y.Doc and never open
+an ACP connection (single ACP session in → N browsers out). The app owns this
+seam; it is deliberately **not** an external coding harness (Claude Code,
+Codex, …). See ADR 0006 for the seam, the multiplayer-brokering principle, and
+the swap-to-real-client design goal.
 _Avoid_: harness (reserve that word for an external/BYO agent tool — see Harness
-below), runtime.
+below), runtime; treating each browser as an ACP client (breaks multiplayer).
 
 **Harness** (BYO Coding CLI):
 An external, bring-your-own coding agent CLI — Claude Code, Codex, aider — that

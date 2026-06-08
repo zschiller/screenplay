@@ -64,6 +64,16 @@ function convertMessage(
   planStatuses: Map<string, "pending" | "approved" | "rejected">,
   out: AgentMessage[]
 ): void {
+  // ACP-native agent record (ADR 0006): role `"agent"`, content is a list of
+  // ACP text ContentBlocks. ACP-native `user` records carry the same text-block
+  // shape and fall through to the `user` case below, where `stringifyContent`
+  // already reads `.text` off each block. The browser renders the server's ACP
+  // shapes; it never opens an ACP connection of its own.
+  if ((m.role as string) === "agent") {
+    const text = stringifyContent(m.content)
+    if (text) out.push({ role: "assistant", content: text })
+    return
+  }
   switch (m.role) {
     case "user": {
       const text = stringifyContent(m.content)

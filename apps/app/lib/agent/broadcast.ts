@@ -1,7 +1,31 @@
 import "server-only"
 
 import type { AgentStreamEvent } from "@/lib/agent/types"
+import type { SessionUpdate } from "@/lib/agent/acp/schema"
 import { broadcastChatEventViaDoc } from "@/lib/yjs/server"
+
+/**
+ * Broadcast an ACP-shaped `session/update` to every client in the Room over
+ * the Y.Doc (ADR 0006). The server is the sole ACP peer; browsers render this
+ * broadcast and never open an ACP connection. The Y.Doc fan-out is the
+ * multiplexer — single ACP session in, N browsers out — so only the payload
+ * changes shape, not the machinery.
+ */
+export async function broadcastAcpUpdate(
+  roomId: string,
+  chatId: string,
+  update: SessionUpdate
+): Promise<void> {
+  try {
+    await broadcastChatEventViaDoc(roomId, {
+      type: "chat-acp-update",
+      chatId,
+      update: JSON.parse(JSON.stringify(update)),
+    })
+  } catch (e) {
+    console.error("acp broadcast failed:", e)
+  }
+}
 
 export async function broadcastEvent(
   roomId: string,
