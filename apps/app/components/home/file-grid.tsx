@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { MoreHorizontal, Pin } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { formatDistanceToNow } from "@/lib/utils"
@@ -21,7 +22,7 @@ function FileCard({ file }: { file: RoomSummary }) {
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20">
-      <a
+      <Link
         href={`/${file.id}`}
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
         aria-label={`Open ${file.name}`}
@@ -37,15 +38,15 @@ function FileCard({ file }: { file: RoomSummary }) {
             unoptimized
           />
         )}
-      </a>
+      </Link>
       <div className="flex items-center gap-2 p-3">
         <div className="min-w-0 flex-1">
-          <a
+          <Link
             href={`/${file.id}`}
             className="block truncate text-sm font-medium hover:underline"
           >
             {file.name}
-          </a>
+          </Link>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>
               Edited{" "}

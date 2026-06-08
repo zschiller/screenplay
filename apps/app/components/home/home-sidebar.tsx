@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useState } from "react"
 import {
@@ -143,10 +144,10 @@ function SidebarFileItem({ file }: { file: RoomSummary }) {
     <SidebarMenuSubItem>
       <div className="group/sub-row relative">
         <SidebarMenuSubButton asChild>
-          <a href={`/${file.id}`}>
+          <Link href={`/${file.id}`}>
             <FileIcon />
             <span>{file.name}</span>
-          </a>
+          </Link>
         </SidebarMenuSubButton>
         <FileActionMenu
           file={file}
@@ -348,10 +349,10 @@ function PinnedFileItem({ file }: { file: RoomSummary }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild>
-        <a href={`/${file.id}`}>
+        <Link href={`/${file.id}`}>
           <FileIcon />
           <span>{file.name}</span>
-        </a>
+        </Link>
       </SidebarMenuButton>
       <FileActionMenu
         file={file}
