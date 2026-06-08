@@ -126,6 +126,34 @@ byte-identically and the Anthropic breakpoint keeps landing on a matching
 prefix. The adapter test pins both the determinism and the
 prefix-stable-when-a-turn-is-appended property.
 
+### Tool-call lifecycle + structured content (#377)
+
+The renderer's data model is made ACP-faithful for tool calls, the next step the
+"UI renders ACP for text" decision left for later slices. A tool call is now a
+**single record keyed by `toolCallId`, updated in place** through ACP's
+`pending → in_progress → completed/failed` lifecycle, rather than a static block
+that only appears after completion:
+
+- The in-process engine **translates** AI-SDK tool chunks to ACP:
+  `tool-input-start → tool_call` (`pending`), `tool-call → tool_call_update`
+  (`in_progress`), `tool-result/tool-error → tool_call_update`
+  (`completed`/`failed`). The adapter maps each chunk; the contract test proves
+  the engine drives the lifecycle.
+- The consumer holds in-flight calls by id and **upserts the same durable record
+  in place** (`upsertAcpToolCall`) on every update, so a crash mid-turn leaves
+  the call's last known state on disk. The ACP update is broadcast verbatim, so
+  clients update their own record in place too.
+- A new `tool_call` record kind (`AcpToolCallRecord`) carries ACP's structured
+  `ToolCallContent` — text, file `diff`, `terminal` — **as structure**; the
+  renderer switches on block type rather than flattening to one `<pre>`. The
+  old `create_pr`-only spinner generalizes to a status-aware indicator for every
+  tool.
+
+Still deferred: rebuilding tool-call records into `ModelMessage[]` tool context
+for the in-process engine's next turn (the adapter's other direction), ACP
+`agent_thought_chunk` (reasoning), and cutting the live routes over — the
+tool-call signal still rides `runAgentLoop` in production until that move.
+
 ## Consequences
 
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and

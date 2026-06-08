@@ -10,7 +10,10 @@ import {
   agentPendingToolCall,
   agentRun,
 } from "@/lib/db/schema"
-import type { AcpMessageRecord } from "@/lib/agent/acp/record"
+import type {
+  AcpMessageRecord,
+  AcpToolCallRecord,
+} from "@/lib/agent/acp/record"
 
 export async function upsertChat(params: {
   chatId: string
@@ -66,6 +69,31 @@ export async function appendAcpMessage(
     role: record.role,
     message: record,
   })
+}
+
+/**
+ * Upsert an ACP-native tool-call record *in place* by `toolCallId` (ADR 0006,
+ * issue #377). The row id is derived from the chat + tool-call id, so every
+ * `pending` → `in_progress` → `completed`/`failed` update rewrites the same
+ * row — and `createdAt` keeps its first-insert value, so the call holds its
+ * position in the conversation order regardless of how many times it updates.
+ */
+export async function upsertAcpToolCall(
+  chatId: string,
+  record: AcpToolCallRecord
+): Promise<void> {
+  await db
+    .insert(agentMessage)
+    .values({
+      id: `tc_${chatId}_${record.toolCallId}`,
+      chatId,
+      role: record.role,
+      message: record,
+    })
+    .onConflictDoUpdate({
+      target: agentMessage.id,
+      set: { message: record },
+    })
 }
 
 /**

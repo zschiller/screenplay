@@ -10,6 +10,7 @@ import {
   type RequestPermissionRequest,
   type SessionUpdate,
 } from "@/lib/agent/acp/schema"
+import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { withBasePath } from "@/lib/base-path"
 
 export type ChatState = {
@@ -448,8 +449,10 @@ class ChatStore {
    * `agent_message_chunk` deltas accumulate into the trailing assistant message
    * (the ACP-shaped equivalent of the legacy cumulative `text` event), and
    * `agent_thought_chunk` deltas accumulate into a trailing `reasoning` message
-   * so the agent's streamed thinking renders apart from its reply. Other
-   * `sessionUpdate` kinds are no-ops here until later slices render them.
+   * so the agent's streamed thinking renders apart from its reply.
+   * `tool_call` / `tool_call_update` drive a tool call through its status
+   * lifecycle in place, keyed by id. Other `sessionUpdate` kinds are no-ops here
+   * until later slices render them.
    */
   private applyAcpUpdate(chatId: string, update: SessionUpdate) {
     if (isUpdate(update, "agent_message_chunk")) {
@@ -460,7 +463,9 @@ class ChatStore {
         this.acpThoughtText,
         blockText(update.content)
       )
-    } else if (isUpdate(update, "agent_thought_chunk")) {
+      return
+    }
+    if (isUpdate(update, "agent_thought_chunk")) {
       this.appendAcpDelta(
         chatId,
         "reasoning",
@@ -468,6 +473,11 @@ class ChatStore {
         this.acpAgentText,
         blockText(update.content)
       )
+      return
+    }
+    if (isUpdate(update, "tool_call") || isUpdate(update, "tool_call_update")) {
+      this.applyAcpToolCall(chatId, update)
+      return
     }
   }
 
@@ -501,6 +511,55 @@ class ChatStore {
         ? [...prev.slice(0, -1), message]
         : [...prev, message],
     })
+  }
+
+  /**
+   * Apply a `tool_call` / `tool_call_update` to local state in place, keyed by
+   * `toolCallId`: the first `tool_call` appends a row; each later update merges
+   * onto that same row (status, structured content) so the call advances
+   * `pending` → `in_progress` → `completed`/`failed` without spawning new rows.
+   * An update for an id we haven't seen seeds a fresh row (lenient — a provider
+   * may skip the initial `tool_call`).
+   */
+  private applyAcpToolCall(chatId: string, update: SessionUpdate) {
+    if (
+      !isUpdate(update, "tool_call") &&
+      !isUpdate(update, "tool_call_update")
+    ) {
+      return
+    }
+    // A tool call breaks both ACP text streams — the next agent or thought
+    // delta should start a fresh message rather than replacing this one.
+    this.acpAgentText.delete(chatId)
+    this.acpThoughtText.delete(chatId)
+    this.currentTextId.delete(chatId)
+
+    const prev = this.getOrCreate(chatId).messages
+    const idx = prev.findIndex(
+      (m) => m.role === "tool_call" && m.toolCallId === update.toolCallId
+    )
+    const existing =
+      idx >= 0
+        ? (prev[idx] as Extract<AgentMessage, { role: "tool_call" }>)
+        : undefined
+    const merged = applyToolCallUpdate(existing, update)
+    const message: AgentMessage = {
+      role: "tool_call",
+      toolCallId: merged.toolCallId,
+      title: merged.title,
+      kind: merged.kind,
+      status: merged.status,
+      content: merged.content,
+      rawInput: merged.rawInput,
+    }
+
+    if (idx >= 0) {
+      const next = prev.slice()
+      next[idx] = message
+      this.update(chatId, { messages: next })
+    } else {
+      this.update(chatId, { messages: [...prev, message] })
+    }
   }
 
   /** Apply a single agent stream event to local state. */

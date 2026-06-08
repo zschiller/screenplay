@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { chatStore } from "./chat-store"
-import { agentMessageChunk, agentThoughtChunk } from "./agent/acp/schema"
+import {
+  agentMessageChunk,
+  agentThoughtChunk,
+  toolCallStart,
+  toolCallUpdate,
+  type ToolCallContent,
+} from "./agent/acp/schema"
 
 let seq = 0
 const nextId = () => `evt_${++seq}`
@@ -124,6 +130,141 @@ describe("chat-store — ACP text path (renders the server's broadcast)", () => 
 
     expect(chatStore.getSnapshot(chatId).messages).toEqual([
       { role: "assistant", content: "once" },
+    ])
+    chatStore.cleanup(chatId)
+  })
+})
+
+describe("chat-store — ACP tool-call lifecycle (in place, keyed by id)", () => {
+  it("advances one tool-call row pending → in_progress → completed without spawning rows", () => {
+    const chatId = `chat_${++seq}`
+    const diff: ToolCallContent = {
+      type: "diff",
+      path: "src/a.ts",
+      oldText: "old",
+      newText: "new",
+    }
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallStart({
+          toolCallId: "call_1",
+          title: "edit_file",
+          kind: "edit",
+          status: "pending",
+        }),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallUpdate({ toolCallId: "call_1", status: "in_progress" }),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallUpdate({
+          toolCallId: "call_1",
+          status: "completed",
+          content: [diff],
+        }),
+      },
+    ])
+
+    // One row, merged in place to its final state — the diff carried as
+    // structure, not flattened to text.
+    expect(chatStore.getSnapshot(chatId).messages).toEqual([
+      {
+        role: "tool_call",
+        toolCallId: "call_1",
+        title: "edit_file",
+        kind: "edit",
+        status: "completed",
+        content: [diff],
+        rawInput: undefined,
+      },
+    ])
+    chatStore.cleanup(chatId)
+  })
+
+  it("interleaves agent text and a tool call without clobbering either", () => {
+    const chatId = `chat_${++seq}`
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: agentMessageChunk("Reading the file"),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallStart({ toolCallId: "call_1", title: "read_file" }),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallUpdate({ toolCallId: "call_1", status: "completed" }),
+      },
+      // Text after the tool call starts a fresh assistant message.
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: agentMessageChunk("Done"),
+      },
+    ])
+
+    const messages = chatStore.getSnapshot(chatId).messages
+    expect(messages.map((m) => m.role)).toEqual([
+      "assistant",
+      "tool_call",
+      "assistant",
+    ])
+    expect(messages[0]).toEqual({
+      role: "assistant",
+      content: "Reading the file",
+    })
+    expect(messages[2]).toEqual({ role: "assistant", content: "Done" })
+    chatStore.cleanup(chatId)
+  })
+
+  it("keeps two concurrent tool calls separate by id", () => {
+    const chatId = `chat_${++seq}`
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallStart({ toolCallId: "a", title: "read_file" }),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallStart({ toolCallId: "b", title: "run_command" }),
+      },
+      {
+        type: "chat-acp-update",
+        chatId,
+        id: nextId(),
+        update: toolCallUpdate({ toolCallId: "a", status: "completed" }),
+      },
+    ])
+
+    const messages = chatStore.getSnapshot(chatId).messages
+    expect(messages).toHaveLength(2)
+    expect(messages.map((m) => m.role === "tool_call" && m.status)).toEqual([
+      "completed",
+      "pending",
     ])
     chatStore.cleanup(chatId)
   })

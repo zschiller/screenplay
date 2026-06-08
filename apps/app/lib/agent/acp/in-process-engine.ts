@@ -43,11 +43,13 @@ export type StreamDriver = (
  * which the caller reads only after narrowing through `supportsUsageReporting`.
  * A generic ACP agent that can't surface usage simply omits the capability.
  *
- * It translates the **text path** (`agent_message_chunk` + `done`) and the
- * **plan-mode gate** — a `submit_plan` tool-call becomes an ACP
- * `permission_request` (see {@link planPermissionRequest}), distinct from ACP's
- * informational `plan` update. Other tool-call translation arrives in later
- * slices, at which point this engine replaces the legacy `runAgentLoop` outright.
+ * It translates the **text path** (`agent_message_chunk` + `done`), the
+ * **tool-call lifecycle** (`tool_call` + `tool_call_update`, status keyed by id
+ * — issue #377; the {@link aiSdkChunkToAcpUpdate} adapter does the per-chunk
+ * mapping), and the **plan-mode gate** — a `submit_plan` tool-call becomes an
+ * ACP `permission_request` (see {@link planPermissionRequest}), distinct from
+ * ACP's informational `plan` update and handled ahead of the generic tool path.
+ * At this point this engine can replace the legacy `runAgentLoop` outright.
  */
 export class InProcessAiSdkEngine implements UsageReportingEngine {
   readonly id = "in-process-ai-sdk"

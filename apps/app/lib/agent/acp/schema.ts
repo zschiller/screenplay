@@ -48,7 +48,10 @@ import {
   type RequestPermissionResponse,
   type SessionNotification,
   type Stream,
+  type ToolCallContent,
+  type ToolCallStatus,
   type ToolCallUpdate,
+  type ToolKind,
 } from "@zed-industries/agent-client-protocol"
 
 export {
@@ -76,6 +79,14 @@ export {
   type SessionNotification,
   type Stream,
   type ToolCallUpdate,
+  // Tool-call vocabulary (ADR 0006, issue #377). `ToolCallContent` is the
+  // structured tool output (a text/image content block, a file `diff`, or a
+  // `terminal` handle); `ToolCallStatus` is the lifecycle (`pending` →
+  // `in_progress` → `completed`/`failed`); `ToolKind` is the icon/category hint.
+  // Re-exported here so the rest of the app binds to the genuine ACP shapes.
+  type ToolCallContent,
+  type ToolCallStatus,
+  type ToolKind,
 }
 
 /** The human's decision on a {@link RequestPermissionResponse}. */
@@ -199,6 +210,30 @@ export function planPermissionRequest(opts: {
 }
 
 /**
+ * A `tool_call` session update — the *creation* of a tool call, keyed by
+ * `toolCallId` (ADR 0006, issue #377). Defaults to `pending`; the agent then
+ * advances it with {@link toolCallUpdate}s through the status lifecycle.
+ */
+export function toolCallStart(params: {
+  toolCallId: string
+  title: string
+  kind?: ToolKind
+  status?: ToolCallStatus
+  rawInput?: Record<string, unknown>
+  content?: ToolCallContent[]
+}): SessionUpdate {
+  return {
+    sessionUpdate: "tool_call",
+    toolCallId: params.toolCallId,
+    title: params.title,
+    status: params.status ?? "pending",
+    ...(params.kind ? { kind: params.kind } : {}),
+    ...(params.rawInput ? { rawInput: params.rawInput } : {}),
+    ...(params.content ? { content: params.content } : {}),
+  }
+}
+
+/**
  * Whether a permission request is screenplay's plan-mode gate (rather than some
  * other ACP permission round-trip a generic agent might raise). Recognised by
  * the gate's two option ids — keeping the gate distinct from the informational
@@ -235,5 +270,29 @@ export function planResolutionOutcome(
   return {
     outcome: "selected",
     optionId: approved ? PLAN_APPROVE_OPTION_ID : PLAN_REJECT_OPTION_ID,
+  }
+}
+
+/**
+ * A `tool_call_update` session update — an in-place change to an existing tool
+ * call keyed by `toolCallId`. Only the supplied fields are carried; the
+ * consumer/renderer merge them onto the record they already hold for that id.
+ */
+export function toolCallUpdate(params: {
+  toolCallId: string
+  status?: ToolCallStatus
+  title?: string
+  rawInput?: Record<string, unknown>
+  rawOutput?: Record<string, unknown>
+  content?: ToolCallContent[]
+}): SessionUpdate {
+  return {
+    sessionUpdate: "tool_call_update",
+    toolCallId: params.toolCallId,
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.title ? { title: params.title } : {}),
+    ...(params.rawInput ? { rawInput: params.rawInput } : {}),
+    ...(params.rawOutput ? { rawOutput: params.rawOutput } : {}),
+    ...(params.content ? { content: params.content } : {}),
   }
 }

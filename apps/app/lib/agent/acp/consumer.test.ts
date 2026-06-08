@@ -11,13 +11,16 @@ import {
   type ConsumerPlanCall,
 } from "./consumer"
 import type { EngineUpdate } from "./engine-seam"
-import type { AcpMessageRecord } from "./record"
+import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
   agentMessageChunk,
   agentThoughtChunk,
   planPermissionRequest,
+  toolCallStart,
+  toolCallUpdate,
   type RequestPermissionRequest,
   type SessionUpdate,
+  type ToolCallContent,
 } from "./schema"
 import {
   createRunState,
@@ -39,6 +42,9 @@ function harness(seedStatus: RunStatus = "running") {
   const errors: string[] = []
   const records: AcpMessageRecord[] = []
   const pausedCalls: PendingPlanCall[] = []
+  // Tool calls persist *in place* by id, so the harness mirrors the live
+  // upsert with a Map — its final values are the durable records.
+  const toolCalls = new Map<string, AcpToolCallRecord>()
   let ends = 0
 
   const rows = new Map<string, RunStatus>([["run_1", seedStatus]])
@@ -76,6 +82,9 @@ function harness(seedStatus: RunStatus = "running") {
     async appendRecord(record) {
       records.push(record)
     },
+    async upsertToolCall(record) {
+      toolCalls.set(record.toolCallId, record)
+    },
     async transition(to) {
       await runState.transition("run_1", to)
     },
@@ -95,6 +104,7 @@ function harness(seedStatus: RunStatus = "running") {
     errors,
     records,
     pausedCalls,
+    toolCalls,
     statusOf: () => rows.get("run_1"),
     endCount: () => ends,
   }
@@ -266,5 +276,112 @@ describe("AcpUpdateConsumer — text path", () => {
     expect(h.errors).toEqual(["boom"])
     expect(h.statusOf()).toBe("failed")
     expect(h.endCount()).toBe(1)
+  })
+})
+
+describe("AcpUpdateConsumer — tool-call lifecycle", () => {
+  const diff: ToolCallContent = {
+    type: "diff",
+    path: "src/a.ts",
+    oldText: "old",
+    newText: "new",
+  }
+
+  it("persists one tool-call record in place across pending → in_progress → completed and broadcasts each update", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({
+          toolCallId: "call_1",
+          title: "edit_file",
+          kind: "edit",
+          status: "pending",
+        }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({
+          toolCallId: "call_1",
+          status: "in_progress",
+          rawInput: { path: "src/a.ts" },
+        }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({
+          toolCallId: "call_1",
+          status: "completed",
+          content: [diff],
+        }),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    // Every ACP update is broadcast verbatim so clients update in place.
+    expect(h.broadcasts.map((u) => u.sessionUpdate)).toEqual([
+      "tool_call",
+      "tool_call_update",
+      "tool_call_update",
+    ])
+    // Exactly one durable tool-call record, merged to its final state — the
+    // structured diff content survives as structure, not flattened text.
+    expect([...h.toolCalls.values()]).toEqual<AcpToolCallRecord[]>([
+      {
+        role: "tool_call",
+        toolCallId: "call_1",
+        title: "edit_file",
+        kind: "edit",
+        status: "completed",
+        content: [diff],
+        rawInput: { path: "src/a.ts" },
+        rawOutput: undefined,
+      },
+    ])
+    // No spurious agent text record for a tool-only turn.
+    expect(h.records).toEqual([])
+    expect(h.statusOf()).toBe("completed")
+  })
+
+  it("keeps two concurrent tool calls separate, keyed by id", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "a", title: "read_file" }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "b", title: "run_command" }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({ toolCallId: "a", status: "completed" }),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.toolCalls.get("a")?.status).toBe("completed")
+    expect(h.toolCalls.get("b")?.status).toBe("pending")
+    expect(h.toolCalls.size).toBe(2)
+  })
+
+  it("records a tool failure as failed status (distinct from a turn error)", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "x", title: "run_command" }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({ toolCallId: "x", status: "failed" }),
+      },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.toolCalls.get("x")?.status).toBe("failed")
+    // The turn itself still completed — a failed tool is not a failed run.
+    expect(h.statusOf()).toBe("completed")
   })
 })
