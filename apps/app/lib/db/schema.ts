@@ -201,6 +201,7 @@ export const threadRead = pgTable(
 // Agent persistence — backs the streamText tool loop in lib/agent/engine.ts.
 
 import type { ModelMessage } from "ai"
+import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 
 // One row per chat. `id` matches the chatId stored in the room's Y.Doc
 // (`chatSessions` collection) so the canvas/player UIs and the agent's
@@ -219,8 +220,15 @@ export const agentChat = pgTable(
   (t) => [index("agent_chat_room_idx").on(t.roomId)]
 )
 
-// Append-only UIMessage log. Stored as a single JSONB blob per message so we
-// can hand it straight to/from the AI SDK without flattening parts into rows.
+// Append-only conversation log, one JSONB blob per message.
+//
+// The payload is moving from AI-SDK `ModelMessage` to the ACP-native
+// `AcpMessageRecord` (ADR 0006): ACP is the canonical conversation
+// representation, so the durable log speaks it too. Per the operator decision,
+// existing rows are NOT converted — history is reset and new chats store
+// ACP-native records going forward; the column union types both during the
+// transition (jsonb, so no SQL migration). The `role` text discriminates them:
+// ACP records use `"agent"`, legacy AI-SDK messages use `"assistant"`.
 export const agentMessage = pgTable(
   "agent_message",
   {
@@ -228,8 +236,12 @@ export const agentMessage = pgTable(
     chatId: text("chat_id")
       .notNull()
       .references(() => agentChat.id, { onDelete: "cascade" }),
-    role: text("role").$type<ModelMessage["role"]>().notNull(),
-    message: jsonb("message").$type<ModelMessage>().notNull(),
+    role: text("role")
+      .$type<ModelMessage["role"] | AcpMessageRecord["role"]>()
+      .notNull(),
+    message: jsonb("message")
+      .$type<ModelMessage | AcpMessageRecord>()
+      .notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("agent_message_chat_idx").on(t.chatId, t.createdAt)]
