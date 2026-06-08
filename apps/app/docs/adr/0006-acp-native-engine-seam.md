@@ -80,10 +80,13 @@ sink, signal)` drives one turn to completion, reporting `EngineUpdate`s — ACP
   an ACP connection. The renderer's data model becomes ACP-faithful as later
   slices add tool-call status, thoughts, and structured content.
 
-- **Engine selection is deferred.** Two implementations justify a selection
-  mechanism, but the exact surface (per-deployment env vs. per-Chat-Target) is
-  the one decision left to the slice that lands the second engine. The default
-  stays the in-process engine.
+- **Engine selection is a per-deployment env var.** Two implementations justify
+  a selection mechanism; the surface (settled by the second-engine slice #383) is
+  deliberately **minimal and explicit** — `AGENT_ENGINE=in-process|acp` (default
+  in-process), read at the engine boundary, **not** a per-Chat-Session schema
+  column. A deployment runs entirely on one engine, so the choice never migrates
+  data or branches per row, and an unrecognised value stays on the default rather
+  than silently swapping. The default stays the in-process engine.
 
 ### Supersedes ADR 0002's byte-perfect replay rationale
 
@@ -180,6 +183,39 @@ user"` on abort; a real ACP agent that acknowledges `session/cancel` reaches it
   the ACP-native counterpart of `repairOrphanedToolCalls` for `ModelMessage[]`.
   It is pure and idempotent, and the repair invariant survives the ACP-native
   persistence round-trip, so a crashed turn's log loads back well-formed.
+
+### ACP Engine behind the seam + engine selection (#383)
+
+The second implementation lands, proving the seam is honest rather than nominal:
+
+- **The ACP Engine** (`acp-engine.ts`) implements the seam by driving the
+  `AcpSession` module (#381) — the way the in-process engine drives `streamText`
+  — and passes the agent's genuine `session/update`s through to the same
+  `AcpUpdateConsumer` **nearly natively** (no AI-SDK translation, because they are
+  already ACP). The transport that reaches a real agent is an injected
+  `AcpSessionFactory`, so production wraps a spawned agent's stdio while tests
+  cross an in-memory stream to a fake agent — the engine never fixes the backing.
+- **Plan-mode reconciliation.** screenplay's approval gate is *asynchronous* (the
+  human resolves later via a fresh prompt), whereas ACP's permission request is an
+  *in-turn* round-trip the agent blocks on. The engine forwards the request to the
+  consumer (which pauses the run and ends the turn) and winds the live ACP turn
+  down so the agent answers `cancelled`; the resume arrives as a new run, exactly
+  like the in-process engine. `/stop`/supersession reach the engine as an aborted
+  signal and surface as a stop, never a `failed` run.
+- **Graceful capability degradation.** The ACP engine does **not** implement
+  `UsageReportingEngine` — a generic ACP agent may never surface prompt-cache
+  usage — so `supportsUsageReporting` narrows it out and the caller takes the
+  no-usage branch (ADR 0003's pattern, exercised by a second engine for real).
+- **The shared contract passes for BOTH engines.** `contractFor("acp", …)` drives
+  the *same* scenario — a generic ACP agent scripted by the same `StreamDriver`,
+  over a real in-memory ACP transport — to the same broadcasts, ACP-native
+  records, and terminal run-state as the in-process engine. The plan-mode
+  permission-request and `/stop` cancellation mappings are weighted heavily.
+- **Still deferred (the genuinely separate "next move").** A production transport
+  that spawns/connects to a real external ACP agent, and the live-route cutover
+  retiring `runAgentLoop`/`AgentStreamEvent`/`ModelMessage` on `/api/agent/stream`
+  and `/api/agent/plan`. The contract proves the swap target is compatible; this
+  slice does not yet point the live routes at a running subprocess.
 
 ## Consequences
 

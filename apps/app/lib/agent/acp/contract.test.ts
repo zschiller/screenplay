@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import type { TextStreamPart, Tool } from "ai"
 
 // The in-process engine binds to the model providers at import time; none of
 // that is exercised here — every test injects a fake stream driver — so stub
@@ -20,11 +21,25 @@ import {
 import type { EngineUpdate, Engine } from "./engine-seam"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import {
+  AgentSideConnection,
+  planPermissionRequest,
+  PROTOCOL_VERSION,
+  SUBMIT_PLAN_TOOL,
   textBlock,
+  type Agent,
+  type AnyMessage,
+  type InitializeResponse,
+  type PromptRequest,
+  type PromptResponse,
   type RequestPermissionRequest,
   type SessionUpdate,
+  type StopReason,
+  type Stream,
 } from "./schema"
+import { aiSdkChunkToAcpUpdate } from "./adapter"
 import { InProcessAiSdkEngine, type StreamDriver } from "./in-process-engine"
+import { AcpEngine, type AcpSessionFactory } from "./acp-engine"
+import { AcpSession } from "./session"
 import { createRunState, type RunStateRepo, type RunStatus } from "../run-state"
 
 /**
@@ -393,8 +408,141 @@ function contractFor(
 
 contractFor("in-process AI-SDK", (driver) => new InProcessAiSdkEngine(driver))
 
-// The real ACP engine plugs into the same contract in a later slice:
-//   contractFor("acp", (driver) => new AcpEngine(...))
+// The ACP engine plugs into the *same* contract, driven by the *same* scenario:
+// a generic ACP agent scripted by the `StreamDriver` runs the turn over a real
+// (in-memory) ACP transport, and the engine passes its `session/update`s through
+// to the consumer. Both engines reaching the identical observable outcome is the
+// executable proof the seam is honest, not nominal (ADR 0006, PRD #375).
+contractFor(
+  "acp",
+  (driver) =>
+    new AcpEngine({ sessionFactory: acpSessionFactoryFromDriver(driver) })
+)
+
+const CONTRACT_SESSION_ID = "sess_contract"
+
+/** Map an AI-SDK `finishReason` to an ACP `stopReason` (as a real agent would). */
+function finishToStopReason(finishReason: string | undefined): StopReason {
+  switch (finishReason) {
+    case "length":
+      return "max_tokens"
+    case "content-filter":
+      return "refusal"
+    default:
+      return "end_turn"
+  }
+}
+
+/** A pair of crossed in-memory streams — the whole transport, no bytes, no process. */
+function inMemoryStreams(): { client: Stream; agent: Stream } {
+  const toAgent = new TransformStream<AnyMessage, AnyMessage>()
+  const toClient = new TransformStream<AnyMessage, AnyMessage>()
+  return {
+    client: { writable: toAgent.writable, readable: toClient.readable },
+    agent: { writable: toClient.writable, readable: toAgent.readable },
+  }
+}
+
+/**
+ * Stand up a generic ACP agent whose turn is scripted by the *same*
+ * {@link StreamDriver} the in-process engine consumes, then hand the
+ * {@link AcpEngine} a factory that opens a session to it. The agent emits genuine
+ * ACP `session/update`s and raises a real permission request for `submit_plan`,
+ * exactly as a conforming agent would — so a single scenario drives both engines
+ * to the same observable outcome.
+ */
+function acpSessionFactoryFromDriver(driver: StreamDriver): AcpSessionFactory {
+  const behavior = async (
+    conn: AgentSideConnection,
+    params: PromptRequest
+  ): Promise<StopReason> => {
+    let finishReason: string | undefined
+    let cancelled = false
+    const result = driver({
+      onChunk: async ({
+        chunk,
+      }: {
+        chunk: TextStreamPart<Record<string, Tool>>
+      }) => {
+        // A `submit_plan` tool-call is screenplay's plan gate — a real ACP agent
+        // raises it as an ACP *permission request*, not a `session/update`.
+        if (chunk.type === "tool-call" && chunk.toolName === SUBMIT_PLAN_TOOL) {
+          const { outcome } = await conn.requestPermission(
+            planPermissionRequest({
+              sessionId: params.sessionId,
+              toolCallId: chunk.toolCallId,
+              plan: String(
+                (chunk.input as { plan?: unknown } | undefined)?.plan ?? ""
+              ),
+            })
+          )
+          if (outcome.outcome === "cancelled") cancelled = true
+          return
+        }
+        const update = aiSdkChunkToAcpUpdate(chunk)
+        if (update) {
+          await conn.sessionUpdate({ sessionId: params.sessionId, update })
+        }
+      },
+      onFinish: async ({ finishReason: fr }: { finishReason?: string }) => {
+        finishReason = fr
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any)
+
+    try {
+      await result.consumeStream()
+    } catch {
+      // An aborted model stream throws (the `/stop` scenario's driver shape); a
+      // real ACP agent acknowledges the cancel and resolves the turn `cancelled`.
+      return "cancelled"
+    }
+    // The plan gate was cancelled out from under the agent — it stands down.
+    if (cancelled) return "cancelled"
+    return finishToStopReason(finishReason)
+  }
+
+  return {
+    async open(ports, options) {
+      const { client, agent: agentStream } = inMemoryStreams()
+      const agentConn = new AgentSideConnection(
+        (conn) => new DriverAgent(conn, behavior),
+        agentStream
+      )
+      // `agentConn` keeps the agent's receive loop alive for the session.
+      void agentConn
+      return AcpSession.open(client, ports, options)
+    },
+  }
+}
+
+/** A minimal ACP-conforming agent whose `prompt` defers to a scripted behavior. */
+class DriverAgent implements Agent {
+  constructor(
+    private readonly conn: AgentSideConnection,
+    private readonly behavior: (
+      conn: AgentSideConnection,
+      params: PromptRequest
+    ) => Promise<StopReason>
+  ) {}
+  async initialize(): Promise<InitializeResponse> {
+    return {
+      protocolVersion: PROTOCOL_VERSION,
+      agentCapabilities: { loadSession: true },
+    }
+  }
+  async newSession(): Promise<{ sessionId: string }> {
+    return { sessionId: CONTRACT_SESSION_ID }
+  }
+  async authenticate(): Promise<void> {}
+  async loadSession(): Promise<Record<string, never>> {
+    return {}
+  }
+  async prompt(params: PromptRequest): Promise<PromptResponse> {
+    return { stopReason: await this.behavior(this.conn, params) }
+  }
+  async cancel(): Promise<void> {}
+}
 
 describe("InProcessAiSdkEngine — capability + cancellation", () => {
   it("captures prompt-cache usage from onFinish", async () => {

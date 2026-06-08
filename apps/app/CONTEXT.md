@@ -187,8 +187,14 @@ its update vocabulary is the genuine Agent Client Protocol `session/update`
 (not a bespoke wire format), and the conversation is persisted ACP-native. Two
 implementations sit behind the seam — a default **in-process AI-SDK** engine
 (which still runs `streamText` but now *translates*: it rebuilds its model
-input from ACP-native history and emits ACP updates) and, in later slices, an
-**ACP engine** driving a generic ACP agent. The server is the sole ACP peer;
+input from ACP-native history and emits ACP updates) and an **ACP engine** that
+drives a generic ACP agent via the session module and passes its `session/update`s
+through nearly natively. Which one runs is a per-deployment choice
+(`AGENT_ENGINE=in-process|acp`, default in-process — `engine-select.ts`), not a
+per-Chat-Session column; an engine that can't honor a capability (e.g.
+prompt-cache usage) degrades via the `supports*` type guard. The shared contract
+test pins both engines to the *same* observable outcome for the same turn, so the
+swap is honest. The server is the sole ACP peer;
 browsers render the server's ACP-shaped broadcast over the Y.Doc and never open
 an ACP connection (single ACP session in → N browsers out). The app owns this
 seam; it is deliberately **not** an external coding harness (Claude Code,
