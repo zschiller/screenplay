@@ -15,26 +15,61 @@
  *
  * This module is the single import surface for ACP types in the app. Everything
  * else imports from here so the upstream package name appears in exactly one
- * place and the version we bind to is documented.
+ * place and the version we bind to is documented. Besides the message
+ * vocabulary it also re-exports the protocol *machinery* the client side binds
+ * to — the {@link ClientSideConnection} that speaks ACP over a {@link Stream},
+ * the negotiated {@link PROTOCOL_VERSION}, and `ndJsonStream` for the stdio
+ * transport — plus the {@link AgentSideConnection} the in-memory test fake runs
+ * on, so even the agent-side binding stays in this one place.
  *
  * Bound version: `@zed-industries/agent-client-protocol@0.4.x`.
  */
 import {
+  AgentSideConnection,
+  ClientSideConnection,
   contentBlockSchema,
+  ndJsonStream,
+  PROTOCOL_VERSION,
   promptResponseSchema,
   sessionNotificationSchema,
+  type Agent,
+  type AnyMessage,
+  type Client,
   type ContentBlock,
+  type InitializeResponse,
+  type LoadSessionRequest,
+  type NewSessionRequest,
+  type PermissionOption,
+  type PromptRequest,
   type PromptResponse,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
   type SessionNotification,
+  type Stream,
 } from "@zed-industries/agent-client-protocol"
 
 export {
+  AgentSideConnection,
+  ClientSideConnection,
   contentBlockSchema,
+  ndJsonStream,
+  PROTOCOL_VERSION,
   promptResponseSchema,
   sessionNotificationSchema,
+  type Agent,
+  type AnyMessage,
+  type Client,
   type ContentBlock,
+  type InitializeResponse,
+  type LoadSessionRequest,
+  type NewSessionRequest,
+  type PermissionOption,
+  type PromptRequest,
   type PromptResponse,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
   type SessionNotification,
+  type Stream,
 }
 
 /**

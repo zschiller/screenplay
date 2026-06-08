@@ -134,7 +134,7 @@ async function runConsumerToBus(
     },
     // The durable record append is not part of the broadcast fan-out — browsers
     // render the live stream, not the persisted log — so it is a no-op here.
-    async appendAgentMessage() {},
+    async appendRecord() {},
     async transition(to) {
       await runState.transition(runId, to)
     },
