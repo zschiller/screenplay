@@ -10,6 +10,7 @@ import {
   agentPendingToolCall,
   agentRun,
 } from "@/lib/db/schema"
+import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 
 export async function upsertChat(params: {
   chatId: string
@@ -44,7 +45,43 @@ export async function loadChatHistory(chatId: string): Promise<ModelMessage[]> {
     .from(agentMessage)
     .where(eq(agentMessage.chatId, chatId))
     .orderBy(asc(agentMessage.createdAt))
-  return rows.map((r) => r.message)
+  // Legacy chats store `ModelMessage`; the column unions in `AcpMessageRecord`
+  // for the ACP-native path (ADR 0006). This loader is the AI-SDK reader, so it
+  // narrows back to `ModelMessage` — ACP-native chats use `loadAcpHistory`.
+  return rows.map((r) => r.message as ModelMessage)
+}
+
+/**
+ * Append one ACP-native message record to the durable log (ADR 0006). The
+ * ACP-update consumer calls this in place of `appendMessages` of
+ * `ModelMessage[]` for the text path.
+ */
+export async function appendAcpMessage(
+  chatId: string,
+  record: AcpMessageRecord
+): Promise<void> {
+  await db.insert(agentMessage).values({
+    id: nanoid(),
+    chatId,
+    role: record.role,
+    message: record,
+  })
+}
+
+/**
+ * Load a chat's ACP-native history (ADR 0006), oldest first — the input the
+ * in-process engine rebuilds its `ModelMessage[]` from at turn start. Reads the
+ * rows the {@link appendAcpMessage} writer produced (roles `"user"`/`"agent"`).
+ */
+export async function loadAcpHistory(
+  chatId: string
+): Promise<AcpMessageRecord[]> {
+  const rows = await db
+    .select({ message: agentMessage.message })
+    .from(agentMessage)
+    .where(eq(agentMessage.chatId, chatId))
+    .orderBy(asc(agentMessage.createdAt))
+  return rows.map((r) => r.message as AcpMessageRecord)
 }
 
 /**

@@ -1,0 +1,83 @@
+/**
+ * Binding to the **genuine** Agent Client Protocol (ACP) schema.
+ *
+ * The seam between screenplay's server and whatever drives a Chat Session
+ * speaks ACP, not a screenplay-flavoured approximation (see ADR 0006 and the
+ * PRD in issue #375). We deliberately re-export the upstream
+ * `@zed-industries/agent-client-protocol` types and Zod schemas rather than
+ * hand-rolling our own message shapes, so that:
+ *
+ *  - the eventual swap to a real ACP client is *subtractive* — the UI, the
+ *    persisted log, and the engine boundary already speak the target language;
+ *  - the contract test is load-bearing: it pins behaviour against the real
+ *    `sessionUpdate` vocabulary, so a drift from the spec is a compile/test
+ *    failure, not a silent divergence.
+ *
+ * This module is the single import surface for ACP types in the app. Everything
+ * else imports from here so the upstream package name appears in exactly one
+ * place and the version we bind to is documented.
+ *
+ * Bound version: `@zed-industries/agent-client-protocol@0.4.x`.
+ */
+import {
+  contentBlockSchema,
+  promptResponseSchema,
+  sessionNotificationSchema,
+  type ContentBlock,
+  type PromptResponse,
+  type SessionNotification,
+} from "@zed-industries/agent-client-protocol"
+
+export {
+  contentBlockSchema,
+  promptResponseSchema,
+  sessionNotificationSchema,
+  type ContentBlock,
+  type PromptResponse,
+  type SessionNotification,
+}
+
+/**
+ * The body of an ACP `session/update` notification — the discriminated union
+ * over `sessionUpdate` (message chunks, thought chunks, tool calls, plan, …).
+ * This is the seam's update vocabulary.
+ */
+export type SessionUpdate = SessionNotification["update"]
+
+/** Why the agent stopped processing a prompt turn (ACP `PromptResponse`). */
+export type StopReason = PromptResponse["stopReason"]
+
+/** A single `sessionUpdate` discriminant value (e.g. `"agent_message_chunk"`). */
+export type SessionUpdateKind = SessionUpdate["sessionUpdate"]
+
+/** Narrow a {@link SessionUpdate} to a specific `sessionUpdate` discriminant. */
+export function isUpdate<K extends SessionUpdateKind>(
+  update: SessionUpdate,
+  kind: K
+): update is Extract<SessionUpdate, { sessionUpdate: K }> {
+  return update.sessionUpdate === kind
+}
+
+/** Build a plain-text ACP {@link ContentBlock}. */
+export function textBlock(text: string): ContentBlock {
+  return { type: "text", text }
+}
+
+/**
+ * The text of a {@link ContentBlock}, or `""` for non-text blocks. The text
+ * path only ever produces/consumes text blocks; richer block types (image,
+ * resource, …) are carried structurally by later slices.
+ */
+export function blockText(block: ContentBlock): string {
+  return block.type === "text" ? block.text : ""
+}
+
+/** An `agent_message_chunk` session update carrying a run of streamed text. */
+export function agentMessageChunk(text: string): SessionUpdate {
+  return { sessionUpdate: "agent_message_chunk", content: textBlock(text) }
+}
+
+/** A `user_message_chunk` session update carrying the user's prompt text. */
+export function userMessageChunk(text: string): SessionUpdate {
+  return { sessionUpdate: "user_message_chunk", content: textBlock(text) }
+}

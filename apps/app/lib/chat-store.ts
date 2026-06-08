@@ -3,6 +3,7 @@ import type {
   AgentStreamEvent,
   CustomToolName,
 } from "@/lib/agent/types"
+import { blockText, isUpdate, type SessionUpdate } from "@/lib/agent/acp/schema"
 import { withBasePath } from "@/lib/base-path"
 
 export type ChatState = {
@@ -36,6 +37,16 @@ export interface SendMessageOptions {
  */
 export type ChatBroadcastEvent =
   | { type: "chat-stream"; chatId: string; id: string; event: AgentStreamEvent }
+  // ACP-shaped update broadcast by the server (ADR 0006). The browser renders
+  // the server's broadcast; it never opens an ACP connection of its own. For
+  // the text path this carries `agent_message_chunk` (a streamed text delta);
+  // richer `sessionUpdate` kinds are rendered by later slices.
+  | {
+      type: "chat-acp-update"
+      chatId: string
+      id: string
+      update: SessionUpdate
+    }
   | { type: "chat-stream-start"; chatId: string; id: string }
   | { type: "chat-stream-end"; chatId: string; id: string }
 
@@ -124,6 +135,16 @@ class ChatStore {
    * single agent step don't clobber each other.
    */
   private currentTextId = new Map<string, string>()
+
+  /**
+   * Per-chat accumulator for the ACP text path (ADR 0006). ACP
+   * `agent_message_chunk`s carry *deltas*, so we accumulate them here and keep
+   * the trailing assistant message in sync. `active` tells us whether the
+   * trailing assistant message belongs to the current agent text block
+   * (replace it) or a fresh block is starting (append). Reset on each
+   * chat-stream-start and broken by any interleaving event.
+   */
+  private acpAgentText = new Map<string, { text: string; active: boolean }>()
 
   /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
   private callbacks = new Map<
@@ -334,10 +355,11 @@ class ChatStore {
 
     switch (event.type) {
       case "chat-stream-start":
-        // Reset the text-block tracker so the next text event starts a fresh
+        // Reset the text-block trackers so the next text event starts a fresh
         // assistant message rather than replacing the last one from a
         // previous turn.
         this.currentTextId.delete(chatId)
+        this.acpAgentText.delete(chatId)
         this.update(chatId, { isStreaming: true })
         break
 
@@ -348,6 +370,7 @@ class ChatStore {
         const wasStreaming = this.getOrCreate(chatId).isStreaming
         if (wasStreaming) this.unreadChats.add(chatId)
         this.currentTextId.delete(chatId)
+        this.acpAgentText.delete(chatId)
         this.update(chatId, { isStreaming: false })
         break
       }
@@ -355,7 +378,40 @@ class ChatStore {
       case "chat-stream":
         this.applyEvent(chatId, event.event)
         break
+
+      case "chat-acp-update":
+        this.applyAcpUpdate(chatId, event.update)
+        break
     }
+  }
+
+  /**
+   * Apply a single ACP `session/update` broadcast to local state (ADR 0006).
+   * For the text path, `agent_message_chunk` deltas accumulate into the
+   * trailing assistant message — the ACP-shaped equivalent of the legacy
+   * cumulative `text` event. Other `sessionUpdate` kinds are no-ops here until
+   * later slices render them.
+   */
+  private applyAcpUpdate(chatId: string, update: SessionUpdate) {
+    if (!isUpdate(update, "agent_message_chunk")) return
+
+    const delta = blockText(update.content)
+    const prev = this.getOrCreate(chatId).messages
+    const buf = this.acpAgentText.get(chatId)
+    const last = prev[prev.length - 1]
+    // Continue the current agent text block (replace the trailing assistant
+    // message) only while it's still active and that message is the one we own;
+    // otherwise start a fresh assistant message.
+    const sameBlock = buf?.active === true && last?.role === "assistant"
+    const text = (sameBlock ? buf!.text : "") + delta
+    this.acpAgentText.set(chatId, { text, active: true })
+
+    const message = { role: "assistant" as const, content: text }
+    this.update(chatId, {
+      messages: sameBlock
+        ? [...prev.slice(0, -1), message]
+        : [...prev, message],
+    })
   }
 
   /** Apply a single agent stream event to local state. */
@@ -410,8 +466,9 @@ class ChatStore {
       case "tool_use":
         // A tool call breaks the current text block — the next text event
         // should append a new assistant message even if its textId happens
-        // to repeat.
+        // to repeat. The ACP agent text block is broken too.
         this.currentTextId.delete(chatId)
+        this.acpAgentText.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -426,6 +483,7 @@ class ChatStore {
 
       case "tool_result":
         this.currentTextId.delete(chatId)
+        this.acpAgentText.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -582,6 +640,7 @@ class ChatStore {
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)
     this.currentTextId.delete(chatId)
+    this.acpAgentText.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }
