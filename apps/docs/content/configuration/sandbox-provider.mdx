@@ -1,0 +1,71 @@
+# Sandbox provider
+
+Each workspace runs its coding agent and dev server inside a live sandbox VM.
+The default backend is [`@vercel/sandbox`](https://vercel.com/docs/vercel-sandbox)
+via `apps/app/lib/sandbox/vercel.ts`, fronted by a thin re-export in
+`apps/app/lib/sandbox/index.ts` that exposes a driver-agnostic `SandboxProvider`
+interface. Any backend that can provision a Linux VM, run commands, and
+read/write files can drop in — E2B, Modal, a remote Firecracker service, a local
+Docker daemon for development, etc.
+
+## Using a different sandbox provider
+
+`apps/app/lib/sandbox/index.ts` picks the default provider via
+`getVercelSandboxProvider()` in `vercel.ts`. The exported `sandboxProvider` is
+typed as the backend-agnostic `SandboxProvider` interface defined in
+`apps/app/lib/sandbox/types.ts`, so any implementation of that interface is a
+drop-in replacement. To switch:
+
+1. Install whatever SDK your backend needs.
+2. Add a sibling factory — e.g. `apps/app/lib/sandbox/e2b.ts`:
+
+   ```ts
+   import "server-only"
+   import type { SandboxProvider } from "./types"
+
+   class E2BSandboxProvider implements SandboxProvider {
+     async create(opts) { /* call your SDK, return a SandboxInstance */ }
+     async get(opts)    { /* call your SDK, return a SandboxInstance */ }
+   }
+
+   export function getE2BSandboxProvider(): SandboxProvider {
+     return new E2BSandboxProvider()
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory.
+
+The `SandboxInstance` the provider returns is deliberately small: `name`,
+`worktreePath`, `homeDir`, `domain(port)`, `runCommand`, `writeFiles`,
+`readFileToBuffer`, and `delete()` — see `apps/app/lib/sandbox/types.ts` for the
+exact shape.
+Everything else in the app — the agent's tool executor, the logs SSE route, the
+terminal plumbing — is written against this interface and needs no changes when
+the backend swaps.
+
+Capabilities a backend can't offer are kept **off** the core interface rather
+than baked into it. Hibernation, for instance, lives on an optional
+`HibernatingSandbox` extension (`snapshot()`, `extendTimeout()`), and the app
+feature-detects it via `supportsHibernation()`; liveness is checked through
+`isRunning()` instead of a stringly-typed `status` field. See
+`apps/app/docs/adr/0003-honest-sandbox-provider-seam.md` for the
+portable-core-plus-optional-capability design.
+
+## Sandbox provider credentials
+
+The default sandbox provider is `@vercel/sandbox`, which authenticates via OIDC.
+In production on Vercel the OIDC token is injected automatically — no extra
+variables required. For local development, link the project once and pull a
+short-lived OIDC token into your env file:
+
+```bash
+vercel link
+vercel env pull .env.local
+```
+
+This populates `VERCEL_OIDC_TOKEN` (valid for ~12 hours — re-run
+`vercel env pull` when it expires).
+
+If you've swapped in a different provider under `apps/app/lib/sandbox/`, set
+whatever env vars that backend needs instead (e.g. `E2B_API_KEY`) and consume
+them inside the provider's factory function.

@@ -1,29 +1,38 @@
 # Getting Started
 
-Get the Screenplay monorepo running locally.
+Get the Screenplay monorepo running on your machine.
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 20 or newer
-- [pnpm](https://pnpm.io) 9
+- [pnpm](https://pnpm.io) 9 (the repo pins `pnpm@9.15.9` via `packageManager`)
 
-## Install
+## Install and run
 
 ```bash
 pnpm install
-```
-
-## Run
-
-Start every app in the monorepo with Turborepo:
-
-```bash
+cp apps/app/.env.local.example apps/app/.env.local   # then fill in values
+cd apps/app && pnpm db:migrate                        # apply migrations to your database
 pnpm dev
 ```
 
-The docs site (this app) dev-serves on
-[http://localhost:3002](http://localhost:3002).
+The product runs on [http://localhost:3000/app](http://localhost:3000/app).
+`apps/app/.env.local.example` sets `NEXT_PUBLIC_BASE_PATH=/app`, so the app is
+served under the `/app` basePath; the marketing site and docs run separately on
+ports 3001 and 3002. Unset `NEXT_PUBLIC_BASE_PATH` to serve the product at
+[http://localhost:3000](http://localhost:3000) instead — see
+[Mount path](/configuration/mount-path).
+
+## Filling in the values
+
+`apps/app/.env.local` starts empty. At minimum you'll need a Postgres database,
+a GitHub OAuth app, a Better Auth secret, a Yjs host, and at least one model
+provider before sign-in and the agent loop work end to end. Each value is
+documented in [Environment variables](/deployment/environment-variables), and
+the [Deployment](/deployment/services) section explains the services behind them.
 
 ## Next steps
 
-Browse the [Guides](/guides/overview) for task-focused walkthroughs.
+- Provision the backing services → [Deployment](/deployment/services)
+- Swap a backend (sandbox, blob, Yjs, models) → [Configuration](/configuration/sandbox-provider)
+- Day-to-day contributor commands → [Development](/development)

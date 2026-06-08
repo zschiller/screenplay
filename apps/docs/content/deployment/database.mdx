@@ -1,0 +1,90 @@
+# Database
+
+Screenplay stores everything durable in Postgres. Any Postgres works — the
+default build targets Neon's serverless HTTP driver, but the driver is a
+swappable seam (see [Using a different Postgres driver](#using-a-different-postgres-driver)).
+
+## Setup
+
+1. Provision a Postgres database anywhere (Neon, Vercel Postgres, Supabase, a
+   self-hosted server — anything) and copy the connection string into
+   `DATABASE_URL`.
+2. That's it. Checked-in SQL migrations under `apps/app/drizzle/` are applied
+   automatically at build time — the `apps/app` `build` script is
+   `drizzle-kit migrate && next build`, so every Vercel deploy lands any new
+   migrations before starting the app. `drizzle-kit migrate` is idempotent
+   (skips migrations already recorded in `__drizzle_migrations`).
+
+## What's in the schema
+
+Schema lives in `apps/app/lib/db/schema.ts`:
+
+- Better Auth's `user` / `session` / `account` / `verification` tables, plus a
+  per-user `organization` JSONB column for folders/pins.
+- `kv_store` — backs `lib/kv` (TTL-aware key/value with distributed locks).
+- `room` / `room_member` — project rooms and access control. Source of truth for
+  who can open a canvas; the `/api/yjs/auth` route gates Yjs-host token issuance
+  against `room_member`.
+- `thread` / `comment` / `thread_read` — canvas comment threads plus per-user
+  read markers. Realtime fanout rides a `meta.commentsRevision` counter inside
+  the room's Y.Doc — the server bumps it after any thread/comment change, clients
+  subscribe via `useCommentsRevision` and refetch.
+- `agent_chat` / `agent_message` / `agent_run` / `agent_pending_tool_call` —
+  agent persistence behind the `streamText` tool loop in `lib/agent/engine.ts`:
+  one chat per canvas chat session, an append-only `UIMessage` log, the run-state
+  machine for each invocation, and tool calls parked awaiting user approval
+  (e.g. `submit_plan`).
+- `terminal_tab` — persisted Terminal Tabs, keyed by user + room + branch,
+  recording each tab's identity/label/ordering and the harness key it launches
+  into (never scrollback or conversation content).
+
+## Changing the schema
+
+```bash
+# 1. Edit apps/app/lib/db/schema.ts
+# 2. Generate the migration (SQL file under apps/app/drizzle/)
+cd apps/app && pnpm db:generate
+# 3. Commit the generated .sql file alongside the schema change
+# 4. The next deploy applies it via `drizzle-kit migrate`
+```
+
+For throwaway local experiments you can still use `pnpm db:push` to skip the
+migration file and sync the schema directly — don't commit the result.
+
+> **Note on preview deploys:** by default every preview deploy runs
+> `drizzle-kit migrate` against whatever `DATABASE_URL` is set to in Vercel's
+> Preview scope. If you point preview at the same DB as production, a preview
+> build will apply pending migrations to prod before the PR merges. If you need
+> isolation, point previews at a separate database — e.g.
+> [Neon's Vercel integration](https://neon.tech/docs/guides/vercel) gives you a
+> per-preview branch automatically.
+
+## Using a different Postgres driver
+
+`apps/app/lib/db/index.ts` picks the default driver via `createNeonDb()` in
+`neon.ts`, and the rest of the app programs against the `DB` type alias in
+`lib/db/types.ts`. By default `DB` resolves to the concrete neon-http handle
+(`NeonHttpDatabase<typeof schema>`) — it extends the generic `PgDatabase`, so
+ordinary queries keep working, but it also surfaces neon's `batch()` primitive.
+To point at another driver:
+
+1. Install the driver package you want (`postgres`, `pg`, `@vercel/postgres`, …).
+2. Add a sibling factory — e.g. `apps/app/lib/db/postgres-js.ts`:
+
+   ```ts
+   import postgres from "postgres"
+   import { drizzle } from "drizzle-orm/postgres-js"
+   import * as schema from "./schema"
+   import type { DB } from "./types"
+
+   export function createPostgresJsDb(): DB {
+     if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set")
+     return drizzle(postgres(process.env.DATABASE_URL), { schema })
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory, and
+   repoint the `DB` alias in `types.ts` at your driver's database type. (If any
+   code relied on neon's `batch()`, you'll need an equivalent for it.)
+
+`lib/kv` uses the same `db`, so nothing else in the app needs to change.

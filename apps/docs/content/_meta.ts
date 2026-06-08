@@ -1,7 +1,9 @@
 const meta = {
   index: "Introduction",
   "getting-started": "Getting Started",
-  guides: "Guides",
+  deployment: "Deployment",
+  configuration: "Configuration",
+  development: "Development",
 }
 
 export default meta

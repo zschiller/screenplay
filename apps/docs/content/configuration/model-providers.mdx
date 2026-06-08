@@ -1,0 +1,105 @@
+# Model providers
+
+The agent loop is built on the [Vercel AI SDK](https://ai-sdk.dev). Each provider
+is one concrete file under `apps/app/lib/agent/providers/` (`anthropic`,
+`openai`, `google`, `vercel` for the AI Gateway, and `openai-compatible`),
+composed into the active set in `apps/app/lib/agent/providers/index.ts`. The
+shape mirrors `lib/sandbox/`, `lib/blob/`, and `lib/yjs-host/` — a
+`ModelProvider` interface in `types.ts`, one file per implementation, and an
+`index.ts` that picks which ones are live.
+
+Model ids are fully qualified: `<provider>:<model>` (e.g.
+`anthropic:claude-sonnet-4-6`, `openai:gpt-4o`,
+`vercel:anthropic/claude-sonnet-4-6` for a model routed through the AI Gateway,
+`compat:llama-3.3-70b` for an OpenAI-compatible endpoint). Bare ids are rejected
+— provider routing is always explicit, so a deployment configured only for
+OpenAI never silently routes a stray `claude-*` id to Anthropic.
+
+A provider self-detects whether it's enabled by inspecting env vars in
+`isConfigured()`. Providers without their key set are skipped from the picker but
+stay loaded in code, so chats that reference them surface a clear "API key not
+set" error rather than silently rerouting.
+
+## Configuring providers
+
+At least one provider must be configured. Each provider's model list is populated
+live by hitting its discovery endpoint, filtered to chat-capable models, and
+cached for an hour in `lib/kv` — there's no static catalog to keep in sync, so
+adding a model upstream surfaces in the picker on the next refresh.
+
+- **Anthropic** — `ANTHROPIC_API_KEY`. Models discovered from
+  `GET https://api.anthropic.com/v1/models`.
+- **OpenAI** — `OPENAI_API_KEY`. Models discovered from
+  `GET https://api.openai.com/v1/models`, filtered to chat-capable ids (excludes
+  embeddings, dall-e, tts, whisper, etc.).
+- **Google (Gemini)** — `GOOGLE_GENERATIVE_AI_API_KEY`. Models discovered from
+  `GET https://generativelanguage.googleapis.com/v1beta/models`, filtered to
+  those supporting `generateContent`.
+- **Vercel AI Gateway** (provider key `vercel`) — `AI_GATEWAY_API_KEY`, generated
+  from your project's AI Gateway dashboard. Routes through
+  https://ai-gateway.vercel.sh and exposes hundreds of models behind a unified
+  API with Vercel-specific features on top: budgets, per-user/tag analytics,
+  automatic failover, and BYOK. Model ids are prefixed `vercel:` (e.g.
+  `vercel:anthropic/claude-sonnet-4-6`). Models discovered via
+  `gateway.getAvailableModels()` from the AI SDK, filtered to language models.
+  Note: although Vercel injects an OIDC token on deploys, the gateway does
+  **not** accept it in practice, so `AI_GATEWAY_API_KEY` must be set explicitly —
+  even on Vercel — for this provider to be considered configured.
+- **Generic OpenAI-compatible endpoint** — `OPENAI_COMPATIBLE_BASE_URL` (+
+  optional `OPENAI_COMPATIBLE_API_KEY`) point at any endpoint that speaks the
+  OpenAI HTTP protocol: OpenRouter, Groq, Together, vLLM, LM Studio, an internal
+  LiteLLM proxy, etc. Models discovered from `${BASE_URL}/v1/models`. For Vercel
+  AI Gateway specifically, use the dedicated provider above instead — it uses
+  Vercel's SDK and gets you the extra Gateway features. Example:
+
+  ```bash
+  OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+  OPENAI_COMPATIBLE_API_KEY=sk-or-...
+  ```
+
+Each provider falls back to a small curated list if its discovery call fails —
+typically when a key is invalid, the upstream is rate-limiting, or a self-hosted
+server doesn't implement `/v1/models`. The fallback is negative-cached for
+~1 minute so a flapping upstream doesn't get hammered while still recovering
+quickly when it heals.
+
+`AGENT_DEFAULT_MODEL` overrides the fallback used when a request doesn't pass a
+model. Default: `anthropic:claude-sonnet-4-6`. Set this to a provider you've
+actually configured — e.g. `openai:gpt-4o` if you're not running Anthropic at
+all.
+
+## Adding a new provider
+
+1. Install the AI SDK adapter for your provider (e.g. `pnpm add @ai-sdk/mistral`).
+2. Drop a sibling factory under `apps/app/lib/agent/providers/` modeled on the
+   existing files:
+
+   ```ts
+   import "server-only"
+   import { mistral } from "@ai-sdk/mistral"
+   import type { ModelProvider } from "./types"
+
+   class MistralProvider implements ModelProvider {
+     key = "mistral"
+     label = "Mistral"
+     isConfigured() { return Boolean(process.env.MISTRAL_API_KEY) }
+     async listModels() {
+       if (!this.isConfigured()) return []
+       return [{ id: "mistral:mistral-large-latest", label: "Mistral Large" }]
+     }
+     resolve(modelId: string) { return mistral(modelId) }
+   }
+
+   export function getMistralProvider(): ModelProvider {
+     return new MistralProvider()
+   }
+   ```
+
+3. Import the factory and add it to the `PROVIDERS` array in
+   `apps/app/lib/agent/providers/index.ts`.
+
+The `ModelProvider` interface is small (`key`, `label`, `isConfigured`,
+`listModels`, `resolve`) — see `apps/app/lib/agent/providers/types.ts` for the
+exact shape. Note `listModels()` is async (it returns a `Promise`). The agent
+engine, model picker, and `/api/agent/models` route are all written against this
+interface and need no changes.
