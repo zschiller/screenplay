@@ -4,7 +4,7 @@ import type { AcpSession, AcpSessionPorts, OpenSessionOptions } from "./session"
 import type { ContentBlock } from "./schema"
 
 /**
- * How the {@link AcpEngine} obtains a live ACP session for a turn. Production
+ * How the {@link ExternalEngine} obtains a live ACP session for a turn. Production
  * injects a factory that spawns/connects to a generic ACP agent — stdio via
  * `ndJsonStream`, or a socket — and runs the handshake + new-or-load inside
  * {@link AcpSession.open}; tests inject one crossing an in-memory stream to a
@@ -17,16 +17,21 @@ export interface AcpSessionFactory {
   open(ports: AcpSessionPorts, options: OpenSessionOptions): Promise<AcpSession>
 }
 
-/** Everything the {@link AcpEngine} needs to drive turns against an ACP agent. */
-export interface AcpEngineConfig {
+/** Everything the {@link ExternalEngine} needs to drive turns against an ACP agent. */
+export interface ExternalEngineConfig {
   sessionFactory: AcpSessionFactory
   /** Working directory advertised to the agent (absolute path). */
   cwd?: string
 }
 
 /**
- * The **ACP Engine** (ADR 0006, PRD #375): the second implementation of the
- * {@link Engine} seam, behind the *same* seam the in-process AI-SDK translator
+ * The **External Engine** (ADR 0006, PRD #375): the second implementation of the
+ * {@link Engine} seam — named for *where the model runs* (a separate external
+ * agent), the axis that actually distinguishes it from the in-process engine.
+ * Both engines speak ACP at the seam; this one is the genuine ACP *client* (ACP
+ * is its native wire protocol to the external agent), where the in-process engine
+ * runs the model itself via the AI SDK and translates to ACP. It sits behind the
+ * *same* seam the in-process AI-SDK translator
  * sits behind. Where the in-process engine runs the model itself and translates
  * AI-SDK chunks into ACP, this engine is a thin client over a real ACP agent: it
  * drives the {@link AcpSession} module (the way the in-process engine drives
@@ -60,10 +65,10 @@ export interface AcpEngineConfig {
  * `completed`/`failed` transition, the run lifecycle's watchdog having already
  * recorded the terminal stop.
  */
-export class AcpEngine implements Engine {
-  readonly id = "acp"
+export class ExternalEngine implements Engine {
+  readonly id = "external"
 
-  constructor(private readonly config: AcpEngineConfig) {}
+  constructor(private readonly config: ExternalEngineConfig) {}
 
   async run(
     turn: EngineTurn,

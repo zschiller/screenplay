@@ -185,12 +185,14 @@ _Avoid_: project skill, local skill.
 A seam that drives one turn of a Chat Session to completion, **speaking ACP**:
 its update vocabulary is the genuine Agent Client Protocol `session/update`
 (not a bespoke wire format), and the conversation is persisted ACP-native. Two
-implementations sit behind the seam — a default **in-process AI-SDK** engine
-(which still runs `streamText` but now *translates*: it rebuilds its model
-input from ACP-native history and emits ACP updates) and an **ACP engine** that
-drives a generic ACP agent via the session module and passes its `session/update`s
-through nearly natively. Which one runs is a per-deployment choice
-(`AGENT_ENGINE=in-process|acp`, default in-process — `engine-select.ts`), not a
+implementations sit behind the seam — a default **in-process** engine
+(which runs `streamText` itself but now *translates*: it rebuilds its model
+input from ACP-native history and emits ACP updates) and an **external** engine
+that drives a generic ACP agent via the session module and passes its
+`session/update`s through nearly natively. Both speak ACP at the seam; they are
+named for *where the model runs* (in-process vs. a separate external agent), not
+for the protocol. Which one runs is a per-deployment choice
+(`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
 per-Chat-Session column; an engine that can't honor a capability (e.g.
 prompt-cache usage) degrades via the `supports*` type guard. The shared contract
 test pins both engines to the *same* observable outcome for the same turn, so the

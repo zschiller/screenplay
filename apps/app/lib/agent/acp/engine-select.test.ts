@@ -12,7 +12,7 @@ import {
   engineChoiceFromEnv,
   selectEngine,
 } from "./engine-select"
-import { AcpEngine } from "./acp-engine"
+import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
 
 /**
@@ -24,12 +24,12 @@ describe("engineChoiceFromEnv", () => {
     expect(engineChoiceFromEnv({})).toBe("in-process")
   })
 
-  it("selects acp on the explicit value", () => {
-    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "acp" })).toBe("acp")
+  it("selects external on the explicit value", () => {
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "external" })).toBe("external")
   })
 
   it("treats an unrecognised value as the default — never a silent swap", () => {
-    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "ACP" })).toBe("in-process")
+    expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "External" })).toBe("in-process")
     expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "" })).toBe("in-process")
     expect(engineChoiceFromEnv({ [ENGINE_ENV_VAR]: "in-process" })).toBe(
       "in-process"
@@ -49,10 +49,10 @@ describe("selectEngine", () => {
     expect(selectEngine()).toBe(inProcessEngine)
   })
 
-  it("builds an ACP engine from the injected config when AGENT_ENGINE=acp", () => {
-    process.env[ENGINE_ENV_VAR] = "acp"
+  it("builds an external engine from the injected config when AGENT_ENGINE=external", () => {
+    process.env[ENGINE_ENV_VAR] = "external"
     const engine = selectEngine({
-      acp: {
+      external: {
         sessionFactory: {
           open: async () => {
             throw new Error("session factory unused in this test")
@@ -60,12 +60,12 @@ describe("selectEngine", () => {
         },
       },
     })
-    expect(engine).toBeInstanceOf(AcpEngine)
-    expect(engine.id).toBe("acp")
+    expect(engine).toBeInstanceOf(ExternalEngine)
+    expect(engine.id).toBe("external")
   })
 
-  it("throws when AGENT_ENGINE=acp but no transport is configured, rather than silently falling back", () => {
-    process.env[ENGINE_ENV_VAR] = "acp"
+  it("throws when AGENT_ENGINE=external but no transport is configured, rather than silently falling back", () => {
+    process.env[ENGINE_ENV_VAR] = "external"
     expect(() => selectEngine()).toThrow(/no ACP session factory/)
   })
 })
