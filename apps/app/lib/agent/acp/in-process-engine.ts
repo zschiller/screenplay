@@ -89,6 +89,20 @@ export class InProcessEngine implements UsageReportingEngine {
           // Drop chunks the model buffered before the abort propagated, so a
           // `/stop` doesn't keep streaming text after the user stopped.
           if (signal.aborted) return
+          // The plan gate streams its arguments first (`tool-input-start`,
+          // then `tool-input-delta`s) before the final `tool-call`. Drop that
+          // opening chunk: left alone it becomes a `pending` `tool_call` update
+          // that the gate — intercepted just below into a permission request,
+          // never a `tool_call_update` — leaves uncompleted, so the chip spins
+          // forever (and reads "Submit Plan" off the title-case fallback). The
+          // `tool-input-delta`s carry no ACP signal already, so suppressing the
+          // start is enough; the gate surfaces solely as the permission request.
+          if (
+            chunk.type === "tool-input-start" &&
+            chunk.toolName === SUBMIT_PLAN_TOOL
+          ) {
+            return
+          }
           // A `submit_plan` tool-call is screenplay's plan-mode approval gate.
           // Translate it to an ACP permission request — *not* an informational
           // `plan` update — so it maps onto `pauseForPlan` downstream (PRD #375,

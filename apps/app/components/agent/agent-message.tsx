@@ -52,6 +52,7 @@ const toolLabels: Record<string, string> = {
   list_files: "List files",
   create_pr: "Create PR",
   read_skill: "Read skill",
+  submit_plan: "Submit plan",
   read_document: "Read document",
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
