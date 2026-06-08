@@ -63,26 +63,3 @@ export type AgentMessage =
       content: ToolCallContent[]
       rawInput?: Record<string, unknown>
     }
-
-export type AgentStreamEvent =
-  // `textId` identifies the source text block from the model. The client
-  // tracks the most recent textId per chat and appends a new assistant
-  // message whenever it changes, so multiple text blocks within a step
-  // don't clobber each other in the UI.
-  | { type: "user_message"; text: string }
-  | { type: "text"; text: string; textId?: string }
-  | { type: "tool_use"; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; name: string; output: string }
-  | { type: "status"; status: string }
-  | { type: "error"; message: string }
-  | { type: "branch_rename"; branch: string }
-  | { type: "chat_rename"; label: string }
-  | {
-      type: "plan_submitted"
-      planId: string
-      plan: string
-      toolEventId: string
-    }
-  | { type: "plan_approved"; planId: string }
-  | { type: "plan_rejected"; planId: string; feedback: string }
-  | { type: "done" }

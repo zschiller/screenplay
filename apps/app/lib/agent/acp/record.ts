@@ -128,8 +128,8 @@ const INTERRUPTED_CONTENT: ToolCallContent = {
 
 /**
  * Repair the ACP-native log a crash mid-turn leaves behind (PRD #375, issue
- * #382), the ACP-native counterpart of {@link
- * import("../persistence").repairOrphanedToolCalls} for `ModelMessage[]`.
+ * #382). This is now the sole crash-repair on the live path — the AI-SDK
+ * `ModelMessage[]` counterpart was retired with the live-route cutover (#397).
  *
  * The consumer upserts each tool call *in place* by id as its status advances
  * ({@link import("./consumer").AcpConsumerPorts.upsertToolCall}), so a crash

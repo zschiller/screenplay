@@ -16,8 +16,10 @@ export {
 export {
   resolvePlanGate,
   planResolutionRecord,
+  planResolutionText,
   type PlanResolutionPorts,
 } from "./resolution"
+export { driveEngineTurn, type DriveTurnDeps } from "./live-turn"
 export { InProcessEngine, inProcessEngine } from "./in-process-engine"
 export {
   ExternalEngine,

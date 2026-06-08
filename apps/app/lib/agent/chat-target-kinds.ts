@@ -33,8 +33,8 @@ import {
  * The targeted layer's *write* tools stay private to that target's own
  * factory.
  *
- * `/api/agent/stream` looks up the right entry by `target.kind` and runs
- * the same `runAgentLoop` against whatever toolset the entry returns.
+ * `/api/agent/stream` looks up the right entry by `target.kind` and drives the
+ * Engine seam against whatever toolset the entry returns.
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string

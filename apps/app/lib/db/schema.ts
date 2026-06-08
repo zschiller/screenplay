@@ -198,7 +198,8 @@ export const threadRead = pgTable(
   ]
 )
 
-// Agent persistence — backs the streamText tool loop in lib/agent/engine.ts.
+// Agent persistence — the ACP-native conversation log and run lifecycle the
+// Engine seam drives (lib/agent/acp/, lib/agent/run-state.ts).
 
 import type { ModelMessage } from "ai"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"

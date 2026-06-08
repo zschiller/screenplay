@@ -12,7 +12,7 @@ function play(
   for (const e of events) chatStore.handleBroadcastEvent(e)
 }
 
-describe("chat-store — plan gate", () => {
+describe("chat-store — plan gate (ACP)", () => {
   it("renders an ACP permission request as a pending plan card", () => {
     const chatId = `chat_${++seq}`
     play(chatId, [
@@ -40,29 +40,40 @@ describe("chat-store — plan gate", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("shows rejection feedback on the plan card (the gap #379 closes)", () => {
+  it("flips the plan card to rejected and shows the feedback as the human's next turn", () => {
     const chatId = `chat_${++seq}`
     play(chatId, [
       { type: "chat-stream-start", chatId, id: nextId() },
       {
-        type: "chat-stream",
+        type: "chat-acp-permission",
         chatId,
         id: nextId(),
-        event: {
-          type: "plan_submitted",
-          planId: "toolu_plan_2",
+        request: planPermissionRequest({
+          sessionId: chatId,
+          toolCallId: "toolu_plan_2",
           plan: "do X",
-          toolEventId: "te_1",
+        }),
+      },
+      // The human rejects: the card flips via the control envelope, and the
+      // feedback rides its own ACP `user_message_chunk` echo (the continuation
+      // the agent acts on) — feedback shown, ACP-native, no bespoke event.
+      {
+        type: "chat-control",
+        chatId,
+        id: nextId(),
+        control: {
+          kind: "plan_resolved",
+          planId: "toolu_plan_2",
+          approved: false,
         },
       },
       {
-        type: "chat-stream",
+        type: "chat-acp-update",
         chatId,
         id: nextId(),
-        event: {
-          type: "plan_rejected",
-          planId: "toolu_plan_2",
-          feedback: "Do Y instead.",
+        update: {
+          sessionUpdate: "user_message_chunk",
+          content: { type: "text", text: "Do Y instead." },
         },
       },
     ])
@@ -73,32 +84,35 @@ describe("chat-store — plan gate", () => {
         content: "do X",
         status: "rejected",
         planId: "toolu_plan_2",
-        feedback: "Do Y instead.",
       },
+      { role: "user", content: "Do Y instead." },
     ])
     chatStore.cleanup(chatId)
   })
 
-  it("leaves feedback unset on approval", () => {
+  it("flips the plan card to approved on approval", () => {
     const chatId = `chat_${++seq}`
     play(chatId, [
       { type: "chat-stream-start", chatId, id: nextId() },
       {
-        type: "chat-stream",
+        type: "chat-acp-permission",
         chatId,
         id: nextId(),
-        event: {
-          type: "plan_submitted",
-          planId: "toolu_plan_3",
+        request: planPermissionRequest({
+          sessionId: chatId,
+          toolCallId: "toolu_plan_3",
           plan: "do X",
-          toolEventId: "te_2",
-        },
+        }),
       },
       {
-        type: "chat-stream",
+        type: "chat-control",
         chatId,
         id: nextId(),
-        event: { type: "plan_approved", planId: "toolu_plan_3" },
+        control: {
+          kind: "plan_resolved",
+          planId: "toolu_plan_3",
+          approved: true,
+        },
       },
     ])
 

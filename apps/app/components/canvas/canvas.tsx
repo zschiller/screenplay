@@ -199,7 +199,9 @@ function LogProbe({
       while (!abort.signal.aborted) {
         try {
           const res = await fetch(
-            withBasePath(`/api/sandbox/${encodeURIComponent(sandboxName)}/logs`),
+            withBasePath(
+              `/api/sandbox/${encodeURIComponent(sandboxName)}/logs`
+            ),
             { signal: abort.signal, cache: "no-store" }
           )
           if (res.ok) {
@@ -3805,13 +3807,13 @@ export function Canvas({
       updateChatSession(e.chatId, { isStreaming: true })
     } else if (e.type === "chat-stream-end") {
       updateChatSession(e.chatId, { isStreaming: false })
-    } else if (e.type === "chat-stream" && e.event.type === "chat_rename") {
+    } else if (e.type === "chat-control" && e.control.kind === "chat_rename") {
       // Apply the auto-generated label here, at the canvas level, rather than
       // relying on the per-chat `onChatRename` callback: that callback is an
       // inline arrow re-registered on every AgentChat render, so a rename
       // broadcast landing during the clear/re-set window would be dropped.
       // Writing the Y.Doc here is independent of which chat tab is mounted.
-      updateChatSession(e.chatId, { label: e.event.label })
+      updateChatSession(e.chatId, { label: e.control.label })
     }
   })
 
