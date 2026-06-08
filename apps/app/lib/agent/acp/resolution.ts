@@ -39,19 +39,28 @@ export interface PlanResolutionPorts {
 }
 
 /**
+ * The continuation text a human plan resolution lands as. Reject carries the
+ * verbatim feedback (the revision instruction); approve carries an explicit
+ * "proceed" so the rebuilt history resumes the same session cleanly. The single
+ * source for both the durable {@link planResolutionRecord} and the live user
+ * echo the route broadcasts, so the turn the model sees and the bubble the Room
+ * renders never drift.
+ */
+export function planResolutionText(resolution: PlanResolution): string {
+  return resolution.approved
+    ? "Approved the plan. Proceed with the implementation."
+    : resolution.feedback?.trim() ||
+        "Requested changes to the plan. Please revise."
+}
+
+/**
  * The ACP-native record of a human plan resolution — a `user` turn carrying the
- * continuation the agent acts on next. Reject carries the verbatim feedback (the
- * revision instruction); approve carries an explicit "proceed" so the rebuilt
- * history resumes the same session cleanly.
+ * continuation the agent acts on next.
  */
 export function planResolutionRecord(
   resolution: PlanResolution
 ): AcpMessageRecord {
-  const text = resolution.approved
-    ? "Approved the plan. Proceed with the implementation."
-    : resolution.feedback?.trim() ||
-      "Requested changes to the plan. Please revise."
-  return { role: "user", content: [textBlock(text)] }
+  return { role: "user", content: [textBlock(planResolutionText(resolution))] }
 }
 
 /**

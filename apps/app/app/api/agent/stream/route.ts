@@ -1,12 +1,10 @@
 import { after } from "next/server"
-import type { ModelMessage } from "ai"
 import { getUserId } from "@/lib/auth-helpers"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import { toolsetFor } from "@/lib/agent/toolset"
 import type { ToolContext } from "@/lib/agent/tools"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
-import { buildPlanToolResultMessage, runAgentLoop } from "@/lib/agent/engine"
 import {
   agentChatTarget,
   loadLayerDirectory,
@@ -15,18 +13,18 @@ import {
 } from "@/lib/agent/chat-target-kinds"
 import { DEFAULT_MODEL } from "@/lib/agent/providers"
 import {
-  appendMessage,
+  appendAcpMessage,
   findPendingPlanForChat,
-  loadChatHistory,
-  loadChatHistoryForModel,
+  loadAcpHistory,
   upsertChat,
 } from "@/lib/agent/persistence"
-import { resolvePlan, startRun, transition } from "@/lib/agent/run-state"
-import {
-  broadcastEvent,
-  broadcastSignal,
-  StreamBroadcaster,
-} from "@/lib/agent/broadcast"
+import { resolvePlan, startRun } from "@/lib/agent/run-state"
+import { broadcastAcpUpdate, broadcastControl } from "@/lib/agent/broadcast"
+import { broadcastSignal } from "@/lib/agent/broadcast"
+import { selectEngine } from "@/lib/agent/acp/engine-select"
+import { wireToContentBlocks } from "@/lib/agent/acp/markers"
+import { userMessageChunk } from "@/lib/agent/acp/schema"
+import { launchEngineTurn } from "@/lib/agent/launch-turn"
 import { deduplicateBranchName, generateChatNames } from "@/lib/agent/naming"
 
 export const runtime = "nodejs"
@@ -51,6 +49,11 @@ export async function POST(req: Request) {
   const userId = await getUserId()
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
+  // Resolve the engine up front so a misconfigured deployment
+  // (`AGENT_ENGINE=external` with no session factory wired) fails loud here —
+  // a 500 at the boundary — rather than silently falling back (ADR 0006).
+  const engine = selectEngine()
+
   const body: RequestBody = await req.json()
   const {
     roomId,
@@ -73,10 +76,21 @@ export async function POST(req: Request) {
     })
   }
 
+  // Persist the incoming user turn as an ACP-native `user` record — the
+  // decorated wire text (plan/branch markers + `@`-mention `resource_link`s)
+  // encoded to content blocks. The matching live echo is broadcast *after*
+  // `chat-stream-start` (below), inside the replay window, so a client joining
+  // mid-stream still sees the user message.
+  const persistUserTurn = (chatId: string, userText: string) =>
+    appendAcpMessage(chatId, {
+      role: "user",
+      content: wireToContentBlocks(userText),
+    })
+
   // Layer-targeted chats defer all of their kind-specific bits — system
   // prompt, tools, message decoration — to a registered `ChatTargetSpec`.
   // Adding a new chat-targetable kind means shipping a spec and a route
-  // branch; the surrounding agent loop is unchanged.
+  // branch; the surrounding seam is unchanged.
   const layerChat: {
     spec: typeof markdownLayerChatTarget
     target: { markdownLayerId: string }
@@ -108,43 +122,23 @@ export async function POST(req: Request) {
       planMode,
       isFirstMessage: false,
     })
-    const userMessage: ModelMessage = { role: "user", content: userText }
-    await appendMessage(chatId, userMessage)
+    await persistUserTurn(chatId, userText)
 
-    const history = await loadChatHistoryForModel(chatId)
     const runId = await startRun(chatId)
-
-    // Broadcast the start signal and echo the user message synchronously so
-    // the client transitions into the streaming state before the response
-    // returns. If the `after()` callback never runs (cold-start eviction,
-    // OOM, container drain), the safety net inside it ensures the UI
-    // doesn't get stranded with an indefinite spinner.
     await broadcastSignal(roomId, chatId, "chat-stream-start")
-    const broadcaster = new StreamBroadcaster(roomId, chatId)
-    await broadcaster.onUserMessage(message)
+    await broadcastAcpUpdate(roomId, chatId, userMessageChunk(message))
 
-    after(async () => {
-      try {
-        await runAgentLoop({
-          chatId,
-          runId,
-          roomId,
-          systemPrompt: prepared.systemPrompt,
-          model: effectiveModel,
-          tools: prepared.tools,
-          messages: history,
-        })
-      } catch (e) {
-        console.error("runAgentLoop failed (layer chat):", e)
-        const msg = e instanceof Error ? e.message : String(e)
-        try {
-          await broadcastEvent(roomId, chatId, { type: "error", message: msg })
-        } finally {
-          await transition(runId, "failed").catch(() => {})
-          await broadcastSignal(roomId, chatId, "chat-stream-end")
-        }
-      }
-    })
+    after(() =>
+      launchEngineTurn({
+        engine,
+        roomId,
+        chatId,
+        runId,
+        systemPrompt: prepared.systemPrompt,
+        model: effectiveModel,
+        tools: prepared.tools,
+      })
+    )
 
     return Response.json({ chatId, runId })
   }
@@ -157,10 +151,9 @@ export async function POST(req: Request) {
     })
   }
 
-  // First-message check: a chat is "new" if it has no prior messages. More
-  // reliable than the client-supplied `isFirstChat` since it also covers the
-  // case where v2 is being mounted onto an existing chat.
-  const isNewChat = (await loadChatHistory(chatId)).length === 0
+  // First-message check: a chat is "new" if it has no prior ACP-native records.
+  // More reliable than the client-supplied `isFirstChat`.
+  const isNewChat = (await loadAcpHistory(chatId)).length === 0
 
   const effectiveModel = model || DEFAULT_MODEL
   const toolCtx: ToolContext = { sandboxName, roomId, userId }
@@ -196,12 +189,12 @@ export async function POST(req: Request) {
   })
 
   // First-message branch + chat-label naming so chats get auto-named without
-  // the user picking a branch. The rename *broadcasts* are deferred until
-  // after `chat-stream-start` below: clients only replay events back to the
-  // most recent start marker (see `findActiveStreamStart`), and the event
-  // array is trimmed on each start — so anything emitted before the start is
-  // skipped and then deleted. We compute the names here (the branch marker
-  // baked into the user message needs `effectiveBranch`) but broadcast later.
+  // the user picking a branch. The rename broadcasts are deferred until after
+  // `chat-stream-start` below: clients replay events back to the most recent
+  // start marker, and the event array is trimmed on each start — so anything
+  // emitted before the start is skipped and then deleted. We compute the names
+  // here (the branch marker baked into the user message needs `effectiveBranch`)
+  // but broadcast later.
   let effectiveBranch = branch
   let renamedBranch = ""
   let renamedLabel = ""
@@ -230,99 +223,65 @@ export async function POST(req: Request) {
     }
   }
 
-  // If the user sent a follow-up message while a submit_plan is still
-  // pending approval, treat the new message as the rejection feedback and
-  // resolve the plan before continuing. Without this the conversation log
-  // would have an unresolved tool-call followed by a user message, which
-  // every provider rejects with a 400 ("tool_use must have a corresponding
-  // tool_result").
+  // If the user sent a follow-up message while a submit_plan is still awaiting
+  // approval, treat it as an implicit rejection: resolve the plan (marking it
+  // rejected and superseding its paused run) and flip the plan card. The
+  // follow-up message itself becomes the next user turn below — the revision
+  // instruction — so no separate resolution record is appended here.
   const pendingPlan = await findPendingPlanForChat(chatId)
   if (pendingPlan) {
-    // The follow-up message is an implicit rejection: resolve the plan and
-    // supersede its paused run atomically before the new run starts.
-    await resolvePlan(pendingPlan.id, {
-      approved: false,
-      feedback: message,
-    })
-    await appendMessage(
-      chatId,
-      buildPlanToolResultMessage({
-        toolCallId: pendingPlan.id,
-        approved: false,
-        feedback: message,
-      })
-    )
-    await broadcastEvent(roomId, chatId, {
-      type: "plan_rejected",
+    await resolvePlan(pendingPlan.id, { approved: false, feedback: message })
+    await broadcastControl(roomId, chatId, {
+      kind: "plan_resolved",
       planId: pendingPlan.id,
-      feedback: message,
+      approved: false,
     })
   }
 
-  // Append the user message with the plan/branch prefixes the agent's system
-  // prompt looks for. The Chat Target spec owns the policy (branch only on
-  // the first message) and delegates the format to the Message Markers codec
-  // — there is exactly one encode path.
+  // Append the user message with the plan/branch markers the agent's system
+  // prompt looks for. The Chat Target spec owns the policy (branch only on the
+  // first message) and delegates the format to the Message Markers codec —
+  // there is exactly one encode path.
   const userText = agentChatTarget.decorateUserMessage!(message, {
     planMode,
     branch: effectiveBranch,
     isFirstMessage: isNewChat,
   })
-  const userMessage: ModelMessage = { role: "user", content: userText }
-  await appendMessage(chatId, userMessage)
+  await persistUserTurn(chatId, userText)
 
-  const history = await loadChatHistoryForModel(chatId)
   const runId = await startRun(chatId)
-
-  // Broadcast the start signal and echo the user message synchronously so
-  // the client transitions into streaming before the response returns —
-  // otherwise a failed/dropped `after()` callback would strand the chat with
-  // a persisted user message and no indication anything is happening.
   await broadcastSignal(roomId, chatId, "chat-stream-start")
-  const broadcaster = new StreamBroadcaster(roomId, chatId)
-  await broadcaster.onUserMessage(message)
+  await broadcastAcpUpdate(roomId, chatId, userMessageChunk(message))
 
   // Now that the start marker is in place, emit the first-message rename
-  // events — they land inside the replay window so live and late-joining
-  // clients both pick them up (the broadcast skips/trims anything emitted
-  // before the start marker).
+  // controls — they land inside the replay window so live and late-joining
+  // clients both pick them up.
   if (renamedBranch) {
-    await broadcastEvent(roomId, chatId, {
-      type: "branch_rename",
+    await broadcastControl(roomId, chatId, {
+      kind: "branch_rename",
       branch: renamedBranch,
     })
   }
   if (renamedLabel) {
-    await broadcastEvent(roomId, chatId, {
-      type: "chat_rename",
+    await broadcastControl(roomId, chatId, {
+      kind: "chat_rename",
       label: renamedLabel,
     })
   }
 
-  // Kick off the loop in the background and return immediately — the client
+  // Drive the turn in the background and return immediately — the client
   // receives state via the Y.Doc broadcast channel.
-  after(async () => {
-    try {
-      await runAgentLoop({
-        chatId,
-        runId,
-        roomId,
-        systemPrompt,
-        model: effectiveModel,
-        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
-        messages: history,
-      })
-    } catch (e) {
-      console.error("runAgentLoop failed:", e)
-      const msg = e instanceof Error ? e.message : String(e)
-      try {
-        await broadcastEvent(roomId, chatId, { type: "error", message: msg })
-      } finally {
-        await transition(runId, "failed").catch(() => {})
-        await broadcastSignal(roomId, chatId, "chat-stream-end")
-      }
-    }
-  })
+  after(() =>
+    launchEngineTurn({
+      engine,
+      roomId,
+      chatId,
+      runId,
+      systemPrompt,
+      model: effectiveModel,
+      tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+    })
+  )
 
   return Response.json({ chatId, runId })
 }

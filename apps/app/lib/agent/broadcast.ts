@@ -1,6 +1,6 @@
 import "server-only"
 
-import type { AgentStreamEvent } from "@/lib/agent/types"
+import type { ChatControlEvent } from "@/lib/chat-store"
 import type {
   RequestPermissionRequest,
   SessionUpdate,
@@ -53,19 +53,26 @@ export async function broadcastPermissionRequest(
   }
 }
 
-export async function broadcastEvent(
+/**
+ * Broadcast a non-ACP control signal (ADR 0006) — an auto-naming rename, a plan
+ * resolution, or a turn error — on its own dedicated envelope, structurally
+ * distinct from the ACP `session/update` and permission-request channels. ACP
+ * has no slot for these, so they stay screenplay-shaped here rather than being
+ * smuggled into a `session/update`.
+ */
+export async function broadcastControl(
   roomId: string,
   chatId: string,
-  event: AgentStreamEvent
+  control: ChatControlEvent
 ): Promise<void> {
   try {
     await broadcastChatEventViaDoc(roomId, {
-      type: "chat-stream",
+      type: "chat-control",
       chatId,
-      event: JSON.parse(JSON.stringify(event)),
+      control: JSON.parse(JSON.stringify(control)),
     })
   } catch (e) {
-    console.error("v2 broadcast failed:", e)
+    console.error("control broadcast failed:", e)
   }
 }
 
@@ -78,73 +85,5 @@ export async function broadcastSignal(
     await broadcastChatEventViaDoc(roomId, { type: signal, chatId })
   } catch (e) {
     console.error("v2 broadcast signal failed:", e)
-  }
-}
-
-/**
- * Per-stream accumulator that translates streamText `onChunk` callbacks into
- * the `AgentStreamEvent` wire format the v1 client already understands.
- *
- * Text deltas accumulate per text block id and broadcast cumulatively (the
- * v1 chat-store applies `text` events by replacing the trailing assistant
- * message). Tool-calls and tool-results map 1:1 onto `tool_use` / `tool_result`
- * events. `submit_plan` is intentionally suppressed here — the stream route
- * emits a `plan_submitted` event instead once the loop halts on it.
- */
-export class StreamBroadcaster {
-  private textBuffers = new Map<string, string>()
-
-  constructor(
-    private readonly roomId: string,
-    private readonly chatId: string
-  ) {}
-
-  async onTextDelta(textId: string, delta: string): Promise<void> {
-    const next = (this.textBuffers.get(textId) ?? "") + delta
-    this.textBuffers.set(textId, next)
-    await broadcastEvent(this.roomId, this.chatId, {
-      type: "text",
-      text: next,
-      textId,
-    })
-  }
-
-  /**
-   * A new text block is starting — clear the previous block's buffer so the
-   * client appends a fresh assistant message rather than replacing the old
-   * one. Without this, agent text emitted across tool steps would clobber
-   * each other in the UI.
-   */
-  startNewTextBlock(): void {
-    this.textBuffers.clear()
-  }
-
-  async onToolCall(toolName: string, input: unknown): Promise<void> {
-    if (toolName === "submit_plan") return // surfaced as plan_submitted
-    await broadcastEvent(this.roomId, this.chatId, {
-      type: "tool_use",
-      name: toolName,
-      input: input as Record<string, unknown>,
-    })
-  }
-
-  async onToolResult(toolName: string, output: unknown): Promise<void> {
-    if (toolName === "submit_plan") return
-    await broadcastEvent(this.roomId, this.chatId, {
-      type: "tool_result",
-      name: toolName,
-      output: typeof output === "string" ? output : JSON.stringify(output),
-    })
-  }
-
-  async onError(message: string): Promise<void> {
-    await broadcastEvent(this.roomId, this.chatId, { type: "error", message })
-  }
-
-  async onUserMessage(text: string): Promise<void> {
-    await broadcastEvent(this.roomId, this.chatId, {
-      type: "user_message",
-      text,
-    })
   }
 }

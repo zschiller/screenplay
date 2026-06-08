@@ -217,6 +217,43 @@ The second implementation lands, proving the seam is honest rather than nominal:
   and `/api/agent/plan`. The contract proves the swap target is compatible; this
   slice does not yet point the live routes at a running subprocess.
 
+### The live-route cutover — the keystone (#397)
+
+The single integrated cutover the PRD sequenced last: `/api/agent/stream` and
+`/api/agent/plan` now drive `selectEngine → Engine.run → AcpUpdateConsumer`
+through `driveEngineTurn` (which owns the abort watchdog at the boundary), and
+the legacy machinery is **deleted**, not parallel.
+
+- **Persistence is ACP-native on the live path.** The turn loads crash-repaired
+  ACP-native history (`loadAcpHistoryForModel`) for engine input and appends the
+  incoming user turn as an ACP-native `user` record; the consumer owns every
+  subsequent append. No `ModelMessage` rows are written. `/api/agent/history`
+  reads ACP-native records (merged with `submit_plan` pending rows for the plan
+  card) and renders `user`/`agent`/`thought`/`tool_call` only — the
+  `ModelMessage` conversion switch is gone, legacy rows reset (not migrated).
+- **Broadcast is ACP-shaped on the live path.** Only `chat-acp-update` /
+  `chat-acp-permission` carry ACP; the `AgentStreamEvent` / `chat-stream` channel
+  is **retired**. The non-ACP control signals — the auto-naming renames, the plan
+  resolution, and turn errors — ride a dedicated **control envelope**
+  (`chat-control`), the way the permission request already rides its own; the
+  stream start/end signals keep theirs. The synchronous user-echo that
+  transitions the client into streaming is an ACP-native `user` record append
+  plus a live `user_message_chunk` broadcast.
+- **The plan gate is fully ACP-native.** The human resolution lands as an
+  ACP-native `user` turn (`resolvePlanGate`) — approve → "proceed", reject → the
+  feedback — which is both the continuation the engine rebuilds and the bubble
+  the Room renders; the plan card flips via the control envelope. No synthetic
+  `ModelMessage` tool-result is persisted anymore.
+- **Deleted:** `runAgentLoop` + helpers and the duplicated cache-breakpoint
+  helpers in `engine.ts` (the adapter is their sole home), `StreamBroadcaster`,
+  the `AgentStreamEvent` type, and the `ModelMessage` persistence/repair
+  functions (`appendMessage(s)`, `loadChatHistory(ForModel)`,
+  `repairOrphanedToolCalls`). The **keystone** end-to-end live-route seam test
+  pins the surviving path: ACP-native records (no `ModelMessage`), ACP-shaped
+  broadcasts (no `chat-stream`), terminal run-state, the plan-pause and `/stop`
+  mappings, and a reload that rebuilds the same conversation the live broadcast
+  produced.
+
 ## Consequences
 
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and
