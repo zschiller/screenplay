@@ -1,0 +1,17 @@
+# Mount path
+
+The product is path-agnostic. By default it's served at the **root** of its own
+domain — deploy it anywhere and every page, asset, route handler, and client
+`fetch` resolves correctly with no extra config.
+
+To serve it under a prefix instead (e.g. behind another origin that proxies a
+subpath), set **`NEXT_PUBLIC_BASE_PATH`** (e.g. `/app`). One variable drives
+everything: `apps/app/next.config.mjs` feeds it to Next's `basePath` (pages,
+`_next/*` assets, route handlers), and `apps/app/lib/base-path.ts` exposes it as
+`BASE_PATH` + a `withBasePath()` helper used for the URLs Next does **not**
+auto-prefix — `fetch`, `WebSocket`, and third-party `authEndpoint`s. Set it on
+both build and runtime (it's `NEXT_PUBLIC_`, so it's inlined at build time).
+
+This is how the reference deployment serves all three apps under one domain: the
+marketing `web` app owns the apex and rewrites `/app/*` to this project
+(`apps/web/vercel.json`), and this project sets `NEXT_PUBLIC_BASE_PATH=/app`.

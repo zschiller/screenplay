@@ -1,0 +1,32 @@
+# Deploying to Vercel
+
+With the [services](/deployment/services) created and your
+[environment variables](/deployment/environment-variables) in hand, deploying is
+three steps.
+
+1. Import the repo into a new Vercel project.
+2. Add the environment variables. Scope each one correctly:
+   - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g.
+     `https://build.screenplay.space`). Leave it unset on Preview so each preview
+     deploy auto-uses `https://$VERCEL_URL`.
+   - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`,
+     `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments"
+     scope). These must stay identical across every deploy — the `oAuthProxy`
+     plugin signs state on production and verifies it on the preview that started
+     the sign-in.
+   - `NEXT_PUBLIC_BASE_PATH`: **Production + Preview**, only if you serve the
+     product under a path prefix (see [Mount path](/configuration/mount-path)).
+     Leave it unset to serve at the domain root. In the reference deployment it's
+     `/app`, because the marketing `web` app owns the apex and proxies `/app/*`
+     to this project.
+   - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your
+     Yjs host needs), whichever model-provider keys you've configured
+     (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` /
+     `AI_GATEWAY_API_KEY` (must be set explicitly — the gateway doesn't accept
+     Vercel's OIDC token) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`,
+     `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `TERMINAL_AUTH_SECRET`,
+     `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs),
+     `SANDBOX_HARNESSES` (if you offer BYO coding CLIs)): **Production +
+     Preview**.
+3. Deploy. The first build runs the checked-in Drizzle migrations against your
+   database, then runs `next build`.

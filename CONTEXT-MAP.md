@@ -11,8 +11,9 @@ decisions live in `docs/adr/`, context-scoped ones in `<context>/docs/adr/`.
   (rooms, layers, groups, chat targets, tools, agent runs).
 - `apps/web` — the marketing homepage (hero / problems / workflow / packages /
   CTA / footer).
-- `apps/docs` — the documentation site (Nextra + App Router, stock
-  `nextra-theme-docs` theme).
+- `apps/docs` — the documentation site (Nextra + App Router,
+  `nextra-theme-docs`). Canonical home for setup, deployment, configuration,
+  and contributor docs; the root `README.md` is a thin pointer to it.
 
 _Other workspaces (`apps/web`, `apps/docs`, `packages/*`) don't have a
 `CONTEXT.md` yet; add one lazily when its domain terms first get resolved._

@@ -1,16 +1,24 @@
-# Screenplay Docs
+# Screenplay
 
-Welcome to the documentation for **Screenplay** — the collaborative canvas and
-agent runtime.
+**Screenplay** is a Next.js app that runs coding agents inside live development
+sandboxes, with real-time collaboration on a shared canvas. Each workspace gets
+its own sandbox VM, an agent loop built on the [Vercel AI SDK](https://ai-sdk.dev),
+and a per-room document that syncs canvas state, agent streams, and presence
+across everyone in the room.
 
-This site is a freshly scaffolded [Nextra](https://nextra.site) documentation
-app. Use the sidebar to navigate, or jump straight to
-[Getting Started](/getting-started).
+This site is the home for **running and self-hosting Screenplay**. It walks you
+from a local checkout through a production deployment, and documents every
+backend you can swap out.
 
-## What lives here
+## Where to start
 
-- **Getting Started** — set up the project and run it locally.
-- **Guides** — task-focused walkthroughs (see the nested
-  [Overview](/guides/overview)).
+- **[Getting Started](/getting-started)** — clone the monorepo and run it
+  locally.
+- **[Deployment](/deployment/services)** — the services you need, GitHub OAuth,
+  Postgres, environment variables, and deploying to Vercel.
+- **[Configuration](/configuration/sandbox-provider)** — the swappable seams:
+  sandbox provider, blob store, Yjs host, model providers, BYO coding harnesses,
+  and the mount path.
+- **[Development](/development)** — the contributor command reference.
 
-More content will land here as the docs grow.
+Screenplay is open source under the MIT License.

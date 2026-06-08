@@ -1,0 +1,28 @@
+# Yjs host
+
+The Yjs host provides durable storage and realtime sync for the per-room
+[Yjs](https://yjs.dev) document that holds canvas state (workspaces, agents,
+artboards, text layers, chat sessions, plans), agent stream events, and Yjs
+awareness (cursors, viewport, selections). Any Yjs-compatible backend works.
+
+The default implementation targets [Liveblocks](https://liveblocks.io) and only
+needs a server-side secret key from
+[the Liveblocks dashboard](https://liveblocks.io/dashboard) — it's consumed by
+`apps/app/lib/yjs-host/liveblocks-server.ts` and never leaves the server.
+
+## Using a different Yjs host
+
+The host is fronted by two thin re-exports — `lib/yjs-host/index.ts` (server)
+and `lib/yjs-host/client.tsx` (React client) — that point at the active
+implementation, so swapping the backend is a small, localized change. To point
+at a different host (Hocuspocus, y-websocket, Cloudflare Durable Objects, …):
+
+1. Add sibling `*-server.ts` / `*-client.tsx` files under `lib/yjs-host/`,
+   modeled on `liveblocks-server.ts` / `liveblocks-client.tsx`.
+2. Flip the re-exports in `lib/yjs-host/index.ts` and `lib/yjs-host/client.tsx`
+   to point at your new files.
+3. Set whatever env vars that host needs instead of `LIVEBLOCKS_SECRET_KEY`, and
+   consume them inside your server implementation.
+
+The `/api/yjs/auth` route gates Yjs-host token issuance against `room_member`,
+so whichever host you use, token issuance stays bound to room membership.

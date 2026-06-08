@@ -1,0 +1,44 @@
+# Blob store
+
+Project thumbnails are screenshotted by a headless browser, resized, and
+uploaded to a public-readable blob store. The default backend is
+[`@vercel/blob`](https://vercel.com/docs/vercel-blob) via
+`apps/app/lib/blob/vercel.ts`, fronted by a thin re-export in
+`apps/app/lib/blob/index.ts` that exposes a backend-agnostic `BlobStore`
+interface. Any object store with a public-URL read path works — S3, R2, GCS,
+Supabase Storage, a self-hosted MinIO bucket, etc.
+
+## Using a different blob backend
+
+`apps/app/lib/blob/index.ts` picks the default store via `getVercelBlobStore()`
+in `vercel.ts`. The exported `blobStore` is typed as the backend-agnostic
+`BlobStore` interface defined in `apps/app/lib/blob/types.ts`, so any
+implementation of that interface is a drop-in replacement. To switch:
+
+1. Install whatever SDK your backend needs.
+2. Add a sibling factory — e.g. `apps/app/lib/blob/s3.ts`:
+
+   ```ts
+   import "server-only"
+   import type { BlobStore } from "./types"
+
+   class S3BlobStore implements BlobStore {
+     async put(key, body, opts) { /* call your SDK, return { url } */ }
+   }
+
+   export function getS3BlobStore(): BlobStore {
+     return new S3BlobStore()
+   }
+   ```
+
+3. Change the single import in `index.ts` to point at your new factory.
+
+The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`)
+— see `apps/app/lib/blob/types.ts` for the exact shape. Callers
+(`lib/thumbnail/capture.ts`) only ever see the abstract interface and need no
+changes when the backend swaps.
+
+The default backend reads its credentials from `BLOB_READ_WRITE_TOKEN` — on
+Vercel, connect a Blob store to your project and the token is injected
+automatically; locally, run `vercel env pull .env.local` after connecting the
+store. A different backend reads whatever env vars you wire into its factory.
