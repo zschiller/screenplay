@@ -1,4 +1,5 @@
 import type { ModelInfo, ModelsResponse } from "@/app/api/agent/models/route"
+import { withBasePath } from "@/lib/base-path"
 
 let cache: ModelsResponse | null = null
 let pending: Promise<ModelsResponse> | null = null
@@ -6,7 +7,7 @@ let pending: Promise<ModelsResponse> | null = null
 function fetchCatalog(): Promise<ModelsResponse> {
   if (cache) return Promise.resolve(cache)
   if (pending) return pending
-  pending = fetch("/api/agent/models")
+  pending = fetch(withBasePath("/api/agent/models"))
     .then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = (await res.json()) as ModelsResponse

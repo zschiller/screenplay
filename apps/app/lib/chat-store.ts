@@ -3,6 +3,7 @@ import type {
   AgentStreamEvent,
   CustomToolName,
 } from "@/lib/agent/types"
+import { withBasePath } from "@/lib/base-path"
 
 export type ChatState = {
   messages: AgentMessage[]
@@ -244,7 +245,7 @@ class ChatStore {
     })
 
     try {
-      const res = await fetch("/api/agent/stream", {
+      const res = await fetch(withBasePath("/api/agent/stream"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -299,7 +300,7 @@ class ChatStore {
     // and the engine's onChunk now drops post-abort chunks, so the spinner
     // clears as soon as the broadcast lands (typically tens of ms).
     try {
-      const res = await fetch("/api/agent/stop", {
+      const res = await fetch(withBasePath("/api/agent/stop"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId }),
@@ -504,7 +505,7 @@ class ChatStore {
 
   async approvePlan(roomId: string, chatId: string, planId: string) {
     try {
-      const res = await fetch("/api/agent/plan", {
+      const res = await fetch(withBasePath("/api/agent/plan"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId, planId, approved: true }),
@@ -532,7 +533,7 @@ class ChatStore {
     feedback: string
   ) {
     try {
-      const res = await fetch("/api/agent/plan", {
+      const res = await fetch(withBasePath("/api/agent/plan"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
