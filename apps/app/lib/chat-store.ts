@@ -146,6 +146,15 @@ class ChatStore {
    */
   private acpAgentText = new Map<string, { text: string; active: boolean }>()
 
+  /**
+   * Per-chat accumulator for ACP `agent_thought_chunk` reasoning deltas
+   * (ADR 0006), mirroring {@link acpAgentText}. Kept separate so reasoning
+   * accumulates into its own trailing `reasoning` message, distinct from the
+   * assistant body. Reset on each chat-stream-start/end and broken by any
+   * interleaving event.
+   */
+  private acpThoughtText = new Map<string, { text: string; active: boolean }>()
+
   /** Per-chat callbacks for branch_rename / chat_rename broadcast events. */
   private callbacks = new Map<
     string,
@@ -360,6 +369,7 @@ class ChatStore {
         // previous turn.
         this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
+        this.acpThoughtText.delete(chatId)
         this.update(chatId, { isStreaming: true })
         break
 
@@ -371,6 +381,7 @@ class ChatStore {
         if (wasStreaming) this.unreadChats.add(chatId)
         this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
+        this.acpThoughtText.delete(chatId)
         this.update(chatId, { isStreaming: false })
         break
       }
@@ -387,26 +398,57 @@ class ChatStore {
 
   /**
    * Apply a single ACP `session/update` broadcast to local state (ADR 0006).
-   * For the text path, `agent_message_chunk` deltas accumulate into the
-   * trailing assistant message — the ACP-shaped equivalent of the legacy
-   * cumulative `text` event. Other `sessionUpdate` kinds are no-ops here until
-   * later slices render them.
+   * `agent_message_chunk` deltas accumulate into the trailing assistant message
+   * (the ACP-shaped equivalent of the legacy cumulative `text` event), and
+   * `agent_thought_chunk` deltas accumulate into a trailing `reasoning` message
+   * so the agent's streamed thinking renders apart from its reply. Other
+   * `sessionUpdate` kinds are no-ops here until later slices render them.
    */
   private applyAcpUpdate(chatId: string, update: SessionUpdate) {
-    if (!isUpdate(update, "agent_message_chunk")) return
+    if (isUpdate(update, "agent_message_chunk")) {
+      this.appendAcpDelta(
+        chatId,
+        "assistant",
+        this.acpAgentText,
+        this.acpThoughtText,
+        blockText(update.content)
+      )
+    } else if (isUpdate(update, "agent_thought_chunk")) {
+      this.appendAcpDelta(
+        chatId,
+        "reasoning",
+        this.acpThoughtText,
+        this.acpAgentText,
+        blockText(update.content)
+      )
+    }
+  }
 
-    const delta = blockText(update.content)
+  /**
+   * Accumulate one ACP text `delta` into the trailing message of the given
+   * `role`, continuing that block while it's still active and ours, or starting
+   * a fresh message otherwise. The two ACP text streams (assistant reply,
+   * reasoning) each own an accumulator; emitting one breaks the other (`other`)
+   * so switching streams always starts a fresh block.
+   */
+  private appendAcpDelta(
+    chatId: string,
+    role: "assistant" | "reasoning",
+    own: Map<string, { text: string; active: boolean }>,
+    other: Map<string, { text: string; active: boolean }>,
+    delta: string
+  ) {
+    const otherBuf = other.get(chatId)
+    if (otherBuf) other.set(chatId, { ...otherBuf, active: false })
+
     const prev = this.getOrCreate(chatId).messages
-    const buf = this.acpAgentText.get(chatId)
+    const buf = own.get(chatId)
     const last = prev[prev.length - 1]
-    // Continue the current agent text block (replace the trailing assistant
-    // message) only while it's still active and that message is the one we own;
-    // otherwise start a fresh assistant message.
-    const sameBlock = buf?.active === true && last?.role === "assistant"
+    const sameBlock = buf?.active === true && last?.role === role
     const text = (sameBlock ? buf!.text : "") + delta
-    this.acpAgentText.set(chatId, { text, active: true })
+    own.set(chatId, { text, active: true })
 
-    const message = { role: "assistant" as const, content: text }
+    const message = { role, content: text }
     this.update(chatId, {
       messages: sameBlock
         ? [...prev.slice(0, -1), message]
@@ -469,6 +511,7 @@ class ChatStore {
         // to repeat. The ACP agent text block is broken too.
         this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
+        this.acpThoughtText.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -484,6 +527,7 @@ class ChatStore {
       case "tool_result":
         this.currentTextId.delete(chatId)
         this.acpAgentText.delete(chatId)
+        this.acpThoughtText.delete(chatId)
         this.update(chatId, {
           messages: [
             ...this.getOrCreate(chatId).messages,
@@ -641,6 +685,7 @@ class ChatStore {
     this.appliedEventIds.delete(chatId)
     this.currentTextId.delete(chatId)
     this.acpAgentText.delete(chatId)
+    this.acpThoughtText.delete(chatId)
     this.notify(chatId)
     this.listeners.delete(chatId)
   }
