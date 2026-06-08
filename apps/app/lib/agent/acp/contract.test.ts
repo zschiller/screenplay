@@ -6,6 +6,11 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("@/lib/agent/providers", () => ({
   resolveLanguageModel: () => ({}),
 }))
+// `run-state` binds to the live Drizzle handle at import time; the `/stop`
+// contract drives a real `createRunState` over an in-memory repo, so stub the
+// db boundary that would otherwise demand a real DATABASE_URL (mirrors
+// consumer.test.ts).
+vi.mock("@/lib/db", () => ({ db: {} }))
 
 import {
   AcpUpdateConsumer,
@@ -20,6 +25,7 @@ import {
   type SessionUpdate,
 } from "./schema"
 import { InProcessAiSdkEngine, type StreamDriver } from "./in-process-engine"
+import { createRunState, type RunStateRepo, type RunStatus } from "../run-state"
 
 /**
  * The shared Engine seam contract (ADR 0006). Both engines — the in-process
@@ -295,9 +301,93 @@ function contractFor(
       ])
     })
 
-    it.todo(
-      "/stop cancels the in-flight turn and reports a stop, not a failure"
-    )
+    // Weighted heavily for the swap to a real ACP client (PRD #375): a `/stop`
+    // (or a supersession) aborts the in-flight turn and reports the terminal
+    // outcome as a **stop**, never a `failed` run. The run lifecycle's watchdog
+    // has already moved the run to its terminal stop state (`aborted`/
+    // `superseded`) by the time the abort surfaces, so the consumer's `failed`
+    // transition must no-op and "Stopped by user" must surface — kept distinct
+    // from a genuine error, which *does* record `failed`.
+    it("/stop cancels the in-flight turn and reports a stop, not a failure", async () => {
+      const broadcasts: SessionUpdate[] = []
+      const errors: string[] = []
+      const records: AcpMessageRecord[] = []
+      let ended = false
+
+      // A real run-state over an in-memory row seeded `aborted`, exactly as the
+      // watchdog would have left it when it tripped the signal — so the genuine
+      // terminal-no-op guard decides the outcome, not a permissive fake.
+      const rows = new Map<string, RunStatus>([["run_1", "aborted"]])
+      const repo: RunStateRepo = {
+        async loadStatus(id) {
+          return rows.get(id) ?? null
+        },
+        async applyTransition(id, to) {
+          rows.set(id, to)
+        },
+        async supersedeActiveRuns() {},
+        async insertRunning() {
+          return "run_1"
+        },
+        async pauseForPlan() {},
+        async resolvePlan() {
+          return null
+        },
+      }
+      const runState = createRunState(repo)
+
+      const ports: AcpConsumerPorts = {
+        async broadcastUpdate(u) {
+          broadcasts.push(u)
+        },
+        async broadcastError(m) {
+          errors.push(m)
+        },
+        async broadcastEnd() {
+          ended = true
+        },
+        async appendRecord(r) {
+          records.push(r)
+        },
+        async upsertToolCall() {},
+        async transition(to) {
+          await runState.transition("run_1", to)
+        },
+        async broadcastPermissionRequest() {},
+        async pauseForPlan() {},
+      }
+      const consumer = new AcpUpdateConsumer(ports)
+
+      // A driver that throws once the stream is drained — the shape an aborted
+      // model stream takes (matches the in-process engine's cancellation test).
+      const driver: StreamDriver = () => ({
+        consumeStream: async () => {
+          throw new Error("aborted")
+        },
+      })
+      const controller = new AbortController()
+      controller.abort()
+
+      const engine = makeEngine(driver)
+      await engine.run(
+        {
+          chatId: "chat_1",
+          runId: "run_1",
+          roomId: "room_1",
+          systemPrompt: "sys",
+          model: "anthropic:test",
+          history: [{ role: "user", content: [textBlock("hi")] }],
+        },
+        (u: EngineUpdate) => consumer.handle(u),
+        controller.signal
+      )
+
+      // Observable ACP outcome: a stop, not a failure.
+      expect(errors).toEqual(["Stopped by user"])
+      expect(rows.get("run_1")).toBe("aborted") // the `failed` transition no-ops
+      expect(records).toEqual([]) // nothing durable persisted on a stop
+      expect(ended).toBe(true)
+    })
   })
 }
 

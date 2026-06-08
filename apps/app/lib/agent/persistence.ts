@@ -10,9 +10,10 @@ import {
   agentPendingToolCall,
   agentRun,
 } from "@/lib/db/schema"
-import type {
-  AcpMessageRecord,
-  AcpToolCallRecord,
+import {
+  repairOrphanedAcpToolCalls,
+  type AcpMessageRecord,
+  type AcpToolCallRecord,
 } from "@/lib/agent/acp/record"
 
 export async function upsertChat(params: {
@@ -110,6 +111,21 @@ export async function loadAcpHistory(
     .where(eq(agentMessage.chatId, chatId))
     .orderBy(asc(agentMessage.createdAt))
   return rows.map((r) => r.message as AcpMessageRecord)
+}
+
+/**
+ * Same as {@link loadAcpHistory}, but repairs any tool call a crash mid-turn
+ * left frozen in a non-terminal status (PRD #375, issue #382) — the ACP-native
+ * counterpart of {@link loadChatHistoryForModel}. Use this anywhere the
+ * ACP-native history is about to drive a model turn, so an orphaned tool call
+ * never reaches the provider as an unresolved call. The UI history route reads
+ * {@link loadAcpHistory} directly, where a still-`in_progress` call renders
+ * honestly as in-flight rather than synthetically failed.
+ */
+export async function loadAcpHistoryForModel(
+  chatId: string
+): Promise<AcpMessageRecord[]> {
+  return repairOrphanedAcpToolCalls(await loadAcpHistory(chatId))
 }
 
 /**

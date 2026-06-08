@@ -1,4 +1,4 @@
-import { isUpdate, type SessionUpdate } from "./schema"
+import { isUpdate, textBlock, type SessionUpdate } from "./schema"
 import type {
   ContentBlock,
   ToolCallContent,
@@ -110,4 +110,54 @@ export function applyToolCallUpdate(
     ...(update.rawInput != null ? { rawInput: update.rawInput } : {}),
     ...(update.rawOutput != null ? { rawOutput: update.rawOutput } : {}),
   }
+}
+
+/**
+ * The two terminal tool-call statuses: a call that reached one of these resolved
+ * for good, so the crash-repair below leaves it alone. `pending`/`in_progress`
+ * are the *non*-terminal states a crash can freeze a call in.
+ */
+const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> =
+  new Set<ToolCallStatus>(["completed", "failed"])
+
+/** The interrupted-tool marker the repair appends to an orphaned call's content. */
+const INTERRUPTED_CONTENT: ToolCallContent = {
+  type: "content",
+  content: textBlock("Tool execution was interrupted."),
+}
+
+/**
+ * Repair the ACP-native log a crash mid-turn leaves behind (PRD #375, issue
+ * #382), the ACP-native counterpart of {@link
+ * import("../persistence").repairOrphanedToolCalls} for `ModelMessage[]`.
+ *
+ * The consumer upserts each tool call *in place* by id as its status advances
+ * ({@link import("./consumer").AcpConsumerPorts.upsertToolCall}), so a crash
+ * between a call going `in_progress` and its `completed`/`failed` update leaves
+ * a durable record frozen in a **non-terminal** status — an orphan. Loading that
+ * log for a follow-up turn (or rebuilding `ModelMessage[]` from it) would send
+ * the model a tool call with no resolution, the malformed shape every provider
+ * rejects.
+ *
+ * This closes each orphan to `failed` and appends an interrupted marker, so the
+ * durability invariant holds across the round-trip: a crashed turn's log loads
+ * back into a well-formed conversation. It is **pure and idempotent** — terminal
+ * calls are untouched, so repairing an already-repaired (or already-clean) log
+ * is a no-op and the marker is never appended twice. Like the AI-SDK repair, the
+ * result is *not* persisted; repairing on every model-facing load keeps DB
+ * timestamps clean and stays idempotent for whatever future bug also orphans a
+ * call.
+ */
+export function repairOrphanedAcpToolCalls(
+  records: AcpMessageRecord[]
+): AcpMessageRecord[] {
+  return records.map((record) => {
+    if (record.role !== "tool_call") return record
+    if (TERMINAL_TOOL_STATUSES.has(record.status)) return record
+    return {
+      ...record,
+      status: "failed",
+      content: [...record.content, INTERRUPTED_CONTENT],
+    }
+  })
 }
