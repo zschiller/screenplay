@@ -13,6 +13,7 @@ import {
   TTYD_SUBPROTOCOL,
 } from "@/lib/terminal/ttyd-protocol"
 import { tmuxSessionName } from "@/lib/terminal/session"
+import { withBasePath } from "@/lib/base-path"
 import type { SandboxStatus } from "@/lib/types"
 
 interface TerminalTabProps {
@@ -139,7 +140,7 @@ export function TerminalTab({
       let token: string
       let launchArgv: string[]
       try {
-        const res = await fetch("/api/terminal/url", {
+        const res = await fetch(withBasePath("/api/terminal/url"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

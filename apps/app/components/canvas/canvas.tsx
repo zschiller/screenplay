@@ -47,6 +47,7 @@ import {
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useSession } from "@/lib/auth-client"
+import { withBasePath } from "@/lib/base-path"
 import {
   FileText,
   Frame,
@@ -3214,7 +3215,7 @@ export function Canvas({
       const seedChat = seedDefaultTabForNewBranch(agentId)
       seedEagerFrameForBranch(agentId)
 
-      fetch("/api/branch/create", {
+      fetch(withBasePath("/api/branch/create"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3304,7 +3305,7 @@ export function Canvas({
       if (seededIdx.length > 0) {
         let results: Array<{ branch: string; label: string }> = []
         try {
-          const res = await fetch("/api/agent/generate-names", {
+          const res = await fetch(withBasePath("/api/agent/generate-names"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -3447,7 +3448,7 @@ export function Canvas({
       }
 
       for (const d of dispatched) {
-        fetch("/api/branch/create", {
+        fetch(withBasePath("/api/branch/create"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -3498,7 +3499,7 @@ export function Canvas({
       const seedChat = seedDefaultTabForNewBranch(id)
       seedEagerFrameForBranch(id)
 
-      fetch("/api/branch/create", {
+      fetch(withBasePath("/api/branch/create"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3788,7 +3789,7 @@ export function Canvas({
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
-      fetch("/api/branch/heal", {
+      fetch(withBasePath("/api/branch/heal"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId: cs.id }),
@@ -3834,7 +3835,7 @@ export function Canvas({
           })
           continue
         }
-        fetch("/api/branch/create", {
+        fetch(withBasePath("/api/branch/create"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

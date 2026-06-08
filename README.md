@@ -21,7 +21,7 @@ Before deploying, create accounts and projects for each of the following:
 Auth is handled by [Better Auth](https://www.better-auth.com) with GitHub as the only provider. The sandbox clones repos and pushes commits using the OAuth access token Better Auth stores in the `account` table (keyed by `providerId = 'github'`).
 
 1. Create a new OAuth App at https://github.com/settings/developers.
-2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL/app/api/auth/callback/github` (e.g. `https://build.screenplay.space/app/api/auth/callback/github`). The `/app` segment is the product's Next.js `basePath` — the product is served under `/app` so the auth handler lives there too. Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL — one OAuth app is enough for production and every preview.
+2. Set the **Authorization callback URL** to `$BETTER_AUTH_PRODUCTION_URL$BASE_PATH/api/auth/callback/github` (e.g. `https://build.screenplay.space/app/api/auth/callback/github`). `$BASE_PATH` is whatever you set `NEXT_PUBLIC_BASE_PATH` to (see [Mount path](#mount-path)) — the product serves its auth handler under that prefix. If you deploy the product at the root of its own domain (the default, `NEXT_PUBLIC_BASE_PATH` unset), drop the segment entirely: `$BETTER_AUTH_PRODUCTION_URL/api/auth/callback/github`. Preview deploys route through this same callback via Better Auth's `oAuthProxy` plugin, then bounce back to the preview URL — one OAuth app is enough for production and every preview.
 3. Copy the Client ID + Secret into `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`.
 4. The app requests `repo`, `read:user`, and `user:email` on first sign-in — no extra GitHub-side config needed.
 
@@ -32,7 +32,7 @@ Because the oAuthProxy plugin signs state on production and verifies it on the p
 For local development you have two choices:
 
 - **Option A — share the production secret** (simplest). Copy `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `BETTER_AUTH_PRODUCTION_URL` into `apps/app/.env.local`. Sign-ins locally take a detour through the production callback and bounce back to `localhost`.
-- **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/app/api/auth/callback/github`. In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
+- **Option B — dev-only OAuth app**. Create a second OAuth app with callback `http://localhost:3000/app/api/auth/callback/github` (the `/app` segment matches `NEXT_PUBLIC_BASE_PATH` in `apps/app/.env.local.example`; omit it if you run the product at the root). In `.env.local` set `BETTER_AUTH_PRODUCTION_URL=http://localhost:3000`, the dev app's client id / secret, and any random `BETTER_AUTH_SECRET` — the proxy is a no-op because `currentURL === productionURL`, so GitHub redirects straight to `localhost` and no production secret ever touches your machine.
 
 ### Database setup
 
@@ -337,6 +337,7 @@ If you've swapped in a different provider under `apps/app/lib/sandbox/`, set wha
 2. Add the environment variables listed above. Scope each one correctly:
    - `BETTER_AUTH_URL`: **Production only**, set to your custom domain (e.g. `https://build.screenplay.space`). Leave it unset on Preview so each preview deploy auto-uses `https://$VERCEL_URL`.
    - `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: **Production + Preview** (Vercel "all environments" scope). These must stay identical across every deploy — the oAuthProxy plugin signs state on production and verifies it on the preview that started the sign-in.
+   - `NEXT_PUBLIC_BASE_PATH`: **Production + Preview**, only if you serve the product under a path prefix (see [Mount path](#mount-path)). Leave it unset to serve at the domain root. In the reference deployment it's `/app`, because the marketing `web` app owns the apex and proxies `/app/*` to this project.
    - Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY` (or whatever your Yjs host needs), whichever model-provider keys you've configured (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_GATEWAY_API_KEY` (must be set explicitly — the gateway doesn't accept Vercel's OIDC token) / `OPENAI_COMPATIBLE_*`), `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `TERMINAL_AUTH_SECRET`, `BLOB_READ_WRITE_TOKEN` (or whatever your blob store needs), `SANDBOX_HARNESSES` (if you offer BYO coding CLIs)): **Production + Preview**.
 3. Deploy. The first build runs the checked-in Drizzle migrations against your database, then runs `next build`.
 
@@ -349,7 +350,15 @@ cd apps/app && pnpm db:migrate                        # apply migrations to your
 pnpm dev
 ```
 
-The app runs on http://localhost:3000/app (the product is served under the `/app` basePath; the marketing site and docs run separately on ports 3001 and 3002).
+The app runs on http://localhost:3000/app (`apps/app/.env.local.example` sets `NEXT_PUBLIC_BASE_PATH=/app`, so the product is served under the `/app` basePath; the marketing site and docs run separately on ports 3001 and 3002). Unset `NEXT_PUBLIC_BASE_PATH` to serve it at http://localhost:3000 instead.
+
+### Mount path
+
+The product is path-agnostic. By default it's served at the **root** of its own domain — deploy it anywhere and every page, asset, route handler, and client `fetch` resolves correctly with no extra config.
+
+To serve it under a prefix instead (e.g. behind another origin that proxies a subpath), set **`NEXT_PUBLIC_BASE_PATH`** (e.g. `/app`). One variable drives everything: `apps/app/next.config.mjs` feeds it to Next's `basePath` (pages, `_next/*` assets, route handlers), and `apps/app/lib/base-path.ts` exposes it as `BASE_PATH` + a `withBasePath()` helper used for the URLs Next does **not** auto-prefix — `fetch`, `WebSocket`, and third-party `authEndpoint`s. Set it on both build and runtime (it's `NEXT_PUBLIC_`, so it's inlined at build time).
+
+This is how the reference deployment serves all three apps under one domain: the marketing `web` app owns the apex and rewrites `/app/*` here (`apps/web/vercel.json`), and this project sets `NEXT_PUBLIC_BASE_PATH=/app`.
 
 ## Development
 
