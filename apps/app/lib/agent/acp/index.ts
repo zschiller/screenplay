@@ -20,6 +20,17 @@ export {
 } from "./resolution"
 export { InProcessAiSdkEngine, inProcessEngine } from "./in-process-engine"
 export {
+  AcpEngine,
+  type AcpEngineConfig,
+  type AcpSessionFactory,
+} from "./acp-engine"
+export {
+  selectEngine,
+  engineChoiceFromEnv,
+  ENGINE_ENV_VAR,
+  type EngineChoice,
+} from "./engine-select"
+export {
   AcpSession,
   type AcpSessionPorts,
   type AcpTransport,
