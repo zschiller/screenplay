@@ -154,13 +154,40 @@ for the in-process engine's next turn (the adapter's other direction), ACP
 `agent_thought_chunk` (reasoning), and cutting the live routes over — the
 tool-call signal still rides `runAgentLoop` in production until that move.
 
+### Stop / supersession / error / crash-repair across the seam (#382)
+
+The turn's failure and interruption semantics carry across the ACP seam so they
+behave identically to the in-process loop, with durability preserved in
+ACP-native form:
+
+- **Stop / supersession → ACP cancellation.** The watchdog polling
+  `RunState.isRunActive` and aborting the turn is part of the seam contract: the
+  engine stands down when the run stops being live (a user `/stop` or a newer
+  message superseding it) and reports the terminal outcome as a **stop**, never a
+  `failed` run. The in-process engine reaches the consumer as `error: "Stopped by
+user"` on abort; a real ACP agent that acknowledges `session/cancel` reaches it
+  as `done` with `stopReason: "cancelled"`. The consumer treats **both** as a
+  stop: it surfaces "Stopped by user" and closes, with no `completed`/`failed`
+  transition — the run lifecycle already recorded `aborted`/`superseded`, so the
+  consumer's transition no-ops on the already-terminal run.
+- **Error → `failed`, distinct from a stop.** A genuine failure is surfaced in
+  chat and records `failed`; the user-stop-vs-failure distinction is pinned by
+  the consumer and contract tests.
+- **Crash-repair in ACP-native form.** Because the consumer upserts each tool
+  call in place by id, a crash mid-turn leaves the call frozen in a non-terminal
+  status. `repairOrphanedAcpToolCalls` closes each orphan to `failed` with an
+  interrupted marker on the next model-facing load (`loadAcpHistoryForModel`) —
+  the ACP-native counterpart of `repairOrphanedToolCalls` for `ModelMessage[]`.
+  It is pure and idempotent, and the repair invariant survives the ACP-native
+  persistence round-trip, so a crashed turn's log loads back well-formed.
+
 ## Consequences
 
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and
   the ACP-native persistence exist and are unit- + contract-tested. The
   contract test is the executable proof the seam is honest and the swap target
-  will be compatible; the **text path** and the **plan-mode permission-request
-  mapping** pass today, with only `/stop` still `todo` in the skeleton.
+  will be compatible; the **text path**, the **plan-mode permission-request
+  mapping**, and the **`/stop` stop-not-failure mapping** all pass today.
 - This slice is intentionally **hybrid**: the text path _and_ the plan-mode
   permission-request mapping are modeled ACP-native at the seam (the consumer,
   the in-process engine's `submit_plan` → `permission_request` translation, the

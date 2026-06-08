@@ -12,6 +12,7 @@ import {
   SUBMIT_PLAN_TOOL,
   type RequestPermissionRequest,
   type SessionUpdate,
+  type StopReason,
 } from "./schema"
 import type { EngineUpdate } from "./engine-seam"
 
@@ -115,7 +116,7 @@ export class AcpUpdateConsumer {
         await this.onPermissionRequest(update.request)
         break
       case "done":
-        await this.onDone()
+        await this.onDone(update.stopReason)
         break
       case "error":
         await this.onError(update.message)
@@ -185,9 +186,24 @@ export class AcpUpdateConsumer {
     await this.ports.broadcastEnd()
   }
 
-  private async onDone(): Promise<void> {
+  private async onDone(stopReason: StopReason): Promise<void> {
     if (this.closed) return
     this.closed = true
+
+    // A clean ACP cancellation (a `/stop` or a supersession answered by the
+    // agent resolving the turn with `stopReason: "cancelled"`, rather than the
+    // abort surfacing as an `error`). The run lifecycle's watchdog already
+    // recorded the terminal stop (`aborted`/`superseded`) when it tripped the
+    // signal, so this is **not** a completion and **not** a failure: surface the
+    // stop so the UI unsticks and close, with no `completed` transition that
+    // would mislabel a stopped turn. Mirrors the in-process engine's abort path,
+    // which reaches the consumer as `error: "Stopped by user"` instead.
+    if (stopReason === "cancelled") {
+      await this.ports.broadcastError("Stopped by user")
+      await this.ports.broadcastEnd()
+      return
+    }
+
     // Persist the whole turn's reasoning and reply as ACP-native records, in
     // render order (reasoning precedes the answer). An empty record (no text of
     // that kind) yields an empty content list, which we skip — nothing to keep.
