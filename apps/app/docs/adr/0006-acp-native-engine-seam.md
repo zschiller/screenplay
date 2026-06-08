@@ -6,7 +6,7 @@ Status: Accepted
 
 ## Context
 
-The **Engine** (Agent Loop) *looked* swappable — a single `runAgentLoop`
+The **Engine** (Agent Loop) _looked_ swappable — a single `runAgentLoop`
 function — but wasn't, in the same way the Sandbox Provider wasn't before
 ADR 0003. Worse, three different formats were welded along its path: the loop
 was hardwired to the AI SDK's `streamText`; the browser consumed a bespoke
@@ -29,11 +29,11 @@ slices build on.
   real `session/update` shapes (`agent_message_chunk`, `tool_call`,
   `tool_call_update`, `plan`, …) and the real `PromptResponse.stopReason`. This
   binding is load-bearing: it is what makes the eventual swap to a real ACP
-  client *subtractive* rather than a refactor, and the contract test pins it.
+  client _subtractive_ rather than a refactor, and the contract test pins it.
 
 - **Honest Engine seam (portable core + capability), modelled on ADR 0003.**
   `Engine` is the portable core every implementation can honor: `run(turn,
-  sink, signal)` drives one turn to completion, reporting `EngineUpdate`s — ACP
+sink, signal)` drives one turn to completion, reporting `EngineUpdate`s — ACP
   `session/update` bodies plus the two terminal outcomes ACP expresses out of
   band (a `done` carrying `stopReason`, and `error`). Capabilities not every
   engine can honor sit behind a **`supports*`-style type guard**:
@@ -64,7 +64,7 @@ slices build on.
   ACP session in → N browsers out); only the payload becomes ACP-shaped. This
   principle, not the format choice, is what keeps multiplayer working, and it is
   why "swap to a real ACP client" stays consistent: the swap replaces the
-  *server-side* engine, browsers still only receive broadcasts.
+  _server-side_ engine, browsers still only receive broadcasts.
 
 - **Persistence is ACP-native; existing history is reset.** The `agentMessage`
   payload moves from `ModelMessage` to an ACP-native `AcpMessageRecord` (genuine
@@ -90,7 +90,7 @@ slices build on.
 ADR 0002 justified the owned Engine partly by "byte-perfect `ModelMessage[]`
 replay." With ACP-native storage that specific justification no longer holds
 verbatim: the durable log is ACP, and the in-process engine **rebuilds**
-`ModelMessage[]` from it deterministically at turn time. The *spirit* of
+`ModelMessage[]` from it deterministically at turn time. The _spirit_ of
 ADR 0002 — the Engine owns a durable, shared, replayable conversation and is
 not a Harness — is preserved and becomes the **definition of the seam** both
 implementations honor. A BYO CLI in a Terminal Tab still does not qualify; an
@@ -98,17 +98,24 @@ ACP agent does.
 
 ### Design goal: a clean, subtractive swap to a real ACP client
 
-It must become *subtractive* to drop the in-process engine and run every Chat
+It must become _subtractive_ to drop the in-process engine and run every Chat
 Session against a real ACP client. Three guardrails keep this real:
 
 1. **Bind to genuine ACP schema** (above) — enforced by the contract test.
 2. **Plan-mode mapping is the riskiest seam** — screenplay's approval gate maps
-   onto ACP's *permission request*, not its informational `plan` update. It is
-   weighted heavily in the contract test (marked `todo` until the mapping
-   lands).
+   onto ACP's _permission request_ (`planPermissionRequest` / the
+   `permission_request` `EngineUpdate`), kept structurally distinct from ACP's
+   informational `plan` update. The consumer turns that request into the
+   `pauseForPlan` gate and the human resolution rides back through
+   `resolvePlanGate` as an ACP-native record (approve → resume, reject → revise).
+   It is weighted heavily in the contract test, which now passes for this
+   mapping.
 3. **Message Markers won't come entirely for free** — where ACP has a native
    slot, marker metadata rides it; where it doesn't, it stays an in-band
    screenplay convention, which is the one part a real ACP client won't emit.
+   `lib/agent/acp/markers.ts` reconciles the two: `@`-mentions ride native
+   `resource_link` blocks while plan/branch/skill markers stay in-band, and the
+   conversion round-trips losslessly.
 
 ### Carried risk: prompt-cache stability
 
@@ -124,16 +131,20 @@ prefix-stable-when-a-turn-is-appended property.
 - The seam, the consumer, the AI-SDK ⟷ ACP adapter, the in-process engine, and
   the ACP-native persistence exist and are unit- + contract-tested. The
   contract test is the executable proof the seam is honest and the swap target
-  will be compatible; only the **text path** passes today (plan-mode and `/stop`
-  are `todo` in the skeleton).
-- This slice is intentionally **hybrid**: the text path is ACP end-to-end
-  through the new modules, while the tool-call and plan signals still ride the
-  legacy `runAgentLoop` / `ModelMessage` machinery (the PRD sequences those into
-  later slices). Cutting the live `/api/agent/stream` and `/api/agent/plan`
-  routes over to drive `InProcessAiSdkEngine` through the consumer — and
-  retiring `AgentStreamEvent` and the `ModelMessage` log for the remaining
-  signals — is the next move, now guarded by the contract/consumer/adapter
-  tests landed here.
+  will be compatible; the **text path** and the **plan-mode permission-request
+  mapping** pass today, with only `/stop` still `todo` in the skeleton.
+- This slice is intentionally **hybrid**: the text path _and_ the plan-mode
+  permission-request mapping are modeled ACP-native at the seam (the consumer,
+  the in-process engine's `submit_plan` → `permission_request` translation, the
+  `resolvePlanGate` resolution, and the Message-Markers reconciliation, all
+  unit-/contract-tested), while the _live_ `/api/agent/stream` and
+  `/api/agent/plan` routes still drive the legacy `runAgentLoop` / `ModelMessage`
+  machinery (the PRD sequences the route cutover into a later slice). The one
+  user-visible behaviour landed on the live path here is **plan rejection
+  feedback**, which was sent but never shown. Cutting the routes over to drive
+  `InProcessAiSdkEngine` through the consumer — and retiring `AgentStreamEvent`
+  and the `ModelMessage` log — is the next move, now guarded by the
+  contract/consumer/adapter/resolution tests landed here.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
   an ACP implementation," keeping the **Harness** distinction intact.

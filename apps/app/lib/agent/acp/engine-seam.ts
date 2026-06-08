@@ -1,20 +1,32 @@
 import type { Tool } from "ai"
 import type { ToolContext } from "../tools"
 import type { AcpMessageRecord } from "./record"
-import type { SessionUpdate, StopReason } from "./schema"
+import type {
+  RequestPermissionRequest,
+  SessionUpdate,
+  StopReason,
+} from "./schema"
 
 /**
  * The seam vocabulary — what an {@link Engine} reports as it drives one turn.
  *
- * Each item is either a genuine ACP `session/update` body, or one of the two
- * terminal outcomes ACP expresses *out of band* of the update stream: a prompt
- * turn resolves with a `stopReason` (ACP `PromptResponse`), and a
- * transport/model failure surfaces as an error. We deliver all three through
- * the same sink so the consumer drains one ordered stream — but the
- * `session_update` payload itself is never screenplay-shaped, it is ACP.
+ * Each item is either a genuine ACP `session/update` body, an ACP **permission
+ * request** the agent raises mid-turn, or one of the two terminal outcomes ACP
+ * expresses *out of band* of the update stream: a prompt turn resolves with a
+ * `stopReason` (ACP `PromptResponse`), and a transport/model failure surfaces as
+ * an error. We deliver them all through the same sink so the consumer drains one
+ * ordered stream — but each payload is ACP, never screenplay-shaped.
+ *
+ * `permission_request` is how screenplay's plan-mode approval gate reaches the
+ * consumer: it carries an ACP {@link RequestPermissionRequest} (see
+ * {@link import("./schema").planPermissionRequest}) and is deliberately kept
+ * distinct from a `session_update` whose `sessionUpdate` is the informational
+ * `"plan"` TODO list — conflating them would break the swap to a real ACP
+ * client (PRD #375, design goal 1).
  */
 export type EngineUpdate =
   | { kind: "session_update"; update: SessionUpdate }
+  | { kind: "permission_request"; request: RequestPermissionRequest }
   | { kind: "done"; stopReason: StopReason }
   | { kind: "error"; message: string }
 

@@ -36,6 +36,12 @@ export type AgentMessage =
       content: string
       status: "pending" | "approved" | "rejected"
       planId: string
+      /**
+       * The human's rejection feedback, shown on a rejected plan card. Sent on
+       * the `plan_rejected` event (and recovered from the pending row on reload)
+       * — previously dropped, which is the "feedback never shown" gap #379 closes.
+       */
+      feedback?: string
     }
 
 export type AgentStreamEvent =

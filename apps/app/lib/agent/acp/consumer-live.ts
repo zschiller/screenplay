@@ -3,10 +3,11 @@ import "server-only"
 import {
   broadcastAcpUpdate,
   broadcastEvent,
+  broadcastPermissionRequest,
   broadcastSignal,
 } from "../broadcast"
 import { appendAcpMessage } from "../persistence"
-import { transition, type RunStatus } from "../run-state"
+import { pauseForPlan, transition, type RunStatus } from "../run-state"
 import type { AcpConsumerPorts } from "./consumer"
 
 /**
@@ -29,5 +30,10 @@ export function liveAcpConsumerPorts(
     broadcastEnd: () => broadcastSignal(roomId, chatId, "chat-stream-end"),
     appendRecord: (record) => appendAcpMessage(chatId, record),
     transition: (to: RunStatus) => transition(runId, to),
+    broadcastPermissionRequest: (request) =>
+      broadcastPermissionRequest(roomId, chatId, request),
+    // The consumer derives the plan-gate tool-call; the run-state machine needs
+    // the chat id, which this live port owns.
+    pauseForPlan: (planCall) => pauseForPlan(runId, { ...planCall, chatId }),
   }
 }
