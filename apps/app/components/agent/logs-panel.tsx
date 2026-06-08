@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Anser from "anser"
+import { withBasePath } from "@/lib/base-path"
 
 const MAX_TOKENS = 10_000
 const FLUSH_PENDING_MAX_BYTES = 64 * 1024
@@ -141,7 +142,9 @@ export function LogsPanel({
     let isReconnect = false
 
     const runOnce = async () => {
-      const url = `/api/sandbox/${encodeURIComponent(sandboxName)}/logs${isReconnect ? "?followOnly=1" : ""}`
+      const url = withBasePath(
+        `/api/sandbox/${encodeURIComponent(sandboxName)}/logs${isReconnect ? "?followOnly=1" : ""}`
+      )
       const res = await fetch(url, { signal: abort.signal, cache: "no-store" })
       if (!res.ok || !res.body) {
         throw new Error(`HTTP ${res.status}`)
