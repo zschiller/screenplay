@@ -114,12 +114,38 @@ describe("repairOrphanedAcpToolCalls", () => {
       ],
     })
 
-    // Rebuilding the model input from the repaired log is well-formed: the
-    // text turns survive and the (now-resolved) tool call carries no dangling
-    // unresolved call into the next prompt.
+    // Rebuilding the model input from the repaired log is well-formed: the text
+    // turns survive and the once-orphaned call rebuilds into an assistant
+    // tool-call + matching tool result (closed with the interrupted marker), so
+    // no dangling unresolved call reaches the next prompt.
     expect(acpHistoryToModelMessages(repaired)).toEqual([
       { role: "user", content: "run the build" },
       { role: "assistant", content: "On it." },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "call_1",
+            toolName: "run_command",
+            input: {},
+          },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call_1",
+            toolName: "run_command",
+            output: {
+              type: "text",
+              value: "building…Tool execution was interrupted.",
+            },
+          },
+        ],
+      },
     ])
   })
 })
