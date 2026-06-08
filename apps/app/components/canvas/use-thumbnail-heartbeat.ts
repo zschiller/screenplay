@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useYjs } from "@/lib/yjs/context"
+import { withBasePath } from "@/lib/base-path"
 
 const PERIOD_MS = 30_000
 const INITIAL_DELAY_MS = 3_000
@@ -37,7 +38,7 @@ export function useThumbnailHeartbeat(
 
     function send() {
       lastFire = Date.now()
-      void fetch(`/api/thumbnail/${encodeURIComponent(roomId)}`, {
+      void fetch(withBasePath(`/api/thumbnail/${encodeURIComponent(roomId)}`), {
         method: "POST",
         keepalive: true,
       }).catch(() => {})

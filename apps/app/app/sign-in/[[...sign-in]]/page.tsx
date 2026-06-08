@@ -19,9 +19,10 @@ export default function SignInPage() {
         disabled={loading}
         onClick={async () => {
           setLoading(true)
-          // Land back on the product home, which sits at `/app` under the
-          // basePath — a bare "/" would resolve to the apex marketing site.
-          await signIn.social({ provider: "github", callbackURL: BASE_PATH })
+          // Land back on the product home. Under a mount prefix that's
+          // `BASE_PATH` (e.g. `/app`) — a bare "/" would resolve to the apex
+          // marketing site; at root it's just "/".
+          await signIn.social({ provider: "github", callbackURL: BASE_PATH || "/" })
         }}
       >
         {loading ? "Redirecting…" : "Continue with GitHub"}

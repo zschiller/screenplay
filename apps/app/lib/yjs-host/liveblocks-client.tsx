@@ -13,6 +13,7 @@ import {
   type AwarenessLike,
   type YjsConnection,
 } from "@/lib/yjs/context"
+import { withBasePath } from "@/lib/base-path"
 import "@/liveblocks.config"
 
 /**
@@ -35,7 +36,7 @@ export function YjsRoomProvider({
 }) {
   return (
     <LiveblocksProvider
-      authEndpoint="/api/yjs/auth"
+      authEndpoint={withBasePath("/api/yjs/auth")}
       badgeLocation="bottom-left"
     >
       <RoomProvider id={roomId} initialPresence={{}} initialStorage={{}}>

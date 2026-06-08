@@ -2,6 +2,7 @@ import type {
   SkillMenuItem,
   SkillsResponse,
 } from "@/app/api/agent/skills/route"
+import { withBasePath } from "@/lib/base-path"
 
 export type { SkillMenuItem }
 
@@ -29,9 +30,11 @@ export async function getSkillMenuItems(
   const key = sandboxName ?? ""
   let inflight = pending.get(key)
   if (!inflight) {
-    const url = sandboxName
-      ? `/api/agent/skills?sandbox=${encodeURIComponent(sandboxName)}`
-      : "/api/agent/skills"
+    const url = withBasePath(
+      sandboxName
+        ? `/api/agent/skills?sandbox=${encodeURIComponent(sandboxName)}`
+        : "/api/agent/skills"
+    )
     inflight = fetch(url)
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)

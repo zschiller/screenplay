@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { withBasePath } from "@/lib/base-path"
 
 /** A harness the operator can launch a terminal tab into (key + display label). */
 export type InstalledHarness = { key: string; label: string }
@@ -23,7 +24,7 @@ export function useInstalledHarnesses(enabled: boolean): InstalledHarness[] {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch("/api/terminal/harnesses")
+        const res = await fetch(withBasePath("/api/terminal/harnesses"))
         if (!res.ok) return
         const body = (await res.json()) as { harnesses?: InstalledHarness[] }
         if (!cancelled && Array.isArray(body.harnesses)) {
