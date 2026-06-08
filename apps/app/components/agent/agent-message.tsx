@@ -18,6 +18,7 @@ import {
   Sparkles,
   PencilLine,
   SquarePen,
+  Brain,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -270,6 +271,41 @@ function PlanMessage({
   )
 }
 
+/**
+ * The agent's reasoning (ACP `agent_thought_chunk`), rendered in a collapsible
+ * block kept visually distinct from the assistant message body. Collapsed by
+ * default — reasoning is supporting context, not the answer — and minimally
+ * styled per ADR 0006 (the point of this slice is that the data survives to the
+ * screen, not a polished thinking viewer).
+ */
+function ReasoningMessage({
+  message,
+}: {
+  message: AgentMessage & { role: "reasoning" }
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="rounded-md border border-border bg-muted/30">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
+      >
+        <Brain className="h-3 w-3 shrink-0" />
+        <span className="flex-1 truncate">Reasoning</span>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
+        />
+      </button>
+      {expanded && (
+        <div className="prose prose-sm max-w-none border-t border-border px-2 py-1.5 text-xs text-muted-foreground prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-[11px] prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-ol:my-1 prose-ul:my-1">
+          <Markdown>{message.content}</Markdown>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AgentMessageItem({
   message,
   toolResult,
@@ -332,6 +368,9 @@ export function AgentMessageItem({
           <Markdown>{message.content}</Markdown>
         </div>
       )
+
+    case "reasoning":
+      return <ReasoningMessage message={message} />
 
     case "tool_use":
       return <ToolIndicator message={message} result={toolResult} />

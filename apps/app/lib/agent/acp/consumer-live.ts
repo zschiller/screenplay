@@ -27,7 +27,7 @@ export function liveAcpConsumerPorts(
     broadcastError: (message) =>
       broadcastEvent(roomId, chatId, { type: "error", message }),
     broadcastEnd: () => broadcastSignal(roomId, chatId, "chat-stream-end"),
-    appendAgentMessage: (record) => appendAcpMessage(chatId, record),
+    appendRecord: (record) => appendAcpMessage(chatId, record),
     transition: (to: RunStatus) => transition(runId, to),
   }
 }

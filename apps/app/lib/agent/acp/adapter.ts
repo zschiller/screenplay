@@ -3,6 +3,7 @@ import type { Tool } from "ai"
 import type { AcpMessageRecord } from "./record"
 import {
   agentMessageChunk,
+  agentThoughtChunk,
   blockText,
   textBlock,
   type SessionUpdate,
@@ -87,15 +88,23 @@ export function recordText(record: AcpMessageRecord): string {
  * For the text path each record maps 1:1 to a string-content message (`user`
  * record → user message, `agent` record → assistant message), which is the
  * shape Anthropic caches most cheaply.
+ *
+ * `thought` records (the agent's reasoning) are **dropped** from the rebuild:
+ * they survive to the screen and to durable history, but reasoning is not fed
+ * back as model input. Skipping them is still a pure, order-preserving map, so
+ * the cache-stable-prefix property holds.
  */
 export function acpHistoryToModelMessages(
   history: AcpMessageRecord[]
 ): ModelMessage[] {
-  return history.map((record) =>
-    record.role === "user"
-      ? { role: "user", content: recordText(record) }
-      : { role: "assistant", content: recordText(record) }
-  )
+  return history.flatMap((record) => {
+    if (record.role === "thought") return []
+    return [
+      record.role === "user"
+        ? { role: "user", content: recordText(record) }
+        : { role: "assistant", content: recordText(record) },
+    ]
+  })
 }
 
 /**
@@ -109,6 +118,10 @@ export function aiSdkChunkToAcpUpdate(
   switch (chunk.type) {
     case "text-delta":
       return agentMessageChunk(chunk.text)
+    case "reasoning-delta":
+      // The agent's streamed thinking → ACP `agent_thought_chunk`, so reasoning
+      // survives to broadcast/persistence instead of being dropped on the floor.
+      return agentThoughtChunk(chunk.text)
     default:
       return null
   }
@@ -124,6 +137,20 @@ export function agentChunksToRecord(texts: string[]): AcpMessageRecord {
   const joined = texts.join("")
   return {
     role: "agent",
+    content: joined.length > 0 ? [textBlock(joined)] : [],
+  }
+}
+
+/**
+ * Fold a sequence of `agent_thought_chunk` text runs into the single
+ * ACP-native `thought` record persisted at turn end, mirroring
+ * {@link agentChunksToRecord}. An empty (no-thought) turn yields an empty
+ * content list, so no spurious reasoning record is written.
+ */
+export function thoughtChunksToRecord(texts: string[]): AcpMessageRecord {
+  const joined = texts.join("")
+  return {
+    role: "thought",
     content: joined.length > 0 ? [textBlock(joined)] : [],
   }
 }
