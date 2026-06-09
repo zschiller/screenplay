@@ -56,6 +56,13 @@ function adaptVercelSandbox(sandbox: Sandbox): HibernatingSandbox {
  */
 class VercelSandboxProvider implements SandboxProvider {
   async create(opts: SandboxCreateOptions): Promise<SandboxInstance> {
+    if (opts.source.type === "local-git") {
+      // A remote VM has no host filesystem to root a checkout in; only the
+      // local worktree backend can honor a local-path source (PRD #428).
+      throw new Error(
+        "VercelSandboxProvider: a local-path repo source requires the worktree backend"
+      )
+    }
     // The SDK's create/get param types intersect with a `Credentials` shape
     // (token, projectId, teamId). At runtime those come from VERCEL_OIDC_TOKEN
     // in the environment — no need to pass them — but the types treat them as

@@ -27,6 +27,18 @@ import { runSandboxAction, SandboxStepError } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 
 /**
+ * How the repo reaches the sandbox beyond the clone URL (PRD #428, local build
+ * only): `localPath` routes the worktree backend at the user's existing clone
+ * instead of cloning the URL; `baseRevision` is the ref to create `branch`
+ * from when it doesn't exist yet (the no-GitHub-API path, where no one created
+ * the branch remotely first).
+ */
+export interface CloneSourceOptions {
+  localPath?: string
+  baseRevision?: string
+}
+
+/**
  * Clone a repo into a new sandbox. Unlike the other provision actions this one
  * *creates* the VM rather than resolving an existing one, so it can't ride the
  * `get`-based runner — it builds the uniform result contract itself and redacts
@@ -39,7 +51,8 @@ export async function cloneSandbox(
   branch: string,
   port: number = 3000,
   env?: Record<string, string>,
-  ghToken?: string
+  ghToken?: string,
+  sourceOpts?: CloneSourceOptions
 ): Promise<SandboxActionResult<{ sandboxName: string }>> {
   try {
     if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
@@ -59,21 +72,31 @@ export async function cloneSandbox(
       name: sandboxName,
       // The local worktree backend clones as a host process through the user's
       // own git credentials, so never bake a brokered token into its clone URL —
-      // host auth covers private repos. Only the hosted path splices the token in.
+      // host auth covers private repos. Only the hosted path splices the token
+      // in. A Repo added from a local folder (PRD #428) skips cloning entirely:
+      // the worktree backend roots at the existing clone.
       source:
-        !usesHostGitAuth && ghToken
+        usesHostGitAuth && sourceOpts?.localPath
           ? {
-              type: "git",
-              url: gitUrl,
+              type: "local-git",
+              path: sourceOpts.localPath,
               revision: branch,
-              username: "x-access-token",
-              password: ghToken,
+              baseRevision: sourceOpts?.baseRevision,
             }
-          : {
-              type: "git",
-              url: gitUrl,
-              revision: branch,
-            },
+          : !usesHostGitAuth && ghToken
+            ? {
+                type: "git",
+                url: gitUrl,
+                revision: branch,
+                username: "x-access-token",
+                password: ghToken,
+              }
+            : {
+                type: "git",
+                url: gitUrl,
+                revision: branch,
+                baseRevision: sourceOpts?.baseRevision,
+              },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,

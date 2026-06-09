@@ -60,13 +60,24 @@ export async function getCurrentSession() {
 /**
  * Look up the GitHub OAuth access token for a user. Better Auth stores it on
  * the `account` row created when the user signed in with GitHub.
+ *
+ * The local build has no `account` table — there is no login at all (#417) —
+ * so the token resolves through the local resolver instead (PRD #428): the
+ * host `gh` CLI's token when available, else a stored device-flow token, else
+ * `null`. Git transport never needs this either way (`usesHostGitAuth`); the
+ * token only feeds the GitHub *API* features (repo listing, Branch-via-API,
+ * PRs, naming), which stay dark on `null` exactly as before.
  */
 export async function getGitHubTokenForUser(
   userId: string
 ): Promise<string | null> {
-  // No `account` table in the local build, and no brokered token: git runs as a
-  // host process under the user's own credentials (`usesHostGitAuth`).
-  if (isLocalBuild) return null
+  if (isLocalBuild) {
+    // Dynamic import inside the compile-time-eliminated branch so the hosted
+    // bundle never pulls the local chain (child_process + the keyring binding).
+    const { resolveLocalGitHubToken } =
+      await import("@/lib/github-local/token-resolver")
+    return resolveLocalGitHubToken()
+  }
   const rows = await db
     .select({ accessToken: schema.account.accessToken })
     .from(schema.account)

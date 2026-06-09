@@ -1,10 +1,11 @@
-//! The localhost control server the desktop Thumbnail Capturer calls.
+//! The localhost control server the Node sidecar calls for shell services.
 //!
 //! The sidecar can't run a headless Chromium, so its `TauriWebviewCapturer`
-//! POSTs `{ renderUrl }` here and expects PNG bytes back; the shell renders the
-//! page in a webview and screenshots it. The server binds its own ephemeral port
-//! (passed to the sidecar as `TAURI_CONTROL_URL`) so it never collides with the
-//! app's port.
+//! POSTs `{ renderUrl }` to `/thumbnail` and expects PNG bytes back; the shell
+//! renders the page in a webview and screenshots it. It also can't open OS
+//! dialogs, so `/pick-directory` opens a native folder picker (see `dialog`).
+//! The server binds its own ephemeral port (passed to the sidecar as
+//! `TAURI_CONTROL_URL`) so it never collides with the app's port.
 
 use std::error::Error;
 use std::sync::mpsc;
@@ -36,8 +37,8 @@ struct ThumbnailRequest {
 }
 
 /// A tiny HTTP server bound to a localhost ephemeral port, serving `POST
-/// /thumbnail`. Its lifetime is tied to the sidecar's (started in
-/// `sidecar::launch`, stopped in `Sidecar::shutdown`).
+/// /thumbnail` and `POST /pick-directory`. Its lifetime is tied to the
+/// sidecar's (started in `sidecar::launch`, stopped in `Sidecar::shutdown`).
 pub struct ControlServer {
     port: u16,
     server: Arc<Server>,
@@ -77,9 +78,22 @@ impl ControlServer {
 
 fn serve(server: &Server, app: &AppHandle) {
     for mut request in server.incoming_requests() {
-        let handled =
-            request.method() == &Method::Post && request.url().starts_with("/thumbnail");
-        if !handled {
+        if request.method() != &Method::Post {
+            let _ = request.respond(Response::from_string("not found").with_status_code(404));
+            continue;
+        }
+
+        // Native folder picker for the add-Repo local-folder flow (#428): the
+        // sidecar has no OS dialogs of its own, so it borrows the shell's.
+        if request.url().starts_with("/pick-directory") {
+            let body = serde_json::json!({ "path": crate::dialog::pick_directory(app) });
+            let header =
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+            let _ = request.respond(Response::from_string(body.to_string()).with_header(header));
+            continue;
+        }
+
+        if !request.url().starts_with("/thumbnail") {
             let _ = request.respond(Response::from_string("not found").with_status_code(404));
             continue;
         }

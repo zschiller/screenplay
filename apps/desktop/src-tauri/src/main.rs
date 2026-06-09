@@ -9,6 +9,7 @@
 //! race), and kills + reaps the child on exit. The packaging approach is the one
 //! de-risked in spike #407; the load-bearing details are commented inline.
 
+mod dialog;
 mod secrets;
 mod sidecar;
 mod thumbnail;
@@ -24,6 +25,9 @@ struct SidecarState(Mutex<Option<Sidecar>>);
 
 fn main() {
     tauri::Builder::default()
+        // Native file/folder dialogs, used Rust-side only (the control
+        // server's /pick-directory) — no webview capability is exposed.
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
 

@@ -101,6 +101,7 @@ import {
 import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
+import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type {
@@ -1390,6 +1391,10 @@ export function RoomSidebar({
                 <PopoverContent className="w-72 p-0" side="bottom" align="end">
                   <RepoPicker
                     configs={savedConfigs}
+                    // The local build can add a Repo with no GitHub auth at
+                    // all — by clone URL or local folder — and offers the
+                    // on-demand device-flow connect (PRD #428).
+                    localSources={isLocalBuild}
                     onSelect={(pick) => {
                       onCreateRepo(pick)
                       setShowPicker(false)
