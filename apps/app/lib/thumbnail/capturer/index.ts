@@ -1,13 +1,19 @@
 import "server-only"
 
-import { getPuppeteerCapturer } from "./puppeteer"
+import { selectThumbnailCapturer } from "./select"
 import type { ThumbnailCapturer } from "./types"
 
 export type { ThumbnailCapturer } from "./types"
+export {
+  THUMBNAIL_CAPTURER_ENV_VAR,
+  capturerChoiceFromEnv,
+  selectThumbnailCapturer,
+} from "./select"
+export type { ThumbnailCapturerChoice } from "./select"
 
 /**
- * The configured Thumbnail Capturer singleton. Today this is always the
- * headless-Chromium path; the desktop build swaps in a Tauri-webview capturer
- * behind this same re-export (the swap lands in the assembly slice).
+ * The configured Thumbnail Capturer singleton, selected at build time by the
+ * `THUMBNAIL_CAPTURER` env var — headless Chromium by default (hosted,
+ * unchanged), the Tauri-webview capturer for the desktop build. See `./select`.
  */
-export const thumbnailCapturer: ThumbnailCapturer = getPuppeteerCapturer()
+export const thumbnailCapturer: ThumbnailCapturer = selectThumbnailCapturer()

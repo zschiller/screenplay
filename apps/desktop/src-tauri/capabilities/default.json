@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core permissions for the main window. The app talks to its own Node sidecar over localhost HTTP, not Tauri IPC, so the surface is intentionally minimal.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

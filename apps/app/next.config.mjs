@@ -6,10 +6,18 @@
 // and the `app` Vercel project sets NEXT_PUBLIC_BASE_PATH=/app.
 const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 
+// The desktop build (issue #418) bundles the app as a Node sidecar inside the
+// Tauri shell. `output: "standalone"` emits the self-contained `.next/standalone`
+// tree (server + traced node_modules) that the shell ships and runs with host
+// `node`. Gated on its own flag so the hosted Vercel build is untouched — there
+// Vercel owns the server and standalone tracing would only add build cost.
+const isDesktopBuild = process.env.SCREENPLAY_DESKTOP === "1"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
+  ...(isDesktopBuild ? { output: "standalone" } : {}),
   transpilePackages: ["@workspace/ui"],
   serverExternalPackages: [
     "@sparticuz/chromium",
@@ -24,6 +32,15 @@ const nextConfig = {
     // transport. Keep it and `y-websocket` unbundled so they resolve at runtime.
     "ws",
     "y-websocket",
+    // `y-websocket/bin/utils` requires `y-protocols`, which in turn requires
+    // `yjs` from node_modules at runtime. Server code here also `import`s `yjs`
+    // (and `y-protocols`) directly — if those stay bundled, the sidecar ends up
+    // with two copies and Yjs logs "Yjs was already imported. This breaks
+    // constructor checks" (yjs#438), with cross-instance constructor checks
+    // silently failing. Externalize them so every server importer shares the
+    // single node_modules copy that the external `y-websocket` resolves.
+    "yjs",
+    "y-protocols",
     // The desktop build's local terminal transport: node-pty is a native addon
     // and must not be bundled.
     "node-pty",
