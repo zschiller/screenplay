@@ -1,8 +1,15 @@
-import type { NeonHttpDatabase } from "drizzle-orm/neon-http"
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core"
 import type * as schema from "./schema"
 
-// The concrete neon-http handle (what `createNeonDb` returns). It extends the
-// generic `PgDatabase`, so every existing consumer keeps working, and it also
-// exposes `batch([...])` — the driver's only atomic primitive, since neon-http
-// rejects interactive `transaction()`.
-export type DB = NeonHttpDatabase<typeof schema>
+// The shared shape every backend behind the `createNeonDb()` seam satisfies.
+// Both the hosted neon-http handle (`NeonHttpDatabase`) and the local desktop
+// handle (`PgliteDatabase`) extend `PgDatabase`, so this base is exactly their
+// common surface: `select`/`insert`/`update`/`delete` plus interactive
+// `transaction()`.
+//
+// Crucially it does NOT expose neon-http's `.batch()`. That primitive existed
+// only because neon-http rejects `transaction()`; PGlite has no `.batch()` but
+// does support interactive `transaction()`. Typing `DB` at this base makes any
+// remaining `.batch([...])` call a compile error, which is what forced the two
+// atomic writes in `run-state.ts` onto `transaction()` (see #406 spike).
+export type DB = PgDatabase<PgQueryResultHKT, typeof schema>
