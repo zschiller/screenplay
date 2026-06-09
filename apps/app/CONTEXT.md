@@ -44,29 +44,40 @@ _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
 
 **Sandbox**:
-The ephemeral VM a Branch's repo is checked out into — where the agent reads
+The environment a Branch's repo is checked out into — where the agent reads
 and edits files, runs commands, and serves the dev-server previews the Iframe
-Layers point at. One per Branch, provisioned on demand and reclaimed when idle;
-its contents are never durable, so work worth keeping is committed and pushed. A
-Sandbox may preserve its working tree across a restart (see Sandbox Provider)
-but never outlives its Branch.
-_Avoid_: VM, container, box (the backend's words); workspace (the UI label for a
-Repo); using "sandbox" to mean the Branch itself.
+Layers point at. One per Branch, provisioned on demand. **Durability is
+provider-dependent** (see Sandbox Provider): the hosted Vercel backend backs it
+with an ephemeral VM that is reclaimed when idle, so its contents aren't durable
+and work worth keeping must be committed and pushed; the desktop worktree backend
+backs it with a git worktree on the host disk, which _is_ durable across restarts
+(the checkout and its uncommitted edits survive) even though that backend can't
+hibernate. Either way a Sandbox never outlives its Branch. A Sandbox may also
+preserve its working tree across a restart on a hibernating provider.
+_Avoid_: VM, container, box (the backend's words — and the VM isn't even the only
+backing now); workspace (the UI label for a Repo); using "sandbox" to mean the
+Branch itself; calling its contents "never durable" (true only for the Vercel VM).
 
 **Sandbox Provider**:
-The swappable backend that creates and reconnects Sandboxes — Vercel today, and
-the only one. The surface is split into a **portable core** (the operations
-every conceivable backend can honor) and an optional **Hibernation** capability:
-freezing a Sandbox's filesystem when it goes idle and thawing it on return,
-which is what preserves uncommitted work across a restart. A provider that can't
-hibernate is not disqualified — it degrades to recloning the repo fresh, a
-working Sandbox with un-pushed edits lost. The split exists so the seam tells the
-truth about what a second provider would actually cost.
+The swappable backend that creates and reconnects Sandboxes. There are now
+**two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop
+**worktree** backend (a git worktree on the host, non-hibernating), selected at
+build time by `SANDBOX_BACKEND`. The surface is split into a **portable core**
+(the operations every conceivable backend can honor) and an optional
+**Hibernation** capability: freezing a Sandbox's filesystem when it goes idle and
+thawing it on return, which is what preserves uncommitted work across a _restart_.
+A provider that can't hibernate is not disqualified — it degrades to recloning the
+repo fresh, so on it a Sandbox Restart fails loud and Recreate (delete + re-add)
+is the live rebuild path. The worktree backend is the first real second provider,
+the event ADR 0003 named as the trigger that justifies paying for backend
+selection. The split exists so the seam tells the truth about what a second
+provider actually costs.
 _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
-guaranteed (it is an optional capability, not part of the core).
+guaranteed (it is an optional capability, not part of the core); saying "Vercel,
+the only one" (a second backend has landed).
 
 **Dev Server Restart**:
-Bouncing the `devScript` process (and its bridge proxy) inside the *existing*
+Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
 Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common
 recovery for a wedged preview, and the only restart that stays available while
 the Agent is working, so a broken preview can be fixed mid-turn.
@@ -133,7 +144,7 @@ the layer's collection record.
 _Avoid_: note, text layer.
 
 **Chat Session**:
-The *identity* of a chat tab (id, label, target). The conversation itself —
+The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
@@ -149,18 +160,18 @@ Branch's sandbox and rendered with xterm.js in our own React, connecting to the
 in-sandbox daemon's websocket directly (no iframe). Its identity — id, label,
 target Branch — is persisted **per User** in Postgres (the `terminalTab` table)
 and reattaches on reload to a per-tab in-sandbox **tmux session**, so a
-still-running harness survives a page refresh; its *scrollback* is never
+still-running harness survives a page refresh; its _scrollback_ is never
 persisted and dies with the sandbox. Explicitly **not** a Chat Session: nothing
 here enters the chat-store, the conversation tables, or the Y.Doc, and it is
 modeled by its own `TerminalTabData`, never `ChatSessionData`.
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the in-sandbox
 multiplexer, "Terminal Tab" for the UI surface); harness (that's the tool the
-operator runs *inside* the tab — see Engine for why the app's own loop isn't one).
+operator runs _inside_ the tab — see Engine for why the app's own loop isn't one).
 
 **Tool**:
-A capability the model can call during a chat turn (read_file, run_command,
+A capability the model can call during a chat turn (read*file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
-_Avoid_: function, action (action = server action), command.
+\_Avoid*: function, action (action = server action), command.
 
 **Skill**:
 A markdown instruction document (`SKILL.md` with `name` + `description`
@@ -186,16 +197,16 @@ A seam that drives one turn of a Chat Session to completion, **speaking ACP**:
 its update vocabulary is the genuine Agent Client Protocol `session/update`
 (not a bespoke wire format), and the conversation is persisted ACP-native. Two
 implementations sit behind the seam — a default **in-process** engine
-(which runs `streamText` itself but now *translates*: it rebuilds its model
+(which runs `streamText` itself but now _translates_: it rebuilds its model
 input from ACP-native history and emits ACP updates) and an **external** engine
 that drives a generic ACP agent via the session module and passes its
 `session/update`s through nearly natively. Both speak ACP at the seam; they are
-named for *where the model runs* (in-process vs. a separate external agent), not
+named for _where the model runs_ (in-process vs. a separate external agent), not
 for the protocol. Which one runs is a per-deployment choice
 (`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
 per-Chat-Session column; an engine that can't honor a capability (e.g.
 prompt-cache usage) degrades via the `supports*` type guard. The shared contract
-test pins both engines to the *same* observable outcome for the same turn, so the
+test pins both engines to the _same_ observable outcome for the same turn, so the
 swap is honest. The server is the sole ACP peer;
 browsers render the server's ACP-shaped broadcast over the Y.Doc and never open
 an ACP connection (single ACP session in → N browsers out). The app owns this
@@ -207,13 +218,13 @@ below), runtime; treating each browser as an ACP client (breaks multiplayer).
 
 **Harness** (BYO Coding CLI):
 An external, bring-your-own coding agent CLI — Claude Code, Codex, aider — that
-the operator runs *inside* a Terminal Tab against a Branch's sandbox. Distinct
+the operator runs _inside_ a Terminal Tab against a Branch's sandbox. Distinct
 from the Engine: the Engine is screenplay's owned Agent Loop; a Harness is
 someone else's tool we install and step out of the way for. Each is a descriptor
 in the catalog (`lib/agent/harnesses/`), enabled per deployment via
 `SANDBOX_HARNESSES` (comma-separated catalog keys) and installed into the
 sandbox — there is **no default**. A Harness is offered **only** when its broker
-model provider is configured *and* header-brokerable (`egress()` non-null), so
+model provider is configured _and_ header-brokerable (`egress()` non-null), so
 it reaches its model API on the operator's key injected at the firewall without
 ever holding it (ADR 0002's trust boundary).
 _Avoid_: engine, agent (screenplay's owned AI loop, never a BYO CLI); treating a
