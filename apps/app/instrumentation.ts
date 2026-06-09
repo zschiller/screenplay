@@ -25,6 +25,14 @@ export async function register(): Promise<void> {
   // WebSocket server (no edge usage).
   if (process.env.NEXT_RUNTIME !== "nodejs") return
 
+  // Desktop only: exit if the Tauri shell that spawned us goes away, so a
+  // Ctrl-C / hot-reload / crash of the shell can't leave this sidecar orphaned
+  // (holding the Yjs port and the PGlite data dir, which then corrupts the next
+  // run). No-op on the hosted build. Started before anything else so it's active
+  // even if the boot below stalls.
+  const { watchParentShell } = await import("@/lib/desktop/parent-watch")
+  watchParentShell()
+
   const { dbReady } = await import("@/lib/db")
   await dbReady
 

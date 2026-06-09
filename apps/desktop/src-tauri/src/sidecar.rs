@@ -131,6 +131,9 @@ fn spawn(
         .env("THUMBNAIL_CAPTURER", "tauri-webview")
         .env("SCREENPLAY_ACP_HARNESS", "claude")
         .env("TAURI_CONTROL_URL", control_url)
+        // Our PID, so the sidecar can self-exit if this shell dies without a
+        // clean quit (Ctrl-C / hot-reload / crash) instead of orphaning.
+        .env("SCREENPLAY_SHELL_PID", std::process::id().to_string())
         // Machine-specific runtime paths under the OS app-data dir.
         .env("PGLITE_DATA_DIR", &pglite)
         .env("PGLITE_MIGRATIONS_DIR", app_root.join("drizzle").join("local"))

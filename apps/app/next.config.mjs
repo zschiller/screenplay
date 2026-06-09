@@ -32,6 +32,15 @@ const nextConfig = {
     // transport. Keep it and `y-websocket` unbundled so they resolve at runtime.
     "ws",
     "y-websocket",
+    // `y-websocket/bin/utils` requires `y-protocols`, which in turn requires
+    // `yjs` from node_modules at runtime. Server code here also `import`s `yjs`
+    // (and `y-protocols`) directly — if those stay bundled, the sidecar ends up
+    // with two copies and Yjs logs "Yjs was already imported. This breaks
+    // constructor checks" (yjs#438), with cross-instance constructor checks
+    // silently failing. Externalize them so every server importer shares the
+    // single node_modules copy that the external `y-websocket` resolves.
+    "yjs",
+    "y-protocols",
     // The desktop build's local terminal transport: node-pty is a native addon
     // and must not be bundled.
     "node-pty",
