@@ -272,12 +272,27 @@ the legacy machinery is **deleted**, not parallel.
   shown), and the `/stop` stop-not-failure mapping now run through the seam in
   production, guarded by the keystone end-to-end live-route seam test alongside the
   contract/consumer/adapter/resolution tests.
-- **The sole remaining deferral is the external ACP transport** — a production
-  backing that spawns or connects to a real external ACP agent over its own
-  stdio/stream. The seam, the consumer, and the contract test prove that swap is
-  subtractive (`contractFor("acp", …)` already crosses a real in-memory ACP
-  transport to a fake agent); pointing a live deployment at a running subprocess
-  is the only move still outstanding.
+- **The external ACP transport is now built (#414).** `SpawnAcpSessionFactory`
+  is the production backing of the injected `AcpSessionFactory` seam: it spawns
+  the user's installed CLI's ACP adapter as a host subprocess, wraps its stdio as
+  the `AcpSession`'s transport (`ndJsonStream`), runs `cwd` = the Branch's
+  worktree on the CLI's own auth (no model key, no egress firewall), and resolves
+  argv/env from a harness → ACP launch resolver (`harnesses/acp-launch.ts`) that
+  strips the `CLAUDECODE`/`CLAUDE_CODE_*` vars the Claude adapter refuses to
+  launch under (spikes #405/#408). The shared contract (`contractFor`) now runs a
+  third backing — the *same* `ExternalEngine` over a **real spawned subprocess**
+  (a fake ACP-agent script speaking genuine ACP over stdio) — to the same
+  broadcasts, ACP-native records, and run-state as the in-memory transport, so
+  the spawn is proven subtractive too. Plan mode maps onto the agent's native
+  `session/set_mode(plan)` so the ExitPlanMode permission request can surface,
+  and approve prefers `allow_once` over `allow_always` (never silently
+  auto-accepting later edits).
+- **Still deferred:** pointing a live deployment at the spawn factory by default
+  (`AGENT_ENGINE=external` as the desktop build-time default, with the worktree
+  `cwd` supplied per Branch) lands with the worktree Sandbox Provider slice (PRD
+  #404); the vendored protocol bump to match the 0.16.x adapter's `tool_call`
+  payloads (spike #408) is the other follow-up before the *real* Claude adapter
+  renders live tool calls.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
   an external implementation," keeping the **Harness** distinction intact.
