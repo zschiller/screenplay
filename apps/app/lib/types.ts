@@ -23,6 +23,14 @@ export type RepoData = {
   repoName: string
   defaultBranch: string
   cloneUrl: string
+  /**
+   * The Repo's acquisition source when it was added from a folder already on
+   * disk (PRD #428, local build only): the absolute path of the user's
+   * existing clone. When set, provisioning roots the worktree manager there
+   * instead of cloning `cloneUrl` (which may then be empty — a clone-less
+   * local repo is fully supported through host git auth).
+   */
+  localPath?: string
   setupScript: string
   devScript: string
   devServerPort: number

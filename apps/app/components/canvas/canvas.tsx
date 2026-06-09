@@ -3172,20 +3172,40 @@ export function Canvas({
               systemPrompt: pick.config.systemPrompt,
               createdAt: Date.now(),
             }
-          : {
-              id,
-              name: "",
-              repoFullName: pick.repo.fullName,
-              repoOwner: pick.repo.owner,
-              repoName: pick.repo.name,
-              defaultBranch: pick.repo.defaultBranch,
-              cloneUrl: pick.repo.cloneUrl,
-              setupScript: "",
-              devScript: "",
-              devServerPort: 3000,
-              envVars: "",
-              createdAt: Date.now(),
-            }
+          : pick.kind === "source"
+            ? {
+                // A Repo from the local build's URL / local-folder entry
+                // points (PRD #428). `localPath` is the acquisition source the
+                // provision path routes on; the GitHub identity fields may be
+                // empty (non-GitHub repo), which just leaves API features dark.
+                id,
+                name: "",
+                repoFullName: pick.source.repoFullName,
+                repoOwner: pick.source.repoOwner,
+                repoName: pick.source.repoName,
+                defaultBranch: pick.source.defaultBranch,
+                cloneUrl: pick.source.cloneUrl,
+                localPath: pick.source.localPath,
+                setupScript: "",
+                devScript: "",
+                devServerPort: 3000,
+                envVars: "",
+                createdAt: Date.now(),
+              }
+            : {
+                id,
+                name: "",
+                repoFullName: pick.repo.fullName,
+                repoOwner: pick.repo.owner,
+                repoName: pick.repo.name,
+                defaultBranch: pick.repo.defaultBranch,
+                cloneUrl: pick.repo.cloneUrl,
+                setupScript: "",
+                devScript: "",
+                devServerPort: 3000,
+                envVars: "",
+                createdAt: Date.now(),
+              }
       const sandboxName = `sp-${nanoid(10)}`
       const branch = uniqueNamesGenerator({
         dictionaries: [adjectives, colors, animals],

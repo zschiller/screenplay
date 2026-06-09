@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server"
 import { getGitHubToken, getUserId } from "@/lib/auth-helpers"
+import { isLocalBuild } from "@/lib/local-mode"
 import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
 import {
@@ -98,30 +99,47 @@ function markError(roomId: string, branchId: string, error?: string) {
 // Pipelines
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether the GitHub API can create/rename branches for this Repo: it needs a
+ * token *and* a GitHub identity. The local build can lack either (PRD #428) —
+ * no token resolved, or a Repo added by URL/local path that isn't on GitHub —
+ * and then the branch is created locally at provision time instead, riding the
+ * `baseRevision` the pipeline passes to the worktree backend.
+ */
+function canUseGitHubApi(repo: RepoData, ghToken: string | undefined): boolean {
+  return Boolean(ghToken && repo.repoOwner && repo.repoName)
+}
+
 async function runNewOrFromBranchPipeline(
   req: CreateRequest,
   repo: RepoData,
-  ghToken: string
+  ghToken: string | undefined,
+  baseRevision?: string
 ) {
   const { flow, roomId, branchId, sandboxName, branch } = req
   const env = parseEnvVars(repo.envVars)
   const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
 
-  // Step 1: Create branch (skip for from-branch flow)
+  // Step 1: Create branch (skip for from-branch flow, and without GitHub API
+  // access — then the worktree backend creates it locally from `baseRevision`)
   if (flow === "new") {
-    const branchResult = await createAgentBranch(
-      repo,
-      branch,
-      undefined,
-      ghToken
-    )
-    if (!branchResult.success) {
-      await markError(
-        roomId,
-        branchId,
-        branchResult.error || "Failed to create branch"
+    if (canUseGitHubApi(repo, ghToken)) {
+      const branchResult = await createAgentBranch(
+        repo,
+        branch,
+        undefined,
+        ghToken
       )
-      return
+      if (!branchResult.success) {
+        await markError(
+          roomId,
+          branchId,
+          branchResult.error || "Failed to create branch"
+        )
+        return
+      }
+    } else {
+      baseRevision ??= repo.defaultBranch
     }
   }
 
@@ -133,7 +151,8 @@ async function runNewOrFromBranchPipeline(
     branch,
     repo.devServerPort,
     envOrUndefined,
-    ghToken
+    ghToken,
+    { localPath: repo.localPath, baseRevision }
   )
   if (!cloneResult.success) {
     await markError(roomId, branchId, cloneResult.error)
@@ -212,7 +231,7 @@ async function runNewOrFromBranchPipeline(
 async function runDuplicateBranchPipeline(
   req: CreateRequest,
   repo: RepoData,
-  ghToken: string
+  ghToken: string | undefined
 ) {
   const { roomId, branchId, sourceBranch } = req
 
@@ -221,28 +240,34 @@ async function runDuplicateBranchPipeline(
     return
   }
 
-  // Step 1: Create a new branch from the source branch
-  const branchResult = await createAgentBranch(
-    repo,
-    req.branch,
-    sourceBranch,
-    ghToken
-  )
-  if (!branchResult.success) {
-    await markError(
-      roomId,
-      branchId,
-      branchResult.error || "Failed to create branch"
+  // Step 1: Create a new branch from the source branch. Without GitHub API
+  // access the worktree backend creates it locally instead, from the
+  // `baseRevision` forwarded below.
+  if (canUseGitHubApi(repo, ghToken)) {
+    const branchResult = await createAgentBranch(
+      repo,
+      req.branch,
+      sourceBranch,
+      ghToken
     )
-    return
+    if (!branchResult.success) {
+      await markError(
+        roomId,
+        branchId,
+        branchResult.error || "Failed to create branch"
+      )
+      return
+    }
   }
 
   // Step 2: Normal sandbox creation from the new branch. Pass through as
-  // "from-branch" since the branch we just created already exists.
+  // "from-branch" since the branch we just created already exists (remotely or
+  // as the local baseRevision to branch from).
   await runNewOrFromBranchPipeline(
     { ...req, flow: "from-branch" },
     repo,
-    ghToken
+    ghToken,
+    sourceBranch
   )
 }
 
@@ -256,8 +281,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const ghToken = await getGitHubToken()
-  if (!ghToken) {
+  // The hosted build can't do anything without a token (branches are created
+  // via the GitHub API and clones are token-authed). The local build can: git
+  // rides host auth and branches are created locally when no token resolves
+  // (PRD #428), so a missing token must not block creation there.
+  const ghToken = (await getGitHubToken()) ?? undefined
+  if (!ghToken && !isLocalBuild) {
     return NextResponse.json(
       { error: "No GitHub token — please re-authenticate with GitHub" },
       { status: 401 }

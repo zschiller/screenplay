@@ -25,7 +25,8 @@ function git(cwd: string, args: string[]): Promise<string> {
   })
 }
 
-/** A throwaway git repo on disk with one commit on `main`. */
+/** A throwaway git repo on disk with one commit on `main` and a `feature`
+ *  branch one commit ahead (left checked out on `main`). */
 async function makeSourceRepo(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true })
   await git(dir, ["init", "-b", "main"])
@@ -38,6 +39,11 @@ async function makeSourceRepo(dir: string): Promise<void> {
   await fs.writeFile(path.join(dir, "README.md"), "hello world\n")
   await git(dir, ["add", "."])
   await git(dir, ["commit", "-m", "initial commit"])
+  await git(dir, ["checkout", "-b", "feature"])
+  await fs.writeFile(path.join(dir, "FEATURE.md"), "feature work\n")
+  await git(dir, ["add", "."])
+  await git(dir, ["commit", "-m", "feature commit"])
+  await git(dir, ["checkout", "main"])
 }
 
 function createOpts(
@@ -194,8 +200,9 @@ describe("WorktreeSandboxProvider", () => {
     // …and git no longer tracks it as a worktree.
     const baseDir = path.join(
       root,
-      "repos",
-      (await fs.readdir(path.join(root, "repos")))[0]!
+      "managed",
+      (await fs.readdir(path.join(root, "managed")))[0]!,
+      "repo"
     )
     const list = await git(baseDir, ["worktree", "list"])
     expect(list).not.toContain(wtPath)
@@ -228,12 +235,159 @@ describe("WorktreeSandboxProvider", () => {
     expect(branch.trim()).toBe("main")
   })
 
-  it("reuses one base clone across Branches of the same repo", async () => {
+  it("reuses one managed clone across Branches of the same repo", async () => {
     await provider.create(createOpts("branch-a", sourceRepo))
-    await provider.create(createOpts("branch-b", sourceRepo))
-    // Both worktrees share a single bare clone.
-    const repos = await fs.readdir(path.join(root, "repos"))
-    expect(repos).toHaveLength(1)
+    await provider.create(
+      createOpts("branch-b", sourceRepo, {
+        source: { type: "git", url: sourceRepo, revision: "feature" },
+      })
+    )
+    // Both worktrees share a single managed clone.
+    const managed = await fs.readdir(path.join(root, "managed"))
+    expect(managed).toHaveLength(1)
+  })
+
+  it("creates a missing branch locally from baseRevision (the no-API path)", async () => {
+    // `new-work` exists nowhere; the provider must create it from `feature`
+    // rather than failing or branching off the clone's HEAD (`main`).
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: {
+          type: "git",
+          url: sourceRepo,
+          revision: "new-work",
+          baseRevision: "feature",
+        },
+      })
+    )
+
+    const branch = await git(sandbox.worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(branch.trim()).toBe("new-work")
+    // Branched from feature: its commit is present.
+    const feature = await fs.readFile(
+      path.join(sandbox.worktreePath, "FEATURE.md"),
+      "utf8"
+    )
+    expect(feature).toBe("feature work\n")
+  })
+
+  it("checks out a remote branch that only exists on origin", async () => {
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: { type: "git", url: sourceRepo, revision: "feature" },
+      })
+    )
+    const branch = await git(sandbox.worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(branch.trim()).toBe("feature")
+  })
+
+  it("provisions a local-path Repo as a worktree of the user's own clone", async () => {
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: {
+          type: "local-git",
+          path: sourceRepo,
+          revision: "agent-work",
+          baseRevision: "main",
+        },
+      })
+    )
+
+    // The worktree is real, on the new branch, with the repo's files.
+    const branch = await git(sandbox.worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(branch.trim()).toBe("agent-work")
+    const readme = await fs.readFile(
+      path.join(sandbox.worktreePath, "README.md"),
+      "utf8"
+    )
+    expect(readme).toBe("hello world\n")
+
+    // It hangs off the user's clone — same object store, no managed clone.
+    const list = await git(sourceRepo, ["worktree", "list"])
+    expect(list).toContain(await fs.realpath(sandbox.worktreePath))
+    expect(
+      await fs
+        .access(path.join(root, "managed"))
+        .then(() => fs.readdir(path.join(root, "managed")))
+        .catch(() => [])
+    ).not.toContain("repo")
+
+    // The user's checkout itself is untouched: still on main, still clean.
+    const userBranch = await git(sourceRepo, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(userBranch.trim()).toBe("main")
+  })
+
+  it("delete on a local-path Repo removes the worktree but never the clone", async () => {
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: {
+          type: "local-git",
+          path: sourceRepo,
+          revision: "agent-work",
+          baseRevision: "main",
+        },
+      })
+    )
+    await sandbox.delete()
+
+    expect(
+      await fs
+        .access(sandbox.worktreePath)
+        .then(() => true)
+        .catch(() => false)
+    ).toBe(false)
+    // The user's clone survives, working tree intact.
+    const readme = await fs.readFile(path.join(sourceRepo, "README.md"), "utf8")
+    expect(readme).toBe("hello world\n")
+  })
+
+  it("a ref already checked out in the user's clone resolves to that clone — and delete leaves it alone", async () => {
+    // The user has `main` checked out in their own clone; a Branch on `main`
+    // converges on that checkout (one-worktree-per-branch), and tearing the
+    // Branch down must not touch the user's working tree.
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: { type: "local-git", path: sourceRepo, revision: "main" },
+      })
+    )
+    expect(await fs.realpath(sandbox.worktreePath)).toBe(
+      await fs.realpath(sourceRepo)
+    )
+
+    await sandbox.delete()
+
+    const readme = await fs.readFile(path.join(sourceRepo, "README.md"), "utf8")
+    expect(readme).toBe("hello world\n")
+    const branch = await git(sourceRepo, ["rev-parse", "--abbrev-ref", "HEAD"])
+    expect(branch.trim()).toBe("main")
+  })
+
+  it("rejects a local-path source that isn't a git repository", async () => {
+    const notARepo = path.join(tmp, "plain-folder")
+    await fs.mkdir(notARepo, { recursive: true })
+    await expect(
+      provider.create(
+        createOpts("branch-a", sourceRepo, {
+          source: { type: "local-git", path: notARepo, revision: "main" },
+        })
+      )
+    ).rejects.toThrow(/Not a git repository/)
   })
 
   it("rejects a snapshot source (this backend cannot hibernate)", async () => {

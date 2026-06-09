@@ -44,6 +44,9 @@ const nextConfig = {
     // The desktop build's local terminal transport: node-pty is a native addon
     // and must not be bundled.
     "node-pty",
+    // The local GitHub token store's OS-keychain backend (PRD #428): a native
+    // addon, loaded dynamically and only on the local build.
+    "@napi-rs/keyring",
   ],
   images: {
     remotePatterns: [
