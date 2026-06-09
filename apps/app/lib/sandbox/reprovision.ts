@@ -8,7 +8,7 @@ import {
 } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
-import { sandboxProvider } from "@/lib/sandbox"
+import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import { configureAgentGit } from "@/lib/sandbox/git"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import { installHarnesses } from "@/lib/sandbox/provision"
@@ -65,15 +65,19 @@ export async function reprovisionFromGit(
     const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      source: ghToken
-        ? {
-            type: "git",
-            url: repo.cloneUrl,
-            revision: branch,
-            username: "x-access-token",
-            password: ghToken,
-          }
-        : { type: "git", url: repo.cloneUrl, revision: branch },
+      // The local worktree backend clones as a host process through the user's
+      // own git credentials, so never bake a brokered token into its clone URL —
+      // host auth covers private repos. Only the hosted path splices the token in.
+      source:
+        !usesHostGitAuth && ghToken
+          ? {
+              type: "git",
+              url: repo.cloneUrl,
+              revision: branch,
+              username: "x-access-token",
+              password: ghToken,
+            }
+          : { type: "git", url: repo.cloneUrl, revision: branch },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,

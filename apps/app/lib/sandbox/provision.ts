@@ -10,7 +10,7 @@ import {
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { storeEnvVars } from "@/lib/env-store"
-import { sandboxProvider } from "@/lib/sandbox"
+import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
@@ -57,19 +57,23 @@ export async function cloneSandbox(
 
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      source: ghToken
-        ? {
-            type: "git",
-            url: gitUrl,
-            revision: branch,
-            username: "x-access-token",
-            password: ghToken,
-          }
-        : {
-            type: "git",
-            url: gitUrl,
-            revision: branch,
-          },
+      // The local worktree backend clones as a host process through the user's
+      // own git credentials, so never bake a brokered token into its clone URL —
+      // host auth covers private repos. Only the hosted path splices the token in.
+      source:
+        !usesHostGitAuth && ghToken
+          ? {
+              type: "git",
+              url: gitUrl,
+              revision: branch,
+              username: "x-access-token",
+              password: ghToken,
+            }
+          : {
+              type: "git",
+              url: gitUrl,
+              revision: branch,
+            },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,

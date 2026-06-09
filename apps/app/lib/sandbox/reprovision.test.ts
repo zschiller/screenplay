@@ -46,7 +46,15 @@ const fake = vi.hoisted(() => {
   }
 })
 
-vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
+// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
+// auth); a mutable holder lets a test flip it to the local path.
+const backend = vi.hoisted(() => ({ hostGitAuth: false }))
+vi.mock("@/lib/sandbox", () => ({
+  sandboxProvider: fake.provider,
+  get usesHostGitAuth() {
+    return backend.hostGitAuth
+  },
+}))
 
 // The action folds the provider registry into the sandbox network policy and
 // resolves the selected harnesses' brokers from it. Stub it with a configured
@@ -179,6 +187,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   fake.reset()
   fake.createCalls.length = 0
+  backend.hostGitAuth = false
   configureAgentGit.mockResolvedValue({ success: true, value: undefined })
   installHarnesses.mockResolvedValue({ success: true, value: undefined })
   getGitHubToken.mockResolvedValue(null)
@@ -229,6 +238,21 @@ describe("reprovisionFromGit", () => {
     // the selected harness keys.
     expect(installHarnesses).toHaveBeenCalledWith("sandbox-a", ["claude-code"])
     expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
+  })
+
+  it("clones via host auth on the local backend, never baking the token into the source", async () => {
+    // The worktree backend clones as a host process through the user's own git
+    // credentials, so even a passed token must not be spliced into the clone URL.
+    backend.hostGitAuth = true
+    fake.setInstance(fakeSandbox({ name: "sandbox-a" }))
+
+    await reprovisionFromGit("sandbox-a", repo, "feature", "tok123")
+
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "git",
+      url: "https://github.com/octocat/hello-world.git",
+      revision: "feature",
+    })
   })
 
   it("clones without auth, falling back to the session token when none is passed", async () => {
