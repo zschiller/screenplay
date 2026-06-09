@@ -26,10 +26,15 @@ _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
 
 **Repo**:
 A GitHub repository configured into a Room — its repo identity, default branch,
-clone URL, and run scripts. Holds one or more Branches. Lives in the room's
-Y.Doc as the `repos` collection (`RepoData`). `Repo` is the code identifier
-everywhere it denotes this entity; the user-facing label still reads "Workspace"
-until the separate UI-string pass renames it to "Project".
+**clone URL or local path**, and run scripts. Holds one or more Branches. Lives
+in the room's Y.Doc as the `repos` collection (`RepoData`). A Repo resolves to a
+local `.git` two ways — point at an existing local clone, or app-managed `git
+clone` of the URL into a managed dir — after which both converge on one
+**worktree manager** that adds/removes one worktree per Branch ref
+(`lib/sandbox/local/worktree.ts`); the paths diverge only at acquisition. `Repo`
+is the code identifier everywhere it denotes this entity; the user-facing label
+still reads "Workspace" until the separate UI-string pass renames it to
+"Project".
 _Shown to users as_: "Project".
 _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
 package and the everyday meaning), project; "agent" (an agent is the AI, not a
@@ -66,7 +71,7 @@ _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation a
 guaranteed (it is an optional capability, not part of the core).
 
 **Dev Server Restart**:
-Bouncing the `devScript` process (and its bridge proxy) inside the *existing*
+Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
 Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common
 recovery for a wedged preview, and the only restart that stays available while
 the Agent is working, so a broken preview can be fixed mid-turn.
@@ -133,7 +138,7 @@ the layer's collection record.
 _Avoid_: note, text layer.
 
 **Chat Session**:
-The *identity* of a chat tab (id, label, target). The conversation itself —
+The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
@@ -149,18 +154,18 @@ Branch's sandbox and rendered with xterm.js in our own React, connecting to the
 in-sandbox daemon's websocket directly (no iframe). Its identity — id, label,
 target Branch — is persisted **per User** in Postgres (the `terminalTab` table)
 and reattaches on reload to a per-tab in-sandbox **tmux session**, so a
-still-running harness survives a page refresh; its *scrollback* is never
+still-running harness survives a page refresh; its _scrollback_ is never
 persisted and dies with the sandbox. Explicitly **not** a Chat Session: nothing
 here enters the chat-store, the conversation tables, or the Y.Doc, and it is
 modeled by its own `TerminalTabData`, never `ChatSessionData`.
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the in-sandbox
 multiplexer, "Terminal Tab" for the UI surface); harness (that's the tool the
-operator runs *inside* the tab — see Engine for why the app's own loop isn't one).
+operator runs _inside_ the tab — see Engine for why the app's own loop isn't one).
 
 **Tool**:
-A capability the model can call during a chat turn (read_file, run_command,
+A capability the model can call during a chat turn (read*file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
-_Avoid_: function, action (action = server action), command.
+\_Avoid*: function, action (action = server action), command.
 
 **Skill**:
 A markdown instruction document (`SKILL.md` with `name` + `description`
@@ -186,16 +191,16 @@ A seam that drives one turn of a Chat Session to completion, **speaking ACP**:
 its update vocabulary is the genuine Agent Client Protocol `session/update`
 (not a bespoke wire format), and the conversation is persisted ACP-native. Two
 implementations sit behind the seam — a default **in-process** engine
-(which runs `streamText` itself but now *translates*: it rebuilds its model
+(which runs `streamText` itself but now _translates_: it rebuilds its model
 input from ACP-native history and emits ACP updates) and an **external** engine
 that drives a generic ACP agent via the session module and passes its
 `session/update`s through nearly natively. Both speak ACP at the seam; they are
-named for *where the model runs* (in-process vs. a separate external agent), not
+named for _where the model runs_ (in-process vs. a separate external agent), not
 for the protocol. Which one runs is a per-deployment choice
 (`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
 per-Chat-Session column; an engine that can't honor a capability (e.g.
 prompt-cache usage) degrades via the `supports*` type guard. The shared contract
-test pins both engines to the *same* observable outcome for the same turn, so the
+test pins both engines to the _same_ observable outcome for the same turn, so the
 swap is honest. The server is the sole ACP peer;
 browsers render the server's ACP-shaped broadcast over the Y.Doc and never open
 an ACP connection (single ACP session in → N browsers out). The app owns this
@@ -207,13 +212,13 @@ below), runtime; treating each browser as an ACP client (breaks multiplayer).
 
 **Harness** (BYO Coding CLI):
 An external, bring-your-own coding agent CLI — Claude Code, Codex, aider — that
-the operator runs *inside* a Terminal Tab against a Branch's sandbox. Distinct
+the operator runs _inside_ a Terminal Tab against a Branch's sandbox. Distinct
 from the Engine: the Engine is screenplay's owned Agent Loop; a Harness is
 someone else's tool we install and step out of the way for. Each is a descriptor
 in the catalog (`lib/agent/harnesses/`), enabled per deployment via
 `SANDBOX_HARNESSES` (comma-separated catalog keys) and installed into the
 sandbox — there is **no default**. A Harness is offered **only** when its broker
-model provider is configured *and* header-brokerable (`egress()` non-null), so
+model provider is configured _and_ header-brokerable (`egress()` non-null), so
 it reaches its model API on the operator's key injected at the firewall without
 ever holding it (ADR 0002's trust boundary).
 _Avoid_: engine, agent (screenplay's owned AI loop, never a BYO CLI); treating a
