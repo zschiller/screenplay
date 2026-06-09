@@ -35,6 +35,13 @@ pnpm-debug.log*
 # env files
 .env*.local
 
+# local database (PGlite desktop build, PRD #404) — embedded-Postgres files
+# the local build writes to PGLITE_DATA_DIR (defaults to ./.pglite); never
+# committed.
+.pglite/
+*.pglite
+data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
