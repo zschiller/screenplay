@@ -21,7 +21,7 @@ import {
 import { resolvePlan, startRun } from "@/lib/agent/run-state"
 import { broadcastAcpUpdate, broadcastControl } from "@/lib/agent/broadcast"
 import { broadcastSignal } from "@/lib/agent/broadcast"
-import { selectEngine } from "@/lib/agent/acp/engine-select"
+import { resolveLiveEngine } from "@/lib/agent/acp/resolve-live-engine"
 import { wireToContentBlocks } from "@/lib/agent/acp/markers"
 import { userMessageChunk } from "@/lib/agent/acp/schema"
 import { launchEngineTurn } from "@/lib/agent/launch-turn"
@@ -49,11 +49,6 @@ export async function POST(req: Request) {
   const userId = await getUserId()
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
-  // Resolve the engine up front so a misconfigured deployment
-  // (`AGENT_ENGINE=external` with no session factory wired) fails loud here —
-  // a 500 at the boundary — rather than silently falling back (ADR 0006).
-  const engine = selectEngine()
-
   const body: RequestBody = await req.json()
   const {
     roomId,
@@ -75,6 +70,14 @@ export async function POST(req: Request) {
       status: 400,
     })
   }
+
+  // Resolve the engine once `sandboxName` is known: the external engine
+  // (`AGENT_ENGINE=external`, desktop) spawns the harness adapter in that
+  // Branch's worktree, so its cwd depends on the turn. Resolved before any
+  // side effects so a misconfigured deployment still fails loud at the boundary
+  // — a 500 here — rather than silently falling back (ADR 0006). In-process
+  // (the hosted default) ignores `sandboxName` entirely.
+  const engine = await resolveLiveEngine({ sandboxName })
 
   // Persist the incoming user turn as an ACP-native `user` record — the
   // decorated wire text (plan/branch markers + `@`-mention `resource_link`s)

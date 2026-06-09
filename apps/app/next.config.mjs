@@ -6,10 +6,18 @@
 // and the `app` Vercel project sets NEXT_PUBLIC_BASE_PATH=/app.
 const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 
+// The desktop build (issue #418) bundles the app as a Node sidecar inside the
+// Tauri shell. `output: "standalone"` emits the self-contained `.next/standalone`
+// tree (server + traced node_modules) that the shell ships and runs with host
+// `node`. Gated on its own flag so the hosted Vercel build is untouched — there
+// Vercel owns the server and standalone tracing would only add build cost.
+const isDesktopBuild = process.env.SCREENPLAY_DESKTOP === "1"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
+  ...(isDesktopBuild ? { output: "standalone" } : {}),
   transpilePackages: ["@workspace/ui"],
   serverExternalPackages: [
     "@sparticuz/chromium",

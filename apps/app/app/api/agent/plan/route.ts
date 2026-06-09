@@ -10,7 +10,7 @@ import { startRun } from "@/lib/agent/run-state"
 import { broadcastSignal } from "@/lib/agent/broadcast"
 import { resolvePlanGate } from "@/lib/agent/acp/resolution"
 import { livePlanResolutionPorts } from "@/lib/agent/acp/consumer-live"
-import { selectEngine } from "@/lib/agent/acp/engine-select"
+import { resolveLiveEngine } from "@/lib/agent/acp/resolve-live-engine"
 import { launchEngineTurn } from "@/lib/agent/launch-turn"
 
 export const runtime = "nodejs"
@@ -28,10 +28,6 @@ export async function POST(req: Request) {
   const userId = await getUserId()
   if (!userId) return new Response("Unauthorized", { status: 401 })
 
-  // Resolve the engine up front so a misconfigured deployment fails loud here
-  // rather than silently falling back (ADR 0006).
-  const engine = selectEngine()
-
   const body: RequestBody = await req.json()
   const { roomId, chatId, planId, approved, feedback } = body
   if (!roomId || !chatId || !planId) {
@@ -47,6 +43,24 @@ export async function POST(req: Request) {
     return new Response("Plan/chat mismatch", { status: 400 })
   }
 
+  // Look up the chat's recorded config (model, system prompt, sandbox) — the
+  // resume reuses the original run's agent configuration, and the external
+  // engine needs the Branch's worktree (`sandboxName`) to spawn its adapter.
+  const [chat] = await db
+    .select({
+      sandboxName: agentChat.sandboxName,
+      model: agentChat.model,
+      systemPrompt: agentChat.systemPrompt,
+    })
+    .from(agentChat)
+    .where(eq(agentChat.id, chatId))
+    .limit(1)
+  if (!chat) return new Response("Chat not found", { status: 404 })
+
+  // Resolve the engine before any side effects so a misconfigured deployment
+  // fails loud here rather than silently falling back (ADR 0006).
+  const engine = await resolveLiveEngine({ sandboxName: chat.sandboxName })
+
   // Resolve the plan gate, ACP-native (ADR 0006): supersede the paused run,
   // persist the human resolution as an ACP-native `user` record (the
   // continuation the agent acts on next — approve → "proceed", reject → the
@@ -59,19 +73,6 @@ export async function POST(req: Request) {
     { approved, feedback }
   )
   if (!resolved) return new Response("Plan already resolved", { status: 409 })
-
-  // Look up the chat's recorded model + system prompt so the resume uses the
-  // same agent configuration as the original run.
-  const [chat] = await db
-    .select({
-      sandboxName: agentChat.sandboxName,
-      model: agentChat.model,
-      systemPrompt: agentChat.systemPrompt,
-    })
-    .from(agentChat)
-    .where(eq(agentChat.id, chatId))
-    .limit(1)
-  if (!chat) return new Response("Chat not found", { status: 404 })
 
   const toolCtx: ToolContext = {
     sandboxName: chat.sandboxName,

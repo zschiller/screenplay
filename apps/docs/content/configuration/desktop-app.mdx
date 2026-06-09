@@ -1,0 +1,79 @@
+# Desktop app (Tauri shell)
+
+The [local build](/configuration/local-build) and its per-seam local backends —
+[sandbox](/configuration/sandbox-provider), [Yjs host](/configuration/yjs-host),
+[blob store](/configuration/blob-store), database, engine — are assembled into a
+single offline desktop app by a **Tauri shell** that runs the Next app as a
+bundled **Node sidecar** (issue #418, PRD #404). The shell lives in
+`apps/desktop`.
+
+## The single build switch
+
+Every local backend is selected together in one place,
+`apps/desktop/desktop.env`. Each seam still reads its own env var (the switches
+are independent by design); this profile is where the desktop distribution sets
+them as a set, so one repo produces both the hosted deployment (none set) and the
+desktop app:
+
+```bash
+SCREENPLAY_DESKTOP=1            # emit `output: standalone`
+NEXT_PUBLIC_SCREENPLAY_LOCAL=1  # strip the multi-user surface
+NEXT_PUBLIC_YJS_HOST=local      # local y-websocket host
+NEXT_PUBLIC_BASE_PATH=          # served at the origin root (no /app proxy)
+SANDBOX_BACKEND=worktree        # Branches = local git worktrees
+SCREENPLAY_DB=pglite            # embedded Postgres
+BLOB_STORE=local-fs             # thumbnails to local disk
+AGENT_ENGINE=external           # chat via the installed CLI's ACP adapter
+THUMBNAIL_CAPTURER=tauri-webview
+SCREENPLAY_ACP_HARNESS=claude   # which installed CLI backs agent chat
+```
+
+The `NEXT_PUBLIC_*` half is inlined at `next build`; the seam selectors are read
+at runtime and re-injected by the shell when it spawns the sidecar.
+
+## Lifecycle
+
+Tauri owns the sidecar end-to-end:
+
+1. **Port** — binds `127.0.0.1:0` for a free port and hands it to the sidecar.
+2. **Spawn** — extracts the bundled tree and runs `node apps/app/server.js` with
+   the desktop profile, the machine-specific data dirs (under the OS app-data
+   directory), and the per-install secrets.
+3. **Health gate** — polls `/api/health` and only navigates the webview to the
+   local server once it 200s, so first paint never races the boot.
+4. **Shutdown** — kills and reaps the sidecar on quit (no orphan).
+
+## Secrets
+
+`ENCRYPTION_KEY` (repo-config / env-var encryption at rest),
+`THUMBNAIL_RENDER_SECRET`, and `TERMINAL_AUTH_SECRET` are deployment secrets in
+the hosted app. A desktop install has no deployment, so the shell **mints and
+persists them on first launch** next to the app data — stable across restarts,
+unique per install.
+
+## Thumbnails
+
+The desktop build ships no headless Chromium, so the
+[blob store](/configuration/blob-store)'s thumbnail capture happens in a webview:
+the sidecar's `TauriWebviewCapturer` POSTs each render URL to the shell's
+localhost control server (`TAURI_CONTROL_URL`), which renders it off-screen and
+returns a PNG via the platform webview's snapshot API. The local-fs store writes
+the WebP and serves it back from the sidecar's own `/blobs` route.
+
+## Building
+
+```bash
+pnpm --filter desktop build:sidecar   # next build → src-tauri/resources/sidecar.tar.gz
+pnpm --filter desktop dev             # run it (tauri dev)
+pnpm --filter desktop build           # package Screenplay.app
+```
+
+The sidecar ships as a **tarball**, not a directory: the Next-traced
+`node_modules` keeps pnpm's peer-dependency symlinks, which Tauri's resource copy
+drops — tar preserves them (and the bundled `node` exec bit). The build also
+folds in the pieces standalone tracing misses (`.next/static`, `public`, the
+`drizzle/local` migrations, and `node-pty`'s native prebuild). See
+`apps/desktop/README.md` for the full rationale.
+
+Prerequisites: the Rust + Tauri toolchain and `node` on `PATH`. Out of scope per
+the PRD: auto-update, code signing, installer packaging.

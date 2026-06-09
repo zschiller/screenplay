@@ -47,3 +47,9 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# desktop shell (apps/desktop) build artifacts — issue #418
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/resources/sidecar.tar.gz
+apps/desktop/.build-pglite/

@@ -1,0 +1,15 @@
+{
+  "name": "desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "pnpm build:sidecar && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
