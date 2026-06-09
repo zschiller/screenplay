@@ -11,18 +11,22 @@ const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
   transpilePackages: ["@workspace/ui"],
-  // PGlite ships a WASM build of Postgres; keep it external so the bundler
-  // doesn't try to inline the .wasm (it's loaded from node_modules at runtime,
-  // and only on the desktop build that selects SCREENPLAY_DB=pglite).
   serverExternalPackages: [
     "@sparticuz/chromium",
     "puppeteer-core",
     "puppeteer",
+    // PGlite ships a WASM build of Postgres; keep it external so the bundler
+    // doesn't try to inline the .wasm (it's loaded from node_modules at runtime,
+    // and only on the desktop build that selects SCREENPLAY_DB=pglite).
     "@electric-sql/pglite",
-    // The local Yjs host's WebSocket server (CJS `bin/utils` + `ws`) runs in
-    // the Node sidecar; keep it unbundled so it resolves at runtime.
+    // `ws` runs in the Node sidecar for two local-build services: the Yjs host's
+    // WebSocket server (CJS `y-websocket` `bin/utils`) and the node-pty terminal
+    // transport. Keep it and `y-websocket` unbundled so they resolve at runtime.
     "ws",
     "y-websocket",
+    // The desktop build's local terminal transport: node-pty is a native addon
+    // and must not be bundled.
+    "node-pty",
   ],
   images: {
     remotePatterns: [
