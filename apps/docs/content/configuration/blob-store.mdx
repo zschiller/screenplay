@@ -8,12 +8,28 @@ uploaded to a public-readable blob store. The default backend is
 interface. Any object store with a public-URL read path works — S3, R2, GCS,
 Supabase Storage, a self-hosted MinIO bucket, etc.
 
+## Selecting a backend
+
+`apps/app/lib/blob/index.ts` resolves the store through `selectBlobStore()` in
+`apps/app/lib/blob/select.ts`, which reads the `BLOB_STORE` env var:
+
+| `BLOB_STORE`     | Backend                                                |
+| ---------------- | ------------------------------------------------------ |
+| unset / `vercel` | Vercel Blob (`vercel.ts`) — the hosted default         |
+| `local-fs`       | Local-filesystem store (`local-fs.ts`) — desktop build |
+
+Only the explicit value `local-fs` opts into the local store; anything
+unrecognised stays on Vercel Blob, so a typo never silently swaps the backend.
+
+The **local-fs** store writes blobs to a directory (`LOCAL_BLOB_DIR`) and
+returns the localhost URL that directory is served from (`LOCAL_BLOB_BASE_URL`),
+so the desktop build can produce per-Room thumbnails with no cloud blob store.
+
 ## Using a different blob backend
 
-`apps/app/lib/blob/index.ts` picks the default store via `getVercelBlobStore()`
-in `vercel.ts`. The exported `blobStore` is typed as the backend-agnostic
-`BlobStore` interface defined in `apps/app/lib/blob/types.ts`, so any
-implementation of that interface is a drop-in replacement. To switch:
+The exported `blobStore` is typed as the backend-agnostic `BlobStore` interface
+defined in `apps/app/lib/blob/types.ts`, so any implementation of that interface
+is a drop-in replacement. To add one:
 
 1. Install whatever SDK your backend needs.
 2. Add a sibling factory — e.g. `apps/app/lib/blob/s3.ts`:
@@ -23,7 +39,9 @@ implementation of that interface is a drop-in replacement. To switch:
    import type { BlobStore } from "./types"
 
    class S3BlobStore implements BlobStore {
-     async put(key, body, opts) { /* call your SDK, return { url } */ }
+     async put(key, body, opts) {
+       /* call your SDK, return { url } */
+     }
    }
 
    export function getS3BlobStore(): BlobStore {
@@ -31,7 +49,8 @@ implementation of that interface is a drop-in replacement. To switch:
    }
    ```
 
-3. Change the single import in `index.ts` to point at your new factory.
+3. Wire it into the `selectBlobStore()` switch in `select.ts` behind a new
+   `BLOB_STORE` value.
 
 The `BlobStore` interface is intentionally tiny (`put(key, body, opts) → { url }`)
 — see `apps/app/lib/blob/types.ts` for the exact shape. Callers
