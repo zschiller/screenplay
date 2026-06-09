@@ -41,7 +41,6 @@ pnpm-debug.log*
 #    (defaults to ./.data/yjs)
 .pglite/
 *.pglite
-data/
 .data/
 
 # typescript
