@@ -11,7 +11,15 @@ const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
   transpilePackages: ["@workspace/ui"],
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "puppeteer"],
+  // PGlite ships a WASM build of Postgres; keep it external so the bundler
+  // doesn't try to inline the .wasm (it's loaded from node_modules at runtime,
+  // and only on the desktop build that selects SCREENPLAY_DB=pglite).
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "puppeteer-core",
+    "puppeteer",
+    "@electric-sql/pglite",
+  ],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },

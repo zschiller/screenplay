@@ -212,24 +212,26 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
       return id
     },
     async pauseForPlan(runId, planCall) {
-      // `batch` runs both statements inside one Postgres transaction — the only
-      // atomic primitive the neon-http driver exposes (it rejects interactive
-      // `transaction()`). A failure on either (e.g. the insert hitting the
-      // tool-call id's primary key) rolls the whole batch back, so the run
-      // status change and the pending row are all-or-nothing.
-      await database.batch([
-        database
+      // Both statements run inside one interactive transaction — all-or-nothing.
+      // A failure on either (e.g. the insert hitting the tool-call id's primary
+      // key) rolls the whole transaction back, so the run status change and the
+      // pending row never desync. (This used to be `db.batch([...])`; that was
+      // neon-http's only atomic primitive, since it rejects `transaction()`.
+      // The PGlite backend behind the seam has no `batch` but does support
+      // interactive `transaction()` — see #406.)
+      await database.transaction(async (tx) => {
+        await tx
           .update(agentRun)
           .set({ status: "paused_for_plan" })
-          .where(eq(agentRun.id, runId)),
-        database.insert(agentPendingToolCall).values({
+          .where(eq(agentRun.id, runId))
+        await tx.insert(agentPendingToolCall).values({
           id: planCall.toolCallId,
           runId,
           chatId: planCall.chatId,
           toolName: planCall.toolName,
           input: planCall.input,
-        }),
-      ])
+        })
+      })
     },
     async resolvePlan(planId, resolution) {
       // Read the owning run first — the pending row carries it. The two writes
@@ -245,11 +247,12 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
         .limit(1)
       if (!pending || pending.status !== "pending") return null
 
-      // Both updates in one transaction. The status guards in the WHERE clauses
-      // keep this idempotent and keep it from clobbering a run a concurrent
-      // /stop already aborted.
-      await database.batch([
-        database
+      // Both updates in one interactive transaction. The status guards in the
+      // WHERE clauses keep this idempotent and keep it from clobbering a run a
+      // concurrent /stop already aborted; the transaction keeps the two writes
+      // all-or-nothing (was `db.batch([...])` — see pauseForPlan above and #406).
+      await database.transaction(async (tx) => {
+        await tx
           .update(agentPendingToolCall)
           .set({
             status: resolution.approved ? "approved" : "rejected",
@@ -261,8 +264,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
               eq(agentPendingToolCall.id, planId),
               eq(agentPendingToolCall.status, "pending")
             )
-          ),
-        database
+          )
+        await tx
           .update(agentRun)
           .set({ status: "superseded", endedAt: new Date() })
           .where(
@@ -270,8 +273,8 @@ function drizzleRepo(database: DB = defaultDb): RunStateRepo {
               eq(agentRun.id, pending.runId),
               inArray(agentRun.status, ["running", "paused_for_plan"])
             )
-          ),
-      ])
+          )
+      })
       return { runId: pending.runId }
     },
   }
