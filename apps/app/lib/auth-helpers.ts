@@ -2,13 +2,41 @@ import "server-only"
 
 import { headers } from "next/headers"
 import { and, eq, inArray } from "drizzle-orm"
-import { auth } from "@/lib/auth"
+import { auth, type Session } from "@/lib/auth"
 import { db, schema } from "@/lib/db"
+import { isLocalBuild } from "@/lib/local-mode"
+import { LOCAL_USER } from "@/lib/local-user"
+
+// The single seeded identity every request runs as in the local desktop build
+// (PRD #404, issue #417). There is no OAuth and no `session` table, so the
+// session is synthesized rather than read from Better Auth. Shaped to match the
+// fields callers read off a real session (`user.id`/`name`/`email`/`image`).
+const LOCAL_SESSION = {
+  user: {
+    id: LOCAL_USER.id,
+    name: LOCAL_USER.name,
+    email: LOCAL_USER.email,
+    emailVerified: true,
+    image: null,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  },
+  session: {
+    id: "local",
+    userId: LOCAL_USER.id,
+    token: "local",
+    expiresAt: new Date(8640000000000000),
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+  },
+} as unknown as Session
 
 /**
- * Return the authenticated user's ID, or null if no session.
+ * Return the authenticated user's ID, or null if no session. In the local
+ * build it is always the single seeded local user.
  */
 export async function getUserId(): Promise<string | null> {
+  if (isLocalBuild) return LOCAL_USER.id
   const session = await auth.api.getSession({ headers: await headers() })
   return session?.user.id ?? null
 }
@@ -20,9 +48,12 @@ export async function requireUserId(): Promise<string> {
 }
 
 /**
- * Full session (user + session row). Prefer this when callers need both.
+ * Full session (user + session row). Prefer this when callers need both. In the
+ * local build the multi-user surface is excluded, so this resolves to the
+ * synthesized single local session without consulting Better Auth.
  */
 export async function getCurrentSession() {
+  if (isLocalBuild) return LOCAL_SESSION
   return auth.api.getSession({ headers: await headers() })
 }
 
@@ -33,6 +64,9 @@ export async function getCurrentSession() {
 export async function getGitHubTokenForUser(
   userId: string
 ): Promise<string | null> {
+  // No `account` table in the local build, and no brokered token: git runs as a
+  // host process under the user's own credentials (`usesHostGitAuth`).
+  if (isLocalBuild) return null
   const rows = await db
     .select({ accessToken: schema.account.accessToken })
     .from(schema.account)

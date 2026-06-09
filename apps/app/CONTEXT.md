@@ -19,7 +19,10 @@ appear only in rendered user-facing strings, never as identifiers. The word
 **Room**:
 The collaborative container for one piece of work — owns a single Y.Doc (the
 canvas) and a member list, and is what gets shared, listed, and thumbnailed.
-Holds one or more Repos. Backed by the `room` Postgres table.
+Holds one or more Repos. Backed by the `room` Postgres table. In the local
+desktop build the member list collapses to a single seeded local user (see
+**Multi-user surface**): there is no sharing, and every Room belongs to that one
+user.
 _Shown to users as_: "Canvas".
 _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
 (reserve that for the spatial surface below).
@@ -91,6 +94,34 @@ so a second capturer is a drop-in, not a fork of the capture path
 (`lib/thumbnail/capturer/`).
 _Avoid_: screenshotter, renderer; folding the resize/store/record steps into
 the capturer (they are shared orchestration, not the seam).
+
+**Multi-user surface**:
+Everything the hosted, multi-tenant app needs to let many people share one Room
+and that the **local desktop build excludes** (PRD #404): GitHub OAuth login
+(`session`/`account`/`verification`) and the login screen; `room_member`
+membership and sharing; Yjs **awareness/presence** (remote cursors, the follow
+toolbar); and the _persisted_ comment thread (`thread`/`comment`/`thread_read` —
+pins, replies, read-state, co-view). The element/selection
+**reference-to-agent** path that rides on the same comment UI — anchoring an
+element or doc text span and hitting "Send to Claude", which injects the
+reference into a Chat Session and persists nothing — is single-user and **kept**;
+only the composer's "Comment" (persist) button is dropped on the local build. It
+is gated by one build-time switch, `NEXT_PUBLIC_SCREENPLAY_LOCAL` (`@/lib/local-mode`'s
+`isLocalBuild`) — a sibling of the per-seam backend flags (`SANDBOX_BACKEND`,
+`SCREENPLAY_DB`, `NEXT_PUBLIC_YJS_HOST`), but gating an app-level _capability_,
+not a swappable backend. On the local build `canAccess`/`room_member` collapse
+to a single seeded local user (`@/lib/local-user`), the app opens straight into
+the work with no login, and the excluded tables aren't even created on disk: the
+schema is split (`lib/db/schema-core.ts` vs `lib/db/schema-multiuser.ts`) and the
+desktop PGlite backend migrates from the core half alone (`drizzle/local`). The
+hosted build keeps the whole surface, unchanged. Re-enabling multi-tenant
+operation on the local build is explicitly out of scope; ADR 0002's egress
+key-brokering / firewall trust boundary dissolves on the host and is not ported.
+_Avoid_: "auth" alone (it's more than login — it's the whole access model);
+implying presence is _deleted_ (the Yjs awareness plumbing the editor needs
+stays; the local build simply has one peer, so there are no others to show);
+saying "comments are gone" flatly (the persisted thread is, but the
+anchor-and-send-to-agent reference path survives).
 
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_

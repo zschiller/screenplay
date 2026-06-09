@@ -87,7 +87,7 @@ import {
   writeLastTabKind,
   writeTabOrder,
 } from "@/lib/canvas/tab-kind"
-import { useSession } from "@/lib/auth-client"
+import { useAppSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
@@ -529,7 +529,7 @@ export function ChatPanel({
 
   // The harnesses installed in this deployment's sandboxes — the menu the caret
   // draws (#290). Only fetched when terminals are creatable here (agent target).
-  const { data: session } = useSession()
+  const { data: session } = useAppSession()
   const userId = session?.user.id
   const installedHarnesses = useInstalledHarnesses(!!onCreateTerminal)
 

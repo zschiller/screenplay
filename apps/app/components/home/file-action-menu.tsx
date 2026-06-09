@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { DRAFTS_FOLDER_ID } from "@/lib/organization"
+import { isLocalBuild } from "@/lib/local-mode"
 import { useHome } from "./home-provider"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
@@ -76,7 +77,8 @@ export function FileActionMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )}
-        {file.isOwner && (
+        {/* Sharing is excluded from the local build (PRD #404, issue #417). */}
+        {file.isOwner && !isLocalBuild && (
           <DropdownMenuItem onSelect={onShare}>
             <Share2 />
             Share

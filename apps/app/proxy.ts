@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
+import { isLocalBuild } from "@/lib/local-mode"
 
 // Routes reachable without a session. Everything else bounces to /sign-in.
 const PUBLIC_PATHS = ["/", "/sign-in", "/api/auth", "/api/yjs/auth"]
@@ -17,6 +18,10 @@ function isPublic(pathname: string): boolean {
 }
 
 export default function middleware(request: NextRequest) {
+  // The local desktop build has no login screen (PRD #404, issue #417): it runs
+  // as the single seeded local user, so nothing is gated behind a session.
+  if (isLocalBuild) return NextResponse.next()
+
   if (isPublic(request.nextUrl.pathname)) return NextResponse.next()
 
   // Edge-safe cookie presence check. Better Auth validates the session on the

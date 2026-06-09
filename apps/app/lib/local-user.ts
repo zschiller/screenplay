@@ -13,4 +13,8 @@ export const LOCAL_USER_ID = "local"
 export const LOCAL_USER = {
   id: LOCAL_USER_ID,
   name: "Local User",
+  // A placeholder address only so the not-null `user.email` column has a value
+  // when the single local user is seeded on boot — the local build never sends
+  // mail or matches on it (there is no sharing-by-email).
+  email: "local@localhost",
 } as const

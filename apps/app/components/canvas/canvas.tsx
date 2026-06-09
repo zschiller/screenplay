@@ -46,7 +46,8 @@ import {
 } from "@/lib/terminal-tabs-actions"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
-import { useSession } from "@/lib/auth-client"
+import { useAppSession } from "@/lib/auth-client"
+import { isLocalBuild } from "@/lib/local-mode"
 import { withBasePath } from "@/lib/base-path"
 import {
   FileText,
@@ -604,7 +605,7 @@ export function Canvas({
   const setPresence = useSetPresence()
   const self = useSelfPresence()
   const others = useOtherPresences()
-  const { data: session } = useSession()
+  const { data: session } = useAppSession()
   const userId = session?.user.id
   const history = useYjsHistory()
   const collections = useRoomCollections()
@@ -5673,7 +5674,10 @@ export function Canvas({
             {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
-                  children still position in world coordinates. */}
+                  children still position in world coordinates. In the local
+                  build there are no persisted threads (so no pins); this still
+                  renders the composer that anchors an element/selection and
+                  sends it to the agent (#417). */}
             <div
               className="pointer-events-none absolute inset-0 z-20"
               style={{
@@ -5963,6 +5967,10 @@ export function Canvas({
                       Document <Kbd>D</Kbd>
                     </TooltipContent>
                   </Tooltip>
+                  {/* Comment mode is kept in the local build: it's how you
+                      anchor an element/selection to reference it to the agent
+                      ("Send to Claude"). Only the *persisted* comment thread
+                      is excluded there (#417). */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -5991,19 +5999,26 @@ export function Canvas({
                 className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
                 onClick={(e) => e.stopPropagation()}
               >
-                <FollowingToolbar
-                  followingId={followingConnectionId}
-                  onFollow={setFollowingConnectionId}
-                />
-                <Button size="sm" onClick={() => setShareDialogOpen(true)}>
-                  Share
-                </Button>
-                <ShareRoomDialog
-                  open={shareDialogOpen}
-                  onOpenChange={setShareDialogOpen}
-                  roomId={roomId}
-                  roomName={currentRoomName}
-                />
+                {/* Following other users' viewports and sharing are part of
+                    the multi-user surface, excluded from the local build
+                    (PRD #404, issue #417). */}
+                {!isLocalBuild && (
+                  <>
+                    <FollowingToolbar
+                      followingId={followingConnectionId}
+                      onFollow={setFollowingConnectionId}
+                    />
+                    <Button size="sm" onClick={() => setShareDialogOpen(true)}>
+                      Share
+                    </Button>
+                    <ShareRoomDialog
+                      open={shareDialogOpen}
+                      onOpenChange={setShareDialogOpen}
+                      roomId={roomId}
+                      roomName={currentRoomName}
+                    />
+                  </>
+                )}
                 {chatCollapsed && (
                   <TooltipProvider>
                     <Tooltip>

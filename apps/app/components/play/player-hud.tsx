@@ -42,6 +42,7 @@ import {
 } from "@/lib/iframe-layer-sizes"
 import { PlayerKnobs } from "./player-knobs"
 import { PlayerComments } from "./player-comments"
+import { isLocalBuild } from "@/lib/local-mode"
 
 type Corner = "tl" | "tr" | "bl" | "br"
 
@@ -317,21 +318,24 @@ export function PlayerHud({
                 : "Knobs"}
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={panel === "comments" ? "default" : "ghost"}
-                size="icon-xs"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() =>
-                  setPanel(panel === "comments" ? null : "comments")
-                }
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>Comments</TooltipContent>
-          </Tooltip>
+          {/* Comments are excluded from the local build (PRD #404, #417). */}
+          {!isLocalBuild && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={panel === "comments" ? "default" : "ghost"}
+                  size="icon-xs"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() =>
+                    setPanel(panel === "comments" ? null : "comments")
+                  }
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={tooltipSide}>Comments</TooltipContent>
+            </Tooltip>
+          )}
           {onToggleChat ? (
             <Tooltip>
               <TooltipTrigger asChild>

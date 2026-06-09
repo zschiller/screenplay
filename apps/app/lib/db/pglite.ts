@@ -20,18 +20,23 @@ export interface PgliteHandle {
   close: () => Promise<void>
 }
 
-// The same `out` dir drizzle-kit writes (see drizzle.config.ts). Resolved from
-// this module so it works whether run from the app root (tests, `next dev`) or
-// a bundled sidecar. `PGLITE_MIGRATIONS_DIR` overrides it when the packaged
-// desktop build ships the SQL somewhere else.
+// The desktop-only migration set drizzle-kit writes from `schema-core` (see
+// drizzle.local.config.ts) — `drizzle/local`, NOT the full hosted `drizzle/`
+// history. The multi-user surface (auth, room_member, comments) is excluded
+// from the local build (PRD #404, issue #417), so those tables are never
+// created on disk here. PGlite only ever runs in the local build, so this is
+// always the right set. Resolved from this module so it works whether run from
+// the app root (tests, `next dev`) or a bundled sidecar.
+// `PGLITE_MIGRATIONS_DIR` overrides it when the packaged desktop build ships
+// the SQL somewhere else.
 //
-// Built with `dirname`/`join` rather than `new URL("../../drizzle",
+// Built with `dirname`/`join` rather than `new URL("../../drizzle/local",
 // import.meta.url)` on purpose: Turbopack statically intercepts the latter and
 // tries to resolve the directory as a module at build time (it isn't one),
 // which fails the hosted build even though this path is only read on desktop.
 const MIGRATIONS_DIR =
   process.env.PGLITE_MIGRATIONS_DIR ??
-  join(dirname(fileURLToPath(import.meta.url)), "../../drizzle")
+  join(dirname(fileURLToPath(import.meta.url)), "../../drizzle/local")
 
 /**
  * Build the local, embedded-Postgres sibling of {@link createNeonDb}. The same
