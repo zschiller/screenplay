@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 // flows through — session resolution and room access — against the local
 // PGlite backend, with no OAuth and no `room_member` table.
 describe("local build — access model", () => {
+  // Each test resets modules and re-imports heavy seams (db + PGlite migration
+  // boot, rooms, comments), so under full-suite CPU contention the default 5s
+  // can be tight. Give the file headroom so it stays reliable in CI.
+  vi.setConfig({ testTimeout: 30000 })
+
   beforeEach(() => {
     vi.resetModules()
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
@@ -57,11 +62,35 @@ describe("local build — access model", () => {
 
     const rooms = await listRoomsForUser("local")
     expect(rooms.map((r) => r.id).sort()).toEqual(["r1", "r2"])
-  }, 30000)
+  })
 
   it("refuses the sharing actions as a backstop", async () => {
     const { shareRoom, listCollaborators } = await import("./rooms-actions")
     await expect(shareRoom("r1", "a@b.com")).rejects.toThrow(/local build/)
     await expect(listCollaborators("r1")).rejects.toThrow(/local build/)
+  })
+
+  it("excludes persisted comments but keeps thread reads safe (so the reference composer can mount)", async () => {
+    // The element/selection "Send to Claude" path stays in the local build, so
+    // the Comments component still mounts and reads threads — which must be a
+    // safe empty result, never a query against the absent `thread` table.
+    const { listThreads, createThreadWithFirstComment } =
+      await import("./comments")
+    await expect(listThreads("r1", "local")).resolves.toEqual([])
+    // Persisting a comment thread is the multi-user half — it refuses.
+    await expect(
+      createThreadWithFirstComment({
+        roomId: "r1",
+        x: 0,
+        y: 0,
+        iframeLayerId: null,
+        selector: null,
+        offsetX: null,
+        offsetY: null,
+        branch: null,
+        body: "hi",
+        authorId: "local",
+      })
+    ).rejects.toThrow(/local build/)
   })
 })

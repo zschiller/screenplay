@@ -19,8 +19,13 @@ a solo tool running on your own machine, so the desktop build leaves it out:
   (`session`/`account`/`verification`) are excluded.
 - **No membership or sharing.** `canAccess`/`room_member` collapse to that one
   user — every Room belongs to it — and the Share affordances are hidden.
-- **No comments or co-view.** The `thread`/`comment`/`thread_read` tables and
-  their UI (canvas pins, the player comment feed) are excluded.
+- **No persisted comments or co-view.** The `thread`/`comment`/`thread_read`
+  tables and the collaborative thread UI (canvas pins, replies, read-state, the
+  player comment feed) are excluded. The element/selection **reference-to-agent**
+  path that rides on the same comment composer — anchor an element or doc text
+  span, then hit **"Send to Claude"** — is single-user and **kept**: it injects
+  the reference into the chat and persists nothing. Only the composer's
+  "Comment" (persist) button is dropped.
 - **No remote presence.** With a single local Yjs peer there are no other
   cursors to show; the follow toolbar is hidden. (The awareness plumbing the
   collaborative editor needs stays — there is simply nobody else on it.)

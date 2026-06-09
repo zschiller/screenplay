@@ -100,8 +100,13 @@ Everything the hosted, multi-tenant app needs to let many people share one Room
 and that the **local desktop build excludes** (PRD #404): GitHub OAuth login
 (`session`/`account`/`verification`) and the login screen; `room_member`
 membership and sharing; Yjs **awareness/presence** (remote cursors, the follow
-toolbar); and `thread`/`comment`/`thread_read` (comments and co-view). It is
-gated by one build-time switch, `NEXT_PUBLIC_SCREENPLAY_LOCAL` (`@/lib/local-mode`'s
+toolbar); and the _persisted_ comment thread (`thread`/`comment`/`thread_read` —
+pins, replies, read-state, co-view). The element/selection
+**reference-to-agent** path that rides on the same comment UI — anchoring an
+element or doc text span and hitting "Send to Claude", which injects the
+reference into a Chat Session and persists nothing — is single-user and **kept**;
+only the composer's "Comment" (persist) button is dropped on the local build. It
+is gated by one build-time switch, `NEXT_PUBLIC_SCREENPLAY_LOCAL` (`@/lib/local-mode`'s
 `isLocalBuild`) — a sibling of the per-seam backend flags (`SANDBOX_BACKEND`,
 `SCREENPLAY_DB`, `NEXT_PUBLIC_YJS_HOST`), but gating an app-level _capability_,
 not a swappable backend. On the local build `canAccess`/`room_member` collapse
@@ -114,7 +119,9 @@ operation on the local build is explicitly out of scope; ADR 0002's egress
 key-brokering / firewall trust boundary dissolves on the host and is not ported.
 _Avoid_: "auth" alone (it's more than login — it's the whole access model);
 implying presence is _deleted_ (the Yjs awareness plumbing the editor needs
-stays; the local build simply has one peer, so there are no others to show).
+stays; the local build simply has one peer, so there are no others to show);
+saying "comments are gone" flatly (the persisted thread is, but the
+anchor-and-send-to-agent reference path survives).
 
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_

@@ -757,13 +757,7 @@ export function Canvas({
         setDocumentMode(false)
         setFrameMode(false)
       }
-      if (
-        e.key === "c" &&
-        !isLocalBuild &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !isEditing(e)
-      ) {
+      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         setCommentMode((m) => !m)
         setNewCommentPos(null)
         setInspectHover(null)
@@ -5680,36 +5674,36 @@ export function Canvas({
             {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
-                  children still position in world coordinates.
-                  Excluded from the local build (PRD #404, issue #417). */}
-            {!isLocalBuild && (
-              <div
-                className="pointer-events-none absolute inset-0 z-20"
-                style={{
-                  transformOrigin: "0 0",
-                  transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+                  children still position in world coordinates. In the local
+                  build there are no persisted threads (so no pins); this still
+                  renders the composer that anchors an element/selection and
+                  sends it to the agent (#417). */}
+            <div
+              className="pointer-events-none absolute inset-0 z-20"
+              style={{
+                transformOrigin: "0 0",
+                transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+              }}
+            >
+              <Comments
+                roomId={roomId}
+                zoom={zoom}
+                newCommentPos={newCommentPos}
+                onNewCommentPlaced={() => {
+                  setNewCommentPos(null)
+                  setCommentMode(false)
                 }}
-              >
-                <Comments
-                  roomId={roomId}
-                  zoom={zoom}
-                  newCommentPos={newCommentPos}
-                  onNewCommentPlaced={() => {
-                    setNewCommentPos(null)
-                    setCommentMode(false)
-                  }}
-                  onCancelComment={() => setNewCommentPos(null)}
-                  iframeLayers={Array.from(iframeLayerLayouts.values())}
-                  getIframeLayerDom={getIframeLayerDom}
-                  getDocumentEditor={getDocumentEditor}
-                  documentEditorsVersion={documentEditorsVersion}
-                  initialThreads={initialThreads}
-                  onSendToChat={handleCommentSendToChat}
-                  activeThreadId={activeCommentThreadId}
-                  onActivateThread={setActiveCommentThreadId}
-                />
-              </div>
-            )}
+                onCancelComment={() => setNewCommentPos(null)}
+                iframeLayers={Array.from(iframeLayerLayouts.values())}
+                getIframeLayerDom={getIframeLayerDom}
+                getDocumentEditor={getDocumentEditor}
+                documentEditorsVersion={documentEditorsVersion}
+                initialThreads={initialThreads}
+                onSendToChat={handleCommentSendToChat}
+                activeThreadId={activeCommentThreadId}
+                onActivateThread={setActiveCommentThreadId}
+              />
+            </div>
 
             {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
@@ -5973,29 +5967,30 @@ export function Canvas({
                       Document <Kbd>D</Kbd>
                     </TooltipContent>
                   </Tooltip>
-                  {/* Comments are excluded from the local build (#417). */}
-                  {!isLocalBuild && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={commentMode ? "default" : "ghost"}
-                          size="icon-xs"
-                          onClick={() => {
-                            setCommentMode((m) => !m)
-                            setNewCommentPos(null)
-                            setInspectHover(null)
-                            setDocumentMode(false)
-                            setFrameMode(false)
-                          }}
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        Comment <Kbd>C</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
+                  {/* Comment mode is kept in the local build: it's how you
+                      anchor an element/selection to reference it to the agent
+                      ("Send to Claude"). Only the *persisted* comment thread
+                      is excluded there (#417). */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={commentMode ? "default" : "ghost"}
+                        size="icon-xs"
+                        onClick={() => {
+                          setCommentMode((m) => !m)
+                          setNewCommentPos(null)
+                          setInspectHover(null)
+                          setDocumentMode(false)
+                          setFrameMode(false)
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Comment <Kbd>C</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
                 </TooltipProvider>
               </div>
             </div>
