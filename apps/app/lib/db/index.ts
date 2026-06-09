@@ -20,7 +20,20 @@ function selectDb(): { db: DB; ready: Promise<void> } {
   return { db: createNeonDb(), ready: Promise.resolve() }
 }
 
-const handle = selectDb()
+// PGlite must open its data dir exactly once per process — two clients on one
+// dir corrupt it (issue #418). This module is NOT a reliable once-per-process
+// singleton on its own: Next.js evaluates it in several independent Turbopack
+// module registries within the same sidecar process (the instrumentation hook,
+// the RSC/server layer, and the SSR layer are separate graphs, each with its
+// own module-level state), so a bare `selectDb()` here can open the same dir
+// twice. The data-dir lock can't catch that — both openers share one pid, so it
+// reads the lock as self-owned and allows the second open. `globalThis` is the
+// one thing every module instance in the process shares, so pin the handle to
+// it: the first evaluator opens the db, every other reuses that handle.
+const globalForDb = globalThis as typeof globalThis & {
+  __screenplayDbHandle?: ReturnType<typeof selectDb>
+}
+const handle = (globalForDb.__screenplayDbHandle ??= selectDb())
 
 /** The configured database handle — neon-http when hosted, PGlite on desktop. */
 export const db = handle.db

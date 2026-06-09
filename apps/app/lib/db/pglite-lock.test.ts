@@ -39,6 +39,15 @@ describe("lockDataDir", () => {
     expect(readFileSync(lockPath(), "utf8").trim()).toBe(String(process.ppid))
   })
 
+  it("refuses a dir already held by THIS process — a same-pid second opener", () => {
+    // A second open inside one process (e.g. the db module evaluated in two
+    // Turbopack module registries) is as corrupting as a foreign one and must
+    // not be silently reclaimed. The live owner here is our own pid.
+    writeFileSync(lockPath(), String(process.pid))
+    expect(() => lockDataDir(dir)).toThrow(/already open in THIS process/)
+    expect(readFileSync(lockPath(), "utf8").trim()).toBe(String(process.pid))
+  })
+
   it("reclaims a stale lock left by a dead process", () => {
     writeFileSync(lockPath(), "999999") // a pid that doesn't exist
     const release = lockDataDir(dir)

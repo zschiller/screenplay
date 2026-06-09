@@ -138,11 +138,21 @@ export function lockDataDir(dataDir: string): () => void {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err
 
       const owner = Number(readFileSync(lockPath, "utf8").trim() || "0")
-      if (owner > 0 && owner !== process.pid && isProcessAlive(owner)) {
+      if (owner > 0 && isProcessAlive(owner)) {
+        // A live owner — refuse, whether it's another process OR this one. The
+        // same-pid case is a second opener inside one process (Next.js can
+        // evaluate the db module in more than one Turbopack module registry per
+        // process; see lib/db/index.ts). It's just as corrupting as a foreign
+        // opener and must NOT be silently reclaimed — fail loudly so the caller
+        // reuses the shared handle from "@/lib/db" instead.
         throw new Error(
-          `PGlite data dir "${dataDir}" is already open in another live process ` +
-            `(pid ${owner}). Refusing to open it concurrently — concurrent writers ` +
-            `corrupt the database. Close the other instance first.`
+          owner === process.pid
+            ? `PGlite data dir "${dataDir}" is already open in THIS process ` +
+                `(pid ${owner}). Refusing a second concurrent opener — import the ` +
+                `shared handle from "@/lib/db" instead of calling createPgliteDb again.`
+            : `PGlite data dir "${dataDir}" is already open in another live process ` +
+                `(pid ${owner}). Refusing to open it concurrently — concurrent writers ` +
+                `corrupt the database. Close the other instance first.`
         )
       }
       // Stale lock (owner gone): drop it and retry the atomic create.
