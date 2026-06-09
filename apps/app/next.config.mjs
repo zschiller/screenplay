@@ -19,6 +19,10 @@ const nextConfig = {
     "puppeteer-core",
     "puppeteer",
     "@electric-sql/pglite",
+    // The local Yjs host's WebSocket server (CJS `bin/utils` + `ws`) runs in
+    // the Node sidecar; keep it unbundled so it resolves at runtime.
+    "ws",
+    "y-websocket",
   ],
   images: {
     remotePatterns: [
