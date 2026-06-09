@@ -53,30 +53,61 @@ fn free_port() -> Result<u16, Box<dyn Error>> {
 }
 
 /// Extract `resources/sidecar.tar.gz` into a version-stamped cache dir, once.
-/// The tar is re-unpacked on a version bump (the stamped dir name changes) and
-/// skipped otherwise. Unpacking restores the pnpm symlinks Tauri's resource copy
-/// drops — the reason the sidecar ships as a tar, not a directory (spike #407).
+/// Re-unpacked when the stamped dir name changes (a release version bump) or
+/// when the bundled tarball's content changes (a `build:sidecar` rebuild during
+/// dev — the version stays constant, so without this the new tarball would be
+/// silently ignored and a stale sidecar served). Unpacking restores the pnpm
+/// symlinks Tauri's resource copy drops — the reason the sidecar ships as a tar,
+/// not a directory (spike #407).
 fn extract(app: &AppHandle) -> Result<PathBuf, Box<dyn Error>> {
     let version = app.package_info().version.to_string();
     let dest = app.path().app_cache_dir()?.join(format!("sidecar-{version}"));
     let server_js = dest.join("apps").join("app").join("server.js");
+    let stamp_path = dest.join(".tarball-stamp");
 
-    if !server_js.exists() {
-        let archive = app
-            .path()
-            .resource_dir()?
-            .join("resources")
-            .join("sidecar.tar.gz");
+    let archive = app
+        .path()
+        .resource_dir()?
+        .join("resources")
+        .join("sidecar.tar.gz");
+
+    // Cheap content fingerprint: the tarball's byte length + mtime. A rebuild
+    // changes both, so we avoid hashing the (large) archive on every launch.
+    let want_stamp = tarball_stamp(&archive);
+    let have_stamp = fs::read_to_string(&stamp_path).ok();
+    let fresh = server_js.exists() && have_stamp.as_deref() == want_stamp.as_deref();
+
+    if !fresh {
+        // Wipe any prior (partial or stale) extract so we never mix trees.
+        if dest.exists() {
+            fs::remove_dir_all(&dest)?;
+        }
         fs::create_dir_all(&dest)?;
         let file = File::open(&archive)
             .map_err(|e| format!("opening bundled sidecar {archive:?}: {e}"))?;
         let mut tar = Archive::new(GzDecoder::new(file));
         tar.set_preserve_permissions(true);
         tar.unpack(&dest)?;
+        if let Some(stamp) = want_stamp {
+            let _ = fs::write(&stamp_path, stamp);
+        }
     }
 
     ensure_executable(&dest.join("node"));
     Ok(dest)
+}
+
+/// `len:mtime` fingerprint of the bundled tarball, or `None` if it can't be
+/// stat'd (in which case we fall back to the server.js-exists check alone).
+fn tarball_stamp(archive: &std::path::Path) -> Option<String> {
+    let meta = fs::metadata(archive).ok()?;
+    let mtime = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some(format!("{}:{}", meta.len(), mtime))
 }
 
 /// Defensive `chmod +x` on the bundled `node` — its bit survived on macOS in the
