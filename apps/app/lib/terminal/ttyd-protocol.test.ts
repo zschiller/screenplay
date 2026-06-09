@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
+  decodeClientMessage,
   decodeServerMessage,
   encodeHandshake,
   encodeInput,
+  encodeOutput,
   encodeResize,
+  parseHandshake,
   terminalWebSocketUrl,
 } from "@/lib/terminal/ttyd-protocol"
 
@@ -87,6 +90,82 @@ describe("decodeServerMessage", () => {
 
   it("treats an empty frame as unknown", () => {
     expect(decodeServerMessage(new Uint8Array())).toEqual({
+      type: "unknown",
+      command: "",
+    })
+  })
+})
+
+describe("encodeOutput", () => {
+  it("frames raw PTY bytes as an OUTPUT message the client decodes back", () => {
+    const frame = encodeOutput("hi[0m")
+    expect(String.fromCharCode(frame[0]!)).toBe("0")
+    const msg = decodeServerMessage(frame)
+    expect(msg.type).toBe("output")
+    if (msg.type !== "output") throw new Error("expected output")
+    expect(decoder.decode(msg.data)).toBe("hi[0m")
+  })
+
+  it("accepts bytes as well as a string", () => {
+    const frame = encodeOutput(encoder.encode("abc"))
+    expect(decoder.decode(frame.subarray(1))).toBe("abc")
+  })
+})
+
+describe("parseHandshake", () => {
+  it("round-trips a handshake the client encoded", () => {
+    const frame = encodeHandshake({ authToken: "tok", columns: 100, rows: 30 })
+    expect(parseHandshake(frame)).toEqual({
+      authToken: "tok",
+      columns: 100,
+      rows: 30,
+    })
+  })
+
+  it("returns null for a non-handshake (command) frame", () => {
+    expect(parseHandshake(encodeInput("x"))).toBeNull()
+  })
+
+  it("returns null for malformed JSON behind the marker", () => {
+    expect(parseHandshake(encoder.encode("{not json"))).toBeNull()
+  })
+})
+
+describe("decodeClientMessage", () => {
+  it("decodes the opening handshake (leading `{`)", () => {
+    const frame = encodeHandshake({ authToken: "", columns: 80, rows: 24 })
+    expect(decodeClientMessage(frame)).toEqual({
+      type: "handshake",
+      authToken: "",
+      columns: 80,
+      rows: 24,
+    })
+  })
+
+  it("decodes INPUT to raw payload bytes", () => {
+    const msg = decodeClientMessage(encodeInput("ls\r"))
+    expect(msg.type).toBe("input")
+    if (msg.type !== "input") throw new Error("expected input")
+    expect(decoder.decode(msg.data)).toBe("ls\r")
+  })
+
+  it("decodes RESIZE to its geometry", () => {
+    expect(decodeClientMessage(encodeResize(120, 40))).toEqual({
+      type: "resize",
+      columns: 120,
+      rows: 40,
+    })
+  })
+
+  it("reports an unknown command rather than throwing", () => {
+    expect(decodeClientMessage(encoder.encode("9x"))).toEqual({
+      type: "unknown",
+      command: "9",
+    })
+  })
+
+  it("treats an empty frame as unknown", () => {
+    expect(decodeClientMessage(new Uint8Array())).toEqual({
       type: "unknown",
       command: "",
     })

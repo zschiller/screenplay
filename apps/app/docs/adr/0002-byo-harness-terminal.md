@@ -392,3 +392,54 @@ edges hang off the existing selection fold (#284) and `?arg=` launch (#285).
   launch) so the operator lands in a normal shell after the banner. A tab whose
   harness launches never shows it, and neither does a configured-but-this-tab-has-
   no-harness shell — the banner is strictly the empty-config signal.
+
+## Addendum (2026-06-09): local node-pty transport for the worktree backend (slice #415)
+
+The desktop build (ADR 0007's worktree Sandbox Provider) has no remote VM, so the
+whole Vercel-shaped terminal apparatus this ADR built — a fetched static ttyd, a
+fetched static tmux, and the `domain(port)` secret-bearer-link — has nothing to
+run on and nothing to gate. ADR 0007 named the terminal transport as one of the
+two ADR 0002 couplings a second provider would reopen "to be reshaped by what
+this backend actually needs"; this is that reshaping for the worktree backend.
+The hosted (Vercel) path is **unchanged** — both transports coexist behind the
+same client, selected by `SANDBOX_BACKEND` exactly as the Sandbox Provider is.
+
+- **Transport: a node-pty process in the sidecar, bridged over a localhost
+  WebSocket.** The sidecar spawns a PTY (`lib/terminal/local/pty.ts`) with `cwd`
+  = the Branch's worktree and the host's own shell + env, so the tab behaves like
+  the user's normal terminal in that directory. A localhost `ws` server
+  (`lib/terminal/local/server.ts`, bound to `127.0.0.1`) bridges the socket to
+  the PTY. The server is stood up on boot by `instrumentation.ts` and lazily by
+  `/api/terminal/url`, both via the `ensureLocalTerminalServer()` singleton; the
+  route returns its `ws://localhost:<port>` origin in place of `domain(port)`.
+
+- **The client is untouched — the local server speaks the *same* wire protocol.**
+  The win is that the existing xterm.js client (`terminal-tab.tsx`) and the
+  `ttyd-protocol.ts` codec carry over verbatim; the codec simply grew its
+  server-side half (`decodeClientMessage` / `encodeOutput` / `parseHandshake`)
+  so the local PTY server can drive the protocol from the other end. Swapping the
+  transport is a build-time backend choice, not a client rewrite.
+
+- **Reattach-after-reload falls out of the sidecar, so tmux is dropped.** The PTY
+  lives in a process-wide registry keyed by the tab's session id and outlives the
+  WebSocket; a webview reload reconnects with the same key, finds the live process
+  (a long-running command is not lost), and a rolling output buffer is replayed so
+  the pane redraws. This is what per-tab tmux sessions bought the hosted build
+  (#259); with a durable sidecar there is no VM teardown to survive, so tmux is
+  not used at all on this backend. The session key is still derived via
+  `tmuxSessionName` so the client (`?arg=`) and the close-tab action
+  (`killTerminalSession`, which now kills the registry's PTY) agree on the name.
+
+- **The trust boundary collapses rather than carries over.** There is no public
+  URL and no firewall: the socket is `127.0.0.1`-only on the single local user's
+  own machine, running their own shell — strictly less exposed than the
+  bearer-link model this ADR fixed for the hosted build. The membership gate at
+  `/api/terminal/url` (`issueTerminalCredential`) is kept for parity and binds to
+  the single seeded local user; the local server ignores the minted token.
+
+- **Harness-in-terminal is deferred on this backend.** The local route returns an
+  empty `launchArgv` (a plain host shell), because the desktop default agent is
+  the external ACP Engine (#404), not a firewall-brokered harness — the
+  `SANDBOX_HARNESSES` egress-injection model this ADR rests on doesn't apply when
+  the host holds the creds. The `?arg=` launch transport is still wired, so
+  dropping a tab straight into a host CLI is a later, additive step.

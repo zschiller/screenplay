@@ -173,16 +173,24 @@ _Avoid_: subject, destination.
 **Terminal Tab**:
 A BYO-harness shell surfaced as a tab in the agent panel, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
-in-sandbox daemon's websocket directly (no iframe). Its identity — id, label,
-target Branch — is persisted **per User** in Postgres (the `terminalTab` table)
-and reattaches on reload to a per-tab in-sandbox **tmux session**, so a
-still-running harness survives a page refresh; its _scrollback_ is never
-persisted and dies with the sandbox. Explicitly **not** a Chat Session: nothing
-here enters the chat-store, the conversation tables, or the Y.Doc, and it is
-modeled by its own `TerminalTabData`, never `ChatSessionData`.
-_Avoid_: chat tab; terminal session (reserve "tmux session" for the in-sandbox
-multiplexer, "Terminal Tab" for the UI surface); harness (that's the tool the
-operator runs _inside_ the tab — see Engine for why the app's own loop isn't one).
+backing terminal server's websocket directly (no iframe). Its identity — id,
+label, target Branch — is persisted **per User** in Postgres (the `terminalTab`
+table) and reattaches on reload so a still-running shell survives a page refresh;
+its _scrollback_ is never persisted and dies with the sandbox. The **transport
+behind it is provider-dependent**, chosen at build time by `SANDBOX_BACKEND` and
+hidden behind one unchanged client + wire codec (`ttyd-protocol.ts`): the hosted
+Vercel backend runs an in-sandbox **ttyd** daemon over a `domain(port)` URL and
+reattaches via a per-tab in-sandbox **tmux session**; the desktop worktree
+backend runs a **node-pty** process in the sidecar over a localhost WebSocket
+(`lib/terminal/local/`) and reattaches because that PTY simply outlives the
+socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here
+enters the chat-store, the conversation tables, or the Y.Doc, and it is modeled
+by its own `TerminalTabData`, never `ChatSessionData`.
+_Avoid_: chat tab; terminal session (reserve "tmux session" for the hosted
+backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
+(that's the tool the operator runs _inside_ the tab — see Engine for why the
+app's own loop isn't one); calling the transport "ttyd" unqualified (it's ttyd on
+Vercel, node-pty on the desktop build).
 
 **Tool**:
 A capability the model can call during a chat turn (read*file, run_command,
