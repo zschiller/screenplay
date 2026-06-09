@@ -49,26 +49,37 @@ _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
 
 **Sandbox**:
-The ephemeral VM a Branch's repo is checked out into — where the agent reads
+The environment a Branch's repo is checked out into — where the agent reads
 and edits files, runs commands, and serves the dev-server previews the Iframe
-Layers point at. One per Branch, provisioned on demand and reclaimed when idle;
-its contents are never durable, so work worth keeping is committed and pushed. A
-Sandbox may preserve its working tree across a restart (see Sandbox Provider)
-but never outlives its Branch.
-_Avoid_: VM, container, box (the backend's words); workspace (the UI label for a
-Repo); using "sandbox" to mean the Branch itself.
+Layers point at. One per Branch, provisioned on demand. **Durability is
+provider-dependent** (see Sandbox Provider): the hosted Vercel backend backs it
+with an ephemeral VM that is reclaimed when idle, so its contents aren't durable
+and work worth keeping must be committed and pushed; the desktop worktree backend
+backs it with a git worktree on the host disk, which _is_ durable across restarts
+(the checkout and its uncommitted edits survive) even though that backend can't
+hibernate. Either way a Sandbox never outlives its Branch. A Sandbox may also
+preserve its working tree across a restart on a hibernating provider.
+_Avoid_: VM, container, box (the backend's words — and the VM isn't even the only
+backing now); workspace (the UI label for a Repo); using "sandbox" to mean the
+Branch itself; calling its contents "never durable" (true only for the Vercel VM).
 
 **Sandbox Provider**:
-The swappable backend that creates and reconnects Sandboxes — Vercel today, and
-the only one. The surface is split into a **portable core** (the operations
-every conceivable backend can honor) and an optional **Hibernation** capability:
-freezing a Sandbox's filesystem when it goes idle and thawing it on return,
-which is what preserves uncommitted work across a restart. A provider that can't
-hibernate is not disqualified — it degrades to recloning the repo fresh, a
-working Sandbox with un-pushed edits lost. The split exists so the seam tells the
-truth about what a second provider would actually cost.
+The swappable backend that creates and reconnects Sandboxes. There are now
+**two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop
+**worktree** backend (a git worktree on the host, non-hibernating), selected at
+build time by `SANDBOX_BACKEND`. The surface is split into a **portable core**
+(the operations every conceivable backend can honor) and an optional
+**Hibernation** capability: freezing a Sandbox's filesystem when it goes idle and
+thawing it on return, which is what preserves uncommitted work across a _restart_.
+A provider that can't hibernate is not disqualified — it degrades to recloning the
+repo fresh, so on it a Sandbox Restart fails loud and Recreate (delete + re-add)
+is the live rebuild path. The worktree backend is the first real second provider,
+the event ADR 0003 named as the trigger that justifies paying for backend
+selection. The split exists so the seam tells the truth about what a second
+provider actually costs.
 _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
-guaranteed (it is an optional capability, not part of the core).
+guaranteed (it is an optional capability, not part of the core); saying "Vercel,
+the only one" (a second backend has landed).
 
 **Thumbnail Capturer**:
 The swappable seam that turns a Room's render URL into a raw screenshot buffer
