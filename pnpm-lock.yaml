@@ -8,6 +8,11 @@ overrides:
   nextra>zod: 4.3.6
   nextra-theme-docs>zod: 4.3.6
 
+patchedDependencies:
+  yjs@13.6.30:
+    hash: ab55zsjreih4x5gnxmsmxq75y4
+    path: patches/yjs@13.6.30.patch
+
 importers:
 
   .:
@@ -62,7 +67,7 @@ importers:
         version: 3.18.4(@types/json-schema@7.0.15)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react@19.2.5)
       '@liveblocks/yjs':
         specifier: ^3.18.3
-        version: 3.18.4(@types/json-schema@7.0.15)(yjs@13.6.30)
+        version: 3.18.4(@types/json-schema@7.0.15)(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
       '@neondatabase/serverless':
         specifier: ^1.0.3
         version: 1.1.0
@@ -74,10 +79,10 @@ importers:
         version: 3.23.1(@tiptap/pm@3.23.1)
       '@tiptap/extension-collaboration':
         specifier: ^3.23.1
-        version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30)
+        version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
       '@tiptap/extension-collaboration-caret':
         specifier: ^3.23.1
-        version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))
+        version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))
       '@tiptap/extension-document':
         specifier: 3.23.1
         version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))
@@ -104,7 +109,7 @@ importers:
         version: 3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)
       '@tiptap/y-tiptap':
         specifier: ^3.0.3
-        version: 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
+        version: 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
       '@vercel/blob':
         specifier: ^2.3.3
         version: 2.3.3
@@ -185,13 +190,13 @@ importers:
         version: 8.21.0
       y-protocols:
         specifier: ^1.0.7
-        version: 1.0.7(yjs@13.6.30)
+        version: 1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
       y-websocket:
         specifier: ^2.1.0
-        version: 2.1.0(yjs@13.6.30)
+        version: 2.1.0(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
       yjs:
         specifier: ^13.6.30
-        version: 13.6.30
+        version: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -231,7 +236,7 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: 16.1.7
-        version: 16.1.7(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+        version: 16.1.7(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@2.2.0)
@@ -347,7 +352,7 @@ importers:
         version: 9.39.4(jiti@2.6.1)
       eslint-config-next:
         specifier: 16.1.7
-        version: 16.1.7(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+        version: 16.1.7(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
   packages/screenplay-knobs:
     devDependencies:
@@ -8682,15 +8687,15 @@ snapshots:
     transitivePeerDependencies:
       - '@types/json-schema'
 
-  '@liveblocks/yjs@3.18.4(@types/json-schema@7.0.15)(yjs@13.6.30)':
+  '@liveblocks/yjs@3.18.4(@types/json-schema@7.0.15)(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))':
     dependencies:
       '@liveblocks/client': 3.18.4(@types/json-schema@7.0.15)
       '@liveblocks/core': 3.18.4(@types/json-schema@7.0.15)
       '@noble/hashes': 1.8.0
       js-base64: 3.7.8
       lib0: 0.2.117
-      y-indexeddb: 9.0.12(yjs@13.6.30)
-      yjs: 13.6.30
+      y-indexeddb: 9.0.12(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
     transitivePeerDependencies:
       - '@types/json-schema'
 
@@ -10016,18 +10021,18 @@ snapshots:
     dependencies:
       '@tiptap/core': 3.23.1(@tiptap/pm@3.23.1)
 
-  '@tiptap/extension-collaboration-caret@3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))':
+  '@tiptap/extension-collaboration-caret@3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))':
     dependencies:
       '@tiptap/core': 3.23.1(@tiptap/pm@3.23.1)
       '@tiptap/pm': 3.23.1
-      '@tiptap/y-tiptap': 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
+      '@tiptap/y-tiptap': 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
 
-  '@tiptap/extension-collaboration@3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30)':
+  '@tiptap/extension-collaboration@3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))(@tiptap/pm@3.23.1)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))':
     dependencies:
       '@tiptap/core': 3.23.1(@tiptap/pm@3.23.1)
       '@tiptap/pm': 3.23.1
-      '@tiptap/y-tiptap': 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
-      yjs: 13.6.30
+      '@tiptap/y-tiptap': 3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
 
   '@tiptap/extension-document@3.23.1(@tiptap/core@3.23.1(@tiptap/pm@3.23.1))':
     dependencies:
@@ -10189,14 +10194,14 @@ snapshots:
       '@tiptap/core': 3.23.1(@tiptap/pm@3.23.1)
       '@tiptap/pm': 3.23.1
 
-  '@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
+  '@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)))(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))':
     dependencies:
       lib0: 0.2.117
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
       prosemirror-view: 1.41.8
-      y-protocols: 1.0.7(yjs@13.6.30)
-      yjs: 13.6.30
+      y-protocols: 1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -15715,32 +15720,32 @@ snapshots:
   xtend@4.0.2:
     optional: true
 
-  y-indexeddb@9.0.12(yjs@13.6.30):
+  y-indexeddb@9.0.12(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)):
     dependencies:
       lib0: 0.2.117
-      yjs: 13.6.30
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
 
-  y-leveldb@0.1.2(yjs@13.6.30):
+  y-leveldb@0.1.2(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)):
     dependencies:
       level: 6.0.1
       lib0: 0.2.117
-      yjs: 13.6.30
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
     optional: true
 
-  y-protocols@1.0.7(yjs@13.6.30):
+  y-protocols@1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)):
     dependencies:
       lib0: 0.2.117
-      yjs: 13.6.30
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
 
-  y-websocket@2.1.0(yjs@13.6.30):
+  y-websocket@2.1.0(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)):
     dependencies:
       lib0: 0.2.117
       lodash.debounce: 4.0.8
-      y-protocols: 1.0.7(yjs@13.6.30)
-      yjs: 13.6.30
+      y-protocols: 1.0.7(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
+      yjs: 13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4)
     optionalDependencies:
       ws: 6.2.4
-      y-leveldb: 0.1.2(yjs@13.6.30)
+      y-leveldb: 0.1.2(yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4))
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -15768,7 +15773,7 @@ snapshots:
       buffer-crc32: 0.2.13
       fd-slicer: 1.1.0
 
-  yjs@13.6.30:
+  yjs@13.6.30(patch_hash=ab55zsjreih4x5gnxmsmxq75y4):
     dependencies:
       lib0: 0.2.117
 
