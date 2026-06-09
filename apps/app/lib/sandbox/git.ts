@@ -3,7 +3,11 @@
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { createBranch, renameBranch } from "@/lib/github-actions"
-import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
+import {
+  isSandboxRunning,
+  sandboxProvider,
+  usesHostGitAuth,
+} from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -74,10 +78,15 @@ export async function renameAgentBranch(
  * in-sandbox git credential helper reads SCREENPLAY_GH_TOKEN and echoes it as
  * HTTP basic auth — no server round-trip, no persistent creds in the sandbox,
  * attribution stays with whoever triggered this command.
+ *
+ * On the local worktree backend this is a no-op: git runs as a host process and
+ * authenticates through the user's own credentials (credential helper / SSH /
+ * `gh`), so there is no token to broker per command.
  */
 async function buildSandboxGitEnv(
   userId: string
 ): Promise<Record<string, string> | undefined> {
+  if (usesHostGitAuth) return undefined
   const token = await getGitHubTokenForUser(userId)
   if (!token) return undefined
   return { SCREENPLAY_GH_TOKEN: token }
@@ -139,20 +148,29 @@ export async function getDiffStats(
 
 /**
  * Configure git identity and normalize the branch / remote state so the agent
- * can push commits. Auth is NOT baked into the remote URL — the per-command
- * credential helper installed here reads SCREENPLAY_GH_TOKEN from the env of
- * the command that invoked git, and the server attaches the acting user's token
- * per command. Each collaborator's pushes are attributed to them rather than to
- * whoever provisioned the sandbox.
+ * can push commits.
  *
- * The credential helper is git infrastructure (not harness-specific), so it
- * lives here on the always-run git-setup path rather than riding along with a
- * harness install — git push works regardless of which harnesses (if any) the
- * operator selected.
+ * **Auth depends on the backend.** On the hosted Vercel backend, auth is NOT
+ * baked into the remote URL — the per-command credential helper installed here
+ * reads SCREENPLAY_GH_TOKEN from the env of the command that invoked git, and
+ * the server attaches the acting user's token per command, so each
+ * collaborator's pushes are attributed to them rather than to whoever
+ * provisioned the sandbox. The credential helper is git infrastructure (not
+ * harness-specific), so it lives here on the always-run git-setup path rather
+ * than riding along with a harness install — git push works regardless of which
+ * harnesses (if any) the operator selected.
  *
- * Only the remote-URL rewrite is load-bearing — if it fails the agent can't
- * push, so it runs through `step` (a non-zero exit becomes a redacted failure
- * result). The checkout / upstream / identity / credential-helper commands are
+ * On the local worktree backend (`usesHostGitAuth`), none of that brokering
+ * applies: git runs as a host process and authenticates through the user's own
+ * credentials (credential helper / SSH / `gh`). So we neither rewrite `origin`
+ * to a canonical HTTPS URL (which would clobber a user's SSH remote) nor install
+ * the SCREENPLAY_GH_TOKEN helper — the host's native auth already covers
+ * clone / fetch / push. The shared identity / branch normalization below still
+ * runs on both paths.
+ *
+ * On the hosted path the remote-URL rewrite is the one load-bearing step — if it
+ * fails the agent can't push, so it runs through `step` (a non-zero exit becomes
+ * a redacted failure result). The checkout / upstream / identity commands are
  * best-effort: a fresh branch has no `origin/<branch>` yet, so
  * `--set-upstream-to` routinely exits non-zero and that's fine. They run via
  * `runCommand` so their exit code is ignored, matching the pre-refactor behavior.
@@ -173,13 +191,6 @@ export async function configureAgentGit(
       branch,
     ])
 
-    await step(sandbox, "git", [
-      "remote",
-      "set-url",
-      "origin",
-      `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
-    ])
-
     await sandbox.runCommand("git", [
       "config",
       "user.email",
@@ -187,6 +198,19 @@ export async function configureAgentGit(
     ])
     await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
     await sandbox.runCommand("git", ["config", "push.default", "current"])
+
+    // Local worktree backend: host-native git auth covers push, and the worktree
+    // already points at the user's own remote (which may be SSH). Don't rewrite
+    // the remote or install the brokered-token helper — both belong to the
+    // hosted firewall trust boundary (ADR 0002), which doesn't exist here.
+    if (usesHostGitAuth) return
+
+    await step(sandbox, "git", [
+      "remote",
+      "set-url",
+      "origin",
+      `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
+    ])
 
     // Per-command credential helper: git invokes it whenever it needs GitHub
     // auth, and it reads SCREENPLAY_GH_TOKEN from the env the server set on the

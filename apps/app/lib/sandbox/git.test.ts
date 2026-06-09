@@ -31,12 +31,20 @@ const fake = vi.hoisted(() => {
   }
 })
 
+// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
+// auth). It's a module-load const in production; a mutable holder lets a test
+// flip it to exercise the local path without re-importing the module under test.
+const backend = vi.hoisted(() => ({ hostGitAuth: false }))
+
 // Keep the real portable-liveness predicate (it keys on the fake's isRunning),
 // mirroring `lib/sandbox/types.ts`; faking it would defeat the branch under test.
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
   isSandboxRunning: (s: { isRunning?: () => boolean }) =>
     typeof s?.isRunning === "function" ? s.isRunning() : true,
+  get usesHostGitAuth() {
+    return backend.hostGitAuth
+  },
 }))
 
 // `getDiffStats` reads the acting user to attach a git credential env for its
@@ -53,6 +61,8 @@ vi.mock("@/lib/auth-helpers", () => ({
 const renameBranch = vi.hoisted(() => vi.fn())
 const createBranch = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/github-actions", () => ({ renameBranch, createBranch }))
+
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 
 import {
   configureAgentGit,
@@ -119,6 +129,7 @@ function fakeSandbox(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  backend.hostGitAuth = false
 })
 
 describe("configureAgentGit", () => {
@@ -149,6 +160,32 @@ describe("configureAgentGit", () => {
       "/home/vercel-sandbox/.screenplay/git-credential-helper.sh"
     )
     expect(joined).toContain("git config --global credential.helper")
+  })
+
+  it("under host-native git auth, skips the remote rewrite and credential helper", async () => {
+    // On the local worktree backend git rides the host's own credentials, so the
+    // brokered-token plumbing (origin rewrite + SCREENPLAY_GH_TOKEN helper) must
+    // not run — rewriting origin would clobber a user's SSH remote.
+    backend.hostGitAuth = true
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push([cmd, ...args].join(" "))
+        return { exitCode: 0 }
+      })
+    )
+
+    const result = await configureAgentGit("sandbox-a", repo, "feature")
+
+    expect(result).toEqual({ success: true, value: undefined })
+    const joined = seen.join("\n")
+    // Shared branch/identity normalization still runs on both backends.
+    expect(joined).toContain("git checkout -B feature")
+    expect(joined).toContain("git config user.name Screenplay Agent")
+    // Hosted-only brokering does not.
+    expect(joined).not.toContain("set-url")
+    expect(joined).not.toContain("git-credential-helper.sh")
+    expect(joined).not.toContain("SCREENPLAY_GH_TOKEN")
   })
 
   it("redacts a GitHub token out of a failed remote-url rewrite", async () => {
@@ -239,6 +276,23 @@ describe("getDiffStats", () => {
     const result = await getDiffStats("sandbox-a", "main")
 
     expect(result).toBeNull()
+  })
+
+  it("under host-native git auth, doesn't broker a token for the fetch", async () => {
+    backend.hostGitAuth = true
+    fake.setInstance(
+      fakeSandbox((cmd, args) =>
+        args.includes("--numstat")
+          ? { exitCode: 0, stdout: "1\t0\ta.ts\n" }
+          : { exitCode: 0 }
+      )
+    )
+
+    const result = await getDiffStats("sandbox-a", "main")
+
+    expect(result).toEqual({ additions: 1, deletions: 0 })
+    // Host auth covers the fetch — no per-command token is looked up.
+    expect(getGitHubTokenForUser).not.toHaveBeenCalled()
   })
 })
 

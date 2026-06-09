@@ -3,7 +3,7 @@ import "server-only"
 import { tool } from "ai"
 import { z } from "zod"
 
-import { sandboxProvider } from "@/lib/sandbox"
+import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
@@ -311,10 +311,15 @@ async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
  * SCREENPLAY_GH_TOKEN. The in-sandbox credential helper feeds it to git, so
  * every push from this turn is attributed to whichever collaborator triggered
  * the command — not to whoever first provisioned the (shared) sandbox.
+ *
+ * On the local worktree backend this is a no-op: git runs as a host process and
+ * authenticates through the user's own credentials (credential helper / SSH /
+ * `gh`), so there is no per-command token to broker.
  */
 async function buildAgentGitEnv(
   ctx: ToolContext
 ): Promise<Record<string, string> | undefined> {
+  if (usesHostGitAuth) return undefined
   try {
     const token = await getGitHubTokenForUser(ctx.userId)
     return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
