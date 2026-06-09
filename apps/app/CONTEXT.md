@@ -70,6 +70,17 @@ truth about what a second provider would actually cost.
 _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
 guaranteed (it is an optional capability, not part of the core).
 
+**Thumbnail Capturer**:
+The swappable seam that turns a Room's render URL into a raw screenshot buffer
+— headless Chromium (puppeteer) today, and the only one; the desktop build
+drops in a sibling that drives the Tauri webview. Only the screenshot step
+lives behind the seam: `captureRoomThumbnail` keeps the shared orchestration
+around it — the `sharp` resize, `BlobStore.put`, and `setRoomThumbnail` write —
+so a second capturer is a drop-in, not a fork of the capture path
+(`lib/thumbnail/capturer/`).
+_Avoid_: screenshotter, renderer; folding the resize/store/record steps into
+the capturer (they are shared orchestration, not the seam).
+
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
 Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common
