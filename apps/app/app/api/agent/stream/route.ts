@@ -137,6 +137,7 @@ export async function POST(req: Request) {
         systemPrompt: prepared.systemPrompt,
         model: effectiveModel,
         tools: prepared.tools,
+        planMode,
       })
     )
 
@@ -280,6 +281,7 @@ export async function POST(req: Request) {
       systemPrompt,
       model: effectiveModel,
       tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+      planMode,
     })
   )
 

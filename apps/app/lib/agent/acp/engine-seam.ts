@@ -46,6 +46,13 @@ export interface EngineTurn {
   tools?: Record<string, Tool>
   /** Tool context for the default sandbox toolset when `tools` is omitted. */
   toolCtx?: ToolContext
+  /**
+   * Whether the user sent this turn in plan mode. The in-process engine drives
+   * plan mode through the prompt/toolset; the external ACP engine maps it onto
+   * the agent's native plan mode (`session/set_mode`), the only state in which a
+   * real adapter raises the approval-gate permission request (spike #408).
+   */
+  planMode?: boolean
 }
 
 /**

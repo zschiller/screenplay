@@ -216,7 +216,12 @@ implementations sit behind the seam — a default **in-process** engine
 (which runs `streamText` itself but now _translates_: it rebuilds its model
 input from ACP-native history and emits ACP updates) and an **external** engine
 that drives a generic ACP agent via the session module and passes its
-`session/update`s through nearly natively. Both speak ACP at the seam; they are
+`session/update`s through nearly natively. The external engine's production
+backing, `SpawnAcpSessionFactory`, spawns the user's installed CLI's ACP adapter
+as a host subprocess over stdio (`cwd` = the Branch's worktree, on the CLI's own
+auth), with the spawn argv/env resolved by a harness → ACP launch resolver
+(`harnesses/acp-launch.ts`) — the ACP sibling of the terminal's
+`resolveLaunchArgv`. Both speak ACP at the seam; they are
 named for _where the model runs_ (in-process vs. a separate external agent), not
 for the protocol. Which one runs is a per-deployment choice
 (`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a

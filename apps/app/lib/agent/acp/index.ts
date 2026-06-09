@@ -27,6 +27,12 @@ export {
   type AcpSessionFactory,
 } from "./acp-engine"
 export {
+  SpawnAcpSessionFactory,
+  type SpawnAcpSessionFactoryConfig,
+  type AcpSpawn,
+  type SpawnedAcpChild,
+} from "./spawn-session-factory"
+export {
   selectEngine,
   engineChoiceFromEnv,
   ENGINE_ENV_VAR,

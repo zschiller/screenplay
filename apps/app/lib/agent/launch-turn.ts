@@ -27,8 +27,19 @@ export async function launchEngineTurn(params: {
   systemPrompt: string
   model: string
   tools: Record<string, Tool>
+  /** Whether the turn was sent in plan mode (the external engine maps it to ACP). */
+  planMode?: boolean
 }): Promise<void> {
-  const { engine, roomId, chatId, runId, systemPrompt, model, tools } = params
+  const {
+    engine,
+    roomId,
+    chatId,
+    runId,
+    systemPrompt,
+    model,
+    tools,
+    planMode,
+  } = params
   const consumer = new AcpUpdateConsumer(
     liveAcpConsumerPorts(roomId, chatId, runId)
   )
@@ -36,7 +47,7 @@ export async function launchEngineTurn(params: {
     const history = await loadAcpHistoryForModel(chatId)
     await driveEngineTurn(
       engine,
-      { chatId, runId, roomId, systemPrompt, model, history, tools },
+      { chatId, runId, roomId, systemPrompt, model, history, tools, planMode },
       consumer,
       { isRunActive }
     )
