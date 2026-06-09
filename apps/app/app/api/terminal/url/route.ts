@@ -79,6 +79,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // Desktop build: there is no remote VM or ttyd daemon — the terminal is a
+  // node-pty process in the sidecar, reached over a localhost WebSocket
+  // (`lib/terminal/local/`). Hand back that server's `ws` origin with the target
+  // sandbox; the unchanged client appends its session key + the (empty, this
+  // slice) launch argv as the wire protocol's `?arg=`s, exactly as it did for
+  // ttyd. No `domain(port)` bearer link, no fetched tmux. The dynamic import
+  // keeps node-pty/`ws` out of the hosted build's graph.
+  if (process.env.SANDBOX_BACKEND === "worktree") {
+    const { ensureLocalTerminalServer } = await import(
+      "@/lib/terminal/local/server"
+    )
+    const { port } = await ensureLocalTerminalServer()
+    const url = `http://localhost:${port}/?sandbox=${encodeURIComponent(sandboxName)}`
+    return NextResponse.json(
+      { url, ...credential, harnesses: [], launchArgv: [] },
+      { status: 200 }
+    )
+  }
+
   const result = await ensureTerminal(sandboxName)
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 502 })

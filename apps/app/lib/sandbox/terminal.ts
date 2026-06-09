@@ -129,6 +129,16 @@ export async function killTerminalSession(
   sandboxName: string,
   terminalSessionId: string
 ): Promise<SandboxActionResult<void>> {
+  // Desktop build: the session is a node-pty process in the sidecar, not a tmux
+  // session in a VM. Kill it through the same registry the WS bridge attaches
+  // to, keyed by the same derived name so client and server agree. A missing
+  // session is a no-op, matching the tmux path's `kill-session … || true`.
+  if (process.env.SANDBOX_BACKEND === "worktree") {
+    const { getTerminalSessions } = await import("@/lib/terminal/local/pty")
+    getTerminalSessions().kill(tmuxSessionName(terminalSessionId))
+    return { success: true, value: undefined }
+  }
+
   return runSandboxAction(sandboxName, async (sandbox) => {
     const session = tmuxSessionName(terminalSessionId)
     // `|| true` keeps the exit code at 0 when the session doesn't exist, so a

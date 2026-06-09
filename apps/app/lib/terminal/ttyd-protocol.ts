@@ -1,7 +1,7 @@
 /**
  * Wire codec for ttyd's WebSocket protocol, pinned to the `1.7.7` static binary
- * the sandbox launches (`lib/sandbox/terminal.ts`). The framing was validated
- * byte-for-byte against a live daemon in spike #255 — see ADR 0002's
+ * the hosted sandbox launches (`lib/sandbox/terminal.ts`). The framing was
+ * validated byte-for-byte against a live daemon in spike #255 — see ADR 0002's
  * 2026-06-01 addendum for the source of truth.
  *
  * Every frame is `[1 command byte][UTF-8 payload]` and travels as a binary
@@ -9,12 +9,26 @@
  * is `{` (`0x7b`), which doubles as ttyd's `JSON_DATA` command marker, so the
  * handshake is just the JSON bytes with no separate prefix.
  *
- * This module is pure (no DOM, no `xterm`) so the codec is unit-testable in the
- * Node test environment and the client component stays a thin transport shim.
+ * The desktop build's local node-pty terminal server (`lib/terminal/local/`)
+ * speaks this **same** wire format back to the unchanged client, so the codec
+ * carries both sides: the `encode*`/`decodeServerMessage` half the browser
+ * client drives, and the `decodeClientMessage`/`encodeOutput` half the local
+ * server drives. One format, one place, whichever transport sits behind it.
+ *
+ * This module is pure (no DOM, no `xterm`, no Node-only imports) so the codec is
+ * unit-testable in the Node test environment and both the client component and
+ * the local server stay thin transport shims over it.
  */
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
+
+/**
+ * The handshake's leading byte — `{` (`0x7b`), which is also ttyd's `JSON_DATA`
+ * marker. Lets the decoders tell an opening handshake apart from a framed
+ * command without a separate prefix.
+ */
+const HANDSHAKE_MARKER = "{".charCodeAt(0)
 
 /** Client → server command bytes. */
 const INPUT = "0"
@@ -96,9 +110,82 @@ export function decodeServerMessage(data: Uint8Array): TtydServerMessage {
 }
 
 /**
+ * Frame raw PTY bytes as an `OUTPUT` message — the server→client direction of an
+ * INPUT frame. The local node-pty server uses this to ship a PTY chunk the
+ * client's {@link decodeServerMessage} decodes straight back to `term.write()`.
+ */
+export function encodeOutput(data: Uint8Array | string): Uint8Array {
+  return frame(OUTPUT, typeof data === "string" ? encoder.encode(data) : data)
+}
+
+/** The opening handshake, decoded server-side. `null` when the bytes aren't it. */
+export function parseHandshake(
+  data: Uint8Array
+): { authToken: string; columns: number; rows: number } | null {
+  if (data.length === 0 || data[0] !== HANDSHAKE_MARKER) return null
+  try {
+    const json = JSON.parse(decoder.decode(data)) as {
+      AuthToken?: unknown
+      columns?: unknown
+      rows?: unknown
+    }
+    return {
+      authToken: typeof json.AuthToken === "string" ? json.AuthToken : "",
+      columns: typeof json.columns === "number" ? json.columns : 80,
+      rows: typeof json.rows === "number" ? json.rows : 24,
+    }
+  } catch {
+    return null
+  }
+}
+
+export type TtydClientMessage =
+  /** The opening handshake (carries the auth token + initial geometry). */
+  | { type: "handshake"; authToken: string; columns: number; rows: number }
+  /** Raw keystroke bytes to write to the PTY. */
+  | { type: "input"; data: Uint8Array }
+  /** A PTY resize request. */
+  | { type: "resize"; columns: number; rows: number }
+  | { type: "unknown"; command: string }
+
+/**
+ * Decode a binary client frame — the inverse of {@link decodeServerMessage},
+ * used by the local terminal server. The first frame of a connection is the
+ * handshake (leading `{`); thereafter `INPUT` carries keystrokes and `RESIZE`
+ * carries `{columns,rows}`.
+ */
+export function decodeClientMessage(data: Uint8Array): TtydClientMessage {
+  if (data.length === 0) return { type: "unknown", command: "" }
+  if (data[0] === HANDSHAKE_MARKER) {
+    const hs = parseHandshake(data)
+    return hs ? { type: "handshake", ...hs } : { type: "unknown", command: "{" }
+  }
+  const command = String.fromCharCode(data[0]!)
+  const payload = data.subarray(1)
+  switch (command) {
+    case INPUT:
+      return { type: "input", data: payload }
+    case RESIZE: {
+      try {
+        const { columns, rows } = JSON.parse(decoder.decode(payload)) as {
+          columns: number
+          rows: number
+        }
+        return { type: "resize", columns, rows }
+      } catch {
+        return { type: "unknown", command }
+      }
+    }
+    default:
+      return { type: "unknown", command }
+  }
+}
+
+/**
  * Turn the membership-gated daemon URL (`sandbox.domain(TERMINAL_PORT)`, an
- * `https://…vercel.run` origin) into the `wss://…/ws` endpoint ttyd serves its
- * WebSocket on.
+ * `https://…vercel.run` origin on the hosted backend, or the desktop build's
+ * local `http://localhost:<port>` terminal-server origin) into the `wss://…/ws`
+ * (resp. `ws://…/ws`) endpoint the daemon/server serves its WebSocket on.
  *
  * `commandArgs` are appended in order as ttyd's repeated `?arg=` URL arguments
  * (the daemon runs with `--url-arg`): ttyd forwards each as one argv element on
