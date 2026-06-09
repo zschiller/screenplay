@@ -69,6 +69,17 @@ backend** — and the consequences ADR 0003 said it would unlock.
   network policy (a single trusted local operator, no egress firewall to inject
   through) and leaves the terminal transport untouched. They remain ADR 0002's,
   to be reshaped by what this backend actually needs rather than guessed at here.
+- **Git auth on this backend is host-native, retiring the brokered token.** Git
+  runs as a host process in the worktree, so it already inherits the user's git
+  config and credentials (credential helper / SSH / `gh`). The reason ADR 0002
+  brokered `SCREENPLAY_GH_TOKEN` per `runCommand` — the egress firewall trust
+  boundary — doesn't exist on the host, so that plumbing dissolves here: a
+  build-time `usesHostGitAuth` flag (keyed to the same `SANDBOX_BACKEND` switch)
+  makes the agent/tool git-env helpers no-ops, drops the per-command credential
+  helper and the origin→HTTPS rewrite from `configureAgentGit` (rewriting would
+  clobber a user's SSH remote), and stops baking a token into the clone URL so
+  private-repo clones ride host auth too. The hosted Vercel path keeps brokering
+  the token unchanged.
 - Wiring the dev server to _bind_ its allocated port (so the localhost preview is
   reachable end-to-end, not just addressable) builds on this allocator and is the
   natural next slice; the seam (`domain` → allocated port) is in place for it.

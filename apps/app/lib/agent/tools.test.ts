@@ -31,7 +31,15 @@ const fake = vi.hoisted(() => {
   }
 })
 
-vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
+// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
+// auth); a mutable holder lets a test flip it to the local path.
+const backend = vi.hoisted(() => ({ hostGitAuth: false }))
+vi.mock("@/lib/sandbox", () => ({
+  sandboxProvider: fake.provider,
+  get usesHostGitAuth() {
+    return backend.hostGitAuth
+  },
+}))
 // The git-env helper reaches into the auth stack for a per-user token. Tools
 // under test don't care about its value; stub it so the import graph stays out
 // of the DB/runtime-env chain.
@@ -47,6 +55,8 @@ vi.mock("@/lib/github-pr", () => ({
     number: 1,
   })),
 }))
+
+import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 
@@ -109,6 +119,7 @@ function fakeSandbox(opts: {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  backend.hostGitAuth = false
 })
 
 describe("read_file", () => {
@@ -242,6 +253,31 @@ describe("run_command", () => {
     expect(out).toContain("stdout:\nout")
     expect(out).toContain("stderr:\nerr")
     expect(out).toContain("exit code: 2")
+  })
+
+  it("brokers a per-command git token on the hosted backend", async () => {
+    fake.setInstance(fakeSandbox({ command: () => ({ exitCode: 0 }) }))
+
+    await buildSandboxTools(ctx).run_command.execute!(
+      { command: "git push" },
+      {} as never
+    )
+
+    // Hosted path looks up the acting user's token to inject SCREENPLAY_GH_TOKEN.
+    expect(getGitHubTokenForUser).toHaveBeenCalledWith("user-1")
+  })
+
+  it("under host-native git auth, doesn't broker a per-command token", async () => {
+    backend.hostGitAuth = true
+    fake.setInstance(fakeSandbox({ command: () => ({ exitCode: 0 }) }))
+
+    await buildSandboxTools(ctx).run_command.execute!(
+      { command: "git push" },
+      {} as never
+    )
+
+    // Local worktree path rides host credentials — no token lookup, no injection.
+    expect(getGitHubTokenForUser).not.toHaveBeenCalled()
   })
 
   it("leaves a token in its output untouched — redaction is the assembly point's job", async () => {

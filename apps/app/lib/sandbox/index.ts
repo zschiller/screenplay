@@ -49,3 +49,18 @@ function selectSandboxProvider(): SandboxProvider {
 }
 
 export const sandboxProvider: SandboxProvider = selectSandboxProvider()
+
+/**
+ * Whether git operations authenticate through the **host's own credentials**
+ * (credential helper / SSH / `gh`) instead of a brokered, per-`runCommand`
+ * `SCREENPLAY_GH_TOKEN`. True only for the local worktree backend: there git
+ * runs as a host process in the worktree, so it already inherits the user's git
+ * config and credentials, and ADR 0002's firewall trust boundary — the reason
+ * the token was brokered per command on the hosted path — doesn't exist on the
+ * host. The hosted Vercel backend is unchanged: it keeps brokering the token.
+ *
+ * Like the provider selection above, this is a single read at module load, not a
+ * per-call branch, and it is keyed to the same `SANDBOX_BACKEND` switch.
+ */
+export const usesHostGitAuth: boolean =
+  process.env.SANDBOX_BACKEND === "worktree"
