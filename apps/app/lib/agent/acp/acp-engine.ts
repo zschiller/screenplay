@@ -97,6 +97,10 @@ export class ExternalEngine implements Engine {
     try {
       const session = await this.config.sessionFactory.open(ports, {
         cwd: this.config.cwd ?? "/",
+        // A plan-mode turn opens the agent in its native plan mode, so the
+        // ExitPlanMode permission request (the approval gate) can surface
+        // (spike #408). Non-plan turns and mode-less agents pass through.
+        planMode: turn.planMode,
       })
       const stopReason = await session.prompt(
         promptBlocks(turn.history),

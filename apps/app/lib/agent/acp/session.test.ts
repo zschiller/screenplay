@@ -49,18 +49,24 @@ type PromptBehavior = (ctx: {
  * `session/update`s and to raise permission requests, exactly as a real agent
  * would.
  */
+interface FakeModes {
+  availableModes: { id: string; name: string }[]
+  currentModeId: string
+}
+
 class FakeAcpAgent implements Agent {
   initializeCalls = 0
   newSessionCalls = 0
   loadedSessionId: string | null = null
   cancelCalls = 0
+  setSessionModeCalls: string[] = []
   private cancelled = false
   private cancelWaiters: Array<() => void> = []
 
   constructor(
     private readonly conn: AgentSideConnection,
     private readonly behavior: PromptBehavior,
-    private readonly opts: { loadSession?: boolean } = {}
+    private readonly opts: { loadSession?: boolean; modes?: FakeModes } = {}
   ) {}
 
   async initialize(): Promise<InitializeResponse> {
@@ -71,9 +77,9 @@ class FakeAcpAgent implements Agent {
     }
   }
 
-  async newSession(): Promise<{ sessionId: string }> {
+  async newSession(): Promise<{ sessionId: string; modes?: FakeModes }> {
     this.newSessionCalls++
-    return { sessionId: SESSION_ID }
+    return { sessionId: SESSION_ID, modes: this.opts.modes }
   }
 
   async authenticate(): Promise<void> {
@@ -82,9 +88,13 @@ class FakeAcpAgent implements Agent {
 
   async loadSession(
     params: LoadSessionRequest
-  ): Promise<Record<string, never>> {
+  ): Promise<{ modes?: FakeModes }> {
     this.loadedSessionId = params.sessionId
-    return {}
+    return { modes: this.opts.modes }
+  }
+
+  async setSessionMode(params: { modeId: string }): Promise<void> {
+    this.setSessionModeCalls.push(params.modeId)
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -126,7 +136,7 @@ function inMemoryStreams(): { client: Stream; agent: Stream } {
 /** Stand up a fake agent on one end and hand back the client-side transport. */
 function connectFakeAgent(
   behavior: PromptBehavior,
-  opts: { loadSession?: boolean } = {}
+  opts: { loadSession?: boolean; modes?: FakeModes } = {}
 ): { transport: AcpTransport; agent: FakeAcpAgent } {
   const { client, agent: agentStream } = inMemoryStreams()
   let agent!: FakeAcpAgent
@@ -267,6 +277,38 @@ describe("AcpSession — plan-mode pause (the riskiest seam)", () => {
     expect(chunkTexts(updates)).toEqual(["ran the plan"])
   })
 
+  it("prefers allow_once over allow_always on approve — never auto-accepts later edits", async () => {
+    // The real ExitPlanMode gate offers both an `allow_always` (auto-accept all
+    // edits) and an `allow_once` (approve just this plan). Approving must take
+    // the `allow_once`, or the session silently flips into accepting every later
+    // edit unprompted (spike #408).
+    let selected: string | undefined
+    const behavior: PromptBehavior = async ({ conn }) => {
+      const { outcome } = await conn.requestPermission({
+        sessionId: SESSION_ID,
+        options: [
+          {
+            optionId: "acceptEdits",
+            name: "Auto-accept",
+            kind: "allow_always",
+          },
+          { optionId: "default", name: "Approve", kind: "allow_once" },
+          { optionId: "plan", name: "Keep planning", kind: "reject_once" },
+        ],
+        toolCall: { toolCallId: "call_1", title: "Ready to code?" },
+      })
+      if (outcome.outcome === "selected") selected = outcome.optionId
+      return "end_turn"
+    }
+    const { transport } = connectFakeAgent(behavior)
+    const { ports } = collectingPorts(async () => ({ approved: true }))
+    const session = await AcpSession.open(transport, ports, { cwd: "/work" })
+
+    await session.prompt([textBlock("plan it")], new AbortController().signal)
+
+    expect(selected).toBe("default")
+  })
+
   it("revises on reject — the agent is told no and takes another path", async () => {
     const behavior: PromptBehavior = async ({ conn }) => {
       const { outcome } = await conn.requestPermission(approveOrReject())
@@ -320,6 +362,49 @@ describe("AcpSession — plan-mode pause (the riskiest seam)", () => {
     controller.abort()
 
     expect(await turn).toBe("cancelled")
+  })
+})
+
+describe("AcpSession — plan mode (session/set_mode)", () => {
+  const planModes: FakeModes = {
+    availableModes: [
+      { id: "default", name: "Default" },
+      { id: "plan", name: "Plan" },
+    ],
+    currentModeId: "default",
+  }
+
+  it("switches the agent into plan mode when the turn is a plan turn", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      modes: planModes,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work", planMode: true })
+
+    expect(agent.setSessionModeCalls).toEqual(["plan"])
+  })
+
+  it("leaves the mode alone for a non-plan turn", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      modes: planModes,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work", planMode: false })
+
+    expect(agent.setSessionModeCalls).toEqual([])
+  })
+
+  it("is a no-op when the agent advertises no modes, even on a plan turn", async () => {
+    // A mode-less agent (no `modes` in `session/new`) must not be sent a
+    // `set_mode` it can't honor — plan mode degrades silently.
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work", planMode: true })
+
+    expect(agent.setSessionModeCalls).toEqual([])
   })
 })
 

@@ -82,6 +82,28 @@ export interface OpenSessionOptions {
    * capability for the load to succeed.
    */
   loadSessionId?: string
+  /**
+   * Open the session in the agent's plan mode. screenplay's plan-mode approval
+   * gate only appears when the agent is *in* plan mode (spike #408): the Claude
+   * adapter advertises a `plan` mode in `session/new`'s `modes`, and only after
+   * `session/set_mode(plan)` does a plan-requesting turn raise the ExitPlanMode
+   * permission request the gate maps onto. When `true` and the agent advertised
+   * a matching mode, {@link AcpSession.open} switches into it; agents that don't
+   * advertise modes are left untouched (the in-process engine drives plan mode
+   * through the prompt instead).
+   */
+  planMode?: boolean
+}
+
+/**
+ * The session-mode state an agent advertises in `session/new` / `session/load`
+ * (a subset of ACP's `SessionModeState`): the modes it can operate in and the
+ * one it's currently in. Kept structural so this module reads only what it
+ * needs.
+ */
+interface SessionModes {
+  availableModes: { id: string; name: string }[]
+  currentModeId: string
 }
 
 /**
@@ -128,20 +150,39 @@ export class AcpSession {
       clientCapabilities: {},
     })
     if (options.loadSessionId) {
-      await session.conn.loadSession({
+      const loaded = await session.conn.loadSession({
         sessionId: options.loadSessionId,
         cwd: options.cwd,
         mcpServers: [],
       })
       session.sessionId = options.loadSessionId
+      await session.maybeEnterPlanMode(options.planMode, loaded?.modes)
     } else {
-      const { sessionId } = await session.conn.newSession({
+      const created = await session.conn.newSession({
         cwd: options.cwd,
         mcpServers: [],
       })
-      session.sessionId = sessionId
+      session.sessionId = created.sessionId
+      await session.maybeEnterPlanMode(options.planMode, created.modes)
     }
     return session
+  }
+
+  /**
+   * Switch the agent into plan mode when the turn asked for it *and* the agent
+   * advertised a plan-like mode (spike #408). A no-op otherwise — agents that
+   * don't advertise modes, or that are already in the plan mode, are left as
+   * they are, so a non-plan turn and a mode-less agent both pass through
+   * untouched.
+   */
+  private async maybeEnterPlanMode(
+    planMode: boolean | undefined,
+    modes: SessionModes | null | undefined
+  ): Promise<void> {
+    if (!planMode || !modes) return
+    const mode = modes.availableModes.find(isPlanMode)
+    if (!mode || mode.id === modes.currentModeId) return
+    await this.conn.setSessionMode({ sessionId: this.id, modeId: mode.id })
   }
 
   /**
@@ -204,17 +245,33 @@ export class AcpSession {
   }
 }
 
+/** Whether an advertised session mode is the agent's plan mode (id or name). */
+function isPlanMode(mode: { id: string; name: string }): boolean {
+  return mode.id === "plan" || /plan/i.test(mode.name)
+}
+
 /**
  * Map a screenplay approve/reject decision onto one of the agent's offered
  * permission options by ACP option *kind*: an approval takes an `allow_*`
  * option, a rejection a `reject_*` one. If the agent offered no option of the
  * decided polarity there is nothing honest to select, so the caller cancels
  * rather than silently pick the opposite.
+ *
+ * On approve, **`allow_once` is preferred over `allow_always`** (spike #408):
+ * the real ExitPlanMode gate offers both, and `allow_always` ("auto-accept all
+ * edits") would silently flip the session into accepting every later edit
+ * unprompted — an approve of *this* plan must not also surrender the next gate.
+ * The polarity prefix is the fallback so an agent that offers only an
+ * `allow_always` (or only a `reject_always`) still resolves.
  */
 function pickOption(
   options: PermissionOption[],
   approved: boolean
 ): PermissionOption | undefined {
-  const wanted = approved ? "allow" : "reject"
-  return options.find((option) => option.kind.startsWith(wanted))
+  const exact = approved ? "allow_once" : "reject_once"
+  const prefix = approved ? "allow" : "reject"
+  return (
+    options.find((option) => option.kind === exact) ??
+    options.find((option) => option.kind.startsWith(prefix))
+  )
 }
