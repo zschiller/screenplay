@@ -11,7 +11,7 @@ import { Button } from "@workspace/ui/components/button"
 import { HomeProvider } from "@/components/home/home-provider"
 import { HomeSidebar } from "@/components/home/home-sidebar"
 import { FilesView } from "@/components/home/files-view"
-import { useSession } from "@/lib/auth-client"
+import { useAppSession } from "@/lib/auth-client"
 import {
   type PanelLayout,
   readPanelLayout,
@@ -55,7 +55,7 @@ function HomeWorkspace() {
 }
 
 export default function Page() {
-  const { data: session, isPending } = useSession()
+  const { data: session, isPending } = useAppSession()
 
   if (isPending) return null
 

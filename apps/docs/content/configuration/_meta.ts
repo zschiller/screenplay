@@ -5,6 +5,7 @@ const meta = {
   "model-providers": "Model providers",
   "byo-harnesses": "BYO coding harnesses",
   "mount-path": "Mount path",
+  "local-build": "Local (single-user) build",
 }
 
 export default meta

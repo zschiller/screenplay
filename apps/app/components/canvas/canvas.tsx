@@ -46,7 +46,8 @@ import {
 } from "@/lib/terminal-tabs-actions"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
-import { useSession } from "@/lib/auth-client"
+import { useAppSession } from "@/lib/auth-client"
+import { isLocalBuild } from "@/lib/local-mode"
 import { withBasePath } from "@/lib/base-path"
 import {
   FileText,
@@ -604,7 +605,7 @@ export function Canvas({
   const setPresence = useSetPresence()
   const self = useSelfPresence()
   const others = useOtherPresences()
-  const { data: session } = useSession()
+  const { data: session } = useAppSession()
   const userId = session?.user.id
   const history = useYjsHistory()
   const collections = useRoomCollections()
@@ -756,7 +757,13 @@ export function Canvas({
         setDocumentMode(false)
         setFrameMode(false)
       }
-      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+      if (
+        e.key === "c" &&
+        !isLocalBuild &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !isEditing(e)
+      ) {
         setCommentMode((m) => !m)
         setNewCommentPos(null)
         setInspectHover(null)
@@ -5673,33 +5680,36 @@ export function Canvas({
             {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
-                  children still position in world coordinates. */}
-            <div
-              className="pointer-events-none absolute inset-0 z-20"
-              style={{
-                transformOrigin: "0 0",
-                transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
-              }}
-            >
-              <Comments
-                roomId={roomId}
-                zoom={zoom}
-                newCommentPos={newCommentPos}
-                onNewCommentPlaced={() => {
-                  setNewCommentPos(null)
-                  setCommentMode(false)
+                  children still position in world coordinates.
+                  Excluded from the local build (PRD #404, issue #417). */}
+            {!isLocalBuild && (
+              <div
+                className="pointer-events-none absolute inset-0 z-20"
+                style={{
+                  transformOrigin: "0 0",
+                  transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
                 }}
-                onCancelComment={() => setNewCommentPos(null)}
-                iframeLayers={Array.from(iframeLayerLayouts.values())}
-                getIframeLayerDom={getIframeLayerDom}
-                getDocumentEditor={getDocumentEditor}
-                documentEditorsVersion={documentEditorsVersion}
-                initialThreads={initialThreads}
-                onSendToChat={handleCommentSendToChat}
-                activeThreadId={activeCommentThreadId}
-                onActivateThread={setActiveCommentThreadId}
-              />
-            </div>
+              >
+                <Comments
+                  roomId={roomId}
+                  zoom={zoom}
+                  newCommentPos={newCommentPos}
+                  onNewCommentPlaced={() => {
+                    setNewCommentPos(null)
+                    setCommentMode(false)
+                  }}
+                  onCancelComment={() => setNewCommentPos(null)}
+                  iframeLayers={Array.from(iframeLayerLayouts.values())}
+                  getIframeLayerDom={getIframeLayerDom}
+                  getDocumentEditor={getDocumentEditor}
+                  documentEditorsVersion={documentEditorsVersion}
+                  initialThreads={initialThreads}
+                  onSendToChat={handleCommentSendToChat}
+                  activeThreadId={activeCommentThreadId}
+                  onActivateThread={setActiveCommentThreadId}
+                />
+              </div>
+            )}
 
             {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
@@ -5963,26 +5973,29 @@ export function Canvas({
                       Document <Kbd>D</Kbd>
                     </TooltipContent>
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={commentMode ? "default" : "ghost"}
-                        size="icon-xs"
-                        onClick={() => {
-                          setCommentMode((m) => !m)
-                          setNewCommentPos(null)
-                          setInspectHover(null)
-                          setDocumentMode(false)
-                          setFrameMode(false)
-                        }}
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Comment <Kbd>C</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
+                  {/* Comments are excluded from the local build (#417). */}
+                  {!isLocalBuild && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={commentMode ? "default" : "ghost"}
+                          size="icon-xs"
+                          onClick={() => {
+                            setCommentMode((m) => !m)
+                            setNewCommentPos(null)
+                            setInspectHover(null)
+                            setDocumentMode(false)
+                            setFrameMode(false)
+                          }}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Comment <Kbd>C</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </TooltipProvider>
               </div>
             </div>
@@ -5991,19 +6004,26 @@ export function Canvas({
                 className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
                 onClick={(e) => e.stopPropagation()}
               >
-                <FollowingToolbar
-                  followingId={followingConnectionId}
-                  onFollow={setFollowingConnectionId}
-                />
-                <Button size="sm" onClick={() => setShareDialogOpen(true)}>
-                  Share
-                </Button>
-                <ShareRoomDialog
-                  open={shareDialogOpen}
-                  onOpenChange={setShareDialogOpen}
-                  roomId={roomId}
-                  roomName={currentRoomName}
-                />
+                {/* Following other users' viewports and sharing are part of
+                    the multi-user surface, excluded from the local build
+                    (PRD #404, issue #417). */}
+                {!isLocalBuild && (
+                  <>
+                    <FollowingToolbar
+                      followingId={followingConnectionId}
+                      onFollow={setFollowingConnectionId}
+                    />
+                    <Button size="sm" onClick={() => setShareDialogOpen(true)}>
+                      Share
+                    </Button>
+                    <ShareRoomDialog
+                      open={shareDialogOpen}
+                      onOpenChange={setShareDialogOpen}
+                      roomId={roomId}
+                      roomName={currentRoomName}
+                    />
+                  </>
+                )}
                 {chatCollapsed && (
                   <TooltipProvider>
                     <Tooltip>

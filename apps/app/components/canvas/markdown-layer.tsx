@@ -25,6 +25,7 @@ import {
 } from "@/components/canvas/layer-title-bar"
 import { ResizeHandles } from "@/components/canvas/resize-handles"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
+import { isLocalBuild } from "@/lib/local-mode"
 import {
   encodeAnchor,
   getLineNumbers,
@@ -804,6 +805,7 @@ export function MarkdownLayer({
 
       {bubbleAnchor &&
         editing &&
+        !isLocalBuild &&
         bubblePortalTarget &&
         createPortal(
           // Floating "Comment" button anchored above the start of the user's

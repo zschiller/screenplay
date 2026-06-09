@@ -5,7 +5,18 @@ import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
+import { isLocalBuild } from "@/lib/local-mode"
 import { mutateRoomDoc } from "@/lib/yjs/server"
+
+// Comments (the `thread`/`comment`/`thread_read` tables) are excluded from the
+// local desktop build (PRD #404, issue #417): those tables don't exist on disk
+// and the comment UI is not surfaced. Reads return empty so server components
+// that pre-fetch threads render cleanly; writes refuse as a backstop.
+function assertCommentsEnabled(): void {
+  if (isLocalBuild) {
+    throw new Error("Comments are not available in the local build")
+  }
+}
 
 export type ThreadRecord = {
   id: string
@@ -196,6 +207,7 @@ export async function listThreads(
   roomId: string,
   userId: string
 ): Promise<ThreadWithComments[]> {
+  if (isLocalBuild) return []
   return listThreadsScoped(roomId, userId, { positional: true }, "desc")
 }
 
@@ -206,6 +218,7 @@ export async function listBranchThreads(
   userId: string,
   branch: string
 ): Promise<ThreadWithComments[]> {
+  if (isLocalBuild) return []
   return listThreadsScoped(roomId, userId, { branch }, "asc")
 }
 
@@ -225,6 +238,7 @@ export async function createThreadWithFirstComment(opts: {
   body: string
   authorId: string
 }): Promise<ThreadWithComments> {
+  assertCommentsEnabled()
   const threadId = nanoid()
   const commentId = nanoid()
   const now = new Date()
@@ -291,6 +305,7 @@ export async function appendComment(opts: {
   authorId: string
   body: string
 }): Promise<CommentRecord> {
+  assertCommentsEnabled()
   const id = nanoid()
   const [row] = await db
     .insert(schema.comment)
@@ -323,6 +338,7 @@ export async function editComment(opts: {
   authorId: string
   body: string
 }): Promise<void> {
+  assertCommentsEnabled()
   const [row] = await db
     .update(schema.comment)
     .set({ body: opts.body, editedAt: new Date() })
@@ -347,6 +363,7 @@ export async function deleteComment(opts: {
   commentId: string
   authorId: string
 }): Promise<void> {
+  assertCommentsEnabled()
   const [row] = await db
     .delete(schema.comment)
     .where(
@@ -383,6 +400,7 @@ export async function setThreadResolved(opts: {
   threadId: string
   resolved: boolean
 }): Promise<void> {
+  assertCommentsEnabled()
   const [row] = await db
     .update(schema.thread)
     .set({
@@ -396,6 +414,7 @@ export async function setThreadResolved(opts: {
 }
 
 export async function deleteThread(threadId: string): Promise<void> {
+  assertCommentsEnabled()
   const [row] = await db
     .delete(schema.thread)
     .where(eq(schema.thread.id, threadId))
@@ -407,6 +426,7 @@ export async function markThreadRead(opts: {
   threadId: string
   userId: string
 }): Promise<void> {
+  assertCommentsEnabled()
   await db
     .insert(schema.threadRead)
     .values({
@@ -432,6 +452,7 @@ export async function markThreadUnread(opts: {
   threadId: string
   userId: string
 }): Promise<void> {
+  assertCommentsEnabled()
   await db
     .delete(schema.threadRead)
     .where(

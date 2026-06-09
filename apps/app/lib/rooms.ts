@@ -3,6 +3,7 @@ import "server-only"
 import { and, desc, eq, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
+import { isLocalBuild } from "@/lib/local-mode"
 
 export type { RoomRole }
 
@@ -47,10 +48,14 @@ export async function createRoom(opts: {
     .values({ id: opts.id, name: opts.name, ownerId: opts.ownerId })
     .returning()
   if (!row) throw new Error("Failed to create room")
-  await db
-    .insert(schema.roomMember)
-    .values({ roomId: row.id, userId: opts.ownerId, role: "owner" })
-    .onConflictDoNothing()
+  // No `room_member` table in the local build — the single local user owns
+  // every room implicitly (PRD #404, issue #417).
+  if (!isLocalBuild) {
+    await db
+      .insert(schema.roomMember)
+      .values({ roomId: row.id, userId: opts.ownerId, role: "owner" })
+      .onConflictDoNothing()
+  }
   return toRoom(row)
 }
 
@@ -64,6 +69,15 @@ export async function getRoom(roomId: string): Promise<RoomRecord | null> {
 }
 
 export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
+  // The local build has no `room_member` table to join: the single local user
+  // owns every room, so list them all (PRD #404, issue #417).
+  if (isLocalBuild) {
+    const rows = await db
+      .select()
+      .from(schema.room)
+      .orderBy(desc(schema.room.createdAt))
+    return rows.map(toRoom)
+  }
   const rows = await db
     .select({
       id: schema.room.id,
@@ -203,6 +217,9 @@ export async function canAccess(
   roomId: string,
   userId: string
 ): Promise<boolean> {
+  // The local build collapses access to the single seeded local user — there is
+  // no `room_member` table and nobody else to gate against (PRD #404, #417).
+  if (isLocalBuild) return true
   const membership = await getMembership(roomId, userId)
   return membership !== null
 }
@@ -211,6 +228,10 @@ export async function requireMember(
   roomId: string,
   userId: string
 ): Promise<RoomMemberRecord> {
+  // Single local user — always a member, as the implicit owner.
+  if (isLocalBuild) {
+    return { roomId, userId, role: "owner", createdAt: 0 }
+  }
   const membership = await getMembership(roomId, userId)
   if (!membership) throw new Error("You don't have access to this project")
   return membership

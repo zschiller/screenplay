@@ -14,7 +14,8 @@ import {
   LogOut,
   MoreHorizontal,
 } from "lucide-react"
-import { signOut, useSession } from "@/lib/auth-client"
+import { signOut, useAppSession } from "@/lib/auth-client"
+import { isLocalBuild } from "@/lib/local-mode"
 import {
   SidebarContent,
   SidebarGroup,
@@ -61,7 +62,7 @@ import type { RoomSummary } from "@/lib/rooms-actions"
 import type { Folder as FolderType } from "@/lib/organization"
 
 function UserHeader() {
-  const { data: session, isPending } = useSession()
+  const { data: session, isPending } = useAppSession()
   const router = useRouter()
   const [configsOpen, setConfigsOpen] = useState(false)
 
@@ -110,23 +111,28 @@ function UserHeader() {
           className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
         >
           <DropdownMenuLabel className="text-muted-foreground">
-            Signed in as {email ?? name}
+            {isLocalBuild ? name : `Signed in as ${email ?? name}`}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setConfigsOpen(true)}>
             <LayoutGrid />
             Configured repositories
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={async () => {
-              await signOut()
-              router.push("/sign-in")
-            }}
-          >
-            <LogOut />
-            Sign out
-          </DropdownMenuItem>
+          {/* No sign-out in the local build — there is no login (PRD #404). */}
+          {!isLocalBuild && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={async () => {
+                  await signOut()
+                  router.push("/sign-in")
+                }}
+              >
+                <LogOut />
+                Sign out
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <RepoConfigsDialog open={configsOpen} onOpenChange={setConfigsOpen} />
