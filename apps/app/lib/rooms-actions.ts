@@ -19,6 +19,17 @@ import {
   requireOwner,
 } from "@/lib/rooms"
 import { yjsHost } from "@/lib/yjs-host"
+import { isLocalBuild } from "@/lib/local-mode"
+
+// Sharing is excluded from the local desktop build (PRD #404, issue #417):
+// there is one local user and no `room_member` table. The UI affordances are
+// hidden, and these actions refuse as a backstop so a stray client call can't
+// hit a table that doesn't exist.
+function assertNotLocal(): void {
+  if (isLocalBuild) {
+    throw new Error("Sharing is not available in the local build")
+  }
+}
 
 export type RoomSummary = {
   id: string
@@ -93,6 +104,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
 export async function listCollaborators(
   roomId: string
 ): Promise<CollaboratorInfo[]> {
+  assertNotLocal()
   const userId = await requireUserId()
   await requireMember(roomId, userId)
 
@@ -121,6 +133,7 @@ export async function shareRoom(
   roomId: string,
   email: string
 ): Promise<CollaboratorInfo[]> {
+  assertNotLocal()
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
 
@@ -146,6 +159,7 @@ export async function removeCollaborator(
   roomId: string,
   collaboratorId: string
 ): Promise<CollaboratorInfo[]> {
+  assertNotLocal()
   const userId = await requireUserId()
   const room = await requireOwner(roomId, userId)
   if (room.ownerId === collaboratorId) {

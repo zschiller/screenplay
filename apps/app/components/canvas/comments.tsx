@@ -56,6 +56,7 @@ import {
   setDocumentCommentRanges,
   type DocumentCommentRange,
 } from "@/lib/document-comments-extension"
+import { isLocalBuild } from "@/lib/local-mode"
 
 interface IframeLayerPos {
   id: string
@@ -757,9 +758,17 @@ function NewThreadComposer({
           >
             Cancel
           </Button>
-          <Button size="sm" onClick={submit} disabled={pending || !body.trim()}>
-            Comment
-          </Button>
+          {/* Persisted comment threads are excluded from the local build
+              (#417) — only the "Send to Claude" reference path above remains. */}
+          {!isLocalBuild && (
+            <Button
+              size="sm"
+              onClick={submit}
+              disabled={pending || !body.trim()}
+            >
+              Comment
+            </Button>
+          )}
         </div>
       </div>
     </>
