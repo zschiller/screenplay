@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { PGlite } from "@electric-sql/pglite"
@@ -23,9 +24,14 @@ export interface PgliteHandle {
 // this module so it works whether run from the app root (tests, `next dev`) or
 // a bundled sidecar. `PGLITE_MIGRATIONS_DIR` overrides it when the packaged
 // desktop build ships the SQL somewhere else.
+//
+// Built with `dirname`/`join` rather than `new URL("../../drizzle",
+// import.meta.url)` on purpose: Turbopack statically intercepts the latter and
+// tries to resolve the directory as a module at build time (it isn't one),
+// which fails the hosted build even though this path is only read on desktop.
 const MIGRATIONS_DIR =
   process.env.PGLITE_MIGRATIONS_DIR ??
-  fileURLToPath(new URL("../../drizzle", import.meta.url))
+  join(dirname(fileURLToPath(import.meta.url)), "../../drizzle")
 
 /**
  * Build the local, embedded-Postgres sibling of {@link createNeonDb}. The same
