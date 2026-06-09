@@ -123,6 +123,23 @@ stays; the local build simply has one peer, so there are no others to show);
 saying "comments are gone" flatly (the persisted thread is, but the
 anchor-and-send-to-agent reference path survives).
 
+**GitHub Connection** (local build):
+The local desktop build's **optional, on-demand GitHub API access** (PRD #428)
+— explicitly *not* the multi-tenant login #417 stripped (no session, no
+`room_member`, no login gate; the app still opens as the single seeded local
+user). The existing `getGitHubToken()` seam resolves through one fixed priority
+order on the local build (`lib/github-local/`): (1) the host **`gh` CLI**'s
+token when installed and authenticated — the zero-config path; (2) a **device
+flow** token the user authorized on demand ("Connect GitHub"), kept in the OS
+keychain with a `kv_store` fallback behind one `TokenStore` interface; (3)
+`null`, which keeps meaning "GitHub API features dark". A token lights up repo
+listing, Branch-via-API, PRs, and Branch naming at their unchanged call sites;
+no token never blocks adding a Repo — the **no-auth floor** (add by clone URL
+or local folder) rides host git auth (#416). See ADR 0008.
+_Avoid_: "login"/"auth" for this (it is API access only); conflating
+disconnect (clears the stored device-flow token) with logging out of `gh` (the
+app never touches the CLI's own auth).
+
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
 Sandbox — no VM cycle, filesystem and working tree untouched. The cheap, common

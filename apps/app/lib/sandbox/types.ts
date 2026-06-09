@@ -12,6 +12,30 @@ export type SandboxGitSource = {
   revision: string
   username?: string
   password?: string
+  /**
+   * Ref to create `revision` from when it doesn't exist anywhere yet — the
+   * no-GitHub-API path on the local build (PRD #428), where a new Branch's git
+   * branch is created locally at provision time instead of via the API. The
+   * Vercel backend ignores this (its branches are always API-created first).
+   */
+  baseRevision?: string
+}
+
+/**
+ * A repo the user already has on disk (PRD #428): provision roots the
+ * worktree manager at this existing clone instead of cloning a URL, riding
+ * the clone's own remotes and the host's git auth. Only the local worktree
+ * backend can honor it — a remote-VM provider has no host filesystem to
+ * point at, so it rejects this source the way a portable backend rejects a
+ * snapshot.
+ */
+export type SandboxLocalGitSource = {
+  type: "local-git"
+  /** Absolute path of the existing clone (any directory inside it works). */
+  path: string
+  revision: string
+  /** Same contract as {@link SandboxGitSource.baseRevision}. */
+  baseRevision?: string
 }
 
 /**
@@ -25,7 +49,10 @@ export type SandboxSnapshotSource = {
   snapshotId: string
 }
 
-export type SandboxSource = SandboxGitSource | SandboxSnapshotSource
+export type SandboxSource =
+  | SandboxGitSource
+  | SandboxLocalGitSource
+  | SandboxSnapshotSource
 
 /**
  * A firewall rule. Providers that support transforms rewrite outgoing requests

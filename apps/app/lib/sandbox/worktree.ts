@@ -6,6 +6,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
+import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
 import { PortAllocator } from "@/lib/sandbox/port-allocator"
 import type {
   SandboxCommandResult,
@@ -23,13 +24,18 @@ import type {
  * `SCREENPLAY_WORKTREE_ROOT` (the desktop build points it at an app-data dir;
  * tests point it at a temp dir). Layout under the root:
  *
- *   repos/<hash>   a bare clone per source URL — the shared object store every
- *                  Branch's worktree is added from (worktrees of the same repo
- *                  reuse it, which is the whole point of using worktrees)
- *   trees/<name>   one checked-out worktree per Sandbox (== per Branch)
- *   meta/<name>.json  the worktree's base-repo dir + its allocated port map,
- *                  so `get`/`delete` can rebuild the instance and free ports
- *                  without re-deriving them
+ *   managed/<hash>  one managed dir per acquisition source (clone URL or local
+ *                  path), owned by `acquireRepo`: a `clone-url` source clones
+ *                  once into `managed/<hash>/repo`, a `local-path` source keeps
+ *                  its `.git` where it is; either way per-Branch worktrees land
+ *                  under `managed/<hash>/worktrees` (worktrees of one repo
+ *                  share a single object store, which is the point)
+ *   meta/<name>.json  the sandbox's main-clone dir, worktree dir, and allocated
+ *                  port map, so `get`/`delete` can rebuild the instance and
+ *                  free ports without re-deriving them
+ *
+ * (Pre-#428 sandboxes used `repos/<hash>` bare clones + `trees/<name>`
+ * worktrees; their metas still resolve and delete through the same paths.)
  */
 function defaultRoot(): string {
   return (
@@ -40,10 +46,12 @@ function defaultRoot(): string {
 
 /** Persisted alongside each worktree so `get` can rebuild its instance. */
 interface WorktreeMeta {
-  /** The bare clone this worktree was added from (for `git worktree remove`). */
+  /** The main clone this worktree was added from (for `git worktree remove`). */
   baseDir: string
   /** logical forwarded port → allocated distinct host port. */
   portMap: Record<string, number>
+  /** Absolute worktree dir. Absent on pre-#428 metas (then `trees/<name>`). */
+  worktreeDir?: string
 }
 
 /**
@@ -74,7 +82,7 @@ export class WorktreeSandboxProvider implements SandboxProvider {
   }
 
   async create(opts: SandboxCreateOptions): Promise<SandboxInstance> {
-    if (opts.source.type !== "git") {
+    if (opts.source.type !== "git" && opts.source.type !== "local-git") {
       // A portable backend has no snapshots to restore from; the lifecycle layer
       // never reaches create() with a snapshot source on a non-hibernating
       // provider (restartSandbox fails loud first), so this is a guard, not a path.
@@ -83,27 +91,52 @@ export class WorktreeSandboxProvider implements SandboxProvider {
           "(this backend does not hibernate, so it cannot restore from a snapshot)"
       )
     }
+    const source = opts.source
 
-    const baseDir = this.baseDirFor(opts.source.url)
-    await this.ensureBaseClone(baseDir, opts.source)
+    // Acquisition (issue #410, wired by #428): resolve the Repo to a local
+    // `.git` — point at the user's existing clone, or clone the URL once into
+    // the managed dir — and converge on the worktree manager. The paths
+    // diverge only inside `acquireRepo`.
+    const repoSource: RepoSource =
+      source.type === "local-git"
+        ? { type: "local-path", path: source.path }
+        : { type: "clone-url", url: authedUrl(source) }
+    const manager = await acquireRepo(repoSource, {
+      managedDir: this.managedDirFor(repoSource),
+    })
 
-    const wtDir = this.wtDirFor(opts.name)
+    // Best-effort refresh so a branch just created on the remote (e.g. via the
+    // GitHub API) resolves; offline — or a local clone with no remote — must
+    // not block adding a worktree off the commits already present.
+    await git(manager.repoPath, ["fetch", "--prune", "origin"]).catch(() => {})
+    if (repoSource.type === "clone-url") {
+      // Detach the managed clone's HEAD so its default branch isn't "checked
+      // out" anywhere: a Branch on that ref then gets a real worktree instead
+      // of sharing the managed clone's own working tree. Never done to a
+      // local-path clone — that working tree belongs to the user.
+      await git(manager.repoPath, ["checkout", "--detach"]).catch(() => {})
+    }
+
+    const ref = source.revision
     // Re-creating an existing Sandbox (Recreate == remove + re-add): clear any
-    // prior worktree at this path so the add is clean.
-    await this.removeWorktree(baseDir, wtDir)
-    await git(baseDir, [
-      "worktree",
-      "add",
-      "--force",
-      wtDir,
-      opts.source.revision,
-    ])
+    // prior worktree for this ref so the add is a fresh checkout.
+    await manager.removeWorktree(ref)
+    const startPoint = await resolveStartPoint(
+      manager.repoPath,
+      ref,
+      source.baseRevision
+    )
+    const worktree = await manager.addWorktree(ref, startPoint)
 
     const portMap = await this.allocatePorts(opts.name, opts.ports)
-    const meta: WorktreeMeta = { baseDir, portMap }
+    const meta: WorktreeMeta = {
+      baseDir: manager.repoPath,
+      portMap,
+      worktreeDir: worktree.path,
+    }
     await this.writeMeta(opts.name, meta)
 
-    return makeInstance(opts.name, wtDir, portMap, () =>
+    return makeInstance(opts.name, worktree.path, portMap, () =>
       this.deleteSandbox(opts.name, meta)
     )
   }
@@ -115,38 +148,25 @@ export class WorktreeSandboxProvider implements SandboxProvider {
         `WorktreeSandboxProvider: no sandbox named "${opts.name}"`
       )
     }
-    const wtDir = this.wtDirFor(opts.name)
+    const wtDir = meta.worktreeDir ?? this.legacyWtDirFor(opts.name)
     return makeInstance(opts.name, wtDir, meta.portMap, () =>
       this.deleteSandbox(opts.name, meta)
     )
   }
 
   private async deleteSandbox(name: string, meta: WorktreeMeta): Promise<void> {
-    const wtDir = this.wtDirFor(name)
-    await this.removeWorktree(meta.baseDir, wtDir)
+    const wtDir = meta.worktreeDir ?? this.legacyWtDirFor(name)
+    // A worktree that resolved to the *main clone* (a ref already checked out
+    // there — e.g. a local-path Repo's own branch) is never removed: the
+    // fallback hard-delete below would destroy the user's clone. Releasing the
+    // ports and meta is the whole teardown then.
+    if (path.resolve(wtDir) !== path.resolve(meta.baseDir)) {
+      await this.removeWorktree(meta.baseDir, wtDir)
+    }
     for (const logical of Object.keys(meta.portMap)) {
       this.ports.release(portKey(name, Number(logical)))
     }
     await fs.rm(this.metaPathFor(name), { force: true })
-  }
-
-  /**
-   * Clone the source into a bare repo on first use; reuse it (best-effort fetch)
-   * on subsequent Branches of the same repo. Bare so the shared object store has
-   * no checked-out branch of its own to collide with a worktree's.
-   */
-  private async ensureBaseClone(
-    baseDir: string,
-    source: SandboxGitSource
-  ): Promise<void> {
-    if (await exists(baseDir)) {
-      // Best-effort refresh; an offline/unreachable remote must not block adding
-      // a worktree off the commits already present.
-      await git(baseDir, ["fetch", "--prune", "origin"]).catch(() => {})
-      return
-    }
-    await fs.mkdir(path.dirname(baseDir), { recursive: true })
-    await git(process.cwd(), ["clone", "--bare", authedUrl(source), baseDir])
   }
 
   /** Remove a worktree if present, pruning the stale admin entry afterward. */
@@ -176,12 +196,20 @@ export class WorktreeSandboxProvider implements SandboxProvider {
     return portMap
   }
 
-  private baseDirFor(url: string): string {
-    const hash = createHash("sha1").update(url).digest("hex").slice(0, 16)
-    return path.join(this.root, "repos", hash)
+  /**
+   * One managed dir per acquisition source. Keyed by the URL or the local
+   * path, so every Branch of the same Repo converges on the same manager —
+   * and namespaced away from the pre-#428 `repos/<hash>` bare clones, whose
+   * layout (`.git` files pointing into a bare repo) the manager can't adopt.
+   */
+  private managedDirFor(source: RepoSource): string {
+    const key = source.type === "local-path" ? source.path : source.url
+    const hash = createHash("sha1").update(key).digest("hex").slice(0, 16)
+    return path.join(this.root, "managed", hash)
   }
 
-  private wtDirFor(name: string): string {
+  /** Where pre-#428 metas (no `worktreeDir`) kept their checkout. */
+  private legacyWtDirFor(name: string): string {
     return path.join(this.root, "trees", name)
   }
 
@@ -208,6 +236,41 @@ export class WorktreeSandboxProvider implements SandboxProvider {
 /** Per-(Sandbox, forwarded-port) allocator key. */
 function portKey(name: string, logicalPort: number): string {
   return `${name}:${logicalPort}`
+}
+
+/** True when `ref` resolves to a commit in `repoPath`. */
+async function refResolves(repoPath: string, ref: string): Promise<boolean> {
+  return git(repoPath, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])
+    .then(() => true)
+    .catch(() => false)
+}
+
+/**
+ * Where a worktree's branch should start when `ref` doesn't exist locally yet
+ * (when it does, the manager just checks it out and this value is unused):
+ *
+ *  1. `origin/<ref>` — the branch exists on the remote (e.g. just created via
+ *     the GitHub API, or the user picked an existing remote branch);
+ *  2. `origin/<base>` / `<base>` — the no-API path (PRD #428): the branch is
+ *     new everywhere, so create it locally from the requested base;
+ *  3. `undefined` — fall through to the clone's HEAD.
+ */
+async function resolveStartPoint(
+  repoPath: string,
+  ref: string,
+  baseRevision: string | undefined
+): Promise<string | undefined> {
+  if (await refResolves(repoPath, `refs/heads/${ref}`)) return undefined
+  if (await refResolves(repoPath, `refs/remotes/origin/${ref}`)) {
+    return `origin/${ref}`
+  }
+  if (baseRevision) {
+    if (await refResolves(repoPath, `refs/remotes/origin/${baseRevision}`)) {
+      return `origin/${baseRevision}`
+    }
+    if (await refResolves(repoPath, baseRevision)) return baseRevision
+  }
+  return undefined
 }
 
 /**
