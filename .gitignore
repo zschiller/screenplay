@@ -35,12 +35,14 @@ pnpm-debug.log*
 # env files
 .env*.local
 
-# local database (PGlite desktop build, PRD #404) — embedded-Postgres files
-# the local build writes to PGLITE_DATA_DIR (defaults to ./.pglite); never
-# committed.
+# local build on-disk state (PRD #404) — never committed:
+#  - PGlite embedded-Postgres files at PGLITE_DATA_DIR (defaults to ./.pglite)
+#  - the local Yjs host's persisted Y.Docs at YJS_PERSISTENCE_DIR
+#    (defaults to ./.data/yjs)
 .pglite/
 *.pglite
 data/
+.data/
 
 # typescript
 *.tsbuildinfo
