@@ -1,3 +1,11 @@
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeSync,
+} from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -52,8 +60,117 @@ const MIGRATIONS_DIR =
  *   for an ephemeral in-memory database (handy in tests).
  */
 export function createPgliteDb(dataDir: string): PgliteHandle {
-  const client = new PGlite(dataDir)
+  // Refuse to open a dir another live process already holds — see lockDataDir.
+  const releaseLock = lockDataDir(dataDir)
+  let client: PGlite
+  try {
+    client = new PGlite(dataDir)
+  } catch (err) {
+    releaseLock()
+    throw err
+  }
   const db = drizzle(client, { schema })
   const ready = migrate(db, { migrationsFolder: MIGRATIONS_DIR })
-  return { db, ready, close: () => client.close() }
+  return {
+    db,
+    ready,
+    close: async () => {
+      try {
+        await client.close()
+      } finally {
+        releaseLock()
+      }
+    },
+  }
+}
+
+/**
+ * Acquire an exclusive lock on a PGlite data dir, returning a release callback.
+ *
+ * **This is the load-bearing guarantee against database corruption.** PGlite
+ * runs an in-WASM Postgres whose postmaster lock is *not* honored across separate
+ * Node processes, so two openers of the same dir — a second app instance, or a
+ * sidecar orphaned by a crash/hot-reload — write concurrently and corrupt the
+ * files irrecoverably (and unrecoverably: the dir then aborts on every later
+ * open). This makes the *second* opener fail loudly instead of writing.
+ *
+ * A sibling `<dir>.lock` holds the owner pid. A live foreign owner → throw; a
+ * dead owner (a stale lock left by a hard kill) → reclaim. The atomic `wx`
+ * create is the serialization point, so two processes racing to reclaim a stale
+ * lock still converge to a single winner.
+ */
+export function lockDataDir(dataDir: string): () => void {
+  // In-memory PGlite (tests) is per-process — nothing to lock.
+  if (dataDir.startsWith("memory://")) return () => {}
+
+  // `next build` collects page data across multiple worker processes, each of
+  // which imports this module but never serves a query. They'd look like
+  // concurrent openers and fail the build; skip the lock during the build phase.
+  // (The single standalone server process at runtime still locks normally.)
+  if (process.env.NEXT_PHASE === "phase-production-build") return () => {}
+
+  const lockPath = `${dataDir}.lock`
+  mkdirSync(dirname(lockPath), { recursive: true })
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    try {
+      const fd = openSync(lockPath, "wx") // atomic: fails if the file exists
+      writeSync(fd, String(process.pid))
+      closeSync(fd)
+
+      let released = false
+      const release = () => {
+        if (released) return
+        released = true
+        try {
+          // Only remove the lock if we still own it (don't clobber a reclaimer).
+          if (readFileSync(lockPath, "utf8").trim() === String(process.pid)) {
+            unlinkSync(lockPath)
+          }
+        } catch {
+          /* already gone */
+        }
+      }
+      // Release on clean exit too, not only an explicit close().
+      process.once("exit", release)
+      return release
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err
+
+      const owner = Number(readFileSync(lockPath, "utf8").trim() || "0")
+      if (owner > 0 && isProcessAlive(owner)) {
+        // A live owner — refuse, whether it's another process OR this one. The
+        // same-pid case is a second opener inside one process (Next.js can
+        // evaluate the db module in more than one Turbopack module registry per
+        // process; see lib/db/index.ts). It's just as corrupting as a foreign
+        // opener and must NOT be silently reclaimed — fail loudly so the caller
+        // reuses the shared handle from "@/lib/db" instead.
+        throw new Error(
+          owner === process.pid
+            ? `PGlite data dir "${dataDir}" is already open in THIS process ` +
+                `(pid ${owner}). Refusing a second concurrent opener — import the ` +
+                `shared handle from "@/lib/db" instead of calling createPgliteDb again.`
+            : `PGlite data dir "${dataDir}" is already open in another live process ` +
+                `(pid ${owner}). Refusing to open it concurrently — concurrent writers ` +
+                `corrupt the database. Close the other instance first.`
+        )
+      }
+      // Stale lock (owner gone): drop it and retry the atomic create.
+      try {
+        unlinkSync(lockPath)
+      } catch {
+        /* another process reclaimed it first; the retry will re-check */
+      }
+    }
+  }
+  throw new Error(`could not acquire the PGlite data dir lock at ${lockPath}`)
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0) // signal 0 only probes existence
+    return true
+  } catch {
+    return false
+  }
 }

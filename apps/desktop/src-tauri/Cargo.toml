@@ -1,0 +1,28 @@
+[package]
+name = "screenplay-desktop"
+version = "0.0.1"
+description = "Screenplay desktop shell"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Sidecar lifecycle helpers:
+ureq = "2"          # blocking HTTP client for the /api/health probe
+url = "2"           # parse the sidecar URL passed to webview.navigate()
+flate2 = "1"        # decompress the bundled sidecar.tar.gz
+tar = "0.4"         # unpack it (restores the pnpm symlinks Tauri's copy drops)
+tiny_http = "0.12"  # the localhost control server the thumbnail capturer calls
+getrandom = "0.2"   # CSPRNG for the per-install secrets provisioned on first launch
+
+# macOS thumbnail capture: drive the underlying WKWebView's takeSnapshot via raw
+# objc messaging. Pinned to the objc2/block2 versions wry already resolves so
+# there's a single objc runtime ABI in the binary.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"

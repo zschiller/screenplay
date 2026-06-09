@@ -26,6 +26,9 @@
     "overrides": {
       "nextra>zod": "4.3.6",
       "nextra-theme-docs>zod": "4.3.6"
+    },
+    "patchedDependencies": {
+      "yjs@13.6.30": "patches/yjs@13.6.30.patch"
     }
   }
 }
