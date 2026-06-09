@@ -26,3 +26,29 @@ at a different host (Hocuspocus, y-websocket, Cloudflare Durable Objects, …):
 
 The `/api/yjs/auth` route gates Yjs-host token issuance against `room_member`,
 so whichever host you use, token issuance stays bound to room membership.
+
+## Local y-websocket host
+
+A second implementation ships in the tree for the single-user desktop build: a
+local, disk-persisted [y-websocket](https://github.com/yjs/y-websocket) host
+(`lib/yjs-host/y-websocket-server.ts` + `y-websocket-client.tsx`). Instead of a
+hosted backend, the sidecar runs a y-websocket server that holds the
+authoritative Y.Doc in-process and persists each room to disk
+(`lib/yjs-host/file-persistence.ts`), and the webview connects over
+`ws://localhost`. The server stays the sole Y.Doc peer that writes the agent's
+broadcast — the browser is a pure consumer — so the brokering model is
+unchanged; only the transport is swapped.
+
+Rather than hand-editing the re-exports, the two seam files read a build-time
+flag so one repo produces both deployments:
+
+- `NEXT_PUBLIC_YJS_HOST` — unset selects Liveblocks (the hosted build, byte-for-byte
+  unchanged); `local` selects the y-websocket host on both server and client.
+- `NEXT_PUBLIC_YJS_WS_PORT` — port the server listens on and the webview connects
+  to (default `1234`).
+- `YJS_PERSISTENCE_DIR` — where rooms are persisted (default `<cwd>/.data/yjs`).
+
+In `local` mode the multi-user surface collapses: room ACLs, member sync, and
+presence-scoped tokens become no-ops, and `/api/yjs/auth` issues against the
+single seeded local user instead of gating on `room_member`. The server is
+booted once from `instrumentation.ts` when the flag is set.
