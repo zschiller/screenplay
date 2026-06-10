@@ -94,6 +94,14 @@ turbo run dev --filter=web -- --port $PORT
 pnpm --filter web dev -- --port $PORT
 ```
 
+Note for turborepo: pass the port as a flag, as above — don't rely on the
+`$PORT` environment variable reaching the task. Turborepo 2's strict env mode
+strips undeclared variables from task environments, but `$PORT` in the dev
+script expands in the shell *before* turbo runs, so the flag form always
+works. No portless config or dependency is needed inside your repo:
+Screenplay invokes portless externally with an explicit command, not
+portless's own monorepo workflow (which is what `portless.json` is for).
+
 Want to work on a second project of the same monorepo (say `docs` next to
 `web`)? Add a **second Project** pointing at the same repository with its own
 dev script and port — each gets its own workspaces, sandboxes, and previews.

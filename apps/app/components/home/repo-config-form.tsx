@@ -13,6 +13,7 @@ import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import { isLocalBuild } from "@/lib/local-mode"
 
 interface RepoConfigFormProps {
   initial?: RepoConfig
@@ -210,19 +211,25 @@ export function RepoConfigForm({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-port">Dev server port</Label>
-            <Input
-              id="config-port"
-              type="number"
-              min={1}
-              max={65535}
-              value={devServerPort}
-              onChange={(e) => setDevServerPort(e.target.value)}
-              placeholder="3000"
-              className="font-mono"
-            />
-          </div>
+          {/* On the desktop build the configured port is a logical key only —
+              portless assigns and delivers the real port (ADR 0010) — so there
+              is nothing for the user to set. Hosted keeps the field: there the
+              dev server must bind this exact port. */}
+          {!isLocalBuild && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="config-port">Dev server port</Label>
+              <Input
+                id="config-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={devServerPort}
+                onChange={(e) => setDevServerPort(e.target.value)}
+                placeholder="3000"
+                className="font-mono"
+              />
+            </div>
+          )}
 
           {isLocalBuild ? (
             // Desktop mode: instead of spelling env vars out, glob patterns of
