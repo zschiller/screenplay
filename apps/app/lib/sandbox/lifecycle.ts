@@ -12,6 +12,7 @@ import {
 import type { SandboxInstance } from "@/lib/sandbox"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
+  DevServerPortIgnoredError,
   PROXY_PORT_OFFSET,
   SANDBOX_TIMEOUT,
   SANDBOX_VCPUS,
@@ -23,6 +24,52 @@ import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
+
+/**
+ * What a single preview probe observed:
+ *
+ *  - `"ready"` — the dev server itself answered (any non-5xx, or a redirect).
+ *  - `"upstream-refused"` — the bridge proxy is up and served its placeholder
+ *    because the dev server refused the connection (nothing listening on the
+ *    resolved dev port). On the local backend this is the signature of a dev
+ *    script that ignored `$SCREENPLAY_PORT`.
+ *  - `"unreachable"` — nothing answered at all (the proxy itself is down, or
+ *    the placeholder reported some other upstream failure).
+ *
+ * The placeholder self-identifies via `x-screenplay-proxy` /
+ * `x-screenplay-upstream-error` headers (see servePlaceholder in proxy.mjs).
+ */
+type PreviewProbeResult = "ready" | "upstream-refused" | "unreachable"
+
+async function probePreview(url: string): Promise<PreviewProbeResult> {
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+      headers: { Accept: "text/html" },
+    })
+    // Don't consume the body — reachability is all we need, and the iframe
+    // re-fetches the URL itself. Discard the stream so the connection frees.
+    res.body?.cancel().catch(() => {})
+    // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response; either
+    // way, anything that isn't a 5xx proxy placeholder means the server is up.
+    if (
+      res.type === "opaqueredirect" ||
+      (res.status >= 200 && res.status < 500)
+    ) {
+      return "ready"
+    }
+    const isPlaceholder =
+      res.headers?.get?.("x-screenplay-proxy") === "placeholder"
+    const upstreamError = res.headers?.get?.("x-screenplay-upstream-error")
+    return isPlaceholder && upstreamError === "ECONNREFUSED"
+      ? "upstream-refused"
+      : "unreachable"
+  } catch {
+    return "unreachable"
+  }
+}
 
 /**
  * Check if a sandbox preview URL is reachable. The bridge proxy serves its
@@ -38,24 +85,7 @@ import type { RepoData } from "@/lib/types"
  * runs — so it stays outside the result contract.
  */
 export async function probeSandboxUrl(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      redirect: "manual",
-      signal: AbortSignal.timeout(5000),
-      headers: { Accept: "text/html" },
-    })
-    // Don't consume the body — reachability is all we need, and the iframe
-    // re-fetches the URL itself. Discard the stream so the connection frees.
-    res.body?.cancel().catch(() => {})
-    // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response; either
-    // way, anything that isn't a 5xx proxy placeholder means the server is up.
-    return (
-      res.type === "opaqueredirect" || (res.status >= 200 && res.status < 500)
-    )
-  } catch {
-    return false
-  }
+  return (await probePreview(url)) === "ready"
 }
 
 // How many times to probe the preview before concluding it's actually dead and
@@ -92,6 +122,16 @@ export interface EnsurePreviewLiveOptions {
  * back a dead URL the client can only spin on. Throws if the relaunch fails —
  * callers running through the runner (or their own redacting catch) turn that
  * into a redacted failure result.
+ *
+ * **Ignored-port detection** (local backend only): when the sandbox maps the
+ * Dev Server Port to a different host port (`hostPort(port) !== port`) and
+ * every probe in the window found the proxy up but the dev server refusing
+ * connections, the dev script evidently didn't forward `$SCREENPLAY_PORT` —
+ * relaunching the same script can't fix that, so this throws the named
+ * {@link DevServerPortIgnoredError} instead of leaving a dead iframe. After a
+ * relaunch the same window applies to the fresh server. On an identity backend
+ * (hosted) nothing changes: failures relaunch and the relaunch result is
+ * returned as before.
  */
 export async function ensurePreviewLive(
   sandbox: SandboxInstance,
@@ -104,16 +144,48 @@ export async function ensurePreviewLive(
     probeAttempts = PREVIEW_PROBE_ATTEMPTS,
     probeDelayMs = PREVIEW_PROBE_DELAY_MS,
   } = options
+  const portIsMapped = sandbox.hostPort(port) !== port
   const previewDomain = sandbox.domain(port + PROXY_PORT_OFFSET)
-  for (let attempt = 0; attempt < probeAttempts; attempt++) {
-    if (await probeSandboxUrl(previewDomain)) {
-      return previewDomain
+
+  /**
+   * Run one probe window. Returns `"ready"` the moment a probe succeeds,
+   * `"upstream-refused"` when *every* attempt saw the proxy up but the dev
+   * server refusing (the unanimous signal ignored-port detection keys on), and
+   * `"unreachable"` otherwise.
+   */
+  const probeWindow = async (): Promise<PreviewProbeResult> => {
+    let refusals = 0
+    for (let attempt = 0; attempt < probeAttempts; attempt++) {
+      const state = await probePreview(previewDomain)
+      if (state === "ready") return "ready"
+      if (state === "upstream-refused") refusals++
+      if (attempt < probeAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, probeDelayMs))
+      }
     }
-    if (attempt < probeAttempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, probeDelayMs))
-    }
+    return refusals === probeAttempts ? "upstream-refused" : "unreachable"
   }
-  return launchDevAndProxy(sandbox, port, devScript, env)
+
+  const before = await probeWindow()
+  if (before === "ready") return previewDomain
+  if (portIsMapped && before === "upstream-refused") {
+    // The proxy is alive and bound — this launch's plumbing works — but nothing
+    // ever listened on the resolved dev port. The dev script isn't forwarding
+    // $SCREENPLAY_PORT; a relaunch would run the same script onto the same
+    // wrong port, so fail loud with the actionable error instead.
+    throw new DevServerPortIgnoredError()
+  }
+
+  const relaunched = await launchDevAndProxy(sandbox, port, devScript, env)
+
+  if (portIsMapped) {
+    // Verify the relaunch took. A fresh dev server gets the same grace window;
+    // only a unanimous proxy-up-dev-refused outcome — never a still-booting
+    // proxy — is treated as the dev script ignoring its assigned port.
+    const after = await probeWindow()
+    if (after === "upstream-refused") throw new DevServerPortIgnoredError()
+  }
+  return relaunched
 }
 
 /**

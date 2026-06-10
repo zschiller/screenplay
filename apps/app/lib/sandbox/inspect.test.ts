@@ -89,6 +89,7 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: notUsed("domain") as never,
+    hostPort: notUsed("hostPort") as never,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
     readFileToBuffer: notUsed("readFileToBuffer") as never,

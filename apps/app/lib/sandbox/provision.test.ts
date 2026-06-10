@@ -152,6 +152,8 @@ function fakeSandbox(
     writeError?: string
     worktreePath?: string
     homeDir?: string
+    /** Port seam override; identity (the hosted behavior) by default. */
+    hostPort?: (port: number) => number
     /** Records every `runCommand` (including its `env`) for path-seam asserts. */
     calls?: RecordedCall[]
   } = {}
@@ -192,6 +194,7 @@ function fakeSandbox(
     worktreePath: opts.worktreePath ?? "/vercel/sandbox",
     homeDir: opts.homeDir ?? "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
+    hostPort: opts.hostPort ?? ((port: number) => port),
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async (files: SandboxFile[]) => {
       if (opts.writeError) throw new Error(opts.writeError)
@@ -543,7 +546,7 @@ describe("cloneSandbox", () => {
   })
 
   it("clones via host auth on the local backend, never baking the token into the source", async () => {
-    // The worktree backend clones as a host process through the user's own git
+    // The local backend clones as a host process through the user's own git
     // credentials, so even a passed token must not be spliced into the clone URL.
     backend.hostGitAuth = true
     fake.setInstance(fakeSandbox())
@@ -684,6 +687,60 @@ describe("startDevServer", () => {
     // the recorded PID, leaving no orphan to fight for the port or `.next` lock.
     const killSh = calls[killIdx].args.join(" ")
     expect(killSh).toContain('kill -KILL "-$p"')
+  })
+
+  // The proxy launch is the other detached command, recording the proxy pidfile.
+  const findProxyLaunch = (calls: RecordedCall[]) =>
+    calls.find((c) => c.detached && c.args.join(" ").includes("proxy.pid"))
+
+  it("hands the dev command its port as SCREENPLAY_PORT/PORT — identity values on the hosted backend", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { calls }))
+
+    await startDevServer("sandbox-a", 3000)
+
+    // The dev-script contract: the resolved Dev Server Port rides the dev
+    // command's environment. With the identity seam (hosted), resolved ==
+    // logical, so one Repo config works on both backends.
+    const devLaunch = findDevLaunch(calls)
+    expect(devLaunch!.env).toMatchObject({
+      SCREENPLAY_PORT: "3000",
+      PORT: "3000",
+    })
+    const proxyLaunch = findProxyLaunch(calls)
+    expect(proxyLaunch!.env).toMatchObject({
+      SCREENPLAY_UPSTREAM_PORT: "3000",
+      SCREENPLAY_LISTEN_PORT: "4000",
+    })
+  })
+
+  it("threads resolved — not logical — ports through dev, proxy, and env on a port-mapped backend", async () => {
+    // A local-backend-shaped seam: every logical port maps to an allocated
+    // host port. Allocation, advertisement, and binding must all agree on the
+    // resolved values, or the preview URL points at a port nothing listens on.
+    const calls: RecordedCall[] = []
+    fake.setInstance(
+      fakeSandbox(() => ({ exitCode: 0 }), {
+        calls,
+        hostPort: (port) => port + 50000,
+      })
+    )
+
+    await startDevServer("sandbox-a", 3000, "npm run dev")
+
+    // The dev command is told to bind the resolved port…
+    const devLaunch = findDevLaunch(calls)
+    expect(devLaunch!.env).toMatchObject({
+      SCREENPLAY_PORT: "53000",
+      PORT: "53000",
+    })
+    // …and the proxy binds its resolved listen port and upstreams to the
+    // resolved dev port — never the logical 3000/4000.
+    const proxyLaunch = findProxyLaunch(calls)
+    expect(proxyLaunch!.env).toMatchObject({
+      SCREENPLAY_UPSTREAM_PORT: "53000",
+      SCREENPLAY_LISTEN_PORT: "54000",
+    })
   })
 
   it("returns a failure result when the bridge install fails", async () => {

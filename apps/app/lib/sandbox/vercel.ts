@@ -39,6 +39,11 @@ function adaptVercelSandbox(sandbox: Sandbox): HibernatingSandbox {
   return Object.assign(sandbox, {
     worktreePath: VERCEL_WORKTREE_PATH,
     homeDir: VERCEL_HOME_DIR,
+    // Each VM owns its network namespace, so a logical forwarded port IS the
+    // bound port — the hostPort seam is the identity here. (This is also what
+    // keeps one Repo config portable: `$SCREENPLAY_PORT` resolves to the
+    // configured Dev Server Port itself on this backend.)
+    hostPort: (port: number) => port,
     isRunning: () => sandbox.status === "running",
   }) as unknown as HibernatingSandbox
 }
@@ -58,9 +63,9 @@ class VercelSandboxProvider implements SandboxProvider {
   async create(opts: SandboxCreateOptions): Promise<SandboxInstance> {
     if (opts.source.type === "local-git") {
       // A remote VM has no host filesystem to root a checkout in; only the
-      // local worktree backend can honor a local-path source (PRD #428).
+      // local backend can honor a local-path source (PRD #428).
       throw new Error(
-        "VercelSandboxProvider: a local-path repo source requires the worktree backend"
+        "VercelSandboxProvider: a local-path repo source requires the local backend"
       )
     }
     // The SDK's create/get param types intersect with a `Credentials` shape

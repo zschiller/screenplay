@@ -52,7 +52,9 @@ type Issued = { cmd: string; args: string[]; detached: boolean }
  * implemented; everything else throws so an accidental dependency is loud.
  */
 function fakeSandbox(
-  respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 })
+  respond: (cmd: string, args: string[]) => Scripted = () => ({ exitCode: 0 }),
+  /** Port seam override; identity (the hosted behavior) by default. */
+  hostPort: (port: number) => number = (port) => port
 ): { sandbox: SandboxInstance; issued: Issued[] } {
   const issued: Issued[] = []
   const notUsed = (name: string) => () => {
@@ -86,7 +88,8 @@ function fakeSandbox(
     name: "fake-sandbox",
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
-    domain: (port: number) => `https://fake-${port}.example.com`,
+    domain: (port: number) => `https://fake-${hostPort(port)}.example.com`,
+    hostPort,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
     readFileToBuffer: notUsed("readFileToBuffer") as never,
@@ -212,6 +215,27 @@ describe("ensureTerminal", () => {
     )
     // The status bar is disabled via that config file.
     expect(cmd).toContain("set -g status off")
+  })
+
+  it("binds the daemon to its resolved port on a port-mapped backend", async () => {
+    // Local-backend-shaped seam: the daemon must listen on the resolved port —
+    // the same one `domain(TERMINAL_PORT)` advertises — so each open Branch's
+    // Terminal Tab attaches to its own Sandbox's daemon instead of all of them
+    // fighting over the logical 7681.
+    const { sandbox, issued } = fakeSandbox(
+      REPORTS_STOPPED,
+      (port) => port + 50000
+    )
+    fake.setInstance(sandbox)
+
+    const result = await ensureTerminal("sandbox-a")
+
+    const launch = issued.find(isLaunch)
+    expect(script(launch!)).toContain(`--port ${TERMINAL_PORT + 50000}`)
+    expect(result).toEqual({
+      success: true,
+      value: { url: `https://fake-${TERMINAL_PORT + 50000}.example.com` },
+    })
   })
 
   it("keeps the daemon's output out of the shared sandbox log", async () => {

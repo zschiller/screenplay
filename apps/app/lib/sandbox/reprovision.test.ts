@@ -161,6 +161,7 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
+    hostPort: (port: number) => port,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
       if (opts.writeError) throw new Error(opts.writeError)
@@ -241,7 +242,7 @@ describe("reprovisionFromGit", () => {
   })
 
   it("clones via host auth on the local backend, never baking the token into the source", async () => {
-    // The worktree backend clones as a host process through the user's own git
+    // The local backend clones as a host process through the user's own git
     // credentials, so even a passed token must not be spliced into the clone URL.
     backend.hostGitAuth = true
     fake.setInstance(fakeSandbox({ name: "sandbox-a" }))

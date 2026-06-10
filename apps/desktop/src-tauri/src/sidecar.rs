@@ -155,7 +155,7 @@ fn spawn(
         // The single desktop switch (matches desktop.env's runtime half).
         .env("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
         .env("NEXT_PUBLIC_YJS_HOST", "local")
-        .env("SANDBOX_BACKEND", "worktree")
+        .env("SANDBOX_BACKEND", "local")
         .env("SCREENPLAY_DB", "pglite")
         .env("BLOB_STORE", "local-fs")
         .env("AGENT_ENGINE", "external")

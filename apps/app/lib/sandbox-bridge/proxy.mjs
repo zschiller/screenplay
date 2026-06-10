@@ -52,12 +52,18 @@ function serveBridge(res) {
   res.end(bridge)
 }
 
-function servePlaceholder(res, statusCode = 503) {
+// The placeholder marks itself (and why the upstream failed) in headers so the
+// server-side preview probe can tell "proxy up, dev server not listening"
+// (ECONNREFUSED — on the local backend the signature of a dev script that
+// ignored $SCREENPLAY_PORT) apart from a generic unreachable preview.
+function servePlaceholder(res, statusCode = 503, upstreamError = "") {
   const body = `<!doctype html><html><head><title>Starting…</title></head><body><p>Dev server not yet ready.</p></body></html>`
   res.writeHead(statusCode, {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "content-length": Buffer.byteLength(body),
+    "x-screenplay-proxy": "placeholder",
+    ...(upstreamError ? { "x-screenplay-upstream-error": upstreamError } : {}),
   })
   res.end(body)
 }
@@ -112,7 +118,7 @@ const server = http.createServer((req, res) => {
 
   upstreamReq.on("error", (err) => {
     log("upstream request error", err.message)
-    if (!res.headersSent) servePlaceholder(res, 503)
+    if (!res.headersSent) servePlaceholder(res, 503, err.code || "")
     else res.destroy()
   })
 

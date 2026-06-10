@@ -79,7 +79,7 @@ export async function renameAgentBranch(
  * HTTP basic auth — no server round-trip, no persistent creds in the sandbox,
  * attribution stays with whoever triggered this command.
  *
- * On the local worktree backend this is a no-op: git runs as a host process and
+ * On the local backend this is a no-op: git runs as a host process and
  * authenticates through the user's own credentials (credential helper / SSH /
  * `gh`), so there is no token to broker per command.
  */
@@ -160,7 +160,7 @@ export async function getDiffStats(
  * than riding along with a harness install — git push works regardless of which
  * harnesses (if any) the operator selected.
  *
- * On the local worktree backend (`usesHostGitAuth`), none of that brokering
+ * On the local backend (`usesHostGitAuth`), none of that brokering
  * applies: git runs as a host process and authenticates through the user's own
  * credentials (credential helper / SSH / `gh`). So we neither rewrite `origin`
  * to a canonical HTTPS URL (which would clobber a user's SSH remote) nor install
@@ -199,7 +199,7 @@ export async function configureAgentGit(
     await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
     await sandbox.runCommand("git", ["config", "push.default", "current"])
 
-    // Local worktree backend: host-native git auth covers push, and the worktree
+    // Local backend: host-native git auth covers push, and the worktree
     // already points at the user's own remote (which may be SSH). Don't rewrite
     // the remote or install the brokered-token helper — both belong to the
     // hosted firewall trust boundary (ADR 0002), which doesn't exist here.

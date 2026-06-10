@@ -118,6 +118,7 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: notUsed("domain") as never,
+    hostPort: notUsed("hostPort") as never,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,
     readFileToBuffer: notUsed("readFileToBuffer") as never,
@@ -163,7 +164,7 @@ describe("configureAgentGit", () => {
   })
 
   it("under host-native git auth, skips the remote rewrite and credential helper", async () => {
-    // On the local worktree backend git rides the host's own credentials, so the
+    // On the local backend git rides the host's own credentials, so the
     // brokered-token plumbing (origin rewrite + SCREENPLAY_GH_TOKEN helper) must
     // not run — rewriting origin would clobber a user's SSH remote.
     backend.hostGitAuth = true

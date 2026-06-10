@@ -28,7 +28,7 @@ import type { SandboxActionResult } from "@/lib/sandbox/run"
 
 /**
  * How the repo reaches the sandbox beyond the clone URL (PRD #428, local build
- * only): `localPath` routes the worktree backend at the user's existing clone
+ * only): `localPath` routes the local backend at the user's existing clone
  * instead of cloning the URL; `baseRevision` is the ref to create `branch`
  * from when it doesn't exist yet (the no-GitHub-API path, where no one created
  * the branch remotely first).
@@ -70,11 +70,11 @@ export async function cloneSandbox(
 
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      // The local worktree backend clones as a host process through the user's
+      // The local backend clones as a host process through the user's
       // own git credentials, so never bake a brokered token into its clone URL —
       // host auth covers private repos. Only the hosted path splices the token
       // in. A Repo added from a local folder (PRD #428) skips cloning entirely:
-      // the worktree backend roots at the existing clone.
+      // the local backend roots at the existing clone.
       source:
         usesHostGitAuth && sourceOpts?.localPath
           ? {

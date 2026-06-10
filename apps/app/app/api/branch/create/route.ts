@@ -104,7 +104,7 @@ function markError(roomId: string, branchId: string, error?: string) {
  * token *and* a GitHub identity. The local build can lack either (PRD #428) —
  * no token resolved, or a Repo added by URL/local path that isn't on GitHub —
  * and then the branch is created locally at provision time instead, riding the
- * `baseRevision` the pipeline passes to the worktree backend.
+ * `baseRevision` the pipeline passes to the local backend.
  */
 function canUseGitHubApi(repo: RepoData, ghToken: string | undefined): boolean {
   return Boolean(ghToken && repo.repoOwner && repo.repoName)
@@ -121,7 +121,7 @@ async function runNewOrFromBranchPipeline(
   const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
 
   // Step 1: Create branch (skip for from-branch flow, and without GitHub API
-  // access — then the worktree backend creates it locally from `baseRevision`)
+  // access — then the local backend creates it locally from `baseRevision`)
   if (flow === "new") {
     if (canUseGitHubApi(repo, ghToken)) {
       const branchResult = await createAgentBranch(
@@ -241,7 +241,7 @@ async function runDuplicateBranchPipeline(
   }
 
   // Step 1: Create a new branch from the source branch. Without GitHub API
-  // access the worktree backend creates it locally instead, from the
+  // access the local backend creates it locally instead, from the
   // `baseRevision` forwarded below.
   if (canUseGitHubApi(repo, ghToken)) {
     const branchResult = await createAgentBranch(
