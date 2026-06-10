@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -66,7 +66,11 @@ describe("acquireRepo", () => {
       { managedDir }
     )
 
-    expect(repo.repoPath).toBe(path.join(managedDir, "repo"))
+    // Realpath-normalized, like the local-path cases below: the managed clone
+    // lives at `<managedDir>/repo`, but git (and so the manager) reports it
+    // through `realpath`, which resolves the macOS tmpdir symlink (`/var` →
+    // `/private/var`). Compare against the resolved path, not the constructed one.
+    expect(repo.repoPath).toBe(await realpath(path.join(managedDir, "repo")))
     expect(existsSync(path.join(repo.repoPath, ".git"))).toBe(true)
     expect(existsSync(path.join(repo.repoPath, "README.md"))).toBe(true)
   })
