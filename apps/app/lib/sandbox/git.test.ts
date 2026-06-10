@@ -53,6 +53,7 @@ vi.mock("@/lib/sandbox", () => ({
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
   getGitHubTokenForUser: vi.fn(async () => null),
+  getGitIdentityForUser: vi.fn(async () => null),
 }))
 
 // `renameAgentBranch` also renames the branch on GitHub. That HTTP call is an
@@ -62,7 +63,11 @@ const renameBranch = vi.hoisted(() => vi.fn())
 const createBranch = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/github-actions", () => ({ renameBranch, createBranch }))
 
-import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import {
+  getGitHubTokenForUser,
+  getGitIdentityForUser,
+  getUserId,
+} from "@/lib/auth-helpers"
 
 import {
   configureAgentGit,
@@ -131,6 +136,11 @@ function fakeSandbox(
 beforeEach(() => {
   vi.clearAllMocks()
   backend.hostGitAuth = false
+  // clearAllMocks wipes call history but keeps implementations; restore the
+  // null defaults so a test that scripts an identity doesn't leak into the next.
+  vi.mocked(getUserId).mockResolvedValue(null)
+  vi.mocked(getGitHubTokenForUser).mockResolvedValue(null)
+  vi.mocked(getGitIdentityForUser).mockResolvedValue(null)
 })
 
 describe("configureAgentGit", () => {
@@ -163,6 +173,54 @@ describe("configureAgentGit", () => {
     expect(joined).toContain("git config --global credential.helper")
   })
 
+  it("stamps the triggering user's real identity, never a fabricated address", async () => {
+    // The static author net is the *triggering* user's real identity (the
+    // per-command broker layers the acting user on top). Crucially it is never
+    // the old hardcoded agent@screenplay.dev.
+    vi.mocked(getUserId).mockResolvedValue("user-1")
+    vi.mocked(getGitIdentityForUser).mockResolvedValue({
+      name: "Octo Cat",
+      email: "octo@users.noreply.github.com",
+    })
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push([cmd, ...args].join(" "))
+        return { exitCode: 0 }
+      })
+    )
+
+    await configureAgentGit("sandbox-a", repo, "feature")
+
+    const joined = seen.join("\n")
+    expect(joined).toContain(
+      "git config user.email octo@users.noreply.github.com"
+    )
+    expect(joined).toContain("git config user.name Octo Cat")
+    expect(joined).not.toContain("agent@screenplay.dev")
+    expect(joined).not.toContain("Screenplay Agent")
+  })
+
+  it("sets no identity when the triggering user can't be resolved", async () => {
+    // Better no author line than a fabricated one: if the user is unknown we
+    // skip the stamp entirely (the per-command broker still attributes commits).
+    vi.mocked(getUserId).mockResolvedValue(null)
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push([cmd, ...args].join(" "))
+        return { exitCode: 0 }
+      })
+    )
+
+    await configureAgentGit("sandbox-a", repo, "feature")
+
+    const joined = seen.join("\n")
+    expect(joined).not.toContain("git config user.email")
+    expect(joined).not.toContain("git config user.name")
+    expect(joined).not.toContain("agent@screenplay.dev")
+  })
+
   it("under host-native git auth, skips the remote rewrite and credential helper", async () => {
     // On the local backend git rides the host's own credentials, so the
     // brokered-token plumbing (origin rewrite + SCREENPLAY_GH_TOKEN helper) must
@@ -180,10 +238,15 @@ describe("configureAgentGit", () => {
 
     expect(result).toEqual({ success: true, value: undefined })
     const joined = seen.join("\n")
-    // Shared branch/identity normalization still runs on both backends.
+    // Branch normalization runs on both backends.
     expect(joined).toContain("git checkout -B feature")
-    expect(joined).toContain("git config user.name Screenplay Agent")
-    // Hosted-only brokering does not.
+    // Identity / push.default are hosted-only: a plain `git config` writes to
+    // the shared `.git/config` (the user's own repo on the local backend), so
+    // stamping the agent identity would clobber the user's git identity.
+    expect(joined).not.toContain("git config user.name Screenplay Agent")
+    expect(joined).not.toContain("agent@screenplay.dev")
+    expect(joined).not.toContain("push.default")
+    // Hosted-only brokering also does not run.
     expect(joined).not.toContain("set-url")
     expect(joined).not.toContain("git-credential-helper.sh")
     expect(joined).not.toContain("SCREENPLAY_GH_TOKEN")

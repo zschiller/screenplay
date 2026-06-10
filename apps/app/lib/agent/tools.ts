@@ -6,7 +6,7 @@ import { z } from "zod"
 import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
-import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import { getGitHubTokenForUser, getGitIdentityForUser } from "@/lib/auth-helpers"
 import { getSkill, getSkillIndex } from "@/lib/skills"
 import {
   enumerateRepoSkills,
@@ -307,22 +307,39 @@ async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
 }
 
 /**
- * Look up the acting user's GitHub token and hand it to the next runCommand as
- * SCREENPLAY_GH_TOKEN. The in-sandbox credential helper feeds it to git, so
- * every push from this turn is attributed to whichever collaborator triggered
- * the command — not to whoever first provisioned the (shared) sandbox.
+ * Broker the acting user's git identity onto the next runCommand. Two things
+ * ride along, both keyed to whichever collaborator triggered this turn — not to
+ * whoever first provisioned the (shared) sandbox:
+ *
+ *   - SCREENPLAY_GH_TOKEN — their GitHub token; the in-sandbox credential helper
+ *     feeds it to git, so the *push* authenticates as them.
+ *   - `GIT_AUTHOR_*` / `GIT_COMMITTER_*` — their real name + email; git honors
+ *     these over `user.*` config, so the *commit author* is them too. This is what
+ *     keeps commit authorship consistent with push attribution on a shared
+ *     sandbox, instead of a single static (or fabricated) identity.
  *
  * On the local backend this is a no-op: git runs as a host process and
- * authenticates through the user's own credentials (credential helper / SSH /
- * `gh`), so there is no per-command token to broker.
+ * authenticates / authors through the user's own credentials and git config, so
+ * there is nothing to broker per command.
  */
 async function buildAgentGitEnv(
   ctx: ToolContext
 ): Promise<Record<string, string> | undefined> {
   if (usesHostGitAuth) return undefined
   try {
-    const token = await getGitHubTokenForUser(ctx.userId)
-    return token ? { SCREENPLAY_GH_TOKEN: token } : undefined
+    const [token, identity] = await Promise.all([
+      getGitHubTokenForUser(ctx.userId),
+      getGitIdentityForUser(ctx.userId),
+    ])
+    const env: Record<string, string> = {}
+    if (token) env.SCREENPLAY_GH_TOKEN = token
+    if (identity) {
+      env.GIT_AUTHOR_NAME = identity.name
+      env.GIT_AUTHOR_EMAIL = identity.email
+      env.GIT_COMMITTER_NAME = identity.name
+      env.GIT_COMMITTER_EMAIL = identity.email
+    }
+    return Object.keys(env).length > 0 ? env : undefined
   } catch {
     return undefined
   }

@@ -148,3 +148,29 @@ export async function getUserByEmail(
   if (!row) return null
   return { id: row.id, name: row.name, email: row.email, image: row.image }
 }
+
+/** A git author/committer identity — the `Name <email>` stamped onto a commit. */
+export interface GitIdentity {
+  name: string
+  email: string
+}
+
+/**
+ * Resolve the git author identity for a user, so agent commits attribute to the
+ * real human rather than a fabricated address. `user.email` is NOT NULL in the
+ * schema, so a found user always yields a usable identity; returns null only
+ * when no such user exists (caller then skips the identity rather than
+ * inventing one).
+ */
+export async function getGitIdentityForUser(
+  userId: string
+): Promise<GitIdentity | null> {
+  if (isLocalBuild) return { name: LOCAL_USER.name, email: LOCAL_USER.email }
+  const rows = await db
+    .select({ name: schema.user.name, email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+    .limit(1)
+  const row = rows[0]
+  return row ? { name: row.name, email: row.email } : null
+}
