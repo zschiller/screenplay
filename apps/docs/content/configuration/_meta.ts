@@ -1,5 +1,6 @@
 const meta = {
   "sandbox-provider": "Sandbox provider",
+  "dev-server-port": "Dev script port contract",
   "blob-store": "Blob store",
   "yjs-host": "Yjs host",
   "model-providers": "Model providers",
