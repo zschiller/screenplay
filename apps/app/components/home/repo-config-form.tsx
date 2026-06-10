@@ -13,7 +13,6 @@ import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
-import { isLocalBuild } from "@/lib/local-mode"
 
 interface RepoConfigFormProps {
   initial?: RepoConfig
