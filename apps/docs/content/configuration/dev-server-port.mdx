@@ -75,6 +75,10 @@ pnpm --filter web dev -- --port $SCREENPLAY_PORT
 Want to work on a second project of the same monorepo (say `docs` next to
 `web`)? Add a **second Project** pointing at the same repository with its own
 dev script and port — each gets its own workspaces, sandboxes, and previews.
-The same git branch may be open under both at once; concurrent sandboxes on one
-branch coordinate through normal git push/pull semantics (a non-fast-forward
-push is rejected and the agent pulls and resolves).
+On the desktop app a git branch can be open in only **one** workspace at a time
+across both Projects: workspaces are git worktrees of one shared clone, and git
+keeps one checkout per branch. Opening a branch that's already open (or checked
+out in your own clone, for a Project pointed at a local path) fails with a
+clear error rather than sharing the checkout. The hosted backend has no such
+limit — its sandboxes are independent clones coordinating through normal git
+push/pull semantics.

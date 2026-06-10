@@ -33,9 +33,8 @@ A GitHub repository configured into a Room — its repo identity, default branch
 in the room's Y.Doc as the `repos` collection (`RepoData`). A Repo resolves to a
 local `.git` two ways — point at an existing local clone, or app-managed `git
 clone` of the URL into a managed dir — after which both converge on one
-**clone manager** that creates/removes one independent clone per Sandbox, keyed
-by Sandbox name, never by ref (`lib/sandbox/local/clone.ts`); the paths diverge
-only at acquisition. `Repo`
+**worktree manager** that adds/removes one worktree per Branch ref
+(`lib/sandbox/local/worktree.ts`); the paths diverge only at acquisition. `Repo`
 is the code identifier everywhere it denotes this entity; the user-facing label
 still reads "Workspace" until the separate UI-string pass renames it to
 "Project".
@@ -46,19 +45,22 @@ Repo).
 
 **Branch**:
 A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
-and the Engine that drives it. Each Branch maps to exactly one git branch, but
-the inverse is deliberately **unenforced**: the same ref may back any number of
-Branches across Repos and Rooms (open a branch in a second Room to show it off,
-or under a second Repo targeting another monorepo project), each with its own
-Sandbox. Concurrent Sandboxes on one ref coordinate through git the way human
-collaborators do — a non-fast-forward push is rejected and the agent pulls and
-resolves; nothing is overwritten silently so long as agents don't force-push.
-Rendered in the sidebar by its branch's name. Lives in the room's Y.Doc as the
-`branches` collection (`BranchData`).
+and the Engine that drives it. Each Branch maps to exactly one git branch; how
+many Branches one ref may back is **a backend property, not a domain rule** (ADR
+0009). On the hosted backend there is no limit — Sandboxes are independent
+clones, and concurrent ones coordinate through git the way human collaborators
+do (a non-fast-forward push is rejected and the agent pulls and resolves). On
+the desktop **local** backend the limit is structural: each Branch is a git
+worktree of one shared clone, and git keeps one checkout per branch — so a ref
+already open (or checked out in the user's own clone) **fails loud with a named
+error**, never silently shares or steals a checkout. Rendered in the sidebar by
+its branch's name. Lives in the room's Y.Doc as the `branches` collection
+(`BranchData`).
 _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run;
-treating one-Sandbox-per-ref as an invariant (it was never the domain rule, only
-an artifact of the worktree-per-branch layout, which per-Branch clones replace).
+calling one-Branch-per-ref a domain invariant (it is the desktop storage model
+surfacing, absent on the hosted backend) — and equally, assuming the hosted
+backend's no-limit applies on desktop.
 
 **Sandbox**:
 The environment a Branch's repo is checked out into — where the agent reads
@@ -78,9 +80,9 @@ Branch itself; calling its contents "never durable" (true only for the Vercel VM
 **Sandbox Provider**:
 The swappable backend that creates and reconnects Sandboxes. There are now
 **two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop
-**local** backend (an independent per-Branch clone on the host, hardlinked
-against a shared per-source mirror so one ref can back many Sandboxes;
-non-hibernating), selected at build time by `SANDBOX_BACKEND`.
+**local** backend (a git worktree per Branch off one shared clone — one object
+store per repo, one checkout per ref; non-hibernating), selected at build time
+by `SANDBOX_BACKEND`.
 The surface is split into a **portable core**
 (the operations every conceivable backend can honor) and an optional
 **Hibernation** capability: freezing a Sandbox's filesystem when it goes idle and

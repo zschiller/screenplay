@@ -5,7 +5,11 @@ import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { LocalSandboxProvider } from "@/lib/sandbox/local/provider"
+import {
+  LocalSandboxProvider,
+  RefAlreadyOpenError,
+} from "@/lib/sandbox/local/provider"
+import { BranchCheckedOutInCloneError } from "@/lib/sandbox/local/worktree"
 import type { SandboxCreateOptions } from "@/lib/sandbox/types"
 
 // Run git in a directory, failing loudly so a botched fixture is obvious.
@@ -78,7 +82,7 @@ afterEach(async () => {
 })
 
 describe("LocalSandboxProvider", () => {
-  it("create yields a working SandboxInstance over an independent clone", async () => {
+  it("create yields a working SandboxInstance over a worktree", async () => {
     const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
 
     expect(sandbox.name).toBe("branch-a")
@@ -89,7 +93,7 @@ describe("LocalSandboxProvider", () => {
       "utf8"
     )
     expect(readme).toBe("hello world\n")
-    // It's a real clone of the repo, on the requested branch.
+    // It's a real worktree of the repo, on the requested branch.
     const branch = await git(sandbox.worktreePath, [
       "rev-parse",
       "--abbrev-ref",
@@ -113,7 +117,7 @@ describe("LocalSandboxProvider", () => {
     await expect(provider.get({ name: "missing" })).rejects.toThrow()
   })
 
-  it("runCommand executes in the clone", async () => {
+  it("runCommand executes in the worktree", async () => {
     const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
 
     const cat = await sandbox.runCommand("cat", ["README.md"])
@@ -169,7 +173,11 @@ describe("LocalSandboxProvider", () => {
 
   it("hostPort maps a forwarded port to its allocated host port, stable per Sandbox", async () => {
     const a = await provider.create(createOpts("branch-a", sourceRepo))
-    const b = await provider.create(createOpts("branch-b", sourceRepo))
+    const b = await provider.create(
+      createOpts("branch-b", sourceRepo, {
+        source: { type: "git", url: sourceRepo, revision: "feature" },
+      })
+    )
 
     // Mapped: every Sandbox shares the host network, so the logical port is
     // never assumed bindable. Stable: the same logical port resolves to the
@@ -194,7 +202,11 @@ describe("LocalSandboxProvider", () => {
 
   it("domain returns an allocated localhost URL, distinct per Branch", async () => {
     const a = await provider.create(createOpts("branch-a", sourceRepo))
-    const b = await provider.create(createOpts("branch-b", sourceRepo))
+    const b = await provider.create(
+      createOpts("branch-b", sourceRepo, {
+        source: { type: "git", url: sourceRepo, revision: "feature" },
+      })
+    )
 
     expect(a.domain(3000)).toMatch(/^http:\/\/localhost:\d+$/)
     // Each forwarded port maps to its own host port…
@@ -203,37 +215,33 @@ describe("LocalSandboxProvider", () => {
     expect(a.domain(3000)).not.toBe(b.domain(3000))
   })
 
-  it("two Sandboxes on one ref coexist with distinct clones and ports", async () => {
-    // The dropped invariant: any number of Branches may sit on one ref, each
-    // with its own independent Sandbox. Identity is the Sandbox name, never
-    // the ref.
+  it("a second Sandbox on an open ref fails loud (one checkout per branch)", async () => {
+    // One checkout per ref is structural on this backend: a second create on
+    // the same ref must not silently steal or share the first Sandbox's
+    // worktree — it fails with the named error, and the ref frees up when the
+    // holding Sandbox is deleted.
     const a = await provider.create(createOpts("branch-a", sourceRepo))
-    const b = await provider.create(createOpts("branch-b", sourceRepo))
+    await fs.writeFile(path.join(a.worktreePath, "wip.txt"), "uncommitted\n")
 
-    expect(a.worktreePath).not.toBe(b.worktreePath)
-    expect(a.domain(3000)).not.toBe(b.domain(3000))
-    for (const sandbox of [a, b]) {
-      const branch = await git(sandbox.worktreePath, [
-        "rev-parse",
-        "--abbrev-ref",
-        "HEAD",
-      ])
-      expect(branch.trim()).toBe("main")
-    }
-
-    // Deleting one leaves the other fully intact.
-    await a.delete()
+    await expect(
+      provider.create(createOpts("branch-b", sourceRepo))
+    ).rejects.toThrow(RefAlreadyOpenError)
+    // The first Sandbox's checkout (and its uncommitted work) is untouched.
     expect(
-      await fs
-        .access(b.worktreePath)
-        .then(() => true)
-        .catch(() => false)
-    ).toBe(true)
-    const stillThere = await provider.get({ name: "branch-b" })
-    expect(stillThere.worktreePath).toBe(b.worktreePath)
+      await fs.readFile(path.join(a.worktreePath, "wip.txt"), "utf8")
+    ).toBe("uncommitted\n")
+
+    await a.delete()
+    const b = await provider.create(createOpts("branch-b", sourceRepo))
+    const branch = await git(b.worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(branch.trim()).toBe("main")
   })
 
-  it("delete removes the clone and reclaims its name", async () => {
+  it("delete removes the worktree and reclaims its name", async () => {
     const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
     const clonePath = sandbox.worktreePath
     expect(
@@ -260,7 +268,7 @@ describe("LocalSandboxProvider", () => {
     const first = await provider.create(createOpts("branch-a", sourceRepo))
     await first.delete()
 
-    // Re-adding under the same name works (the shared mirror is reused).
+    // Re-adding under the same name works (the managed clone is reused).
     const second = await provider.create(createOpts("branch-a", sourceRepo))
     const readme = await fs.readFile(
       path.join(second.worktreePath, "README.md"),
@@ -269,10 +277,10 @@ describe("LocalSandboxProvider", () => {
     expect(readme).toBe("hello world\n")
   })
 
-  it("re-creating over a live sandbox replaces its clone cleanly", async () => {
+  it("re-creating over a live sandbox replaces its worktree cleanly", async () => {
     const first = await provider.create(createOpts("branch-a", sourceRepo))
     await fs.writeFile(path.join(first.worktreePath, "dirty.txt"), "dirty\n")
-    // No explicit delete — create must clear the prior clone itself.
+    // No explicit delete — create must clear the prior worktree itself.
     const again = await provider.create(createOpts("branch-a", sourceRepo))
     const branch = await git(again.worktreePath, [
       "rev-parse",
@@ -288,14 +296,14 @@ describe("LocalSandboxProvider", () => {
     ).toBe(false)
   })
 
-  it("reuses one managed mirror across Branches of the same repo", async () => {
+  it("reuses one managed clone across Branches of the same repo", async () => {
     await provider.create(createOpts("branch-a", sourceRepo))
     await provider.create(
       createOpts("branch-b", sourceRepo, {
         source: { type: "git", url: sourceRepo, revision: "feature" },
       })
     )
-    // Both clones hang off a single managed mirror.
+    // Both worktrees hang off a single managed clone — one shared object store.
     const managed = await fs.readdir(path.join(root, "managed"))
     expect(managed).toHaveLength(1)
   })
@@ -342,7 +350,7 @@ describe("LocalSandboxProvider", () => {
     expect(branch.trim()).toBe("feature")
   })
 
-  it("provisions a local-path Repo as an independent clone of the user's own clone", async () => {
+  it("provisions a local-path Repo as a worktree of the user's own clone", async () => {
     const sandbox = await provider.create(
       createOpts("branch-a", sourceRepo, {
         source: {
@@ -354,7 +362,7 @@ describe("LocalSandboxProvider", () => {
       })
     )
 
-    // The clone is real, on the new branch, with the repo's files.
+    // The worktree is real, on the new branch, with the repo's files.
     const branch = await git(sandbox.worktreePath, [
       "rev-parse",
       "--abbrev-ref",
@@ -367,9 +375,11 @@ describe("LocalSandboxProvider", () => {
     )
     expect(readme).toBe("hello world\n")
 
-    // It is its own repository — never a worktree of (or the same dir as) the
-    // user's clone — so the user's checkout is untouched: still on main, clean,
-    // and free of agent-created branches.
+    // It hangs off the user's clone — same object store, no managed clone —
+    // but lives outside it, and the user's checkout is untouched: still on
+    // main, still clean.
+    const list = await git(sourceRepo, ["worktree", "list"])
+    expect(list).toContain(await fs.realpath(sandbox.worktreePath))
     expect(await fs.realpath(sandbox.worktreePath)).not.toBe(
       await fs.realpath(sourceRepo)
     )
@@ -379,32 +389,45 @@ describe("LocalSandboxProvider", () => {
       "HEAD",
     ])
     expect(userBranch.trim()).toBe("main")
-    const userWorktrees = await git(sourceRepo, ["worktree", "list"])
-    expect(userWorktrees).not.toContain(sandbox.worktreePath)
   })
 
-  it("a ref already checked out in the user's clone never blocks a Sandbox on it", async () => {
-    // The user has `main` checked out in their own clone; a Branch on `main`
-    // still gets its own independent clone (the old worktree backend physically
-    // couldn't represent this without sharing the user's working tree).
+  it("delete on a local-path Repo removes the worktree but never the clone", async () => {
     const sandbox = await provider.create(
       createOpts("branch-a", sourceRepo, {
-        source: { type: "local-git", path: sourceRepo, revision: "main" },
+        source: {
+          type: "local-git",
+          path: sourceRepo,
+          revision: "agent-work",
+          baseRevision: "main",
+        },
       })
     )
-    expect(await fs.realpath(sandbox.worktreePath)).not.toBe(
-      await fs.realpath(sourceRepo)
-    )
-    const branch = await git(sandbox.worktreePath, [
-      "rev-parse",
-      "--abbrev-ref",
-      "HEAD",
-    ])
-    expect(branch.trim()).toBe("main")
-
     await sandbox.delete()
 
-    // Tearing the Branch down never touches the user's working tree.
+    expect(
+      await fs
+        .access(sandbox.worktreePath)
+        .then(() => true)
+        .catch(() => false)
+    ).toBe(false)
+    // The user's clone survives, working tree intact.
+    const readme = await fs.readFile(path.join(sourceRepo, "README.md"), "utf8")
+    expect(readme).toBe("hello world\n")
+  })
+
+  it("a ref checked out in the user's clone fails loud instead of aliasing it", async () => {
+    // The user has `main` checked out in their own clone. Handing that working
+    // tree to an agent as a Sandbox would mix agent edits into their live
+    // checkout, so the open is refused with the named error — and the user's
+    // tree is left exactly as it was.
+    await expect(
+      provider.create(
+        createOpts("branch-a", sourceRepo, {
+          source: { type: "local-git", path: sourceRepo, revision: "main" },
+        })
+      )
+    ).rejects.toThrow(BranchCheckedOutInCloneError)
+
     const readme = await fs.readFile(path.join(sourceRepo, "README.md"), "utf8")
     expect(readme).toBe("hello world\n")
     const userBranch = await git(sourceRepo, [
@@ -460,49 +483,43 @@ describe("LocalSandboxProvider", () => {
     expect(await fs.readFile(marker, "utf8")).toBe("done\n")
   })
 
-  it("a legacy worktree-generation sandbox still resolves and deletes", async () => {
-    // Reconstruct what the worktree-per-branch generation left on disk: a
-    // managed clone with a per-ref worktree, and a meta recording `worktreeDir`
-    // (no `cloneDir`). The upgraded provider must keep resolving it and tear it
-    // down through `git worktree remove`.
+  it("a legacy clone-generation sandbox still resolves and deletes", async () => {
+    // Reconstruct what the short-lived per-Sandbox-clone generation (#433,
+    // reverted by ADR 0009) left on disk: a managed mirror with an independent
+    // clone per sandbox, and a meta recording `cloneDir` (no `worktreeDir`).
+    // The provider must keep resolving it and tear it down with a plain
+    // directory removal.
     const managedDir = path.join(root, "managed", "legacyhash")
-    const repoDir = path.join(managedDir, "repo")
-    await fs.mkdir(managedDir, { recursive: true })
-    await git(tmp, ["clone", sourceRepo, repoDir])
-    await git(repoDir, ["checkout", "--detach"])
-    const wtDir = path.join(managedDir, "worktrees", "feature")
-    await fs.mkdir(path.dirname(wtDir), { recursive: true })
-    await git(repoDir, ["worktree", "add", wtDir, "feature"])
+    const cloneDir = path.join(managedDir, "clones", "legacy-a")
+    await fs.mkdir(path.dirname(cloneDir), { recursive: true })
+    await git(tmp, ["clone", "--branch", "feature", sourceRepo, cloneDir])
     const metaDir = path.join(root, "meta")
     await fs.mkdir(metaDir, { recursive: true })
     await fs.writeFile(
       path.join(metaDir, "legacy-a.json"),
       JSON.stringify({
-        baseDir: repoDir,
+        baseDir: path.join(managedDir, "repo"),
         portMap: { "3000": 51000 },
-        worktreeDir: wtDir,
+        cloneDir,
       }),
       "utf8"
     )
 
     // Resolves through the same get() path, port map intact.
     const sandbox = await provider.get({ name: "legacy-a" })
-    expect(sandbox.worktreePath).toBe(wtDir)
+    expect(sandbox.worktreePath).toBe(cloneDir)
     expect(sandbox.hostPort(3000)).toBe(51000)
-    const feature = await fs.readFile(path.join(wtDir, "FEATURE.md"), "utf8")
+    const feature = await fs.readFile(path.join(cloneDir, "FEATURE.md"), "utf8")
     expect(feature).toBe("feature work\n")
 
-    // Deletes through the legacy worktree path: the dir is gone, git no longer
-    // tracks it, and the meta is removed.
+    // Deletes by removing the clone dir along with the meta.
     await sandbox.delete()
     expect(
       await fs
-        .access(wtDir)
+        .access(cloneDir)
         .then(() => true)
         .catch(() => false)
     ).toBe(false)
-    const list = await git(repoDir, ["worktree", "list"])
-    expect(list).not.toContain(wtDir)
     await expect(provider.get({ name: "legacy-a" })).rejects.toThrow()
   })
 })
