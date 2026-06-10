@@ -45,9 +45,14 @@ Repo).
 
 **Branch**:
 A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
-and the Engine that drives it. Each Branch maps to exactly one git branch and is
-rendered in the sidebar by that branch's name. Lives in the room's Y.Doc as the
-`branches` collection (`BranchData`).
+and the Engine that drives it. The mapping is one-to-one **in both directions**:
+each Branch maps to exactly one git branch, and a git branch backs at most one
+Branch per Repo — opening an already-open ref focuses the existing Branch, never
+creates a second one. (The inverse direction is enforced, not incidental: two
+Sandboxes on one ref would fight at push time on any backend, and the desktop
+worktree backend can't even represent it.) Rendered in the sidebar by its
+branch's name. Lives in the room's Y.Doc as the `branches` collection
+(`BranchData`).
 _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
 
@@ -155,7 +160,10 @@ Cycling the whole Sandbox VM (fresh processes, dev server, port forwards) while
 snapshot-restoring onto a new VM (the Hibernation path). It is snapshot-only and
 **fails loud** on a snapshot miss: it never silently reclones, because a restart
 must not discard un-pushed work (see ADR 0005). Disabled while the Agent is
-working, since it cycles the VM mid-turn.
+working, since it cycles the VM mid-turn. **Exists only where Hibernation does**:
+on a non-hibernating provider (the desktop worktree backend) the action is hidden
+entirely — there is no VM to cycle, so the offered restarts there are Dev Server
+Restart and Recreate.
 _Shown to users as_: "Restart sandbox".
 _Avoid_: conflating with Dev Server Restart (no VM cycle) or Recreate (which
 destroys the working tree).
