@@ -47,10 +47,13 @@ Repo).
 A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
 and the Engine that drives it. The mapping is one-to-one **in both directions**:
 each Branch maps to exactly one git branch, and a git branch backs at most one
-Branch per Repo — opening an already-open ref focuses the existing Branch, never
+Branch per **git repo** — across every Repo and Room that points at the same
+source, not merely within one Repo. Opening an already-open ref focuses the
+existing Branch (or is refused with a pointer to the Project holding it), never
 creates a second one. (The inverse direction is enforced, not incidental: two
 Sandboxes on one ref would fight at push time on any backend, and the desktop
-worktree backend can't even represent it.) Rendered in the sidebar by its
+worktree backend can't even represent it — all Repos on one source share a
+single clone, so a second checkout of the ref is physically impossible.) Rendered in the sidebar by its
 branch's name. Lives in the room's Y.Doc as the `branches` collection
 (`BranchData`).
 _Shown to users as_: "Workspace".
