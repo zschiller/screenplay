@@ -89,17 +89,18 @@ _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation a
 guaranteed (it is an optional capability, not part of the core); saying "Vercel,
 the only one" (a second backend has landed).
 
-**Declared Port**:
-A port a Repo names in its dev contract: the dev-server port of the one monorepo
-project the Repo targets (the port the preview renders), plus any other ports its
-dev script still occupies (siblings a fan-out like `turbo dev` brings up). A
-Declared Port is a logical name, not an address — each Sandbox maps it to the
-port that service is actually reachable on (identity on a backend with its own
-network namespace), and the dev script must take its bind ports and cross-service
-URLs from that mapping rather than the literal number.
-_Avoid_: assuming the declared number is the bound port; bare "port" where the
-declared-vs-actual distinction matters; treating extra declared ports as preview
-targets (a Repo targets one project; the rest are collision bookkeeping).
+**Dev Server Port**:
+The port the Repo's one target project serves its preview on — a logical name,
+not an address. Each Sandbox maps it to the port the dev server is actually
+reachable on (identity on a backend with its own network namespace, a per-Branch
+allocated port on the worktree backend) and hands the real value to the dev
+script as `$SCREENPLAY_PORT`. The dev script lives in the Repo's config, not the
+repo's source, and is expected to forward it (`--port $SCREENPLAY_PORT`); a
+script that ignores it is unsupported for multi-Branch desktop previews and
+fails loud, not with a dead iframe.
+_Avoid_: assuming the configured number is the bound port; multiple preview
+targets per Repo (a Repo targets one project — point a second Repo at the same
+source for another project); asking users to modify their repo's own scripts.
 
 **Thumbnail Capturer**:
 The swappable seam that turns a Room's render URL into a raw screenshot buffer
