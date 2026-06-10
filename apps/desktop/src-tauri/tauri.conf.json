@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Screenplay",
-  "mainBinaryName": "Screenplay",
   "version": "0.0.1",
   "identifier": "space.screenplay.desktop",
   "build": {
@@ -29,7 +28,6 @@
     "icon": [
       "icons/icon.icns",
       "icons/icon.icon"
-    ],
-    "resources": ["resources/sidecar.tar.gz"]
+    ]
   }
 }
