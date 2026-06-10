@@ -1353,7 +1353,10 @@ export function RoomSidebar({
 
   return (
     <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none">
-      <div className="flex h-12 items-center justify-end px-4 pr-3">
+      <div
+        data-tauri-drag-region
+        className="flex h-12 items-center justify-end px-4 pr-3"
+      >
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

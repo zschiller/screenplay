@@ -48,6 +48,7 @@ import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
+import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
 import {
   FileText,
@@ -4128,6 +4129,8 @@ export function Canvas({
       if (commentMode || documentMode || frameMode) return
       const target = e.target as HTMLElement
       if (!e.currentTarget.contains(target)) return
+      // Top window-drag strip: defer to Tauri's native window drag.
+      if (target.closest("[data-tauri-drag-region]")) return
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
@@ -4212,7 +4215,10 @@ export function Canvas({
         target.closest("[data-iframe-layer]") ||
         target.closest("[data-markdown-layer]") ||
         target.closest("button") ||
-        target.closest("a")
+        target.closest("a") ||
+        // Top window-drag strip: let Tauri start a native window drag instead
+        // of beginning a marquee/draft here.
+        target.closest("[data-tauri-drag-region]")
       )
         return
 
@@ -5060,6 +5066,9 @@ export function Canvas({
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Desktop + non-fullscreen: the macOS traffic lights overlay the top-left,
+  // so the collapsed-sidebar pills must shift right to clear them.
+  const trafficLightsPresent = useTrafficLightsPresent()
 
   // Expand the collapsed chat panel when the logs stream actually starts,
   // so the panel opens as the user sees live install/boot output — not
@@ -5818,7 +5827,22 @@ export function Canvas({
                 onClose={closeCursorChat}
               />
             ) : null}
-            <div className="pointer-events-none absolute top-0 left-0 z-[9998] flex h-12 items-center px-2">
+            {/* Window-drag strip: spans the full toolbar height across the top
+                of the canvas, sitting BEHIND the floating pills (z-[9998]) so
+                the pills stay clickable while the empty toolbar area drags the
+                native window. */}
+            <div
+              data-tauri-drag-region
+              className="absolute top-0 right-0 left-0 z-[9997] h-12"
+            />
+            <div
+              className={`pointer-events-none absolute top-0 left-0 z-[9998] flex h-12 items-center pr-2 ${
+                // When the macOS traffic lights are showing (desktop, not
+                // fullscreen) and the sidebar is collapsed, the canvas fills the
+                // full width — shift these pills right to clear the lights.
+                trafficLightsPresent && sidebarCollapsed ? "pl-[88px]" : "pl-2"
+              }`}
+            >
               <div
                 className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
                 onClick={(e) => e.stopPropagation()}
@@ -6014,11 +6038,16 @@ export function Canvas({
                 </TooltipProvider>
               </div>
             </div>
-            <div className="pointer-events-none absolute top-0 right-0 z-[9998] flex h-12 items-center px-2">
-              <div
-                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
-                onClick={(e) => e.stopPropagation()}
-              >
+            {/* Only render the top-right pill when it has content: the
+                Share/Following controls (web only) or the expand-chat button
+                (when the right sidebar is collapsed). On desktop with the chat
+                open it would otherwise be an empty floating pill. */}
+            {(!isLocalBuild || chatCollapsed) && (
+              <div className="pointer-events-none absolute top-0 right-0 z-[9998] flex h-12 items-center px-2">
+                <div
+                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                  onClick={(e) => e.stopPropagation()}
+                >
                 {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
@@ -6057,8 +6086,9 @@ export function Canvas({
                     </Tooltip>
                   </TooltipProvider>
                 )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </ResizablePanel>
         <ResizableHandle

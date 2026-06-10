@@ -1,65 +1,17 @@
-"use client"
-
-import { useCallback, useState } from "react"
+import { cookies } from "next/headers"
 import Link from "next/link"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@workspace/ui/components/resizable"
 import { Button } from "@workspace/ui/components/button"
-import { HomeProvider } from "@/components/home/home-provider"
-import { HomeSidebar } from "@/components/home/home-sidebar"
-import { FilesView } from "@/components/home/files-view"
-import { useAppSession } from "@/lib/auth-client"
+import { HomeWorkspace } from "@/components/home/home-workspace"
+import { getUserId } from "@/lib/auth-helpers"
 import {
-  type PanelLayout,
-  readPanelLayout,
-  writePanelLayout,
+  panelLayoutCookieName,
+  parsePanelLayoutValue,
 } from "@/lib/panel-layout"
 
-function HomeWorkspace() {
-  const [defaultLayout] = useState<PanelLayout | undefined>(() =>
-    readPanelLayout("home-layout")
-  )
-  const onLayoutChanged = useCallback((layout: PanelLayout) => {
-    writePanelLayout("home-layout", layout)
-  }, [])
+export default async function Page() {
+  const userId = await getUserId()
 
-  return (
-    <HomeProvider>
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="fixed inset-0"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
-        <ResizablePanel
-          id="home-sidebar"
-          defaultSize="240px"
-          minSize="180px"
-          maxSize="480px"
-          groupResizeBehavior="preserve-pixel-size"
-        >
-          <HomeSidebar />
-        </ResizablePanel>
-        <ResizableHandle className="focus-visible:ring-0" />
-        <ResizablePanel id="home-content">
-          <main className="relative flex h-full w-full flex-col overflow-auto bg-background">
-            <FilesView />
-          </main>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </HomeProvider>
-  )
-}
-
-export default function Page() {
-  const { data: session, isPending } = useAppSession()
-
-  if (isPending) return null
-
-  if (!session) {
+  if (!userId) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-6 py-10">
         <h1 className="text-2xl font-medium">Screenplay</h1>
@@ -74,5 +26,14 @@ export default function Page() {
     )
   }
 
-  return <HomeWorkspace />
+  // Read the persisted panel layout from the cookie server-side so SSR and the
+  // first client paint agree on panel sizes. Reading it on the client (e.g. via
+  // `document.cookie`) would make the server render `defaultSize` while the
+  // client renders the persisted layout — a hydration mismatch.
+  const cookieStore = await cookies()
+  const initialLayout = parsePanelLayoutValue(
+    cookieStore.get(panelLayoutCookieName("home-layout"))?.value
+  )
+
+  return <HomeWorkspace initialLayout={initialLayout} />
 }
