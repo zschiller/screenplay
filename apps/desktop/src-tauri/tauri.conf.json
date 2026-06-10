@@ -27,7 +27,7 @@
     "targets": ["app"],
     "icon": [
       "icons/icon.icns",
-      "icons/Screenplay.icon"
+      "icons/icon.icon"
     ],
     "resources": ["resources/sidecar.tar.gz"]
   }
