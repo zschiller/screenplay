@@ -3,8 +3,13 @@
 import { useEffect } from "react"
 import { useYjs } from "@/lib/yjs/context"
 import { withBasePath } from "@/lib/base-path"
+import { isLocalBuild } from "@/lib/local-mode"
 
-const PERIOD_MS = 30_000
+// The hosted cadence is priced for a headless-Chromium capture on a paid
+// function per fire; the desktop capture is a local webview and a local file
+// write, so it can run much hotter. Must stay above the server route's
+// cooldown or every throttled fire lands inside it and gets skipped.
+const PERIOD_MS = isLocalBuild ? 8_000 : 30_000
 const INITIAL_DELAY_MS = 3_000
 const MIN_REFRESH_GAP_MS = 5_000
 
@@ -62,7 +67,12 @@ export function useThumbnailHeartbeat(
 
     doc.on("update", onUpdate)
 
-    if (!hasThumbnail) {
+    // Locally, fire on every open, not just the first: captures are cheap
+    // (local webview + local fs, deduped by the server cooldown), and it
+    // refreshes any thumbnail that went stale while the room was closed —
+    // including rows persisted before a restart (the blob URL scheme changed
+    // once; see lib/blob/local-fs.ts).
+    if (!hasThumbnail || isLocalBuild) {
       initialTimer = setTimeout(() => {
         initialTimer = null
         send()

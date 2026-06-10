@@ -6,8 +6,13 @@ import {
   touchRoomThumbnailUpdatedAt,
 } from "@/lib/rooms"
 import { captureRoomThumbnail } from "@/lib/thumbnail/capture"
+import { isLocalBuild } from "@/lib/local-mode"
 
-const COOLDOWN_MS = 25_000
+// Deduplicates overlapping heartbeats; must stay below the client's
+// PERIOD_MS (use-thumbnail-heartbeat.ts) so throttled fires aren't skipped.
+// Desktop captures are local-webview + local-fs, so the local build runs a
+// much shorter cooldown to match its hotter heartbeat.
+const COOLDOWN_MS = isLocalBuild ? 6_000 : 25_000
 
 export const maxDuration = 60
 

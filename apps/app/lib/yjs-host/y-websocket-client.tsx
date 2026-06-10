@@ -36,47 +36,50 @@ export function YjsRoomProvider({
   fallback: ReactNode
   children: ReactNode
 }) {
-  const { doc, provider } = useMemo(() => {
-    const doc = new Y.Doc()
-    const provider = new WebsocketProvider(websocketUrl(), roomId, doc)
-    return { doc, provider }
-  }, [roomId])
-
-  useEffect(() => {
-    return () => {
-      provider.destroy()
-      doc.destroy()
-    }
-  }, [doc, provider])
+  // The provider is created (and torn down) by the effect, NOT in a useMemo:
+  // dev StrictMode mounts → unmounts → remounts, and a memoized provider
+  // destroyed by the first cleanup would be reused dead on the remount — the
+  // socket closes mid-connect and the sync gate below never opens. An
+  // effect-owned provider is recreated fresh on every (re)mount.
+  const [conn, setConn] = useState<{
+    doc: Y.Doc
+    provider: WebsocketProvider
+  } | null>(null)
 
   // Gate render on the initial sync so the canvas doesn't mount against an
   // empty Y.Doc and flash an empty state — same contract as the Liveblocks
   // client's SyncGate.
-  const [synced, setSynced] = useState(provider.synced)
+  const [synced, setSynced] = useState(false)
+
   useEffect(() => {
+    const doc = new Y.Doc()
+    const provider = new WebsocketProvider(websocketUrl(), roomId, doc)
     const onSync = (isSynced: boolean) => {
       if (isSynced) setSynced(true)
     }
-    let cancelled = false
     provider.on("sync", onSync)
-    queueMicrotask(() => {
-      if (!cancelled) onSync(provider.synced)
-    })
+    setConn({ doc, provider })
     return () => {
-      cancelled = true
       provider.off("sync", onSync)
+      provider.destroy()
+      doc.destroy()
+      setConn(null)
+      setSynced(false)
     }
-  }, [provider])
+  }, [roomId])
 
-  const value = useMemo<YjsConnection>(
-    () => ({
-      doc,
-      awareness: provider.awareness as unknown as AwarenessLike,
-    }),
-    [doc, provider]
+  const value = useMemo<YjsConnection | null>(
+    () =>
+      conn
+        ? {
+            doc: conn.doc,
+            awareness: conn.provider.awareness as unknown as AwarenessLike,
+          }
+        : null,
+    [conn]
   )
 
-  if (!synced) return <>{fallback}</>
+  if (!value || !synced) return <>{fallback}</>
 
   return <YjsConnectionProvider value={value}>{children}</YjsConnectionProvider>
 }

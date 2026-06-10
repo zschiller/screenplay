@@ -30,12 +30,27 @@ function FileCard({ file }: { file: RoomSummary }) {
         {file.thumbnailUrl && (
           <Image
             key={file.thumbnailUpdatedAt ?? file.thumbnailUrl}
-            src={file.thumbnailUrl}
+            // The blob path is stable per room and served with a max-age, so a
+            // bare URL would show the browser-cached capture for up to that
+            // TTL; versioning by capture time busts it the moment a new
+            // thumbnail lands.
+            src={
+              file.thumbnailUpdatedAt
+                ? `${file.thumbnailUrl}?v=${file.thumbnailUpdatedAt}`
+                : file.thumbnailUrl
+            }
             alt=""
             fill
             sizes="(min-width: 1024px) 240px, (min-width: 640px) 33vw, 50vw"
             className="object-cover"
             unoptimized
+            // A stale URL (e.g. captured before a restart under the old
+            // absolute-URL scheme) 404s until the room's next recapture; hide
+            // the broken-image glyph and show the gradient instead. The key
+            // above remounts a fresh, visible img when a new capture lands.
+            onError={(e) => {
+              e.currentTarget.style.display = "none"
+            }}
           />
         )}
       </Link>

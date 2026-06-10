@@ -8,7 +8,7 @@
     {
       "appearance" : "dark",
       "value" : {
-        "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+        "automatic-gradient" : "srgb:0.03524,0.23664,0.50000,1.00000"
       }
     }
   ],
@@ -16,6 +16,30 @@
     {
       "layers" : [
         {
+          "blend-mode" : "screen",
+          "fill-specializations" : [
+            {
+              "value" : "automatic"
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "solid" : "srgb:0.00000,0.00000,0.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "tinted",
+              "value" : {
+                "solid" : "extended-gray:0.50000,1.00000"
+              }
+            }
+          ],
+          "glass-specializations" : [
+            {
+              "appearance" : "tinted",
+              "value" : true
+            }
+          ],
           "image-name" : "face.svg",
           "name" : "face",
           "position" : {
