@@ -8,6 +8,7 @@ import { Label } from "@workspace/ui/components/label"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { RepoPicker } from "@/components/repo-picker"
+import { isLocalBuild } from "@/lib/local-mode"
 import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
@@ -55,6 +56,9 @@ export function RepoConfigForm({
     String(initial?.devServerPort ?? 3000)
   )
   const [envVars, setEnvVars] = useState(initial?.envVars ?? "")
+  const [copyPatterns, setCopyPatterns] = useState(
+    initial ? (initial.copyPatterns ?? "") : ".env*"
+  )
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     initial?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
@@ -97,6 +101,7 @@ export function RepoConfigForm({
       devScript,
       devServerPort: parsedPort,
       envVars,
+      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
       defaultIframeLayerSizeId,
       systemPrompt: systemPrompt.trim() ? systemPrompt : undefined,
       createdAt: initial?.createdAt ?? now,
@@ -219,17 +224,39 @@ export function RepoConfigForm({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-envvars">Environment variables</Label>
-            <Textarea
-              id="config-envvars"
-              value={envVars}
-              onChange={(e) => setEnvVars(e.target.value)}
-              placeholder={"KEY=value\nANOTHER_KEY=value"}
-              rows={4}
-              className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-            />
-          </div>
+          {isLocalBuild ? (
+            // Desktop mode: instead of spelling env vars out, glob patterns of
+            // files (e.g. `.env*`) carried over from the original checkout
+            // into each workspace's worktree.
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="config-copy-patterns">
+                Files to copy into workspaces{" "}
+                <span className="font-normal text-muted-foreground/70">
+                  (glob patterns from your checkout, one per line)
+                </span>
+              </Label>
+              <Textarea
+                id="config-copy-patterns"
+                value={copyPatterns}
+                onChange={(e) => setCopyPatterns(e.target.value)}
+                placeholder={".env*\napps/*/.env*"}
+                rows={3}
+                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="config-envvars">Environment variables</Label>
+              <Textarea
+                id="config-envvars"
+                value={envVars}
+                onChange={(e) => setEnvVars(e.target.value)}
+                placeholder={"KEY=value\nANOTHER_KEY=value"}
+                rows={4}
+                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="config-default-iframe-layer-size">

@@ -3169,6 +3169,7 @@ export function Canvas({
               devScript: pick.config.devScript,
               devServerPort: pick.config.devServerPort,
               envVars: pick.config.envVars,
+              copyPatterns: pick.config.copyPatterns,
               defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
               systemPrompt: pick.config.systemPrompt,
               createdAt: Date.now(),
@@ -3191,6 +3192,10 @@ export function Canvas({
                 devScript: "",
                 devServerPort: 3000,
                 envVars: "",
+                // A local-folder Repo's worktrees get the checkout's env
+                // files carried over by default — the common gitignored
+                // config a dev server can't run without.
+                copyPatterns: pick.source.localPath ? ".env*" : undefined,
                 createdAt: Date.now(),
               }
             : {

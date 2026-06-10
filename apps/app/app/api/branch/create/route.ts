@@ -13,7 +13,7 @@ import {
 import { parseHarnessKeys } from "@/lib/agent/harnesses"
 import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
-import { parseEnvVars } from "@/lib/env-utils"
+import { parseCopyPatterns, parseEnvVars } from "@/lib/env-utils"
 import type { BranchData, RepoData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 
@@ -152,7 +152,11 @@ async function runNewOrFromBranchPipeline(
     repo.devServerPort,
     envOrUndefined,
     ghToken,
-    { localPath: repo.localPath, baseRevision }
+    {
+      localPath: repo.localPath,
+      baseRevision,
+      copyPatterns: parseCopyPatterns(repo.copyPatterns),
+    }
   )
   if (!cloneResult.success) {
     await markError(roomId, branchId, cloneResult.error)

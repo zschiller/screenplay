@@ -2347,6 +2347,7 @@ function RepoSettings({
     String(repo.devServerPort ?? 3000)
   )
   const [envVars, setEnvVars] = useState(repo.envVars)
+  const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
@@ -2366,6 +2367,7 @@ function RepoSettings({
       devScript,
       devServerPort: parsedPort,
       envVars,
+      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
       defaultIframeLayerSizeId,
       systemPrompt: trimmedSystemPrompt || undefined,
     })
@@ -2378,6 +2380,7 @@ function RepoSettings({
     parsedPort,
     portIsValid,
     envVars,
+    copyPatterns,
     defaultIframeLayerSizeId,
     trimmedSystemPrompt,
     onUpdate,
@@ -2390,6 +2393,7 @@ function RepoSettings({
     devScript !== repo.devScript ||
     parsedPort !== (repo.devServerPort ?? 3000) ||
     envVars !== repo.envVars ||
+    copyPatterns !== (repo.copyPatterns ?? "") ||
     defaultIframeLayerSizeId !==
       (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
     trimmedSystemPrompt !== (repo.systemPrompt ?? "")
@@ -2454,18 +2458,36 @@ function RepoSettings({
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Environment variables
-        </label>
-        <textarea
-          value={envVars}
-          onChange={(e) => setEnvVars(e.target.value)}
-          placeholder={"KEY=value\nANOTHER_KEY=value"}
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-          rows={3}
-        />
-      </div>
+      {isLocalBuild ? (
+        // Desktop mode: instead of spelling env vars out, glob patterns of
+        // files (e.g. `.env*`) carried over from the original checkout into
+        // each workspace's worktree.
+        <div>
+          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+            Files to copy into workspaces (globs, one per line)
+          </label>
+          <textarea
+            value={copyPatterns}
+            onChange={(e) => setCopyPatterns(e.target.value)}
+            placeholder={".env*\napps/*/.env*"}
+            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
+            rows={3}
+          />
+        </div>
+      ) : (
+        <div>
+          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+            Environment variables
+          </label>
+          <textarea
+            value={envVars}
+            onChange={(e) => setEnvVars(e.target.value)}
+            placeholder={"KEY=value\nANOTHER_KEY=value"}
+            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
+            rows={3}
+          />
+        </div>
+      )}
 
       <div>
         <label className="mb-1 block text-[10px] text-sidebar-foreground/70">

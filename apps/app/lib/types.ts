@@ -35,6 +35,14 @@ export type RepoData = {
   devScript: string
   devServerPort: number
   envVars: string
+  /**
+   * Glob patterns (one per line, e.g. `.env*`) of files copied from the
+   * Repo's original checkout into each Branch's worktree at provision time —
+   * the desktop-mode way to carry gitignored config (env files above all)
+   * into a workspace instead of spelling env vars out by hand. Only
+   * meaningful for a `localPath` Repo on the local build.
+   */
+  copyPatterns?: string
   /** Preset id from `lib/iframe-layer-sizes`. Falls back to the default preset when unset. */
   defaultIframeLayerSizeId?: string
   /** Extra repo-specific instructions appended to the agent's system prompt. */
