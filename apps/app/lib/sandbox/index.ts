@@ -26,9 +26,9 @@ export type {
  * The configured sandbox provider singleton, selected at build time by the
  * sandbox backend the build targets. The hosted build leaves this as Vercel
  * Sandbox (the default); the desktop build sets `SANDBOX_BACKEND=local` to back
- * each Branch's Sandbox with an independent git clone on the host instead of a
- * remote VM ("worktree", the old mechanism name, keeps selecting the same
- * backend — see `lib/sandbox/backend.ts`).
+ * each Branch's Sandbox with a git worktree on the host instead of a remote VM
+ * ("worktree", the mechanism name, keeps selecting the same backend — see
+ * `lib/sandbox/backend.ts`).
  *
  * This is the env-switched factory ADR 0003 deferred until a real second
  * provider existed — that provider (the local backend) has now landed, so the
@@ -52,7 +52,7 @@ export const sandboxProvider: SandboxProvider = selectSandboxProvider()
  * Whether git operations authenticate through the **host's own credentials**
  * (credential helper / SSH / `gh`) instead of a brokered, per-`runCommand`
  * `SCREENPLAY_GH_TOKEN`. True only for the local backend: there git runs as a
- * host process in the Sandbox's clone, so it already inherits the user's git
+ * host process in the Sandbox's worktree, so it already inherits the user's git
  * config and credentials, and ADR 0002's firewall trust boundary — the reason
  * the token was brokered per command on the hosted path — doesn't exist on the
  * host. The hosted Vercel backend is unchanged: it keeps brokering the token.
