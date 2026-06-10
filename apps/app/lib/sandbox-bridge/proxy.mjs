@@ -54,8 +54,9 @@ function serveBridge(res) {
 
 // The placeholder marks itself (and why the upstream failed) in headers so the
 // server-side preview probe can tell "proxy up, dev server not listening"
-// (ECONNREFUSED — on the local backend the signature of a dev script that
-// ignored $SCREENPLAY_PORT) apart from a generic unreachable preview.
+// (ECONNREFUSED — on the local backend the signature of a dev server that
+// never bound the port portless assigned it) apart from a generic unreachable
+// preview.
 function servePlaceholder(res, statusCode = 503, upstreamError = "") {
   const body = `<!doctype html><html><head><title>Starting…</title></head><body><p>Dev server not yet ready.</p></body></html>`
   res.writeHead(statusCode, {

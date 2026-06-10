@@ -32,7 +32,8 @@ import type { RepoData } from "@/lib/types"
  *  - `"upstream-refused"` — the bridge proxy is up and served its placeholder
  *    because the dev server refused the connection (nothing listening on the
  *    resolved dev port). On the local backend this is the signature of a dev
- *    script that ignored `$SCREENPLAY_PORT`.
+ *    server that never bound the port portless assigned it (a script that
+ *    ignores `$PORT`, or portless itself failing to launch).
  *  - `"unreachable"` — nothing answered at all (the proxy itself is down, or
  *    the placeholder reported some other upstream failure).
  *
@@ -126,7 +127,8 @@ export interface EnsurePreviewLiveOptions {
  * **Ignored-port detection** (local backend only): when the sandbox maps the
  * Dev Server Port to a different host port (`hostPort(port) !== port`) and
  * every probe in the window found the proxy up but the dev server refusing
- * connections, the dev script evidently didn't forward `$SCREENPLAY_PORT` —
+ * connections, the dev server evidently never bound the port portless
+ * assigned it (a script ignoring `$PORT`, or portless failing to launch) —
  * relaunching the same script can't fix that, so this throws the named
  * {@link DevServerPortIgnoredError} instead of leaving a dead iframe. After a
  * relaunch the same window applies to the fresh server. On an identity backend
@@ -170,9 +172,9 @@ export async function ensurePreviewLive(
   if (before === "ready") return previewDomain
   if (portIsMapped && before === "upstream-refused") {
     // The proxy is alive and bound — this launch's plumbing works — but nothing
-    // ever listened on the resolved dev port. The dev script isn't forwarding
-    // $SCREENPLAY_PORT; a relaunch would run the same script onto the same
-    // wrong port, so fail loud with the actionable error instead.
+    // ever listened on the resolved dev port. The dev server isn't binding the
+    // port portless assigned it; a relaunch would run the same script onto the
+    // same wrong port, so fail loud with the actionable error instead.
     throw new DevServerPortIgnoredError()
   }
 

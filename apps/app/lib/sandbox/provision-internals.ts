@@ -1,6 +1,9 @@
 import "server-only"
 
+import path from "node:path"
+
 import type { SandboxInstance } from "@/lib/sandbox"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 
 // 30 minutes — keep sandboxes alive only while actively used.
 // sandboxProvider.get with resume:true will reboot the VM when a user returns.
@@ -70,24 +73,43 @@ const LOG_ENV = [
 ].join(" ")
 
 /**
- * Named, user-visible failure for a dev script that ignored the port contract:
- * the bridge proxy is up and reachable, but the dev server never listened on
- * its assigned (resolved) port past the probe window. Raised only where logical
- * ≠ bound (the local backend) — on an identity backend a dev server's default
- * port IS the assigned port, so this failure mode can't exist there. Distinct
- * from generic dev-server-crash failures so the user is told what to fix
- * instead of staring at a dead iframe.
+ * Named, user-visible failure for a dev server that never bound its assigned
+ * port: the bridge proxy is up and reachable, but nothing listened on the
+ * resolved dev port past the probe window. Raised only where logical ≠ bound
+ * (the local backend, where the dev script runs under portless) — on an
+ * identity backend a dev server's default port IS the assigned port, so this
+ * failure mode can't exist there. Covers both portless-era causes: a dev
+ * script that ignores the `$PORT` portless assigns, and portless itself
+ * failing to launch (its proxy daemon isn't running). Distinct from generic
+ * dev-server-crash failures so the user is told what to fix instead of
+ * staring at a dead iframe.
  */
 export class DevServerPortIgnoredError extends Error {
   constructor() {
     super(
-      "The dev server never listened on its assigned port. Your dev script " +
-        "must forward $SCREENPLAY_PORT to the dev server — e.g. " +
-        '"next dev --port $SCREENPLAY_PORT" or "vite --port $SCREENPLAY_PORT". ' +
-        "Update the dev script in the Project settings, then restart the dev server."
+      "The dev server never listened on its assigned port. The desktop app " +
+        "runs your dev script under portless (https://portless.sh), which " +
+        "hands it the port as $PORT — frameworks like Next.js pick it up " +
+        'automatically; others need it forwarded, e.g. "vite --port $PORT ' +
+        '--strictPort". Check the Logs panel: if portless reported its proxy ' +
+        "isn't running, run `npx portless proxy start` once in a terminal. " +
+        "Then fix the dev script in the Project settings if needed and " +
+        "restart the dev server."
     )
     this.name = "DevServerPortIgnoredError"
   }
+}
+
+/**
+ * Where the portless CLI lives — a regular dependency of the app, resolved
+ * from cwd like the sandbox-bridge files (`lib/sandbox-bridge/index.ts`):
+ * both `next dev` and the desktop sidecar run with cwd at the app root, and
+ * `build-sidecar.mjs` folds the package into the standalone tree at this
+ * path. Spawned as `node <cli.js>` (it has no runtime dependencies), so the
+ * host needs no global portless install.
+ */
+function portlessCliPath(): string {
+  return path.join(process.cwd(), "node_modules", "portless", "dist", "cli.js")
 }
 
 function shellQuote(s: string): string {
@@ -186,12 +208,22 @@ export async function stopDevAndProxy(sandbox: SandboxInstance): Promise<void> {
  * `port` is the Repo's *logical* Dev Server Port; what the dev server must
  * actually bind is `hostPort(port)` (identity on the hosted backend, a
  * per-Sandbox allocated port on the local backend, where every Sandbox shares
- * the host's network). The resolved value is handed to the dev command as
- * `$SCREENPLAY_PORT` (and `$PORT`) — the dev-script contract: the Repo's
- * configured dev script forwards it (e.g. `next dev --port $SCREENPLAY_PORT`).
- * The proxy binds its resolved listen port and upstreams to the resolved dev
- * port, so the launch, the advertised preview URL (`domain`, which maps the
- * same way), and what's actually listening always agree.
+ * the host's network). How the resolved value reaches the dev server differs
+ * by backend:
+ *
+ *  - **Hosted**: handed to the dev command as `$SCREENPLAY_PORT` (and
+ *    `$PORT`) — the dev-script contract: the Repo's configured dev script
+ *    forwards it (e.g. `next dev --port $SCREENPLAY_PORT`).
+ *  - **Local (desktop)**: the dev script runs under **portless**
+ *    (https://portless.sh) with `--app-port <resolved>` — portless owns
+ *    delivering the port (it sets `$PORT`, the convention frameworks already
+ *    honor) and registers a named `.localhost` route for the dev server as a
+ *    bonus (`portless list` shows it; in a Branch worktree the branch name
+ *    becomes a subdomain prefix). `$SCREENPLAY_PORT` is not set here.
+ *
+ * Either way the proxy binds its resolved listen port and upstreams to the
+ * resolved dev port, so the launch, the advertised preview URL (`domain`,
+ * which maps the same way), and what's actually listening always agree.
  */
 export async function launchDevAndProxy(
   sandbox: SandboxInstance,
@@ -209,6 +241,20 @@ export async function launchDevAndProxy(
   const devPid = devPidPath(sandbox.name)
   const proxyPid = proxyPidPath(sandbox.name)
   const dev = devScript?.trim() || "npm run dev"
+  // The local backend wraps the dev script in portless. The script stays a
+  // single `sh -c` argument so its full shell semantics survive (env prefixes,
+  // `&&`, pipes) — portless contributes the port (its `$PORT` is in scope when
+  // the inner sh expands the script) and the route registration. `--app-port`
+  // pins portless to our allocated host port: the bridge proxy below must know
+  // the upstream, and the per-Sandbox allocation already guarantees
+  // distinctness. No `--force`: a route left by a group-killed previous launch
+  // has a dead pid and is reclaimed silently, while a *live* conflicting owner
+  // (someone else's portless app with the same name) fails visibly in the log
+  // instead of being SIGTERMed.
+  const devCommand = isLocalSandboxBackend()
+    ? `${shellQuote(process.execPath)} ${shellQuote(portlessCliPath())} run ` +
+      `--app-port ${devPort} sh -c ${shellQuote(dev)}`
+    : dev
   const devHeader = shellQuote(`\n$ ${dev}\n`)
   // Launch the dev server under a restart-on-crash supervisor, mirroring the
   // proxy below, so a crashed dev server comes back on its own without any
@@ -222,7 +268,7 @@ export async function launchDevAndProxy(
   // break the relaunch loop. `& disown` returns the outer shell immediately
   // while the dev tree keeps running.
   const devInner = shellQuote(
-    `export ${LOG_ENV}; while true; do ${dev} >> ${logPath} 2>&1; sleep 1; done`
+    `export ${LOG_ENV}; while true; do ${devCommand} >> ${logPath} 2>&1; sleep 1; done`
   )
   await sandbox.runCommand({
     cmd: "sh",
@@ -235,15 +281,17 @@ export async function launchDevAndProxy(
         `disown`,
     ],
     detached: true,
-    // The port contract rides the dev command's environment, after the user's
-    // repo env so it can't be shadowed: the dev script forwards
-    // `$SCREENPLAY_PORT` (PORT is set too for frameworks that honor it
-    // natively). Identity on the hosted backend, the allocated host port on the
-    // local one.
+    // On the hosted backend the port contract rides the dev command's
+    // environment, after the user's repo env so it can't be shadowed: the dev
+    // script forwards `$SCREENPLAY_PORT` (PORT is set too for frameworks that
+    // honor it natively). On the local backend neither is set — portless
+    // injects `$PORT` into the dev script's process itself, overriding
+    // anything inherited (including the desktop sidecar's own PORT).
     env: {
       ...(env ?? {}),
-      SCREENPLAY_PORT: String(devPort),
-      PORT: String(devPort),
+      ...(isLocalSandboxBackend()
+        ? {}
+        : { SCREENPLAY_PORT: String(devPort), PORT: String(devPort) }),
     },
   })
 

@@ -17,6 +17,9 @@
 //      dynamically-loaded `.node` the tracer doesn't follow; the local terminal
 //      transport's instrumentation hook crashes on boot without it.
 //   4. the `node` binary itself — the shell runs `./node apps/app/server.js`.
+//   5. the `portless` package — spawned as a CLI (`node …/portless/dist/cli.js`
+//      by `launchDevAndProxy`), never imported, so tracing misses it; the local
+//      backend runs every Branch's dev script under it.
 
 import { execFileSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, chmodSync, readdirSync } from "node:fs"
@@ -108,6 +111,17 @@ for (const platformDir of readdirSync(ptyDest)) {
   const helper = join(ptyDest, platformDir, "spawn-helper")
   if (existsSync(helper)) chmodSync(helper, 0o755)
 }
+
+log("+ portless CLI")
+// provision-internals resolves it at `<cwd>/node_modules/portless/dist/cli.js`
+// (cwd is the app root at runtime). The source is a pnpm symlink; dereference
+// so the tree carries a real directory. Zero runtime deps, so the package dir
+// alone is the whole install.
+cpSync(
+  join(appDir, "node_modules", "portless"),
+  join(standaloneApp, "node_modules", "portless"),
+  { recursive: true, dereference: true }
+)
 
 log("+ node runtime")
 copyFileSync(process.execPath, join(standalone, "node"))

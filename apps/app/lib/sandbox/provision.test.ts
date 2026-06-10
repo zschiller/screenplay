@@ -715,9 +715,10 @@ describe("startDevServer", () => {
   })
 
   it("threads resolved — not logical — ports through dev, proxy, and env on a port-mapped backend", async () => {
-    // A local-backend-shaped seam: every logical port maps to an allocated
-    // host port. Allocation, advertisement, and binding must all agree on the
-    // resolved values, or the preview URL points at a port nothing listens on.
+    // A port-mapping seam under the hosted env contract: every logical port
+    // maps to an allocated host port. Allocation, advertisement, and binding
+    // must all agree on the resolved values, or the preview URL points at a
+    // port nothing listens on.
     const calls: RecordedCall[] = []
     fake.setInstance(
       fakeSandbox(() => ({ exitCode: 0 }), {
@@ -741,6 +742,44 @@ describe("startDevServer", () => {
       SCREENPLAY_UPSTREAM_PORT: "53000",
       SCREENPLAY_LISTEN_PORT: "54000",
     })
+  })
+
+  it("runs the dev script under portless on the local backend — port via --app-port, no SCREENPLAY_PORT", async () => {
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    try {
+      const calls: RecordedCall[] = []
+      fake.setInstance(
+        fakeSandbox(() => ({ exitCode: 0 }), {
+          calls,
+          hostPort: (port) => port + 50000,
+        })
+      )
+
+      await startDevServer("sandbox-a", 3000, "npm run dev")
+
+      const devLaunch = findDevLaunch(calls)
+      const devSh = devLaunch!.args.join(" ")
+      // portless owns delivering the port: the dev command runs under
+      // `portless run --app-port <resolved>` and reads `$PORT` from portless —
+      // not from an env var we set ($SCREENPLAY_PORT is gone on this backend).
+      expect(devSh).toContain("portless")
+      expect(devSh).toContain("--app-port 53000")
+      // The script rides a single `sh -c` argument so its full shell
+      // semantics (env prefixes, &&, pipes) survive the wrapping.
+      expect(devSh).toContain("npm run dev")
+      expect(devLaunch!.env ?? {}).not.toHaveProperty("SCREENPLAY_PORT")
+      expect(devLaunch!.env ?? {}).not.toHaveProperty("PORT")
+      // The bridge-proxy plumbing is portless-free and unchanged: it binds the
+      // resolved listen port and upstreams to the same resolved dev port
+      // portless was pinned to.
+      const proxyLaunch = findProxyLaunch(calls)
+      expect(proxyLaunch!.env).toMatchObject({
+        SCREENPLAY_UPSTREAM_PORT: "53000",
+        SCREENPLAY_LISTEN_PORT: "54000",
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it("returns a failure result when the bridge install fails", async () => {
