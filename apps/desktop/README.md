@@ -11,7 +11,7 @@ Tauri shell (Rust)                         Node sidecar (Next standalone)
 ─────────────────                          ──────────────────────────────
 pick free 127.0.0.1 port  ───PORT────────▶ next start (server.js)
 mint/persist secrets      ───env─────────▶ ENCRYPTION_KEY, *_SECRET
-inject desktop profile    ───env─────────▶ SANDBOX_BACKEND=worktree,
+inject desktop profile    ───env─────────▶ SANDBOX_BACKEND=local,
                                             SCREENPLAY_DB=pglite,
                                             BLOB_STORE=local-fs,
                                             NEXT_PUBLIC_YJS_HOST=local,

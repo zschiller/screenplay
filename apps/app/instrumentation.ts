@@ -16,9 +16,9 @@
  *    transport there.
  *  - **Local terminal server.** The node-pty WebSocket transport
  *    (`lib/terminal/local/`) that replaces the hosted build's in-sandbox ttyd
- *    daemon. It exists only on the worktree backend; the hosted (Vercel) build
- *    skips it and keeps the ttyd/`domain(port)` path. The dynamic import keeps
- *    node-pty/`ws` out of the hosted build's graph.
+ *    daemon. It exists only on the local sandbox backend; the hosted (Vercel)
+ *    build skips it and keeps the ttyd/`domain(port)` path. The dynamic import
+ *    keeps node-pty/`ws` out of the hosted build's graph.
  */
 export async function register(): Promise<void> {
   // Only the Node.js server runtime touches these seams / holds a long-lived
@@ -57,7 +57,8 @@ export async function register(): Promise<void> {
     await startLocalYjsServer()
   }
 
-  if (process.env.SANDBOX_BACKEND === "worktree") {
+  const { isLocalSandboxBackend } = await import("@/lib/sandbox/backend")
+  if (isLocalSandboxBackend()) {
     const { ensureLocalTerminalServer } = await import(
       "@/lib/terminal/local/server"
     )

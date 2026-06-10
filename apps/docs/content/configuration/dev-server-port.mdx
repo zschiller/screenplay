@@ -1,0 +1,80 @@
+# Dev script port contract (`$SCREENPLAY_PORT`)
+
+Every workspace runs your project's dev server inside its own sandbox and
+renders it in a live preview frame. Screenplay assigns each sandbox the port its
+dev server must listen on, and hands the real value to your **dev script** (the
+command configured in the Project settings — Screenplay's own config, never your
+repo's source) as two environment variables:
+
+- **`SCREENPLAY_PORT`** — the port your dev server must bind.
+- **`PORT`** — the same value, for frameworks that honor `PORT` natively.
+
+Your dev script should forward it explicitly:
+
+```bash
+# Next.js
+next dev --port $SCREENPLAY_PORT
+
+# Vite
+vite --port $SCREENPLAY_PORT --strictPort
+
+# Create React App / frameworks that read $PORT
+npm start            # PORT is already set — nothing to forward
+
+# Custom server
+node server.js --port $SCREENPLAY_PORT
+```
+
+If the dev script is left empty, Screenplay runs `npm run dev`; that works only
+when your `dev` script honors `$PORT` or defaults to the configured port on a
+backend where that's enough (see below).
+
+## Why this exists
+
+On the **hosted backend** every sandbox is its own VM, so each dev server can
+bind its default port and `$SCREENPLAY_PORT` resolves to the configured dev
+server port itself (an identity value). A dev script that ignores it usually
+still works there — which is why one Project config is portable across both
+backends.
+
+On the **desktop app** every sandbox runs directly on your machine and shares
+your host's network. Two workspaces' dev servers would fight over port 3000, so
+Screenplay allocates each sandbox a distinct host port and expects the dev
+script to bind it. That allocated port is exactly what the workspace's preview
+URL points at — if the dev server binds its default port instead, nothing is
+listening where the preview looks.
+
+Screenplay deliberately does **not** containerize desktop sandboxes or rewrite
+your repo's own scripts: sandboxes run on your machine so your already
+authenticated coding CLIs (Claude Code et al., subscription auth included) work
+inside every workspace, and adopting Screenplay must not require commits to
+your project.
+
+## The failure mode, named
+
+A dev script that ignores `$SCREENPLAY_PORT` on the desktop app fails loud
+instead of leaving a dead preview: when the sandbox's proxy is up but the dev
+server never listens on its assigned port, the workspace surfaces a
+`DevServerPortIgnoredError` telling you to forward `$SCREENPLAY_PORT`. Fix the
+dev script in the Project settings, then use **Restart dev server**.
+
+## Monorepos
+
+A Project targets exactly **one** app: its dev server port and preview belong to
+the project you're working on. Filter monorepo fan-out scripts down to that one
+target so a single server binds the assigned port:
+
+```bash
+# turborepo
+turbo run dev --filter=web -- --port $SCREENPLAY_PORT
+
+# pnpm workspace
+pnpm --filter web dev -- --port $SCREENPLAY_PORT
+```
+
+Want to work on a second project of the same monorepo (say `docs` next to
+`web`)? Add a **second Project** pointing at the same repository with its own
+dev script and port — each gets its own workspaces, sandboxes, and previews.
+The same git branch may be open under both at once; concurrent sandboxes on one
+branch coordinate through normal git push/pull semantics (a non-fast-forward
+push is rejected and the agent pulls and resolves).

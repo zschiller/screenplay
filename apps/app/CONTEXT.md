@@ -33,8 +33,9 @@ A GitHub repository configured into a Room — its repo identity, default branch
 in the room's Y.Doc as the `repos` collection (`RepoData`). A Repo resolves to a
 local `.git` two ways — point at an existing local clone, or app-managed `git
 clone` of the URL into a managed dir — after which both converge on one
-**worktree manager** that adds/removes one worktree per Branch ref
-(`lib/sandbox/local/worktree.ts`); the paths diverge only at acquisition. `Repo`
+**clone manager** that creates/removes one independent clone per Sandbox, keyed
+by Sandbox name, never by ref (`lib/sandbox/local/clone.ts`); the paths diverge
+only at acquisition. `Repo`
 is the code identifier everywhere it denotes this entity; the user-facing label
 still reads "Workspace" until the separate UI-string pass renames it to
 "Project".
@@ -45,16 +46,19 @@ Repo).
 
 **Branch**:
 A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
-and the Engine that drives it. The mapping is one-to-one **in both directions**:
-each Branch maps to exactly one git branch, and a git branch backs at most one
-Branch per Repo — opening an already-open ref focuses the existing Branch, never
-creates a second one. (The inverse direction is enforced, not incidental: two
-Sandboxes on one ref would fight at push time on any backend, and the desktop
-worktree backend can't even represent it.) Rendered in the sidebar by its
-branch's name. Lives in the room's Y.Doc as the `branches` collection
-(`BranchData`).
+and the Engine that drives it. Each Branch maps to exactly one git branch, but
+the inverse is deliberately **unenforced**: the same ref may back any number of
+Branches across Repos and Rooms (open a branch in a second Room to show it off,
+or under a second Repo targeting another monorepo project), each with its own
+Sandbox. Concurrent Sandboxes on one ref coordinate through git the way human
+collaborators do — a non-fast-forward push is rejected and the agent pulls and
+resolves; nothing is overwritten silently so long as agents don't force-push.
+Rendered in the sidebar by its branch's name. Lives in the room's Y.Doc as the
+`branches` collection (`BranchData`).
 _Shown to users as_: "Workspace".
-_Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run.
+_Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run;
+treating one-Sandbox-per-ref as an invariant (it was never the domain rule, only
+an artifact of the worktree-per-branch layout, which per-Branch clones replace).
 
 **Sandbox**:
 The environment a Branch's repo is checked out into — where the agent reads
@@ -62,8 +66,8 @@ and edits files, runs commands, and serves the dev-server previews the Iframe
 Layers point at. One per Branch, provisioned on demand. **Durability is
 provider-dependent** (see Sandbox Provider): the hosted Vercel backend backs it
 with an ephemeral VM that is reclaimed when idle, so its contents aren't durable
-and work worth keeping must be committed and pushed; the desktop worktree backend
-backs it with a git worktree on the host disk, which _is_ durable across restarts
+and work worth keeping must be committed and pushed; the desktop local backend
+backs it with a per-Branch checkout on the host disk, which _is_ durable across restarts
 (the checkout and its uncommitted edits survive) even though that backend can't
 hibernate. Either way a Sandbox never outlives its Branch. A Sandbox may also
 preserve its working tree across a restart on a hibernating provider.
@@ -74,20 +78,35 @@ Branch itself; calling its contents "never durable" (true only for the Vercel VM
 **Sandbox Provider**:
 The swappable backend that creates and reconnects Sandboxes. There are now
 **two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop
-**worktree** backend (a git worktree on the host, non-hibernating), selected at
-build time by `SANDBOX_BACKEND`. The surface is split into a **portable core**
+**local** backend (an independent per-Branch clone on the host, hardlinked
+against a shared per-source mirror so one ref can back many Sandboxes;
+non-hibernating), selected at build time by `SANDBOX_BACKEND`.
+The surface is split into a **portable core**
 (the operations every conceivable backend can honor) and an optional
 **Hibernation** capability: freezing a Sandbox's filesystem when it goes idle and
 thawing it on return, which is what preserves uncommitted work across a _restart_.
 A provider that can't hibernate is not disqualified — it degrades to recloning the
 repo fresh, so on it a Sandbox Restart fails loud and Recreate (delete + re-add)
-is the live rebuild path. The worktree backend is the first real second provider,
+is the live rebuild path. The local backend is the first real second provider,
 the event ADR 0003 named as the trigger that justifies paying for backend
 selection. The split exists so the seam tells the truth about what a second
 provider actually costs.
 _Avoid_: driver, adapter (casual); naming a specific SDK; treating Hibernation as
 guaranteed (it is an optional capability, not part of the core); saying "Vercel,
 the only one" (a second backend has landed).
+
+**Dev Server Port**:
+The port the Repo's one target project serves its preview on — a logical name,
+not an address. Each Sandbox maps it to the port the dev server is actually
+reachable on (identity on a backend with its own network namespace, a per-Branch
+allocated port on the local backend) and hands the real value to the dev
+script as `$SCREENPLAY_PORT`. The dev script lives in the Repo's config, not the
+repo's source, and is expected to forward it (`--port $SCREENPLAY_PORT`); a
+script that ignores it is unsupported for multi-Branch desktop previews and
+fails loud, not with a dead iframe.
+_Avoid_: assuming the configured number is the bound port; multiple preview
+targets per Repo (a Repo targets one project — point a second Repo at the same
+source for another project); asking users to modify their repo's own scripts.
 
 **Thumbnail Capturer**:
 The swappable seam that turns a Room's render URL into a raw screenshot buffer
@@ -161,7 +180,7 @@ snapshot-restoring onto a new VM (the Hibernation path). It is snapshot-only and
 **fails loud** on a snapshot miss: it never silently reclones, because a restart
 must not discard un-pushed work (see ADR 0005). Disabled while the Agent is
 working, since it cycles the VM mid-turn. **Exists only where Hibernation does**:
-on a non-hibernating provider (the desktop worktree backend) the action is hidden
+on a non-hibernating provider (the desktop local backend) the action is hidden
 entirely — there is no VM to cycle, so the offered restarts there are Dev Server
 Restart and Recreate.
 _Shown to users as_: "Restart sandbox".
@@ -236,7 +255,7 @@ its _scrollback_ is never persisted and dies with the sandbox. The **transport
 behind it is provider-dependent**, chosen at build time by `SANDBOX_BACKEND` and
 hidden behind one unchanged client + wire codec (`ttyd-protocol.ts`): the hosted
 Vercel backend runs an in-sandbox **ttyd** daemon over a `domain(port)` URL and
-reattaches via a per-tab in-sandbox **tmux session**; the desktop worktree
+reattaches via a per-tab in-sandbox **tmux session**; the desktop local
 backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 (`lib/terminal/local/`) and reattaches because that PTY simply outlives the
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here

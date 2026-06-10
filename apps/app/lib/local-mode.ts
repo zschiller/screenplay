@@ -16,7 +16,7 @@
  * branch, so the hosted build carries no desktop code and vice versa.
  *
  * This is a sibling of the per-seam backend switches the local build already
- * sets — `SANDBOX_BACKEND=worktree`, `SCREENPLAY_DB=pglite`,
+ * sets — `SANDBOX_BACKEND=local`, `SCREENPLAY_DB=pglite`,
  * `NEXT_PUBLIC_YJS_HOST=local` — but it gates an app-level *capability* (the
  * access model), not a swappable backend, so it gets its own flag.
  */

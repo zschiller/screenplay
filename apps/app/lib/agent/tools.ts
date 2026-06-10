@@ -312,7 +312,7 @@ async function getRepoSkillFs(ctx: ToolContext): Promise<RepoSkillFs | null> {
  * every push from this turn is attributed to whichever collaborator triggered
  * the command — not to whoever first provisioned the (shared) sandbox.
  *
- * On the local worktree backend this is a no-op: git runs as a host process and
+ * On the local backend this is a no-op: git runs as a host process and
  * authenticates through the user's own credentials (credential helper / SSH /
  * `gh`), so there is no per-command token to broker.
  */

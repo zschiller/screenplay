@@ -20,7 +20,8 @@ SCREENPLAY_DESKTOP=1            # emit `output: standalone`
 NEXT_PUBLIC_SCREENPLAY_LOCAL=1  # strip the multi-user surface
 NEXT_PUBLIC_YJS_HOST=local      # local y-websocket host
 NEXT_PUBLIC_BASE_PATH=          # served at the origin root (no /app proxy)
-SANDBOX_BACKEND=worktree        # Branches = local git worktrees
+SANDBOX_BACKEND=local           # Branches = per-Branch git clones on the host
+                                # ("worktree", the old value, still accepted)
 SCREENPLAY_DB=pglite            # embedded Postgres
 BLOB_STORE=local-fs             # thumbnails to local disk
 AGENT_ENGINE=external           # chat via the installed CLI's ACP adapter
