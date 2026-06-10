@@ -7,7 +7,7 @@
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "pnpm build:sidecar && tauri build"
+    "build": "pnpm build:sidecar && tauri build --config src-tauri/tauri.release.conf.json"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
