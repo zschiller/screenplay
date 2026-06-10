@@ -2443,20 +2443,26 @@ function RepoSettings({
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Dev server port
-        </label>
-        <input
-          type="number"
-          min={1}
-          max={65535}
-          value={devServerPort}
-          onChange={(e) => setDevServerPort(e.target.value)}
-          placeholder="3000"
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-        />
-      </div>
+      {/* On the desktop build the configured port is a logical key only —
+          portless assigns and delivers the real port (ADR 0010) — so there
+          is nothing for the user to set. Hosted keeps the field: there the
+          dev server must bind this exact port. */}
+      {!isLocalBuild && (
+        <div>
+          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
+            Dev server port
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={devServerPort}
+            onChange={(e) => setDevServerPort(e.target.value)}
+            placeholder="3000"
+            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
+          />
+        </div>
+      )}
 
       {isLocalBuild ? (
         // Desktop mode: instead of spelling env vars out, glob patterns of

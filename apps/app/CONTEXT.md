@@ -101,14 +101,18 @@ the only one" (a second backend has landed).
 The port the Repo's one target project serves its preview on — a logical name,
 not an address. Each Sandbox maps it to the port the dev server is actually
 reachable on (identity on a backend with its own network namespace, a per-Branch
-allocated port on the local backend) and hands the real value to the dev
-script as `$SCREENPLAY_PORT`. The dev script lives in the Repo's config, not the
-repo's source, and is expected to forward it (`--port $SCREENPLAY_PORT`); a
-script that ignores it is unsupported for multi-Branch desktop previews and
-fails loud, not with a dead iframe.
-_Avoid_: assuming the configured number is the bound port; multiple preview
-targets per Repo (a Repo targets one project — point a second Repo at the same
-source for another project); asking users to modify their repo's own scripts.
+allocated port on the local backend). How the real value reaches the dev script
+is per-backend: hosted hands it as `$SCREENPLAY_PORT` (and `$PORT`) and expects
+the script to forward it; the local backend runs the script under **portless**
+pinned to the allocated port, so the script gets the standard `$PORT` (or a
+recognized framework flag) and no Screenplay-specific var exists. The dev
+script lives in the Repo's config, not the repo's source. A dev server that
+never binds its assigned port is unsupported for multi-Branch desktop previews
+and fails loud, not with a dead iframe.
+_Avoid_: assuming the configured number is the bound port; `$SCREENPLAY_PORT`
+on the local backend (it is hosted-only now); multiple preview targets per Repo
+(a Repo targets one project — point a second Repo at the same source for
+another project); asking users to modify their repo's own scripts.
 
 **Thumbnail Capturer**:
 The swappable seam that turns a Room's render URL into a raw screenshot buffer

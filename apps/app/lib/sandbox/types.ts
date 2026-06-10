@@ -169,9 +169,11 @@ export interface SandboxInstance {
    * whose sandbox owns its network namespace (the hosted Vercel VM) this is the
    * identity. On the local backend every Sandbox shares the host's network, so
    * each logical port maps to a distinct allocated host port — stable per
-   * Sandbox, distinct across Sandboxes. The resolved Dev Server Port is what the
-   * dev command receives as `$SCREENPLAY_PORT` / `$PORT`, what the bridge proxy
-   * binds and upstreams to, and what the terminal daemon listens on. Callers
+   * Sandbox, distinct across Sandboxes. The resolved Dev Server Port is what
+   * the dev server must bind (hosted: handed to the dev command as
+   * `$SCREENPLAY_PORT` / `$PORT`; local: pinned via portless `--app-port`),
+   * what the bridge proxy binds and upstreams to, and what the terminal
+   * daemon listens on. Callers
    * must never assume logical == bound; `domain(port)` keeps taking the
    * *logical* port and does its own mapping.
    */

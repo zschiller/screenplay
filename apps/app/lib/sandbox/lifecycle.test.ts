@@ -793,7 +793,8 @@ describe("ensurePreviewLive", () => {
     ).rejects.toThrow("relaunch boom")
   })
 
-  // Ignored-port detection: a dev script that doesn't forward $SCREENPLAY_PORT
+  // Ignored-port detection: a dev server that never binds the port portless
+  // assigned it (a script ignoring $PORT, or portless failing to launch)
   // leaves the proxy up (it binds its resolved port fine) while the dev server
   // refuses every connection on the resolved dev port. Only meaningful where
   // logical ≠ bound — the local backend's mapped seam.
@@ -811,7 +812,7 @@ describe("ensurePreviewLive", () => {
       ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
     ).rejects.toMatchObject({
       name: "DevServerPortIgnoredError",
-      message: expect.stringContaining("$SCREENPLAY_PORT"),
+      message: expect.stringContaining("portless"),
     })
     // Relaunching the same script onto the same wrong port can't fix it, so
     // nothing was relaunched — the failure surfaces instead of a dead iframe.

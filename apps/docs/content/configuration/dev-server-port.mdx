@@ -1,48 +1,68 @@
-# Dev script port contract (`$SCREENPLAY_PORT`)
+# Dev script port contract
 
 Every workspace runs your project's dev server inside its own sandbox and
 renders it in a live preview frame. Screenplay assigns each sandbox the port its
-dev server must listen on, and hands the real value to your **dev script** (the
+dev server must listen on. How that port reaches your **dev script** (the
 command configured in the Project settings — Screenplay's own config, never your
-repo's source) as two environment variables:
+repo's source) depends on where the sandbox runs.
+
+## Desktop app: portless
+
+On the desktop app every sandbox runs directly on your machine, and Screenplay
+runs your dev script under [portless](https://portless.sh), pinned to the
+sandbox's allocated port. Portless hands the port to your script the standard
+way — the **`PORT`** environment variable:
+
+```bash
+# Next.js, CRA, Express, Nuxt — frameworks that honor $PORT
+npm run dev          # nothing to forward
+
+# Vite and other tools that ignore $PORT
+vite --port $PORT --strictPort
+
+# Custom server
+node server.js --port $PORT
+```
+
+Portless also registers a stable named URL for each workspace's dev server
+(e.g. `https://my-branch.my-app.localhost` — the branch name becomes a
+subdomain because each workspace is a git worktree). `portless list` shows the
+active routes; the workspace preview itself doesn't depend on these URLs.
+
+**One-time setup**: portless ships with the desktop app, but its local proxy
+daemon must be running for dev servers to launch. Run `npx portless proxy
+start` once in a terminal (it asks for sudo to bind port 443 and to trust its
+local HTTPS certificate), or `npx portless service install` to start it on
+boot.
+
+## Hosted backend: `$SCREENPLAY_PORT`
+
+On the hosted backend every sandbox is its own VM. Screenplay hands the
+assigned port to your dev script as two environment variables:
 
 - **`SCREENPLAY_PORT`** — the port your dev server must bind.
 - **`PORT`** — the same value, for frameworks that honor `PORT` natively.
 
-Your dev script should forward it explicitly:
-
 ```bash
-# Next.js
 next dev --port $SCREENPLAY_PORT
-
-# Vite
 vite --port $SCREENPLAY_PORT --strictPort
-
-# Create React App / frameworks that read $PORT
-npm start            # PORT is already set — nothing to forward
-
-# Custom server
-node server.js --port $SCREENPLAY_PORT
 ```
 
-If the dev script is left empty, Screenplay runs `npm run dev`; that works only
-when your `dev` script honors `$PORT` or defaults to the configured port on a
-backend where that's enough (see below).
+Because each hosted sandbox has its own network namespace, the assigned port
+resolves to the configured dev server port itself (an identity value) — a dev
+script that just honors `$PORT`, or even one that binds its default port,
+usually works there. A script that honors `$PORT` is therefore portable across
+both backends.
+
+If the dev script is left empty, Screenplay runs `npm run dev`.
 
 ## Why this exists
 
-On the **hosted backend** every sandbox is its own VM, so each dev server can
-bind its default port and `$SCREENPLAY_PORT` resolves to the configured dev
-server port itself (an identity value). A dev script that ignores it usually
-still works there — which is why one Project config is portable across both
-backends.
-
-On the **desktop app** every sandbox runs directly on your machine and shares
-your host's network. Two workspaces' dev servers would fight over port 3000, so
-Screenplay allocates each sandbox a distinct host port and expects the dev
-script to bind it. That allocated port is exactly what the workspace's preview
-URL points at — if the dev server binds its default port instead, nothing is
-listening where the preview looks.
+On the desktop app every sandbox shares your host's network. Two workspaces'
+dev servers would fight over port 3000, so Screenplay allocates each sandbox a
+distinct host port and portless makes your dev server bind it. That allocated
+port is exactly what the workspace's preview URL points at — if the dev server
+binds its default port instead, nothing is listening where the preview looks.
 
 Screenplay deliberately does **not** containerize desktop sandboxes or rewrite
 your repo's own scripts: sandboxes run on your machine so your already
@@ -52,11 +72,13 @@ your project.
 
 ## The failure mode, named
 
-A dev script that ignores `$SCREENPLAY_PORT` on the desktop app fails loud
+A dev server that never binds its assigned port on the desktop app fails loud
 instead of leaving a dead preview: when the sandbox's proxy is up but the dev
-server never listens on its assigned port, the workspace surfaces a
-`DevServerPortIgnoredError` telling you to forward `$SCREENPLAY_PORT`. Fix the
-dev script in the Project settings, then use **Restart dev server**.
+server never listens, the workspace surfaces a `DevServerPortIgnoredError`.
+Check the workspace's Logs panel — it shows portless's own output, which tells
+apart the two causes: a dev script that ignores `$PORT` (fix the dev script in
+the Project settings) and a portless proxy daemon that isn't running (run
+`npx portless proxy start` once). Then use **Restart dev server**.
 
 ## Monorepos
 
@@ -65,12 +87,30 @@ the project you're working on. Filter monorepo fan-out scripts down to that one
 target so a single server binds the assigned port:
 
 ```bash
-# turborepo
-turbo run dev --filter=web -- --port $SCREENPLAY_PORT
+# turborepo (desktop: $PORT, hosted: $SCREENPLAY_PORT)
+turbo run dev --filter=web -- --port $PORT
 
 # pnpm workspace
-pnpm --filter web dev -- --port $SCREENPLAY_PORT
+pnpm --filter web dev -- --port $PORT
 ```
+
+Note for turborepo: pass the port as a flag, as above — don't rely on the
+`$PORT` environment variable reaching the task. Two common conventions defeat
+the env var:
+
+- **Turborepo 2's strict env mode** strips undeclared variables from task
+  environments. `$PORT` in the dev script expands in the shell *before* turbo
+  runs, so the flag form always works.
+- **Hardcoded ports in workspace dev scripts** (`"dev": "next dev --port
+  3001"` — the usual way turborepo apps avoid colliding with each other). An
+  explicit flag beats the `$PORT` env var, so the dev server would bind 3001
+  instead of its assigned port. The appended flag fixes this too: for Next.js
+  and Vite the *last* `--port` wins, so `pnpm --filter web dev -- --port
+  $PORT` overrides the hardcoded one without any change to the repo.
+
+No portless config or dependency is needed inside your repo: Screenplay
+invokes portless externally with an explicit command, not portless's own
+monorepo workflow (which is what `portless.json` is for).
 
 Want to work on a second project of the same monorepo (say `docs` next to
 `web`)? Add a **second Project** pointing at the same repository with its own

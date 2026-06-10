@@ -15,6 +15,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { isLocalBuild } from "@/lib/local-mode"
 
 type Mode =
   | { kind: "list" }
@@ -143,9 +144,13 @@ export function RepoConfigsDialog({
                                   default
                                 </span>
                               )}
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                port {config.devServerPort}
-                              </span>
+                              {/* Desktop hides the port: it's a logical key
+                                  there — portless assigns the real one. */}
+                              {!isLocalBuild && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  port {config.devServerPort}
+                                </span>
+                              )}
                             </div>
                             <Button
                               variant="ghost"
