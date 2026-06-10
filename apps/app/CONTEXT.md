@@ -90,15 +90,16 @@ guaranteed (it is an optional capability, not part of the core); saying "Vercel,
 the only one" (a second backend has landed).
 
 **Declared Port**:
-A port a Repo names in its dev contract: the dev-server port the default preview
-renders, plus any additional services its dev script brings up (a monorepo's api,
-docs site, …). A Declared Port is a logical name, not an address — each Sandbox
-maps it to the port that service is actually reachable on (identity on a backend
-with its own network namespace), and the dev script must take its bind ports and
-cross-service URLs from that mapping rather than the literal number.
+A port a Repo names in its dev contract: the dev-server port of the one monorepo
+project the Repo targets (the port the preview renders), plus any other ports its
+dev script still occupies (siblings a fan-out like `turbo dev` brings up). A
+Declared Port is a logical name, not an address — each Sandbox maps it to the
+port that service is actually reachable on (identity on a backend with its own
+network namespace), and the dev script must take its bind ports and cross-service
+URLs from that mapping rather than the literal number.
 _Avoid_: assuming the declared number is the bound port; bare "port" where the
-declared-vs-actual distinction matters; treating the mapping as backend plumbing
-(it is the contract every backend honors, the worktree one non-trivially).
+declared-vs-actual distinction matters; treating extra declared ports as preview
+targets (a Repo targets one project; the rest are collision bookkeeping).
 
 **Thumbnail Capturer**:
 The swappable seam that turns a Room's render URL into a raw screenshot buffer
