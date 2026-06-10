@@ -30,18 +30,31 @@ impl Sidecar {
     }
 }
 
-/// Extract the bundled sidecar, pick a port, start the control server, and spawn
-/// `node server.js` wired to the desktop backend profile.
+/// Pick a port, start the control server, and spawn the Next server wired to
+/// the desktop backend profile. Debug builds (`tauri dev`) run the repo's
+/// `next dev` for live reload; release builds (and dev with
+/// `SCREENPLAY_BUNDLED_SIDECAR=1`) extract and run the bundled standalone tree.
 pub fn launch(app: &AppHandle) -> Result<Sidecar, Box<dyn Error>> {
-    let dir = extract(app)?;
     let port = free_port()?;
     let control = ControlServer::start(app.clone())?;
-    let child = spawn(app, &dir, port, &control.url())?;
+    let child = if use_dev_server() {
+        spawn_dev(app, port, &control.url())?
+    } else {
+        let dir = extract(app)?;
+        spawn(app, &dir, port, &control.url())?
+    };
     Ok(Sidecar {
         port,
         child,
         control,
     })
+}
+
+/// Live `next dev` in debug builds, unless the developer opts back into the
+/// packaged tarball to test the production path (`SCREENPLAY_BUNDLED_SIDECAR=1
+/// pnpm --filter desktop dev` after a `build:sidecar`).
+fn use_dev_server() -> bool {
+    cfg!(debug_assertions) && std::env::var_os("SCREENPLAY_BUNDLED_SIDECAR").is_none()
 }
 
 /// An OS-assigned free localhost port. The listener is dropped immediately and
@@ -124,17 +137,61 @@ fn ensure_executable(path: &std::path::Path) {
     }
 }
 
-/// Spawn `node apps/app/server.js` with the desktop backend profile. The seam
-/// selectors mirror `apps/desktop/desktop.env`; the machine-specific paths and
-/// the control URL are computed here (they can't live in a committed file).
+/// Spawn `node apps/app/server.js` with the desktop backend profile.
 fn spawn(
     app: &AppHandle,
     dir: &std::path::Path,
     port: u16,
     control_url: &str,
 ) -> Result<Child, Box<dyn Error>> {
-    let data = app.path().app_data_dir()?;
     let app_root = dir.join("apps").join("app");
+
+    let mut cmd = Command::new(dir.join("node"));
+    cmd.arg(app_root.join("server.js"))
+        .current_dir(&app_root)
+        // A packaged .app launches with a minimal PATH; the agent path shells
+        // out to `npx` for the ACP adapter, so prepend the usual node install
+        // locations (and the bundled node's own dir) to the inherited PATH.
+        .env("PATH", augmented_path(dir));
+    apply_desktop_env(&mut cmd, app, port, control_url, &app_root)?;
+
+    Ok(cmd.spawn()?)
+}
+
+/// Spawn the repo's `next dev --turbopack` (debug builds only): app changes
+/// hot-reload instead of requiring a `build:sidecar` round-trip. Same desktop
+/// profile as the packaged sidecar, plus the two vars `build-sidecar.mjs` bakes
+/// in at build time — set as process env here so they beat any hosted-dev
+/// `.env.local` (Next never overrides existing process env).
+fn spawn_dev(app: &AppHandle, port: u16, control_url: &str) -> Result<Child, Box<dyn Error>> {
+    // src-tauri/ → desktop/ → apps/ → repo root. Compile-time path is fine
+    // here: dev builds only run on the machine that compiled them.
+    let app_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("app");
+
+    let mut cmd = Command::new(app_root.join("node_modules").join(".bin").join("next"));
+    cmd.args(["dev", "--turbopack"])
+        .current_dir(&app_root)
+        .env("SCREENPLAY_DESKTOP", "1")
+        .env("NEXT_PUBLIC_BASE_PATH", "");
+    apply_desktop_env(&mut cmd, app, port, control_url, &app_root)?;
+
+    Ok(cmd.spawn()?)
+}
+
+/// The desktop backend profile, shared by the packaged and dev spawns. The seam
+/// selectors mirror `apps/desktop/desktop.env`; the machine-specific paths and
+/// the control URL are computed here (they can't live in a committed file).
+fn apply_desktop_env(
+    cmd: &mut Command,
+    app: &AppHandle,
+    port: u16,
+    control_url: &str,
+    app_root: &std::path::Path,
+) -> Result<(), Box<dyn Error>> {
+    let data = app.path().app_data_dir()?;
 
     let pglite = data.join("pglite");
     let yjs = data.join("yjs");
@@ -147,10 +204,7 @@ fn spawn(
     // otherwise get from deployment config.
     let secrets = crate::secrets::load_or_create(&data)?;
 
-    let mut cmd = Command::new(dir.join("node"));
-    cmd.arg(app_root.join("server.js"))
-        .current_dir(&app_root)
-        .env("PORT", port.to_string())
+    cmd.env("PORT", port.to_string())
         .env("HOSTNAME", "127.0.0.1")
         // The single desktop switch (matches desktop.env's runtime half).
         .env("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
@@ -170,18 +224,19 @@ fn spawn(
         .env("PGLITE_MIGRATIONS_DIR", app_root.join("drizzle").join("local"))
         .env("YJS_PERSISTENCE_DIR", &yjs)
         .env("LOCAL_BLOB_DIR", &blobs)
-        .env("LOCAL_BLOB_BASE_URL", format!("http://127.0.0.1:{port}/blobs"))
+        // Origin-relative on purpose: blob URLs are persisted in room rows, and
+        // the port is random per launch — an absolute URL would strand every
+        // previously captured thumbnail on a dead origin after a restart. The
+        // webview always loads from the sidecar's own origin, so a bare path
+        // resolves correctly whatever this launch's port is.
+        .env("LOCAL_BLOB_BASE_URL", "/blobs")
         .env("BETTER_AUTH_URL", format!("http://127.0.0.1:{port}"))
         // Per-install secrets (see secrets.rs).
         .env("ENCRYPTION_KEY", &secrets.encryption_key)
         .env("THUMBNAIL_RENDER_SECRET", &secrets.thumbnail_render_secret)
-        .env("TERMINAL_AUTH_SECRET", &secrets.terminal_auth_secret)
-        // A packaged .app launches with a minimal PATH; the agent path shells
-        // out to `npx` for the ACP adapter, so prepend the usual node install
-        // locations (and the bundled node's own dir) to the inherited PATH.
-        .env("PATH", augmented_path(dir));
+        .env("TERMINAL_AUTH_SECRET", &secrets.terminal_auth_secret);
 
-    Ok(cmd.spawn()?)
+    Ok(())
 }
 
 /// Prepend common node-install bin dirs (+ the bundled node's dir) to PATH so a
