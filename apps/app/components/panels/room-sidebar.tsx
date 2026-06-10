@@ -1679,15 +1679,27 @@ export function RoomSidebar({
                                                                 )
                                                                   return
                                                                 // Renaming onto a branch that already exists on the
-                                                                // remote would hijack its history, so that stays
-                                                                // blocked. Another open Branch holding the name is
-                                                                // NOT a conflict: Branches dedup by identity, never
-                                                                // by ref — any number may share one.
+                                                                // remote would hijack its history, so that's always
+                                                                // blocked. On the desktop build a name another open
+                                                                // Branch holds is blocked too: the local backend
+                                                                // keeps one checkout per ref (worktrees, ADR 0009),
+                                                                // so the rename would collide at provision time. The
+                                                                // hosted backend has no such limit.
                                                                 const remote =
                                                                   remoteBranchesByRepo.get(
                                                                     repo.id
                                                                   )
+                                                                const localTaken =
+                                                                  isLocalBuild &&
+                                                                  repoBranches.some(
+                                                                    (a) =>
+                                                                      a.id !==
+                                                                        branch.id &&
+                                                                      a.ref ===
+                                                                        sanitized
+                                                                  )
                                                                 if (
+                                                                  localTaken ||
                                                                   remote?.has(
                                                                     sanitized
                                                                   )
