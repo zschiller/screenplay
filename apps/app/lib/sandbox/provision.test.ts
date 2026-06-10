@@ -658,7 +658,7 @@ describe("startDevServer", () => {
     expect(devSh).toContain("setsid")
     // The PID recorded for the stop path is the backgrounded supervisor's `$!`,
     // written to the dev pidfile — i.e. the loop, not the transient dev child.
-    expect(devSh).toContain("echo $! > /tmp/screenplay/dev.pid")
+    expect(devSh).toContain("echo $! > /tmp/screenplay/fake-sandbox/dev.pid")
   })
 
   it("group-kills any prior dev/proxy supervisor before launching, so a relaunch doesn't stack a second server", async () => {
@@ -673,8 +673,8 @@ describe("startDevServer", () => {
       const sh = c.args.join(" ")
       return (
         sh.includes("kill -KILL") &&
-        sh.includes("/tmp/screenplay/dev.pid") &&
-        sh.includes("/tmp/screenplay/proxy.pid")
+        sh.includes("/tmp/screenplay/fake-sandbox/dev.pid") &&
+        sh.includes("/tmp/screenplay/fake-sandbox/proxy.pid")
       )
     })
     expect(killIdx).toBeGreaterThanOrEqual(0)
