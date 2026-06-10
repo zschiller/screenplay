@@ -57,8 +57,14 @@ export function FilesView() {
 
   return (
     <div className="flex h-svh min-h-0 flex-1 flex-col">
-      <header className="flex h-14 items-center bg-background">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4">
+      <header
+        data-tauri-drag-region
+        className="flex h-14 items-center bg-background"
+      >
+        <div
+          data-tauri-drag-region
+          className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4"
+        >
           <div className="flex items-center gap-2">
             {selectedId === PINNED_VIEW_ID && <Pin className="size-4" />}
             <h1 className="text-base font-semibold">{selectionLabel}</h1>

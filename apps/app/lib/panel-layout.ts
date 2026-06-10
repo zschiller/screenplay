@@ -28,16 +28,6 @@ export function parsePanelLayoutValue(
   return undefined
 }
 
-export function readPanelLayout(groupId: string): PanelLayout | undefined {
-  if (typeof document === "undefined") return undefined
-  const name = panelLayoutCookieName(groupId)
-  const match = document.cookie
-    .split(/;\s*/)
-    .find((c) => c.startsWith(`${name}=`))
-  if (!match) return undefined
-  return parsePanelLayoutValue(match.slice(name.length + 1))
-}
-
 export function writePanelLayout(groupId: string, layout: PanelLayout): void {
   if (typeof document === "undefined") return
   const value = encodeURIComponent(JSON.stringify(layout))
