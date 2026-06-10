@@ -5,15 +5,18 @@ import { dirname, join } from "node:path"
 import type { BlobStore, PutResult } from "./types"
 
 const DEFAULT_DIR = ".screenplay/blobs"
-const DEFAULT_BASE_URL = "http://localhost:3000/blobs"
+const DEFAULT_BASE_URL = "/blobs"
 
 export type LocalFsBlobStoreConfig = {
   /** Directory blobs are written under (created on demand). */
   dir: string
   /**
-   * Public base URL `dir` is served from on localhost. The returned
-   * `PutResult.url` is `${baseUrl}/${key}`, so this must match however the
-   * desktop sidecar exposes `dir` over localhost.
+   * Base URL `dir` is served from. The returned `PutResult.url` is
+   * `${baseUrl}/${key}`, so this must match however the desktop sidecar
+   * exposes `dir`. Origin-relative (`/blobs`) on purpose: the URL is
+   * persisted (room thumbnail rows) and the sidecar's port is random per
+   * launch, so an absolute URL would go stale on the next restart. Consumers
+   * load it from the sidecar's own origin, where a bare path always resolves.
    */
   baseUrl: string
 }
