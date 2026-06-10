@@ -1,5 +1,9 @@
 import "server-only"
 
+import { chmodSync, existsSync } from "node:fs"
+import { createRequire } from "node:module"
+import path from "node:path"
+
 import { spawn, type IPty } from "node-pty"
 
 /**
@@ -74,6 +78,32 @@ interface Session {
 
 function defaultShell(): string {
   return process.env.SHELL || "/bin/bash"
+}
+
+/**
+ * node-pty 1.1.0's npm tarball ships the darwin `spawn-helper` prebuild without
+ * the executable bit, and nothing in the package restores it. On macOS the
+ * shell is exec'd *through* that helper, so every spawn fails with
+ * `posix_spawnp failed.` until the mode is repaired. Run once before the first
+ * spawn; best-effort — if it can't fix the mode, the spawn fails loudly anyway.
+ */
+let spawnHelperEnsured = false
+function ensureSpawnHelperExecutable(): void {
+  if (spawnHelperEnsured || process.platform !== "darwin") return
+  spawnHelperEnsured = true
+  try {
+    const req = createRequire(path.join(process.cwd(), "package.json"))
+    const pkgDir = path.dirname(req.resolve("node-pty/package.json"))
+    for (const dir of [
+      path.join(pkgDir, "prebuilds", `darwin-${process.arch}`),
+      path.join(pkgDir, "build", "Release"),
+    ]) {
+      const helper = path.join(dir, "spawn-helper")
+      if (existsSync(helper)) chmodSync(helper, 0o755)
+    }
+  } catch {
+    // Resolution can fail in exotic bundles; the spawn error then surfaces it.
+  }
 }
 
 /** Append to a session's replay buffer, keeping only the trailing window. */
@@ -161,6 +191,7 @@ export class TerminalSessions {
   }
 
   private spawn(opts: AttachOptions): Session {
+    ensureSpawnHelperExecutable()
     const [file, ...args] =
       opts.command && opts.command.length > 0
         ? opts.command
