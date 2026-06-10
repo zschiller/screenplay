@@ -248,9 +248,9 @@ describe("ensureTerminal", () => {
     expect(launch).toBeDefined()
     const cmd = script(launch!)
     // ttyd's connection/diagnostic chatter lands in its own terminal log…
-    expect(cmd).toContain("/tmp/screenplay/terminal.log")
-    // …never the shared sandbox log the logs tab streams.
-    expect(cmd).not.toContain("/tmp/screenplay/sandbox.log")
+    expect(cmd).toContain("/tmp/screenplay/fake-sandbox/terminal.log")
+    // …never the sandbox log the logs tab streams.
+    expect(cmd).not.toContain("/tmp/screenplay/fake-sandbox/sandbox.log")
   })
 
   it.each([

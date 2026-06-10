@@ -1,7 +1,10 @@
 "use server"
 
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
-import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
+import {
+  sandboxStateDir,
+  TERMINAL_PORT,
+} from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { SandboxInstance } from "@/lib/sandbox/types"
@@ -35,16 +38,17 @@ function ttydUrl(arch: string): string {
 }
 // Pidfile for the daemon. Written under `setsid` so the recorded PID equals the
 // process-group leader, and read back by the liveness probe to decide whether a
-// launch is needed.
-const TTYD_PIDFILE = "/tmp/screenplay/terminal.pid"
+// launch is needed. Per-Sandbox (see `sandboxStateDir`) so two Branches sharing
+// the local backend's host filesystem don't clobber each other's pidfile.
+const terminalPidPath = (name: string) => `${sandboxStateDir(name)}/terminal.pid`
 
 // The terminal daemon's own stdout/stderr (ttyd's connection/diagnostic chatter)
-// goes here rather than the shared sandbox log. The logs tab streams
-// `SANDBOX_LOG_PATH`, and ttyd's daemon logging isn't sandbox output the operator
-// wants to read there — the terminal's real content is the PTY served over the
-// WebSocket, never this stream. Kept as a file (not /dev/null) so it's still
-// available for debugging.
-const TERMINAL_LOG_PATH = "/tmp/screenplay/terminal.log"
+// goes here rather than the sandbox log. The logs tab streams the sandbox log,
+// and ttyd's daemon logging isn't sandbox output the operator wants to read
+// there — the terminal's real content is the PTY served over the WebSocket,
+// never this stream. Kept as a file (not /dev/null) so it's still available for
+// debugging, and per-Sandbox so Branches don't interleave their daemon chatter.
+const terminalLogPath = (name: string) => `${sandboxStateDir(name)}/terminal.log`
 
 // Pin a known-good static `tmux` build. The base @vercel/sandbox image ships
 // NO `tmux` (confirmed by spike #255 and re-confirmed on a live sandbox — see
@@ -213,7 +217,7 @@ async function ensureTmuxInstalled(
 async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
   const probe = await step(sandbox, "sh", [
     "-c",
-    `kill -0 "$(cat ${TTYD_PIDFILE} 2>/dev/null)" 2>/dev/null && echo running || echo stopped`,
+    `kill -0 "$(cat ${terminalPidPath(sandbox.name)} 2>/dev/null)" 2>/dev/null && echo running || echo stopped`,
   ])
   return (await probe.stdout()).trim() === "running"
 }
@@ -234,7 +238,7 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
  * `setsid` makes the daemon its own session leader so the recorded PID is the
  * process group; `& disown` returns the outer shell immediately while the
  * daemon keeps running. The daemon's output goes to its own
- * {@link TERMINAL_LOG_PATH}, not the shared sandbox log, so ttyd's connection
+ * {@link terminalLogPath}, not the sandbox log, so ttyd's connection
  * chatter never shows up in the logs tab.
  *
  * `tmux -u` forces UTF-8 output regardless of the sandbox's detected locale. The
@@ -257,12 +261,12 @@ async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
     cmd: "sh",
     args: [
       "-c",
-      `mkdir -p /tmp/screenplay; ` +
+      `mkdir -p /tmp/screenplay ${sandboxStateDir(sandbox.name)}; ` +
         `printf 'set -g status off\\n' > ${TMUX_CONF}; ` +
         `setsid ${TTYD_BIN} --writable --url-arg --port ${terminalPort} ` +
         `${TMUX_BIN} -u -f ${TMUX_CONF} new -A -s ` +
-        `</dev/null >> ${TERMINAL_LOG_PATH} 2>&1 & ` +
-        `echo $! > ${TTYD_PIDFILE}; ` +
+        `</dev/null >> ${terminalLogPath(sandbox.name)} 2>&1 & ` +
+        `echo $! > ${terminalPidPath(sandbox.name)}; ` +
         `disown`,
     ],
     detached: true,

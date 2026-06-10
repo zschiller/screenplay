@@ -1,6 +1,10 @@
 import { getUserId } from "@/lib/auth-helpers"
 import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
+import {
+  sandboxLogPath,
+  sandboxStateDir,
+} from "@/lib/sandbox/provision-internals"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -29,11 +33,12 @@ export async function GET(
   }
 
   const lineArg = followOnly ? "0" : "1000"
+  const logPath = sandboxLogPath(sandbox.name)
   const cmd = await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
-      `mkdir -p /tmp/screenplay && touch /tmp/screenplay/sandbox.log && exec tail -n ${lineArg} -F /tmp/screenplay/sandbox.log`,
+      `mkdir -p ${sandboxStateDir(sandbox.name)} && touch ${logPath} && exec tail -n ${lineArg} -F ${logPath}`,
     ],
     detached: true,
   })

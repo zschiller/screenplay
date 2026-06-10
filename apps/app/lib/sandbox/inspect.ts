@@ -1,10 +1,9 @@
 "use server"
 
 import { isSandboxRunning } from "@/lib/sandbox"
+import { sandboxLogPath } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
-
-const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
 
 /**
  * Read the dev server log file from the sandbox. Returns the last N lines so
@@ -18,7 +17,7 @@ export async function getSandboxLogs(
     if (!isSandboxRunning(sandbox)) return ""
     const result = await step(sandbox, "sh", [
       "-c",
-      `tail -n ${maxLines} ${SANDBOX_LOG_PATH} 2>/dev/null || true`,
+      `tail -n ${maxLines} ${sandboxLogPath(sandbox.name)} 2>/dev/null || true`,
     ])
     return result.stdout()
   })

@@ -19,7 +19,7 @@
 //   4. the `node` binary itself — the shell runs `./node apps/app/server.js`.
 
 import { execFileSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, chmodSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, chmodSync, readdirSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -101,6 +101,13 @@ const ptySrc = join(appDir, "node_modules", "node-pty", "prebuilds")
 const ptyDest = findNodePtyPrebuildsDest(standalone)
 if (!existsSync(ptySrc)) throw new Error(`node-pty prebuilds not found at ${ptySrc}`)
 cpSync(ptySrc, ptyDest, { recursive: true })
+// node-pty's published tarball ships spawn-helper mode 0644; without the exec
+// bit every macOS PTY spawn dies with `posix_spawnp failed.`, so restore it
+// here — the tar below preserves the mode into the shipped sidecar.
+for (const platformDir of readdirSync(ptyDest)) {
+  const helper = join(ptyDest, platformDir, "spawn-helper")
+  if (existsSync(helper)) chmodSync(helper, 0o755)
+}
 
 log("+ node runtime")
 copyFileSync(process.execPath, join(standalone, "node"))

@@ -22,13 +22,38 @@ export const PROXY_PORT_OFFSET = 1000
 // port.
 export const TERMINAL_PORT = 7681
 
-export const SANDBOX_LOG_PATH = "/tmp/screenplay/sandbox.log"
+// Shared host dir for screenplay tooling (the ttyd/tmux binaries, the bridge
+// proxy scripts) — content-identical across Sandboxes and deliberately shared
+// on the local backend's single host filesystem.
+const SCREENPLAY_DIR = "/tmp/screenplay"
+
+/**
+ * Per-Sandbox runtime-state directory under {@link SCREENPLAY_DIR}. On the
+ * hosted backend each Sandbox is its own microVM, so any fixed path is already
+ * unique; on the local (worktree) backend every Sandbox shares the host
+ * filesystem, so per-Sandbox state — the dev/terminal logs and the
+ * dev/proxy/terminal pidfiles — MUST be namespaced by Sandbox name or it
+ * collides across Branches of the same Repo: one Branch's dev-server output
+ * streaming into another's Logs panel, one Branch's stop killing another's dev
+ * server through a shared pidfile. Sandbox names are `sp-<nanoid>`
+ * (alphanumeric/`-`/`_`), always path-safe — no traversal, no slashes from refs.
+ */
+export function sandboxStateDir(name: string): string {
+  return `${SCREENPLAY_DIR}/${name}`
+}
+
+/** Dev-server + provisioning output the Logs panel tails. Per-Sandbox. */
+export function sandboxLogPath(name: string): string {
+  return `${sandboxStateDir(name)}/sandbox.log`
+}
+
 // Pidfiles for the dev server and proxy. Both are launched under `setsid` so
 // their PID equals their PGID — the stop path uses these to SIGKILL the whole
 // process group in one shot, catching every child that a port-based kill
 // would otherwise miss (Next compile workers, esbuild, the proxy respawn loop).
-const PIDFILE_DEV = "/tmp/screenplay/dev.pid"
-const PIDFILE_PROXY = "/tmp/screenplay/proxy.pid"
+// Per-Sandbox (see {@link sandboxStateDir}).
+const devPidPath = (name: string) => `${sandboxStateDir(name)}/dev.pid`
+const proxyPidPath = (name: string) => `${sandboxStateDir(name)}/proxy.pid`
 
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
@@ -70,11 +95,11 @@ function shellQuote(s: string): string {
 }
 
 /**
- * Run a command in the sandbox with stdout+stderr tee'd to the shared
- * sandbox log file so the Logs panel can surface the full startup output
- * (npm install, git pull, dev server, etc.). The command's exit code is
- * preserved. Callers that need stdout content should still use
- * `sandbox.runCommand` directly — this helper discards buffered output.
+ * Run a command in the sandbox with stdout+stderr tee'd to this Sandbox's log
+ * file so the Logs panel can surface the full startup output (npm install, git
+ * pull, dev server, etc.). The command's exit code is preserved. Callers that
+ * need stdout content should still use `sandbox.runCommand` directly — this
+ * helper discards buffered output.
  */
 export async function runLogged(
   sandbox: SandboxInstance,
@@ -86,11 +111,12 @@ export async function runLogged(
     options.label ?? `${cmd}${args.length ? " " + args.join(" ") : ""}`
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
+  const logPath = sandboxLogPath(sandbox.name)
   const sh =
-    `mkdir -p /tmp/screenplay; ` +
-    `printf %s ${header} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
-    `${LOG_ENV} ${quotedCmd} >> ${SANDBOX_LOG_PATH} 2>&1; ` +
-    `printf '[exit %s]\\n' $? >> ${SANDBOX_LOG_PATH} 2>/dev/null`
+    `mkdir -p ${sandboxStateDir(sandbox.name)}; ` +
+    `printf %s ${header} >> ${logPath} 2>/dev/null; ` +
+    `${LOG_ENV} ${quotedCmd} >> ${logPath} 2>&1; ` +
+    `printf '[exit %s]\\n' $? >> ${logPath} 2>/dev/null`
   return sandbox.runCommand({
     cmd: "sh",
     args: ["-c", sh],
@@ -135,12 +161,14 @@ export async function writeBridgeFiles(
  * every second forever — and the overwritten pidfile orphans the original.
  */
 export async function stopDevAndProxy(sandbox: SandboxInstance): Promise<void> {
+  const devPid = devPidPath(sandbox.name)
+  const proxyPid = proxyPidPath(sandbox.name)
   const kill =
-    `for f in ${PIDFILE_DEV} ${PIDFILE_PROXY}; do ` +
+    `for f in ${devPid} ${proxyPid}; do ` +
     `p=$(cat "$f" 2>/dev/null); ` +
     `if [ -n "$p" ]; then kill -KILL "-$p" 2>/dev/null; kill -KILL "$p" 2>/dev/null; fi; ` +
     `done; ` +
-    `rm -f ${PIDFILE_DEV} ${PIDFILE_PROXY} 2>/dev/null; true`
+    `rm -f ${devPid} ${proxyPid} 2>/dev/null; true`
   await sandbox.runCommand({ cmd: "sh", args: ["-c", kill] })
 }
 
@@ -176,6 +204,10 @@ export async function launchDevAndProxy(
 
   const devPort = sandbox.hostPort(port)
   const proxyPort = sandbox.hostPort(port + PROXY_PORT_OFFSET)
+  const stateDir = sandboxStateDir(sandbox.name)
+  const logPath = sandboxLogPath(sandbox.name)
+  const devPid = devPidPath(sandbox.name)
+  const proxyPid = proxyPidPath(sandbox.name)
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
   // Launch the dev server under a restart-on-crash supervisor, mirroring the
@@ -190,16 +222,16 @@ export async function launchDevAndProxy(
   // break the relaunch loop. `& disown` returns the outer shell immediately
   // while the dev tree keeps running.
   const devInner = shellQuote(
-    `export ${LOG_ENV}; while true; do ${dev} >> ${SANDBOX_LOG_PATH} 2>&1; sleep 1; done`
+    `export ${LOG_ENV}; while true; do ${dev} >> ${logPath} 2>&1; sleep 1; done`
   )
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
-      `mkdir -p /tmp/screenplay; ` +
-        `printf %s ${devHeader} >> ${SANDBOX_LOG_PATH} 2>/dev/null; ` +
+      `mkdir -p ${stateDir}; ` +
+        `printf %s ${devHeader} >> ${logPath} 2>/dev/null; ` +
         `setsid sh -c ${devInner} </dev/null >/dev/null 2>&1 & ` +
-        `echo $! > ${PIDFILE_DEV}; ` +
+        `echo $! > ${devPid}; ` +
         `disown`,
     ],
     detached: true,
@@ -222,8 +254,8 @@ export async function launchDevAndProxy(
     cmd: "sh",
     args: [
       "-c",
-      `setsid sh -c 'while true; do node /tmp/screenplay/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
-        `echo $! > ${PIDFILE_PROXY}; ` +
+      `setsid sh -c 'while true; do node ${SCREENPLAY_DIR}/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
+        `echo $! > ${proxyPid}; ` +
         `disown`,
     ],
     detached: true,

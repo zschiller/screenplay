@@ -45,6 +45,7 @@ vi.mock("@/lib/sandbox", () => ({
 // of the DB/runtime-env chain.
 vi.mock("@/lib/auth-helpers", () => ({
   getGitHubTokenForUser: vi.fn(async () => null),
+  getGitIdentityForUser: vi.fn(async () => null),
 }))
 // `create_pr` pulls in github-pr, which transitively imports yjs/server and
 // reads LIVEBLOCKS_SECRET_KEY at import. Stub it so the tools' import graph
@@ -56,7 +57,10 @@ vi.mock("@/lib/github-pr", () => ({
   })),
 }))
 
-import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import {
+  getGitHubTokenForUser,
+  getGitIdentityForUser,
+} from "@/lib/auth-helpers"
 
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 
@@ -121,6 +125,10 @@ function fakeSandbox(opts: {
 beforeEach(() => {
   vi.clearAllMocks()
   backend.hostGitAuth = false
+  // clearAllMocks wipes call history but keeps implementations; restore the
+  // null defaults so a test that scripts an identity doesn't leak into the next.
+  vi.mocked(getGitHubTokenForUser).mockResolvedValue(null)
+  vi.mocked(getGitIdentityForUser).mockResolvedValue(null)
 })
 
 describe("read_file", () => {
@@ -266,6 +274,42 @@ describe("run_command", () => {
 
     // Hosted path looks up the acting user's token to inject SCREENPLAY_GH_TOKEN.
     expect(getGitHubTokenForUser).toHaveBeenCalledWith("user-1")
+  })
+
+  it("brokers the acting user's commit identity per command", async () => {
+    // Authorship rides the same per-command env as the token: the acting user's
+    // real name + email as GIT_AUTHOR_*/GIT_COMMITTER_*, so commits in a shared
+    // sandbox attribute to whoever drove them — never a fabricated address.
+    vi.mocked(getGitIdentityForUser).mockResolvedValue({
+      name: "Octo Cat",
+      email: "octo@users.noreply.github.com",
+    })
+    let env: Record<string, string> | undefined
+    const instance = fakeSandbox({ command: () => ({ exitCode: 0 }) })
+    const passthrough = instance.runCommand
+    instance.runCommand = ((cmdOrOpts: unknown, args?: string[]) => {
+      if (cmdOrOpts && typeof cmdOrOpts === "object") {
+        env = (cmdOrOpts as { env?: Record<string, string> }).env
+      }
+      return (passthrough as (c: unknown, a?: string[]) => unknown)(
+        cmdOrOpts,
+        args
+      )
+    }) as SandboxInstance["runCommand"]
+    fake.setInstance(instance)
+
+    await buildSandboxTools(ctx).run_command.execute!(
+      { command: "git commit -m wip" },
+      {} as never
+    )
+
+    expect(getGitIdentityForUser).toHaveBeenCalledWith("user-1")
+    expect(env).toMatchObject({
+      GIT_AUTHOR_NAME: "Octo Cat",
+      GIT_AUTHOR_EMAIL: "octo@users.noreply.github.com",
+      GIT_COMMITTER_NAME: "Octo Cat",
+      GIT_COMMITTER_EMAIL: "octo@users.noreply.github.com",
+    })
   })
 
   it("under host-native git auth, doesn't broker a per-command token", async () => {

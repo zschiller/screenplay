@@ -73,6 +73,23 @@ describe("TerminalSessions", () => {
     expect(sink.text()).toContain("MARKER_42")
   })
 
+  it("does not leak the app's provider secrets into the shell env", async () => {
+    const prior = process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY = "sk-should-not-leak"
+    try {
+      const sink = collector()
+      const handle = attach("secrets", sink)
+      // `claude` run in a tab must use the user's login, not the app's API key —
+      // the sidecar's provider secrets are scrubbed before the PTY inherits env.
+      handle.write('echo "KEY=${ANTHROPIC_API_KEY-unset}"\r')
+      await waitFor(() => sink.text().includes("KEY=unset"))
+      expect(sink.text()).not.toContain("sk-should-not-leak")
+    } finally {
+      if (prior === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = prior
+    }
+  })
+
   it("propagates resize to the real PTY (stty size reflects the new geometry)", async () => {
     const sink = collector()
     const handle = attach("resize", sink, { columns: 80, rows: 24 })

@@ -1,7 +1,11 @@
 "use server"
 
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
+import {
+  getGitHubTokenForUser,
+  getGitIdentityForUser,
+  getUserId,
+} from "@/lib/auth-helpers"
 import { createBranch, renameBranch } from "@/lib/github-actions"
 import {
   isSandboxRunning,
@@ -160,13 +164,23 @@ export async function getDiffStats(
  * than riding along with a harness install — git push works regardless of which
  * harnesses (if any) the operator selected.
  *
+ * **Commit authorship is brokered the same way, not stamped statically.** The
+ * `user.email`/`user.name` set here is only a fallback net seeded with the
+ * *triggering* user's real identity — never a fabricated address. Per-command,
+ * `buildAgentGitEnv` attaches the acting user's `GIT_AUTHOR_*` / `GIT_COMMITTER_*`
+ * (parallel to the token), so commits in a shared sandbox attribute to whoever
+ * drove them, overriding this fallback. There is no synthetic agent identity.
+ *
  * On the local backend (`usesHostGitAuth`), none of that brokering
  * applies: git runs as a host process and authenticates through the user's own
  * credentials (credential helper / SSH / `gh`). So we neither rewrite `origin`
  * to a canonical HTTPS URL (which would clobber a user's SSH remote) nor install
  * the SCREENPLAY_GH_TOKEN helper — the host's native auth already covers
- * clone / fetch / push. The shared identity / branch normalization below still
- * runs on both paths.
+ * clone / fetch / push. We also skip the identity / `push.default` stamp: a
+ * plain `git config` would write to the shared `.git/config` (the user's own
+ * repo for a `local-path` Repo), clobbering the identity they've set for their
+ * entire repo. The host's own git identity is already correct. Only branch
+ * normalization (`checkout` / upstream) runs on both paths.
  *
  * On the hosted path the remote-URL rewrite is the one load-bearing step — if it
  * fails the agent can't push, so it runs through `step` (a non-zero exit becomes
@@ -191,19 +205,35 @@ export async function configureAgentGit(
       branch,
     ])
 
-    await sandbox.runCommand("git", [
-      "config",
-      "user.email",
-      "agent@screenplay.dev",
-    ])
-    await sandbox.runCommand("git", ["config", "user.name", "Screenplay Agent"])
-    await sandbox.runCommand("git", ["config", "push.default", "current"])
-
-    // Local backend: host-native git auth covers push, and the worktree
-    // already points at the user's own remote (which may be SSH). Don't rewrite
-    // the remote or install the brokered-token helper — both belong to the
-    // hosted firewall trust boundary (ADR 0002), which doesn't exist here.
+    // Local backend: the worktree shares the user's own `.git` (for a
+    // `local-path` Repo it *is* the user's repo), git authenticates and pushes
+    // through the user's host credentials, and `origin` already points at their
+    // remote (possibly SSH). So everything below is hosted-only:
+    //   - Identity (`user.email`/`user.name`) and `push.default` must NOT run
+    //     here. Plain `git config` writes to the shared `.git/config`, not the
+    //     worktree, so stamping the agent identity would clobber the user's own
+    //     identity for their entire repo and relabel their commits as the agent.
+    //     On local the host's native git identity is already correct.
+    //   - The remote rewrite and brokered-token helper belong to the hosted
+    //     firewall trust boundary (ADR 0002), which doesn't exist here.
     if (usesHostGitAuth) return
+
+    // Static author net: stamp the *triggering* user's real identity — never a
+    // fabricated address. A shared hosted sandbox has no single author, so the
+    // per-command broker (`buildAgentGitEnv`) layers GIT_AUTHOR_*/GIT_COMMITTER_*
+    // on top, attributing each commit to whichever collaborator drove it and
+    // overriding this config. This stamp only covers commits made outside that
+    // brokered path; if the user can't be resolved we set no identity rather
+    // than invent one.
+    const actingUserId = await getUserId()
+    const identity = actingUserId
+      ? await getGitIdentityForUser(actingUserId)
+      : null
+    if (identity) {
+      await sandbox.runCommand("git", ["config", "user.email", identity.email])
+      await sandbox.runCommand("git", ["config", "user.name", identity.name])
+    }
+    await sandbox.runCommand("git", ["config", "push.default", "current"])
 
     await step(sandbox, "git", [
       "remote",

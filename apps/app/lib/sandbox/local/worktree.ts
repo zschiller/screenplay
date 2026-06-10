@@ -2,7 +2,7 @@ import "server-only"
 
 import { execFile } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdir } from "node:fs/promises"
+import { mkdir, realpath } from "node:fs/promises"
 import path from "node:path"
 import { promisify } from "node:util"
 
@@ -239,7 +239,12 @@ function makeWorktreeManager(
       }
       await runGit(args, repoPath)
 
-      return { ref, path: worktreePath }
+      // Return git's own view of the path (via `realpath`, the same resolution
+      // `worktree list` applies) rather than the constructed `worktreePath`, so
+      // a later idempotent add — which reads the path back from `worktree list`
+      // — compares equal. On macOS these diverge: the managed dir often sits
+      // under `/var/...`, a symlink git reports as `/private/var/...`.
+      return { ref, path: await realpath(worktreePath) }
     },
 
     async removeWorktree(ref): Promise<void> {
@@ -275,7 +280,9 @@ export async function acquireRepo(
       throw new Error(`Not a git repository: ${resolved}`)
     }
     // Normalize to the working-tree root so worktree bookkeeping is stable even
-    // when the user points at a subdirectory of their clone.
+    // when the user points at a subdirectory of their clone. `show-toplevel`
+    // already reports git's `realpath`-resolved view; the others below match it
+    // by resolving too, so every path the manager compares lives in one space.
     const repoPath = await runGit(["rev-parse", "--show-toplevel"], resolved)
     return makeWorktreeManager(repoPath, worktreesDir)
   }
@@ -287,5 +294,9 @@ export async function acquireRepo(
     await mkdir(options.managedDir, { recursive: true })
     await runGit(["clone", source.url, repoPath])
   }
-  return makeWorktreeManager(repoPath, worktreesDir)
+  // Resolve to git's `realpath` view: `worktree list` reports resolved paths, so
+  // the manager's clone-checkout / one-worktree-per-ref equality checks must
+  // compare against the resolved clone path too. Matters on macOS, where the
+  // managed dir commonly sits under `/var/...` (a symlink to `/private/var/...`).
+  return makeWorktreeManager(await realpath(repoPath), worktreesDir)
 }
