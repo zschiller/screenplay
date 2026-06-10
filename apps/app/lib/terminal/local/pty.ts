@@ -106,6 +106,22 @@ function ensureSpawnHelperExecutable(): void {
   }
 }
 
+/**
+ * The app's own model-provider secrets, loaded into the sidecar's env from
+ * `.env.local` / the desktop env profile. The user's interactive shell must not
+ * inherit them: a `claude` launched in a terminal tab that sees
+ * `ANTHROPIC_API_KEY` silently switches from the user's subscription login to
+ * API-key billing (likewise codex/opencode with theirs). Mirrors the env-var
+ * names the provider registry reads (`lib/agent/providers/`).
+ */
+const PROVIDER_SECRET_VARS = [
+  "AI_GATEWAY_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "GOOGLE_GENERATIVE_AI_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENAI_COMPATIBLE_API_KEY",
+]
+
 /** Append to a session's replay buffer, keeping only the trailing window. */
 function appendBuffer(buffer: string, chunk: string): string {
   const next = buffer + chunk
@@ -197,17 +213,19 @@ export class TerminalSessions {
         ? opts.command
         : [opts.shell ?? defaultShell()]
 
+    // The host's own env, so the terminal behaves like the user's normal shell
+    // in that directory — minus the app's provider secrets (the user's real
+    // shell doesn't export those); TERM is pinned to match the xterm.js client.
+    const env = { ...process.env } as Record<string, string>
+    for (const name of PROVIDER_SECRET_VARS) delete env[name]
+    Object.assign(env, opts.env, { TERM: "xterm-256color" })
+
     const pty = spawn(file!, args, {
       name: "xterm-256color",
       cols: opts.columns,
       rows: opts.rows,
       cwd: opts.cwd,
-      // The host's own env, so the terminal behaves like the user's normal shell
-      // in that directory; TERM is pinned to match the xterm.js client.
-      env: { ...process.env, ...opts.env, TERM: "xterm-256color" } as Record<
-        string,
-        string
-      >,
+      env,
     })
 
     const session: Session = { pty, listeners: new Set(), buffer: "" }
