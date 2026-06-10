@@ -21,3 +21,16 @@ export function parseEnvVars(text: string): Record<string, string> {
   }
   return env
 }
+
+/**
+ * Parse a multi-line glob-pattern list (the Repo's "copy into workspace"
+ * setting) into the pattern array the sandbox source carries. One pattern per
+ * line; blank lines and `#` comments are dropped.
+ */
+export function parseCopyPatterns(text: string | undefined): string[] {
+  if (!text) return []
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+}

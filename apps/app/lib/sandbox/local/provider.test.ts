@@ -391,6 +391,52 @@ describe("LocalSandboxProvider", () => {
     expect(userBranch.trim()).toBe("main")
   })
 
+  it("copies copyPatterns matches from the original checkout into the worktree", async () => {
+    // Untracked (typically gitignored) config the dev server needs — git
+    // alone leaves a fresh worktree bare of it.
+    await fs.writeFile(path.join(sourceRepo, ".env"), "SECRET=1\n")
+    await fs.writeFile(path.join(sourceRepo, ".env.local"), "LOCAL=1\n")
+    await fs.mkdir(path.join(sourceRepo, "apps", "web"), { recursive: true })
+    await fs.writeFile(
+      path.join(sourceRepo, "apps", "web", ".env"),
+      "NESTED=1\n"
+    )
+    await fs.writeFile(path.join(sourceRepo, "scratch.txt"), "not matched\n")
+
+    const sandbox = await provider.create(
+      createOpts("branch-a", sourceRepo, {
+        source: {
+          type: "local-git",
+          path: sourceRepo,
+          revision: "agent-work",
+          baseRevision: "main",
+          copyPatterns: [".env*", "apps/*/.env*"],
+        },
+      })
+    )
+
+    // Matches land at the same relative paths, nested dirs included.
+    expect(
+      await fs.readFile(path.join(sandbox.worktreePath, ".env"), "utf8")
+    ).toBe("SECRET=1\n")
+    expect(
+      await fs.readFile(path.join(sandbox.worktreePath, ".env.local"), "utf8")
+    ).toBe("LOCAL=1\n")
+    expect(
+      await fs.readFile(
+        path.join(sandbox.worktreePath, "apps", "web", ".env"),
+        "utf8"
+      )
+    ).toBe("NESTED=1\n")
+    // A non-matching untracked file stays behind.
+    expect(
+      await fs
+        .access(path.join(sandbox.worktreePath, "scratch.txt"))
+        .then(() => true)
+        .catch(() => false)
+    ).toBe(false)
+  })
+
   it("delete on a local-path Repo removes the worktree but never the clone", async () => {
     const sandbox = await provider.create(
       createOpts("branch-a", sourceRepo, {

@@ -178,6 +178,14 @@ export class LocalSandboxProvider implements SandboxProvider {
     )
     const worktree = await manager.addWorktree(ref, startPoint)
 
+    if (source.type === "local-git" && source.copyPatterns?.length) {
+      await copyPatternMatches(
+        manager.repoPath,
+        worktree.path,
+        source.copyPatterns
+      )
+    }
+
     const portMap = await this.allocatePorts(opts.name, opts.ports)
     const meta: SandboxMeta = {
       baseDir: manager.repoPath,
@@ -317,6 +325,32 @@ export class LocalSandboxProvider implements SandboxProvider {
 /** Per-(Sandbox, forwarded-port) allocator key. */
 function portKey(name: string, logicalPort: number): string {
   return `${name}:${logicalPort}`
+}
+
+/**
+ * Copy everything matching `patterns` (globs relative to the checkout root)
+ * from the user's original checkout into a fresh worktree. A worktree starts
+ * with only what git tracks, so gitignored config the dev server needs —
+ * `.env*` above all — has to be carried over by hand; this is that hand.
+ * Matching nothing is fine (the repo simply has no such files); an actual
+ * copy failure throws and fails the create, since a half-configured Sandbox
+ * would only fail later and more confusingly.
+ */
+async function copyPatternMatches(
+  fromDir: string,
+  toDir: string,
+  patterns: string[]
+): Promise<void> {
+  for await (const rel of fs.glob(patterns, {
+    cwd: fromDir,
+    // Never descend into (or copy) the git dir itself, whatever the patterns
+    // say — `**` must not drag the user's entire object store along.
+    exclude: (name: string) => name === ".git",
+  })) {
+    const dest = path.join(toDir, rel)
+    await fs.mkdir(path.dirname(dest), { recursive: true })
+    await fs.cp(path.join(fromDir, rel), dest, { recursive: true })
+  }
 }
 
 /** True when `ref` resolves to a commit in `repoPath`. */

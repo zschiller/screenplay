@@ -36,6 +36,13 @@ export type SandboxLocalGitSource = {
   revision: string
   /** Same contract as {@link SandboxGitSource.baseRevision}. */
   baseRevision?: string
+  /**
+   * Glob patterns (relative to the checkout root, e.g. `.env*`) of files to
+   * copy from the original checkout into the fresh worktree after checkout.
+   * This is how gitignored config a dev server needs — `.env*` above all —
+   * reaches a worktree that git alone would leave bare of it.
+   */
+  copyPatterns?: string[]
 }
 
 /**

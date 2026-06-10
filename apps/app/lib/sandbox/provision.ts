@@ -36,6 +36,13 @@ import type { SandboxActionResult } from "@/lib/sandbox/run"
 export interface CloneSourceOptions {
   localPath?: string
   baseRevision?: string
+  /**
+   * Glob patterns of files (e.g. `.env*`) the local backend copies from the
+   * original checkout into the new worktree — the desktop-mode replacement
+   * for spelling env vars out in repo settings. Only meaningful alongside
+   * `localPath`; the hosted path has no original checkout to copy from.
+   */
+  copyPatterns?: string[]
 }
 
 /**
@@ -82,6 +89,7 @@ export async function cloneSandbox(
               path: sourceOpts.localPath,
               revision: branch,
               baseRevision: sourceOpts?.baseRevision,
+              copyPatterns: sourceOpts?.copyPatterns,
             }
           : !usesHostGitAuth && ghToken
             ? {
