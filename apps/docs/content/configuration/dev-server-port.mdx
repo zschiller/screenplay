@@ -95,12 +95,22 @@ pnpm --filter web dev -- --port $PORT
 ```
 
 Note for turborepo: pass the port as a flag, as above — don't rely on the
-`$PORT` environment variable reaching the task. Turborepo 2's strict env mode
-strips undeclared variables from task environments, but `$PORT` in the dev
-script expands in the shell *before* turbo runs, so the flag form always
-works. No portless config or dependency is needed inside your repo:
-Screenplay invokes portless externally with an explicit command, not
-portless's own monorepo workflow (which is what `portless.json` is for).
+`$PORT` environment variable reaching the task. Two common conventions defeat
+the env var:
+
+- **Turborepo 2's strict env mode** strips undeclared variables from task
+  environments. `$PORT` in the dev script expands in the shell *before* turbo
+  runs, so the flag form always works.
+- **Hardcoded ports in workspace dev scripts** (`"dev": "next dev --port
+  3001"` — the usual way turborepo apps avoid colliding with each other). An
+  explicit flag beats the `$PORT` env var, so the dev server would bind 3001
+  instead of its assigned port. The appended flag fixes this too: for Next.js
+  and Vite the *last* `--port` wins, so `pnpm --filter web dev -- --port
+  $PORT` overrides the hardcoded one without any change to the repo.
+
+No portless config or dependency is needed inside your repo: Screenplay
+invokes portless externally with an explicit command, not portless's own
+monorepo workflow (which is what `portless.json` is for).
 
 Want to work on a second project of the same monorepo (say `docs` next to
 `web`)? Add a **second Project** pointing at the same repository with its own
