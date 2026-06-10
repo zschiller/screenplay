@@ -1,5 +1,6 @@
 "use server"
 
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
@@ -133,7 +134,7 @@ export async function killTerminalSession(
   // session in a VM. Kill it through the same registry the WS bridge attaches
   // to, keyed by the same derived name so client and server agree. A missing
   // session is a no-op, matching the tmux path's `kill-session … || true`.
-  if (process.env.SANDBOX_BACKEND === "worktree") {
+  if (isLocalSandboxBackend()) {
     const { getTerminalSessions } = await import("@/lib/terminal/local/pty")
     getTerminalSessions().kill(tmuxSessionName(terminalSessionId))
     return { success: true, value: undefined }
@@ -247,13 +248,18 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
  * options; the session name lands last as ttyd's appended url-arg.
  */
 async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
+  // The daemon binds the *resolved* terminal port (identity on the hosted
+  // backend), so the URL `ensureTerminal` advertises — `domain(TERMINAL_PORT)`,
+  // which maps the same way — always points at a listening daemon, and multiple
+  // open Branches each get their own.
+  const terminalPort = sandbox.hostPort(TERMINAL_PORT)
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
       `mkdir -p /tmp/screenplay; ` +
         `printf 'set -g status off\\n' > ${TMUX_CONF}; ` +
-        `setsid ${TTYD_BIN} --writable --url-arg --port ${TERMINAL_PORT} ` +
+        `setsid ${TTYD_BIN} --writable --url-arg --port ${terminalPort} ` +
         `${TMUX_BIN} -u -f ${TMUX_CONF} new -A -s ` +
         `</dev/null >> ${TERMINAL_LOG_PATH} 2>&1 & ` +
         `echo $! > ${TTYD_PIDFILE}; ` +

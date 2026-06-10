@@ -1678,20 +1678,16 @@ export function RoomSidebar({
                                                                   branch.ref
                                                                 )
                                                                   return
+                                                                // Renaming onto a branch that already exists on the
+                                                                // remote would hijack its history, so that stays
+                                                                // blocked. Another open Branch holding the name is
+                                                                // NOT a conflict: Branches dedup by identity, never
+                                                                // by ref — any number may share one.
                                                                 const remote =
                                                                   remoteBranchesByRepo.get(
                                                                     repo.id
                                                                   )
-                                                                const localTaken =
-                                                                  repoBranches.some(
-                                                                    (a) =>
-                                                                      a.id !==
-                                                                        branch.id &&
-                                                                      a.ref ===
-                                                                        sanitized
-                                                                  )
                                                                 if (
-                                                                  localTaken ||
                                                                   remote?.has(
                                                                     sanitized
                                                                   )

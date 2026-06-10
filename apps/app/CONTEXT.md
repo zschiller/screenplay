@@ -33,8 +33,9 @@ A GitHub repository configured into a Room — its repo identity, default branch
 in the room's Y.Doc as the `repos` collection (`RepoData`). A Repo resolves to a
 local `.git` two ways — point at an existing local clone, or app-managed `git
 clone` of the URL into a managed dir — after which both converge on one
-**worktree manager** that adds/removes one worktree per Branch ref
-(`lib/sandbox/local/worktree.ts`); the paths diverge only at acquisition. `Repo`
+**clone manager** that creates/removes one independent clone per Sandbox, keyed
+by Sandbox name, never by ref (`lib/sandbox/local/clone.ts`); the paths diverge
+only at acquisition. `Repo`
 is the code identifier everywhere it denotes this entity; the user-facing label
 still reads "Workspace" until the separate UI-string pass renames it to
 "Project".
@@ -77,9 +78,9 @@ Branch itself; calling its contents "never durable" (true only for the Vercel VM
 **Sandbox Provider**:
 The swappable backend that creates and reconnects Sandboxes. There are now
 **two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop
-**local** backend (a per-Branch checkout on the host — a git worktree today,
-moving to a clone hardlinked against a shared per-source mirror so one ref can
-back many Sandboxes; non-hibernating), selected at build time by `SANDBOX_BACKEND`.
+**local** backend (an independent per-Branch clone on the host, hardlinked
+against a shared per-source mirror so one ref can back many Sandboxes;
+non-hibernating), selected at build time by `SANDBOX_BACKEND`.
 The surface is split into a **portable core**
 (the operations every conceivable backend can honor) and an optional
 **Hibernation** capability: freezing a Sandbox's filesystem when it goes idle and
@@ -179,7 +180,7 @@ snapshot-restoring onto a new VM (the Hibernation path). It is snapshot-only and
 **fails loud** on a snapshot miss: it never silently reclones, because a restart
 must not discard un-pushed work (see ADR 0005). Disabled while the Agent is
 working, since it cycles the VM mid-turn. **Exists only where Hibernation does**:
-on a non-hibernating provider (the desktop worktree backend) the action is hidden
+on a non-hibernating provider (the desktop local backend) the action is hidden
 entirely — there is no VM to cycle, so the offered restarts there are Dev Server
 Restart and Recreate.
 _Shown to users as_: "Restart sandbox".
@@ -254,7 +255,7 @@ its _scrollback_ is never persisted and dies with the sandbox. The **transport
 behind it is provider-dependent**, chosen at build time by `SANDBOX_BACKEND` and
 hidden behind one unchanged client + wire codec (`ttyd-protocol.ts`): the hosted
 Vercel backend runs an in-sandbox **ttyd** daemon over a `domain(port)` URL and
-reattaches via a per-tab in-sandbox **tmux session**; the desktop worktree
+reattaches via a per-tab in-sandbox **tmux session**; the desktop local
 backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 (`lib/terminal/local/`) and reattaches because that PTY simply outlives the
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here

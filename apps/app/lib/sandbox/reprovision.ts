@@ -65,7 +65,7 @@ export async function reprovisionFromGit(
     const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
     const sandbox = await sandboxProvider.create({
       name: sandboxName,
-      // The local worktree backend clones as a host process through the user's
+      // The local backend clones as a host process through the user's
       // own git credentials, so never bake a brokered token into its clone URL —
       // host auth covers private repos. Only the hosted path splices the token in.
       source:

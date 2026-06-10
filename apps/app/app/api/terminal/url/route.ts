@@ -7,6 +7,7 @@ import {
   unconfiguredBannerArgv,
 } from "@/lib/agent/harnesses"
 import { getModelProviders } from "@/lib/agent/providers"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { issueTerminalCredential } from "@/lib/sandbox/terminal-credential"
 import { ensureTerminal } from "@/lib/sandbox/terminal"
 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
   // slice) launch argv as the wire protocol's `?arg=`s, exactly as it did for
   // ttyd. No `domain(port)` bearer link, no fetched tmux. The dynamic import
   // keeps node-pty/`ws` out of the hosted build's graph.
-  if (process.env.SANDBOX_BACKEND === "worktree") {
+  if (isLocalSandboxBackend()) {
     const { ensureLocalTerminalServer } = await import(
       "@/lib/terminal/local/server"
     )

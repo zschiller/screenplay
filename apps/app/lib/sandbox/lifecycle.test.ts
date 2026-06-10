@@ -72,7 +72,7 @@ const fake = vi.hoisted(() => {
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
   // These lifecycle tests pin the hosted (Vercel) reclone path, which brokers the
-  // git token — the local worktree backend's host-native auth is exercised in
+  // git token — the local backend's host-native auth is exercised in
   // reprovision.test.ts / provision.test.ts.
   usesHostGitAuth: false,
   supportsHibernation: (s: { isRunning?: unknown }) =>
@@ -154,6 +154,32 @@ function stubProbe(reachable: boolean) {
   )
 }
 
+/**
+ * Stub global fetch with a per-call probe script, the last state repeating:
+ *  - `"ready"` — the dev server answered (2xx).
+ *  - `"refused"` — the proxy answered with its placeholder, marking the
+ *    upstream connection as refused (the proxy.mjs headers).
+ *  - `"down"` — nothing listening at all (fetch rejects).
+ */
+function stubProbeStates(states: ("ready" | "refused" | "down")[]) {
+  let call = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      const state = states[Math.min(call++, states.length - 1)]
+      if (state === "down") throw new Error("ECONNREFUSED")
+      if (state === "ready") return { status: 200 }
+      return {
+        status: 503,
+        headers: new Headers({
+          "x-screenplay-proxy": "placeholder",
+          "x-screenplay-upstream-error": "ECONNREFUSED",
+        }),
+      }
+    })
+  )
+}
+
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 
 /**
@@ -180,6 +206,8 @@ function fakeSandbox(
     writeError?: string
     onWriteFiles?: () => void
     extendTimeout?: (ms: number) => void
+    /** Port seam override; identity (the hosted behavior) by default. */
+    hostPort?: (port: number) => number
   } = {}
 ): SandboxInstance {
   const hibernating = opts.hibernating ?? true
@@ -213,6 +241,7 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
+    hostPort: opts.hostPort ?? ((port: number) => port),
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
       // launchDevAndProxy writes the bridge files first, so a writeFiles call is
@@ -762,6 +791,80 @@ describe("ensurePreviewLive", () => {
     await expect(
       ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
     ).rejects.toThrow("relaunch boom")
+  })
+
+  // Ignored-port detection: a dev script that doesn't forward $SCREENPLAY_PORT
+  // leaves the proxy up (it binds its resolved port fine) while the dev server
+  // refuses every connection on the resolved dev port. Only meaningful where
+  // logical ≠ bound — the local backend's mapped seam.
+  const mappedPorts = (port: number) => port + 50000
+
+  it("fails loud with the named error when the proxy is up but the mapped dev port never listens", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({
+      hostPort: mappedPorts,
+      onWriteFiles: () => (relaunched = true),
+    })
+    stubProbeStates(["refused"])
+
+    await expect(
+      ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
+    ).rejects.toMatchObject({
+      name: "DevServerPortIgnoredError",
+      message: expect.stringContaining("$SCREENPLAY_PORT"),
+    })
+    // Relaunching the same script onto the same wrong port can't fix it, so
+    // nothing was relaunched — the failure surfaces instead of a dead iframe.
+    expect(relaunched).toBe(false)
+  })
+
+  it("keeps relaunching on refused probes on an identity backend — hosted behavior unchanged", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({ onWriteFiles: () => (relaunched = true) })
+    stubProbeStates(["refused"])
+
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev", null, {
+      probeDelayMs: 0,
+    })
+
+    // On the hosted backend a default-port dev server IS on its assigned port,
+    // so refused upstream just means it died — the relaunch self-heal applies.
+    expect(domain).toBe("https://fake-4000.example.com")
+    expect(relaunched).toBe(true)
+  })
+
+  it("relaunches a fully-dark preview on a mapped port and returns once it comes up", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({
+      hostPort: mappedPorts,
+      onWriteFiles: () => (relaunched = true),
+    })
+    // First window (3 attempts): proxy itself is down — that's a dead launch,
+    // not an ignored port. The relaunch window then finds the server up.
+    stubProbeStates(["down", "down", "down", "ready"])
+
+    const domain = await ensurePreviewLive(sandbox, 3000, "npm run dev", null, {
+      probeDelayMs: 0,
+    })
+
+    expect(relaunched).toBe(true)
+    expect(domain).toBe("https://fake-4000.example.com")
+  })
+
+  it("fails loud when the relaunch's dev server also never binds its mapped port", async () => {
+    let relaunched = false
+    const sandbox = fakeSandbox({
+      hostPort: mappedPorts,
+      onWriteFiles: () => (relaunched = true),
+    })
+    // First window: dark (proxy down) → relaunch. Second window: proxy up,
+    // upstream refused on every attempt → the dev script ignored its port.
+    stubProbeStates(["down", "down", "down", "refused"])
+
+    await expect(
+      ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
+    ).rejects.toMatchObject({ name: "DevServerPortIgnoredError" })
+    expect(relaunched).toBe(true)
   })
 })
 

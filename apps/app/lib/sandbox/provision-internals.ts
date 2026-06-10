@@ -44,6 +44,27 @@ const LOG_ENV = [
   "NPM_CONFIG_PROGRESS=false",
 ].join(" ")
 
+/**
+ * Named, user-visible failure for a dev script that ignored the port contract:
+ * the bridge proxy is up and reachable, but the dev server never listened on
+ * its assigned (resolved) port past the probe window. Raised only where logical
+ * ≠ bound (the local backend) — on an identity backend a dev server's default
+ * port IS the assigned port, so this failure mode can't exist there. Distinct
+ * from generic dev-server-crash failures so the user is told what to fix
+ * instead of staring at a dead iframe.
+ */
+export class DevServerPortIgnoredError extends Error {
+  constructor() {
+    super(
+      "The dev server never listened on its assigned port. Your dev script " +
+        "must forward $SCREENPLAY_PORT to the dev server — e.g. " +
+        '"next dev --port $SCREENPLAY_PORT" or "vite --port $SCREENPLAY_PORT". ' +
+        "Update the dev script in the Project settings, then restart the dev server."
+    )
+    this.name = "DevServerPortIgnoredError"
+  }
+}
+
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`
 }
@@ -132,6 +153,17 @@ export async function stopDevAndProxy(sandbox: SandboxInstance): Promise<void> {
  * PROXY_PORT_OFFSET) rather than the devserver port. Throws if the bridge
  * install fails — callers running through the runner turn that into a redacted
  * failure result.
+ *
+ * **Ports are resolved through the sandbox's `hostPort` seam end-to-end.**
+ * `port` is the Repo's *logical* Dev Server Port; what the dev server must
+ * actually bind is `hostPort(port)` (identity on the hosted backend, a
+ * per-Sandbox allocated port on the local backend, where every Sandbox shares
+ * the host's network). The resolved value is handed to the dev command as
+ * `$SCREENPLAY_PORT` (and `$PORT`) — the dev-script contract: the Repo's
+ * configured dev script forwards it (e.g. `next dev --port $SCREENPLAY_PORT`).
+ * The proxy binds its resolved listen port and upstreams to the resolved dev
+ * port, so the launch, the advertised preview URL (`domain`, which maps the
+ * same way), and what's actually listening always agree.
  */
 export async function launchDevAndProxy(
   sandbox: SandboxInstance,
@@ -142,6 +174,8 @@ export async function launchDevAndProxy(
   await stopDevAndProxy(sandbox)
   await writeBridgeFiles(sandbox)
 
+  const devPort = sandbox.hostPort(port)
+  const proxyPort = sandbox.hostPort(port + PROXY_PORT_OFFSET)
   const dev = devScript?.trim() || "npm run dev"
   const devHeader = shellQuote(`\n$ ${dev}\n`)
   // Launch the dev server under a restart-on-crash supervisor, mirroring the
@@ -169,7 +203,16 @@ export async function launchDevAndProxy(
         `disown`,
     ],
     detached: true,
-    ...(env ? { env } : {}),
+    // The port contract rides the dev command's environment, after the user's
+    // repo env so it can't be shadowed: the dev script forwards
+    // `$SCREENPLAY_PORT` (PORT is set too for frameworks that honor it
+    // natively). Identity on the hosted backend, the allocated host port on the
+    // local one.
+    env: {
+      ...(env ?? {}),
+      SCREENPLAY_PORT: String(devPort),
+      PORT: String(devPort),
+    },
   })
 
   // Restart-on-crash wrapper so a proxy bug doesn't permanently dark the
@@ -184,9 +227,12 @@ export async function launchDevAndProxy(
         `disown`,
     ],
     detached: true,
+    // Resolved, not logical: the proxy must bind the port the preview URL
+    // (`domain`, which maps identically) advertises, and upstream to the port
+    // the dev server was told to bind.
     env: {
-      SCREENPLAY_UPSTREAM_PORT: String(port),
-      SCREENPLAY_LISTEN_PORT: String(port + PROXY_PORT_OFFSET),
+      SCREENPLAY_UPSTREAM_PORT: String(devPort),
+      SCREENPLAY_LISTEN_PORT: String(proxyPort),
     },
   })
 

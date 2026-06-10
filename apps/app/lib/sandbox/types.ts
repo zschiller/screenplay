@@ -156,6 +156,19 @@ export interface SandboxInstance {
   readonly homeDir: string
   /** Public URL for the given forwarded port. */
   domain(port: number): string
+  /**
+   * Resolve a logical forwarded port to the port a process must actually
+   * **bind** (and that other in-sandbox processes can reach it on). On a backend
+   * whose sandbox owns its network namespace (the hosted Vercel VM) this is the
+   * identity. On the local backend every Sandbox shares the host's network, so
+   * each logical port maps to a distinct allocated host port — stable per
+   * Sandbox, distinct across Sandboxes. The resolved Dev Server Port is what the
+   * dev command receives as `$SCREENPLAY_PORT` / `$PORT`, what the bridge proxy
+   * binds and upstreams to, and what the terminal daemon listens on. Callers
+   * must never assume logical == bound; `domain(port)` keeps taking the
+   * *logical* port and does its own mapping.
+   */
+  hostPort(port: number): number
   runCommand(opts: SandboxRunCommandOptions): Promise<SandboxCommandResult>
   runCommand(cmd: string, args?: string[]): Promise<SandboxCommandResult>
   writeFiles(files: SandboxFile[]): Promise<void>
