@@ -60,7 +60,32 @@ pnpm --filter desktop build           # build:sidecar + tauri build → Screenpl
 ```
 
 Prerequisites: the Rust + Tauri toolchain (`cargo`, system WebView), and `node`
-on `PATH`. Out of scope per the PRD: auto-update, code signing, installer/dmg.
+on `PATH`. Out of scope per the PRD: auto-update. (Code signing and the dmg
+installer are handled by the release workflow — see below.)
+
+## Releasing
+
+The root `ci.yml` never touches this package (no `test`/`typecheck` scripts —
+the only artifact is the build), and there's deliberately no per-PR build
+check: a full sidecar + Tauri build needs a macOS runner (10x billed minutes),
+which isn't worth paying for until the app is release-ready. The build is
+exercised when a release is cut:
+
+- **`desktop-release.yml`** — manual (workflow_dispatch, knobs-style): bumps
+  the version across `package.json` / `tauri.conf.json` / `Cargo.toml`, builds
+  a **Developer ID-signed and notarized dmg**, tags `desktop-v<version>`,
+  publishes a GitHub Release with the dmg attached, and opens a PR to sync the
+  bump into `main`. Signing and notarization are driven entirely by `APPLE_*`
+  secrets read by Tauri's bundler; the required secrets (and how to mint them)
+  are documented in the workflow header. The optional
+  `SCREENPLAY_GITHUB_CLIENT_ID` repo *variable* is compiled into the shell
+  (`option_env!` in `sidecar.rs`) to enable the "Connect GitHub" device flow
+  in released builds.
+
+Apple Silicon only for now: `build-sidecar.mjs` ships the build machine's own
+`node` (`process.execPath` — the official nodejs.org build, which is itself
+signed), so an x86_64/universal release would first need per-arch node
+download in the sidecar build.
 
 ## Thumbnails
 

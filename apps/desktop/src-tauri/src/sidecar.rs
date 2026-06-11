@@ -236,6 +236,18 @@ fn apply_desktop_env(
         .env("THUMBNAIL_RENDER_SECRET", &secrets.thumbnail_render_secret)
         .env("TERMINAL_AUTH_SECRET", &secrets.terminal_auth_secret);
 
+    // The GitHub App client id for the optional "Connect GitHub" device flow
+    // (PRD #428), baked in at compile time by the release pipeline —
+    // `desktop.env` deliberately leaves it unset. When absent (or empty, as an
+    // unset repo variable yields in CI) the connect affordance doesn't offer
+    // itself; `gh` and the URL/local-folder no-auth floor still work.
+    match option_env!("SCREENPLAY_GITHUB_CLIENT_ID") {
+        Some(client_id) if !client_id.is_empty() => {
+            cmd.env("SCREENPLAY_GITHUB_CLIENT_ID", client_id);
+        }
+        _ => {}
+    }
+
     Ok(())
 }
 
