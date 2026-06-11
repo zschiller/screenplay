@@ -33,6 +33,20 @@ export async function register(): Promise<void> {
   const { watchParentShell } = await import("@/lib/desktop/parent-watch")
   watchParentShell()
 
+  // Desktop only: the local backend's dev servers / proxies / terminals are
+  // detached host process groups, so they'd outlive this sidecar unless someone
+  // reaps them. Installed before the boot work below so the exit hook is armed
+  // even if boot stalls: sweeps the pidfiles a previous run left behind (a
+  // force-killed sidecar can never clean up after itself) and re-sweeps on exit
+  // (Tauri's clean quit sends SIGTERM — see sidecar.rs — and parent-watch's
+  // self-exit lands here too).
+  const { isLocalSandboxBackend } = await import("@/lib/sandbox/backend")
+  if (isLocalSandboxBackend()) {
+    const { installLocalSandboxReaper } =
+      await import("@/lib/sandbox/local/reaper")
+    installLocalSandboxReaper()
+  }
+
   const { dbReady } = await import("@/lib/db")
   await dbReady
 
@@ -57,11 +71,9 @@ export async function register(): Promise<void> {
     await startLocalYjsServer()
   }
 
-  const { isLocalSandboxBackend } = await import("@/lib/sandbox/backend")
   if (isLocalSandboxBackend()) {
-    const { ensureLocalTerminalServer } = await import(
-      "@/lib/terminal/local/server"
-    )
+    const { ensureLocalTerminalServer } =
+      await import("@/lib/terminal/local/server")
     await ensureLocalTerminalServer()
   }
 }

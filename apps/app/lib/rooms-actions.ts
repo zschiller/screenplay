@@ -18,7 +18,11 @@ import {
   requireMember,
   requireOwner,
 } from "@/lib/rooms"
+import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
+import { killTerminalSessions } from "@/lib/sandbox/terminal"
+import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { yjsHost } from "@/lib/yjs-host"
+import { readRoomDoc } from "@/lib/yjs/server"
 import { isLocalBuild } from "@/lib/local-mode"
 
 // Sharing is excluded from the local desktop build (PRD #404, issue #417):
@@ -97,8 +101,41 @@ export async function renameRoom(roomId: string, name: string): Promise<void> {
 export async function deleteRoom(roomId: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
+
+  // Capture what the Room owns *before* its Y.Doc and rows are gone: the
+  // Branches' Sandbox names from the authoritative doc — enumerated
+  // server-side, never accepted from the client, so a forged list can't
+  // delete Sandboxes the caller doesn't own — and the caller's terminal tabs
+  // (their rows cascade away with the room record). Best-effort: an
+  // unreadable doc must not block the delete itself.
+  let sandboxNames: string[] = []
+  try {
+    sandboxNames = await readRoomDoc(roomId, (c) =>
+      c.branches
+        .toArray()
+        .map((b) => b.sandboxName)
+        .filter(Boolean)
+    )
+  } catch {}
+  let terminalSessionIds: string[] = []
+  try {
+    terminalSessionIds = (await listTerminalTabs({ userId, roomId })).map(
+      (t) => t.id
+    )
+  } catch {}
+
   await deleteRoomRecord(roomId)
   await yjsHost.deleteRoom(roomId)
+
+  // With the Room gone, tear down what backed it: live terminal sessions
+  // (desktop ptys — hosted tmux dies with its VM) and every Branch's Sandbox,
+  // upholding "a Sandbox never outlives its Branch". On desktop this is also
+  // what frees each Branch's git ref: a leaked worktree keeps its branch
+  // checked out and blocks reopening it anywhere (RefAlreadyOpenError). Both
+  // calls are internally best-effort so cleanup can never make the delete
+  // appear to fail after the Room is already gone.
+  await killTerminalSessions(terminalSessionIds)
+  await deleteSandboxes(sandboxNames)
 }
 
 export async function listCollaborators(

@@ -154,6 +154,8 @@ import {
   restartDevServer,
   reconnectSandbox,
   keepAliveSandbox,
+  stopDevServers,
+  deleteSandboxes,
 } from "@/lib/sandbox/lifecycle"
 import { deleteBranch } from "@/lib/github-actions"
 import { createPullRequestAction } from "@/lib/create-pr-action"
@@ -1148,6 +1150,20 @@ export function Canvas({
   }, [selectedIframeLayerIds, selectedDocumentLayerIds])
   const repos = useRepos()
   const agents = useBranches()
+
+  // Leaving the Room takes its Branches' dev servers with it on desktop:
+  // local dev servers are host processes with no auto-stop timer, so without
+  // this they'd run until the app quits. Fire-and-forget — navigation must
+  // never wait on the kill — and gated on the local build so the hosted app
+  // (where Rooms are collaborative and sandboxes hibernate on their own)
+  // doesn't even make the call. Reopening the Room relaunches via reconnect.
+  // Room *deletion* doesn't need this: deleteRoom tears down the Sandboxes
+  // themselves server-side, dev servers included.
+  const stopRoomDevServers = useCallback(() => {
+    if (!isLocalBuild) return
+    const names = agents.map((a) => a.sandboxName).filter(Boolean)
+    if (names.length > 0) void stopDevServers(names).catch(() => {})
+  }, [agents])
 
   // Lazily prune terminal tabs whose Branch no longer exists (branch deleted),
   // so a dead terminal never lingers pointing at a gone sandbox (#260). We get
@@ -5174,7 +5190,17 @@ export function Canvas({
                   }
                 }
               }
+              // Removing a Repo removes its Branches, and a Sandbox never
+              // outlives its Branch — capture the names before the doc records
+              // go, then tear the Sandboxes down fire-and-forget.
+              const sandboxNames = agents
+                .filter((a) => a.repoId === id)
+                .map((a) => a.sandboxName)
+                .filter(Boolean)
               removeRepoFromStorage(id)
+              if (sandboxNames.length > 0) {
+                void deleteSandboxes(sandboxNames).catch(() => {})
+              }
             }}
             onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
             onCreateWorkspace={handleCreateWorkspace}
@@ -5184,8 +5210,8 @@ export function Canvas({
             onRefreshBranch={handleRefreshAgent}
             onRecreateBranch={handleRecreateAgent}
             onRemoveBranch={async (id, { deleteOnRemote }) => {
+              const agent = agents.find((a) => a.id === id)
               if (deleteOnRemote) {
-                const agent = agents.find((a) => a.id === id)
                 const repo = agent
                   ? repos.find((w) => w.id === agent.repoId)
                   : undefined
@@ -5210,6 +5236,13 @@ export function Canvas({
               // removeAgentFromStorage clears the chat-store mirror for the Chat
               // Sessions the verb deletes.
               removeAgentFromStorage(id)
+              // A Sandbox never outlives its Branch: tear down the deleted
+              // Branch's worktree/VM (dev server included) so the leak doesn't
+              // keep its git ref checked out. Fire-and-forget — the Branch is
+              // already gone from the doc, so cleanup must not block the UI.
+              if (agent?.sandboxName) {
+                void deleteSandboxes([agent.sandboxName]).catch(() => {})
+              }
             }}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}
@@ -5878,6 +5911,7 @@ export function Canvas({
                         className="px-1.5 py-1 font-medium"
                         onClick={(e) => {
                           e.preventDefault()
+                          stopRoomDevServers()
                           router.push("/")
                         }}
                       >

@@ -10,6 +10,7 @@ import {
   supportsHibernation,
 } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   DevServerPortIgnoredError,
@@ -19,6 +20,7 @@ import {
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
   launchDevAndProxy,
+  stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
 import { runSandboxAction } from "@/lib/sandbox/run"
@@ -188,6 +190,66 @@ export async function ensurePreviewLive(
     if (after === "upstream-refused") throw new DevServerPortIgnoredError()
   }
   return relaunched
+}
+
+/**
+ * Stop the dev server and bridge proxy for each named Sandbox, leaving the
+ * Sandboxes themselves — and their working trees — untouched. This is the
+ * leave-a-Room cleanup, **desktop-only by design** (a silent no-op on the
+ * hosted backend): a local Sandbox's dev server is a detached host process
+ * group with no auto-stop timer, so navigating home would otherwise leave
+ * every Branch's dev server running until the app quits. The hosted backend
+ * is deliberately left alone — its Sandboxes hibernate on their own timer
+ * once the keep-alive heartbeat stops, and a hosted Room can have other
+ * collaborators whose previews a leave-triggered stop would kill.
+ *
+ * Best-effort per Sandbox (a missing sandbox or failed kill never blocks the
+ * navigation that triggered it), and cheap to undo: reopening the Room rides
+ * the normal reconnect path, whose preview probe finds the server dead and
+ * relaunches it.
+ */
+export async function stopDevServers(sandboxNames: string[]): Promise<void> {
+  if (!isLocalSandboxBackend()) return
+  await Promise.allSettled(
+    sandboxNames.map(async (name) => {
+      const sandbox = await sandboxProvider.get({ name, resume: false })
+      await stopDevAndProxy(sandbox)
+    })
+  )
+}
+
+/**
+ * Permanently delete Sandboxes: stop each one's dev server + bridge proxy,
+ * delete the Sandbox itself (hosted: the VM; desktop: the git worktree, its
+ * allocated host ports, and its meta), and forget its persisted env vars.
+ *
+ * This is the teardown behind the domain invariant that **a Sandbox never
+ * outlives its Branch** (CONTEXT.md): Room deletion and Branch deletion both
+ * route here. Beyond the resource leak, skipping it has a sharper desktop
+ * consequence — a surviving worktree keeps its git ref checked out, and the
+ * one-checkout-per-ref storage model then blocks that branch from ever being
+ * opened in another workspace ({@link RefAlreadyOpenError}).
+ *
+ * Strictly best-effort per Sandbox and never throws: the Branch/Room record
+ * is already gone by the time this runs, so a half-failed teardown must
+ * surface as a leak to clean up later, not as a deletion that "failed" after
+ * the fact. The dev server is stopped before the delete so the working tree
+ * isn't removed out from under a running process group.
+ */
+export async function deleteSandboxes(sandboxNames: string[]): Promise<void> {
+  await Promise.allSettled(
+    sandboxNames.map(async (name) => {
+      try {
+        const sandbox = await sandboxProvider.get({ name, resume: false })
+        await stopDevAndProxy(sandbox).catch(() => {})
+        await sandbox.delete()
+      } catch {
+        // Already gone (expired VM, manually removed worktree) — fall through
+        // to the env cleanup either way.
+      }
+      await deleteEnvVars(name).catch(() => {})
+    })
+  )
 }
 
 /**
