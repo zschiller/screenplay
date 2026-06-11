@@ -40,7 +40,8 @@ function ttydUrl(arch: string): string {
 // process-group leader, and read back by the liveness probe to decide whether a
 // launch is needed. Per-Sandbox (see `sandboxStateDir`) so two Branches sharing
 // the local backend's host filesystem don't clobber each other's pidfile.
-const terminalPidPath = (name: string) => `${sandboxStateDir(name)}/terminal.pid`
+const terminalPidPath = (name: string) =>
+  `${sandboxStateDir(name)}/terminal.pid`
 
 // The terminal daemon's own stdout/stderr (ttyd's connection/diagnostic chatter)
 // goes here rather than the sandbox log. The logs tab streams the sandbox log,
@@ -48,7 +49,8 @@ const terminalPidPath = (name: string) => `${sandboxStateDir(name)}/terminal.pid
 // there — the terminal's real content is the PTY served over the WebSocket,
 // never this stream. Kept as a file (not /dev/null) so it's still available for
 // debugging, and per-Sandbox so Branches don't interleave their daemon chatter.
-const terminalLogPath = (name: string) => `${sandboxStateDir(name)}/terminal.log`
+const terminalLogPath = (name: string) =>
+  `${sandboxStateDir(name)}/terminal.log`
 
 // Pin a known-good static `tmux` build. The base @vercel/sandbox image ships
 // NO `tmux` (confirmed by spike #255 and re-confirmed on a live sandbox — see
@@ -153,6 +155,27 @@ export async function killTerminalSession(
       `${TMUX_BIN} kill-session -t ${session} 2>/dev/null || true`,
     ])
   })
+}
+
+/**
+ * Kill the live sessions behind a set of terminal tabs in one sweep — the
+ * Room-deletion counterpart of the per-tab {@link killTerminalSession}.
+ * Desktop only: local sessions are node-pty processes inside this sidecar,
+ * so they'd survive the Sandbox teardown that follows Room deletion. On the
+ * hosted backend this is a clean no-op — each session is a tmux inside the
+ * Branch's VM and dies when the Room's Sandboxes are deleted, and resolving
+ * each VM here just to kill tmux first would needlessly resume hibernated
+ * ones. A missing session is a no-op, as on the per-tab path.
+ */
+export async function killTerminalSessions(
+  terminalSessionIds: string[]
+): Promise<void> {
+  if (!isLocalSandboxBackend()) return
+  const { getTerminalSessions } = await import("@/lib/terminal/local/pty")
+  const sessions = getTerminalSessions()
+  for (const id of terminalSessionIds) {
+    sessions.kill(tmuxSessionName(id))
+  }
 }
 
 /**

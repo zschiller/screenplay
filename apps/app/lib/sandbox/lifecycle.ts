@@ -219,6 +219,40 @@ export async function stopDevServers(sandboxNames: string[]): Promise<void> {
 }
 
 /**
+ * Permanently delete Sandboxes: stop each one's dev server + bridge proxy,
+ * delete the Sandbox itself (hosted: the VM; desktop: the git worktree, its
+ * allocated host ports, and its meta), and forget its persisted env vars.
+ *
+ * This is the teardown behind the domain invariant that **a Sandbox never
+ * outlives its Branch** (CONTEXT.md): Room deletion and Branch deletion both
+ * route here. Beyond the resource leak, skipping it has a sharper desktop
+ * consequence — a surviving worktree keeps its git ref checked out, and the
+ * one-checkout-per-ref storage model then blocks that branch from ever being
+ * opened in another workspace ({@link RefAlreadyOpenError}).
+ *
+ * Strictly best-effort per Sandbox and never throws: the Branch/Room record
+ * is already gone by the time this runs, so a half-failed teardown must
+ * surface as a leak to clean up later, not as a deletion that "failed" after
+ * the fact. The dev server is stopped before the delete so the working tree
+ * isn't removed out from under a running process group.
+ */
+export async function deleteSandboxes(sandboxNames: string[]): Promise<void> {
+  await Promise.allSettled(
+    sandboxNames.map(async (name) => {
+      try {
+        const sandbox = await sandboxProvider.get({ name, resume: false })
+        await stopDevAndProxy(sandbox).catch(() => {})
+        await sandbox.delete()
+      } catch {
+        // Already gone (expired VM, manually removed worktree) — fall through
+        // to the env cleanup either way.
+      }
+      await deleteEnvVars(name).catch(() => {})
+    })
+  )
+}
+
+/**
  * Forget the persisted env vars for a sandbox. Pure KV cleanup — no sandbox
  * command runs — so it stays outside the result contract and returns void.
  */

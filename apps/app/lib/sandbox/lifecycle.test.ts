@@ -131,6 +131,7 @@ vi.mock("@/lib/sandbox-bridge", () => ({
 }))
 
 import {
+  deleteSandboxes,
   ensurePreviewLive,
   keepAliveSandbox,
   probeSandboxUrl,
@@ -341,6 +342,48 @@ describe("stopDevServers", () => {
     fake.setGetError(new Error("no sandbox by that name"))
 
     await expect(stopDevServers(["sandbox-a"])).resolves.toBeUndefined()
+  })
+})
+
+describe("deleteSandboxes", () => {
+  it("stops the dev server + proxy, deletes the sandbox, and forgets its env vars", async () => {
+    const shCalls: string[] = []
+    let deleted = false
+    const sandbox = fakeSandbox({
+      respond: (cmd, args) => {
+        if (cmd === "sh") shCalls.push(args.join(" "))
+        return { exitCode: 0 }
+      },
+    })
+    sandbox.delete = async () => {
+      deleted = true
+    }
+    fake.setGet(sandbox)
+
+    await deleteSandboxes(["sandbox-a"])
+
+    // Resolved without resuming — deletion must not wake a hibernated VM.
+    expect(fake.getCalls).toEqual([{ name: "sandbox-a", resume: false }])
+    // The dev/proxy process groups are killed before the working tree goes,
+    // so nothing keeps running out of a removed directory.
+    expect(
+      shCalls.some(
+        (sh) =>
+          sh.includes('kill -KILL "-$p"') &&
+          sh.includes("dev.pid") &&
+          sh.includes("proxy.pid")
+      )
+    ).toBe(true)
+    expect(deleted).toBe(true)
+    expect(deleteEnvVars).toHaveBeenCalledWith("sandbox-a")
+  })
+
+  it("still forgets env vars when the sandbox is already gone, and never throws", async () => {
+    fake.setGetError(new Error("no sandbox by that name"))
+
+    await expect(deleteSandboxes(["sandbox-a"])).resolves.toBeUndefined()
+
+    expect(deleteEnvVars).toHaveBeenCalledWith("sandbox-a")
   })
 })
 
