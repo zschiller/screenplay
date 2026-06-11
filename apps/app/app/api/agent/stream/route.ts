@@ -77,7 +77,7 @@ export async function POST(req: Request) {
   // side effects so a misconfigured deployment still fails loud at the boundary
   // — a 500 here — rather than silently falling back (ADR 0006). In-process
   // (the hosted default) ignores `sandboxName` entirely.
-  const engine = await resolveLiveEngine({ sandboxName })
+  const engine = await resolveLiveEngine({ sandboxName, chatId })
 
   // Persist the incoming user turn as an ACP-native `user` record — the
   // decorated wire text (plan/branch markers + `@`-mention `resource_link`s)

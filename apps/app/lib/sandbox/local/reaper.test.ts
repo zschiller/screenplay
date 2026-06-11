@@ -88,6 +88,55 @@ describe("reapLocalSandboxProcessesSync", () => {
 
     expect(fs.existsSync(path.join(root, "sp-one", "dev.pid"))).toBe(false)
   })
+
+  it("kills the groups a supervised launcher re-detached (the portless tree)", () => {
+    // The recorded pid 100 is the supervisor; 101 is portless (same group);
+    // 200 is the dev script portless spawned with detached:true — its OWN
+    // group, with the dev server tree (201) inside it. A group-only kill of
+    // -100 misses group 200 entirely; the sweep must walk descendants.
+    writePidfile("sp-one", "dev.pid", "100\n")
+    const table =
+      "  100     1   100\n" + // supervisor (orphaned, ppid 1)
+      "  101   100   100\n" + // portless, in the supervisor's group
+      "  200   101   200\n" + // detached dev script — new group leader
+      "  201   200   200\n" + // next-server inside the detached group
+      "  999     1   999\n" // unrelated process — must NOT be touched
+
+    reapLocalSandboxProcessesSync({ root, kill, listProcesses: () => table })
+
+    expect(kills).toContainEqual({ pid: -100, signal: "SIGKILL" })
+    expect(kills).toContainEqual({ pid: -200, signal: "SIGKILL" })
+    expect(kills).not.toContainEqual({ pid: -999, signal: "SIGKILL" })
+    expect(kills).not.toContainEqual({ pid: 999, signal: "SIGKILL" })
+  })
+
+  it("falls back to the plain group kill when ps is unavailable", () => {
+    writePidfile("sp-one", "dev.pid", "12345")
+
+    reapLocalSandboxProcessesSync({
+      root,
+      kill,
+      listProcesses: () => {
+        throw new Error("ps: not found")
+      },
+    })
+
+    expect(kills).toContainEqual({ pid: -12345, signal: "SIGKILL" })
+    expect(fs.existsSync(path.join(root, "sp-one", "dev.pid"))).toBe(false)
+  })
+
+  it("never widens the kill to pid/pgid 0 or 1 from a corrupt ps row", () => {
+    writePidfile("sp-one", "dev.pid", "100")
+    // A descendant row claiming pgid 1 (or a pid of 1) must be skipped — a
+    // corrupt table must not become kill(-1) (everything we can signal).
+    const table = "  100     1   100\n" + "  101   100     1\n"
+
+    reapLocalSandboxProcessesSync({ root, kill, listProcesses: () => table })
+
+    expect(kills).not.toContainEqual({ pid: -1, signal: "SIGKILL" })
+    expect(kills).not.toContainEqual({ pid: 1, signal: "SIGKILL" })
+    expect(kills).toContainEqual({ pid: 101, signal: "SIGKILL" })
+  })
 })
 
 describe("installLocalSandboxReaper", () => {

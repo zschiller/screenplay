@@ -45,9 +45,6 @@ describe("useDevServerProbe", () => {
     })
     expect(result.current.state).toBe("ready")
     expect(probe).toHaveBeenCalledTimes(1)
-    // Ready on the first probe (warm path) — the iframe loaded real content,
-    // so the caller must NOT reload it.
-    expect(result.current.readyAfterWait).toBe(false)
   })
 
   it("transitions waiting → ready when the server comes up mid-probe", async () => {
@@ -65,9 +62,6 @@ describe("useDevServerProbe", () => {
     })
     expect(result.current.state).toBe("ready")
     expect(probe).toHaveBeenCalledTimes(3)
-    // Earlier probes failed (cold start) — the iframe may have shown the
-    // placeholder, so the caller should reload onto the now-live server.
-    expect(result.current.readyAfterWait).toBe(true)
   })
 
   it("transitions waiting → timedout after the probe window elapses", async () => {

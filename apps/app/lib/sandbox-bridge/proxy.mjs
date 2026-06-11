@@ -24,6 +24,17 @@ function stripResponseHeaders(h) {
   delete out["x-frame-options"]
   delete out["content-encoding"]
   delete out["content-length"]
+  // Drop the upstream's framing header too. The HTML path buffers the body and
+  // sets its own content-length (fixed-length framing); the passthrough path
+  // pipes a body of unknown length and lets Node re-chunk. Either way, keeping
+  // the upstream's `transfer-encoding: chunked` would put Content-Length AND
+  // Transfer-Encoding on the same response — a framing conflict that lenient
+  // clients (curl, browsers) tolerate but a strict HTTP parser rejects
+  // (Node/undici: HPE_INVALID_CONTENT_LENGTH). That's what darkened the iframe:
+  // the server-side preview probe (`fetch` → undici) threw on every poll, so it
+  // never saw the dev server as ready even though the page served fine in a
+  // browser.
+  delete out["transfer-encoding"]
   return out
 }
 

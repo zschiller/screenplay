@@ -13,6 +13,15 @@ const get = vi.fn(async ({ name }: { name: string }) => ({
 }))
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: { get: (o: { name: string }) => get(o) } }))
 
+// Native session resume reads/writes the chat's stored ACP session id. Mock the
+// persistence seam so this unit doesn't reach the db.
+const getAcpSessionId = vi.fn(async (_chatId: string): Promise<string | null> => null)
+const setAcpSessionId = vi.fn(async (_chatId: string, _id: string) => {})
+vi.mock("@/lib/agent/persistence", () => ({
+  getAcpSessionId: (chatId: string) => getAcpSessionId(chatId),
+  setAcpSessionId: (chatId: string, id: string) => setAcpSessionId(chatId, id),
+}))
+
 import { ENGINE_ENV_VAR } from "./engine-select"
 import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
@@ -40,6 +49,8 @@ describe("resolveLiveEngine", () => {
     if (original === undefined) delete process.env[ENGINE_ENV_VAR]
     else process.env[ENGINE_ENV_VAR] = original
     get.mockClear()
+    getAcpSessionId.mockClear()
+    setAcpSessionId.mockClear()
   })
 
   it("returns the in-process engine by default — no sandbox lookup", async () => {
@@ -62,5 +73,17 @@ describe("resolveLiveEngine", () => {
     const engine = await resolveLiveEngine({})
     expect(engine).toBeInstanceOf(ExternalEngine)
     expect(get).not.toHaveBeenCalled()
+  })
+
+  it("reads the chat's stored ACP session id to wire native resume", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({ sandboxName: "branch-7", chatId: "chat-9" })
+    expect(getAcpSessionId).toHaveBeenCalledWith("chat-9")
+  })
+
+  it("does not touch the persistence seam without a chatId", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({ sandboxName: "branch-7" })
+    expect(getAcpSessionId).not.toHaveBeenCalled()
   })
 })

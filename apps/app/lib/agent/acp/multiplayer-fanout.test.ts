@@ -271,7 +271,7 @@ describe("ACP seam — browsers are never ACP peers", () => {
 
   // Server-only surfaces a browser must never import directly.
   const FORBIDDEN = [
-    "@zed-industries/agent-client-protocol", // the genuine ACP wire package
+    "@agentclientprotocol/sdk", // the genuine ACP wire package
     "@/lib/agent/broadcast", // the server's Y.Doc broadcast writer
     "@/lib/agent/acp/consumer", // the single ACP→state boundary (server)
     "@/lib/agent/acp/engine-seam", // the engine update seam (server)

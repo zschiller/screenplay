@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -36,6 +37,73 @@ export interface ReaperDeps {
   root?: string
   /** Signal sender. Defaults to `process.kill`; tests record instead. */
   kill?: (pid: number, signal: NodeJS.Signals) => void
+  /**
+   * Process-table reader: `pid ppid pgid` per line. Defaults to a synchronous
+   * `ps -A`; tests inject a fixed table. May throw — the sweep then falls back
+   * to the plain group kill.
+   */
+  listProcesses?: () => string
+}
+
+/** One `ps` row: enough ancestry to walk a tree and kill by group. */
+interface ProcessRow {
+  pid: number
+  ppid: number
+  pgid: number
+}
+
+/**
+ * Snapshot the live process table. Synchronous on purpose (the exit hook may
+ * be the caller). Repeated `-o` flags (not the comma form) so the same
+ * invocation parses on both BSD/macOS and procps ps.
+ */
+function readProcessTable(): string {
+  return execSync("ps -A -o pid= -o ppid= -o pgid=", { encoding: "utf8" })
+}
+
+function parseProcessTable(raw: string): ProcessRow[] {
+  const rows: ProcessRow[] = []
+  for (const line of raw.split("\n")) {
+    const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number)
+    if (
+      Number.isInteger(pid) &&
+      Number.isInteger(ppid) &&
+      Number.isInteger(pgid)
+    ) {
+      rows.push({ pid, ppid, pgid })
+    }
+  }
+  return rows
+}
+
+/**
+ * The transitive descendants of `root` in a process-table snapshot, plus every
+ * process group they belong to (as negative pids, ready for `kill`). This is
+ * what catches the dev server itself: the supervised `portless run` spawns the
+ * dev script with `detached: true`, so the real dev tree (npm → next → compile
+ * workers) sits in its own process group that the recorded supervisor group
+ * doesn't contain — and SIGKILL means portless's own kill-tree cleanup never
+ * runs. Guards 0/1 so a corrupt row can never widen the kill to `kill(-1)`.
+ */
+function descendantKillTargets(rows: ProcessRow[], root: number): number[] {
+  const marked = new Set<number>([root])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const row of rows) {
+      if (!marked.has(row.pid) && marked.has(row.ppid)) {
+        marked.add(row.pid)
+        changed = true
+      }
+    }
+  }
+  const targets = new Set<number>()
+  for (const row of rows) {
+    if (!marked.has(row.pid) || row.pid === root) continue
+    if (row.pid > 1) targets.add(row.pid)
+    if (row.pgid > 1) targets.add(-row.pgid)
+  }
+  return [...targets]
 }
 
 /**
@@ -54,6 +122,16 @@ export function reapLocalSandboxProcessesSync(deps: ReaperDeps = {}): void {
     entries = fs.readdirSync(root, { withFileTypes: true })
   } catch {
     return // no state root — nothing was ever launched
+  }
+
+  // Snapshot the process table once, before any kill, while the parent links
+  // are still intact — the descendant walk below needs them. Best-effort: with
+  // no table the sweep degrades to the plain group kill.
+  let processRows: ProcessRow[] = []
+  try {
+    processRows = parseProcessTable((deps.listProcesses ?? readProcessTable)())
+  } catch {
+    // ps unavailable/failed — group kill only.
   }
 
   for (const entry of entries) {
@@ -77,10 +155,12 @@ export function reapLocalSandboxProcessesSync(deps: ReaperDeps = {}): void {
       // Guard the low pids: a corrupt pidfile must never turn into a
       // `kill(-1)` (every process we can signal) or a signal to init.
       if (Number.isInteger(pid) && pid > 1) {
-        // The recorded pid is a setsid session leader, so pid === pgid and the
-        // negative form takes down the whole tree (supervisor loop, dev server,
-        // its compile workers). The plain kill is the fallback for the rare
-        // non-leader pid — same two-step as stopDevAndProxy.
+        // The recorded pid is a session leader, so pid === pgid and the
+        // negative form takes down everything still in its group (supervisor
+        // loop, proxy node). The plain kill is the fallback for the rare
+        // non-leader pid — same two-step as stopDevAndProxy. The recorded
+        // group dies first so the supervisor's respawn loop can't race the
+        // descendant sweep below.
         try {
           kill(-pid, "SIGKILL")
         } catch {
@@ -90,6 +170,16 @@ export function reapLocalSandboxProcessesSync(deps: ReaperDeps = {}): void {
           kill(pid, "SIGKILL")
         } catch {
           // Already gone.
+        }
+        // Then every descendant and its process group — the dev tree that
+        // portless re-detached out of the recorded group (see
+        // {@link descendantKillTargets}).
+        for (const target of descendantKillTargets(processRows, pid)) {
+          try {
+            kill(target, "SIGKILL")
+          } catch {
+            // Already gone.
+          }
         }
       }
       try {

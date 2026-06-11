@@ -38,6 +38,9 @@ importers:
 
   apps/app:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.14.1
+        version: 0.14.1(zod@4.4.3)
       '@ai-sdk/anthropic':
         specifier: ^3.0.75
         version: 3.0.75(zod@4.4.3)
@@ -128,9 +131,6 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
-      '@zed-industries/agent-client-protocol':
-        specifier: ^0.4.5
-        version: 0.4.5
       ai:
         specifier: ^6.0.175
         version: 6.0.175(zod@4.4.3)
@@ -466,6 +466,11 @@ importers:
         version: 5.9.3
 
 packages:
+
+  '@agentclientprotocol/sdk@0.14.1':
+    resolution: {integrity: sha512-b6r3PS3Nly+Wyw9U+0nOr47bV8tfS476EgyEMhoKvJCZLbgqoDFN7DJwkxL88RR0aiOqOYV1ZnESHqb+RmdH8w==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@ai-sdk/anthropic@3.0.75':
     resolution: {integrity: sha512-5AV3CKwaOJFdGXhihVgvRLNrjwRn2Xmy71YygT8DYOA+5zTx93Seg2QSIS8b3tJxzZ7X4H84pEtrE8VZKBCZGA==}
@@ -3649,10 +3654,6 @@ packages:
 
   '@xterm/xterm@6.0.0':
     resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
-
-  '@zed-industries/agent-client-protocol@0.4.5':
-    resolution: {integrity: sha512-OwHKfu5AiKul/GSJilHg36+kOSV9eOl2eYnjR6tenAQDdraSnt22WFk0SDFTeuAANz1Gxkv+DTf7Hq32rvX7FQ==}
-    deprecated: This package has been renamed to @agentclientprotocol/sdk. Please migrate to continue receiving updates.
 
   abstract-leveldown@6.2.3:
     resolution: {integrity: sha512-BsLm5vFMRUrrLeCcRc+G0t2qOaTzpoJQLOubq2XM72eNpjF5UdU5o/5NvlNhx95XHcAvcl8OMXr4mlg/fRgUXQ==}
@@ -7835,6 +7836,10 @@ packages:
 
 snapshots:
 
+  '@agentclientprotocol/sdk@0.14.1(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
+
   '@ai-sdk/anthropic@3.0.75(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
@@ -10821,10 +10826,6 @@ snapshots:
   '@xterm/addon-fit@0.11.0': {}
 
   '@xterm/xterm@6.0.0': {}
-
-  '@zed-industries/agent-client-protocol@0.4.5':
-    dependencies:
-      zod: 3.25.76
 
   abstract-leveldown@6.2.3:
     dependencies:

@@ -50,13 +50,33 @@ export function sandboxLogPath(name: string): string {
   return `${sandboxStateDir(name)}/sandbox.log`
 }
 
-// Pidfiles for the dev server and proxy. Both are launched under `setsid` so
-// their PID equals their PGID — the stop path uses these to SIGKILL the whole
-// process group in one shot, catching every child that a port-based kill
-// would otherwise miss (Next compile workers, esbuild, the proxy respawn loop).
-// Per-Sandbox (see {@link sandboxStateDir}).
+// Pidfiles for the dev server and proxy. Both are launched under
+// {@link sessionLeader} so their PID equals their PGID — the stop path uses
+// these to SIGKILL the whole process group in one shot, catching every child
+// that a port-based kill would otherwise miss (Next compile workers, esbuild,
+// the proxy respawn loop). Per-Sandbox (see {@link sandboxStateDir}).
 const devPidPath = (name: string) => `${sandboxStateDir(name)}/dev.pid`
 const proxyPidPath = (name: string) => `${sandboxStateDir(name)}/proxy.pid`
+
+/**
+ * Command prefix that runs its argv as a new session (hence process-group)
+ * leader, so the PID we record in a pidfile equals its PGID and the stop path's
+ * `kill -KILL -<pid>` tears down the whole tree in one shot.
+ *
+ * Linux ships `setsid`, but macOS — where the local backend runs its commands
+ * directly on the host — does not. A literal `setsid` there dies with "command
+ * not found", swallowed by each launch's `>/dev/null 2>&1`, so the dev server,
+ * bridge proxy, and terminal daemon never start: the Logs panel shows only the
+ * `$ <script>` header and nothing else. On macOS we shim it with Perl's
+ * `POSIX::setsid` (always present at /usr/bin/perl) — it opens a new session
+ * then `exec`s the real argv, an identical net effect. The hosted backend
+ * (always a Linux VM) and a Linux local host keep the native `setsid`.
+ */
+export function sessionLeader(): string {
+  return isLocalSandboxBackend() && process.platform === "darwin"
+    ? `perl -MPOSIX -e 'POSIX::setsid(); exec(@ARGV) or die "exec: $!"' --`
+    : "setsid"
+}
 
 // Env vars to make install output readable and live-streamable:
 // - PNPM_CONFIG_REPORTER=append-only: pnpm prints line-by-line install
@@ -165,15 +185,29 @@ export async function writeBridgeFiles(
 
 /**
  * Tear down any dev server and proxy supervisor a previous launch left running.
- * Both were started under `setsid`, so the PID recorded in each pidfile is its
- * own process-group leader: `kill -KILL -<pid>` takes down the supervisor loop,
- * its current child (the dev server / proxy node), and that child's own children
- * (Next compile workers, esbuild) in a single group kill — the only reliable way
- * to catch every descendant a port-based kill would miss. The plain `kill -KILL
- * <pid>` is a fallback for the rare case the PID isn't a group leader. Stale or
- * missing pidfiles (a fresh VM, a snapshot whose recorded PIDs don't exist in
- * the new process namespace) are harmless: the kills no-op and we remove the
- * files. Always succeeds — a relaunch must not be blocked by a failed cleanup.
+ * Both were started under {@link sessionLeader}, so the PID recorded in each
+ * pidfile is its own process-group leader, and `kill -KILL -<pid>` takes down
+ * the supervisor loop and everything still in its group in one shot.
+ *
+ * **The group kill alone is not enough on the local backend.** The supervised
+ * command there is `portless run`, and portless spawns the actual dev script
+ * with `detached: true` (its spawnChildProcess, non-Windows) — so the real dev
+ * server (`npm run dev` → next → compile workers) lives in a *new* process
+ * group the pidfile knows nothing about. And because we SIGKILL, portless's
+ * own SIGTERM kill-tree cleanup never runs. So before killing, snapshot the
+ * process table (`ps`), walk the recorded pid's transitive descendants, and
+ * kill every descendant's process group too. The snapshot is taken while the
+ * parent links are still intact; the recorded group dies first so the
+ * supervisor's respawn loop can't race the sweep. On the hosted backend the
+ * dev script runs undetached, so the walk finds nothing new and the group
+ * kill carries the day as before.
+ *
+ * The plain `kill -KILL <pid>` is a fallback for the rare case a recorded PID
+ * isn't a group leader. Stale or missing pidfiles (a fresh VM, a snapshot
+ * whose recorded PIDs don't exist in the new process namespace) are harmless:
+ * the kills no-op and we remove the files. A pidfile holding `1`, `0`, or
+ * garbage is never signalled (a corrupt file must not become `kill -1`).
+ * Always succeeds — a relaunch must not be blocked by a failed cleanup.
  *
  * This is what makes {@link launchDevAndProxy} idempotent: without it, a second
  * launch into a still-live VM (a reconnect whose preview probe transiently
@@ -185,10 +219,23 @@ export async function writeBridgeFiles(
 export async function stopDevAndProxy(sandbox: SandboxInstance): Promise<void> {
   const devPid = devPidPath(sandbox.name)
   const proxyPid = proxyPidPath(sandbox.name)
+  // Transitive closure over the ps snapshot: mark the root, keep marking any
+  // process whose parent is marked, then print every marked pid and its pgid
+  // (guarding 0/1 so a corrupt row can't widen the kill).
+  const descendants =
+    `awk -v r="$p" '` +
+    `{ pid[NR]=$1; pp[NR]=$2; pg[NR]=$3 } ` +
+    `END { m[r]=1; do { c=0; for (i=1;i<=NR;i++) if (!m[pid[i]] && m[pp[i]]) { m[pid[i]]=1; c=1 } } while (c); ` +
+    `for (i=1;i<=NR;i++) if (m[pid[i]] && pid[i]>1) { print pid[i]; if (pg[i]>1) print pg[i] } }'`
   const kill =
+    `tab=$(ps -A -o pid= -o ppid= -o pgid= 2>/dev/null); ` +
     `for f in ${devPid} ${proxyPid}; do ` +
     `p=$(cat "$f" 2>/dev/null); ` +
-    `if [ -n "$p" ]; then kill -KILL "-$p" 2>/dev/null; kill -KILL "$p" 2>/dev/null; fi; ` +
+    `[ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || continue; ` +
+    `kill -KILL "-$p" 2>/dev/null; kill -KILL "$p" 2>/dev/null; ` +
+    `for t in $(printf '%s\\n' "$tab" | ${descendants}); do ` +
+    `kill -KILL "-$t" 2>/dev/null; kill -KILL "$t" 2>/dev/null; ` +
+    `done; ` +
     `done; ` +
     `rm -f ${devPid} ${proxyPid} 2>/dev/null; true`
   await sandbox.runCommand({ cmd: "sh", args: ["-c", kill] })
@@ -258,8 +305,8 @@ export async function launchDevAndProxy(
   const devHeader = shellQuote(`\n$ ${dev}\n`)
   // Launch the dev server under a restart-on-crash supervisor, mirroring the
   // proxy below, so a crashed dev server comes back on its own without any
-  // reload or reconnect. `setsid` makes the supervisor the leader of a new
-  // session, so the PID we record equals its PGID — the stop path uses
+  // reload or reconnect. {@link sessionLeader} makes the supervisor the leader
+  // of a new session, so the PID we record equals its PGID — the stop path uses
   // `kill -KILL -<pid>` to take down the whole process group (the supervisor
   // loop, its current dev child, and that child's own children: Next compile
   // workers, esbuild, etc.) in one shot. That's the only reliable way to catch
@@ -276,7 +323,7 @@ export async function launchDevAndProxy(
       "-c",
       `mkdir -p ${stateDir}; ` +
         `printf %s ${devHeader} >> ${logPath} 2>/dev/null; ` +
-        `setsid sh -c ${devInner} </dev/null >/dev/null 2>&1 & ` +
+        `${sessionLeader()} sh -c ${devInner} </dev/null >/dev/null 2>&1 & ` +
         `echo $! > ${devPid}; ` +
         `disown`,
     ],
@@ -296,13 +343,13 @@ export async function launchDevAndProxy(
   })
 
   // Restart-on-crash wrapper so a proxy bug doesn't permanently dark the
-  // iframe. Same setsid trick as above so the stop path can take down the
-  // wrapper shell and any node child it spawned by killing the group.
+  // iframe. Same session-leader trick as above so the stop path can take down
+  // the wrapper shell and any node child it spawned by killing the group.
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
-      `setsid sh -c 'while true; do node ${SCREENPLAY_DIR}/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
+      `${sessionLeader()} sh -c 'while true; do node ${SCREENPLAY_DIR}/proxy.mjs; sleep 1; done' </dev/null >/dev/null 2>&1 & ` +
         `echo $! > ${proxyPid}; ` +
         `disown`,
     ],

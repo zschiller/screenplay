@@ -174,12 +174,25 @@ fn open_capture_window(
     let parsed = url.parse().map_err(|_| format!("bad render url: {url}"))?;
     let app_for_load = app.clone();
 
-    WebviewWindowBuilder::new(app, CAPTURE_LABEL, WebviewUrl::External(parsed))
+    // Record whoever is frontmost *before* we build the window. `wry` calls
+    // `NSApplication.activate` unconditionally when it injects the WKWebview
+    // (wkwebview/mod.rs: "make sure the window is always on top when we create
+    // a new webview") — neither `visible(false)` nor `focused(false)` suppress
+    // it, so every capture yanks our app to the foreground. We re-activate the
+    // previous app below to undo that.
+    #[cfg(target_os = "macos")]
+    let prev_app = unsafe { macos::frontmost_app() };
+
+    let window = WebviewWindowBuilder::new(app, CAPTURE_LABEL, WebviewUrl::External(parsed))
         .title("")
         .inner_size(CAPTURE_W, CAPTURE_H)
         // Off-screen but on a real display so the webview actually renders.
         .position(-8000.0, -8000.0)
-        .visible(true)
+        // Built hidden: a window made visible at build time gets
+        // `makeKeyAndOrderFront` on macOS, which yanks the app to the
+        // foreground every capture. We order it on screen ourselves below
+        // without activating. `focused(false)` alone doesn't prevent this.
+        .visible(false)
         .focused(false)
         .skip_taskbar(true)
         .decorations(false)
@@ -201,6 +214,26 @@ fn open_capture_window(
         })
         .build()
         .map_err(|e| e.to_string())?;
+
+    // Make the off-screen webview visible enough to render, without stealing
+    // focus. `orderBack:` puts the window on screen behind everything in its
+    // level and never makes it key or activates the app, so the page paints
+    // (the snapshot needs a rendered webview) but the user's focus is left
+    // alone. The window is positioned off any display, so back-ordering it is
+    // invisible to the user.
+    #[cfg(target_os = "macos")]
+    {
+        let _ = window.with_webview(|webview| unsafe {
+            macos::show_without_activating(webview.inner() as *mut objc2::runtime::AnyObject);
+        });
+        // Hand the foreground back to whoever had it before `wry` activated us.
+        // No-op (and harmless) if our app was already frontmost.
+        unsafe { macos::reactivate_app(prev_app) };
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.show();
+    }
     Ok(())
 }
 
@@ -240,6 +273,52 @@ mod macos {
 
     // NSBitmapImageFileType::PNG.
     const NS_PNG_FILE_TYPE: u64 = 4;
+
+    /// The app that is currently frontmost, retained so it stays valid across
+    /// the capture-window build. Returns null if there is none. Pair every
+    /// non-null return with a `reactivate_app` call, which releases it.
+    pub unsafe fn frontmost_app() -> *mut AnyObject {
+        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        if workspace.is_null() {
+            return std::ptr::null_mut();
+        }
+        let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            return std::ptr::null_mut();
+        }
+        // `frontmostApplication` is autoreleased; retain it past the autorelease
+        // pool so it survives until we re-activate it.
+        let _: *mut AnyObject = msg_send![app, retain];
+        app
+    }
+
+    /// Re-activate `app` (an `NSRunningApplication`), restoring the foreground to
+    /// whoever held it before `wry` activated us. Releases the retain taken by
+    /// `frontmost_app`. No-op on null.
+    pub unsafe fn reactivate_app(app: *mut AnyObject) {
+        if app.is_null() {
+            return;
+        }
+        // Options 0 = default activation (don't force-raise every window).
+        let _: bool = msg_send![app, activateWithOptions: 0u64];
+        let _: () = msg_send![app, release];
+    }
+
+    /// Order the webview's `NSWindow` on screen behind everything in its level
+    /// without making it key or activating the app. Used instead of building
+    /// the capture window `visible(true)`, which would `makeKeyAndOrderFront`
+    /// and steal the user's focus on every thumbnail.
+    pub unsafe fn show_without_activating(wk: *mut AnyObject) {
+        if wk.is_null() {
+            return;
+        }
+        let window: *mut AnyObject = msg_send![wk, window];
+        if window.is_null() {
+            return;
+        }
+        let nil: *mut AnyObject = std::ptr::null_mut();
+        let _: () = msg_send![window, orderBack: nil];
+    }
 
     /// `wk` is the `WKWebView`. Calls `takeSnapshotWithConfiguration:nil
     /// completionHandler:`, converts the returned `NSImage` to PNG bytes in the

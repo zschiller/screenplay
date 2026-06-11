@@ -55,6 +55,21 @@ function fetchExpectedBridgeVersion(): Promise<string> {
 // cycle — avoids a loop if a sandbox somehow can't serve the fresh file.
 const reinstalledSandboxes = new Set<string>()
 
+// Grace between the probe reporting the dev server reachable and reloading an
+// iframe that still hasn't reported a real page via the bridge. Long enough for
+// a page that's genuinely mid-load to fire `contentReady` first (no needless
+// reload on the warm path), short enough that recovering a stuck placeholder
+// feels immediate.
+const PLACEHOLDER_RELOAD_GRACE_MS = 1500
+
+// Cap on placeholder-recovery reloads. The cold-start window has several
+// transient failure modes (the proxy serves its placeholder again, the upstream
+// resets mid-buffer, the route is still compiling on demand), and a single
+// reload occasionally lands in one of them — leaving the frame white forever.
+// `contentReady` stops the loop the moment a real page paints, so a healthy
+// frame reloads at most once; the cap only bounds a genuinely stuck server.
+const MAX_PLACEHOLDER_RELOADS = 10
+
 export interface IframeLayerData {
   id: string
   branchId?: string
@@ -347,6 +362,13 @@ export function IframeLayer({
   // above the usePostMessage call below — e.g. reloadIframe — can reference it.
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // The URL the iframe is *supposed* to show. reloadIframe reloads onto this,
+  // not the DOM's current `iframe.src`: a prior recovery reload may have parked
+  // the frame on about:blank (a backgrounded window can pause the restore rAF),
+  // and reading the live `src` would then reload it right back to about:blank —
+  // white forever. Synced from `iframeSrc` (defined below) in an effect.
+  const iframeSrcRef = useRef<string | undefined>(undefined)
+
   // True once the in-iframe bridge reports the real page is loaded. This is a
   // postMessage from the iframe itself — no server round-trip — so it's the
   // fastest signal that there's real content to show, and it lets the loading
@@ -370,8 +392,11 @@ export function IframeLayer({
     // — drop the flag so the overlay re-shows until the bridge reports back.
     setContentReady(false)
     // Cross-origin iframe: cycle src through about:blank to force a full
-    // reload that re-fetches bridge.js and the dev server page.
-    const src = iframe.src
+    // reload that re-fetches bridge.js and the dev server page. Reload onto the
+    // *intended* URL (see iframeSrcRef) so a frame already stuck on about:blank
+    // doesn't reload back onto about:blank.
+    const src = iframeSrcRef.current
+    if (!src) return
     iframe.src = "about:blank"
     requestAnimationFrame(() => {
       const i = iframeRef.current
@@ -534,6 +559,20 @@ export function IframeLayer({
   // iframe back onto the path it's already on).
   const [iframeSrc, setIframeSrc] = useState<string | undefined>(desiredSrc)
 
+  // Counts placeholder-recovery reloads for the current `iframeSrc`. Bumping it
+  // re-arms the recovery effect's timer (so it retries rather than firing once),
+  // and it resets to 0 below whenever a fresh page starts loading.
+  const [recoveryTick, setRecoveryTick] = useState(0)
+
+  // Keep iframeSrcRef pointing at the intended URL for reloadIframe, and give
+  // each fresh load its own recovery budget.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    iframeSrcRef.current = iframeSrc
+    setRecoveryTick(0)
+  }, [iframeSrc])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   // This synchronizes the iframe (an external system) with the desired
   // url/route while suppressing reload loops from in-iframe navigation echoes.
   // The decision depends on ref-tracked history (last applied url, last path
@@ -577,24 +616,46 @@ export function IframeLayer({
   // which reloads it back onto the previous route. (That stale-src reload was
   // the source of the Create Flow "navigates then snaps back / double frame"
   // bug.) A branch switch still changes `iframeUrl`, so it re-probes correctly.
-  const {
-    state: probeState,
-    readyAfterWait,
-    retry: retryProbe,
-  } = useDevServerProbe(iframeLayer.iframeUrl)
+  const { state: probeState, retry: retryProbe } = useDevServerProbe(
+    iframeLayer.iframeUrl
+  )
 
   // The iframe mounts immediately (see render below) so the warm path paints
   // with zero gating — no waiting on the probe before a `src` is even assigned.
-  // The tradeoff: on a cold start the iframe may have loaded the proxy's
-  // placeholder before the dev server was up. `readyAfterWait` is true only when
-  // the probe succeeded *after* an earlier failure, i.e. exactly that case — so
-  // reload once onto the now-live server. The warm path (ready on first probe)
-  // never enters here, so there's no reload/flicker.
+  // The tradeoff: on a cold start the iframe may have fetched the proxy's
+  // placeholder (or hit a connection-refused) before the dev server was up. The
+  // placeholder never carries the bridge, so `contentReady` can't fire on its
+  // own to clear it — and we can't gate the recovery on the probe's
+  // failed-then-succeeded heuristic, because the probe is a server-action
+  // round-trip whose first attempt routinely resolves *after* the dev server
+  // bound the port (reporting ready-on-first-try) even though the iframe's own
+  // in-browser fetch already painted the placeholder.
+  //
+  // So drive the recovery off the authoritative signal: the probe says the
+  // server is reachable, yet the bridge still hasn't reported a real page
+  // (`contentReady`). That means the iframe is sitting on the placeholder/blank
+  // it loaded too early — reload onto the now-live server. The short grace lets
+  // a real page that's merely mid-load report `contentReady` first, so the warm
+  // path never reloads/flickers.
+  //
+  // Retry rather than reload once: the cold-start window has several transient
+  // failure modes (the proxy serves its placeholder again, the upstream resets
+  // mid-buffer, a backgrounded window paused the restore rAF and left the frame
+  // on about:blank). A single reload occasionally lands in one of them and the
+  // frame stays white forever. Each attempt bumps `recoveryTick`, which re-arms
+  // this effect for the next try; `contentReady` (reliable — the bridge posts
+  // `screenplay:ready` synchronously and the parent listener is always mounted
+  // first) ends the loop the instant a real page paints, so a healthy frame
+  // reloads at most once. The cap only bounds a genuinely stuck server.
   useEffect(() => {
-    if (probeState === "ready" && readyAfterWait) {
+    if (probeState !== "ready" || contentReady) return
+    if (recoveryTick >= MAX_PLACEHOLDER_RELOADS) return
+    const id = setTimeout(() => {
       reloadIframe()
-    }
-  }, [probeState, readyAfterWait, reloadIframe])
+      setRecoveryTick((n) => n + 1)
+    }, PLACEHOLDER_RELOAD_GRACE_MS)
+    return () => clearTimeout(id)
+  }, [probeState, contentReady, recoveryTick, reloadIframe])
 
   // Both interact mode and Create Flow mode forward pointer events to the
   // iframe and hide the canvas overlay. Create Flow additionally captures
@@ -811,12 +872,18 @@ export function IframeLayer({
             the instant the iframe's bridge reports the real page is up
             (`contentReady`) — a postMessage, no server round-trip — so the warm
             path doesn't sit on the spinner waiting for the probe RPC to return.
-            `probeState === "ready"` is a fallback for pages that load without
-            the bridge. A branch can be assigned before its dev server is up, so
-            there may be no URL to probe yet — still show the waiting state (the
-            probe holds in `waiting` without a URL) so the frame isn't blank. */}
+            Crucially it stays up while recovery is still reloading (probe ready
+            but no real page yet, under the cap): otherwise the bridge-less proxy
+            placeholder — an unstyled "Dev server not yet ready" — flashes
+            through, as does the about:blank white between reload cycles. Once
+            recovery is exhausted the overlay drops so a genuinely stuck server
+            doesn't sit under an infinite spinner. A branch can be assigned
+            before its dev server is up, so there may be no URL to probe yet —
+            still show the waiting state (the probe holds in `waiting` without a
+            URL) so the frame isn't blank. */}
         {!contentReady &&
-          probeState !== "ready" &&
+          (probeState !== "ready" ||
+            recoveryTick < MAX_PLACEHOLDER_RELOADS) &&
           (desiredSrc || iframeLayer.branchId) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
               {probeState === "timedout" ? (

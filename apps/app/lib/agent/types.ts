@@ -61,5 +61,6 @@ export type AgentMessage =
       kind?: ToolKind
       status: ToolCallStatus
       content: ToolCallContent[]
-      rawInput?: Record<string, unknown>
+      // Arbitrary JSON mirroring ACP (see AcpToolCallRecord) — narrow at use.
+      rawInput?: unknown
     }

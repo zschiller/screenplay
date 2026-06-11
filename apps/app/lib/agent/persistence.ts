@@ -43,6 +43,38 @@ export async function upsertChat(params: {
 }
 
 /**
+ * The external engine's stored native ACP session id for a chat, or `null` if
+ * none is bound yet (no external turn has run, or the chat is in-process). Read
+ * at the live-route boundary to decide whether a turn resumes the agent's own
+ * session via `session/load` or boots a fresh `session/new`.
+ */
+export async function getAcpSessionId(
+  chatId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ acpSessionId: agentChat.acpSessionId })
+    .from(agentChat)
+    .where(eq(agentChat.id, chatId))
+    .limit(1)
+  return row?.acpSessionId ?? null
+}
+
+/**
+ * Persist the native ACP session id the external engine bound this turn, so the
+ * next turn resumes it. Called only when a fresh `session/new` is created — a
+ * successful `session/load` reuses the same id, so there is nothing to write.
+ */
+export async function setAcpSessionId(
+  chatId: string,
+  acpSessionId: string
+): Promise<void> {
+  await db
+    .update(agentChat)
+    .set({ acpSessionId, updatedAt: new Date() })
+    .where(eq(agentChat.id, chatId))
+}
+
+/**
  * Append one ACP-native message record to the durable log (ADR 0006). The
  * ACP-update consumer calls this for every agent/reasoning turn, and the routes
  * call it to land the incoming user turn before the engine runs.

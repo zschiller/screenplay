@@ -1,6 +1,6 @@
 import "server-only"
 
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -481,12 +481,55 @@ function execHost(
 
   let stdout = ""
   let stderr = ""
+  // A detached command's output is read only through `logs()`, and the route
+  // that consumes it wires the iterator into a `ReadableStream` the HTTP layer
+  // drains lazily — so the first `logs()` pull can land several ticks after
+  // spawn, by which point a `tail -n 1000` has already emitted its backlog.
+  // Buffer every chunk from spawn into a queue the iterator drains (rather than
+  // attaching listeners at `logs()` time), so a late first pull still replays
+  // that backlog before streaming live output. Without this the desktop Logs
+  // panel stays blank for an already-quiet dev server whose output is all
+  // backlog — the hosted backend's SDK `logs()` replays from command start, so
+  // only the local backend dropped it.
+  const queue: string[] = []
+  let notifyLog: (() => void) | null = null
+  let logsEnded = false
+  const enqueueLog = (chunk: string) => {
+    queue.push(chunk)
+    notifyLog?.()
+    notifyLog = null
+  }
   child.stdout?.on("data", (d: Buffer) => {
-    stdout += d.toString()
+    const s = d.toString()
+    stdout += s
+    enqueueLog(s)
   })
   child.stderr?.on("data", (d: Buffer) => {
-    stderr += d.toString()
+    const s = d.toString()
+    stderr += s
+    enqueueLog(s)
   })
+  child.on("close", () => {
+    logsEnded = true
+    notifyLog?.()
+    notifyLog = null
+  })
+
+  // Drains the queue the listeners above fill from spawn, then waits for live
+  // chunks until the child closes. Backs the detached `logs()` affordance; the
+  // buffered `stdout()` / `stderr()` accessors cover the non-streaming readers.
+  async function* streamLogs(): AsyncIterable<{ data: string }> {
+    while (true) {
+      if (queue.length > 0) {
+        yield { data: queue.shift()! }
+        continue
+      }
+      if (logsEnded) return
+      await new Promise<void>((resolve) => {
+        notifyLog = resolve
+      })
+    }
+  }
 
   const kill = async (): Promise<void> => {
     if (child.pid == null) return
@@ -505,7 +548,7 @@ function execHost(
     exitCode,
     stdout: async () => stdout,
     stderr: async () => stderr,
-    logs: () => streamLogs(child),
+    logs: () => streamLogs(),
     kill,
   })
 
@@ -518,43 +561,6 @@ function execHost(
     child.on("error", () => resolve(result(1)))
     child.on("close", (code) => resolve(result(code ?? 0)))
   })
-}
-
-/**
- * Stream a child's combined stdout/stderr line-chunks as they arrive, ending
- * when the process closes. Backs the detached `logs()` affordance; the buffered
- * `stdout()` / `stderr()` accessors above cover the non-streaming readers.
- */
-async function* streamLogs(
-  child: ChildProcess
-): AsyncIterable<{ data: string }> {
-  const queue: string[] = []
-  let notify: (() => void) | null = null
-  let ended = false
-
-  const push = (chunk: Buffer) => {
-    queue.push(chunk.toString())
-    notify?.()
-    notify = null
-  }
-  child.stdout?.on("data", push)
-  child.stderr?.on("data", push)
-  child.on("close", () => {
-    ended = true
-    notify?.()
-    notify = null
-  })
-
-  while (true) {
-    if (queue.length > 0) {
-      yield { data: queue.shift()! }
-      continue
-    }
-    if (ended) return
-    await new Promise<void>((resolve) => {
-      notify = resolve
-    })
-  }
 }
 
 /**
