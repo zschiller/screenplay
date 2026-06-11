@@ -2,7 +2,7 @@
 
 Date: 2026-06-10
 
-Status: Accepted
+Status: Accepted (amended 2026-06-11 — see Amendment below)
 
 ## Context
 
@@ -45,10 +45,11 @@ run inside a git worktree — which is exactly what each desktop Sandbox is.
 - **portless ships with the app.** It is a regular dependency (zero runtime
   deps, ~450 KB), resolved at `<cwd>/node_modules/portless/dist/cli.js` and
   folded into the desktop sidecar tree by `build-sidecar.mjs` — no global
-  install on the host. Its proxy daemon is the one host-level prerequisite:
+  install on the host. ~~Its proxy daemon is the one host-level prerequisite:
   it cannot sudo without a TTY, so a desktop user runs
   `npx portless proxy start` (or `portless service install`) once;
-  `DevServerPortIgnoredError` names that remedy.
+  `DevServerPortIgnoredError` names that remedy.~~ *Superseded by the
+  Amendment: the daemon is auto-started, never a user prerequisite.*
 
 - **The hosted backend is unchanged.** Its sandboxes are remote VMs where
   `.localhost` routes are meaningless; it keeps handing
@@ -72,3 +73,36 @@ run inside a git worktree — which is exactly what each desktop Sandbox is.
 - ADR 0009's "#433's port contract stands unchanged" is superseded for the
   local backend's env-var half; the `hostPort` seam, proxy/ttyd resolved-port
   binding, and the named failure mode all stand.
+
+## Amendment (2026-06-11)
+
+As shipped, this decision had two defects that together made portless
+effectively unused: the daemon prerequisite meant a fresh install's dev
+servers all failed until the user ran a sudo terminal command they had no
+reason to know about (`portless run` exits before running the dev script when
+no daemon answers and no TTY can sudo one up), and the named route — the one
+thing portless provides that a plain `PORT=<n>` env assignment doesn't — was
+registered but never surfaced anywhere. Two changes close the gap:
+
+- **The local backend ensures the daemon itself.** Before every dev launch,
+  `launchDevAndProxy` runs `portless proxy start --no-tls --port 1355`
+  (portless's own documented unprivileged fallback port — no sudo, no TTY,
+  no TLS certificate install). The command is idempotent: it no-ops when any
+  daemon is already up, so a user-managed `:443` daemon (HTTPS, port-free
+  URLs) is detected and used instead of being fought. Its output lands in the
+  Sandbox's log, so a daemon that genuinely can't start is diagnosable from
+  the Logs panel. Running a daemon manually is now an upgrade, never a
+  prerequisite.
+
+- **The named route is consumed, not just registered.** The Branch menu's
+  Preview section gains a desktop-only **Open stable URL** item: a
+  `getStableDevUrl` action maps the Branch's logical Dev Server Port through
+  the `hostPort` seam and matches it against portless's live route table
+  (read via the package's exported `RouteStore`, honoring
+  `PORTLESS_STATE_DIR`), yielding `http://<branch>.<app>.localhost:1355` —
+  the human-shareable address that survives dev-server restarts, which the
+  allocated port number doesn't.
+
+`DevServerPortIgnoredError` now leads with the dev-script cause (a script
+ignoring `$PORT`) and points at the Logs panel for the now-rare daemon
+failure, instead of prescribing a manual `proxy start`.

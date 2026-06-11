@@ -22,6 +22,7 @@ import {
   launchDevAndProxy,
   stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
+import { lookupStableDevUrl } from "@/lib/sandbox/portless"
 import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
@@ -250,6 +251,43 @@ export async function deleteSandboxes(sandboxNames: string[]): Promise<void> {
       await deleteEnvVars(name).catch(() => {})
     })
   )
+}
+
+/**
+ * The stable named URL portless registered for this Sandbox's dev server —
+ * `http://<branch>.<app>.localhost[:port]` — or `null` when there's no live
+ * route (dev server not running, daemon never started). Desktop-only: the
+ * hosted backend's sandboxes are remote VMs where `.localhost` routes are
+ * meaningless, so it returns `null` there without touching the provider.
+ *
+ * This is the read side of ADR 0010's named-route bonus: the route points at
+ * the raw dev server (no DOM bridge), a human-shareable address that survives
+ * dev-server restarts while the allocated port number doesn't. Resolves the
+ * Sandbox only to map the logical Dev Server Port through the `hostPort`
+ * seam; no sandbox command runs.
+ */
+export async function getStableDevUrl(
+  sandboxName: string,
+  repo: RepoData
+): Promise<SandboxActionResult<{ url: string | null }>> {
+  if (!isLocalSandboxBackend()) {
+    return { success: true, value: { url: null } }
+  }
+  try {
+    const sandbox = await sandboxProvider.get({
+      name: sandboxName,
+      resume: false,
+    })
+    const url = await lookupStableDevUrl(
+      sandbox.hostPort(repo.devServerPort)
+    )
+    return { success: true, value: { url } }
+  } catch (e) {
+    return {
+      success: false,
+      error: redactSensitiveInfo(e instanceof Error ? e.message : String(e)),
+    }
+  }
 }
 
 /**

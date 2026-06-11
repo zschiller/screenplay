@@ -27,6 +27,16 @@ vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
 
+// The "Open stable URL" item calls the `getStableDevUrl` server action, whose
+// module ("use server") transitively imports the server-only sandbox stack —
+// same reason as the github-actions stub above.
+vi.mock("@/lib/sandbox/lifecycle", () => ({
+  getStableDevUrl: vi.fn().mockResolvedValue({
+    success: true,
+    value: { url: null },
+  }),
+}))
+
 // Radix's dropdown content positions itself with floating-ui, which needs a
 // ResizeObserver, and uses pointer-capture APIs jsdom doesn't implement.
 // Polyfill the bare minimum so the menu can mount + open for assertions.
@@ -137,7 +147,9 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
       BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])
     )
     expect(bySection.identity).toEqual(["rename", "color"])
-    expect(bySection.preview).toEqual(["play", "routes"])
+    // "stable-url" is desktop-only (renders null on hosted) but lives in the
+    // skeleton unconditionally — the section spine never varies by build.
+    expect(bySection.preview).toEqual(["play", "stable-url", "routes"])
     expect(bySection["branch-sandbox"]).toEqual([
       "new-branch-from-here",
       "restart",
