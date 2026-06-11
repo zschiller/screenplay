@@ -1,9 +1,11 @@
 import "server-only"
 
-import path from "node:path"
-
 import type { SandboxInstance } from "@/lib/sandbox"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
+import {
+  PORTLESS_PROXY_PORT,
+  portlessCliPath,
+} from "@/lib/sandbox/portless"
 
 // 30 minutes — keep sandboxes alive only while actively used.
 // sandboxProvider.get with resume:true will reboot the VM when a user returns.
@@ -91,25 +93,13 @@ export class DevServerPortIgnoredError extends Error {
         "runs your dev script under portless (https://portless.sh), which " +
         "hands it the port as $PORT — frameworks like Next.js pick it up " +
         'automatically; others need it forwarded, e.g. "vite --port $PORT ' +
-        '--strictPort". Check the Logs panel: if portless reported its proxy ' +
-        "isn't running, run `npx portless proxy start` once in a terminal. " +
-        "Then fix the dev script in the Project settings if needed and " +
-        "restart the dev server."
+        '--strictPort". Fix the dev script in the Project settings and ' +
+        "restart the dev server. If the script already forwards $PORT, " +
+        "check the workspace Logs panel — portless logs why it couldn't " +
+        "launch there."
     )
     this.name = "DevServerPortIgnoredError"
   }
-}
-
-/**
- * Where the portless CLI lives — a regular dependency of the app, resolved
- * from cwd like the sandbox-bridge files (`lib/sandbox-bridge/index.ts`):
- * both `next dev` and the desktop sidecar run with cwd at the app root, and
- * `build-sidecar.mjs` folds the package into the standalone tree at this
- * path. Spawned as `node <cli.js>` (it has no runtime dependencies), so the
- * host needs no global portless install.
- */
-function portlessCliPath(): string {
-  return path.join(process.cwd(), "node_modules", "portless", "dist", "cli.js")
 }
 
 function shellQuote(s: string): string {
@@ -233,6 +223,31 @@ export async function launchDevAndProxy(
 ): Promise<string> {
   await stopDevAndProxy(sandbox)
   await writeBridgeFiles(sandbox)
+
+  if (isLocalSandboxBackend()) {
+    // `portless run` hard-requires its proxy daemon, and a no-TTY spawn can
+    // never answer the sudo prompt the default :443 daemon needs — so ensure
+    // an unprivileged daemon ourselves before every launch instead of asking
+    // the user to run a terminal command first. `proxy start` is idempotent:
+    // it no-ops (exit 0) when any daemon is already up, including a
+    // user-managed one on :443, whose nicer port-free URLs then win. Output
+    // lands in this Sandbox's log so a daemon that genuinely can't start is
+    // diagnosable from the Logs panel. Best-effort by construction: if this
+    // fails, `portless run` below fails into the same log.
+    await runLogged(
+      sandbox,
+      process.execPath,
+      [
+        portlessCliPath(),
+        "proxy",
+        "start",
+        "--no-tls",
+        "--port",
+        String(PORTLESS_PROXY_PORT),
+      ],
+      { label: "portless proxy start" }
+    )
+  }
 
   const devPort = sandbox.hostPort(port)
   const proxyPort = sandbox.hostPort(port + PROXY_PORT_OFFSET)

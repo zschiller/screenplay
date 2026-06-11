@@ -6,6 +6,7 @@ import {
   GitBranchPlus,
   GitMerge,
   GitPullRequest,
+  Globe,
   Palette,
   Pencil,
   Play,
@@ -15,6 +16,7 @@ import {
   Route,
   Trash2,
 } from "lucide-react"
+import { toast } from "sonner"
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -28,6 +30,8 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import { BRANCH_COLORS } from "@/lib/branch-colors"
+import { isLocalBuild } from "@/lib/local-mode"
+import { getStableDevUrl } from "@/lib/sandbox/lifecycle"
 import type { BranchData, RepoData } from "@/lib/types"
 
 /**
@@ -41,6 +45,7 @@ export type BranchMenuItemKey =
   | "rename"
   | "color"
   | "play"
+  | "stable-url"
   | "routes"
   | "new-branch-from-here"
   | "restart"
@@ -75,7 +80,7 @@ export interface BranchMenuSection {
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   { id: "identity", label: "Identity", itemKeys: ["rename", "color"] },
-  { id: "preview", label: "Preview", itemKeys: ["play", "routes"] },
+  { id: "preview", label: "Preview", itemKeys: ["play", "stable-url", "routes"] },
   {
     id: "branch-sandbox",
     label: "Branch & sandbox",
@@ -147,6 +152,23 @@ export function BranchOverflowMenuContent({
   onCloseAutoFocus,
   isBusy = false,
 }: BranchOverflowMenuContentProps) {
+  // Resolve-then-open for the portless named URL (ADR 0010): the route is
+  // registered when the dev server launches and unregistered when it stops,
+  // so it's looked up at click time rather than carried on BranchData where
+  // it would go stale. Desktop webview, so the post-await `window.open` isn't
+  // at the mercy of a browser popup blocker.
+  const openStableUrl = async () => {
+    if (!branch.sandboxName) return
+    const result = await getStableDevUrl(branch.sandboxName, repo)
+    if (result.success && result.value.url) {
+      window.open(result.value.url, "_blank", "noopener,noreferrer")
+    } else {
+      toast.error(
+        "No stable URL for this workspace yet — start the dev server first."
+      )
+    }
+  }
+
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     rename: (
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
@@ -195,6 +217,19 @@ export function BranchOverflowMenuContent({
         Open prototype player
       </DropdownMenuItem>
     ),
+    // Desktop-only: the stable `<branch>.<app>.localhost` URL portless
+    // registers for this workspace's dev server — shareable across restarts,
+    // unlike the allocated port. Hosted sandboxes are remote VMs where a
+    // `.localhost` route is meaningless, so the hosted build renders nothing.
+    "stable-url": isLocalBuild ? (
+      <DropdownMenuItem
+        disabled={!branch.sandboxName}
+        onClick={openStableUrl}
+      >
+        <Globe />
+        Open stable URL
+      </DropdownMenuItem>
+    ) : null,
     routes: (
       <DropdownMenuItem
         disabled={

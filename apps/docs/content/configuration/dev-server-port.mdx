@@ -25,15 +25,20 @@ node server.js --port $PORT
 ```
 
 Portless also registers a stable named URL for each workspace's dev server
-(e.g. `https://my-branch.my-app.localhost` — the branch name becomes a
-subdomain because each workspace is a git worktree). `portless list` shows the
-active routes; the workspace preview itself doesn't depend on these URLs.
+(e.g. `http://my-branch.my-app.localhost:1355` — the branch name becomes a
+subdomain because each workspace is a git worktree). The workspace's **⋯ →
+Open stable URL** menu item opens it; it points at the raw dev server and
+survives dev-server restarts, unlike the allocated port. `portless list`
+shows all active routes. The workspace preview itself doesn't depend on these
+URLs.
 
-**One-time setup**: portless ships with the desktop app, but its local proxy
-daemon must be running for dev servers to launch. Run `npx portless proxy
-start` once in a terminal (it asks for sudo to bind port 443 and to trust its
-local HTTPS certificate), or `npx portless service install` to start it on
-boot.
+No setup is needed: portless ships with the desktop app, and Screenplay starts
+its local proxy daemon automatically on an unprivileged port (1355).
+Optionally, run `npx portless proxy start` once in a terminal (it asks for
+sudo to bind port 443 and to trust its local HTTPS certificate), or `npx
+portless service install` to start it on boot — Screenplay detects a running
+daemon and uses it, and the named URLs then drop the port suffix
+(`https://my-branch.my-app.localhost`).
 
 ## Hosted backend: `$SCREENPLAY_PORT`
 
@@ -75,10 +80,11 @@ your project.
 A dev server that never binds its assigned port on the desktop app fails loud
 instead of leaving a dead preview: when the sandbox's proxy is up but the dev
 server never listens, the workspace surfaces a `DevServerPortIgnoredError`.
-Check the workspace's Logs panel — it shows portless's own output, which tells
-apart the two causes: a dev script that ignores `$PORT` (fix the dev script in
-the Project settings) and a portless proxy daemon that isn't running (run
-`npx portless proxy start` once). Then use **Restart dev server**.
+The usual cause is a dev script that ignores `$PORT` — fix the dev script in
+the Project settings and use **Restart dev server**. If the script already
+forwards `$PORT`, check the workspace's Logs panel: it shows portless's own
+output, including why its proxy daemon couldn't start in the rare case the
+automatic start failed.
 
 ## Monorepos
 

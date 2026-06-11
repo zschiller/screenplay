@@ -105,10 +105,13 @@ allocated port on the local backend). How the real value reaches the dev script
 is per-backend: hosted hands it as `$SCREENPLAY_PORT` (and `$PORT`) and expects
 the script to forward it; the local backend runs the script under **portless**
 pinned to the allocated port, so the script gets the standard `$PORT` (or a
-recognized framework flag) and no Screenplay-specific var exists. The dev
-script lives in the Repo's config, not the repo's source. A dev server that
-never binds its assigned port is unsupported for multi-Branch desktop previews
-and fails loud, not with a dead iframe.
+recognized framework flag) and no Screenplay-specific var exists. The local
+backend ensures portless's proxy daemon itself (auto-started unprivileged
+before every dev launch — never a manual user prerequisite) and surfaces the
+named `<branch>.<app>.localhost` route it registers as the Branch's "Open
+stable URL". The dev script lives in the Repo's config, not the repo's
+source. A dev server that never binds its assigned port is unsupported for
+multi-Branch desktop previews and fails loud, not with a dead iframe.
 _Avoid_: assuming the configured number is the bound port; `$SCREENPLAY_PORT`
 on the local backend (it is hosted-only now); multiple preview targets per Repo
 (a Repo targets one project — point a second Repo at the same source for

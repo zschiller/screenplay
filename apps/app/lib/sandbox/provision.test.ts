@@ -782,6 +782,46 @@ describe("startDevServer", () => {
     }
   })
 
+  it("ensures the portless proxy daemon before the dev launch on the local backend", async () => {
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    try {
+      const calls: RecordedCall[] = []
+      fake.setInstance(
+        fakeSandbox(() => ({ exitCode: 0 }), {
+          calls,
+          hostPort: (port) => port + 50000,
+        })
+      )
+
+      await startDevServer("sandbox-a", 3000, "npm run dev")
+
+      // `portless run` hard-requires its daemon and a no-TTY spawn can't sudo
+      // one up, so every launch first ensures an unprivileged daemon itself
+      // (idempotent: portless no-ops when any daemon is already running).
+      // runLogged quotes each arg, so match the quoted argv.
+      const ensure = calls.find((c) =>
+        c.args.join(" ").includes("'proxy' 'start' '--no-tls' '--port' '1355'")
+      )
+      expect(ensure).toBeDefined()
+      // …and it runs before the dev server it exists to serve.
+      const devLaunch = findDevLaunch(calls)
+      expect(calls.indexOf(ensure!)).toBeLessThan(calls.indexOf(devLaunch!))
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("does not touch the portless daemon on the hosted backend", async () => {
+    const calls: RecordedCall[] = []
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 0 }), { calls }))
+
+    await startDevServer("sandbox-a", 3000, "npm run dev")
+
+    expect(
+      calls.find((c) => c.args.join(" ").includes("portless"))
+    ).toBeUndefined()
+  })
+
   it("returns a failure result when the bridge install fails", async () => {
     fake.setInstance(
       fakeSandbox(() => ({ exitCode: 0 }), { writeError: "disk full" })
