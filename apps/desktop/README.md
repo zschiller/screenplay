@@ -63,16 +63,14 @@ Prerequisites: the Rust + Tauri toolchain (`cargo`, system WebView), and `node`
 on `PATH`. Out of scope per the PRD: auto-update. (Code signing and the dmg
 installer are handled by the release workflow — see below.)
 
-## CI and releasing
+## Releasing
 
-Two workflows own the desktop build (the root `ci.yml` never touches it — this
-package has no `test`/`typecheck` scripts; its only artifact is the build):
+The root `ci.yml` never touches this package (no `test`/`typecheck` scripts —
+the only artifact is the build), and there's deliberately no per-PR build
+check: a full sidecar + Tauri build needs a macOS runner (10x billed minutes),
+which isn't worth paying for until the app is release-ready. The build is
+exercised when a release is cut:
 
-- **`desktop-build.yml`** — builds sidecar + shell unsigned on a macOS runner
-  for every PR/push that touches a path the desktop app embeds
-  (`apps/desktop`, `apps/app`, `packages`, the lockfile), and uploads the
-  `.app` as a 7-day artifact for smoke testing. Ad-hoc signed only: a
-  downloaded copy needs right-click → Open past Gatekeeper.
 - **`desktop-release.yml`** — manual (workflow_dispatch, knobs-style): bumps
   the version across `package.json` / `tauri.conf.json` / `Cargo.toml`, builds
   a **Developer ID-signed and notarized dmg**, tags `desktop-v<version>`,
