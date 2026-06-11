@@ -21,10 +21,33 @@ pub struct Sidecar {
 }
 
 impl Sidecar {
-    /// Kill + reap the Node child and stop the control server. Idempotent enough
-    /// for the single ExitRequested call that drives it.
+    /// Stop the control server and bring the Node child down — gracefully
+    /// first, then by force. Idempotent enough for the single ExitRequested
+    /// call that drives it.
+    ///
+    /// The graceful step matters: the sidecar's dev servers are *detached*
+    /// host process groups (setsid'd supervisor loops), so a straight SIGKILL
+    /// of the sidecar orphans every one of them until the next launch sweeps
+    /// their pidfiles. SIGTERM instead lets the sidecar's exit hook (the local
+    /// sandbox reaper installed by instrumentation.ts) group-kill them before
+    /// it exits. SIGKILL remains the fallback for a sidecar too wedged to
+    /// handle the signal within the grace window.
     pub fn shutdown(&mut self) {
         self.control.stop();
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill")
+                .args(["-TERM", &self.child.id().to_string()])
+                .status();
+            // ~3s grace: the reaper's pidfile sweep is a handful of signals +
+            // unlinks, so a healthy sidecar exits near-instantly.
+            for _ in 0..30 {
+                if matches!(self.child.try_wait(), Ok(Some(_))) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }

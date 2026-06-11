@@ -10,6 +10,7 @@ import {
   supportsHibernation,
 } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
   DevServerPortIgnoredError,
@@ -19,6 +20,7 @@ import {
   SNAPSHOT_EXPIRATION,
   TERMINAL_PORT,
   launchDevAndProxy,
+  stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
 import { runSandboxAction } from "@/lib/sandbox/run"
@@ -188,6 +190,32 @@ export async function ensurePreviewLive(
     if (after === "upstream-refused") throw new DevServerPortIgnoredError()
   }
   return relaunched
+}
+
+/**
+ * Stop the dev server and bridge proxy for each named Sandbox, leaving the
+ * Sandboxes themselves — and their working trees — untouched. This is the
+ * leave-a-Room cleanup, **desktop-only by design** (a silent no-op on the
+ * hosted backend): a local Sandbox's dev server is a detached host process
+ * group with no auto-stop timer, so navigating home would otherwise leave
+ * every Branch's dev server running until the app quits. The hosted backend
+ * is deliberately left alone — its Sandboxes hibernate on their own timer
+ * once the keep-alive heartbeat stops, and a hosted Room can have other
+ * collaborators whose previews a leave-triggered stop would kill.
+ *
+ * Best-effort per Sandbox (a missing sandbox or failed kill never blocks the
+ * navigation that triggered it), and cheap to undo: reopening the Room rides
+ * the normal reconnect path, whose preview probe finds the server dead and
+ * relaunches it.
+ */
+export async function stopDevServers(sandboxNames: string[]): Promise<void> {
+  if (!isLocalSandboxBackend()) return
+  await Promise.allSettled(
+    sandboxNames.map(async (name) => {
+      const sandbox = await sandboxProvider.get({ name, resume: false })
+      await stopDevAndProxy(sandbox)
+    })
+  )
 }
 
 /**

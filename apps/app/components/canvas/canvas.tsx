@@ -154,6 +154,7 @@ import {
   restartDevServer,
   reconnectSandbox,
   keepAliveSandbox,
+  stopDevServers,
 } from "@/lib/sandbox/lifecycle"
 import { deleteBranch } from "@/lib/github-actions"
 import { createPullRequestAction } from "@/lib/create-pr-action"
@@ -1148,6 +1149,18 @@ export function Canvas({
   }, [selectedIframeLayerIds, selectedDocumentLayerIds])
   const repos = useRepos()
   const agents = useBranches()
+
+  // Leaving (or deleting) the Room takes its Branches' dev servers with it on
+  // desktop: local dev servers are host processes with no auto-stop timer, so
+  // without this they'd run until the app quits. Fire-and-forget — navigation
+  // must never wait on the kill — and gated on the local build so the hosted
+  // app (where Rooms are collaborative and sandboxes hibernate on their own)
+  // doesn't even make the call. Reopening the Room relaunches via reconnect.
+  const stopRoomDevServers = useCallback(() => {
+    if (!isLocalBuild) return
+    const names = agents.map((a) => a.sandboxName).filter(Boolean)
+    if (names.length > 0) void stopDevServers(names).catch(() => {})
+  }, [agents])
 
   // Lazily prune terminal tabs whose Branch no longer exists (branch deleted),
   // so a dead terminal never lingers pointing at a gone sandbox (#260). We get
@@ -5878,6 +5891,7 @@ export function Canvas({
                         className="px-1.5 py-1 font-medium"
                         onClick={(e) => {
                           e.preventDefault()
+                          stopRoomDevServers()
                           router.push("/")
                         }}
                       >
@@ -5939,6 +5953,7 @@ export function Canvas({
                   onOpenChange={setDeleteDialogOpen}
                   roomName={currentRoomName}
                   onConfirm={async () => {
+                    stopRoomDevServers()
                     await deleteRoom(roomId)
                     setDeleteDialogOpen(false)
                     router.push("/")

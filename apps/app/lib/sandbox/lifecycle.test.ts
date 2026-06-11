@@ -139,6 +139,7 @@ import {
   removeSandboxEnv,
   restartDevServer,
   restartSandbox,
+  stopDevServers,
 } from "@/lib/sandbox/lifecycle"
 
 /** Stub global fetch so the reachability probe lands on a chosen branch. */
@@ -290,6 +291,57 @@ beforeEach(() => {
   installHarnesses.mockResolvedValue({ success: true, value: undefined })
   getEnvVars.mockResolvedValue(undefined)
   getGitHubToken.mockResolvedValue(null)
+})
+
+describe("stopDevServers", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it("group-kills each sandbox's dev/proxy supervisors on the local backend", async () => {
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    const shCalls: string[] = []
+    fake.setGet(
+      fakeSandbox({
+        respond: (cmd, args) => {
+          if (cmd === "sh") shCalls.push(args.join(" "))
+          return { exitCode: 0 }
+        },
+      })
+    )
+
+    await stopDevServers(["sandbox-a", "sandbox-b"])
+
+    // One stop per name, each resolving the live handle without resuming —
+    // a leave-triggered stop must never wake anything.
+    expect(fake.getCalls).toEqual([
+      { name: "sandbox-a", resume: false },
+      { name: "sandbox-b", resume: false },
+    ])
+    expect(shCalls).toHaveLength(2)
+    for (const sh of shCalls) {
+      // The same pidfile group-kill the relaunch path uses: the whole setsid
+      // session goes down (supervisor loop, dev server, compile workers).
+      expect(sh).toContain('kill -KILL "-$p"')
+      expect(sh).toContain("dev.pid")
+      expect(sh).toContain("proxy.pid")
+    }
+  })
+
+  it("is a silent no-op on the hosted backend (collaborators keep their previews)", async () => {
+    fake.setGet(fakeSandbox())
+
+    await stopDevServers(["sandbox-a"])
+
+    expect(fake.getCalls).toHaveLength(0)
+  })
+
+  it("never throws when a sandbox is gone — leaving must not be blocked", async () => {
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    fake.setGetError(new Error("no sandbox by that name"))
+
+    await expect(stopDevServers(["sandbox-a"])).resolves.toBeUndefined()
+  })
 })
 
 describe("keepAliveSandbox", () => {
