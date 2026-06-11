@@ -182,12 +182,12 @@ describe("ExternalEngine — native session resume", () => {
     { role: "user", content: [{ type: "text", text: "second question" }] },
   ]
 
-  function turn(): EngineTurn {
+  function turn(systemPrompt = ""): EngineTurn {
     return {
       chatId: "chat",
       runId: "run",
       roomId: "room",
-      systemPrompt: "",
+      systemPrompt,
       model: "model",
       history,
     }
@@ -281,5 +281,49 @@ describe("ExternalEngine — native session resume", () => {
     expect(persisted).toEqual(["new-sess"])
     // The fresh fallback session replays the transcript so context survives.
     expect(blockText(rec.prompted()![0]!)).toContain("first answer")
+  })
+
+  /**
+   * ACP has no system-prompt channel, so the external engine must fold the
+   * turn's system prompt — the always-commit-and-push rule, plan-mode protocol,
+   * skill index — into the prompt itself. Folding it on a *fresh* session is the
+   * desktop equivalent of the in-process engine's `streamText` `system`; without
+   * it the desktop agent ran with no screenplay instructions and never pushed.
+   */
+  it("leads a fresh session's prompt with the system prompt", async () => {
+    const rec = recordingFactory()
+    const engine = new ExternalEngine({ sessionFactory: rec.factory })
+
+    await engine.run(
+      turn("ALWAYS commit and push"),
+      () => {},
+      new AbortController().signal
+    )
+
+    // First block is the system prompt; the new user message still comes last.
+    const blocks = rec.prompted() ?? []
+    expect(blockText(blocks[0]!)).toBe("ALWAYS commit and push")
+    expect(blocks.at(-1)).toEqual({ type: "text", text: "second question" })
+  })
+
+  /**
+   * A resumed session already carries the instructions the creating turn sent,
+   * so re-sending the system prompt every turn would only bloat its context. The
+   * resumed path sends the new user message alone — no system-prompt block.
+   */
+  it("does not re-send the system prompt on a resumed session", async () => {
+    const rec = recordingFactory()
+    const engine = new ExternalEngine({
+      sessionFactory: rec.factory,
+      loadSessionId: "stored-sess",
+    })
+
+    await engine.run(
+      turn("ALWAYS commit and push"),
+      () => {},
+      new AbortController().signal
+    )
+
+    expect(rec.prompted()).toEqual([{ type: "text", text: "second question" }])
   })
 })
