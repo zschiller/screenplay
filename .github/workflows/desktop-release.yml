@@ -1,0 +1,223 @@
+name: Desktop Release
+
+# Manual release for the desktop app, mirroring the publish-knobs flow: pick a
+# bump in the Actions UI — the workflow bumps the version across the desktop
+# package (package.json, tauri.conf.json, Cargo.toml/lock), builds the sidecar
+# and a signed + notarized dmg, tags `desktop-v<version>`, publishes a GitHub
+# Release with the dmg attached, and opens a PR to merge the bump into `main`.
+#
+# Signing + notarization are handled by Tauri's bundler, driven entirely by
+# env vars (no keychain steps here): with APPLE_CERTIFICATE set it imports the
+# cert into a throwaway keychain, signs with APPLE_SIGNING_IDENTITY (hardened
+# runtime is Tauri's default), then submits to Apple notary service with the
+# APPLE_ID credentials and staples the ticket.
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#
+#   Secrets:
+#     APPLE_CERTIFICATE           base64 of a "Developer ID Application" .p12
+#                                 (export from Keychain Access, then
+#                                  `base64 -i cert.p12 | pbcopy`)
+#     APPLE_CERTIFICATE_PASSWORD  the .p12 export password
+#     APPLE_SIGNING_IDENTITY      e.g. "Developer ID Application: Jane Doe (TEAMID)"
+#     APPLE_ID                    Apple ID email for notarization
+#     APPLE_PASSWORD              an app-specific password (appleid.apple.com),
+#                                 NOT the account password
+#     APPLE_TEAM_ID               the 10-char team id
+#
+#   Variables (optional):
+#     SCREENPLAY_GITHUB_CLIENT_ID  GitHub App client id baked into the shell at
+#                                  compile time for the "Connect GitHub" device
+#                                  flow (PRD #428). Leave unset and the connect
+#                                  affordance simply doesn't offer itself.
+#
+# Notarization alternative: Tauri also accepts an App Store Connect API key
+# (APPLE_API_ISSUER + APPLE_API_KEY + APPLE_API_KEY_PATH) instead of
+# APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID — swap the env block on the build
+# step if the team moves to API keys.
+#
+# Apple Silicon only for now: build-sidecar.mjs ships the build machine's own
+# `node` (process.execPath) and this job runs on an arm64 runner. An x86_64 or
+# universal build needs the sidecar to fetch a per-arch node first.
+#
+# Out of scope (per PRD #404): auto-update — no updater artifacts or signing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump keyword (patch | minor | major) or an explicit semver like 0.2.0. Use 'none' to release the version already in apps/desktop/package.json."
+        required: true
+        default: "patch"
+        type: string
+
+permissions:
+  contents: write # push the release branch + tag, create the GitHub Release
+  pull-requests: write # open the bump PR
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so the release branch pushes cleanly and
+          # `--generate-notes` can diff against the previous desktop tag.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preflight signing secrets
+        # Fail before the ~20 min build, not after: Tauri treats a missing
+        # identity as "skip signing", which would publish an unsigned dmg.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          for v in APPLE_CERTIFICATE APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing/notarization secrets:$missing — see the header of this workflow for setup."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # The binary that ships inside the sidecar: build-sidecar.mjs copies
+          # `process.execPath`, and setup-node installs the official (signed)
+          # nodejs.org build.
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "screenplay-release[bot]"
+          git config user.email "screenplay-release[bot]@users.noreply.github.com"
+
+      - name: Resolve target version
+        id: bump
+        working-directory: apps/desktop
+        run: |
+          if [ "${{ inputs.bump }}" = "none" ]; then
+            NEW_VERSION=$(node -p "require('./package.json').version")
+          else
+            NEW_VERSION=$(npm version "${{ inputs.bump }}" --no-git-tag-version)
+            NEW_VERSION="${NEW_VERSION#v}"
+            # Tauri reads the bundle version from tauri.conf.json; Cargo.toml
+            # follows along so the three stay in lockstep (Cargo.lock catches
+            # up during the build below and is committed with the bump).
+            node -e "
+              const fs = require('fs')
+              const p = 'src-tauri/tauri.conf.json'
+              const conf = JSON.parse(fs.readFileSync(p, 'utf8'))
+              conf.version = '$NEW_VERSION'
+              fs.writeFileSync(p, JSON.stringify(conf, null, 2) + '\n')
+            "
+            sed -i '' "s/^version = \".*\"/version = \"$NEW_VERSION\"/" src-tauri/Cargo.toml
+          fi
+          if git rev-parse -q --verify "refs/tags/desktop-v$NEW_VERSION" >/dev/null; then
+            echo "::error::Tag desktop-v$NEW_VERSION already exists — merge the outstanding bump PR (or pick a different version)."
+            exit 1
+          fi
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=desktop-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=release/desktop-v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build sidecar
+        run: pnpm --filter desktop build:sidecar
+
+      - name: Build, sign, and notarize
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Compiled into the shell via option_env! (sidecar.rs) and injected
+          # into the sidecar's runtime env at spawn. Empty when the repo
+          # variable is unset, which the shell treats as "not configured".
+          SCREENPLAY_GITHUB_CLIENT_ID: ${{ vars.SCREENPLAY_GITHUB_CLIENT_ID }}
+        run: |
+          pnpm --filter desktop exec tauri build \
+            --bundles app,dmg \
+            --config src-tauri/tauri.release.conf.json
+
+      - name: Commit bump on a release branch
+        if: inputs.bump != 'none'
+        run: |
+          git checkout -b "${{ steps.bump.outputs.branch }}"
+          git add apps/desktop/package.json \
+                  apps/desktop/src-tauri/tauri.conf.json \
+                  apps/desktop/src-tauri/Cargo.toml \
+                  apps/desktop/src-tauri/Cargo.lock
+          git commit -m "Release Screenplay Desktop ${{ steps.bump.outputs.version }}"
+          git push origin "${{ steps.bump.outputs.branch }}"
+
+      - name: Tag the released commit
+        run: |
+          # Tag whichever commit we built from — the release branch tip if we
+          # bumped, otherwise main HEAD. Tags don't go through branch
+          # protection, so this push is always allowed.
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.bump.outputs.tag }}" \
+            --title "Screenplay Desktop ${{ steps.bump.outputs.version }}" \
+            --generate-notes \
+            "apps/desktop/src-tauri/target/release/bundle/dmg/Screenplay_${{ steps.bump.outputs.version }}_aarch64.dmg"
+
+      - name: Open bump PR
+        if: inputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.bump.outputs.branch }}" \
+            --title "Release Screenplay Desktop ${{ steps.bump.outputs.version }}" \
+            --body "Automated bump from \`${{ github.workflow }}\`. The release is **already published** ([${{ steps.bump.outputs.tag }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump.outputs.tag }})) — merging this PR just brings \`main\`'s version files in sync. Squash- or merge-commit either works."
+
+      - name: Summary
+        run: |
+          {
+            echo "### Released Screenplay Desktop"
+            echo ""
+            echo "- **Version**: \`${{ steps.bump.outputs.version }}\`"
+            echo "- **Git tag**: \`${{ steps.bump.outputs.tag }}\`"
+            echo "- **Release**: https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump.outputs.tag }}"
+            if [ "${{ inputs.bump }}" != "none" ]; then
+              echo "- **Bump PR**: pushed to \`${{ steps.bump.outputs.branch }}\` — merge it to update \`main\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

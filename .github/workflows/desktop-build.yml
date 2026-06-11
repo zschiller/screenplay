@@ -1,0 +1,100 @@
+name: Desktop Build
+
+# Builds the Tauri desktop app end-to-end (Node sidecar + Rust shell) so a
+# change can't break it silently. `ci.yml` never touches it: the `desktop`
+# package has no `test`/`typecheck` scripts — its only artifact IS the build —
+# and the shell's thumbnail capture drives WKWebView via objc2, so it only
+# compiles on macOS.
+#
+# Path-filtered because macOS runner minutes bill at 10x: the sidecar embeds
+# `apps/app` and the workspace packages, so those paths count; `apps/web`,
+# `apps/docs`, and docs-only changes can't affect the desktop build.
+#
+# The unsigned `.app` is uploaded as a short-lived artifact for manual smoke
+# testing. It carries only the linker's ad-hoc signature, so a downloaded copy
+# trips Gatekeeper — right-click → Open (or `xattr -d com.apple.quarantine`)
+# to run it. Signed builds come from `desktop-release.yml`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/app/**"
+      - "packages/**"
+      - "patches/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".github/workflows/desktop-build.yml"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "apps/app/**"
+      - "packages/**"
+      - "patches/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".github/workflows/desktop-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # 22+: matches ci.yml (fs.glob, #441). Also the binary that ships
+          # INSIDE the sidecar — build-sidecar.mjs copies `process.execPath`,
+          # and setup-node installs the official (signed) nodejs.org build.
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build sidecar
+        # next build (desktop profile) → src-tauri/resources/sidecar.tar.gz
+        run: pnpm --filter desktop build:sidecar
+
+      - name: Build app (unsigned)
+        # No APPLE_* env set, so the bundler skips Developer ID signing; the
+        # linker's ad-hoc signature is enough to verify the build compiles,
+        # bundles, and packs the sidecar resource.
+        run: pnpm --filter desktop exec tauri build --config src-tauri/tauri.release.conf.json
+
+      - name: Pack .app for upload
+        # tar, not upload-artifact's own zip: artifacts drop exec bits and
+        # symlinks, which breaks the bundle (same reason the sidecar ships
+        # as a tarball).
+        run: |
+          tar -czf Screenplay.app.tar.gz \
+            -C apps/desktop/src-tauri/target/release/bundle/macos Screenplay.app
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Screenplay-unsigned-${{ github.sha }}
+          path: Screenplay.app.tar.gz
+          retention-days: 7

@@ -60,7 +60,34 @@ pnpm --filter desktop build           # build:sidecar + tauri build → Screenpl
 ```
 
 Prerequisites: the Rust + Tauri toolchain (`cargo`, system WebView), and `node`
-on `PATH`. Out of scope per the PRD: auto-update, code signing, installer/dmg.
+on `PATH`. Out of scope per the PRD: auto-update. (Code signing and the dmg
+installer are handled by the release workflow — see below.)
+
+## CI and releasing
+
+Two workflows own the desktop build (the root `ci.yml` never touches it — this
+package has no `test`/`typecheck` scripts; its only artifact is the build):
+
+- **`desktop-build.yml`** — builds sidecar + shell unsigned on a macOS runner
+  for every PR/push that touches a path the desktop app embeds
+  (`apps/desktop`, `apps/app`, `packages`, the lockfile), and uploads the
+  `.app` as a 7-day artifact for smoke testing. Ad-hoc signed only: a
+  downloaded copy needs right-click → Open past Gatekeeper.
+- **`desktop-release.yml`** — manual (workflow_dispatch, knobs-style): bumps
+  the version across `package.json` / `tauri.conf.json` / `Cargo.toml`, builds
+  a **Developer ID-signed and notarized dmg**, tags `desktop-v<version>`,
+  publishes a GitHub Release with the dmg attached, and opens a PR to sync the
+  bump into `main`. Signing and notarization are driven entirely by `APPLE_*`
+  secrets read by Tauri's bundler; the required secrets (and how to mint them)
+  are documented in the workflow header. The optional
+  `SCREENPLAY_GITHUB_CLIENT_ID` repo *variable* is compiled into the shell
+  (`option_env!` in `sidecar.rs`) to enable the "Connect GitHub" device flow
+  in released builds.
+
+Apple Silicon only for now: `build-sidecar.mjs` ships the build machine's own
+`node` (`process.execPath` — the official nodejs.org build, which is itself
+signed), so an x86_64/universal release would first need per-arch node
+download in the sidecar build.
 
 ## Thumbnails
 
