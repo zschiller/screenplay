@@ -1,6 +1,7 @@
 import "server-only"
 
 import { sandboxProvider } from "@/lib/sandbox"
+import { getAcpSessionId, setAcpSessionId } from "@/lib/agent/persistence"
 import { engineChoiceFromEnv, selectEngine } from "./engine-select"
 import type { Engine } from "./engine-seam"
 import { SpawnAcpSessionFactory } from "./spawn-session-factory"
@@ -41,9 +42,15 @@ export function acpHarnessFromEnv(
  * config is never constructed, so no sandbox lookup happens on the hosted path.
  * Like `selectEngine`, a misconfigured `external` deployment throws here at the
  * route boundary rather than silently degrading.
+ *
+ * When `chatId` is given on the external path it wires native session resume:
+ * the chat's stored ACP session id (if any) seeds `session/load`, and a callback
+ * persists a freshly created id back to the chat so the next turn resumes it.
+ * Without it the agent would boot a context-less `session/new` every turn — the
+ * desktop bug where the model couldn't see earlier messages.
  */
 export async function resolveLiveEngine(
-  opts: { sandboxName?: string } = {}
+  opts: { sandboxName?: string; chatId?: string } = {}
 ): Promise<Engine> {
   if (engineChoiceFromEnv() !== "external") {
     // In-process default: self-contained, no transport to wire.
@@ -60,5 +67,17 @@ export async function resolveLiveEngine(
   const sessionFactory = new SpawnAcpSessionFactory({
     harnessKey: acpHarnessFromEnv(),
   })
-  return selectEngine({ external: { sessionFactory, cwd } })
+  // Resume the agent's own session across turns/reloads when we have a chat to
+  // key it on. The id is loaded once here (per-request) and re-bound by the
+  // engine on a fresh `session/new`.
+  const loadSessionId = opts.chatId
+    ? ((await getAcpSessionId(opts.chatId)) ?? undefined)
+    : undefined
+  const onSessionId = opts.chatId
+    ? (sessionId: string) => setAcpSessionId(opts.chatId!, sessionId)
+    : undefined
+
+  return selectEngine({
+    external: { sessionFactory, cwd, loadSessionId, onSessionId },
+  })
 }

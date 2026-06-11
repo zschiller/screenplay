@@ -10,6 +10,11 @@ import {
   RefAlreadyOpenError,
 } from "@/lib/sandbox/local/provider"
 import { BranchCheckedOutInCloneError } from "@/lib/sandbox/local/worktree"
+import {
+  sandboxStateDir,
+  sessionLeader,
+  stopDevAndProxy,
+} from "@/lib/sandbox/provision-internals"
 import type { SandboxCreateOptions } from "@/lib/sandbox/types"
 
 // Run git in a directory, failing loudly so a botched fixture is obvious.
@@ -527,6 +532,121 @@ describe("LocalSandboxProvider", () => {
     // The process keeps running and eventually writes the marker.
     await new Promise((r) => setTimeout(r, 600))
     expect(await fs.readFile(marker, "utf8")).toBe("done\n")
+  })
+
+  it("replays a detached command's backlog when logs() is pulled late", async () => {
+    // The Logs panel wires `logs()` into a ReadableStream the HTTP layer drains
+    // lazily, so the first pull can land well after the command (e.g. a
+    // `tail -n 1000`) has already emitted its existing output. Capturing must
+    // start at spawn, not at the `logs()` call — otherwise that backlog is lost
+    // and the desktop panel shows nothing for an already-quiet dev server.
+    const sandbox = await provider.create(createOpts("branch-a", sourceRepo))
+    const result = await sandbox.runCommand({
+      cmd: "sh",
+      args: ["-c", "echo backlog-line"],
+      detached: true,
+    })
+
+    // Pull only after the (short) command has produced and flushed its output.
+    await new Promise((r) => setTimeout(r, 200))
+    let collected = ""
+    for await (const log of result.logs()) {
+      collected += log.data
+    }
+    expect(collected).toContain("backlog-line")
+  })
+
+  it("stopDevAndProxy kills a dev tree whose launcher re-detached its child", async () => {
+    // portless's `run` spawns the dev script with `detached: true` (its
+    // spawnChildProcess, non-Windows), so the real dev server lives in a NEW
+    // process group — not the session-leader supervisor group the pidfile
+    // records. The stop path must take down the recorded pid's whole
+    // *descendant tree*, not just its group; a group-only kill takes out the
+    // supervisor and portless but leaves npm/next running and holding the
+    // port across every leave/quit.
+    const prevBackend = process.env.SANDBOX_BACKEND
+    process.env.SANDBOX_BACKEND = "local"
+    const sandbox = await provider.create(
+      createOpts("sp-test-stop-tree", sourceRepo)
+    )
+    const stateDir = sandboxStateDir(sandbox.name)
+    const childPidFile = path.join(tmp, "detached-child.pid")
+    // Stand-in for portless: stays resident itself, but re-detaches its real
+    // child (the "dev server") into a fresh process group/session.
+    const fakePortless = path.join(tmp, "fake-portless.cjs")
+    await fs.writeFile(
+      fakePortless,
+      `const { spawn } = require("node:child_process")\n` +
+        `const c = spawn("sh", ["-c", "echo $$ > ${childPidFile}; exec sleep 300"], { detached: true, stdio: "ignore" })\n` +
+        `c.unref()\n` +
+        `setInterval(() => {}, 1000)\n`
+    )
+
+    const alive = (pid: number): boolean => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    let childPid = NaN
+    let supervisorPid = NaN
+    try {
+      // Mirror launchDevAndProxy's supervisor launch shape exactly.
+      await sandbox.runCommand({
+        cmd: "sh",
+        args: [
+          "-c",
+          `mkdir -p ${stateDir}; ` +
+            `${sessionLeader()} sh -c 'node ${fakePortless}' </dev/null >/dev/null 2>&1 & ` +
+            `echo $! > ${stateDir}/dev.pid; ` +
+            `disown`,
+        ],
+      })
+      // Wait for the detached grandchild to come up and record itself.
+      for (let i = 0; i < 50 && Number.isNaN(childPid); i++) {
+        try {
+          const raw = await fs.readFile(childPidFile, "utf8")
+          childPid = Number.parseInt(raw.trim(), 10)
+        } catch {
+          await new Promise((r) => setTimeout(r, 100))
+        }
+      }
+      supervisorPid = Number.parseInt(
+        await fs.readFile(path.join(stateDir, "dev.pid"), "utf8"),
+        10
+      )
+      expect(Number.isInteger(childPid)).toBe(true)
+      expect(alive(childPid)).toBe(true)
+
+      await stopDevAndProxy(sandbox)
+
+      // SIGKILL delivery is immediate; give launchd a beat to reap.
+      let childAlive = true
+      for (let i = 0; i < 30 && childAlive; i++) {
+        childAlive = alive(childPid)
+        if (childAlive) await new Promise((r) => setTimeout(r, 100))
+      }
+      expect(childAlive).toBe(false)
+      expect(alive(supervisorPid)).toBe(false)
+    } finally {
+      // Never leak the sleep (or its supervisor) past a failing run.
+      for (const pid of [childPid, supervisorPid]) {
+        if (Number.isInteger(pid) && pid > 1) {
+          try {
+            process.kill(-pid, "SIGKILL")
+          } catch {}
+          try {
+            process.kill(pid, "SIGKILL")
+          } catch {}
+        }
+      }
+      await fs.rm(stateDir, { recursive: true, force: true })
+      if (prevBackend === undefined) delete process.env.SANDBOX_BACKEND
+      else process.env.SANDBOX_BACKEND = prevBackend
+    }
   })
 
   it("a legacy clone-generation sandbox still resolves and deletes", async () => {

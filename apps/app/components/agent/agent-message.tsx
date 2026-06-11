@@ -78,11 +78,11 @@ const kindIcons: Record<string, typeof FileText> = {
 }
 
 /** A short, human-readable detail for a tool call, derived from its raw input. */
-function toolDetail(
-  title: string,
-  rawInput: Record<string, unknown> | undefined
-): string | null {
-  if (!rawInput) return null
+function toolDetail(title: string, raw: unknown): string | null {
+  // `rawInput` is arbitrary JSON (ACP). Only object inputs carry a detail; an
+  // array/scalar input has none to show.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const rawInput = raw as Record<string, unknown>
   if (title === "run_command") {
     const cmd = [
       rawInput.command,

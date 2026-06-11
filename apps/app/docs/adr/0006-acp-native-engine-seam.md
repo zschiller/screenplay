@@ -24,8 +24,9 @@ slices build on.
 ## Decision
 
 - **Bind to the genuine ACP schema, not an approximation.** We vendor
-  `@zed-industries/agent-client-protocol` and re-export its types and Zod
-  schemas from a single surface (`lib/agent/acp/schema.ts`). The seam speaks
+  `@agentclientprotocol/sdk` (the renamed successor of
+  `@zed-industries/agent-client-protocol`, frozen at 0.4.5) and re-export its
+  types and Zod schemas from a single surface (`lib/agent/acp/schema.ts`). The seam speaks
   real `session/update` shapes (`agent_message_chunk`, `tool_call`,
   `tool_call_update`, `plan`, …) and the real `PromptResponse.stopReason`. This
   binding is load-bearing: it is what makes the eventual swap to a real ACP
@@ -290,9 +291,16 @@ the legacy machinery is **deleted**, not parallel.
 - **Still deferred:** pointing a live deployment at the spawn factory by default
   (`AGENT_ENGINE=external` as the desktop build-time default, with the worktree
   `cwd` supplied per Branch) lands with the worktree Sandbox Provider slice (PRD
-  #404); the vendored protocol bump to match the 0.16.x adapter's `tool_call`
-  payloads (spike #408) is the other follow-up before the *real* Claude adapter
-  renders live tool calls.
+  #404).
+- **Done (the protocol bump that was deferred):** the vendored protocol was
+  migrated `@zed-industries/agent-client-protocol@0.4.5` →
+  `@agentclientprotocol/sdk@0.14.x` — the generation the real `claude-code-acp`
+  adapter speaks. 0.4.5 typed `tool_call_update`'s `rawInput`/`rawOutput` as
+  object-only (`z.record`), so the adapter's terminal update (whose `rawOutput`
+  is an *array* of content blocks) failed schema validation inside the client
+  and was silently dropped — the tool chip spun forever. The new SDK types those
+  as arbitrary JSON, matching the wire. `AcpToolCallRecord`/`AgentMessage` carry
+  them as `unknown` accordingly; the real adapter now renders live tool calls.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
   an external implementation," keeping the **Harness** distinction intact.

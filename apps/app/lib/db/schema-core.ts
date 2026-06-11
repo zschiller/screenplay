@@ -69,6 +69,12 @@ export const agentChat = pgTable(
     sandboxName: text("sandbox_name").notNull(),
     model: text("model").notNull(),
     systemPrompt: text("system_prompt").notNull(),
+    // The external (desktop) engine's native ACP session id, so a follow-up
+    // turn resumes the agent's own session via `session/load` instead of
+    // booting a context-less `session/new` (ADR 0006). Null until the first
+    // external turn binds one; never set on the in-process hosted engine, which
+    // carries history in-band and has no agent-owned session.
+    acpSessionId: text("acp_session_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

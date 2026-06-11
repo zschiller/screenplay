@@ -3,6 +3,7 @@
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import {
   sandboxStateDir,
+  sessionLeader,
   TERMINAL_PORT,
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
@@ -258,8 +259,8 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
  * (#259). The harness key → launch argv resolution lives server-side in
  * `/api/terminal/url`; this daemon stays harness-agnostic.
  *
- * `setsid` makes the daemon its own session leader so the recorded PID is the
- * process group; `& disown` returns the outer shell immediately while the
+ * {@link sessionLeader} makes the daemon its own session leader so the recorded
+ * PID is the process group; `& disown` returns the outer shell immediately while the
  * daemon keeps running. The daemon's output goes to its own
  * {@link terminalLogPath}, not the sandbox log, so ttyd's connection
  * chatter never shows up in the logs tab.
@@ -286,7 +287,7 @@ async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
       "-c",
       `mkdir -p /tmp/screenplay ${sandboxStateDir(sandbox.name)}; ` +
         `printf 'set -g status off\\n' > ${TMUX_CONF}; ` +
-        `setsid ${TTYD_BIN} --writable --url-arg --port ${terminalPort} ` +
+        `${sessionLeader()} ${TTYD_BIN} --writable --url-arg --port ${terminalPort} ` +
         `${TMUX_BIN} -u -f ${TMUX_CONF} new -A -s ` +
         `</dev/null >> ${terminalLogPath(sandbox.name)} 2>&1 & ` +
         `echo $! > ${terminalPidPath(sandbox.name)}; ` +

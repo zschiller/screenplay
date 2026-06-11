@@ -4,7 +4,7 @@
  * The seam between screenplay's server and whatever drives a Chat Session
  * speaks ACP, not a screenplay-flavoured approximation (see ADR 0006 and the
  * PRD in issue #375). We deliberately re-export the upstream
- * `@zed-industries/agent-client-protocol` types and Zod schemas rather than
+ * `@agentclientprotocol/sdk` types and Zod schemas rather than
  * hand-rolling our own message shapes, so that:
  *
  *  - the eventual swap to a real ACP client is *subtractive* — the UI, the
@@ -22,18 +22,16 @@
  * transport — plus the {@link AgentSideConnection} the in-memory test fake runs
  * on, so even the agent-side binding stays in this one place.
  *
- * Bound version: `@zed-industries/agent-client-protocol@0.4.x`.
+ * Bound version: `@agentclientprotocol/sdk@0.14.x` — the renamed successor of
+ * `@zed-industries/agent-client-protocol` (frozen at 0.4.5), and the generation
+ * the real `claude-code-acp` adapter speaks. Migrated from 0.4.5 to fix dropped
+ * `tool_call_update`s whose `rawOutput` the older schema rejected.
  */
 import {
   AgentSideConnection,
   ClientSideConnection,
-  contentBlockSchema,
   ndJsonStream,
   PROTOCOL_VERSION,
-  promptResponseSchema,
-  requestPermissionRequestSchema,
-  requestPermissionResponseSchema,
-  sessionNotificationSchema,
   type Agent,
   type AnyMessage,
   type Client,
@@ -52,18 +50,21 @@ import {
   type ToolCallStatus,
   type ToolCallUpdate,
   type ToolKind,
-} from "@zed-industries/agent-client-protocol"
+} from "@agentclientprotocol/sdk"
+// The runtime Zod schema for a `session/update` notification. The SDK names its
+// generated schemas `z<Name>` and doesn't surface them from the main entry, so
+// we reach it by its module path and re-export it under the screenplay-facing
+// name. Used to assert the genuine adapter's wire shapes parse (schema.test.ts).
+import { zSessionNotification } from "@agentclientprotocol/sdk/dist/schema/zod.gen.js"
+
+/** The genuine ACP `session/update` notification schema (SDK `zSessionNotification`). */
+export const sessionNotificationSchema = zSessionNotification
 
 export {
   AgentSideConnection,
   ClientSideConnection,
-  contentBlockSchema,
   ndJsonStream,
   PROTOCOL_VERSION,
-  promptResponseSchema,
-  requestPermissionRequestSchema,
-  requestPermissionResponseSchema,
-  sessionNotificationSchema,
   type Agent,
   type AnyMessage,
   type Client,

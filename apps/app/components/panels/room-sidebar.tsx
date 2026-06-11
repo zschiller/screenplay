@@ -689,6 +689,7 @@ export function RoomSidebar({
   branchPrs,
 }: RoomSidebarProps) {
   const [showPicker, setShowPicker] = useState(false)
+  const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
     null
@@ -1439,9 +1440,12 @@ export function RoomSidebar({
                                 data-settings-open={
                                   settingsRepoId === repo.id || undefined
                                 }
+                                data-menu-open={
+                                  menuOpenRepoId === repo.id || undefined
+                                }
                               >
                                 <SidebarMenuButton
-                                  className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-14 group-hover/workspace-row:!pr-14 group-data-[settings-open]/workspace-row:!pr-14"
+                                  className="!pr-2 !transition-[width,height] group-focus-within/workspace-row:!pr-14 group-hover/workspace-row:!pr-14 group-data-[menu-open]/workspace-row:!pr-14 group-data-[settings-open]/workspace-row:!pr-14"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <CollapsibleTrigger
@@ -1469,7 +1473,7 @@ export function RoomSidebar({
                                     the primary "New Workspace" button and a `…`
                                     overflow menu (PRD #314). */}
                                 <SidebarMenuAction
-                                  className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
+                                  className="right-7 group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 md:opacity-0"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setNewWorkspaceBaseBranch(null)
@@ -1479,10 +1483,15 @@ export function RoomSidebar({
                                 >
                                   <Plus />
                                 </SidebarMenuAction>
-                                <DropdownMenu>
+                                <DropdownMenu
+                                  open={menuOpenRepoId === repo.id}
+                                  onOpenChange={(open) =>
+                                    setMenuOpenRepoId(open ? repo.id : null)
+                                  }
+                                >
                                   <DropdownMenuTrigger asChild>
                                     <SidebarMenuAction
-                                      className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+                                      className="group-focus-within/workspace-row:opacity-100 group-hover/workspace-row:opacity-100 group-data-[menu-open]/workspace-row:opacity-100 group-data-[settings-open]/workspace-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
                                       onClick={(e) => e.stopPropagation()}
                                       title="More"
                                     >
@@ -1524,7 +1533,17 @@ export function RoomSidebar({
                                     setBranchPickerRepoId(open ? repo.id : null)
                                   }
                                 >
-                                  <DialogContent className="max-w-sm gap-0 p-0">
+                                  <DialogContent
+                                    className="max-w-sm gap-0 p-0"
+                                    // This Dialog is a React-tree child of the
+                                    // dnd-kit sortable row, so synthetic key
+                                    // events from its (portaled) inputs bubble to
+                                    // the row's {...listeners} — where the
+                                    // KeyboardSensor eats Space (its pick-up key)
+                                    // and you can't type a space. Keep the
+                                    // dialog's keys inside the dialog.
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
                                     <DialogHeader className="px-4 pt-4 pb-2">
                                       <DialogTitle>
                                         Open existing branch
@@ -1549,7 +1568,14 @@ export function RoomSidebar({
                                     setSettingsRepoId(open ? repo.id : null)
                                   }
                                 >
-                                  <DialogContent className="max-w-sm">
+                                  <DialogContent
+                                    className="max-w-sm"
+                                    // Nested in the dnd-kit sortable row: stop key
+                                    // events from bubbling (React tree, through the
+                                    // portal) to the row's KeyboardSensor, which
+                                    // otherwise swallows Space in these fields.
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
                                     <DialogHeader className="sr-only">
                                       <DialogTitle>Settings</DialogTitle>
                                     </DialogHeader>

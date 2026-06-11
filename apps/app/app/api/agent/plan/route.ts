@@ -59,7 +59,10 @@ export async function POST(req: Request) {
 
   // Resolve the engine before any side effects so a misconfigured deployment
   // fails loud here rather than silently falling back (ADR 0006).
-  const engine = await resolveLiveEngine({ sandboxName: chat.sandboxName })
+  const engine = await resolveLiveEngine({
+    sandboxName: chat.sandboxName,
+    chatId,
+  })
 
   // Resolve the plan gate, ACP-native (ADR 0006): supersede the paused run,
   // persist the human resolution as an ACP-native `user` record (the

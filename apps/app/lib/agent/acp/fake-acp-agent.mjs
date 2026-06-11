@@ -6,7 +6,7 @@
 // in-memory transport runs is replayed here over a real process boundary.
 //
 // Plain `.mjs` so `node` can run it directly with no TS loader: it imports only
-// the compiled `@zed-industries/agent-client-protocol` package and inlines the
+// the compiled `@agentclientprotocol/sdk` package and inlines the
 // one schema shape it needs (`planPermissionRequest`, kept byte-for-byte in
 // sync with `schema.ts`). It never writes to stdout except ACP frames —
 // diagnostics go to stderr — so the ndjson wire stays clean.
@@ -14,7 +14,7 @@ import {
   AgentSideConnection,
   ndJsonStream,
   PROTOCOL_VERSION,
-} from "@zed-industries/agent-client-protocol"
+} from "@agentclientprotocol/sdk"
 import { Readable, Writable } from "node:stream"
 
 /** The captured script: what ACP to emit, the terminal stopReason, and whether to cancel. */

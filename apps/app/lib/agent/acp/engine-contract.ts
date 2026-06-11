@@ -202,6 +202,13 @@ export function contractFor(
           systemPrompt: "sys",
           model: "anthropic:test",
           history: [{ role: "user", content: [textBlock("plan it")] }],
+          // The approval gate only exists on a plan-mode turn: the real adapter
+          // raises its ExitPlanMode permission request solely after
+          // `session/set_mode(plan)` (spike #408), so the external engine routes
+          // a permission request to the gate only here — every other request is
+          // an ordinary tool approval it auto-allows. The in-process engine gates
+          // on the `submit_plan` tool-call itself, so this flag is inert for it.
+          planMode: true,
         },
         (u: EngineUpdate) => consumer.handle(u),
         new AbortController().signal

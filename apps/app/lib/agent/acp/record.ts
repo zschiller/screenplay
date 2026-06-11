@@ -47,8 +47,13 @@ export interface AcpToolCallRecord {
   kind?: ToolKind
   status: ToolCallStatus
   content: ToolCallContent[]
-  rawInput?: Record<string, unknown>
-  rawOutput?: Record<string, unknown>
+  // Arbitrary JSON, mirroring ACP (SDK types these `unknown`): the agent's raw
+  // tool input and output. `rawOutput` is NOT always an object — the real Claude
+  // adapter sends an *array* of content blocks on completion — so typing these
+  // as `Record<string, unknown>` is what made the 0.4.5 schema drop the terminal
+  // update and spin the chip forever. Keep them `unknown` and narrow at use.
+  rawInput?: unknown
+  rawOutput?: unknown
 }
 
 /**

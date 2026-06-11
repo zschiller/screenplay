@@ -1,0 +1,1 @@
+ALTER TABLE "agent_chat" ADD COLUMN "acp_session_id" text;
