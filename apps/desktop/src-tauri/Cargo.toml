@@ -18,6 +18,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2" # native directory dialog for the add-Repo local-folder flow (#428)
+tauri-plugin-opener = "2" # open external (PR/GitHub) links in the system browser — window.open no-ops in the webview
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Sidecar lifecycle helpers:

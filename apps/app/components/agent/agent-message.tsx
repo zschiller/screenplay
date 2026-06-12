@@ -28,6 +28,7 @@ import {
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
 import { chatStore } from "@/lib/chat-store"
+import { openExternal } from "@/lib/open-external"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 
 const toolIcons: Record<string, typeof FileText> = {
@@ -59,11 +60,20 @@ const toolLabels: Record<string, string> = {
   set_document_title: "Set title",
 }
 
+// A raw snake_case tool identifier (e.g. `read_file`), as reported by
+// screenplay's own in-process engine. A generic ACP adapter (e.g.
+// claude-code-acp) instead sends an already human-readable, possibly
+// markdown-formatted title like "Read `file.ts`" — which we must leave
+// untouched rather than re-casing word by word.
+const RAW_TOOL_NAME = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
+
 function formatToolName(name: string): string {
-  return (
-    toolLabels[name] ??
-    name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  )
+  const mapped = toolLabels[name]
+  if (mapped) return mapped
+  // Sentence case, not Title Case: humanize the snake_case identifier and
+  // capitalize only the first letter (`read_file` → "Read file").
+  const spaced = name.replace(/_/g, " ")
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
 // Fallback icons by ACP tool `kind` (read/edit/execute/…), used when the tool
@@ -148,6 +158,12 @@ function CreatePrIndicator({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => {
+          // The desktop webview can't honor target="_blank"; route through the
+          // opener plugin (and keep `href` for context-menu copy/accessibility).
+          e.preventDefault()
+          openExternal(url)
+        }}
         className="group flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs transition-colors hover:border-foreground/20 hover:bg-muted"
       >
         <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-green-700 dark:text-green-300" />
@@ -197,8 +213,14 @@ function ToolIndicator({
   const newTitle = isSetTitle ? (input.title as string | undefined) : null
 
   return (
-    <button onClick={() => setExpanded(!expanded)} className="w-full text-left">
-      <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted">
+    // Keep the scrollable output OUTSIDE the <button> — see ToolCallIndicator:
+    // a max-height-clamped overflow child nested in a button mislays out under
+    // WebKit (the desktop app's WKWebView).
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted"
+      >
         <Icon className="h-3 w-3 shrink-0" />
         <span className="flex-1 truncate">
           {formatToolName(message.name)}
@@ -220,14 +242,42 @@ function ToolIndicator({
         <ChevronDown
           className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
         />
-      </div>
+      </button>
       {expanded && result && (
-        <pre className="mt-1 max-h-32 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground">
+        <pre className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}>
           {result.output}
         </pre>
       )}
-    </button>
+    </div>
   )
+}
+
+// One shared height cap for every expanded tool-output block, so read, bash,
+// and edit all bound their content the same way instead of one growing
+// unbounded while another collapses to a tiny scroller. `whitespace-pre-wrap
+// break-words` wraps long lines (no horizontal scrollbar); `overflow-y-auto`
+// scrolls only once the content exceeds the cap.
+const TOOL_OUTPUT_CAP = "max-h-64 overflow-y-auto whitespace-pre-wrap break-words"
+
+/**
+ * Strip the wrapper noise Claude Code bakes into file-read results that a
+ * generic ACP adapter (claude-code-acp) forwards verbatim, so the compact
+ * tool-output preview shows just the file's text:
+ *  - `<system-reminder>…</system-reminder>` guidance blocks,
+ *  - a single enclosing ``` fence the read is wrapped in,
+ *  - the `   12→` line-number gutter of its `cat -n`-style read format.
+ * Display-only — the untouched file content still lives in the editor.
+ */
+function cleanToolText(text: string): string {
+  let out = text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, "")
+    .trim()
+  const fenced = out.match(/^```[^\n]*\n([\s\S]*?)\n?```$/)
+  if (fenced) out = fenced[1]
+  // Drop the leading line-number gutter (`<spaces>123→`) prefixed onto each
+  // read line. The `→` (U+2192) makes this distinctive enough to not maul
+  // ordinary output.
+  return out.replace(/^[ \t]*\d+→/gm, "")
 }
 
 /**
@@ -242,17 +292,17 @@ function ToolContentBlock({ block }: { block: ToolCallContent }) {
     return (
       <div
         data-testid="tool-content-diff"
-        className="mt-1 overflow-hidden rounded-md border border-border bg-background"
+        className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background`}
       >
         <div className="border-b border-border bg-muted/50 px-2 py-1 font-mono text-[10px] text-muted-foreground">
           {block.path}
         </div>
         {block.oldText != null && (
-          <pre className="overflow-auto bg-red-50 px-2 py-1 font-mono text-[10px] text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          <pre className="whitespace-pre-wrap break-words bg-red-50 px-2 py-1 font-mono text-[10px] text-red-700 dark:bg-red-950/40 dark:text-red-300">
             {block.oldText}
           </pre>
         )}
-        <pre className="overflow-auto bg-green-50 px-2 py-1 font-mono text-[10px] text-green-700 dark:bg-green-950/40 dark:text-green-300">
+        <pre className="whitespace-pre-wrap break-words bg-green-50 px-2 py-1 font-mono text-[10px] text-green-700 dark:bg-green-950/40 dark:text-green-300">
           {block.newText}
         </pre>
       </div>
@@ -271,11 +321,12 @@ function ToolContentBlock({ block }: { block: ToolCallContent }) {
   }
   // A standard content block — render its text; non-text blocks (image, …) are
   // deferred polish.
-  const text = block.content.type === "text" ? block.content.text : ""
+  const text =
+    block.content.type === "text" ? cleanToolText(block.content.text) : ""
   return (
     <pre
       data-testid="tool-content-text"
-      className="mt-1 max-h-32 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground"
+      className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}
     >
       {text}
     </pre>
@@ -301,19 +352,29 @@ function ToolCallIndicator({
     toolIcons[message.title] ??
     (message.kind ? kindIcons[message.kind] : undefined) ??
     Terminal
-  const label = formatToolName(message.title)
-  const detail = toolDetail(message.title, message.rawInput)
+  // Screenplay's own tools report a raw snake_case name we humanize + decorate
+  // with a derived `detail`. A generic ACP adapter sends an already
+  // human-readable title (often containing markdown `code`), which we render
+  // as inline markdown rather than re-casing or appending a detail.
+  const isRawToolName = RAW_TOOL_NAME.test(message.title)
+  const label = isRawToolName ? formatToolName(message.title) : message.title
+  const detail = isRawToolName
+    ? toolDetail(message.title, message.rawInput)
+    : null
   const hasContent = message.content.length > 0
 
   return (
-    <button
-      onClick={() => hasContent && setExpanded(!expanded)}
-      className="w-full text-left"
-      data-testid="tool-call"
-      data-status={message.status}
-    >
-      <div
-        className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
+    // The expanded content must live OUTSIDE the <button>: WebKit (WKWebView,
+    // where the desktop app runs) reserves a scrollable, max-height-clamped
+    // child's *full* content height for layout when it's nested inside a
+    // <button>, so the row would occupy the un-scrolled height yet still scroll
+    // — leaving a large gap. Keeping the button to just the header sidesteps it.
+    <div>
+      <button
+        onClick={() => hasContent && setExpanded(!expanded)}
+        data-testid="tool-call"
+        data-status={message.status}
+        className={`flex w-full items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-xs ${
           failed
             ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
             : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -330,27 +391,46 @@ function ToolCallIndicator({
           <Icon className="h-3 w-3 shrink-0" />
         )}
         <span className="flex-1 truncate">
-          {label}
-          {detail ? (
+          {isRawToolName ? (
             <>
-              {" "}
-              <code className="align-baseline font-mono text-[11px]">
-                {detail}
-              </code>
+              {label}
+              {detail ? (
+                <>
+                  {" "}
+                  <code className="align-baseline font-mono text-[11px]">
+                    {detail}
+                  </code>
+                </>
+              ) : null}
             </>
-          ) : null}
+          ) : (
+            <Markdown
+              components={{
+                // Render the title inline: unwrap the default block <p> and
+                // style inline `code` to match the derived-detail chip.
+                p: ({ children }) => <>{children}</>,
+                code: ({ children }) => (
+                  <code className="align-baseline font-mono text-[11px]">
+                    {children}
+                  </code>
+                ),
+              }}
+            >
+              {label}
+            </Markdown>
+          )}
         </span>
         {hasContent && (
           <ChevronDown
             className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
           />
         )}
-      </div>
+      </button>
       {expanded &&
         message.content.map((block, i) => (
           <ToolContentBlock key={i} block={block} />
         ))}
-    </button>
+    </div>
   )
 }
 

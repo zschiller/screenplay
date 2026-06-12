@@ -159,6 +159,7 @@ import {
 } from "@/lib/sandbox/lifecycle"
 import { deleteBranch } from "@/lib/github-actions"
 import { createPullRequestAction } from "@/lib/create-pr-action"
+import { openExternal } from "@/lib/open-external"
 import {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -2407,11 +2408,7 @@ export function Canvas({
 
   const handlePlayAgent = useCallback(
     (branchId: string) => {
-      window.open(
-        `/play/${roomId}/${branchId}`,
-        "_blank",
-        "noopener,noreferrer"
-      )
+      openExternal(`/play/${roomId}/${branchId}`)
     },
     [roomId]
   )
@@ -2437,7 +2434,7 @@ export function Canvas({
         } catch {}
       }
       const url = `/play/${roomId}/${iframeLayer.branchId}?${params.toString()}`
-      window.open(url, "_blank", "noopener,noreferrer")
+      openExternal(url)
     },
     [iframeLayers, roomId]
   )
@@ -2785,7 +2782,7 @@ export function Canvas({
           description: `#${number}`,
           action: {
             label: "View on GitHub",
-            onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
+            onClick: () => openExternal(url),
           },
         })
       } else {

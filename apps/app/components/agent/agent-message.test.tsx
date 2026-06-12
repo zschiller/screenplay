@@ -112,4 +112,70 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
       "t_42"
     )
   })
+
+  // claude-code-acp forwards Claude Code's file-read decorations verbatim —
+  // a <system-reminder> block, a ``` fence, and a `   N→` line-number gutter.
+  // The expanded preview must strip all three and show just the file text.
+  it("strips Claude Code read decorations from text content", () => {
+    const readOutput: ToolCallContent = {
+      type: "content",
+      content: {
+        type: "text",
+        text: "<system-reminder>be careful</system-reminder>\n```ts\n     1→const a = 1\n     2→const b = 2\n```",
+      },
+    }
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          title: "read_file",
+          status: "completed",
+          content: [readOutput],
+        })}
+      />
+    )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    const pre = screen.getByTestId("tool-content-text")
+    expect(pre.textContent).toBe("const a = 1\nconst b = 2")
+    expect(pre.textContent).not.toContain("system-reminder")
+    expect(pre.textContent).not.toContain("```")
+    expect(pre.textContent).not.toContain("→")
+  })
+
+  // A raw snake_case tool name with no hand-mapped label humanizes to
+  // sentence case — "Search files", never Title Case "Search Files".
+  it("humanizes an unmapped raw tool name to sentence case", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({ title: "search_files", status: "completed" })}
+      />
+    )
+    const text = screen.getByTestId("tool-call").textContent ?? ""
+    expect(text).toContain("Search files")
+    expect(text).not.toContain("Search Files")
+  })
+
+  // A generic ACP adapter (e.g. claude-code-acp) sends an already
+  // human-readable, markdown-formatted title — not a raw snake_case name.
+  // We must render it verbatim (no per-word re-casing) and honor its markdown.
+  it("renders a human-readable ACP title verbatim, without re-casing", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({ title: "Read file.ts", status: "completed" })}
+      />
+    )
+    // Verbatim — not "Read File.Ts" from word-by-word title casing.
+    expect(screen.getByTestId("tool-call").textContent).toContain("Read file.ts")
+  })
+
+  it("renders inline `code` in an ACP title as markdown, not literal backticks", () => {
+    const { container } = render(
+      <AgentMessageItem
+        message={toolCall({ title: "Read `src/a.ts`", status: "completed" })}
+      />
+    )
+    const code = container.querySelector("code")
+    expect(code?.textContent).toBe("src/a.ts")
+    // The literal backticks must not survive into the rendered text.
+    expect(screen.getByTestId("tool-call").textContent).not.toContain("`")
+  })
 })

@@ -133,10 +133,12 @@ export class ExternalEngine implements Engine {
       const { session, resumed } = await this.openSession(ports, turn)
       // A resumed session already holds the prior conversation, so send only the
       // new user message. A fresh session has none — replay the whole history so
-      // its context is seeded (the first turn reduces to just the new message).
+      // its context is seeded (the first turn reduces to just the new message),
+      // and lead with the system prompt so the agent's instructions (the
+      // always-commit-and-push rule, plan-mode protocol, skill index) reach it.
       const blocks = resumed
         ? promptBlocks(turn.history)
-        : replayBlocks(turn.history)
+        : withSystemPrompt(turn.systemPrompt, replayBlocks(turn.history))
       const stopReason = await session.prompt(blocks, turnSignal)
 
       // The plan gate already closed the turn through the consumer; emitting a
@@ -213,6 +215,33 @@ export class ExternalEngine implements Engine {
     await this.config.onSessionId?.(session.id)
     return { session, resumed: false }
   }
+}
+
+/**
+ * Lead a fresh session's prompt with the turn's system prompt as a text block.
+ *
+ * ACP has no system-prompt channel — `session/new` and `session/prompt` carry
+ * only `cwd`/`mcpServers` and content blocks — so the only way to deliver
+ * screenplay's agent instructions (the always-commit-and-push rule, the
+ * plan-mode protocol, the merged skill index, `@`-mention resolution, repo
+ * context) to a generic ACP agent is to fold them into the prompt itself. The
+ * in-process engine passes the same string as `streamText`'s `system`; this is
+ * the external engine's equivalent. Without it the desktop agent ran with *no*
+ * screenplay instructions — most visibly, it never committed and pushed, so the
+ * user never saw its changes.
+ *
+ * Applied only on a **fresh** session (the turn that creates it): a resumed
+ * session already carries the instructions the creating turn sent, in the
+ * agent's own context, so re-sending them every turn would only bloat it. An
+ * empty prompt prepends nothing, keeping the seam clean for agents/tests that
+ * pass none.
+ */
+function withSystemPrompt(
+  systemPrompt: string,
+  blocks: ContentBlock[]
+): ContentBlock[] {
+  const trimmed = systemPrompt.trim()
+  return trimmed ? [textBlock(trimmed), ...blocks] : blocks
 }
 
 /**

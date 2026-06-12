@@ -28,6 +28,10 @@ fn main() {
         // Native file/folder dialogs, used Rust-side only (the control
         // server's /pick-directory) — no webview capability is exposed.
         .plugin(tauri_plugin_dialog::init())
+        // Opens external links (PR/GitHub URLs) in the system browser. The
+        // webview itself can't honor `window.open`/`target="_blank"`, so the
+        // page routes those clicks through `plugin:opener|open_url`.
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle().clone();
 

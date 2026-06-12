@@ -1,17 +1,7 @@
 import { useEffect, useState } from "react"
 
+import { getTauriInvoke } from "@/lib/desktop/tauri-bridge"
 import { isLocalBuild } from "@/lib/local-mode"
-
-type TauriInvoke = (cmd: string, args?: unknown) => Promise<unknown>
-
-/** The Tauri IPC bridge, when this page is running inside the desktop shell. */
-function getTauriInvoke(): TauriInvoke | null {
-  if (typeof window === "undefined") return null
-  const internals = (
-    window as unknown as { __TAURI_INTERNALS__?: { invoke?: TauriInvoke } }
-  ).__TAURI_INTERNALS__
-  return typeof internals?.invoke === "function" ? internals.invoke : null
-}
 
 /**
  * Whether the macOS window traffic lights are currently occupying the
