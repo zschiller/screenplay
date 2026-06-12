@@ -33,9 +33,10 @@ import {
   type Folder,
   type OrganizationState,
 } from "@/lib/organization"
+import { sortRooms, type SortKey } from "@/lib/room-sort"
 
 export type View = "grid" | "table"
-export type SortKey = "updated" | "created" | "name"
+export type { SortKey }
 
 export const PINNED_VIEW_ID = "__pinned__"
 export const ALL_VIEW_ID = "__all__"
@@ -178,19 +179,7 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       list = filesInFolder(selectedId)
     }
 
-    const sorted = [...list]
-    if (sort === "name") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sort === "created") {
-      sorted.sort((a, b) => b.createdAt - a.createdAt)
-    } else {
-      sorted.sort((a, b) => {
-        const aTs = a.lastConnectionAt ?? a.createdAt
-        const bTs = b.lastConnectionAt ?? b.createdAt
-        return bTs - aTs
-      })
-    }
-    return sorted
+    return sortRooms(list, sort)
   }, [files, filesInFolder, selectedId, org.pinnedFiles, sort])
 
   const selectionLabel = useMemo(() => {
