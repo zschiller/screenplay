@@ -3,41 +3,40 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { MoreHorizontal, Pin } from "lucide-react"
+import { MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
-import { FileActionMenu } from "./file-action-menu"
-import { InputDialog } from "./file-dialogs"
+import { RoomActionMenu } from "./room-action-menu"
+import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
-function FileCard({ file }: { file: RoomSummary }) {
-  const { renameFile, removeFile, pinnedFiles } = useHome()
+function RoomCard({ room }: { room: RoomSummary }) {
+  const { renameRoom, removeRoom } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const pinned = pinnedFiles.has(file.id)
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20">
       <Link
-        href={`/${file.id}`}
+        href={`/${room.id}`}
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
-        aria-label={`Open ${file.name}`}
+        aria-label={`Open ${room.name}`}
       >
-        {file.thumbnailUrl && (
+        {room.thumbnailUrl && (
           <Image
-            key={file.thumbnailUpdatedAt ?? file.thumbnailUrl}
+            key={room.thumbnailUpdatedAt ?? room.thumbnailUrl}
             // The blob path is stable per room and served with a max-age, so a
             // bare URL would show the browser-cached capture for up to that
             // TTL; versioning by capture time busts it the moment a new
             // thumbnail lands.
             src={
-              file.thumbnailUpdatedAt
-                ? `${file.thumbnailUrl}?v=${file.thumbnailUpdatedAt}`
-                : file.thumbnailUrl
+              room.thumbnailUpdatedAt
+                ? `${room.thumbnailUrl}?v=${room.thumbnailUpdatedAt}`
+                : room.thumbnailUrl
             }
             alt=""
             fill
@@ -57,17 +56,17 @@ function FileCard({ file }: { file: RoomSummary }) {
       <div className="flex items-center gap-2 p-3">
         <div className="min-w-0 flex-1">
           <Link
-            href={`/${file.id}`}
+            href={`/${room.id}`}
             className="block truncate text-sm font-medium hover:underline"
           >
-            {file.name}
+            {room.name}
           </Link>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>
               Edited{" "}
-              {formatDistanceToNow(file.lastConnectionAt ?? file.createdAt)}
+              {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
             </span>
-            {!file.isOwner && (
+            {!room.isOwner && (
               <>
                 <span>·</span>
                 <span>Shared</span>
@@ -75,11 +74,8 @@ function FileCard({ file }: { file: RoomSummary }) {
             )}
           </div>
         </div>
-        {pinned && (
-          <Pin className="size-3.5 shrink-0 fill-foreground/60 text-foreground/60" />
-        )}
-        <FileActionMenu
-          file={file}
+        <RoomActionMenu
+          room={room}
           onRename={() => setRenameOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
@@ -88,28 +84,28 @@ function FileCard({ file }: { file: RoomSummary }) {
             variant="ghost"
             size="icon-sm"
             className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
-            aria-label="File actions"
+            aria-label="Canvas actions"
           >
             <MoreHorizontal />
           </Button>
-        </FileActionMenu>
+        </RoomActionMenu>
       </div>
 
       <InputDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
-        title="Rename file"
-        initialValue={file.name}
+        title="Rename canvas"
+        initialValue={room.name}
         submitLabel="Save"
         submittingLabel="Saving…"
-        onSubmit={(name) => renameFile(file.id, name)}
+        onSubmit={(name) => renameRoom(room.id, name)}
       />
       <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        roomName={file.name}
+        roomName={room.name}
         onConfirm={async () => {
-          await removeFile(file.id)
+          await removeRoom(room.id)
           setDeleteOpen(false)
         }}
       />
@@ -117,19 +113,19 @@ function FileCard({ file }: { file: RoomSummary }) {
         <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          roomId={file.id}
-          roomName={file.name}
+          roomId={room.id}
+          roomName={room.name}
         />
       )}
     </div>
   )
 }
 
-export function FileGrid({ files }: { files: RoomSummary[] }) {
+export function RoomGrid({ rooms }: { rooms: RoomSummary[] }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-      {files.map((file) => (
-        <FileCard key={file.id} file={file} />
+      {rooms.map((room) => (
+        <RoomCard key={room.id} room={room} />
       ))}
     </div>
   )

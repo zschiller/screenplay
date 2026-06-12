@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { File as FileIcon, MoreHorizontal, Pin } from "lucide-react"
+import { File as FileIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Table,
@@ -13,54 +13,41 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { formatDistanceToNow } from "@/lib/utils"
-import { DRAFTS_FOLDER_ID } from "@/lib/organization"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
-import { FileActionMenu } from "./file-action-menu"
-import { InputDialog } from "./file-dialogs"
+import { RoomActionMenu } from "./room-action-menu"
+import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
-function FileRow({ file }: { file: RoomSummary }) {
-  const { renameFile, removeFile, pinnedFiles, folders, fileFolder } = useHome()
+function RoomRow({ room }: { room: RoomSummary }) {
+  const { renameRoom, removeRoom } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const pinned = pinnedFiles.has(file.id)
-  const folderId = fileFolder[file.id] ?? DRAFTS_FOLDER_ID
-  const folderName =
-    folderId === DRAFTS_FOLDER_ID
-      ? "Drafts"
-      : (folders.find((f) => f.id === folderId)?.name ?? "Folder")
 
   return (
     <TableRow className="group">
       <TableCell className="w-full">
-        <Link href={`/${file.id}`} className="flex items-center gap-2">
+        <Link href={`/${room.id}`} className="flex items-center gap-2">
           <FileIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate font-medium hover:underline">
-            {file.name}
+            {room.name}
           </span>
-          {pinned && (
-            <Pin className="size-3 shrink-0 fill-foreground/60 text-foreground/60" />
-          )}
         </Link>
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">
-        {folderName}
+        {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">
-        {formatDistanceToNow(file.lastConnectionAt ?? file.createdAt)}
+        {formatDistanceToNow(room.createdAt)}
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">
-        {formatDistanceToNow(file.createdAt)}
-      </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">
-        {file.isOwner ? "You" : "Shared"}
+        {room.isOwner ? "You" : "Shared"}
       </TableCell>
       <TableCell className="w-8 pr-2">
-        <FileActionMenu
-          file={file}
+        <RoomActionMenu
+          room={room}
           onRename={() => setRenameOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
@@ -69,28 +56,28 @@ function FileRow({ file }: { file: RoomSummary }) {
             variant="ghost"
             size="icon-sm"
             className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
-            aria-label="File actions"
+            aria-label="Canvas actions"
           >
             <MoreHorizontal />
           </Button>
-        </FileActionMenu>
+        </RoomActionMenu>
       </TableCell>
 
       <InputDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
-        title="Rename file"
-        initialValue={file.name}
+        title="Rename canvas"
+        initialValue={room.name}
         submitLabel="Save"
         submittingLabel="Saving…"
-        onSubmit={(name) => renameFile(file.id, name)}
+        onSubmit={(name) => renameRoom(room.id, name)}
       />
       <DeleteRoomDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        roomName={file.name}
+        roomName={room.name}
         onConfirm={async () => {
-          await removeFile(file.id)
+          await removeRoom(room.id)
           setDeleteOpen(false)
         }}
       />
@@ -98,21 +85,20 @@ function FileRow({ file }: { file: RoomSummary }) {
         <ShareRoomDialog
           open={shareOpen}
           onOpenChange={setShareOpen}
-          roomId={file.id}
-          roomName={file.name}
+          roomId={room.id}
+          roomName={room.name}
         />
       )}
     </TableRow>
   )
 }
 
-export function FileTable({ files }: { files: RoomSummary[] }) {
+export function RoomTable({ rooms }: { rooms: RoomSummary[] }) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>Folder</TableHead>
           <TableHead>Last edited</TableHead>
           <TableHead>Created</TableHead>
           <TableHead>Owner</TableHead>
@@ -120,8 +106,8 @@ export function FileTable({ files }: { files: RoomSummary[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {files.map((file) => (
-          <FileRow key={file.id} file={file} />
+        {rooms.map((room) => (
+          <RoomRow key={room.id} room={room} />
         ))}
       </TableBody>
     </Table>

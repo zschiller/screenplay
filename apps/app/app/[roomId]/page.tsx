@@ -5,7 +5,6 @@ import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
 import { listThreads } from "@/lib/comments"
-import { getOrganization } from "@/lib/organization-actions"
 import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
@@ -42,12 +41,6 @@ export default async function RoomPage({
   // Best-effort: don't block render if the timestamp update fails.
   touchRoomOpened(roomId).catch(() => {})
 
-  const org = await getOrganization().catch(() => null)
-  const parentFolderId = org?.fileFolder[roomId]
-  const parentFolderName = parentFolderId
-    ? (org?.folders.find((f) => f.id === parentFolderId)?.name ?? "Drafts")
-    : "Drafts"
-
   const cookieStore = await cookies()
   const initialLayout = parsePanelLayoutValue(
     cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value
@@ -77,7 +70,6 @@ export default async function RoomPage({
         roomId={roomId}
         roomName={room.name}
         hasThumbnail={!!room.thumbnailUrl}
-        parentFolderName={parentFolderName}
         initialLayout={initialLayout}
         initialThreads={initialThreads}
         initialTerminalTabs={initialTerminalTabs}

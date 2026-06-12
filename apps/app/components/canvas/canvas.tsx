@@ -234,7 +234,6 @@ export function Canvas({
   roomId,
   roomName,
   hasThumbnail,
-  parentFolderName = "Drafts",
   initialLayout,
   initialThreads,
   initialTerminalTabs,
@@ -242,7 +241,6 @@ export function Canvas({
   roomId: string
   roomName: string
   hasThumbnail: boolean
-  parentFolderName?: string
   initialLayout?: PanelLayout
   initialThreads?: ThreadWithComments[]
   initialTerminalTabs?: TerminalTabRecord[]
@@ -5915,7 +5913,7 @@ export function Canvas({
                           router.push("/")
                         }}
                       >
-                        {parentFolderName}
+                        Canvases
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="text-muted-foreground/60">
