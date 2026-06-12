@@ -27,6 +27,10 @@ export type AwarenessLike = {
 export type YjsConnection = {
   doc: Y.Doc
   awareness: AwarenessLike
+  /** The room this connection is bound to. Lets in-room hooks address
+   *  server actions (e.g. the branch-git refresh) at their own room without
+   *  prop-drilling the id down from the page. */
+  roomId: string
 }
 
 const YjsContext = createContext<YjsConnection | null>(null)
@@ -45,6 +49,11 @@ export function useYjs(): YjsConnection {
   const ctx = useContext(YjsContext)
   if (!ctx) throw new Error("useYjs must be used inside a YjsRoomProvider")
   return ctx
+}
+
+/** The current room id, from the active Yjs connection. */
+export function useRoomId(): string {
+  return useYjs().roomId
 }
 
 /**

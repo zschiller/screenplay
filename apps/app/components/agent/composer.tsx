@@ -473,11 +473,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           }
           if (event.key !== "Enter") return false
           if (submitModeRef.current === "mod-enter") {
-            // Seed binding: ⌘/Ctrl+Enter creates. A bare Enter fires the
-            // optional `onEnter` (the dialog's "Add another"); Shift+Enter, or
-            // no handler, falls through to ProseMirror as a newline.
-            if (!event.metaKey && !event.ctrlKey) {
-              if (event.shiftKey || !onEnterRef.current) return false
+            // Seed binding: a bare Enter creates the whole stack. ⌘/Ctrl+Enter
+            // fires the optional `onEnter` (the dialog's "Add another");
+            // Shift+Enter falls through to ProseMirror as a newline.
+            if (event.shiftKey) return false
+            if ((event.metaKey || event.ctrlKey) && onEnterRef.current) {
               event.preventDefault()
               onEnterRef.current()
               return true
@@ -566,7 +566,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   <ChevronDown />
                 </InputGroupButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuContent align="start">
                 {models.length === 0 ? (
                   <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
                 ) : (

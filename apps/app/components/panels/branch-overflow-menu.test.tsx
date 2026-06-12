@@ -27,14 +27,16 @@ vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
 
-// The "Open stable URL" item calls the `getStableDevUrl` server action, whose
-// module ("use server") transitively imports the server-only sandbox stack —
-// same reason as the github-actions stub above.
-vi.mock("@/lib/sandbox/lifecycle", () => ({
-  getStableDevUrl: vi.fn().mockResolvedValue({
-    success: true,
-    value: { url: null },
-  }),
+// `isLocalBuild` is a compile-time constant, but the build-specific item
+// ("Restart sandbox" hidden on local) is read at render through this live
+// binding — a getter lets each test pick the build without re-importing the
+// module. Defaults to the hosted build; the local-build describe flips it and
+// afterEach resets it.
+const buildFlag = vi.hoisted(() => ({ local: false }))
+vi.mock("@/lib/local-mode", () => ({
+  get isLocalBuild() {
+    return buildFlag.local
+  },
 }))
 
 // Radix's dropdown content positions itself with floating-ui, which needs a
@@ -122,7 +124,10 @@ function rebaseItem() {
   return screen.getByText("Rebase on main").closest('[role="menuitem"]')
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  buildFlag.local = false
+})
 
 describe("BRANCH_MENU_SECTIONS skeleton", () => {
   it("declares the five sections in order", () => {
@@ -147,9 +152,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
       BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])
     )
     expect(bySection.identity).toEqual(["rename", "color"])
-    // "stable-url" is desktop-only (renders null on hosted) but lives in the
-    // skeleton unconditionally — the section spine never varies by build.
-    expect(bySection.preview).toEqual(["play", "stable-url", "routes"])
+    expect(bySection.preview).toEqual(["play", "open-in-browser", "routes"])
     expect(bySection["branch-sandbox"]).toEqual([
       "new-branch-from-here",
       "restart",
@@ -192,6 +195,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Color",
       "Preview",
       "Open prototype player",
+      "Open in browser",
       "Show all routes",
       "Branch & sandbox",
       "New branch from here…",
@@ -459,5 +463,20 @@ describe("Restart submenu", () => {
     expect(
       submenuItem("Recreate from scratch")?.getAttribute("aria-disabled")
     ).toBe("true")
+  })
+
+  // On the local (desktop) build the backend runs worktrees on the host, not
+  // VMs, so there's nothing to snapshot-restore — "Restart sandbox" would only
+  // ever fail loud. The two honest local tiers are "Restart dev server" and
+  // "Recreate from scratch", so the VM-cycle item is omitted there.
+  describe("local build", () => {
+    it("omits Restart sandbox but keeps dev-server restart and recreate", () => {
+      buildFlag.local = true
+      renderMenu()
+      openSubmenu()
+      expect(submenuItem("Restart sandbox")).toBeUndefined()
+      expect(submenuItem("Restart dev server")).toBeDefined()
+      expect(submenuItem("Recreate from scratch")).toBeDefined()
+    })
   })
 })

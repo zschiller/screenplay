@@ -1193,7 +1193,7 @@ export function Canvas({
   }, [agents, localTerminals, roomId])
 
   const diffStats = useDiffStats(agents, repos)
-  const branchPrs = useBranchPrs(agents, repos)
+  const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
   const savedViewport = useSavedViewport()
@@ -2778,6 +2778,9 @@ export function Canvas({
       const result = await createPullRequestAction(roomId, agent.sandboxName)
       if (result.success) {
         const { url, number } = result.value
+        // Write the source of truth immediately so the sidebar icon, branch
+        // menu, and chat button reflect the open PR now — not on the next poll.
+        setBranchPr(agentId, { number, url, state: "open" })
         toast.success("Pull request created", {
           description: `#${number}`,
           action: {
@@ -2791,7 +2794,7 @@ export function Canvas({
         })
       }
     },
-    [agents, roomId]
+    [agents, roomId, setBranchPr]
   )
 
   const handleCloseChat = useCallback(
@@ -5941,7 +5944,6 @@ export function Canvas({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="start"
-                          className="w-48"
                           onCloseAutoFocus={onRoomMenuCloseAutoFocus}
                         >
                           <DropdownMenuItem
@@ -6246,6 +6248,7 @@ export function Canvas({
                     ? (branchPrs.get(target.agent.id) ?? null)
                     : null
                 }
+                onPrCreated={setBranchPr}
                 onCollapse={() => chatPanelRef.current?.collapse()}
                 onLogsReady={handleLogsReady}
               />

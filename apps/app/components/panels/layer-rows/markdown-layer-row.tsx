@@ -119,7 +119,6 @@ export function DocumentRowMenu({
       <DropdownMenuContent
         side="right"
         align="start"
-        className="w-48"
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <DropdownMenuItem

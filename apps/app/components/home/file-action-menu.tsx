@@ -42,7 +42,7 @@ export function FileActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => toggleFilePin(file.id)}>
           {pinned ? <PinOff /> : <Pin />}
           {pinned ? "Unpin" : "Pin to top"}

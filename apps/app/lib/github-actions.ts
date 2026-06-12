@@ -1,6 +1,7 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
+import { mutateRoomDoc } from "@/lib/yjs/server"
 
 export interface GitHubRepo {
   id: number
@@ -187,15 +188,20 @@ export async function deleteBranch(
   }
 }
 
-export async function compareBranch(
+export interface DiffStats {
+  additions: number
+  deletions: number
+}
+
+/** Token-injected core of the compare call. Callers fetch the token once and
+ *  fan this out in parallel — see {@link compareBranches}. */
+async function fetchCompare(
+  token: string,
   owner: string,
   repo: string,
   base: string,
   head: string
-): Promise<{ additions: number; deletions: number } | null> {
-  const token = await getGitHubToken()
-  if (!token) return null
-
+): Promise<DiffStats | null> {
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
     {
@@ -218,6 +224,68 @@ export async function compareBranch(
   return { additions, deletions }
 }
 
+export interface DiffStatQuery {
+  /** Branch id — keys the result and the doc entry the stats are cached into. */
+  id: string
+  owner: string
+  repo: string
+  base: string
+  head: string
+}
+
+/**
+ * Diff stats for many branches in ONE server action. The previous per-branch
+ * action meant N calls that React's server-action queue ran *sequentially* —
+ * N round-trips end to end. Here the token is fetched once and the GitHub
+ * compares run in a real server-side `Promise.all`, so it's a single round-trip
+ * with parallel fan-out. Results are also cached into the room's Y.Doc so a
+ * cold load renders the badges instantly and other clients don't each re-fetch.
+ */
+export async function compareBranches(
+  roomId: string,
+  queries: DiffStatQuery[]
+): Promise<Array<{ id: string; stats: DiffStats | null }>> {
+  if (queries.length === 0) return []
+  const token = await getGitHubToken()
+  if (!token) return queries.map((q) => ({ id: q.id, stats: null }))
+
+  const results = await Promise.all(
+    queries.map(async (q) => ({
+      id: q.id,
+      stats: await fetchCompare(token, q.owner, q.repo, q.base, q.head),
+    }))
+  )
+  await cacheDiffStats(roomId, results)
+  return results
+}
+
+/** Write-through to the doc. Only branches whose stats actually changed emit a
+ *  Yjs update; a failed compare (`null`) leaves the last-known value untouched
+ *  rather than clearing the badge. Runs server-side, so the update reaches
+ *  clients as a remote change and never lands in their undo history. */
+async function cacheDiffStats(
+  roomId: string,
+  results: Array<{ id: string; stats: DiffStats | null }>
+): Promise<void> {
+  if (!results.some((r) => r.stats)) return
+  await mutateRoomDoc(roomId, ({ branches }) => {
+    for (const { id, stats } of results) {
+      if (!stats) continue
+      const cur = branches.get(id)
+      if (!cur) continue
+      if (
+        cur.diffAdditions !== stats.additions ||
+        cur.diffDeletions !== stats.deletions
+      ) {
+        branches.update(id, {
+          diffAdditions: stats.additions,
+          diffDeletions: stats.deletions,
+        })
+      }
+    }
+  })
+}
+
 export type BranchPrState = "open" | "closed" | "merged"
 
 export interface BranchPrInfo {
@@ -226,14 +294,14 @@ export interface BranchPrInfo {
   state: BranchPrState
 }
 
-export async function listBranchPullRequest(
+/** Token-injected core of the PR lookup. Fanned out in parallel by
+ *  {@link listBranchPrs} after a single token fetch. */
+async function fetchBranchPr(
+  token: string,
   owner: string,
   repo: string,
   branch: string
 ): Promise<BranchPrInfo | null> {
-  const token = await getGitHubToken()
-  if (!token) return null
-
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branch}&state=all&per_page=1&sort=created&direction=desc`,
     {
@@ -257,6 +325,68 @@ export async function listBranchPullRequest(
 
   const state: BranchPrState = pr.merged_at ? "merged" : pr.state
   return { number: pr.number, url: pr.html_url, state }
+}
+
+export interface BranchPrQuery {
+  /** Branch id — keys the result and the doc entry the PR is cached into. */
+  id: string
+  owner: string
+  repo: string
+  branch: string
+}
+
+/**
+ * PR status for many branches in ONE server action — same single-round-trip,
+ * parallel-fan-out, write-through-to-the-doc shape as {@link compareBranches}.
+ * Replaces the per-branch action whose `Promise.all` was secretly serialized
+ * by React's server-action queue.
+ */
+export async function listBranchPrs(
+  roomId: string,
+  queries: BranchPrQuery[]
+): Promise<Array<{ id: string; pr: BranchPrInfo | null }>> {
+  if (queries.length === 0) return []
+  const token = await getGitHubToken()
+  if (!token) return queries.map((q) => ({ id: q.id, pr: null }))
+
+  const results = await Promise.all(
+    queries.map(async (q) => ({
+      id: q.id,
+      pr: await fetchBranchPr(token, q.owner, q.repo, q.branch),
+    }))
+  )
+  await cachePrs(roomId, results)
+  return results
+}
+
+/** Write-through to the doc. A `null` lookup never clears a cached PR: GitHub's
+ *  pulls list lags a beat behind a freshly created PR, so a poll already in
+ *  flight when one is opened can momentarily not see it — clearing here would
+ *  flicker the icon back to "no PR". Server-side write → remote change on
+ *  clients → never tracked by their undo history. */
+async function cachePrs(
+  roomId: string,
+  results: Array<{ id: string; pr: BranchPrInfo | null }>
+): Promise<void> {
+  if (!results.some((r) => r.pr)) return
+  await mutateRoomDoc(roomId, ({ branches }) => {
+    for (const { id, pr } of results) {
+      if (!pr) continue
+      const cur = branches.get(id)
+      if (!cur) continue
+      if (
+        cur.prNumber !== pr.number ||
+        cur.prUrl !== pr.url ||
+        cur.prState !== pr.state
+      ) {
+        branches.update(id, {
+          prNumber: pr.number,
+          prUrl: pr.url,
+          prState: pr.state,
+        })
+      }
+    }
+  })
 }
 
 export async function listRepoBranches(

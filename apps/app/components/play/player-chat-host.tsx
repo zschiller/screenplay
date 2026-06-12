@@ -40,7 +40,7 @@ export function PlayerChatHost({
   const chatSessions = allChatSessions.filter((c) => c.branchId === agentId)
   const repo = agent ? collections.repos.toMap().get(agent.repoId) : undefined
   const diffStats = useDiffStats(agents, repo ? [repo] : [])
-  const branchPrs = useBranchPrs(agents, repo ? [repo] : [])
+  const { branchPrs, setBranchPr } = useBranchPrs(agents, repo ? [repo] : [])
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
 
@@ -247,6 +247,7 @@ export function PlayerChatHost({
       onModelChange={(chatId, model) => updateChatSession(chatId, { model })}
       diffStats={diffStats.get(agent.id)}
       branchPr={branchPrs.get(agent.id) ?? null}
+      onPrCreated={setBranchPr}
       onCollapse={onCollapse}
     />
   )

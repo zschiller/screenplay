@@ -74,9 +74,10 @@ export function YjsRoomProvider({
         ? {
             doc: conn.doc,
             awareness: conn.provider.awareness as unknown as AwarenessLike,
+            roomId,
           }
         : null,
-    [conn]
+    [conn, roomId]
   )
 
   if (!value || !synced) return <>{fallback}</>

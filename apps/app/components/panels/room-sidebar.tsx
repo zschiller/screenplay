@@ -1509,7 +1509,6 @@ export function RoomSidebar({
                                     <DropdownMenuContent
                                       side="right"
                                       align="start"
-                                      className="w-48"
                                     >
                                       <DropdownMenuItem
                                         onClick={() =>
@@ -1834,6 +1833,7 @@ export function RoomSidebar({
                                                                       onCreatePr={
                                                                         onCreatePr
                                                                       }
+                                                                      pr={pr}
                                                                       onRebase={
                                                                         onRebaseOnDefault
                                                                       }
@@ -2076,7 +2076,6 @@ export function RoomSidebar({
                                           <DropdownMenuContent
                                             side="right"
                                             align="start"
-                                            className="w-48"
                                             onCloseAutoFocus={
                                               onGroupMenuCloseAutoFocus
                                             }
@@ -2195,10 +2194,12 @@ export function RoomSidebar({
                 if (!open) setPendingRecreateBranchId(null)
               }}
               branchName={branch?.ref ?? ""}
-              onConfirm={async () => {
+              onConfirm={() => {
                 if (!branch) return
-                await onRecreateBranch(branch.id)
+                // Close immediately and let the recreation run in the
+                // background — progress shows on the branch in the sidebar.
                 setPendingRecreateBranchId(null)
+                void onRecreateBranch(branch.id)
               }}
             />
           )

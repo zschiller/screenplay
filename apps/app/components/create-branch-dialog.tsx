@@ -308,7 +308,7 @@ export function CreateBranchDialog({
               >
                 <Plus />
                 Add another
-                <Kbd>↵</Kbd>
+                <Kbd>⌘↵</Kbd>
               </Button>
             </div>
           </ScrollArea>
@@ -322,7 +322,7 @@ export function CreateBranchDialog({
             {rows.length === 1
               ? "Create branch"
               : `Create ${rows.length} branches`}
-            <Kbd>⌘↵</Kbd>
+            <Kbd>↵</Kbd>
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -446,11 +446,11 @@ function WorkspaceRow({
           onPlanModeChange={onPlanModeChange}
           onChange={(payload) => onPromptChange(payload.text)}
           // A submit from any row creates every row — there's one logical
-          // create action — so ⌘↵ in the focused Composer commits the stack.
+          // create action — so Enter in the focused Composer commits the stack.
           onSubmit={onSubmitAll}
           submitMode="mod-enter"
-          // Enter stacks another row (mirrors the "Add another" button);
-          // Shift+Enter is a newline, ⌘↵ creates the whole stack.
+          // ⌘↵ stacks another row (mirrors the "Add another" button);
+          // Shift+Enter is a newline, Enter creates the whole stack.
           onEnter={onAddRow}
           // Backspace/Delete on an emptied row pops it off the stack — but not
           // the last remaining row, which has nothing to fall back to.
