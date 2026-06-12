@@ -30,6 +30,7 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import { BRANCH_COLORS } from "@/lib/branch-colors"
+import { openExternal } from "@/lib/open-external"
 import { isLocalBuild } from "@/lib/local-mode"
 import { getStableDevUrl } from "@/lib/sandbox/lifecycle"
 import type { BranchData, RepoData } from "@/lib/types"
@@ -155,13 +156,12 @@ export function BranchOverflowMenuContent({
   // Resolve-then-open for the portless named URL (ADR 0010): the route is
   // registered when the dev server launches and unregistered when it stops,
   // so it's looked up at click time rather than carried on BranchData where
-  // it would go stale. Desktop webview, so the post-await `window.open` isn't
-  // at the mercy of a browser popup blocker.
+  // it would go stale.
   const openStableUrl = async () => {
     if (!branch.sandboxName) return
     const result = await getStableDevUrl(branch.sandboxName, repo)
     if (result.success && result.value.url) {
-      window.open(result.value.url, "_blank", "noopener,noreferrer")
+      openExternal(result.value.url)
     } else {
       toast.error(
         "No stable URL for this workspace yet — start the dev server first."
@@ -323,7 +323,7 @@ export function BranchOverflowMenuContent({
         onClick={() => {
           if (!branch.ref) return
           const url = `https://github.com/${repo.repoOwner}/${repo.repoName}/tree/${encodeURI(branch.ref)}`
-          window.open(url, "_blank", "noopener,noreferrer")
+          openExternal(url)
         }}
       >
         <ExternalLink />

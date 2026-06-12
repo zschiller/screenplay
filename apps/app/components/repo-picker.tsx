@@ -28,6 +28,7 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { withBasePath } from "@/lib/base-path"
+import { openExternal } from "@/lib/open-external"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 import {
   beginGitHubDeviceFlow,
@@ -429,6 +430,12 @@ function ConnectGitHubDialog({
               href={state.verificationUri}
               target="_blank"
               rel="noreferrer"
+              onClick={(e) => {
+                // Desktop webview can't honor target="_blank"; route the
+                // GitHub device-flow link through the opener plugin.
+                e.preventDefault()
+                openExternal(state.verificationUri)
+              }}
               className="inline-flex items-center gap-1 text-sm underline"
             >
               Enter this code at {state.verificationUri}

@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Check,
   GitPullRequest,
+  GitMerge,
   ArrowUpRight,
   Logs,
   MessageCircle,
@@ -26,6 +27,7 @@ import {
 import { AnimatePresence, motion, Reorder } from "motion/react"
 import { toast } from "sonner"
 import { createPullRequestAction } from "@/lib/create-pr-action"
+import { openExternal } from "@/lib/open-external"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { EditableText } from "@workspace/ui/components/editable-text"
@@ -35,6 +37,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
+import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
@@ -91,7 +94,7 @@ import { useAppSession } from "@/lib/auth-client"
 import { useInstalledHarnesses } from "@/hooks/use-installed-harnesses"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
-import type { BranchPrInfo } from "@/lib/github-actions"
+import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { chatStore } from "@/lib/chat-store"
 
 const LOGS_TAB_VALUE = "__sandbox_logs__"
@@ -502,9 +505,16 @@ export function ChatPanel({
 
   const activeTab = selectedChatId ?? openTabs[0]?.id ?? ""
   const chatHistoryPr = useLatestPr(activeTab)
-  const displayPr: { url: string; number: string } | null =
+  const displayPr: {
+    url: string
+    number: string
+    state?: BranchPrState
+  } | null =
     chatHistoryPr ??
-    (branchPr ? { url: branchPr.url, number: String(branchPr.number) } : null)
+    (branchPr
+      ? { url: branchPr.url, number: String(branchPr.number), state: branchPr.state }
+      : null)
+  const isMergedPr = displayPr?.state === "merged"
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -807,7 +817,7 @@ export function ChatPanel({
           description: `#${number}`,
           action: {
             label: "View on GitHub",
-            onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
+            onClick: () => openExternal(url),
           },
         })
       } else {
@@ -886,9 +896,13 @@ export function ChatPanel({
                   href={displayPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group"
+                  className={cn(
+                    "group",
+                    isMergedPr && "text-purple-600 dark:text-purple-400"
+                  )}
                 >
-                  <GitPullRequest />#{displayPr.number}
+                  {isMergedPr ? <GitMerge /> : <GitPullRequest />}#
+                  {displayPr.number}
                   <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
                 </a>
               </Button>
