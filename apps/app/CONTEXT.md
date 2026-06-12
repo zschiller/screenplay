@@ -25,7 +25,9 @@ desktop build the member list collapses to a single seeded local user (see
 user.
 _Shown to users as_: "Canvas".
 _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
-(reserve that for the spatial surface below).
+(reserve that for the spatial surface below); file (the homescreen's legacy
+label and `File*` component names — the homescreen lists Rooms, labeled
+"Canvases", and code uses `Room*` identifiers).
 
 **Repo**:
 A GitHub repository configured into a Room — its repo identity, default branch,
