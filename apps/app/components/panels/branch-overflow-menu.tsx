@@ -6,7 +6,6 @@ import {
   GitBranchPlus,
   GitMerge,
   GitPullRequest,
-  Globe,
   Palette,
   Pencil,
   Play,
@@ -16,7 +15,6 @@ import {
   Route,
   Trash2,
 } from "lucide-react"
-import { toast } from "sonner"
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,7 +30,8 @@ import { cn } from "@workspace/ui/lib/utils"
 import { BRANCH_COLORS } from "@/lib/branch-colors"
 import { openExternal } from "@/lib/open-external"
 import { isLocalBuild } from "@/lib/local-mode"
-import { getStableDevUrl } from "@/lib/sandbox/lifecycle"
+import { OpenInBrowserItem } from "@/components/open-in-browser-item"
+import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData, RepoData } from "@/lib/types"
 
 /**
@@ -46,7 +45,7 @@ export type BranchMenuItemKey =
   | "rename"
   | "color"
   | "play"
-  | "stable-url"
+  | "open-in-browser"
   | "routes"
   | "new-branch-from-here"
   | "restart"
@@ -81,7 +80,11 @@ export interface BranchMenuSection {
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   { id: "identity", label: "Identity", itemKeys: ["rename", "color"] },
-  { id: "preview", label: "Preview", itemKeys: ["play", "stable-url", "routes"] },
+  {
+    id: "preview",
+    label: "Preview",
+    itemKeys: ["play", "open-in-browser", "routes"],
+  },
   {
     id: "branch-sandbox",
     label: "Branch & sandbox",
@@ -105,7 +108,11 @@ export interface BranchOverflowMenuContentProps {
   onNewBranchFromHere: (branchId: string) => void
   /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
   onRestartDevServer: (branchId: string) => void
-  /** Snapshot-restore the sandbox onto a fresh VM, preserving the working tree. */
+  /**
+   * Snapshot-restore the sandbox onto a fresh VM, preserving the working tree.
+   * Hosted-only — the local backend has no VM to cycle, so the item is hidden
+   * there (see {@link isLocalBuild} gate in the restart submenu).
+   */
   onRestart: (branchId: string) => void
   /**
    * Destructive reclone from git — discards the working tree. The handler opens
@@ -118,6 +125,12 @@ export interface BranchOverflowMenuContentProps {
    * deterministic title/body, no model turn. Disabled while the branch is busy.
    */
   onCreatePr: (branchId: string) => void
+  /**
+   * This branch's known PR from the shared source of truth, or null. When a PR
+   * is open the "Create pull request" item becomes "Open pull request" linking
+   * straight to it, so the menu never offers to re-create a PR that exists.
+   */
+  pr?: BranchPrInfo | null
   onRebase: (branchId: string) => void
   onDelete: (branchId: string) => void
   onCloseAutoFocus?: (event: Event) => void
@@ -151,24 +164,9 @@ export function BranchOverflowMenuContent({
   onRebase,
   onDelete,
   onCloseAutoFocus,
+  pr,
   isBusy = false,
 }: BranchOverflowMenuContentProps) {
-  // Resolve-then-open for the portless named URL (ADR 0010): the route is
-  // registered when the dev server launches and unregistered when it stops,
-  // so it's looked up at click time rather than carried on BranchData where
-  // it would go stale.
-  const openStableUrl = async () => {
-    if (!branch.sandboxName) return
-    const result = await getStableDevUrl(branch.sandboxName, repo)
-    if (result.success && result.value.url) {
-      openExternal(result.value.url)
-    } else {
-      toast.error(
-        "No stable URL for this workspace yet — start the dev server first."
-      )
-    }
-  }
-
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     rename: (
       <DropdownMenuItem disabled={!branch.ref} onClick={onRename}>
@@ -217,19 +215,10 @@ export function BranchOverflowMenuContent({
         Open prototype player
       </DropdownMenuItem>
     ),
-    // Desktop-only: the stable `<branch>.<app>.localhost` URL portless
-    // registers for this workspace's dev server — shareable across restarts,
-    // unlike the allocated port. Hosted sandboxes are remote VMs where a
-    // `.localhost` route is meaningless, so the hosted build renders nothing.
-    "stable-url": isLocalBuild ? (
-      <DropdownMenuItem
-        disabled={!branch.sandboxName}
-        onClick={openStableUrl}
-      >
-        <Globe />
-        Open stable URL
-      </DropdownMenuItem>
-    ) : null,
+    // Pop the branch's live preview into a real browser tab, outside the
+    // prototype-player wrapper. Opens the preview root (the frame toolbar's
+    // copy of this same item deep-links the route it's showing instead).
+    "open-in-browser": <OpenInBrowserItem url={branch.previewDomain} />,
     routes: (
       <DropdownMenuItem
         disabled={
@@ -274,14 +263,22 @@ export function BranchOverflowMenuContent({
             Restart sandbox snapshot-restores onto a fresh VM, preserving the
             working tree. It cycles the VM, so — like Recreate — it's disabled
             while the agent is working.
+
+            Hosted-only: the local backend runs worktrees on the host, not VMs,
+            so there's nothing to snapshot-restore — its two honest restart tiers
+            are "Restart dev server" (bounce the process, keep the working tree)
+            and "Recreate from scratch" (reclone from git, discard it). A VM
+            cycle would only ever fail loud there, so the local build omits it.
           */}
-          <DropdownMenuItem
-            disabled={!branch.sandboxName || isBusy}
-            onClick={() => onRestart(branch.id)}
-          >
-            <RotateCcw />
-            Restart sandbox
-          </DropdownMenuItem>
+          {!isLocalBuild ? (
+            <DropdownMenuItem
+              disabled={!branch.sandboxName || isBusy}
+              onClick={() => onRestart(branch.id)}
+            >
+              <RotateCcw />
+              Restart sandbox
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuSeparator />
           {/*
             Recreate from scratch is the destructive reclone from git — it
@@ -299,15 +296,24 @@ export function BranchOverflowMenuContent({
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     ),
-    "create-pr": (
-      <DropdownMenuItem
-        disabled={!branch.sandboxName || !branch.ref || isBusy}
-        onClick={() => onCreatePr(branch.id)}
-      >
-        <GitPullRequest />
-        Create pull request
-      </DropdownMenuItem>
-    ),
+    // An open PR makes "Create" a duplicate-creating no-op, so swap it for a
+    // direct link to the PR. Closed/merged PRs fall through to "Create" since
+    // the branch can legitimately open a fresh one.
+    "create-pr":
+      pr?.state === "open" ? (
+        <DropdownMenuItem onClick={() => openExternal(pr.url)}>
+          <GitPullRequest />
+          Open pull request #{pr.number}
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem
+          disabled={!branch.sandboxName || !branch.ref || isBusy}
+          onClick={() => onCreatePr(branch.id)}
+        >
+          <GitPullRequest />
+          Create pull request
+        </DropdownMenuItem>
+      ),
     rebase: (
       <DropdownMenuItem
         disabled={!branch.sandboxName || !branch.ref || isBusy}
@@ -345,7 +351,6 @@ export function BranchOverflowMenuContent({
     <DropdownMenuContent
       side="right"
       align="start"
-      className="w-48"
       onCloseAutoFocus={onCloseAutoFocus}
     >
       {BRANCH_MENU_SECTIONS.map((section, i) => (

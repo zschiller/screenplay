@@ -78,6 +78,21 @@ export type BranchData = {
   /** Display order within its Repo's branch list in the in-room sidebar.
    *  Lower values render first; unset falls back to `createdAt` (oldest-first). */
   sidebarOrder?: number
+  /**
+   * Cached GitHub PR for `ref`, refreshed by the branch-git poll and shared
+   * through the doc so every client — and a cold page load — renders PR state
+   * instantly instead of waiting on a per-client GitHub round-trip. Mirrors
+   * `BranchPrInfo` in `lib/github-actions`. Absent until the first refresh (or
+   * an optimistic write on PR creation) lands. */
+  prNumber?: number
+  prUrl?: string
+  prState?: "open" | "closed" | "merged"
+  /**
+   * Cached diff stats (additions/deletions vs the Repo's default branch, from
+   * the GitHub compare API), refreshed by the same poll. Same rationale as the
+   * PR cache above — read straight from the doc, no client round-trip. */
+  diffAdditions?: number
+  diffDeletions?: number
 }
 
 /**

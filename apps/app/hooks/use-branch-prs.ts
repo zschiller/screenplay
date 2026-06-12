@@ -1,24 +1,60 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { listBranchPullRequest, type BranchPrInfo } from "@/lib/github-actions"
+import { useCallback, useEffect, useMemo, useRef } from "react"
+import {
+  listBranchPrs,
+  type BranchPrInfo,
+  type BranchPrQuery,
+} from "@/lib/github-actions"
+import { useRoomId } from "@/lib/yjs/context"
+import { useRoomCollections } from "@/lib/yjs/react"
 
 const POLL_INTERVAL = 60_000
 
+export interface BranchPrsHandle {
+  /**
+   * Latest known PR per branch id — the single source of truth the sidebar
+   * icon, the branch overflow menu, and the chat-panel button all read from.
+   * Derived from the cached PR fields on each Branch in the room's Y.Doc.
+   */
+  branchPrs: Map<string, BranchPrInfo>
+  /**
+   * Optimistically record a branch's PR without waiting for the next poll.
+   * Called the instant a PR is created so the icon, menu, and button reflect
+   * it immediately rather than up to {@link POLL_INTERVAL}ms later; the write
+   * goes straight into the doc so collaborators see it too, and the poll
+   * reconciles it to the authoritative state afterwards.
+   */
+  setBranchPr: (branchId: string, pr: BranchPrInfo) => void
+}
+
 /**
- * Poll open/merged PR status for agent branches.
- * Returns a map of agentId -> BranchPrInfo.
+ * Open/merged PR status for agent branches, read straight from the cached
+ * fields on each Branch in the room's Y.Doc — instant on a cold load and shared
+ * across collaborators, no per-client GitHub round-trip on render.
+ *
+ * The poll batches every candidate branch into one {@link listBranchPrs} server
+ * action (single round-trip, GitHub calls fanned out in parallel server-side)
+ * which writes results back into the doc. The doc is the source of truth.
  */
 export function useBranchPrs(
-  agents: Array<{ id: string; ref: string; repoId: string }>,
+  agents: Array<{
+    id: string
+    ref: string
+    repoId: string
+    prNumber?: number
+    prUrl?: string
+    prState?: BranchPrInfo["state"]
+  }>,
   repos: Array<{
     id: string
     repoOwner: string
     repoName: string
     defaultBranch: string
   }>
-): Map<string, BranchPrInfo> {
-  const [prMap, setPrMap] = useState<Map<string, BranchPrInfo>>(new Map())
+): BranchPrsHandle {
+  const roomId = useRoomId()
+  const collections = useRoomCollections()
   const agentsRef = useRef(agents)
   const reposRef = useRef(repos)
   // Latest inputs kept in refs (updated after commit) so the polling loop
@@ -28,42 +64,51 @@ export function useBranchPrs(
     reposRef.current = repos
   })
 
-  const fetchAll = useCallback(async () => {
+  const branchPrs = useMemo(() => {
+    const m = new Map<string, BranchPrInfo>()
+    for (const a of agents) {
+      if (a.prState && typeof a.prNumber === "number" && a.prUrl) {
+        m.set(a.id, { number: a.prNumber, url: a.prUrl, state: a.prState })
+      }
+    }
+    return m
+  }, [agents])
+
+  const refresh = useCallback(async () => {
     const currentAgents = agentsRef.current
-    const currentRepos = reposRef.current
-    const repoMap = new Map(currentRepos.map((w) => [w.id, w]))
-
-    const candidates = currentAgents.filter((a) => a.ref)
-    if (candidates.length === 0) {
-      setPrMap(new Map())
-      return
-    }
-
-    const entries = await Promise.all(
-      candidates.map(async (agent) => {
-        const ws = repoMap.get(agent.repoId)
-        if (!ws || agent.ref === ws.defaultBranch) return null
-        const pr = await listBranchPullRequest(
-          ws.repoOwner,
-          ws.repoName,
-          agent.ref
-        )
-        if (!pr) return null
-        return [agent.id, pr] as const
+    const repoMap = new Map(reposRef.current.map((w) => [w.id, w]))
+    const queries: BranchPrQuery[] = []
+    for (const a of currentAgents) {
+      if (!a.ref) continue
+      const ws = repoMap.get(a.repoId)
+      if (!ws || a.ref === ws.defaultBranch) continue
+      queries.push({
+        id: a.id,
+        owner: ws.repoOwner,
+        repo: ws.repoName,
+        branch: a.ref,
       })
-    )
-    const next = new Map<string, BranchPrInfo>()
-    for (const entry of entries) {
-      if (entry) next.set(entry[0], entry[1])
     }
-    setPrMap(next)
-  }, [])
+    if (queries.length === 0) return
+    await listBranchPrs(roomId, queries)
+  }, [roomId])
+
+  const setBranchPr = useCallback(
+    (branchId: string, pr: BranchPrInfo) => {
+      collections.branches.update(branchId, {
+        prNumber: pr.number,
+        prUrl: pr.url,
+        prState: pr.state,
+      })
+    },
+    [collections]
+  )
 
   useEffect(() => {
-    fetchAll()
-    const id = setInterval(fetchAll, POLL_INTERVAL)
+    refresh()
+    const id = setInterval(refresh, POLL_INTERVAL)
     return () => clearInterval(id)
-  }, [fetchAll])
+  }, [refresh])
 
-  return prMap
+  return { branchPrs, setBranchPr }
 }

@@ -1,58 +1,44 @@
 "use client"
 
 import { Check, MonitorSmartphone } from "lucide-react"
-import { Button } from "@workspace/ui/components/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
 import {
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
 } from "@/lib/iframe-layer-sizes"
 
-interface DeviceSizeMenuProps {
+interface DeviceSizeSubMenuProps {
   width: number
   height: number
   onSelect: (width: number, height: number) => void
 }
 
-export function DeviceSizeMenu({
+/**
+ * The device-size presets as a submenu, embedded in the frame toolbar's `…`
+ * overflow drawer. Demoted from a top-level toolbar button because dragging a
+ * frame on the canvas already resize-snaps to these same device sizes — this
+ * is the redundant second way in, kept for precision but out of the way.
+ */
+export function DeviceSizeSubMenu({
   width,
   height,
   onSelect,
-}: DeviceSizeMenuProps) {
+}: DeviceSizeSubMenuProps) {
   return (
-    <DropdownMenu>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon-xxs" variant="ghost">
-                <MonitorSmartphone />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">Device size</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      <DropdownMenuContent
-        side="right"
-        align="start"
-        sideOffset={8}
-        className="w-64"
-      >
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <MonitorSmartphone />
+        Device size
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
         {GROUPED_IFRAME_LAYER_SIZE_PRESETS.map((group, index) => {
           const Icon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[group.category]
           return (
@@ -83,7 +69,7 @@ export function DeviceSizeMenu({
             </DropdownMenuGroup>
           )
         })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }

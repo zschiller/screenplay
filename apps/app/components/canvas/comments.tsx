@@ -881,7 +881,7 @@ function ThreadView({
               <MoreHorizontal className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuContent align="end">
             <DropdownMenuItem
               onSelect={() => {
                 onMarkUnread()

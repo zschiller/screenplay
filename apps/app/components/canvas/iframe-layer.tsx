@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   Maximize2,
+  MoreHorizontal,
   MousePointer,
   Move,
   Play,
@@ -11,6 +12,13 @@ import {
   Route,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   Tooltip,
   TooltipContent,
@@ -30,7 +38,8 @@ import {
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
-import { DeviceSizeMenu } from "./device-size-menu"
+import { OpenInBrowserItem } from "../open-in-browser-item"
+import { DeviceSizeSubMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { ResizeHandles } from "./resize-handles"
@@ -474,7 +483,18 @@ export function IframeLayer({
   }, [showToolbar, toolbarPortalTarget])
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
+  // Open the frame's live preview in a real browser tab, deep-linked to the
+  // route it's currently showing (`previewDomain + route`) — the same URL the
+  // iframe itself loads, minus the prototype-player wrapper.
+  const openInBrowserUrl = iframeLayer.iframeUrl
+    ? iframeLayer.iframeUrl + (iframeLayer.route ?? "")
+    : undefined
+  const showOpenInBrowser = !!openInBrowserUrl
   const showReload = hmrStatus === "disconnected"
+  // The `…` drawer holds low-frequency frame config (Device Size, Fit) and
+  // Branch-scoped "open" actions (prototype player, open in browser). Hidden
+  // only while every item it would hold is absent.
+  const showOverflow = !!onSetSize || showFit || showPlay || showOpenInBrowser
 
   const handleHmrStatus = useCallback((_id: string, status: HmrStatus) => {
     setHmrStatus(status)
@@ -792,50 +812,8 @@ export function IframeLayer({
                   {createFlow ? "Stop Create Flow" : "Create Flow"}
                 </TooltipContent>
               </Tooltip>
-              {onSetSize && (
-                <DeviceSizeMenu
-                  width={iframeLayer.width}
-                  height={iframeLayer.height}
-                  onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                />
-              )}
-              <KnobsPopover
-                knobs={iframeLayer.knobs}
-                values={iframeLayer.knobValues}
-                onChange={(values) =>
-                  onKnobValuesChange?.(iframeLayer.id, values)
-                }
-              />
-              {showFit && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant="ghost"
-                      onClick={handleFitToContent}
-                    >
-                      <Maximize2 />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Fit to content</TooltipContent>
-                </Tooltip>
-              )}
-              {showPlay && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon-xxs"
-                      variant="ghost"
-                      onClick={() => onPlay?.(iframeLayer.id)}
-                    >
-                      <Play />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    Open prototype player
-                  </TooltipContent>
-                </Tooltip>
-              )}
+              {/* interaction modes above ∣ everything else below */}
+              <div className="my-0.5 h-px w-full bg-foreground/10" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -848,6 +826,61 @@ export function IframeLayer({
                 </TooltipTrigger>
                 <TooltipContent side="right">Reload</TooltipContent>
               </Tooltip>
+              <KnobsPopover
+                knobs={iframeLayer.knobs}
+                values={iframeLayer.knobValues}
+                onChange={(values) =>
+                  onKnobValuesChange?.(iframeLayer.id, values)
+                }
+              />
+              {showOverflow && (
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon-xxs" variant="ghost">
+                          <MoreHorizontal className="text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">More</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                  >
+                    {onSetSize && (
+                      <DeviceSizeSubMenu
+                        width={iframeLayer.width}
+                        height={iframeLayer.height}
+                        onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                      />
+                    )}
+                    {showFit && (
+                      <DropdownMenuItem onSelect={handleFitToContent}>
+                        <Maximize2 />
+                        Fit to content
+                      </DropdownMenuItem>
+                    )}
+                    {(!!onSetSize || showFit) &&
+                      (showPlay || showOpenInBrowser) && (
+                        <DropdownMenuSeparator />
+                      )}
+                    {showPlay && (
+                      <DropdownMenuItem
+                        onSelect={() => onPlay?.(iframeLayer.id)}
+                      >
+                        <Play />
+                        Open prototype player
+                      </DropdownMenuItem>
+                    )}
+                    {showOpenInBrowser && (
+                      <OpenInBrowserItem url={openInBrowserUrl} />
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </TooltipProvider>
           </div>,
           toolbarPortalTarget

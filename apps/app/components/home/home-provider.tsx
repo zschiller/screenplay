@@ -22,7 +22,10 @@ import {
   getOrganization,
   moveFile as moveFileAction,
   renameFolder as renameFolderAction,
+  reorderFolderFiles as reorderFolderFilesAction,
+  reorderFolders as reorderFoldersAction,
   setFilePinned,
+  setFolderOpen as setFolderOpenAction,
   setFolderPinned,
 } from "@/lib/organization-actions"
 import {
@@ -43,6 +46,9 @@ type HomeContextValue = {
   fileFolder: Record<string, string>
   pinnedFiles: Set<string>
   pinnedFolders: Set<string>
+  /** Folders currently expanded in the sidebar (persisted per user). */
+  openFolders: Set<string>
+  setFolderOpen: (id: string, open: boolean) => Promise<void>
   loading: boolean
   selectedId: string
   setSelectedId: (id: string) => void
@@ -59,13 +65,25 @@ type HomeContextValue = {
   createFile: (name: string, folderId: string) => Promise<RoomSummary>
   renameFile: (id: string, name: string) => Promise<void>
   removeFile: (id: string) => Promise<void>
-  moveFile: (fileId: string, folderId: string) => Promise<void>
+  /** `orderedIds` is the target folder's complete new file order (optional). */
+  moveFile: (
+    fileId: string,
+    folderId: string,
+    orderedIds?: string[]
+  ) => Promise<void>
   toggleFilePin: (id: string) => Promise<void>
 
   createFolder: (name: string) => Promise<Folder>
   renameFolder: (id: string, name: string) => Promise<void>
   removeFolder: (id: string) => Promise<void>
   toggleFolderPin: (id: string) => Promise<void>
+  /** Persist sidebar folder order (drag-to-reorder). */
+  reorderFolders: (orderedIds: string[]) => Promise<void>
+  /** Persist the manual file order within one folder. */
+  reorderFilesInFolder: (
+    folderId: string,
+    orderedIds: string[]
+  ) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -82,6 +100,8 @@ function applyOrg(state: OrganizationState) {
     fileFolder: state.fileFolder,
     pinnedFiles: new Set(state.pinnedFiles),
     pinnedFolders: new Set(state.pinnedFolders),
+    fileOrder: state.fileOrder,
+    openFolders: new Set(state.openFolders),
   }
 }
 
@@ -93,6 +113,8 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
       fileFolder: {},
       pinnedFiles: [],
       pinnedFolders: [],
+      fileOrder: {},
+      openFolders: [],
     })
   )
   const [loading, setLoading] = useState(true)
@@ -123,12 +145,27 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
 
   const filesInFolder = useCallback(
     (folderId: string) => {
-      if (folderId === DRAFTS_FOLDER_ID) {
-        return files.filter((f) => !org.fileFolder[f.id])
-      }
-      return files.filter((f) => org.fileFolder[f.id] === folderId)
+      const list =
+        folderId === DRAFTS_FOLDER_ID
+          ? files.filter((f) => !org.fileFolder[f.id])
+          : files.filter((f) => org.fileFolder[f.id] === folderId)
+      const order = org.fileOrder[folderId]
+      if (!order || order.length === 0) return list
+      // Manually ordered files first (by their dragged position), the rest
+      // after in their natural order — same rule as the room sidebar's
+      // sortForSidebar. Array.prototype.sort is stable, so returning 0
+      // preserves the natural order for never-dragged files.
+      const pos = new Map(order.map((id, i) => [id, i]))
+      return [...list].sort((a, b) => {
+        const pa = pos.get(a.id)
+        const pb = pos.get(b.id)
+        if (pa !== undefined && pb !== undefined) return pa - pb
+        if (pa !== undefined) return -1
+        if (pb !== undefined) return 1
+        return 0
+      })
     },
-    [files, org.fileFolder]
+    [files, org.fileFolder, org.fileOrder]
   )
 
   const sortedSelection = useMemo(() => {
@@ -193,10 +230,61 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     [files]
   )
 
-  const moveFile = useCallback(async (fileId: string, folderId: string) => {
-    const next = await moveFileAction(fileId, folderId)
+  // The drag-and-drop mutators apply optimistically so the drop commits the
+  // instant the pointer lifts (matching the room sidebar's Y.Doc-backed
+  // immediacy), then reconcile with the server's authoritative state.
+  const moveFile = useCallback(
+    async (fileId: string, folderId: string, orderedIds?: string[]) => {
+      setOrg((prev) => {
+        const fileFolder = { ...prev.fileFolder }
+        if (folderId === DRAFTS_FOLDER_ID) delete fileFolder[fileId]
+        else fileFolder[fileId] = folderId
+        const fileOrder: Record<string, string[]> = {}
+        for (const [fId, list] of Object.entries(prev.fileOrder)) {
+          fileOrder[fId] = list.filter((id) => id !== fileId)
+        }
+        if (folderId !== DRAFTS_FOLDER_ID && orderedIds) {
+          fileOrder[folderId] = orderedIds
+        }
+        return { ...prev, fileFolder, fileOrder }
+      })
+      const next = await moveFileAction(fileId, folderId, orderedIds)
+      setOrg(applyOrg(next))
+    },
+    []
+  )
+
+  const reorderFolders = useCallback(async (orderedIds: string[]) => {
+    setOrg((prev) => {
+      const byId = new Map(prev.folders.map((f) => [f.id, f]))
+      const folders: Folder[] = []
+      for (const id of orderedIds) {
+        const folder = byId.get(id)
+        if (folder) {
+          folders.push(folder)
+          byId.delete(id)
+        }
+      }
+      for (const folder of prev.folders) {
+        if (byId.has(folder.id)) folders.push(folder)
+      }
+      return { ...prev, folders }
+    })
+    const next = await reorderFoldersAction(orderedIds)
     setOrg(applyOrg(next))
   }, [])
+
+  const reorderFilesInFolder = useCallback(
+    async (folderId: string, orderedIds: string[]) => {
+      setOrg((prev) => ({
+        ...prev,
+        fileOrder: { ...prev.fileOrder, [folderId]: orderedIds },
+      }))
+      const next = await reorderFolderFilesAction(folderId, orderedIds)
+      setOrg(applyOrg(next))
+    },
+    []
+  )
 
   const toggleFilePin = useCallback(
     async (id: string) => {
@@ -234,12 +322,27 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     [org.pinnedFolders]
   )
 
+  // Optimistic, and deliberately NOT reconciled with the server response:
+  // expanding a folder must never flicker shut while a slow round-trip for an
+  // earlier toggle resolves. The server state catches up on the next load.
+  const setFolderOpen = useCallback(async (id: string, open: boolean) => {
+    setOrg((prev) => {
+      const openFolders = new Set(prev.openFolders)
+      if (open) openFolders.add(id)
+      else openFolders.delete(id)
+      return { ...prev, openFolders }
+    })
+    await setFolderOpenAction(id, open)
+  }, [])
+
   const value: HomeContextValue = {
     files,
     folders: org.folders,
     fileFolder: org.fileFolder,
     pinnedFiles: org.pinnedFiles,
     pinnedFolders: org.pinnedFolders,
+    openFolders: org.openFolders,
+    setFolderOpen,
     loading,
     selectedId,
     setSelectedId,
@@ -260,6 +363,8 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     renameFolder,
     removeFolder,
     toggleFolderPin,
+    reorderFolders,
+    reorderFilesInFolder,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>

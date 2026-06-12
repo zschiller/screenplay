@@ -41,7 +41,9 @@ export function YjsRoomProvider({
     >
       <RoomProvider id={roomId} initialPresence={{}} initialStorage={{}}>
         <ClientSideSuspense fallback={fallback}>
-          <SyncGate fallback={fallback}>{children}</SyncGate>
+          <SyncGate roomId={roomId} fallback={fallback}>
+            {children}
+          </SyncGate>
         </ClientSideSuspense>
       </RoomProvider>
     </LiveblocksProvider>
@@ -55,9 +57,11 @@ export function YjsRoomProvider({
  * Y.Doc and flash an empty state.
  */
 function SyncGate({
+  roomId,
   fallback,
   children,
 }: {
+  roomId: string
   fallback: ReactNode
   children: ReactNode
 }) {
@@ -68,8 +72,9 @@ function SyncGate({
     return {
       doc: provider.getYDoc(),
       awareness: provider.awareness as unknown as AwarenessLike,
+      roomId,
     }
-  }, [room])
+  }, [room, roomId])
 
   // Read the underlying provider's sync state via a side import — keep it
   // local to this file so the host detail doesn't leak into the context type.

@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Check,
   GitPullRequest,
+  GitPullRequestClosed,
   GitMerge,
   ArrowUpRight,
   Logs,
@@ -424,6 +425,12 @@ interface ChatPanelProps {
    * is already open.
    */
   branchPr?: BranchPrInfo | null
+  /**
+   * Records a freshly-created PR into the shared source of truth so the sidebar
+   * icon and branch menu update the instant this panel's "Create PR" button
+   * succeeds, rather than on the next 60s poll.
+   */
+  onPrCreated?: (branchId: string, pr: BranchPrInfo) => void
   onCollapse?: () => void
   onLogsReady?: () => void
   disableBranchPicker?: boolean
@@ -450,6 +457,7 @@ export function ChatPanel({
   onModelChange,
   diffStats,
   branchPr,
+  onPrCreated,
   onCollapse,
   onLogsReady,
   disableBranchPicker,
@@ -514,7 +522,21 @@ export function ChatPanel({
     (branchPr
       ? { url: branchPr.url, number: String(branchPr.number), state: branchPr.state }
       : null)
-  const isMergedPr = displayPr?.state === "merged"
+  // The PR button's icon and color mirror the sidebar branch icon so the two
+  // stay legible together: open = green, merged = purple, closed = red.
+  const prState = displayPr?.state
+  const PrStateIcon =
+    prState === "merged"
+      ? GitMerge
+      : prState === "closed"
+        ? GitPullRequestClosed
+        : GitPullRequest
+  const prStateColor =
+    prState === "merged"
+      ? "text-purple-600 dark:text-purple-400"
+      : prState === "closed"
+        ? "text-red-600 dark:text-red-400"
+        : "text-green-700 dark:text-green-300"
   const isAgentBusy = agent
     ? agent.status === "creating" || agent.status === "starting"
     : false
@@ -813,6 +835,7 @@ export function ChatPanel({
       const result = await createPullRequestAction(roomId, agent.sandboxName)
       if (result.success) {
         const { url, number } = result.value
+        onPrCreated?.(agent.id, { number, url, state: "open" })
         toast.success("Pull request created", {
           description: `#${number}`,
           action: {
@@ -896,13 +919,9 @@ export function ChatPanel({
                   href={displayPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={cn(
-                    "group",
-                    isMergedPr && "text-purple-600 dark:text-purple-400"
-                  )}
+                  className={cn("group", prStateColor)}
                 >
-                  {isMergedPr ? <GitMerge /> : <GitPullRequest />}#
-                  {displayPr.number}
+                  <PrStateIcon />#{displayPr.number}
                   <ArrowUpRight className="opacity-60 group-hover:opacity-100" />
                 </a>
               </Button>
@@ -1119,7 +1138,7 @@ export function ChatPanel({
                       <ChevronDown className="size-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => createChatTab()}>
                       <MessageCircle className="size-3 shrink-0 text-muted-foreground" />
                       New chat
@@ -1184,7 +1203,7 @@ export function ChatPanel({
                   <Archive className="size-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end">
                 {closedChats.map((chat) => (
                   <DropdownMenuItem
                     key={chat.id}
