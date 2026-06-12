@@ -105,8 +105,17 @@ Note for turborepo: pass the port as a flag, as above — don't rely on the
 the env var:
 
 - **Turborepo 2's strict env mode** strips undeclared variables from task
-  environments. `$PORT` in the dev script expands in the shell *before* turbo
-  runs, so the flag form always works.
+  environments, so `$PORT` is empty *inside* the task and a script like `next
+  dev --port ${PORT:-3001}` silently falls back to its default. The flag form
+  above sidesteps this entirely — `$PORT` expands in the shell *before* turbo
+  runs, so it always works. Alternatively, if you'd rather keep `$PORT` working
+  inside the workspace dev scripts (so a plain `turbo dev --filter=web` honors
+  it), declare it in the `dev` task's `passThroughEnv` in `turbo.json`:
+
+  ```json
+  // turbo.json
+  "dev": { "cache": false, "persistent": true, "passThroughEnv": ["PORT"] }
+  ```
 - **Hardcoded ports in workspace dev scripts** (`"dev": "next dev --port
   3001"` — the usual way turborepo apps avoid colliding with each other). An
   explicit flag beats the `$PORT` env var, so the dev server would bind 3001
