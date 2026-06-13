@@ -13,6 +13,7 @@ import {
   getMemberCounts,
   getRoom,
   listMembers,
+  listRoomThumbnailsForUser,
   listRoomsForUser,
   removeMember,
   renameRoom as renameRoomRecord,
@@ -27,6 +28,7 @@ import { yjsHost } from "@/lib/yjs-host"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
+import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 
 // Sharing is excluded from the local desktop build (PRD #404, issue #417):
 // there is one local user and no `room_member` table. The UI affordances are
@@ -109,6 +111,17 @@ export async function listRooms(): Promise<RoomSummary[]> {
     thumbnailUpdatedAt: room.thumbnailUpdatedAt,
     thumbnailManifest: room.thumbnailManifest,
   }))
+}
+
+/**
+ * The thumbnail slice of the user's rooms, for the homescreen's live-refresh
+ * poll. Reads only the per-Room record (manifest + capture time), never a
+ * Room's Y.Doc, so an open grid reflects a fresh capture round without a full
+ * page reload.
+ */
+export async function listRoomThumbnails(): Promise<RoomThumbnail[]> {
+  const userId = await requireUserId()
+  return listRoomThumbnailsForUser(userId)
 }
 
 export async function renameRoom(roomId: string, name: string): Promise<void> {
