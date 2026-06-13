@@ -54,6 +54,7 @@ import {
   Crosshair,
   FileText,
   Frame,
+  LogOut,
   MessageSquare,
   MoreHorizontal,
   MousePointer2,
@@ -233,6 +234,8 @@ function LogProbe({
 export function Canvas({
   roomId,
   roomName,
+  isOwner,
+  sharedWithCount,
   hasThumbnail,
   initialLayout,
   initialThreads,
@@ -240,6 +243,8 @@ export function Canvas({
 }: {
   roomId: string
   roomName: string
+  isOwner: boolean
+  sharedWithCount: number
   hasThumbnail: boolean
   initialLayout?: PanelLayout
   initialThreads?: ThreadWithComments[]
@@ -5909,22 +5914,38 @@ export function Canvas({
                           align="start"
                           onCloseAutoFocus={onRoomMenuCloseAutoFocus}
                         >
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              pendingRoomRenameRef.current = true
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onSelect={() => setDeleteDialogOpen(true)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete
-                          </DropdownMenuItem>
+                          {/* Only the owner can rename; a collaborator's
+                              rename would be refused server-side. */}
+                          {isOwner && (
+                            <>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  pendingRoomRenameRef.current = true
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => setDeleteDialogOpen(true)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {/* A shared Room the user doesn't own: they leave it
+                              rather than destroy it for everyone else. */}
+                          {!isOwner && (
+                            <DropdownMenuItem
+                              onSelect={() => setDeleteDialogOpen(true)}
+                            >
+                              <LogOut className="h-3.5 w-3.5" />
+                              Leave
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </BreadcrumbItem>
@@ -5934,6 +5955,8 @@ export function Canvas({
                   open={deleteDialogOpen}
                   onOpenChange={setDeleteDialogOpen}
                   roomName={currentRoomName}
+                  isOwner={isOwner}
+                  sharedWithCount={sharedWithCount}
                   onConfirm={async () => {
                     await deleteRoom(roomId)
                     setDeleteDialogOpen(false)

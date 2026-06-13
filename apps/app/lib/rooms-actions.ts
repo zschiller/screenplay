@@ -10,6 +10,7 @@ import {
   addMember,
   createRoom as createRoomRecord,
   deleteRoom as deleteRoomRecord,
+  getMemberCounts,
   getRoom,
   listMembers,
   listRoomsForUser,
@@ -18,6 +19,7 @@ import {
   requireMember,
   requireOwner,
 } from "@/lib/rooms"
+import { decideRoomDeletion } from "@/lib/room-deletion"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import { killTerminalSessions } from "@/lib/sandbox/terminal"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
@@ -41,6 +43,11 @@ export type RoomSummary = {
   name: string
   ownerId: string
   isOwner: boolean
+  /**
+   * How many *other* people the Room is shared with — what the delete confirm
+   * names ("shared with N people"). Always 0 on the local build (no sharing).
+   */
+  sharedWithCount: number
   createdAt: number
   lastConnectionAt: number | null
   thumbnailUrl: string | null
@@ -70,6 +77,8 @@ export async function createRoom(name: string): Promise<RoomSummary> {
     name: room.name,
     ownerId: room.ownerId,
     isOwner: true,
+    // A just-created Room has only its owner — nobody to share-delete for yet.
+    sharedWithCount: 0,
     createdAt: room.createdAt,
     lastConnectionAt: room.lastOpenedAt,
     thumbnailUrl: room.thumbnailUrl,
@@ -81,11 +90,19 @@ export async function createRoom(name: string): Promise<RoomSummary> {
 export async function listRooms(): Promise<RoomSummary[]> {
   const userId = await requireUserId()
   const rooms = await listRoomsForUser(userId)
+  // Member counts feed the shared-aware delete confirm. The local build has no
+  // `room_member` table and no sharing, so skip the query and report 0 for
+  // every Room (PRD #404, issue #417).
+  const counts = isLocalBuild
+    ? new Map<string, number>()
+    : await getMemberCounts(rooms.map((r) => r.id))
   return rooms.map((room) => ({
     id: room.id,
     name: room.name,
     ownerId: room.ownerId,
     isOwner: room.ownerId === userId,
+    // Total members minus the viewer themselves; never negative.
+    sharedWithCount: Math.max(0, (counts.get(room.id) ?? 1) - 1),
     createdAt: room.createdAt,
     lastConnectionAt: room.lastOpenedAt,
     thumbnailUrl: room.thumbnailUrl,
@@ -104,8 +121,49 @@ export async function renameRoom(roomId: string, name: string): Promise<void> {
 
 export async function deleteRoom(roomId: string): Promise<void> {
   const userId = await requireUserId()
-  await requireOwner(roomId, userId)
 
+  const room = await getRoom(roomId)
+  if (!room) throw new Error("Project not found")
+  // A non-member can neither delete nor leave a Room they can't see.
+  await requireMember(roomId, userId)
+
+  // Route every delete through the one Room-deletion rule. The local build has
+  // no `room_member` table and a single user, so the deleter is always the
+  // sole member — the clean hard-delete path (PRD #404, issue #417).
+  const memberIds = isLocalBuild
+    ? [userId]
+    : (await listMembers(roomId)).map((m) => m.userId)
+  const decision = decideRoomDeletion({
+    deleterId: userId,
+    ownerId: room.ownerId,
+    memberIds,
+  })
+
+  if (decision.action === "leave") {
+    // Shared non-owner: drop only the deleter's membership (their per-user
+    // folder placement will go too, once placements exist — folder slice,
+    // #475). The Room — its Sandboxes, Y.Doc and rows — is untouched for
+    // everyone else, so resync the remaining members on the host.
+    await removeMember(roomId, userId)
+    const remaining = await listMembers(roomId)
+    await yjsHost.syncRoomMembers(
+      roomId,
+      remaining.map((m) => ({ userId: m.userId, role: m.role }))
+    )
+    return
+  }
+
+  // hard-delete (sole member) or delete-for-all (shared owner): identical
+  // teardown — the Room is gone for everyone who could see it.
+  await teardownRoom(roomId, userId)
+}
+
+/**
+ * Tear a Room down completely: its rows, Y.Doc, live terminal sessions, and
+ * every Branch's Sandbox. Shared by the sole-member hard delete and the owner's
+ * delete-for-all — both destroy the Room for everyone who could see it.
+ */
+async function teardownRoom(roomId: string, userId: string): Promise<void> {
   // Capture what the Room owns *before* its Y.Doc and rows are gone: the
   // Branches' Sandbox names from the authoritative doc — enumerated
   // server-side, never accepted from the client, so a forged list can't
