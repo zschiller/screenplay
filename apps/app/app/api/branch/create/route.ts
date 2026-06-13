@@ -105,9 +105,16 @@ function markError(roomId: string, branchId: string, error?: string) {
  * no token resolved, or a Repo added by URL/local path that isn't on GitHub —
  * and then the branch is created locally at provision time instead, riding the
  * `baseRevision` the pipeline passes to the local backend.
+ *
+ * The local build always takes that local path, even when a token *does* resolve
+ * (host `gh` auth) and the Repo is on GitHub. Its branches are local worktree
+ * branches that are only pushed on demand, so "branch from here" forks from a
+ * source branch that GitHub has never seen — the API call would 404 with
+ * "Failed to get ref for <sourceBranch>". The local backend instead forks from
+ * the source ref in the shared managed clone (see `resolveStartPoint`).
  */
 function canUseGitHubApi(repo: RepoData, ghToken: string | undefined): boolean {
-  return Boolean(ghToken && repo.repoOwner && repo.repoName)
+  return Boolean(!isLocalBuild && ghToken && repo.repoOwner && repo.repoName)
 }
 
 async function runNewOrFromBranchPipeline(

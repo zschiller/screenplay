@@ -149,10 +149,36 @@ export function AgentChat({
   // doesn't animate from the top. Subsequent growth scrolls smoothly,
   // but only when the user is already near the bottom — so manually
   // scrolling up to read history isn't yanked away by streaming output.
+  //
+  // "Near the bottom" is tracked as intent (`stick`) via scroll *direction*,
+  // not by reading `scrollTop` at insert time. A smooth scrollTo animates over
+  // a few hundred ms, during which `scrollTop` lags the true bottom; a discrete
+  // insertion (e.g. a tool-call row) that arrives mid-animation would read that
+  // lagging value as ">64px from bottom" and wrongly bail. Streaming text hides
+  // this — it re-fires every frame and catches up — but a one-shot tool call
+  // gets dropped. Deriving `stick` from whether the user scrolled *up* (only the
+  // user moves away from the bottom; our programmatic scroll only moves toward
+  // it) keeps the decision stable across the in-flight animation.
   useEffect(() => {
     const container = scrollContainerRef.current
     const content = scrollContentRef.current
     if (!container || !content) return
+    const THRESHOLD = 64
+    let stick = true
+    let lastTop = container.scrollTop
+    const onScroll = () => {
+      const top = container.scrollTop
+      const distance = container.scrollHeight - top - container.clientHeight
+      if (top < lastTop - 1) {
+        // Moved up → the user is reading history; stop following new output.
+        stick = false
+      } else if (distance <= THRESHOLD) {
+        // Back at/near the bottom (user or programmatic settle) → re-pin.
+        stick = true
+      }
+      lastTop = top
+    }
+    container.addEventListener("scroll", onScroll, { passive: true })
     let lastClientHeight = 0
     const observer = new ResizeObserver(() => {
       const clientHeight = container.clientHeight
@@ -162,17 +188,19 @@ export function AgentChat({
       }
       const isFirstReveal = lastClientHeight === 0
       lastClientHeight = clientHeight
-      const distance =
-        container.scrollHeight - container.scrollTop - clientHeight
-      if (!isFirstReveal && distance > 64) return
+      if (!isFirstReveal && !stick) return
       container.scrollTo({
         top: container.scrollHeight,
         behavior: isFirstReveal ? "auto" : "smooth",
       })
+      lastTop = container.scrollTop
     })
     observer.observe(content)
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      container.removeEventListener("scroll", onScroll)
+    }
   }, [])
 
   useEffect(() => {

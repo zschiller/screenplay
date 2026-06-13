@@ -20,6 +20,7 @@ import { RoomGrid } from "./room-grid"
 import { RoomTable } from "./room-table"
 import { InputDialog } from "./input-dialog"
 import { AccountMenu } from "./account-menu"
+import { ScreenplayLogo } from "@/components/screenplay-logo"
 
 const SORT_LABELS: Record<SortKey, string> = {
   updated: "Last edited",
@@ -44,7 +45,10 @@ export function RoomsView() {
           data-tauri-drag-region
           className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4"
         >
-          <h1 className="text-base font-semibold">Canvases</h1>
+          <div className="flex items-center gap-2">
+            <ScreenplayLogo className="size-6" />
+            <h1 className="text-base font-semibold">Screenplay</h1>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

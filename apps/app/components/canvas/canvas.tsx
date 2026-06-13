@@ -4056,13 +4056,19 @@ export function Canvas({
     if (!el) return
 
     const onWheel = (e: WheelEvent) => {
-      // Zoom/pan stays live during interact (focus) and Create Flow modes. We
-      // intentionally do NOT bail out for those modes here: wheel events over
-      // the interactive iframe are captured by the cross-origin iframe (it has
-      // pointerEvents:auto) and never reach this wrapper listener, so scrolling
-      // inside the iframe scrolls its content without panning the canvas. Wheel
-      // over the canvas background / frame chrome still bubbles here and pans or
-      // zooms as usual.
+      // In interact (focus) / Create Flow mode the focused frame owns plain
+      // scrolling. A real loaded cross-origin preview captures the wheel itself,
+      // so it never reaches this wrapper listener — but when the wheel *does*
+      // leak here (over the loading/placeholder overlay stacked on the iframe,
+      // or the frame's title-bar chrome), panning the canvas steals the scroll
+      // the user meant for the frame. Bail so the frame keeps the gesture. Zoom
+      // (ctrl/cmd) still falls through so pinch-zoom over a focused frame works,
+      // and wheel over the canvas background pans/zooms as usual.
+      const activeFrameId = focusedIframeLayerId ?? createFlowIframeLayerId
+      if (activeFrameId && !e.ctrlKey && !e.metaKey) {
+        const frameEl = document.getElementById(`iframe-layer-${activeFrameId}`)
+        if (frameEl && frameEl.contains(e.target as Node)) return
+      }
       e.preventDefault()
       const ref = transformRef.current
       if (!ref) return
@@ -4087,7 +4093,7 @@ export function Canvas({
 
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => el.removeEventListener("wheel", onWheel)
-  }, [followingConnectionId])
+  }, [followingConnectionId, focusedIframeLayerId, createFlowIframeLayerId])
 
   // Convert screen coordinates to canvas coordinates
   const screenToCanvas = useCallback(
@@ -5913,7 +5919,7 @@ export function Canvas({
                           router.push("/")
                         }}
                       >
-                        Canvases
+                        Home
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="text-muted-foreground/60">
