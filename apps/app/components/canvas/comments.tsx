@@ -115,7 +115,7 @@ interface CommentsProps {
    */
   initialThreads?: ThreadWithComments[]
   /**
-   * If provided, the new-thread composer shows a "Send to Claude" secondary
+   * If provided, the new-thread composer shows a "Send to agent" secondary
    * CTA that hands the typed text + the picked element context off to the
    * agent chat instead of creating a comment thread.
    */
@@ -727,7 +727,18 @@ function NewThreadComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          if (e.key !== "Enter") return
+          if (isLocalBuild) {
+            // Desktop has no comment threads — plain Enter sends the
+            // selection to the agent; Shift+Enter inserts a newline.
+            if (!e.shiftKey && onSendToChat) {
+              e.preventDefault()
+              sendToChat()
+            }
+            return
+          }
+          // Web: Cmd/Ctrl+Enter creates the comment thread.
+          if (e.metaKey || e.ctrlKey) {
             e.preventDefault()
             submit()
           }
@@ -735,17 +746,19 @@ function NewThreadComposer({
       />
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center">
-          {onSendToChat && (
+          {/* Web: send-to-agent is the secondary, left-aligned action that
+              sits alongside the primary "Comment" CTA. */}
+          {onSendToChat && !isLocalBuild && (
             <Button
               size="sm"
               variant="ghost"
               onClick={sendToChat}
               disabled={pending || !body.trim()}
-              title="Send as a message to Claude"
+              title="Send as a message to the agent"
               className="gap-1 px-2"
             >
               <ArrowUp className="size-3.5" />
-              Send to Claude
+              Send to agent
             </Button>
           )}
         </div>
@@ -759,16 +772,31 @@ function NewThreadComposer({
             Cancel
           </Button>
           {/* Persisted comment threads are excluded from the local build
-              (#417) — only the "Send to Claude" reference path above remains. */}
-          {!isLocalBuild && (
-            <Button
-              size="sm"
-              onClick={submit}
-              disabled={pending || !body.trim()}
-            >
-              Comment
-            </Button>
-          )}
+              (#417), so on desktop send-to-agent becomes the primary CTA;
+              on web "Comment" stays primary and send-to-agent is the ghost
+              button above. */}
+          {isLocalBuild
+            ? onSendToChat && (
+                <Button
+                  size="sm"
+                  onClick={sendToChat}
+                  disabled={pending || !body.trim()}
+                  title="Send as a message to the agent"
+                  className="gap-1"
+                >
+                  <ArrowUp className="size-3.5" />
+                  Send to agent
+                </Button>
+              )
+            : (
+                <Button
+                  size="sm"
+                  onClick={submit}
+                  disabled={pending || !body.trim()}
+                >
+                  Comment
+                </Button>
+              )}
         </div>
       </div>
     </>

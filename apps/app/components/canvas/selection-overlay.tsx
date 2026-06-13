@@ -77,6 +77,13 @@ interface SelectionOverlayProps {
    * when no drag is in progress.
    */
   snapGuides?: SnapGuide[]
+  /**
+   * True while the active corner/edge resize is locked onto a device preset.
+   * The single selected iframeLayer is already patched to the snapped size, so
+   * its selection rect + handles turn red to signal the lock (replacing the
+   * separate snapped ghost the ResizeSnapUnderlay used to draw).
+   */
+  isResizeSnapped?: boolean
 }
 
 function resolveColor(
@@ -113,6 +120,7 @@ export function SelectionOverlay({
   hoveredReorderIframeLayerId,
   reorderDragShift,
   snapGuides,
+  isResizeSnapped,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -137,6 +145,8 @@ export function SelectionOverlay({
     ctx.scale(dpr, dpr)
 
     const primaryColor = "#d946ef" // tailwind fuchsia-500
+    // While snapped to a device preset, the selection rect + handles go red.
+    const selectionColor = isResizeSnapped ? "#ef4444" : primaryColor
     const bgColor = resolveColor(canvas, "--background", "#fff")
     const HANDLE_SIZE = 8
 
@@ -261,7 +271,7 @@ export function SelectionOverlay({
     }
 
     // Draw selection frames for iframeLayers
-    ctx.strokeStyle = primaryColor
+    ctx.strokeStyle = selectionColor
     ctx.lineWidth = 1
     for (const { l, t, r, b } of frameEdges.values()) {
       strokeWorldRect(l, t, r, b)
@@ -296,7 +306,7 @@ export function SelectionOverlay({
         for (const [hx, hy] of handles) {
           ctx.fillStyle = bgColor
           ctx.fillRect(hx - hh, hy - hh, hs, hs)
-          ctx.strokeStyle = primaryColor
+          ctx.strokeStyle = selectionColor
           ctx.lineWidth = 1
           ctx.strokeRect(
             hx - hh + HALF,
@@ -574,6 +584,7 @@ export function SelectionOverlay({
     hoveredReorderIframeLayerId,
     reorderDragShift,
     snapGuides,
+    isResizeSnapped,
   ])
 
   // Keep canvas sized to container

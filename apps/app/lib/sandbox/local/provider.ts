@@ -153,7 +153,32 @@ export class LocalSandboxProvider implements SandboxProvider {
       // out" anywhere: a Branch on that ref then gets a real worktree instead
       // of colliding with the managed clone's own working tree. Never done to
       // a local-path clone — that working tree belongs to the user.
-      await git(manager.repoPath, ["checkout", "--detach"]).catch(() => {})
+      //
+      // Detach onto the freshly-fetched remote default (`origin/HEAD`), NOT the
+      // clone's current commit: a bare `checkout --detach` pins HEAD at whatever
+      // was the default-branch tip when the repo was first cloned and never
+      // moves it, because we only ever `fetch` (which advances `origin/*` but
+      // never local refs or HEAD). New Branches whose start point falls through
+      // to the clone HEAD — see {@link resolveStartPoint}'s final case — would
+      // then silently fork from a stale main forever (the bug: a clone from
+      // weeks ago hands every new Branch a months-old base, missing every commit
+      // merged since). `remote set-head -a` first so an upstream default-branch
+      // rename is honored; the `fetch` above already advanced the commit
+      // `origin/HEAD` resolves to. Fall back to a bare detach when there's no
+      // usable remote default (offline first run, no `origin/HEAD`).
+      await git(manager.repoPath, ["remote", "set-head", "origin", "-a"]).catch(
+        () => {}
+      )
+      const detached = await git(manager.repoPath, [
+        "checkout",
+        "--detach",
+        "origin/HEAD",
+      ])
+        .then(() => true)
+        .catch(() => false)
+      if (!detached) {
+        await git(manager.repoPath, ["checkout", "--detach"]).catch(() => {})
+      }
     }
 
     const ref = source.revision
@@ -368,7 +393,10 @@ async function refResolves(repoPath: string, ref: string): Promise<boolean> {
  *     the GitHub API, or the user picked an existing remote branch);
  *  2. `origin/<base>` / `<base>` — the no-API path (PRD #428): the branch is
  *     new everywhere, so create it locally from the requested base;
- *  3. `undefined` — fall through to the clone's HEAD.
+ *  3. `undefined` — fall through to the clone's HEAD. For a `clone-url` Repo
+ *     that HEAD is kept detached on the freshly-fetched `origin/HEAD` (see
+ *     `create`), so this fallback forks from *current* upstream default, not
+ *     the commit that happened to be the default-branch tip at clone time.
  */
 async function resolveStartPoint(
   repoPath: string,
