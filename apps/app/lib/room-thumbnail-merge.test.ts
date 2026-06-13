@@ -7,10 +7,19 @@ import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
 function manifest(label: string): ThumbnailManifest {
   return {
-    version: 1,
+    version: 2,
     bounds: { x: 0, y: 0, width: 100, height: 100 },
     frames: [
-      { id: "f1", label, x: 0, y: 0, width: 100, height: 100, capture: null },
+      {
+        id: "f1",
+        label,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        paletteIndex: null,
+        capture: null,
+      },
     ],
   }
 }
