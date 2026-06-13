@@ -35,7 +35,8 @@ function ThumbnailComposite({
   version: number | null
 }) {
   const { bounds, frames } = manifest
-  if (bounds.width <= 0 || bounds.height <= 0 || frames.length === 0) return null
+  if (bounds.width <= 0 || bounds.height <= 0 || frames.length === 0)
+    return null
 
   // Bind the composite to whichever card edge the bounds fill first, letting the
   // other dimension follow from the aspect ratio — true "contain" with no CSS
@@ -71,10 +72,8 @@ function ThumbnailComposite({
                 key={frame.id}
                 style={style}
                 className={cn(
-                  "absolute flex items-center justify-center overflow-hidden p-1 text-center text-[8px] font-medium leading-tight",
-                  color
-                    ? color.badge
-                    : "bg-foreground/5 text-muted-foreground"
+                  "absolute flex items-center justify-center overflow-hidden p-1 text-center text-[8px] leading-tight font-medium",
+                  color ? color.badge : "bg-foreground/5 text-muted-foreground"
                 )}
               >
                 <span className="truncate">{frame.label}</span>
@@ -82,10 +81,11 @@ function ThumbnailComposite({
             )
           }
           // The blob key is stable per (room, frame) and served with a max-age,
-          // so version by capture time to bust the cache when a new capture lands.
-          const src = version
-            ? `${frame.capture.url}?v=${version}`
-            : frame.capture.url
+          // so version by the frame's own capture time — a retained capture keeps
+          // its cached image while only the frames that actually recaptured bust.
+          // Fall back to the room-wide version for legacy captures with no stamp.
+          const v = frame.capture.capturedAt ?? version
+          const src = v ? `${frame.capture.url}?v=${v}` : frame.capture.url
           return (
             // eslint-disable-next-line @next/next/no-img-element
             <img

@@ -4,31 +4,36 @@ import type { IframeLayerLayout } from "@/lib/canvas/layout"
 import { resolveBranchColorIndex } from "@/lib/branch-colors"
 import type { ThumbnailCapturer } from "./capturer"
 import type { RoomCaptureLayout } from "./room-layout"
+import type { ThumbnailManifest } from "./manifest"
 
-// The capture path composes three server-only seams around the per-frame
-// screenshot: the room's Y.Doc layout read, the blob store, and the Room write.
-// Stub all three so what's under test is the shared orchestration — read layout,
-// drive the capturer once per ready frame, resize, store, build + persist the
-// manifest — not the Yjs round-trip or the DB. `sharp` runs for real, proving
-// each capture is still resized to a webp behind the extracted seam.
+// The capture path composes four server-only seams around the per-frame
+// screenshot: the room's Y.Doc layout read, the previous-manifest Room read, the
+// blob store, and the Room write. Stub all four so what's under test is the
+// shared orchestration — read layout + previous manifest, drive the capturer
+// once per ready frame, resize, store, build + persist the manifest — not the
+// Yjs round-trip or the DB. `sharp` runs for real, proving each capture is still
+// resized to a webp behind the extracted seam.
 type PutCall = [
   key: string,
   body: Buffer | Uint8Array,
   opts: { contentType: string; cacheControlMaxAge?: number },
 ]
 
-const { put, setRoomThumbnailManifest, readRoomCaptureLayout } = vi.hoisted(
-  () => ({
+const { put, setRoomThumbnailManifest, getRoom, readRoomCaptureLayout } =
+  vi.hoisted(() => ({
     put: vi.fn((key: string) =>
       Promise.resolve({ url: `https://blob.example/${key}` })
     ),
     setRoomThumbnailManifest: vi.fn(() => Promise.resolve()),
+    getRoom: vi.fn(
+      (): Promise<{ thumbnailManifest: ThumbnailManifest | null } | null> =>
+        Promise.resolve(null)
+    ),
     readRoomCaptureLayout: vi.fn(),
-  })
-)
+  }))
 
 vi.mock("@/lib/blob", () => ({ blobStore: { put } }))
-vi.mock("@/lib/rooms", () => ({ setRoomThumbnailManifest }))
+vi.mock("@/lib/rooms", () => ({ setRoomThumbnailManifest, getRoom }))
 vi.mock("./room-layout", () => ({ readRoomCaptureLayout }))
 
 import sharp from "sharp"
@@ -63,8 +68,14 @@ async function fakePng(): Promise<Buffer> {
     .toBuffer()
 }
 
+// A fixed clock so each round's `capturedAt` is deterministic.
+const NOW = 1_700_000_000_000
+
 beforeEach(() => {
   vi.clearAllMocks()
+  getRoom.mockResolvedValue(null)
+  vi.useFakeTimers()
+  vi.setSystemTime(NOW)
 })
 
 afterEach(() => {
@@ -137,7 +148,10 @@ describe("captureRoomThumbnail", () => {
         width: 400,
         height: 300,
         paletteIndex: resolveBranchColorIndex("branch-a"),
-        capture: { url: "https://blob.example/thumbnails/room-1/a.webp" },
+        capture: {
+          url: "https://blob.example/thumbnails/room-1/a.webp",
+          capturedAt: NOW,
+        },
       },
       {
         id: "b",
@@ -147,7 +161,10 @@ describe("captureRoomThumbnail", () => {
         width: 400,
         height: 300,
         paletteIndex: 3,
-        capture: { url: "https://blob.example/thumbnails/room-1/b.webp" },
+        capture: {
+          url: "https://blob.example/thumbnails/room-1/b.webp",
+          capturedAt: NOW,
+        },
       },
     ])
   })
@@ -178,6 +195,7 @@ describe("captureRoomThumbnail", () => {
     expect(put).toHaveBeenCalledTimes(1)
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
+      capturedAt: NOW,
     })
     // The booting frame lands captureless but still carries its placeholder tint.
     expect(manifest.frames[1]!.capture).toBeNull()
@@ -227,8 +245,73 @@ describe("captureRoomThumbnail", () => {
     )
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
+      capturedAt: NOW,
     })
     expect(manifest.frames[1]!.capture).toBeNull()
+  })
+
+  it("retains a frame's last-good capture when this round produces none for it", async () => {
+    const png = await fakePng()
+    const capturer: ThumbnailCapturer = { capture: vi.fn(async () => png) }
+
+    // Previous manifest: both frames captured an earlier round.
+    const previousManifest: ThumbnailManifest = {
+      version: 2,
+      bounds: { x: 0, y: 0, width: 820, height: 300 },
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-a"),
+          capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
+        },
+        {
+          id: "b",
+          label: "Settings",
+          x: 420,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-b"),
+          capture: { url: "https://blob.example/old/b.webp", capturedAt: 1 },
+        },
+      ],
+    }
+    getRoom.mockResolvedValue({ thumbnailManifest: previousManifest })
+
+    // This round, only `a` has a live preview; `b` is now booting (no URL).
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+        { id: "b", label: "Settings", previewUrl: null, branchKey: "branch-b" },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail("room-1", capturer)
+
+    // `a` recaptured fresh this round; `b` retained its last-good image rather
+    // than reverting to a placeholder.
+    expect(manifest.frames[0]!.capture).toEqual({
+      url: "https://blob.example/thumbnails/room-1/a.webp",
+      capturedAt: NOW,
+    })
+    expect(manifest.frames[1]!.capture).toEqual({
+      url: "https://blob.example/old/b.webp",
+      capturedAt: 1,
+    })
   })
 
   it("skips a frame whose capture never resolves within the timeout", async () => {

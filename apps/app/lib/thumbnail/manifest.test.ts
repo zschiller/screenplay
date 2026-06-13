@@ -32,6 +32,14 @@ function input(
   return { id, label, branchKey: `branch-${id}`, ...branch }
 }
 
+/** A fresh capture for `id`, captured at `capturedAt`. */
+function capture(id: string, capturedAt: number): FrameCapture {
+  return {
+    url: `https://blob.example/thumbnails/room-1/${id}.webp`,
+    capturedAt,
+  }
+}
+
 describe("buildThumbnailManifest", () => {
   it("places each iframe layer at its computed rect and label", () => {
     const layouts = new Map([
@@ -74,18 +82,14 @@ describe("buildThumbnailManifest", () => {
       ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
       ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
     ])
-    const captures = new Map<string, FrameCapture>([
-      ["a", { url: "https://blob.example/thumbnails/room-1/a.webp" }],
-    ])
+    const captures = new Map<string, FrameCapture>([["a", capture("a", 1000)]])
     const manifest = buildThumbnailManifest(
       layouts,
       [input("a", "Home"), input("b", "Settings")],
       captures
     )
 
-    expect(manifest.frames[0]!.capture).toEqual({
-      url: "https://blob.example/thumbnails/room-1/a.webp",
-    })
+    expect(manifest.frames[0]!.capture).toEqual(capture("a", 1000))
     expect(manifest.frames[1]!.capture).toBeNull()
   })
 
@@ -162,5 +166,117 @@ describe("buildThumbnailManifest", () => {
     const manifest = buildThumbnailManifest(new Map(), [], new Map())
     expect(manifest.frames).toEqual([])
     expect(manifest.bounds).toEqual({ x: 0, y: 0, width: 0, height: 0 })
+  })
+
+  describe("merge / prune / retain / reposition across rounds", () => {
+    const layouts = new Map([
+      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+      ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+    ])
+    const previous = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home"), input("b", "Settings")],
+      new Map<string, FrameCapture>([
+        ["a", capture("a", 1000)],
+        ["b", capture("b", 1000)],
+      ])
+    )
+
+    it("merge: a fresh capture overwrites only that layer's image + timestamp", () => {
+      const next = buildThumbnailManifest(
+        layouts,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map<string, FrameCapture>([["a", capture("a", 2000)]]),
+        previous
+      )
+
+      // `a` adopts the new capture; `b` is untouched, keeping its prior one.
+      expect(next.frames[0]!.capture).toEqual(capture("a", 2000))
+      expect(next.frames[1]!.capture).toEqual(capture("b", 1000))
+    })
+
+    it("retain: a layer with no fresh capture keeps its last-good image", () => {
+      // A round that captures nothing (every preview booting/failing) must not
+      // revert either frame to a placeholder.
+      const next = buildThumbnailManifest(
+        layouts,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map(),
+        previous
+      )
+
+      expect(next.frames[0]!.capture).toEqual(capture("a", 1000))
+      expect(next.frames[1]!.capture).toEqual(capture("b", 1000))
+    })
+
+    it("retain only goes so far: a never-captured layer stays captureless", () => {
+      const next = buildThumbnailManifest(
+        new Map([
+          ...layouts,
+          ["c", layout("c", { x: 840, y: 0, width: 400, height: 300 })],
+        ]),
+        [input("a", "Home"), input("b", "Settings"), input("c", "New")],
+        new Map(),
+        previous
+      )
+
+      expect(next.frames.find((f) => f.id === "c")!.capture).toBeNull()
+    })
+
+    it("prune: a layer removed from the canvas drops out of the rebuild", () => {
+      const next = buildThumbnailManifest(
+        new Map([["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })]]),
+        [input("a", "Home")],
+        new Map(),
+        previous
+      )
+
+      // `b`'s retained capture is gone with it — no orphaned frame lingers.
+      expect(next.frames.map((f) => f.id)).toEqual(["a"])
+    })
+
+    it("reposition: a moved/resized frame reflects new geometry on next capture", () => {
+      const moved = new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+        // `b` was dragged down-right and resized.
+        ["b", layout("b", { x: 500, y: 600, width: 800, height: 450 })],
+      ])
+      const next = buildThumbnailManifest(
+        moved,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map<string, FrameCapture>([["b", capture("b", 2000)]]),
+        previous
+      )
+
+      expect(next.frames[1]).toMatchObject({
+        id: "b",
+        x: 500,
+        y: 600,
+        width: 800,
+        height: 450,
+      })
+      // Bounds widen to the union of the new geometry.
+      expect(next.bounds).toEqual({ x: 0, y: 0, width: 1300, height: 1050 })
+    })
+
+    it("re-snapshots label and palette index from the current layout while retaining the image", () => {
+      const next = buildThumbnailManifest(
+        layouts,
+        [
+          // `a` was renamed and recolored on the canvas; no new capture this round.
+          input("a", "Dashboard", { branchColorIndex: 9 }),
+          input("b", "Settings"),
+        ],
+        new Map(),
+        previous
+      )
+
+      expect(next.frames[0]).toMatchObject({
+        label: "Dashboard",
+        paletteIndex: 9,
+        // ...while still carrying the retained image.
+        capture: capture("a", 1000),
+      })
+    })
   })
 })
