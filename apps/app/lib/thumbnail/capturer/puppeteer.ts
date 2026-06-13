@@ -34,17 +34,18 @@ async function launchBrowser(): Promise<Browser> {
 }
 
 /**
- * The default Thumbnail Capturer: a headless Chromium that loads the render
- * page, waits for the canvas to signal ready, and screenshots the thumbnail
- * root. Behavior-identical to the path that lived inline in `captureRoomThumbnail`.
+ * The default Thumbnail Capturer: a headless Chromium that loads a frame's live
+ * preview URL and screenshots it. If the page signals `__thumbnailReady` it
+ * shoots immediately; otherwise it falls through after a short wait and shoots
+ * whatever has rendered, so an arbitrary preview still yields a frame.
  */
 class PuppeteerCapturer implements ThumbnailCapturer {
-  async capture(renderUrl: string): Promise<Buffer> {
+  async capture(previewUrl: string): Promise<Buffer> {
     const browser = await launchBrowser()
     try {
       const page = await browser.newPage()
       await page.setViewport({ width: VIEWPORT_W, height: VIEWPORT_H })
-      await page.goto(renderUrl, { waitUntil: "load", timeout: NAV_TIMEOUT_MS })
+      await page.goto(previewUrl, { waitUntil: "load", timeout: NAV_TIMEOUT_MS })
 
       await page
         .waitForFunction(() => (window as Window).__thumbnailReady === true, {

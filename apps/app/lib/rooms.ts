@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
 import { isLocalBuild } from "@/lib/local-mode"
+import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
 export type { RoomRole }
 
@@ -16,6 +17,7 @@ export type RoomRecord = {
   lastOpenedAt: number | null
   thumbnailUrl: string | null
   thumbnailUpdatedAt: number | null
+  thumbnailManifest: ThumbnailManifest | null
 }
 
 export type RoomMemberRecord = {
@@ -35,6 +37,7 @@ function toRoom(row: typeof schema.room.$inferSelect): RoomRecord {
     lastOpenedAt: row.lastOpenedAt?.getTime() ?? null,
     thumbnailUrl: row.thumbnailUrl,
     thumbnailUpdatedAt: row.thumbnailUpdatedAt?.getTime() ?? null,
+    thumbnailManifest: row.thumbnailManifest ?? null,
   }
 }
 
@@ -88,6 +91,7 @@ export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
       lastOpenedAt: schema.room.lastOpenedAt,
       thumbnailUrl: schema.room.thumbnailUrl,
       thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt,
+      thumbnailManifest: schema.room.thumbnailManifest,
     })
     .from(schema.room)
     .innerJoin(schema.roomMember, eq(schema.roomMember.roomId, schema.room.id))
@@ -114,13 +118,13 @@ export async function touchRoomOpened(roomId: string): Promise<void> {
     .where(eq(schema.room.id, roomId))
 }
 
-export async function setRoomThumbnail(
+export async function setRoomThumbnailManifest(
   roomId: string,
-  thumbnailUrl: string
+  thumbnailManifest: ThumbnailManifest
 ): Promise<void> {
   await db
     .update(schema.room)
-    .set({ thumbnailUrl, thumbnailUpdatedAt: new Date() })
+    .set({ thumbnailManifest, thumbnailUpdatedAt: new Date() })
     .where(eq(schema.room.id, roomId))
 }
 

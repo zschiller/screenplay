@@ -127,6 +127,13 @@
       "when": 1781309318968,
       "tag": "0017_mean_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781379170956,
+      "tag": "0018_thumbnail_manifest",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
@@ -13,6 +12,82 @@ import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
+import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
+
+/**
+ * Composes a Room's thumbnail from its Thumbnail Manifest: one positioned image
+ * per Frame Capture, laid out by each frame's world-space rect normalized
+ * against the manifest bounds. The composite box keeps the bounds' aspect ratio
+ * and is centered inside the 4:3 card (contain, not stretch). Frames without a
+ * capture yet render as positioned blanks. Returns null when there's nothing to
+ * place, so the card's gradient shows through (legacy rows have a null manifest
+ * and never reach here).
+ */
+function ThumbnailComposite({
+  manifest,
+  version,
+}: {
+  manifest: ThumbnailManifest
+  version: number | null
+}) {
+  const { bounds, frames } = manifest
+  if (bounds.width <= 0 || bounds.height <= 0 || frames.length === 0) return null
+
+  // Bind the composite to whichever card edge the bounds fill first, letting the
+  // other dimension follow from the aspect ratio — true "contain" with no CSS
+  // overflow math.
+  const CARD_ASPECT = 4 / 3
+  const boundsAspect = bounds.width / bounds.height
+  const sizeStyle =
+    boundsAspect > CARD_ASPECT
+      ? { width: "100%", aspectRatio: `${bounds.width} / ${bounds.height}` }
+      : { height: "100%", aspectRatio: `${bounds.width} / ${bounds.height}` }
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="relative" style={sizeStyle}>
+        {frames.map((frame) => {
+          const style = {
+            left: `${((frame.x - bounds.x) / bounds.width) * 100}%`,
+            top: `${((frame.y - bounds.y) / bounds.height) * 100}%`,
+            width: `${(frame.width / bounds.width) * 100}%`,
+            height: `${(frame.height / bounds.height) * 100}%`,
+          }
+          if (!frame.capture) {
+            return (
+              <div
+                key={frame.id}
+                style={style}
+                className="absolute bg-foreground/5"
+              />
+            )
+          }
+          // The blob key is stable per (room, frame) and served with a max-age,
+          // so version by capture time to bust the cache when a new capture lands.
+          const src = version
+            ? `${frame.capture.url}?v=${version}`
+            : frame.capture.url
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={frame.id}
+              src={src}
+              alt=""
+              style={style}
+              className="absolute object-cover"
+              // A stale capture URL (e.g. pre-restart blob scheme) 404s until the
+              // room's next recapture; hide the broken glyph and let the blank
+              // backdrop show instead of a broken-image icon.
+              onError={(e) => {
+                e.currentTarget.style.display = "none"
+              }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function RoomCard({ room }: { room: RoomSummary }) {
   const { renameRoom, removeRoom } = useHome()
@@ -34,30 +109,10 @@ function RoomCard({ room }: { room: RoomSummary }) {
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
         aria-label={`Open ${room.name}`}
       >
-        {room.thumbnailUrl && (
-          <Image
-            key={room.thumbnailUpdatedAt ?? room.thumbnailUrl}
-            // The blob path is stable per room and served with a max-age, so a
-            // bare URL would show the browser-cached capture for up to that
-            // TTL; versioning by capture time busts it the moment a new
-            // thumbnail lands.
-            src={
-              room.thumbnailUpdatedAt
-                ? `${room.thumbnailUrl}?v=${room.thumbnailUpdatedAt}`
-                : room.thumbnailUrl
-            }
-            alt=""
-            fill
-            sizes="(min-width: 1024px) 240px, (min-width: 640px) 33vw, 50vw"
-            className="object-cover"
-            unoptimized
-            // A stale URL (e.g. captured before a restart under the old
-            // absolute-URL scheme) 404s until the room's next recapture; hide
-            // the broken-image glyph and show the gradient instead. The key
-            // above remounts a fresh, visible img when a new capture lands.
-            onError={(e) => {
-              e.currentTarget.style.display = "none"
-            }}
+        {room.thumbnailManifest && (
+          <ThumbnailComposite
+            manifest={room.thumbnailManifest}
+            version={room.thumbnailUpdatedAt}
           />
         )}
       </Link>

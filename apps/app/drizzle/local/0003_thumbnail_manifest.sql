@@ -1,0 +1,1 @@
+ALTER TABLE "room" ADD COLUMN "thumbnail_manifest" jsonb;

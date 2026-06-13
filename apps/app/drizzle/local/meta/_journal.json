@@ -22,6 +22,13 @@
       "when": 1781309320713,
       "tag": "0002_workable_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781379175873,
+      "tag": "0003_thumbnail_manifest",
+      "breakpoints": true
     }
   ]
 }
