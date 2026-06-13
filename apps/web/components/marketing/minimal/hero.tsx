@@ -9,13 +9,13 @@ export function MinimalHero() {
           Screenplay
         </span>
         <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
-          A multiplayer canvas for AI-built prototypes.
+          See multiple branches at once.
         </h1>
         <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Localhost runs on one machine. Branches don&apos;t sit side by
-          side. Screen recordings aren&apos;t a substitute for review.
-          Screenplay puts every direction on a shared canvas, with state
-          and cursors synced.
+          AI agents work one branch at a time. Screenplay runs each branch
+          in its own sandbox and shows them side by side on a canvas. No more
+          git checkout and rebuild. No more choosing between alternatives
+          without seeing them together.
         </p>
 
         <div className="mt-10 flex items-center gap-6 text-sm">

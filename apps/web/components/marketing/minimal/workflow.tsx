@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Build with the agent",
-    body: "Each artboard runs a coding agent inside its own sandbox. The loop is the same as Cursor or Claude Code, with the canvas one click away.",
+    title: "Each artboard is a branch",
+    body: "You get a canvas. Each artboard on it is a git branch running in its own sandbox. Duplicate an artboard and you've created a branch. The agent can work on all of them.",
   },
   {
     num: "02",
-    title: "Branch side by side",
-    body: "Each artboard is its own branch in its own sandbox. Compare directions on the canvas instead of toggling between tabs.",
+    title: "They're all running",
+    body: "Every branch is already built and running. Click between them. Pan around the canvas. They're not in tabs, they're just there, next to each other.",
   },
   {
     num: "03",
-    title: "Bring the team in",
-    body: "Share the link. Reviewers see the same artboards, the same agent transcript, and your cursor. Comments anchor to elements.",
+    title: "Ask for variations",
+    body: "Tell the agent to try three approaches. Each one goes in its own artboard. You see them together. Pick one, or keep working on all three.",
   },
   {
     num: "04",
-    title: "Refine and commit",
-    body: "Expose values as knobs, refine them live, and the agent writes the chosen values back into the code as new defaults.",
+    title: "Share a link",
+    body: "Send the link to your team. They see the same canvas, the same branches, your cursor. They can click around and comment. No screenshots needed.",
   },
 ]
 
@@ -35,7 +35,7 @@ export function MinimalWorkflow() {
           How it works
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Prompt, branch, and review without leaving the canvas.
+          How it works.
         </h2>
 
         <ol className="mt-14 divide-y divide-border/60">
