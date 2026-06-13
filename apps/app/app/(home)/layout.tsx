@@ -7,11 +7,17 @@ import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
+import { listRooms } from "@/lib/rooms-actions"
+import { listFolders, listRoomPlacements } from "@/lib/folders-actions"
 
 /**
  * Shared chrome for the signed-in home surface (Recents, Canvases, Settings):
  * the left sidebar plus the scrollable content inset. Auth-gates the whole
  * group — signed-out visitors get the sign-in CTA with no sidebar instead.
+ *
+ * It also server-seeds the rooms/folders store once for the whole group (#510):
+ * the store is lifted into the persistent home shell, so the sidebar and the
+ * per-route content grid read one instance and the route pages stay thin.
  *
  * The room canvas (`/[roomId]`) lives outside this group and is unaffected.
  */
@@ -33,7 +39,27 @@ export default async function HomeLayout({
     cookieStore.get(panelLayoutCookieName("home-layout"))?.value
   )
 
-  return <HomeShell initialLayout={initialLayout}>{children}</HomeShell>
+  // Seed rooms, folders, and placements server-side so the grid is populated on
+  // first paint — loading them client-side resolves in ~1 frame against the
+  // local sidecar, which strobes an empty/loading grid when returning home from
+  // a canvas. One fetch for the whole group: the lifted store is the single
+  // source of truth the sidebar and the content grid share.
+  const [initialRooms, initialFolders, initialPlacements] = await Promise.all([
+    listRooms().catch(() => []),
+    listFolders().catch(() => []),
+    listRoomPlacements().catch(() => []),
+  ])
+
+  return (
+    <HomeShell
+      initialLayout={initialLayout}
+      initialRooms={initialRooms}
+      initialFolders={initialFolders}
+      initialPlacements={initialPlacements}
+    >
+      {children}
+    </HomeShell>
+  )
 }
 
 function SignedOut() {
