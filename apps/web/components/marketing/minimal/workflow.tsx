@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Build with the agent",
-    body: "Each artboard runs a coding agent inside its own sandbox. The loop is the same as Cursor or Claude Code, with the canvas one click away.",
+    title: "Download and install",
+    body: "Install the native desktop app for macOS, Windows, or Linux. Launch it like any other app on your machine — no browser required.",
   },
   {
     num: "02",
-    title: "Branch side by side",
-    body: "Each artboard is its own branch in its own sandbox. Compare directions on the canvas instead of toggling between tabs.",
+    title: "Build with the agent",
+    body: "Each artboard runs a coding agent inside its own sandbox. Work locally with native performance, and your changes sync automatically when you're ready.",
   },
   {
     num: "03",
-    title: "Bring the team in",
-    body: "Share the link. Reviewers see the same artboards, the same agent transcript, and your cursor. Comments anchor to elements.",
+    title: "Compare and refine",
+    body: "Branch side by side in the desktop app. Each artboard is its own direction, all visible at once. Adjust values with live controls and see changes instantly.",
   },
   {
     num: "04",
-    title: "Refine and commit",
-    body: "Expose values as knobs, refine them live, and the agent writes the chosen values back into the code as new defaults.",
+    title: "Share when ready",
+    body: "Export a shareable link when you want feedback. Your team can view and comment on your work without installing anything.",
   },
 ]
 
@@ -35,7 +35,7 @@ export function MinimalWorkflow() {
           How it works
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Prompt, branch, and review without leaving the canvas.
+          A native app that works the way you think.
         </h2>
 
         <ol className="mt-14 divide-y divide-border/60">

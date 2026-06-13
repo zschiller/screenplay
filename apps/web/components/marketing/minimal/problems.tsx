@@ -5,16 +5,16 @@ type Problem = {
 
 const problems: Problem[] = [
   {
-    label: "Collaboration",
-    body: "Localhost and agent chats aren't shared. Two designers working on the same prototype can't see each other's screens or read each other's transcripts. Screenplay puts the prototype in a shared room — same artboards, same sandbox, same agent.",
+    label: "Native experience",
+    body: "Browser tabs slow you down. The Screenplay desktop app gives you a dedicated workspace with native performance, offline support, and no distractions. Focus on building without fighting your browser.",
   },
   {
-    label: "Going broad",
-    body: "Agents work one direction at a time. Comparing alternatives means juggling branches that don't sit next to each other. In Screenplay, each artboard is its own branch in its own sandbox, side by side on the canvas.",
+    label: "Local-first",
+    body: "Your prototypes live on your machine. Work offline, keep your code local, and sync when you're ready. The desktop app manages your sandboxes and branches without relying on cloud infrastructure.",
   },
   {
-    label: "Communication",
-    body: "Screen recordings aren't a substitute for design review. Screenplay lays every screen and every state on an infinite canvas. Comments anchor to elements, and changing state updates every viewer in the room.",
+    label: "Integrated workflow",
+    body: "Jump between the canvas, the agent, and your code editor without switching apps. The desktop app integrates with your local development environment, making the loop from idea to prototype seamless.",
   },
 ]
 
@@ -26,7 +26,7 @@ export function MinimalProblems() {
           What changed
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Real code adds capability. It also breaks parts of the design loop.
+          A desktop app built for the way you actually work.
         </h2>
 
         <ul className="mt-14 divide-y divide-border/60">

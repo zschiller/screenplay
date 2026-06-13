@@ -12,25 +12,25 @@ const packages: Pkg[] = [
   {
     name: "@screenplay.space/knobs",
     href: "https://www.npmjs.com/package/@screenplay.space/knobs",
-    pitch: "Adjust values without re-prompting the agent.",
-    body: "Ask the agent once to expose a value as a knob — spacing, copy, a color — and you or a reviewer can change it live. The real component re-renders, multiplayer, with real state.",
+    pitch: "Live controls, built into the desktop app.",
+    body: "Expose values as adjustable knobs right in the app — spacing, colors, text, anything. Change them live and see updates instantly. The desktop app makes it seamless.",
     bullets: [
-      "Live, not approximated",
-      "Synced across viewers",
-      "Added by the agent on demand",
-      "Commit a value back to code",
+      "Integrated into the native UI",
+      "Real-time updates, no reload",
+      "Agent adds them on demand",
+      "Commit changes back to code",
     ],
   },
   {
     name: "@screenplay.space/state",
     href: "https://www.npmjs.com/package/@screenplay.space/state",
-    pitch: "Every viewer sees the same state at the same time.",
-    body: "Forms, toggles, selections, route params, the active step — share any value with one hook and it becomes multiplayer. Backed by Yjs, conflict-free, and persisted per artboard.",
+    pitch: "Local state that syncs when you want it to.",
+    body: "Manage prototype state locally in the desktop app. When you're ready to share, state syncs across viewers. Forms, toggles, route params — it all just works.",
     bullets: [
-      "Anything stateful can be shared",
+      "Local-first, syncs on demand",
       "Conflict-free (CRDTs)",
       "Persists per artboard",
-      "Works with Zustand, Jotai, Redux",
+      "Works with any state library",
     ],
   },
 ]
@@ -40,10 +40,10 @@ export function MinimalPackages() {
     <section id="packages" className="border-b border-border/60 scroll-mt-16">
       <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
         <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Two packages
+          Built on open source
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Open source, framework-agnostic, MIT licensed.
+          The desktop app uses the same open source packages.
         </h2>
 
         <div className="mt-14 grid gap-12 sm:grid-cols-2 sm:gap-10">

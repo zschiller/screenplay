@@ -9,13 +9,13 @@ export function MinimalHero() {
           Screenplay
         </span>
         <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
-          A multiplayer canvas for AI-built prototypes.
+          The desktop app for building and reviewing prototypes.
         </h1>
         <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Localhost runs on one machine. Branches don&apos;t sit side by
-          side. Screen recordings aren&apos;t a substitute for review.
-          Screenplay puts every direction on a shared canvas, with state
-          and cursors synced.
+          Build prototypes with an AI agent, compare directions side by side,
+          and share your work with your team — all from a native desktop app.
+          No browser tabs, no context switching, just a clean workspace that
+          syncs across your team.
         </p>
 
         <div className="mt-10 flex items-center gap-6 text-sm">
