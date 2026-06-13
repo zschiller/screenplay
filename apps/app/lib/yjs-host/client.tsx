@@ -6,10 +6,23 @@
  * tree-shaken out, leaving the hosted bundle unchanged. The matching server
  * surface flips on the same flag in `index.ts`.
  */
-import { YjsRoomProvider as LiveblocksYjsRoomProvider } from "./liveblocks-client"
-import { YjsRoomProvider as LocalYjsRoomProvider } from "./y-websocket-client"
+import {
+  YjsRoomProvider as LiveblocksYjsRoomProvider,
+  prewarmRoom as liveblocksPrewarmRoom,
+} from "./liveblocks-client"
+import {
+  YjsRoomProvider as LocalYjsRoomProvider,
+  prewarmRoom as localPrewarmRoom,
+} from "./y-websocket-client"
 
-export const YjsRoomProvider =
-  process.env.NEXT_PUBLIC_YJS_HOST === "local"
-    ? LocalYjsRoomProvider
-    : LiveblocksYjsRoomProvider
+const isLocal = process.env.NEXT_PUBLIC_YJS_HOST === "local"
+
+export const YjsRoomProvider = isLocal
+  ? LocalYjsRoomProvider
+  : LiveblocksYjsRoomProvider
+
+/**
+ * Open a room's connection ahead of navigation so the canvas renders on the
+ * first frame. Real on the local desktop host; a no-op on the hosted build.
+ */
+export const prewarmRoom = isLocal ? localPrewarmRoom : liveblocksPrewarmRoom
