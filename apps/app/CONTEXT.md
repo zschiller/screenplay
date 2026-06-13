@@ -120,15 +120,39 @@ on the local backend (it is hosted-only now); multiple preview targets per Repo
 another project); asking users to modify their repo's own scripts.
 
 **Thumbnail Capturer**:
-The swappable seam that turns a Room's render URL into a raw screenshot buffer
-— headless Chromium (puppeteer) today, and the only one; the desktop build
-drops in a sibling that drives the Tauri webview. Only the screenshot step
-lives behind the seam: `captureRoomThumbnail` keeps the shared orchestration
-around it — the `sharp` resize, `BlobStore.put`, and `setRoomThumbnail` write —
-so a second capturer is a drop-in, not a fork of the capture path
-(`lib/thumbnail/capturer/`).
-_Avoid_: screenshotter, renderer; folding the resize/store/record steps into
+The swappable seam that turns a **single ready frame's** preview URL into a raw
+screenshot buffer — headless Chromium (puppeteer) hosted, the Tauri webview on
+desktop. A Room's thumbnail is no longer one screenshot of a whole-canvas render:
+each Iframe Layer is captured on its own once its live preview is ready, so a
+still-booting dev server no longer degrades the whole capture. Only the
+screenshot step lives behind the seam; the surrounding orchestration — resize,
+store, and Thumbnail Manifest update — is shared across capturers, so a second
+capturer stays a drop-in (`lib/thumbnail/`).
+_Avoid_: screenshotter, renderer; the whole-canvas render page (removed — there
+is no single render URL anymore); folding the resize/store/manifest steps into
 the capturer (they are shared orchestration, not the seam).
+
+**Frame Capture**:
+A single Iframe Layer's stored preview screenshot, keyed by the layer and
+refreshed when that frame's live preview is both ready and changed since last
+time. The unit the Thumbnail Capturer produces and the Thumbnail Manifest
+positions — captured from the live canvas's own frame, not a separate render
+path.
+_Avoid_: tile, snapshot (reserve "snapshot" for the Manifest as a whole);
+re-rendering the frame in a headless pass divorced from what the canvas shows.
+
+**Thumbnail Manifest**:
+The per-Room snapshot a thumbnail is **composed from at display time**, in place
+of a single baked image: each Iframe Layer's placement (rect + label) and its
+Branch's color, paired with that layer's most recent Frame Capture (absent until
+the preview has been captured ready). A frame with no capture yet renders as a
+**branch-tinted placeholder rect**, so a Room whose dev servers are still booting
+degrades to positioned, identifiable blanks rather than a broken screenshot. The
+homescreen grid reads the Manifest as a cheap per-Room record and assembles the
+composite itself.
+_Avoid_: thumbnail (the Manifest is the data the thumbnail is drawn from, not the
+image); treating it as live canvas state (it is a denormalized capture-time
+snapshot, deliberately not in the Y.Doc).
 
 **Multi-user surface**:
 Everything the hosted, multi-tenant app needs to let many people share one Room
