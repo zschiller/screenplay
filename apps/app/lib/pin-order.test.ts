@@ -41,6 +41,39 @@ describe("densePositions", () => {
     ])
   })
 
+  it("yields dense, stable positions for a drag-reordered ordering (PRD #513)", () => {
+    // The shape `reorderPins` persists: a drag hands back the whole reordered
+    // run (here mixed Room + Folder pin keys), and each id maps to its index —
+    // a contiguous 0..n-1 sequence in exactly the dragged order, no gaps.
+    expect(
+      densePositions([
+        "folder:f1",
+        "room:r3",
+        "room:r1",
+        "folder:f2",
+        "room:r2",
+      ])
+    ).toEqual([
+      { id: "folder:f1", position: 0 },
+      { id: "room:r3", position: 1 },
+      { id: "room:r1", position: 2 },
+      { id: "folder:f2", position: 3 },
+      { id: "room:r2", position: 4 },
+    ])
+  })
+
+  it("re-packs the same ids in a new order back to a dense 0..n-1 run", () => {
+    // Reordering never widens positions: a second drag over the same ids still
+    // lands on 0,1,2 — positions stay stable and dense across reorders.
+    const reordered = densePositions(["room:r2", "room:r1", "room:r3"])
+    expect(reordered.map((p) => p.position)).toEqual([0, 1, 2])
+    expect(reordered.map((p) => p.id)).toEqual([
+      "room:r2",
+      "room:r1",
+      "room:r3",
+    ])
+  })
+
   it("returns an empty list unchanged", () => {
     expect(densePositions([])).toEqual([])
   })

@@ -3,19 +3,19 @@
 import { useState } from "react"
 import Link from "next/link"
 import { FileText, MoreHorizontal } from "lucide-react"
+import { Reorder } from "motion/react"
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
-  SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
+import type { PinKind } from "@/lib/pins"
 import { useHome } from "./home-provider"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
@@ -30,35 +30,85 @@ import { MoveToDialog } from "./move-to-dialog"
  * rename or delete anywhere flows straight through — there's no second copy of
  * the Room's name to drift. This first slice only pins Rooms; the Folder slice
  * extends the same list with folder rows.
+ *
+ * The list is drag-reorderable via Framer Motion's `Reorder` (PRD #513),
+ * following the reorderable-tabs pattern in `components/agent/chat-panel.tsx` —
+ * deliberately not the in-room sidebar's dnd-kit mechanism. `Reorder` hands back
+ * the whole reordered run, which `reorderPins` persists as dense `position`
+ * values; Room and Folder pins share one position space, so a mixed list
+ * reorders freely. The key for each row is `kind:targetId` (a pin is addressed
+ * by its target, never its server-side row id), so folder rows slot into the
+ * same group unchanged once the Folder slice lands.
  */
+
+/** A pin's stable drag key — its target, the same key the provider reorders by. */
+function pinKey(kind: PinKind, targetId: string): string {
+  return `${kind}:${targetId}`
+}
+
 export function PinnedList() {
-  const { pins, roomsById } = useHome()
+  const { pins, roomsById, reorderPins } = useHome()
 
-  // Resolve each Room pin to its live Room record, dropping any whose Room isn't
-  // in the store (just deleted, or not yet loaded) so a dangling pin never paints
-  // an empty row.
-  const pinnedRooms = pins
-    .filter((p) => p.kind === "room")
-    .map((p) => roomsById.get(p.targetId))
-    .filter((room): room is RoomSummary => room !== undefined)
+  // Resolve each pin to a renderable row, dropping any whose target isn't in the
+  // store (just deleted, or not yet loaded) so a dangling pin never paints an
+  // empty row. This first slice only renders Room pins; folder rows extend the
+  // same resolved list. The resolved order is what the Reorder group drags over,
+  // so its `values` and its rendered items stay in lockstep.
+  const renderable = pins
+    .map((p) => {
+      if (p.kind === "room") {
+        const room = roomsById.get(p.targetId)
+        return room ? { key: pinKey("room", p.targetId), room } : null
+      }
+      return null
+    })
+    .filter((r): r is { key: string; room: RoomSummary } => r !== null)
 
-  if (pinnedRooms.length === 0) return null
+  if (renderable.length === 0) return null
+
+  // `Reorder` returns the whole reordered key list; map each key back to its
+  // `kind` + `targetId` and persist the new order. Room and Folder pins reorder
+  // within this one shared run.
+  const handleReorder = (keys: string[]) => {
+    const ordered = keys.map((key) => {
+      const sep = key.indexOf(":")
+      return {
+        kind: key.slice(0, sep) as PinKind,
+        targetId: key.slice(sep + 1),
+      }
+    })
+    void reorderPins(ordered)
+  }
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Pinned</SidebarGroupLabel>
       <SidebarGroupContent>
-        <SidebarMenu>
-          {pinnedRooms.map((room) => (
-            <PinnedRoomRow key={room.id} room={room} />
+        <Reorder.Group
+          as="ul"
+          axis="y"
+          values={renderable.map((r) => r.key)}
+          onReorder={handleReorder}
+          data-slot="sidebar-menu"
+          data-sidebar="menu"
+          className="flex w-full min-w-0 flex-col gap-0"
+        >
+          {renderable.map(({ key, room }) => (
+            <PinnedRoomRow key={key} dragKey={key} room={room} />
           ))}
-        </SidebarMenu>
+        </Reorder.Group>
       </SidebarGroupContent>
     </SidebarGroup>
   )
 }
 
-function PinnedRoomRow({ room }: { room: RoomSummary }) {
+function PinnedRoomRow({
+  dragKey,
+  room,
+}: {
+  dragKey: string
+  room: RoomSummary
+}) {
   const { renameRoom, removeRoom, moveRoom, allFolders, folderOfRoom, unpin } =
     useHome()
   const [renameOpen, setRenameOpen] = useState(false)
@@ -71,10 +121,22 @@ function PinnedRoomRow({ room }: { room: RoomSummary }) {
   const currentParentId = folderOfRoom(room.id)
 
   return (
-    <SidebarMenuItem>
+    // A draggable pinned row. `Reorder.Item` runs the drag/layout gesture and
+    // distinguishes a drag from a click by movement, so the Link still navigates
+    // on a plain click while a drag reorders. `cursor-grab` signals the affordance.
+    <Reorder.Item
+      value={dragKey}
+      as="li"
+      data-slot="sidebar-menu-item"
+      data-sidebar="menu-item"
+      className="group/menu-item relative cursor-grab active:cursor-grabbing"
+    >
       <SidebarMenuButton asChild>
         <Link
           href={`/${room.id}`}
+          // The browser's native link-drag would hijack the pointer and paint a
+          // ghost image, fighting the Reorder gesture — opt the row out of it.
+          draggable={false}
           // Open the room's connection on hover/focus/click so the canvas renders
           // synced on the first frame, matching the grid tiles. No-op on hosted.
           onPointerEnter={() => prewarmRoom(room.id)}
@@ -140,6 +202,6 @@ function PinnedRoomRow({ room }: { room: RoomSummary }) {
           roomName={room.name}
         />
       )}
-    </SidebarMenuItem>
+    </Reorder.Item>
   )
 }
