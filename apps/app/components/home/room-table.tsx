@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { File as FileIcon, MoreHorizontal } from "lucide-react"
+import {
+  File as FileIcon,
+  Folder as FolderIcon,
+  MoreHorizontal,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
   Table,
@@ -20,6 +24,27 @@ import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
+import type { FolderSummary } from "@/lib/folders-actions"
+
+// Compact folder row (PRD #475): a folder icon + name in the Name column, with
+// the date/owner columns left empty so folders read as a distinct section above
+// the canvases. Clicking does nothing yet.
+function FolderRow({ folder }: { folder: FolderSummary }) {
+  return (
+    <TableRow className="group">
+      <TableCell className="w-full">
+        <div className="flex items-center gap-2">
+          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{folder.name}</span>
+        </div>
+      </TableCell>
+      <TableCell />
+      <TableCell />
+      <TableCell />
+      <TableCell className="w-8 pr-2" />
+    </TableRow>
+  )
+}
 
 function RoomRow({ room }: { room: RoomSummary }) {
   const { renameRoom, removeRoom } = useHome()
@@ -110,7 +135,13 @@ function RoomRow({ room }: { room: RoomSummary }) {
   )
 }
 
-export function RoomTable({ rooms }: { rooms: RoomSummary[] }) {
+export function RoomTable({
+  rooms,
+  folders = [],
+}: {
+  rooms: RoomSummary[]
+  folders?: FolderSummary[]
+}) {
   return (
     <Table>
       <TableHeader>
@@ -123,6 +154,10 @@ export function RoomTable({ rooms }: { rooms: RoomSummary[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
+        {/* Folders render above the files, sorted within their own section. */}
+        {folders.map((folder) => (
+          <FolderRow key={folder.id} folder={folder} />
+        ))}
         {rooms.map((room) => (
           <RoomRow key={room.id} room={room} />
         ))}

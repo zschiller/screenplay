@@ -29,6 +29,13 @@
       "when": 1781379175873,
       "tag": "0003_thumbnail_manifest",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781379804446,
+      "tag": "0004_parched_miracleman",
+      "breakpoints": true
     }
   ]
 }
