@@ -21,12 +21,13 @@ describe("TauriWebviewCapturer", () => {
 
   describe("against a stub control server", () => {
     let server: Server
-    let received: { url?: string; body?: string }
+    let received: { url?: string; body?: string; posts: number }
 
     beforeEach(async () => {
-      received = {}
+      received = { posts: 0 }
       server = createServer((req, res) => {
         received.url = req.url
+        received.posts += 1
         let body = ""
         req.on("data", (c) => (body += c))
         req.on("end", () => {
@@ -51,6 +52,21 @@ describe("TauriWebviewCapturer", () => {
       expect(JSON.parse(received.body ?? "{}")).toEqual({
         renderUrl: "http://app/42/render?token=t",
       })
+      expect([...buf]).toEqual([0x89, 0x50, 0x4e, 0x47])
+    })
+
+    it("screenshots a single localhost frame preview URL per call (per-frame parity)", async () => {
+      // The per-frame input: the local backend's named `.localhost` route for
+      // one frame's dev server, not a whole-canvas render page.
+      const frameUrl = "http://feat-x.myapp.localhost:1355/settings"
+      const buf = await getTauriWebviewCapturer().capture(frameUrl)
+
+      // Exactly one screenshot request, carrying just this frame's URL.
+      expect(received.posts).toBe(1)
+      expect(received.url).toBe("/thumbnail")
+      expect(JSON.parse(received.body ?? "{}")).toEqual({ renderUrl: frameUrl })
+      // And raw PNG bytes come back as a Buffer for the shared resize/store path.
+      expect(Buffer.isBuffer(buf)).toBe(true)
       expect([...buf]).toEqual([0x89, 0x50, 0x4e, 0x47])
     })
   })

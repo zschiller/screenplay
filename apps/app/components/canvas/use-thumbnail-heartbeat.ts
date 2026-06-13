@@ -4,14 +4,11 @@ import { useEffect } from "react"
 import { useYjs } from "@/lib/yjs/context"
 import { withBasePath } from "@/lib/base-path"
 import { isLocalBuild } from "@/lib/local-mode"
-
-// The hosted cadence is priced for a headless-Chromium capture on a paid
-// function per fire; the desktop capture is a local webview and a local file
-// write, so it can run much hotter. Must stay above the server route's
-// cooldown or every throttled fire lands inside it and gets skipped.
-const PERIOD_MS = isLocalBuild ? 8_000 : 30_000
-const INITIAL_DELAY_MS = 3_000
-const MIN_REFRESH_GAP_MS = 5_000
+import {
+  THUMBNAIL_HEARTBEAT_INITIAL_DELAY_MS as INITIAL_DELAY_MS,
+  THUMBNAIL_HEARTBEAT_MIN_REFRESH_GAP_MS as MIN_REFRESH_GAP_MS,
+  THUMBNAIL_HEARTBEAT_PERIOD_MS as PERIOD_MS,
+} from "@/lib/thumbnail/cadence"
 
 /**
  * Periodically POSTs to /api/thumbnail/[roomId] while the editor is open.
