@@ -12,25 +12,25 @@ const packages: Pkg[] = [
   {
     name: "@screenplay.space/knobs",
     href: "https://www.npmjs.com/package/@screenplay.space/knobs",
-    pitch: "Adjust values without re-prompting the agent.",
-    body: "Ask the agent once to expose a value as a knob — spacing, copy, a color — and you or a reviewer can change it live. The real component re-renders, multiplayer, with real state.",
+    pitch: "Refine values across multiple branches at once.",
+    body: "Expose spacing, colors, or copy as adjustable knobs. Change them live and watch every branch update in parallel. See which direction works best without re-prompting the agent.",
     bullets: [
-      "Live, not approximated",
-      "Synced across viewers",
-      "Added by the agent on demand",
-      "Commit a value back to code",
+      "Live updates across all artboards",
+      "Real components, real state",
+      "Agent adds them on demand",
+      "Commit the winner back to code",
     ],
   },
   {
     name: "@screenplay.space/state",
     href: "https://www.npmjs.com/package/@screenplay.space/state",
-    pitch: "Every viewer sees the same state at the same time.",
-    body: "Forms, toggles, selections, route params, the active step — share any value with one hook and it becomes multiplayer. Backed by Yjs, conflict-free, and persisted per artboard.",
+    pitch: "Every branch sees the same state.",
+    body: "Forms, toggles, route params — share any value and it syncs across artboards. Compare how different branches handle the same state without manual setup.",
     bullets: [
-      "Anything stateful can be shared",
+      "Shared state across branches",
       "Conflict-free (CRDTs)",
       "Persists per artboard",
-      "Works with Zustand, Jotai, Redux",
+      "Works with any state library",
     ],
   },
 ]
@@ -40,10 +40,10 @@ export function MinimalPackages() {
     <section id="packages" className="border-b border-border/60 scroll-mt-16">
       <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
         <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Two packages
+          Built on open source
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Open source, framework-agnostic, MIT licensed.
+          Two packages that make parallel exploration real.
         </h2>
 
         <div className="mt-14 grid gap-12 sm:grid-cols-2 sm:gap-10">

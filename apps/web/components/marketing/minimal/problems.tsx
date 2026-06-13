@@ -5,16 +5,16 @@ type Problem = {
 
 const problems: Problem[] = [
   {
-    label: "Collaboration",
-    body: "Localhost and agent chats aren't shared. Two designers working on the same prototype can't see each other's screens or read each other's transcripts. Screenplay puts the prototype in a shared room — same artboards, same sandbox, same agent.",
+    label: "One at a time",
+    body: "You ask the agent for three takes on a layout. It gives you one. You pick it, or you ask again, or you try to remember what the first one looked like. You can't see them together because they're in different branches.",
   },
   {
-    label: "Going broad",
-    body: "Agents work one direction at a time. Comparing alternatives means juggling branches that don't sit next to each other. In Screenplay, each artboard is its own branch in its own sandbox, side by side on the canvas.",
+    label: "Switching is slow",
+    body: "git checkout, npm install, wait for rebuild, refresh. Every time you want to compare alternatives, you lose context. The previous branch is gone. You're comparing memory to reality.",
   },
   {
-    label: "Communication",
-    body: "Screen recordings aren't a substitute for design review. Screenplay lays every screen and every state on an infinite canvas. Comments anchor to elements, and changing state updates every viewer in the room.",
+    label: "Screenshots lie",
+    body: "You can screenshot branches, but screenshots don't click. Screen recordings don't show how state changes. PDFs don't let you scroll. Comparing branches through static artifacts doesn't work.",
   },
 ]
 
@@ -26,7 +26,7 @@ export function MinimalProblems() {
           What changed
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Real code adds capability. It also breaks parts of the design loop.
+          The problem with one branch at a time.
         </h2>
 
         <ul className="mt-14 divide-y divide-border/60">
