@@ -8,7 +8,6 @@ import {
 } from "drizzle-orm/pg-core"
 import type { ModelMessage } from "ai"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
-import type { OrganizationState } from "@/lib/organization"
 
 // The tables that survive into the local desktop build (PRD #404). The
 // multi-user surface — auth (`session`/`account`/`verification`), `room_member`
@@ -25,8 +24,6 @@ export const user = pgTable("user", {
   image: text("image"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  // Per-user folder/file organization state (folders, pins, file→folder map).
-  organization: jsonb("organization").$type<OrganizationState | null>(),
 })
 
 // Generic key-value store backing lib/kv. Values are stored as JSONB so the
