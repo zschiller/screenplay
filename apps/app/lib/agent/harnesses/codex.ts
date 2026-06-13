@@ -88,5 +88,10 @@ export const codexHarness: Harness = {
   brokerProviderKey: "openai",
   gateEnvVar: "OPENAI_API_KEY",
   launchArgv: ["codex"],
+  // The desktop detector probes `codex` on PATH (the global install exposes it).
+  hostBinary: "codex",
+  // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
+  // `CODEX_API_KEY`, per spike #405.
+  acpAdapter: { command: "npx", args: ["-y", "@zed-industries/codex-acp"] },
   seed: seedCodex,
 }

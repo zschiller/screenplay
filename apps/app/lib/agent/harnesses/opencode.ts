@@ -109,6 +109,11 @@ export const opencodeGatewayHarness: Harness = {
     value: "https://ai-gateway.vercel.sh/v1",
   },
   launchArgv: ["opencode"],
+  // Both opencode slots share one host binary; detection probes `opencode` once.
+  hostBinary: "opencode",
+  // Terminal-only today: no ACP adapter wired, so the chat-capability filter
+  // drops it (opencode backs the Terminal Tab, not the external Engine).
+  acpAdapter: null,
   seed: seedOpencode(
     opencodeConfigJson({
       providerId: "gateway",
@@ -150,6 +155,11 @@ export const opencodeCompatHarness: Harness = {
     value: process.env.OPENAI_COMPATIBLE_BASE_URL ?? "",
   },
   launchArgv: ["opencode"],
+  // Both opencode slots share one host binary; detection probes `opencode` once.
+  hostBinary: "opencode",
+  // Terminal-only today: no ACP adapter wired, so the chat-capability filter
+  // drops it (opencode backs the Terminal Tab, not the external Engine).
+  acpAdapter: null,
   seed: seedOpencode(
     opencodeConfigJson({
       providerId: "compat",

@@ -63,7 +63,7 @@ contractFor("external (spawned subprocess)", (driver: StreamDriver) => {
       const factory = new SpawnAcpSessionFactory({
         // A real adapter key so `resolveAcpLaunch` returns non-null; the
         // injected spawn launches the fake agent regardless of the argv.
-        harnessKey: "claude",
+        harnessKey: "claude-code",
         env: { PATH: process.env.PATH },
         spawn: fakeAgentSpawn(script),
       })
@@ -101,7 +101,7 @@ describe("SpawnAcpSessionFactory — resolution and lifecycle", () => {
       env: Record<string, string>
     } | null = null
     const factory = new SpawnAcpSessionFactory({
-      harnessKey: "claude",
+      harnessKey: "claude-code",
       env: { CLAUDECODE: "1", PATH: "/usr/bin" },
       spawn: (command, _args, options) => {
         seen = { command, cwd: options.cwd, env: options.env }
@@ -136,7 +136,7 @@ describe("SpawnAcpSessionFactory — resolution and lifecycle", () => {
   it("dispose kills the spawned child", async () => {
     let killed = false
     const factory = new SpawnAcpSessionFactory({
-      harnessKey: "claude",
+      harnessKey: "claude-code",
       env: { PATH: process.env.PATH },
       spawn: (_command, _args, options) => {
         const child = nodeSpawn(process.execPath, [FAKE_AGENT], {

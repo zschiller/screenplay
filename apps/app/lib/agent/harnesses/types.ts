@@ -36,6 +36,21 @@ export function commitAndPushRuleMarkdown(): string {
 }
 
 /**
+ * The argv that spawns a harness's **ACP adapter** as a host subprocess over
+ * stdio — the wire the external Engine's `SpawnAcpSessionFactory` speaks to. It
+ * lives on the descriptor (not a separate adapter map) so a CLI's terminal
+ * launch and its chat backing read the *one* catalog entry: there is no second
+ * adapter-key namespace. `null` for a terminal-only harness with no ACP adapter
+ * (e.g. the opencode slots today), which the chat-capability filter drops.
+ */
+export interface AcpAdapter {
+  /** Executable to spawn (e.g. `npx`). */
+  command: string
+  /** Arguments passed to {@link command}. */
+  args: string[]
+}
+
+/**
  * A coding-harness descriptor. The flat catalog in `index.ts` is an array of
  * these keyed by `key`, mirroring the model-provider registry
  * (`lib/agent/providers`): teach the system a new harness by dropping a
@@ -99,6 +114,26 @@ export interface Harness {
    * command alongside its install + seed.
    */
   launchArgv: string[]
+
+  /**
+   * Binary name the **desktop** Harness Availability resolver probes on the host
+   * `PATH` (`command -v <hostBinary>`) to decide whether this CLI is installed —
+   * no broker, no install (the CLI rides its own login). Usually the same string
+   * as {@link launchCommand}, but kept distinct: `launchCommand` is *what a
+   * terminal tab runs*, `hostBinary` is *what detection looks for*. The two
+   * opencode slots share one `hostBinary` (`opencode`), so detection probes it
+   * once and lists whichever slots are configured.
+   */
+  hostBinary: string
+
+  /**
+   * The ACP adapter spawn argv for backing **agent chat** on the external Engine
+   * (folds in the retired adapter map), or `null` for a terminal-only harness
+   * that has no ACP adapter. The chat-capability filter
+   * (`availability.filterByCapability(..., "chat")`) keeps only entries whose
+   * `acpAdapter` is non-null; the terminal filter keeps all.
+   */
+  acpAdapter: AcpAdapter | null
 
   /**
    * Reproduce the harness's in-sandbox setup after install (onboarding state,
