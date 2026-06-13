@@ -15,6 +15,13 @@
       "when": 1781197442324,
       "tag": "0001_demonic_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781309320713,
+      "tag": "0002_workable_blur",
+      "breakpoints": true
     }
   ]
 }

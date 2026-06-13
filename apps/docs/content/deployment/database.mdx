@@ -19,8 +19,7 @@ swappable seam (see [Using a different Postgres driver](#using-a-different-postg
 
 Schema lives in `apps/app/lib/db/schema.ts`:
 
-- Better Auth's `user` / `session` / `account` / `verification` tables, plus a
-  per-user `organization` JSONB column for folders/pins.
+- Better Auth's `user` / `session` / `account` / `verification` tables.
 - `kv_store` — backs `lib/kv` (TTL-aware key/value with distributed locks).
 - `room` / `room_member` — project rooms and access control. Source of truth for
   who can open a canvas; the `/api/yjs/auth` route gates Yjs-host token issuance
