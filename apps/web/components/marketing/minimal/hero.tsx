@@ -9,13 +9,13 @@ export function MinimalHero() {
           Screenplay
         </span>
         <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
-          Explore every direction at once.
+          See multiple branches at once.
         </h1>
         <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-          AI agents work one branch at a time. Screenplay lets you explore
-          broadly — spin up multiple branches in parallel, see every direction
-          side by side, and compare alternatives on a single canvas. Stop
-          toggling between tabs. Start seeing the whole design space.
+          AI agents work one branch at a time. Screenplay runs each branch
+          in its own sandbox and shows them side by side on a canvas. No more
+          git checkout and rebuild. No more choosing between alternatives
+          without seeing them together.
         </p>
 
         <div className="mt-10 flex items-center gap-6 text-sm">

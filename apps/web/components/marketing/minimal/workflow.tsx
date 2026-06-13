@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Spin up branches",
-    body: "Each artboard is its own git branch in its own sandbox. Duplicate an artboard to explore an alternative. The AI agent builds each direction in parallel.",
+    title: "Each artboard is a branch",
+    body: "You get a canvas. Each artboard on it is a git branch running in its own sandbox. Duplicate an artboard and you've created a branch. The agent can work on all of them.",
   },
   {
     num: "02",
-    title: "See them side by side",
-    body: "Branches don't live in tabs or terminal windows. They sit next to each other on the canvas, already running, already interactive. Pan to compare, click to focus.",
+    title: "They're all running",
+    body: "Every branch is already built and running. Click between them. Pan around the canvas. They're not in tabs, they're just there, next to each other.",
   },
   {
     num: "03",
-    title: "Go broad with AI",
-    body: "Ask the agent for three takes on a layout. Try a different color system. Explore edge cases. Each direction gets its own artboard. The canvas holds them all.",
+    title: "Ask for variations",
+    body: "Tell the agent to try three approaches. Each one goes in its own artboard. You see them together. Pick one, or keep working on all three.",
   },
   {
     num: "04",
-    title: "Share the whole space",
-    body: "Send one link. Your team sees every branch, every state, your live cursor. They comment on elements, not screenshots. Review happens on the canvas.",
+    title: "Share a link",
+    body: "Send the link to your team. They see the same canvas, the same branches, your cursor. They can click around and comment. No screenshots needed.",
   },
 ]
 
@@ -35,7 +35,7 @@ export function MinimalWorkflow() {
           How it works
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          Multiple branches, one canvas, zero context switching.
+          How it works.
         </h2>
 
         <ol className="mt-14 divide-y divide-border/60">

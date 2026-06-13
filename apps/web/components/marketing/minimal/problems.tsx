@@ -6,15 +6,15 @@ type Problem = {
 const problems: Problem[] = [
   {
     label: "One at a time",
-    body: "AI agents explore one branch at a time. You can't ask for three variations and see them side by side. Screenplay runs each branch in its own sandbox, all visible on the canvas. Compare alternatives, not commit messages.",
+    body: "You ask the agent for three takes on a layout. It gives you one. You pick it, or you ask again, or you try to remember what the first one looked like. You can't see them together because they're in different branches.",
   },
   {
     label: "Switching is slow",
-    body: "git checkout, wait for rebuild, refresh the page. Toggling between branches breaks your flow and hides the alternatives. In Screenplay, every branch is one click away, already running, already in view.",
+    body: "git checkout, npm install, wait for rebuild, refresh. Every time you want to compare alternatives, you lose context. The previous branch is gone. You're comparing memory to reality.",
   },
   {
-    label: "Context collapse",
-    body: "Screenshots don't capture interaction. Screen recordings don't show state. Comparing branches means comparing static artifacts. Screenplay keeps every branch live — same state, same cursors, same canvas.",
+    label: "Screenshots lie",
+    body: "You can screenshot branches, but screenshots don't click. Screen recordings don't show how state changes. PDFs don't let you scroll. Comparing branches through static artifacts doesn't work.",
   },
 ]
 
@@ -26,7 +26,7 @@ export function MinimalProblems() {
           What changed
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          AI agents go deep. Screenplay helps you go broad.
+          The problem with one branch at a time.
         </h2>
 
         <ul className="mt-14 divide-y divide-border/60">

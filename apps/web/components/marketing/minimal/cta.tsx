@@ -5,12 +5,11 @@ export function MinimalCTA() {
     <section className="border-b border-border/60">
       <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-32">
         <h2 className="text-balance text-3xl font-medium tracking-tight sm:text-4xl">
-          Stop choosing. Start comparing.
+          Try it.
         </h2>
         <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Download the desktop app and turn every AI conversation into a
-          canvas of possibilities. Explore broadly, compare side by side,
-          ship the best direction.
+          Download the desktop app. Point it at a repo. Ask the agent for
+          three versions of something. See them all at once.
         </p>
         <div className="mt-8 flex items-center gap-6 text-sm">
           <a
