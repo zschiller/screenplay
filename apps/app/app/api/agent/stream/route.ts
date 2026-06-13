@@ -76,8 +76,9 @@ export async function POST(req: Request) {
   // Branch's worktree, so its cwd depends on the turn. Resolved before any
   // side effects so a misconfigured deployment still fails loud at the boundary
   // — a 500 here — rather than silently falling back (ADR 0006). In-process
-  // (the hosted default) ignores `sandboxName` entirely.
-  const engine = await resolveLiveEngine({ sandboxName, chatId })
+  // (the hosted default) ignores `sandboxName` entirely. On the external engine
+  // the chat's `model` id (a `harness:` id) picks which adapter to spawn (#479).
+  const engine = await resolveLiveEngine({ sandboxName, chatId, model })
 
   // Persist the incoming user turn as an ACP-native `user` record — the
   // decorated wire text (plan/branch markers + `@`-mention `resource_link`s)

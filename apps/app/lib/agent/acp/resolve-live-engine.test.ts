@@ -22,6 +22,17 @@ vi.mock("@/lib/agent/persistence", () => ({
   setAcpSessionId: (chatId: string, id: string) => setAcpSessionId(chatId, id),
 }))
 
+// Capture which harness key the external engine is wired to spawn, without
+// reaching the real adapter resolver / subprocess spawn.
+const factoryConfig = vi.fn<(config: { harnessKey: string }) => void>()
+vi.mock("./spawn-session-factory", () => ({
+  SpawnAcpSessionFactory: class {
+    constructor(config: { harnessKey: string }) {
+      factoryConfig(config)
+    }
+  },
+}))
+
 import { ENGINE_ENV_VAR } from "./engine-select"
 import { ExternalEngine } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
@@ -53,6 +64,7 @@ describe("resolveLiveEngine", () => {
     get.mockClear()
     getAcpSessionId.mockClear()
     setAcpSessionId.mockClear()
+    factoryConfig.mockClear()
   })
 
   it("returns the in-process engine by default — no sandbox lookup", async () => {
@@ -87,5 +99,36 @@ describe("resolveLiveEngine", () => {
     process.env[ENGINE_ENV_VAR] = "external"
     await resolveLiveEngine({ sandboxName: "branch-7" })
     expect(getAcpSessionId).not.toHaveBeenCalled()
+  })
+
+  // Per-chat harness selection (#479): the chat's stored `model` picks the
+  // adapter the external engine spawns; the engine choice itself stays the
+  // build-time env decision.
+  it("spawns the adapter named by the chat's `harness:` model id", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({ sandboxName: "branch-7", model: "harness:codex" })
+    expect(factoryConfig).toHaveBeenCalledWith({ harnessKey: "codex" })
+  })
+
+  it("falls back to SCREENPLAY_ACP_HARNESS when no model id is stored", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    process.env[ACP_HARNESS_ENV_VAR] = "codex"
+    try {
+      await resolveLiveEngine({ sandboxName: "branch-7" })
+      expect(factoryConfig).toHaveBeenCalledWith({ harnessKey: "codex" })
+    } finally {
+      delete process.env[ACP_HARNESS_ENV_VAR]
+    }
+  })
+
+  it("ignores a `provider:` model id, falling back to the env default", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    // A provider id never selects (or reconfigures) the external engine — the
+    // adapter stays the default rather than the engine treating it as a harness.
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      model: "anthropic:claude-sonnet-4-6",
+    })
+    expect(factoryConfig).toHaveBeenCalledWith({ harnessKey: "claude-code" })
   })
 })

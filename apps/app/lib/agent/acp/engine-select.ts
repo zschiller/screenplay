@@ -15,6 +15,34 @@ export type EngineChoice = "in-process" | "external"
 export const ENGINE_ENV_VAR = "AGENT_ENGINE"
 
 /**
+ * Wire-format prefix marking a chat's stored `model` id as a **Harness
+ * selection** (`harness:<key>`) rather than a `provider:<model>` id. The same
+ * `harness:` form names the Terminal Tab key and the Harness catalog key — there
+ * is no separate adapter-key namespace (#476).
+ */
+export const HARNESS_ID_PREFIX = "harness:"
+
+/**
+ * The Harness catalog key a chat's stored `model` id names for the **external
+ * engine** to spawn, or `null` when the id doesn't pick one. A `harness:<key>`
+ * id yields `<key>`; anything else — a `provider:<model>` id, an empty/whitespace
+ * id, or none — yields `null`, leaving the caller on its env default.
+ *
+ * This only ever picks the *adapter*; it never picks the *engine*. Which engine
+ * runs stays a per-deployment build-time choice ({@link engineChoiceFromEnv},
+ * ADR 0006): a `provider:` id can't promote a chat onto the external engine, and
+ * a `harness:` id can't appear on an in-process deployment. So `null` here means
+ * "fall back to the `SCREENPLAY_ACP_HARNESS` default", not "switch engines".
+ */
+export function harnessKeyFromModelId(
+  modelId: string | undefined | null
+): string | null {
+  const trimmed = modelId?.trim()
+  if (!trimmed || !trimmed.startsWith(HARNESS_ID_PREFIX)) return null
+  return trimmed.slice(HARNESS_ID_PREFIX.length).trim() || null
+}
+
+/**
  * Read the engine choice from the environment, defaulting to `in-process` (the
  * established, self-contained default). Only the explicit value `external` opts
  * into the external engine; anything else — unset, empty, or unrecognised — stays

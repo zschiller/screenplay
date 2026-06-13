@@ -58,10 +58,12 @@ export async function POST(req: Request) {
   if (!chat) return new Response("Chat not found", { status: 404 })
 
   // Resolve the engine before any side effects so a misconfigured deployment
-  // fails loud here rather than silently falling back (ADR 0006).
+  // fails loud here rather than silently falling back (ADR 0006). The chat's
+  // stored `model` (a `harness:` id) picks the adapter on the external engine (#479).
   const engine = await resolveLiveEngine({
     sandboxName: chat.sandboxName,
     chatId,
+    model: chat.model,
   })
 
   // Resolve the plan gate, ACP-native (ADR 0006): supersede the paused run,
