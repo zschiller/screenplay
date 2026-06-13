@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowDown,
   ArrowUp,
+  FolderOpen,
   FolderPlus,
   LayoutGrid,
   List,
@@ -32,6 +33,7 @@ import {
 import { RoomGrid } from "./room-grid"
 import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
+import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 
@@ -69,6 +71,9 @@ export function RoomsView({
   const {
     rooms,
     folders,
+    folderView,
+    currentFolderId,
+    ancestors,
     view,
     setView,
     sort,
@@ -100,7 +105,13 @@ export function RoomsView({
         data-tauri-drag-region
         className="mx-auto flex w-full max-w-5xl items-center gap-2 px-16"
       >
-        <h1 className="text-2xl font-normal">{title}</h1>
+        {/* All files / a folder reads as a breadcrumb trail; Recents keeps its
+            plain title. */}
+        {folderView ? (
+          <FolderBreadcrumb ancestors={ancestors} />
+        ) : (
+          <h1 className="text-2xl font-normal">{title}</h1>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {showSort && (
             <DropdownMenu>
@@ -184,7 +195,17 @@ export function RoomsView({
             <span className="text-sm">Loading…</span>
           </div>
         ) : rooms.length === 0 && folders.length === 0 ? (
-          <EmptyState onCreate={() => setNewRoomOpen(true)} />
+          // A nested folder with nothing in it reads as "empty", not first-run.
+          folderView && currentFolderId !== null ? (
+            <EmptyState
+              icon={<FolderOpen className="size-5" />}
+              title="This folder is empty"
+              description="Add a folder or a canvas to fill it."
+              onCreate={() => setNewRoomOpen(true)}
+            />
+          ) : (
+            <EmptyState onCreate={() => setNewRoomOpen(true)} />
+          )
         ) : (
           <div className="mx-auto max-w-5xl px-16 pb-4">
             {view === "grid" ? (
@@ -238,7 +259,8 @@ export function RoomsView({
           onSubmit={async (name) => {
             setCreatingFolder(true)
             try {
-              // Created at the root for now; folders don't nest in this slice.
+              // Nests under the folder you're viewing (the provider derives the
+              // parent from the current folder).
               await createFolder(name)
             } finally {
               setCreatingFolder(false)
@@ -250,17 +272,25 @@ export function RoomsView({
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  icon = <LayoutGrid className="size-5" />,
+  title = "Create your first canvas",
+  description = "A canvas is your space to design with live previews.",
+}: {
+  onCreate: () => void
+  icon?: React.ReactNode
+  title?: string
+  description?: string
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <LayoutGrid className="size-5" />
+        {icon}
       </div>
       <div className="space-y-1">
-        <h2 className="text-sm font-medium">Create your first canvas</h2>
-        <p className="text-sm text-muted-foreground">
-          A canvas is your space to design with live previews.
-        </p>
+        <h2 className="text-sm font-medium">{title}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <Button size="sm" onClick={onCreate}>
         <Plus />

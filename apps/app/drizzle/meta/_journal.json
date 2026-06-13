@@ -141,6 +141,13 @@
       "when": 1781379805805,
       "tag": "0019_kind_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781381237762,
+      "tag": "0020_nebulous_hardball",
+      "breakpoints": true
     }
   ]
 }

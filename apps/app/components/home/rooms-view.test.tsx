@@ -19,6 +19,8 @@ const renameFolder = vi.fn<(id: string, name: string) => Promise<void>>()
 vi.mock("@/lib/folders-actions", () => ({
   createFolder: (name: string) => createFolder(name),
   renameFolder: (id: string, name: string) => renameFolder(id, name),
+  listRoomPlacements: vi.fn().mockResolvedValue([]),
+  placeRoom: vi.fn(),
 }))
 vi.mock("@/lib/rooms-actions", () => ({
   createRoom: vi.fn(),
@@ -62,7 +64,13 @@ const folder = (over: Partial<FolderSummary> = {}): FolderSummary => ({
 
 function renderFiles() {
   return render(
-    <HomeProvider initialRooms={[]} initialFolders={[]}>
+    <HomeProvider
+      initialRooms={[]}
+      initialFolders={[]}
+      initialPlacements={[]}
+      folderView
+      currentFolderId={null}
+    >
       <RoomsView title="All files" showFolders />
     </HomeProvider>
   )
@@ -105,7 +113,13 @@ describe("RoomsView — creating a folder", () => {
     renameFolder.mockResolvedValue()
 
     render(
-      <HomeProvider initialRooms={[]} initialFolders={[folder()]}>
+      <HomeProvider
+        initialRooms={[]}
+        initialFolders={[folder()]}
+        initialPlacements={[]}
+        folderView
+        currentFolderId={null}
+      >
         <RoomsView title="All files" showFolders />
       </HomeProvider>
     )
@@ -119,7 +133,9 @@ describe("RoomsView — creating a folder", () => {
     fireEvent.click(await screen.findByText("Rename"))
 
     // The reused InputDialog opens prefilled with the current name.
-    const input = (await screen.findByDisplayValue("Designs")) as HTMLInputElement
+    const input = (await screen.findByDisplayValue(
+      "Designs"
+    )) as HTMLInputElement
     fireEvent.change(input, { target: { value: "Mockups" } })
     fireEvent.submit(input.closest("form")!)
 

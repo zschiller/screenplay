@@ -3,6 +3,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   type AnyPgColumn,
@@ -85,6 +86,36 @@ export const folder = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [index("folder_owner_parent_idx").on(t.ownerId, t.parentFolderId)]
+)
+
+// Per-(user, Room) placement of a Room within the Folder tree (PRD #475). A row
+// says "this user files this Room under this Folder"; the absence of a row means
+// the Room sits at the user's root ("All files"). Keyed by `(userId, roomId)` so
+// placement is per-user — filing a shared Room moves it only in that user's
+// view, never anyone else's. Lives in the core schema half so the local
+// desktop/PGlite build gets placements too (there the single seeded user owns
+// the whole tree). All three FKs cascade: removing the user, the Room, or the
+// Folder clears the placement — a deleted Folder drops its Rooms back to the
+// user's root rather than orphaning them.
+export const roomFolder = pgTable(
+  "room_folder",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    folderId: text("folder_id")
+      .notNull()
+      .references((): AnyPgColumn => folder.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.roomId] }),
+    index("room_folder_user_folder_idx").on(t.userId, t.folderId),
+  ]
 )
 
 // Agent persistence — the ACP-native conversation log and run lifecycle the

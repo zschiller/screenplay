@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { FolderActionMenu } from "./folder-action-menu"
@@ -9,19 +10,22 @@ import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
 
 // Compact folder tiles for the grid view (PRD #475): folder icon + name, no
-// thumbnail, sitting in their own section above the canvas cards. Clicking the
-// tile does nothing yet — navigating into a folder lands in a later slice — but
-// the ⋮ menu can rename it in place (#484).
+// thumbnail, sitting in their own section above the canvas cards. The icon+name
+// is a link that navigates into the folder (`/files/<id>`); the ⋮ menu (a
+// sibling, since an anchor can't wrap a button) renames it in place (#484).
 function FolderCard({ folder }: { folder: FolderSummary }) {
   const { renameFolder } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
 
   return (
     <div className="group flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-foreground/20">
-      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {folder.name}
-      </span>
+      <Link
+        href={`/files/${folder.id}`}
+        className="flex min-w-0 flex-1 items-center gap-2"
+      >
+        <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate text-sm font-medium">{folder.name}</span>
+      </Link>
       <FolderActionMenu onRename={() => setRenameOpen(true)}>
         <Button
           variant="ghost"

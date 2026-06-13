@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  ancestorChain,
   foldersInParent,
+  roomsInFolder,
   sortFolders,
   type FolderNode,
+  type PlacedRoom,
 } from "@/lib/folder-tree"
 
 function folder(
@@ -18,6 +21,21 @@ function folder(
   } = {}
 ): FolderNode & { id: string } {
   return { id: name, name, parentFolderId, createdAt, updatedAt }
+}
+
+function placedRoom(
+  name: string,
+  {
+    folderId = null,
+    createdAt = 0,
+    lastConnectionAt = null,
+  }: {
+    folderId?: string | null
+    createdAt?: number
+    lastConnectionAt?: number | null
+  } = {}
+): PlacedRoom & { id: string } {
+  return { id: name, name, folderId, createdAt, lastConnectionAt }
 }
 
 describe("sortFolders", () => {
@@ -122,5 +140,75 @@ describe("foldersInParent", () => {
   it("is empty for a parent with no children", () => {
     const folders = [folder("alpha"), folder("beta")]
     expect(foldersInParent(folders, "alpha", "name")).toEqual([])
+  })
+})
+
+describe("ancestorChain", () => {
+  // a > b > c, plus an unrelated root.
+  const tree = [
+    folder("a"),
+    folder("b", { parentFolderId: "a" }),
+    folder("c", { parentFolderId: "b" }),
+    folder("other"),
+  ]
+
+  it("is empty at the root", () => {
+    expect(ancestorChain(tree, null)).toEqual([])
+  })
+
+  it("returns a single-element chain for a top-level folder", () => {
+    expect(ancestorChain(tree, "a").map((f) => f.id)).toEqual(["a"])
+  })
+
+  it("walks parentFolderId up to the root, ordered root→current", () => {
+    expect(ancestorChain(tree, "c").map((f) => f.id)).toEqual(["a", "b", "c"])
+  })
+
+  it("ends with the current folder as the last crumb", () => {
+    const chain = ancestorChain(tree, "b")
+    expect(chain.map((f) => f.id)).toEqual(["a", "b"])
+    expect(chain[chain.length - 1]!.id).toBe("b")
+  })
+
+  it("returns an empty chain for an unknown id", () => {
+    expect(ancestorChain(tree, "missing")).toEqual([])
+  })
+
+  it("terminates on a corrupt parent cycle instead of looping", () => {
+    const cyclic = [
+      folder("x", { parentFolderId: "y" }),
+      folder("y", { parentFolderId: "x" }),
+    ]
+    const chain = ancestorChain(cyclic, "x").map((f) => f.id)
+    // Both folders appear once; no infinite loop.
+    expect(chain.sort()).toEqual(["x", "y"])
+  })
+})
+
+describe("roomsInFolder", () => {
+  it("returns only the Rooms filed into the given folder, sorted", () => {
+    const rooms = [
+      placedRoom("root-old", { createdAt: 100 }),
+      placedRoom("in-a-new", { folderId: "a", createdAt: 300 }),
+      placedRoom("in-a-old", { folderId: "a", createdAt: 200 }),
+      placedRoom("in-b", { folderId: "b", createdAt: 400 }),
+    ]
+    const inA = roomsInFolder(rooms, "a", "created").map((r) => r.name)
+    expect(inA).toEqual(["in-a-new", "in-a-old"])
+  })
+
+  it("treats a null folderId as the user's root", () => {
+    const rooms = [
+      placedRoom("root-a", { createdAt: 100 }),
+      placedRoom("filed", { folderId: "a", createdAt: 200 }),
+      placedRoom("root-b", { createdAt: 300 }),
+    ]
+    const atRoot = roomsInFolder(rooms, null, "created").map((r) => r.name)
+    expect(atRoot).toEqual(["root-b", "root-a"])
+  })
+
+  it("is empty for a folder with no Rooms", () => {
+    const rooms = [placedRoom("filed", { folderId: "a" })]
+    expect(roomsInFolder(rooms, "b", "name")).toEqual([])
   })
 })

@@ -6,6 +6,8 @@ import {
   createFolder as createFolderRecord,
   getOwnedFolder,
   listFoldersForUser,
+  listRoomPlacementsForUser,
+  placeRoomInFolder,
   renameFolder as renameFolderRecord,
 } from "@/lib/folders"
 
@@ -75,4 +77,33 @@ export async function listFolders(): Promise<FolderSummary[]> {
   const ownerId = await requireUserId()
   const folders = await listFoldersForUser(ownerId)
   return folders.map(toSummary)
+}
+
+// Where the current user has filed each of their Rooms — a `(roomId, folderId)`
+// list, with Rooms at the user's root simply absent (PRD #475).
+export type RoomPlacementSummary = {
+  roomId: string
+  folderId: string
+}
+
+export async function listRoomPlacements(): Promise<RoomPlacementSummary[]> {
+  const userId = await requireUserId()
+  return listRoomPlacementsForUser(userId)
+}
+
+// File `roomId` under `folderId` for the current user, or drop it back to their
+// root when `folderId` is null. Placement is per-user, so this never changes
+// where a collaborator sees the same Room. A non-null target must be a folder
+// the caller owns, so a stray call can't file a Room under another user's (or a
+// nonexistent) folder.
+export async function placeRoom(
+  roomId: string,
+  folderId: string | null
+): Promise<void> {
+  const userId = await requireUserId()
+  if (folderId !== null) {
+    const owned = await getOwnedFolder(folderId, userId)
+    if (!owned) throw new Error("Folder not found")
+  }
+  await placeRoomInFolder({ userId, roomId, folderId })
 }
