@@ -108,6 +108,22 @@ describe("lib/folders persistence", () => {
     })
     expect(child.parentFolderId).toBe("parent")
   })
+
+  it("re-parents a folder via updateFolderParent", async () => {
+    await seedUsers()
+    const { createFolder, updateFolderParent, getFolder } =
+      await import("./folders")
+
+    await createFolder({ id: "dest", name: "Dest", ownerId: "alice" })
+    await createFolder({ id: "moving", name: "Moving", ownerId: "alice" })
+
+    await updateFolderParent("moving", "dest")
+    expect((await getFolder("moving"))?.parentFolderId).toBe("dest")
+
+    // Null drops it back to the root.
+    await updateFolderParent("moving", null)
+    expect((await getFolder("moving"))?.parentFolderId).toBeNull()
+  })
 })
 
 // Room placement is the per-user filing of a Room into the tree (PRD #483):

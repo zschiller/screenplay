@@ -92,6 +92,20 @@ export async function renameFolder(
     .where(eq(schema.folder.id, folderId))
 }
 
+// Re-parent a folder under `parentFolderId` (null = the "All files" root). The
+// caller (the `moveFolder` action) owns the cycle guard and the owner checks;
+// this is the bare write. Bumps `updatedAt` so the moved folder re-sorts under
+// the "Last edited" key, matching rename.
+export async function updateFolderParent(
+  folderId: string,
+  parentFolderId: string | null
+): Promise<void> {
+  await db
+    .update(schema.folder)
+    .set({ parentFolderId, updatedAt: new Date() })
+    .where(eq(schema.folder.id, folderId))
+}
+
 export async function deleteFolder(folderId: string): Promise<void> {
   // Sub-folders cascade via the self-referencing FK's ON DELETE CASCADE.
   await db.delete(schema.folder).where(eq(schema.folder.id, folderId))

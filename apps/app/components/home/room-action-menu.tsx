@@ -1,6 +1,6 @@
 "use client"
 
-import { LogOut, Pencil, Share2, Trash2 } from "lucide-react"
+import { FolderInput, LogOut, Pencil, Share2, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,13 @@ type Props = {
   /** Opens the delete/leave confirm — the rule resolves which one applies. */
   onDelete: () => void
   onShare: () => void
+  /**
+   * Opens the "Move to…" folder picker. Filing a Room is per-user, so this is
+   * offered to collaborators too, not just the owner — moving a shared Room only
+   * changes where the mover sees it. Omitted outside a folder view (Recents),
+   * where it hides.
+   */
+  onMove?: () => void
 }
 
 export function RoomActionMenu({
@@ -26,6 +33,7 @@ export function RoomActionMenu({
   onRename,
   onDelete,
   onShare,
+  onMove,
 }: Props) {
   return (
     <DropdownMenu>
@@ -44,16 +52,21 @@ export function RoomActionMenu({
             Share
           </DropdownMenuItem>
         )}
-        {room.isOwner && <DropdownMenuSeparator />}
-        {room.isOwner && (
+        {onMove && (
+          <DropdownMenuItem onSelect={onMove}>
+            <FolderInput />
+            Move to…
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        {room.isOwner ? (
           <DropdownMenuItem variant="destructive" onSelect={onDelete}>
             <Trash2 />
             Delete
           </DropdownMenuItem>
-        )}
-        {/* A shared Room the user doesn't own: they leave it rather than
-            destroy it for the owner and other collaborators. */}
-        {!room.isOwner && (
+        ) : (
+          // A shared Room the user doesn't own: they leave it rather than
+          // destroy it for the owner and other collaborators.
           <DropdownMenuItem onSelect={onDelete}>
             <LogOut />
             Leave

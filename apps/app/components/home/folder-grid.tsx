@@ -6,6 +6,7 @@ import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
+import { MoveToDialog } from "./move-to-dialog"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -15,8 +16,15 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // is a link that navigates into the folder (`/files/<id>`); the ⋮ menu (a
 // sibling, since an anchor can't wrap a button) renames it in place (#484).
 function FolderCard({ folder }: { folder: FolderSummary }) {
-  const { renameFolder, previewFolderDeletion, removeFolder } = useHome()
+  const {
+    renameFolder,
+    moveFolder,
+    allFolders,
+    previewFolderDeletion,
+    removeFolder,
+  } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   // Enumerate the cascade only while the confirm is open, from the live tree.
@@ -33,6 +41,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
       </Link>
       <FolderActionMenu
         onRename={() => setRenameOpen(true)}
+        onMove={() => setMoveOpen(true)}
         onDelete={() => setDeleteOpen(true)}
       >
         <Button
@@ -53,6 +62,15 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
         submitLabel="Save"
         submittingLabel="Saving…"
         onSubmit={(name) => renameFolder(folder.id, name)}
+      />
+      <MoveToDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        itemName={folder.name}
+        currentParentId={folder.parentFolderId}
+        movingFolderId={folder.id}
+        folders={allFolders}
+        onMove={(target) => moveFolder(folder.id, target)}
       />
       <DeleteFolderDialog
         open={deleteOpen}

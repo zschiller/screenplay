@@ -2,6 +2,7 @@
 
 import { nanoid } from "nanoid"
 import { requireUserId } from "@/lib/auth-helpers"
+import { canMoveFolder } from "@/lib/folder-tree"
 import {
   createFolder as createFolderRecord,
   deleteFolder as deleteFolderRecord,
@@ -10,6 +11,7 @@ import {
   listRoomPlacementsForUser,
   placeRoomInFolder,
   renameFolder as renameFolderRecord,
+  updateFolderParent,
 } from "@/lib/folders"
 import {
   collectFolderCascade,
@@ -81,6 +83,31 @@ export async function renameFolder(
   if (!folder) throw new Error("Folder not found")
   const trimmed = name.trim() || "Untitled folder"
   await renameFolderRecord(folderId, trimmed)
+}
+
+// Re-parent `folderId` under `parentFolderId` (null = the "All files" root) for
+// the current user. Both the folder and a non-null destination must be folders
+// the caller owns, so a stray call can't move another user's folder or file one
+// under a folder they can't see. The cycle guard (`lib/folder-tree`) rejects a
+// move into the folder itself or any of its descendants, which would orphan a
+// loop out of the tree — the same check the picker uses to disable those
+// targets, enforced here so it holds even if the client is bypassed.
+export async function moveFolder(
+  folderId: string,
+  parentFolderId: string | null
+): Promise<void> {
+  const ownerId = await requireUserId()
+  const folder = await getOwnedFolder(folderId, ownerId)
+  if (!folder) throw new Error("Folder not found")
+  if (parentFolderId !== null) {
+    const target = await getOwnedFolder(parentFolderId, ownerId)
+    if (!target) throw new Error("Folder not found")
+  }
+  const folders = await listFoldersForUser(ownerId)
+  if (!canMoveFolder(folders, folderId, parentFolderId)) {
+    throw new Error("Cannot move a folder into itself or one of its subfolders")
+  }
+  await updateFolderParent(folderId, parentFolderId)
 }
 
 export async function listFolders(): Promise<FolderSummary[]> {

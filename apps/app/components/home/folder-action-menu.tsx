@@ -1,6 +1,6 @@
 "use client"
 
-import { Pencil, Trash2 } from "lucide-react"
+import { FolderInput, Pencil, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,10 +16,17 @@ import {
 type Props = {
   children: React.ReactNode
   onRename: () => void
+  /** Opens the "Move to…" folder picker to re-parent this folder. */
+  onMove: () => void
   onDelete: () => void
 }
 
-export function FolderActionMenu({ children, onRename, onDelete }: Props) {
+export function FolderActionMenu({
+  children,
+  onRename,
+  onMove,
+  onDelete,
+}: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
@@ -27,6 +34,10 @@ export function FolderActionMenu({ children, onRename, onDelete }: Props) {
         <DropdownMenuItem onSelect={onRename}>
           <Pencil />
           Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onMove}>
+          <FolderInput />
+          Move to…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>

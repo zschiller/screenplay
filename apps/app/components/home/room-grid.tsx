@@ -11,6 +11,7 @@ import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
+import { MoveToDialog } from "./move-to-dialog"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
@@ -109,10 +110,18 @@ function ThumbnailComposite({
 }
 
 function RoomCard({ room }: { room: RoomSummary }) {
-  const { renameRoom, removeRoom } = useHome()
+  const {
+    renameRoom,
+    removeRoom,
+    moveRoom,
+    allFolders,
+    folderView,
+    currentFolderId,
+  } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
 
   return (
     <div
@@ -164,6 +173,9 @@ function RoomCard({ room }: { room: RoomSummary }) {
           onRename={() => setRenameOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
+          // Filing only makes sense where there's a folder tree to file into —
+          // the files page, not the flat Recents view.
+          onMove={folderView ? () => setMoveOpen(true) : undefined}
         >
           <Button
             variant="ghost"
@@ -184,6 +196,16 @@ function RoomCard({ room }: { room: RoomSummary }) {
         submitLabel="Save"
         submittingLabel="Saving…"
         onSubmit={(name) => renameRoom(room.id, name)}
+      />
+      {/* In a folder view every Room shown is placed in the folder being viewed,
+          so its current home is `currentFolderId`. */}
+      <MoveToDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        itemName={room.name}
+        currentParentId={currentFolderId}
+        folders={allFolders}
+        onMove={(target) => moveRoom(room.id, target)}
       />
       <DeleteRoomDialog
         open={deleteOpen}

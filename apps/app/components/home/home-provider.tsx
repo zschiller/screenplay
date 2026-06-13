@@ -19,6 +19,7 @@ import {
   createFolder as createFolderAction,
   deleteFolder as deleteFolderAction,
   listRoomPlacements,
+  moveFolder as moveFolderAction,
   placeRoom as placeRoomAction,
   renameFolder as renameFolderAction,
   type FolderSummary,
@@ -57,6 +58,12 @@ type HomeContextValue = {
    * in the flat view (Recents shows no folders).
    */
   folders: FolderSummary[]
+  /**
+   * Every folder the user owns, across all depths — the whole tree, unsorted.
+   * The "Move to…" picker walks this to offer any folder as a destination
+   * (`folders` is only the current level). Empty in the flat view.
+   */
+  allFolders: FolderSummary[]
   /** Whether this provider scopes its contents to a folder (PRD #475). */
   folderView: boolean
   /** The folder being viewed (`null` = the "All files" root). */
@@ -77,6 +84,8 @@ type HomeContextValue = {
   createRoom: (name: string) => Promise<RoomSummary>
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
+  /** File a Room into a folder for this user (null = drop it back to root). */
+  moveRoom: (roomId: string, folderId: string | null) => Promise<void>
   createFolder: (name: string) => Promise<FolderSummary>
   renameFolder: (id: string, name: string) => Promise<void>
   /**
@@ -86,6 +95,8 @@ type HomeContextValue = {
    */
   previewFolderDeletion: (id: string) => FolderCascade
   removeFolder: (id: string) => Promise<void>
+  /** Re-parent a folder (null = move it to the root). */
+  moveFolder: (folderId: string, parentFolderId: string | null) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -244,6 +255,22 @@ export function HomeProvider({
     setPlacements((prev) => prev.filter((p) => p.roomId !== id))
   }, [])
 
+  // File a Room under `folderId` (null = back to root) for this user. Mirrors
+  // the placement bookkeeping `createRoom` does: a non-null target adds/replaces
+  // the local placement row, null drops it — so the Room leaves or joins the
+  // folder on screen without a reload. Per-user, so a shared Room's other
+  // viewers are unaffected.
+  const moveRoom = useCallback(
+    async (roomId: string, folderId: string | null) => {
+      await placeRoomAction(roomId, folderId)
+      setPlacements((prev) => {
+        const rest = prev.filter((p) => p.roomId !== roomId)
+        return folderId === null ? rest : [...rest, { roomId, folderId }]
+      })
+    },
+    []
+  )
+
   const createFolder = useCallback(
     async (name: string) => {
       // New folders nest under the folder you're viewing (root when null).
@@ -301,9 +328,24 @@ export function HomeProvider({
     setPlacements((prev) => prev.filter((p) => !removedFolders.has(p.folderId)))
   }, [])
 
+  // Re-parent a folder (null = root). The server enforces the cycle guard and
+  // owner checks; on success we patch the local parent so the moved folder
+  // leaves the current level — falling out of `foldersInParent` for the view
+  // it left — without a reload.
+  const moveFolder = useCallback(
+    async (folderId: string, parentFolderId: string | null) => {
+      await moveFolderAction(folderId, parentFolderId)
+      setFolders((prev) =>
+        prev.map((f) => (f.id === folderId ? { ...f, parentFolderId } : f))
+      )
+    },
+    []
+  )
+
   const value: HomeContextValue = {
     rooms: sortedRooms,
     folders: sortedFolders,
+    allFolders: folders,
     folderView,
     currentFolderId,
     ancestors,
@@ -317,10 +359,12 @@ export function HomeProvider({
     createRoom,
     renameRoom,
     removeRoom,
+    moveRoom,
     createFolder,
     renameFolder,
     previewFolderDeletion,
     removeFolder,
+    moveFolder,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>

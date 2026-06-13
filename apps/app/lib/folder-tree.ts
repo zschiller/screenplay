@@ -4,6 +4,7 @@ import {
   type SortKey,
   type SortOrder,
 } from "@/lib/room-sort"
+import { descendantFolderIds } from "@/lib/folder-cascade"
 
 // Pure, React-free, DB-free helpers for the Folder tree (PRD #475). They
 // partition a flat folder list by parent, resolve a folder's ancestor chain for
@@ -88,6 +89,27 @@ export function ancestorChain<T extends FolderNode & { id: string }>(
     current = node.parentFolderId
   }
   return chain.reverse()
+}
+
+/**
+ * Whether `folderId` may be re-parented under `targetParentId` (null = the "All
+ * files" root). Moving a folder into itself or any of its own descendants would
+ * splice a cycle out of the tree, so those targets are rejected; every other
+ * target, the root included, is allowed. This is the authoritative cycle guard,
+ * shared by the `moveFolder` server action and the "Move to…" picker (which
+ * disables exactly the targets this rejects). Reuses the cascade's downward
+ * walk — which includes `folderId` itself — so a move into the folder is caught
+ * alongside its descendants.
+ */
+export function canMoveFolder<
+  T extends { id: string; parentFolderId: string | null },
+>(
+  folders: readonly T[],
+  folderId: string,
+  targetParentId: string | null
+): boolean {
+  if (targetParentId === null) return true
+  return !descendantFolderIds(folderId, folders).includes(targetParentId)
 }
 
 /**
