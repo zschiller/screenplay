@@ -29,6 +29,20 @@ _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
 label and `File*` component names — the homescreen lists Rooms, labeled
 "Canvases", and code uses `Room*` identifiers).
 
+**Folder**:
+A user-private container on the homescreen for organizing Rooms into a tree:
+it holds Rooms and other Folders, nests to any depth, and is navigated into
+from the All-files list (with a breadcrumb showing depth). Each user owns their
+own Folders and their own placement of Rooms within them — filing a Room
+affects only that user's view, never a collaborator's — so a shared Room sits
+at each member's own root until they file it. A Room is always a leaf: it sits
+in at most one Folder and never contains sub-Folders.
+_Shown to users as_: "Folder".
+_Avoid_: directory; Group (that's the canvas Iframe Layer Group, a different
+concept); tag/label (a Room lives in one Folder, not many); treating a Folder
+as something a Room contains (the containment runs Folder → Room, never the
+reverse).
+
 **Repo**:
 A GitHub repository configured into a Room — its repo identity, default branch,
 **clone URL or local path**, and run scripts. Holds one or more Branches. Lives
