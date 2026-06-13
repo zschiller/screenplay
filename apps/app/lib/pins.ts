@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, eq } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
-import { appendPosition } from "@/lib/pin-order"
+import { appendPosition, densePositions } from "@/lib/pin-order"
 
 // Server-only CRUD over the `pin` table, mirroring `lib/folders`. Pins are
 // per-user (PRD #507): every query is scoped by `userId`, so one user's pins are
@@ -87,6 +87,39 @@ export async function pinRoom(opts: {
     .returning()
   if (!row) throw new Error("Failed to pin room")
   return toPin(row)
+}
+
+// Persist a user's manual pin ordering. `ordered` is the user's whole pin list
+// in the new display order — each entry a `kind` + `targetId`, the same key the
+// sidebar addresses a pin by — which the pure helper re-packs into dense 0-based
+// `position` values. Because the caller hands back the full array (Framer
+// Motion's `Reorder` returns the entire reordered run), there's no sparse "lazy
+// fallback" to reconcile: every pin gets an explicit position. Room and Folder
+// pins share one position space, so a mixed list reorders freely. Scoped by
+// `userId` and matched on the target column, so a stray key can never move
+// another user's pin, and a Room id can't collide with a Folder pin. Returns the
+// re-read list so the caller reconciles against the persisted order.
+export async function reorderPins(opts: {
+  userId: string
+  ordered: readonly { kind: PinKind; targetId: string }[]
+}): Promise<PinRecord[]> {
+  const positioned = densePositions(
+    opts.ordered.map((p) => `${p.kind}:${p.targetId}`)
+  )
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < opts.ordered.length; i++) {
+      const { kind, targetId } = opts.ordered[i]
+      const targetColumn =
+        kind === "room" ? schema.pin.roomId : schema.pin.folderId
+      await tx
+        .update(schema.pin)
+        .set({ position: positioned[i].position })
+        .where(
+          and(eq(schema.pin.userId, opts.userId), eq(targetColumn, targetId))
+        )
+    }
+  })
+  return listPinsForUser(opts.userId)
 }
 
 // Remove the user's pin for a target. Scoped by `userId`, so a stray call can

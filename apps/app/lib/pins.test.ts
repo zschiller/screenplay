@@ -77,6 +77,72 @@ describe("lib/pins persistence", () => {
     ])
   })
 
+  it("reorders pins into dense positions in the given order", async () => {
+    await seedGraph()
+    const { db, schema } = await import("@/lib/db")
+    const { pinRoom, reorderPins, listPinsForUser } = await import("./pins")
+
+    // Seed a third Room so the reorder has a non-trivial run to re-pack.
+    await db
+      .insert(schema.room)
+      .values({ id: "r3", name: "Third", ownerId: "alice" })
+    await pinRoom({ id: "p1", userId: "alice", roomId: "shared" })
+    await pinRoom({ id: "p2", userId: "alice", roomId: "r2" })
+    await pinRoom({ id: "p3", userId: "alice", roomId: "r3" })
+
+    // Drag the last Room to the front: the whole reordered run comes back, and
+    // the survivors re-pack to dense 0,1,2 in exactly that order.
+    const reordered = await reorderPins({
+      userId: "alice",
+      ordered: [
+        { kind: "room", targetId: "r3" },
+        { kind: "room", targetId: "shared" },
+        { kind: "room", targetId: "r2" },
+      ],
+    })
+    expect(reordered.map((p) => [p.targetId, p.position])).toEqual([
+      ["r3", 0],
+      ["shared", 1],
+      ["r2", 2],
+    ])
+
+    // The new order persists — a fresh fetch reads the same dense run.
+    expect((await listPinsForUser("alice")).map((p) => p.targetId)).toEqual([
+      "r3",
+      "shared",
+      "r2",
+    ])
+  })
+
+  it("reorders only the caller's pins, never another user's", async () => {
+    await seedGraph()
+    const { pinRoom, reorderPins, listPinsForUser } = await import("./pins")
+
+    // Both users pin the same two Rooms; their lists are independent.
+    await pinRoom({ id: "a1", userId: "alice", roomId: "shared" })
+    await pinRoom({ id: "a2", userId: "alice", roomId: "r2" })
+    await pinRoom({ id: "b1", userId: "bob", roomId: "shared" })
+    await pinRoom({ id: "b2", userId: "bob", roomId: "r2" })
+
+    await reorderPins({
+      userId: "alice",
+      ordered: [
+        { kind: "room", targetId: "r2" },
+        { kind: "room", targetId: "shared" },
+      ],
+    })
+
+    // Alice's order flipped; Bob's is untouched.
+    expect((await listPinsForUser("alice")).map((p) => p.targetId)).toEqual([
+      "r2",
+      "shared",
+    ])
+    expect((await listPinsForUser("bob")).map((p) => p.targetId)).toEqual([
+      "shared",
+      "r2",
+    ])
+  })
+
   it("is idempotent: re-pinning a Room returns the existing pin, no duplicate", async () => {
     await seedGraph()
     const { pinRoom, listPinsForUser } = await import("./pins")

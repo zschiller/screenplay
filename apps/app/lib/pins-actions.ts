@@ -5,6 +5,7 @@ import { requireUserId } from "@/lib/auth-helpers"
 import {
   listPinsForUser,
   pinRoom as pinRoomRecord,
+  reorderPins as reorderPinsRecord,
   unpin as unpinRecord,
   type PinKind,
   type PinRecord,
@@ -48,6 +49,19 @@ export async function pinRoom(roomId: string): Promise<PinSummary> {
   const userId = await requireUserId()
   const pin = await pinRoomRecord({ id: nanoid(10), userId, roomId })
   return toSummary(pin)
+}
+
+// Persist the user's drag-chosen pin order. `ordered` is the whole pinned list
+// in its new order — one mixed run of Room and Folder pins — which the
+// persistence layer re-packs to dense `position` values. Scoped to the caller,
+// so it only ever reorders their own pins. Returns the re-read list so the
+// provider reconciles its optimistic update against the persisted order.
+export async function reorderPins(
+  ordered: { kind: PinKind; targetId: string }[]
+): Promise<PinSummary[]> {
+  const userId = await requireUserId()
+  const pins = await reorderPinsRecord({ userId, ordered })
+  return pins.map(toSummary)
 }
 
 // Unpin a target from the current user's sidebar. Scoped to the caller, so it

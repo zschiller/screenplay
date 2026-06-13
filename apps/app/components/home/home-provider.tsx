@@ -28,6 +28,7 @@ import {
 import {
   listPins,
   pinRoom as pinRoomAction,
+  reorderPins as reorderPinsAction,
   unpin as unpinAction,
   type PinSummary,
 } from "@/lib/pins-actions"
@@ -130,6 +131,12 @@ type HomeContextValue = {
   pinRoom: (roomId: string) => Promise<void>
   /** Unpin a target from the sidebar. */
   unpin: (kind: PinKind, targetId: string) => Promise<void>
+  /**
+   * Persist a drag-chosen pin order. `ordered` is the whole pinned list in its
+   * new order (one mixed run of Room and Folder pins); the provider applies it
+   * optimistically, then reconciles with the persisted dense positions.
+   */
+  reorderPins: (ordered: { kind: PinKind; targetId: string }[]) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -431,6 +438,37 @@ export function HomeProvider({
     )
   }, [])
 
+  // Persist a drag-chosen pin order. Mirrors the other pin mutations but
+  // optimistically *first*: Framer Motion's `Reorder` has already painted the
+  // new order, so we reflect it into state immediately (assigning dense
+  // positions by index, the same packing the server runs) rather than waiting
+  // for the round-trip and snapping back. The action returns the persisted list,
+  // which we then reconcile to — authoritative if a concurrent pin/unpin landed.
+  const reorderPins = useCallback(
+    async (ordered: { kind: PinKind; targetId: string }[]) => {
+      setPins((prev) => {
+        const byKey = new Map(
+          prev.map((p) => [`${p.kind}:${p.targetId}`, p] as const)
+        )
+        const next: PinSummary[] = []
+        ordered.forEach((o, index) => {
+          const existing = byKey.get(`${o.kind}:${o.targetId}`)
+          if (existing) next.push({ ...existing, position: index })
+        })
+        // Keep any pins the drag list didn't mention (e.g. one added in a
+        // concurrent action) so the optimistic step never drops a row.
+        const seen = new Set(ordered.map((o) => `${o.kind}:${o.targetId}`))
+        for (const p of prev) {
+          if (!seen.has(`${p.kind}:${p.targetId}`)) next.push(p)
+        }
+        return next
+      })
+      const persisted = await reorderPinsAction(ordered)
+      setPins(persisted)
+    },
+    []
+  )
+
   const isPinned = useCallback(
     (kind: PinKind, id: string) =>
       pins.some((p) => p.kind === kind && p.targetId === id),
@@ -477,6 +515,7 @@ export function HomeProvider({
     folderOfRoom,
     pinRoom,
     unpin,
+    reorderPins,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>
