@@ -11,7 +11,7 @@ import { THUMBNAIL_CAPTURE_COOLDOWN_MS as COOLDOWN_MS } from "@/lib/thumbnail/ca
 export const maxDuration = 60
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
   const { roomId } = await params
@@ -24,6 +24,12 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // The throttled heartbeat carries the dirty subset of frames to recapture
+  // (#474). A missing/invalid body means a full-room capture — the initial and
+  // unmount fires send none — so `frameIds` stays undefined and every ready
+  // frame is captured.
+  const frameIds = await readFrameIds(req)
+
   const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
   if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
     return NextResponse.json({ skipped: true }, { status: 200 })
@@ -35,11 +41,36 @@ export async function POST(
 
   after(async () => {
     try {
-      await captureRoomThumbnail(roomId)
+      await captureRoomThumbnail(roomId, undefined, { frameIds })
     } catch (err) {
       console.error("[thumbnail] capture failed", err)
     }
   })
 
   return NextResponse.json({ queued: true }, { status: 202 })
+}
+
+/**
+ * The dirty subset from the POST body, or `undefined` for a full capture.
+ * Tolerant: an empty body, non-JSON, or a malformed shape all fall back to
+ * `undefined` (full capture) rather than failing the heartbeat. An explicit
+ * empty array is preserved — it means "rebuild the layout, capture nothing".
+ */
+async function readFrameIds(req: Request): Promise<string[] | undefined> {
+  try {
+    const body: unknown = await req.json()
+    if (
+      body &&
+      typeof body === "object" &&
+      "frameIds" in body &&
+      Array.isArray((body as { frameIds: unknown }).frameIds)
+    ) {
+      return (body as { frameIds: unknown[] }).frameIds.filter(
+        (id): id is string => typeof id === "string"
+      )
+    }
+  } catch {
+    // No body / not JSON → full capture.
+  }
+  return undefined
 }

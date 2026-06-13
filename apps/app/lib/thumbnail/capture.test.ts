@@ -314,6 +314,140 @@ describe("captureRoomThumbnail", () => {
     })
   })
 
+  it("captures only the dirty subset, retaining every other frame's prior image", async () => {
+    const png = await fakePng()
+    const capturer: ThumbnailCapturer = { capture: vi.fn(async () => png) }
+
+    // Both frames captured a prior round.
+    const previousManifest: ThumbnailManifest = {
+      version: 2,
+      bounds: { x: 0, y: 0, width: 820, height: 300 },
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-a"),
+          capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
+        },
+        {
+          id: "b",
+          label: "Settings",
+          x: 420,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-b"),
+          capture: { url: "https://blob.example/old/b.webp", capturedAt: 1 },
+        },
+      ],
+    }
+    getRoom.mockResolvedValue({ thumbnailManifest: previousManifest })
+
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+        {
+          id: "b",
+          label: "Settings",
+          previewUrl: "https://b.preview.example/settings",
+          branchKey: "branch-b",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    // Only frame "b" is dirty this round.
+    const manifest = await captureRoomThumbnail("room-1", capturer, {
+      frameIds: ["b"],
+    })
+
+    // The capturer ran once — for the dirty frame only.
+    const captureFn = capturer.capture as ReturnType<typeof vi.fn>
+    expect(captureFn).toHaveBeenCalledTimes(1)
+    expect(captureFn.mock.calls[0]![0]).toBe(
+      "https://b.preview.example/settings"
+    )
+    expect(put).toHaveBeenCalledTimes(1)
+    expect((put.mock.calls[0] as unknown as PutCall)[0]).toBe(
+      "thumbnails/room-1/b.webp"
+    )
+
+    // "a" kept its last-good image; "b" got the fresh capture.
+    expect(manifest.frames[0]!.capture).toEqual({
+      url: "https://blob.example/old/a.webp",
+      capturedAt: 1,
+    })
+    expect(manifest.frames[1]!.capture).toEqual({
+      url: "https://blob.example/thumbnails/room-1/b.webp",
+      capturedAt: NOW,
+    })
+  })
+
+  it("captures nothing for an empty subset but still rebuilds the manifest layout", async () => {
+    const capturer: ThumbnailCapturer = { capture: vi.fn() }
+
+    const previousManifest: ThumbnailManifest = {
+      version: 2,
+      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-a"),
+          capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
+        },
+      ],
+    }
+    getRoom.mockResolvedValue({ thumbnailManifest: previousManifest })
+
+    // The frame moved this round (new rect), but no pixels changed.
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 50, y: 60, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail("room-1", capturer, {
+      frameIds: [],
+    })
+
+    // No browser opened, no blob written — just a manifest rebuild.
+    expect(capturer.capture).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+    expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
+    // The frame's new position is reflected, and it kept its last-good image.
+    expect(manifest.frames[0]!.x).toBe(50)
+    expect(manifest.frames[0]!.y).toBe(60)
+    expect(manifest.frames[0]!.capture).toEqual({
+      url: "https://blob.example/old/a.webp",
+      capturedAt: 1,
+    })
+  })
+
   it("skips a frame whose capture never resolves within the timeout", async () => {
     vi.useFakeTimers()
     // The capturer hangs — a booting preview that never signals ready. The

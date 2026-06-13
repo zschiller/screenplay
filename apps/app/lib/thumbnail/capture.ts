@@ -59,15 +59,29 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * captures. The `sharp` resize, `BlobStore.put`, and Room write are shared across
  * capturers, so a sibling capturer (the desktop Tauri-webview one) stays a
  * drop-in.
+ *
+ * `options.frameIds` bounds the round to a **dirty subset** (#474): when set,
+ * only those frames are screenshotted and every other placed frame keeps its
+ * prior capture through the same retain merge — so a heartbeat fire pays for the
+ * frames that changed, not the whole Room. `undefined` recaptures every ready
+ * frame (the initial/unmount full fires); an empty array captures nothing and
+ * just rebuilds the manifest from the current layout (a moved or renamed frame),
+ * opening no browser at all.
  */
 export async function captureRoomThumbnail(
   roomId: string,
-  capturer: ThumbnailCapturer = thumbnailCapturer
+  capturer: ThumbnailCapturer = thumbnailCapturer,
+  options?: { frameIds?: readonly string[] }
 ): Promise<ThumbnailManifest> {
   const [{ layouts, frames }, previousRoom] = await Promise.all([
     readRoomCaptureLayout(roomId),
     getRoom(roomId),
   ])
+
+  // The dirty subset to recapture this round, or `null` to recapture all. A
+  // frame outside the subset is left uncaptured here and keeps its prior image
+  // via the retain merge below; an empty subset captures nothing at all.
+  const dirtySet = options?.frameIds ? new Set(options.frameIds) : null
 
   // One timestamp for the whole round — every blob written below is current as
   // of this moment, and a shared value keeps the manifest's capture times tidy.
@@ -76,6 +90,7 @@ export async function captureRoomThumbnail(
   for (const frame of frames) {
     const layout = layouts.get(frame.id)
     if (!frame.previewUrl || !layout) continue
+    if (dirtySet && !dirtySet.has(frame.id)) continue
 
     try {
       const pngBuffer = await withTimeout(
