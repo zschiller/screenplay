@@ -1,11 +1,10 @@
 "use client"
 
-import { Pencil, Share2, Trash2 } from "lucide-react"
+import { LogOut, Pencil, Share2, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
@@ -16,6 +15,7 @@ type Props = {
   room: RoomSummary
   children: React.ReactNode
   onRename: () => void
+  /** Opens the delete/leave confirm — the rule resolves which one applies. */
   onDelete: () => void
   onShare: () => void
 }
@@ -51,11 +51,13 @@ export function RoomActionMenu({
             Delete
           </DropdownMenuItem>
         )}
+        {/* A shared Room the user doesn't own: they leave it rather than
+            destroy it for the owner and other collaborators. */}
         {!room.isOwner && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Shared with you</DropdownMenuLabel>
-          </>
+          <DropdownMenuItem onSelect={onDelete}>
+            <LogOut />
+            Leave
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -170,6 +170,27 @@ export async function getMembership(
     role: row.role,
     createdAt: row.createdAt.getTime(),
   }
+}
+
+/**
+ * Member counts for a set of Rooms, keyed by room id (Rooms with no rows are
+ * absent from the map). Drives the shared-aware delete confirm without an
+ * N+1 — one grouped query covers the whole list. Never called on the local
+ * build, which has no `room_member` table.
+ */
+export async function getMemberCounts(
+  roomIds: readonly string[]
+): Promise<Map<string, number>> {
+  if (roomIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      roomId: schema.roomMember.roomId,
+      count: sql<number>`count(*)`,
+    })
+    .from(schema.roomMember)
+    .where(inArray(schema.roomMember.roomId, [...roomIds]))
+    .groupBy(schema.roomMember.roomId)
+  return new Map(rows.map((r) => [r.roomId, Number(r.count)]))
 }
 
 export async function listMembers(roomId: string): Promise<RoomMemberRecord[]> {

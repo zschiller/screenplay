@@ -9,7 +9,13 @@ import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
-import { canAccess, getRoom, touchRoomOpened } from "@/lib/rooms"
+import { isLocalBuild } from "@/lib/local-mode"
+import {
+  canAccess,
+  getMemberCounts,
+  getRoom,
+  touchRoomOpened,
+} from "@/lib/rooms"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
 
@@ -57,10 +63,17 @@ export default async function RoomPage({
   // server's iframe URL is up — making pins look like they were waiting on the
   // iframe and terminal tabs pop in late. Fetched in parallel since they're
   // independent.
-  const [initialThreads, initialTerminalTabs] = await Promise.all([
+  // Member count feeds the shared-aware delete confirm in the breadcrumb menu.
+  // The local build has no `room_member` table and no sharing, so report 0.
+  const [initialThreads, initialTerminalTabs, memberCounts] = await Promise.all([
     listThreads(roomId, userId).catch(() => []),
     listTerminalTabs({ userId, roomId }).catch(() => []),
+    isLocalBuild
+      ? Promise.resolve(new Map<string, number>())
+      : getMemberCounts([roomId]).catch(() => new Map<string, number>()),
   ])
+  const isOwner = room.ownerId === userId
+  const sharedWithCount = Math.max(0, (memberCounts.get(roomId) ?? 1) - 1)
 
   return (
     <YjsRoomProvider
@@ -70,6 +83,8 @@ export default async function RoomPage({
       <Canvas
         roomId={roomId}
         roomName={room.name}
+        isOwner={isOwner}
+        sharedWithCount={sharedWithCount}
         hasThumbnail={!!room.thumbnailManifest}
         initialLayout={initialLayout}
         initialThreads={initialThreads}

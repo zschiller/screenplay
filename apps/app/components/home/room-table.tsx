@@ -91,6 +91,8 @@ function RoomRow({ room }: { room: RoomSummary }) {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         roomName={room.name}
+        isOwner={room.isOwner}
+        sharedWithCount={room.sharedWithCount}
         onConfirm={async () => {
           await removeRoom(room.id)
           setDeleteOpen(false)
