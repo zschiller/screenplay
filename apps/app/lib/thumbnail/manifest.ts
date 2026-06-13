@@ -14,9 +14,15 @@ import { resolveBranchColorIndex } from "@/lib/branch-colors"
  * owns none of the screenshot, storage, or persistence machinery.
  */
 
-/** A stored Frame Capture: the public URL of one Iframe Layer's screenshot. */
+/**
+ * A stored Frame Capture: the public URL of one Iframe Layer's screenshot plus
+ * the moment it was taken. `capturedAt` (ms epoch) both lets the grid cache-bust
+ * a single frame's blob without re-fetching its untouched siblings and tells a
+ * retained capture (carried over from a prior round) apart from a fresh one.
+ */
 export type FrameCapture = {
   url: string
+  capturedAt: number
 }
 
 /**
@@ -94,24 +100,42 @@ function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
 }
 
 /**
- * Build a Thumbnail Manifest from a Canvas Layout snapshot plus a map of Frame
- * Captures keyed by Iframe Layer id. Each Iframe Layer that has a computed
- * layout is placed (rect + label + resolved Branch palette index); a frame whose
- * id is in `captures` carries its capture reference, the rest carry `null` and
- * render as branch-tinted placeholders. Layers with no layout (not in any group)
- * are skipped — there's nowhere to place them.
+ * Build a Thumbnail Manifest from the *current* Canvas Layout snapshot, this
+ * round's fresh Frame Captures, and (optionally) the room's previous manifest —
+ * giving each frame a stable identity keyed by Iframe Layer id across capture
+ * rounds (#470):
+ *
+ * - **Reposition / rename / recolor.** Every placed frame takes its rect, label,
+ *   and resolved Branch palette index from the *current* layout, so a moved,
+ *   resized, renamed, or recolored frame is reflected on its next rebuild —
+ *   independent of whether a new image was captured.
+ * - **Merge.** A frame whose id is in `captures` adopts that fresh capture
+ *   (overwriting only its own image + timestamp); siblings are untouched.
+ * - **Retain last-good.** A frame with no fresh capture this round (booting,
+ *   skipped, or a failed/timed-out capture) keeps the capture it carried in
+ *   `previous`, rather than reverting to a placeholder. It lands captureless —
+ *   a branch-tinted placeholder — only when neither source has an image.
+ * - **Prune.** Frames that were in `previous` but are absent from the current
+ *   layout simply aren't iterated, so they drop out of the rebuilt manifest.
  *
  * The palette index is *resolved here*, at build time, against the Branch info
  * snapshotted off the Y.Doc — so the manifest is decoupled from the live doc and
- * the compositor only re-resolves the index to theme-aware classes.
+ * the compositor only re-resolves the index to theme-aware classes. Layers with
+ * no layout (not in any group) are skipped — there's nowhere to place them.
  *
  * Pure and order-preserving: frames come out in `iframeLayers` order.
  */
 export function buildThumbnailManifest(
   layouts: IframeLayerLayoutMap,
   iframeLayers: readonly ManifestLayer[],
-  captures: ReadonlyMap<string, FrameCapture>
+  captures: ReadonlyMap<string, FrameCapture>,
+  previous: ThumbnailManifest | null = null
 ): ThumbnailManifest {
+  const retained = new Map<string, FrameCapture>()
+  for (const frame of previous?.frames ?? []) {
+    if (frame.capture) retained.set(frame.id, frame.capture)
+  }
+
   const frames: ManifestFrame[] = []
   for (const layer of iframeLayers) {
     const layout = layouts.get(layer.id)
@@ -127,7 +151,7 @@ export function buildThumbnailManifest(
         layer.branchKey === null
           ? null
           : resolveBranchColorIndex(layer.branchKey, layer.branchColorIndex),
-      capture: captures.get(layer.id) ?? null,
+      capture: captures.get(layer.id) ?? retained.get(layer.id) ?? null,
     })
   }
   return { version: 2, bounds: computeBounds(frames), frames }

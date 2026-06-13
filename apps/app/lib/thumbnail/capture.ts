@@ -2,7 +2,7 @@ import "server-only"
 
 import sharp from "sharp"
 import { blobStore } from "@/lib/blob"
-import { setRoomThumbnailManifest } from "@/lib/rooms"
+import { getRoom, setRoomThumbnailManifest } from "@/lib/rooms"
 import {
   buildThumbnailManifest,
   type FrameCapture,
@@ -46,18 +46,32 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  *
  * The round degrades gracefully (#469): a frame with no preview URL, or whose
  * capture times out or throws (a still-booting dev server), is **skipped** — it
- * never blocks the round or fails the whole thumbnail, and lands in the manifest
- * as a branch-tinted placeholder. One frame failing leaves every other frame's
- * capture intact. The `sharp` resize, `BlobStore.put`, and Room write are shared
- * across capturers, so a sibling capturer (the desktop Tauri-webview one) stays
- * a drop-in.
+ * never blocks the round or fails the whole thumbnail. One frame failing leaves
+ * every other frame's capture intact.
+ *
+ * Each Iframe Layer has a stable identity keyed by its id (#470): a frame that
+ * captures this round overwrites only its own image + timestamp, while a frame
+ * that doesn't retains its last-good capture from the previous manifest instead
+ * of reverting to a placeholder — so a transiently booting or failing frame
+ * keeps the screenshot it had. A frame removed from the canvas drops out. The
+ * merge/retain/prune logic lives in {@link buildThumbnailManifest}; here we read
+ * the previous manifest and hand it the current layout + this round's fresh
+ * captures. The `sharp` resize, `BlobStore.put`, and Room write are shared across
+ * capturers, so a sibling capturer (the desktop Tauri-webview one) stays a
+ * drop-in.
  */
 export async function captureRoomThumbnail(
   roomId: string,
   capturer: ThumbnailCapturer = thumbnailCapturer
 ): Promise<ThumbnailManifest> {
-  const { layouts, frames } = await readRoomCaptureLayout(roomId)
+  const [{ layouts, frames }, previousRoom] = await Promise.all([
+    readRoomCaptureLayout(roomId),
+    getRoom(roomId),
+  ])
 
+  // One timestamp for the whole round — every blob written below is current as
+  // of this moment, and a shared value keeps the manifest's capture times tidy.
+  const capturedAt = Date.now()
   const captures = new Map<string, FrameCapture>()
   for (const frame of frames) {
     const layout = layouts.get(frame.id)
@@ -91,7 +105,7 @@ export async function captureRoomThumbnail(
         webp,
         { contentType: "image/webp", cacheControlMaxAge: 60 }
       )
-      captures.set(frame.id, { url })
+      captures.set(frame.id, { url, capturedAt })
     } catch (err) {
       // Skip this frame and keep going: it lands in the manifest captureless
       // (a branch-tinted placeholder) and every other frame's capture survives.
@@ -102,7 +116,12 @@ export async function captureRoomThumbnail(
     }
   }
 
-  const manifest = buildThumbnailManifest(layouts, frames, captures)
+  const manifest = buildThumbnailManifest(
+    layouts,
+    frames,
+    captures,
+    previousRoom?.thumbnailManifest ?? null
+  )
   await setRoomThumbnailManifest(roomId, manifest)
   return manifest
 }
