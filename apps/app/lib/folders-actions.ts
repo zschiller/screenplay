@@ -4,12 +4,22 @@ import { nanoid } from "nanoid"
 import { requireUserId } from "@/lib/auth-helpers"
 import {
   createFolder as createFolderRecord,
+  deleteFolder as deleteFolderRecord,
   getOwnedFolder,
   listFoldersForUser,
   listRoomPlacementsForUser,
   placeRoomInFolder,
   renameFolder as renameFolderRecord,
 } from "@/lib/folders"
+import {
+  collectFolderCascade,
+  descendantFolderIds,
+  type CascadeRoom,
+} from "@/lib/folder-cascade"
+import { decideRoomDeletion } from "@/lib/room-deletion"
+import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
+import { getRoom, listMembers } from "@/lib/rooms"
+import { isLocalBuild } from "@/lib/local-mode"
 
 // Server actions over folders, mirroring `lib/rooms-actions`. Every action gates
 // on `requireUserId` and scopes to that user, so folders stay private per user
@@ -77,6 +87,89 @@ export async function listFolders(): Promise<FolderSummary[]> {
   const ownerId = await requireUserId()
   const folders = await listFoldersForUser(ownerId)
   return folders.map(toSummary)
+}
+
+// What deleting a folder will entail, for the caller's local state cleanup: the
+// folder subtree removed and the Rooms torn down or left. The confirm's counts
+// are derived client-side from the same pure collector, so this returns the ids
+// the UI prunes rather than re-reporting the totals.
+export type FolderDeletionResult = {
+  /** Every Folder removed — the target plus its descendants, any depth. */
+  folderIds: string[]
+  /** Owned Rooms permanently torn down. */
+  teardownRoomIds: string[]
+  /** Shared Rooms the caller left (untouched for everyone else). */
+  leaveRoomIds: string[]
+}
+
+/**
+ * Delete a folder and everything beneath it (PRD #475, #488). The folder and all
+ * sub-folders (any depth) are removed, and each contained Room is resolved by
+ * the **one** Room-deletion rule the single-Room ⋮ delete uses: solely-owned →
+ * hard delete; shared non-owned → the caller leaves. The pure
+ * {@link collectFolderCascade} enumerates the branch from a DB snapshot — never
+ * the client — so a stray call can't tear down Rooms outside the caller's tree.
+ * On the local build there is no sharing, so this is always a clean recursive
+ * delete.
+ */
+export async function deleteFolder(
+  folderId: string
+): Promise<FolderDeletionResult> {
+  const ownerId = await requireUserId()
+  // Owner-scoped lookup gates the delete: a folder the caller doesn't own reads
+  // as not found, so one user can never delete another's tree (PRD #475).
+  const folder = await getOwnedFolder(folderId, ownerId)
+  if (!folder) throw new Error("Folder not found")
+
+  const folders = await listFoldersForUser(ownerId)
+  const branch = new Set(descendantFolderIds(folderId, folders))
+
+  // Only the caller's placements that fall inside the branch can be affected;
+  // resolve each placed Room's membership to the facts the cascade decides from.
+  const placements = await listRoomPlacementsForUser(ownerId)
+  const cascadeRooms: CascadeRoom[] = []
+  for (const placement of placements) {
+    if (!branch.has(placement.folderId)) continue
+    const room = await getRoom(placement.roomId)
+    // A placement to a Room that no longer exists just cascades away with the
+    // folder — nothing to tear down.
+    if (!room) continue
+    // The local build has no `room_member` table: the caller is the sole member
+    // and every Room is a clean hard delete (PRD #404, issue #417).
+    const memberIds = isLocalBuild
+      ? [ownerId]
+      : (await listMembers(placement.roomId)).map((m) => m.userId)
+    const decision = decideRoomDeletion({
+      deleterId: ownerId,
+      ownerId: room.ownerId,
+      memberIds,
+    })
+    cascadeRooms.push({
+      roomId: placement.roomId,
+      folderId: placement.folderId,
+      isOwner: decision.isOwner,
+      sharedWithCount: decision.sharedWithCount,
+    })
+  }
+
+  const cascade = collectFolderCascade(folderId, folders, cascadeRooms)
+
+  // Apply the same per-Room outcome as the single-Room delete, then remove the
+  // folder subtree. Sub-folders and any leftover placements cascade away via the
+  // self-referencing FK, so the single delete clears the whole branch.
+  for (const roomId of cascade.teardownRoomIds) {
+    await teardownRoom(roomId, ownerId)
+  }
+  for (const roomId of cascade.leaveRoomIds) {
+    await leaveRoom(roomId, ownerId)
+  }
+  await deleteFolderRecord(folderId)
+
+  return {
+    folderIds: cascade.folderIds,
+    teardownRoomIds: cascade.teardownRoomIds,
+    leaveRoomIds: cascade.leaveRoomIds,
+  }
 }
 
 // Where the current user has filed each of their Rooms — a `(roomId, folderId)`

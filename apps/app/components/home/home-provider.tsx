@@ -17,6 +17,7 @@ import {
 } from "@/lib/rooms-actions"
 import {
   createFolder as createFolderAction,
+  deleteFolder as deleteFolderAction,
   listRoomPlacements,
   placeRoom as placeRoomAction,
   renameFolder as renameFolderAction,
@@ -29,6 +30,11 @@ import {
   foldersInParent,
   roomsInFolder,
 } from "@/lib/folder-tree"
+import {
+  collectFolderCascade,
+  type CascadeRoom,
+  type FolderCascade,
+} from "@/lib/folder-cascade"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type View = "grid" | "table"
@@ -73,6 +79,13 @@ type HomeContextValue = {
   removeRoom: (id: string) => Promise<void>
   createFolder: (name: string) => Promise<FolderSummary>
   renameFolder: (id: string, name: string) => Promise<void>
+  /**
+   * What deleting a folder would entail — the descendant folders and the
+   * per-Room outcomes — computed purely from the in-memory tree to drive the
+   * delete confirm's counts (PRD #475, #488).
+   */
+  previewFolderDeletion: (id: string) => FolderCascade
+  removeFolder: (id: string) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -250,6 +263,44 @@ export function HomeProvider({
     )
   }, [])
 
+  // The delete cascade over the full in-memory tree: every Room the user can see
+  // carries the same `isOwner`/`sharedWithCount` the deletion rule turns on, so
+  // the confirm's counts come from the very collector the server re-runs. Rooms
+  // at the user's root (no placement) sit in no folder and never join a branch.
+  const previewFolderDeletion = useCallback(
+    (id: string): FolderCascade => {
+      const cascadeRooms: CascadeRoom[] = []
+      for (const room of rooms) {
+        const folderId = placementByRoom.get(room.id)
+        if (folderId === undefined) continue
+        cascadeRooms.push({
+          roomId: room.id,
+          folderId,
+          isOwner: room.isOwner,
+          sharedWithCount: room.sharedWithCount,
+        })
+      }
+      return collectFolderCascade(id, folders, cascadeRooms)
+    },
+    [rooms, folders, placementByRoom]
+  )
+
+  const removeFolder = useCallback(async (id: string) => {
+    const result = await deleteFolderAction(id)
+    // Prune exactly what the server removed: the folder subtree, the Rooms it
+    // tore down, and the Rooms the user left (gone from their view either
+    // way). Placements under any deleted folder cascade away server-side, so
+    // drop those locally too.
+    const removedFolders = new Set(result.folderIds)
+    const removedRooms = new Set([
+      ...result.teardownRoomIds,
+      ...result.leaveRoomIds,
+    ])
+    setFolders((prev) => prev.filter((f) => !removedFolders.has(f.id)))
+    setRooms((prev) => prev.filter((r) => !removedRooms.has(r.id)))
+    setPlacements((prev) => prev.filter((p) => !removedFolders.has(p.folderId)))
+  }, [])
+
   const value: HomeContextValue = {
     rooms: sortedRooms,
     folders: sortedFolders,
@@ -268,6 +319,8 @@ export function HomeProvider({
     removeRoom,
     createFolder,
     renameFolder,
+    previewFolderDeletion,
+    removeFolder,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>

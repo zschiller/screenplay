@@ -234,3 +234,87 @@ describe("lib/folders room placement", () => {
     ])
   })
 })
+
+// The folder cascade's persistence half (#488): deleting a folder removes its
+// whole subtree and clears the placements that hung off it, so the branch is
+// gone in a single delete. (Tearing down the owned Rooms themselves is the
+// server action's job; here we pin the folder + placement cascade the FK gives.)
+describe("lib/folders cascade delete", () => {
+  vi.setConfig({ testTimeout: 30000 })
+
+  beforeEach(() => {
+    vi.resetModules()
+    delete (globalThis as { __screenplayDbHandle?: unknown })
+      .__screenplayDbHandle
+    vi.stubEnv("SCREENPLAY_DB", "pglite")
+    vi.stubEnv("PGLITE_DATA_DIR", "memory://")
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  // A nested tree with Rooms filed at two depths, plus an unrelated sibling
+  // branch the delete must leave alone.
+  //   parent ── child            other
+  async function seedTree() {
+    const { db, dbReady, schema } = await import("@/lib/db")
+    await dbReady
+    await db
+      .insert(schema.user)
+      .values([{ id: "alice", name: "Alice", email: "alice@example.com" }])
+    await db.insert(schema.room).values([
+      { id: "r-parent", name: "In Parent", ownerId: "alice" },
+      { id: "r-child", name: "In Child", ownerId: "alice" },
+      { id: "r-other", name: "Elsewhere", ownerId: "alice" },
+    ])
+    await db.insert(schema.folder).values([
+      { id: "parent", name: "Parent", ownerId: "alice" },
+      {
+        id: "child",
+        name: "Child",
+        ownerId: "alice",
+        parentFolderId: "parent",
+      },
+      { id: "other", name: "Other", ownerId: "alice" },
+    ])
+  }
+
+  it("removes the folder, its sub-folders, and their placements", async () => {
+    await seedTree()
+    const {
+      deleteFolder,
+      listFoldersForUser,
+      placeRoomInFolder,
+      listRoomPlacementsForUser,
+    } = await import("./folders")
+
+    await placeRoomInFolder({
+      userId: "alice",
+      roomId: "r-parent",
+      folderId: "parent",
+    })
+    await placeRoomInFolder({
+      userId: "alice",
+      roomId: "r-child",
+      folderId: "child",
+    })
+    await placeRoomInFolder({
+      userId: "alice",
+      roomId: "r-other",
+      folderId: "other",
+    })
+
+    await deleteFolder("parent")
+
+    // The parent and its child folder are both gone; the sibling survives.
+    expect((await listFoldersForUser("alice")).map((f) => f.id)).toEqual([
+      "other",
+    ])
+    // Placements under the deleted branch cascaded away; the unrelated one
+    // remains.
+    expect(await listRoomPlacementsForUser("alice")).toEqual([
+      { roomId: "r-other", folderId: "other" },
+    ])
+  })
+})

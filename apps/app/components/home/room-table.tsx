@@ -18,6 +18,7 @@ import {
 } from "@workspace/ui/components/table"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
@@ -32,8 +33,12 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // the canvases. Clicking the name navigates into the folder (`/files/<id>`);
 // the ⋮ menu renames it in place (#484).
 function FolderRow({ folder }: { folder: FolderSummary }) {
-  const { renameFolder } = useHome()
+  const { renameFolder, previewFolderDeletion, removeFolder } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  // Enumerate the cascade only while the confirm is open, from the live tree.
+  const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
 
   return (
     <TableRow className="group">
@@ -49,7 +54,10 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       <TableCell />
       <TableCell />
       <TableCell className="w-8 pr-2">
-        <FolderActionMenu onRename={() => setRenameOpen(true)}>
+        <FolderActionMenu
+          onRename={() => setRenameOpen(true)}
+          onDelete={() => setDeleteOpen(true)}
+        >
           <Button
             variant="ghost"
             size="icon-sm"
@@ -69,6 +77,18 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
         submitLabel="Save"
         submittingLabel="Saving…"
         onSubmit={(name) => renameFolder(folder.id, name)}
+      />
+      <DeleteFolderDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        folderName={folder.name}
+        deletedCount={cascade?.deletedCount ?? 0}
+        sharedOwnedCount={cascade?.sharedOwnedCount ?? 0}
+        sharedWithCount={cascade?.sharedWithCount ?? 0}
+        onConfirm={async () => {
+          await removeFolder(folder.id)
+          setDeleteOpen(false)
+        }}
       />
     </TableRow>
   )
