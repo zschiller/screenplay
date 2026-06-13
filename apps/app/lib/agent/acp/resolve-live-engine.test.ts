@@ -32,10 +32,12 @@ import {
 } from "./resolve-live-engine"
 
 describe("acpHarnessFromEnv", () => {
-  it("defaults to claude when unset, empty, or whitespace", () => {
-    expect(acpHarnessFromEnv({})).toBe("claude")
-    expect(acpHarnessFromEnv({ [ACP_HARNESS_ENV_VAR]: "" })).toBe("claude")
-    expect(acpHarnessFromEnv({ [ACP_HARNESS_ENV_VAR]: "  " })).toBe("claude")
+  it("defaults to claude-code when unset, empty, or whitespace", () => {
+    expect(acpHarnessFromEnv({})).toBe("claude-code")
+    expect(acpHarnessFromEnv({ [ACP_HARNESS_ENV_VAR]: "" })).toBe("claude-code")
+    expect(acpHarnessFromEnv({ [ACP_HARNESS_ENV_VAR]: "  " })).toBe(
+      "claude-code"
+    )
   })
 
   it("uses the configured harness key", () => {

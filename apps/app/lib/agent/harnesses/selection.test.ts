@@ -9,6 +9,7 @@ import {
   unconfiguredBannerArgv,
   type Harness,
 } from "@/lib/agent/harnesses"
+import { createHostedResolver } from "@/lib/agent/harnesses/availability"
 
 /**
  * A stub provider whose only behavior relevant to the selection fold is
@@ -156,6 +157,8 @@ describe("buildBrokeredEnv", () => {
     gateEnvVar: "FAKE_API_KEY",
     baseUrlEnv: { name: "FAKE_BASE_URL", value: "https://broker.example/v1" },
     launchArgv: ["fake"],
+    hostBinary: "fake",
+    acpAdapter: null,
     seed: async () => {},
   }
 
@@ -223,5 +226,51 @@ describe("unconfiguredBannerArgv", () => {
     const script = argv[2]!
     expect(script).toContain("SANDBOX_HARNESSES")
     expect(script).toMatch(/exec \$SHELL$/)
+  })
+})
+
+/**
+ * The hosted Harness Availability resolver lifts the same selection fold above
+ * into the backend-aware seam (#476): it must return exactly what `selectHarnesses`
+ * would, each entry carrying an `installed` status, so routing the hosted terminal
+ * picker through the seam doesn't change what it shows. Providers and the
+ * `SANDBOX_HARNESSES` value are injected so the fold is exercised without the
+ * provider graph or the ambient env.
+ */
+describe("createHostedResolver (Harness Availability — hosted fold)", () => {
+  it("lists the installable harnesses, each with installed status", async () => {
+    const resolver = createHostedResolver({
+      sandboxHarnesses: "claude-code,codex",
+      providers: [anthropicConfigured, openaiConfigured],
+    })
+
+    const available = await resolver.list()
+
+    expect(available.map(({ harness }) => harness.key)).toEqual([
+      "claude-code",
+      "codex",
+    ])
+    expect(available.every(({ status }) => status.installed)).toBe(true)
+  })
+
+  it("yields nothing when SANDBOX_HARNESSES is empty (matches selectHarnesses)", async () => {
+    const resolver = createHostedResolver({
+      sandboxHarnesses: "",
+      providers: [anthropicConfigured],
+    })
+
+    expect(await resolver.list()).toEqual([])
+  })
+
+  it("drops a harness whose broker provider isn't configured / brokerable", async () => {
+    const resolver = createHostedResolver({
+      sandboxHarnesses: "claude-code,codex",
+      providers: [anthropicConfigured, openaiUnconfigured],
+    })
+
+    const available = await resolver.list()
+
+    // codex is dropped (OpenAI not brokerable) exactly as the bare fold drops it.
+    expect(available.map(({ harness }) => harness.key)).toEqual(["claude-code"])
   })
 })

@@ -73,5 +73,13 @@ export const claudeCodeHarness: Harness = {
   brokerProviderKey: "anthropic",
   gateEnvVar: "ANTHROPIC_API_KEY",
   launchArgv: ["claude"],
+  // The desktop detector probes `claude` on PATH (the global install exposes it).
+  hostBinary: "claude",
+  // Backs agent chat via the Zed claude-code ACP adapter — rides the CLI's own
+  // login (no model key), per spikes #405/#408.
+  acpAdapter: {
+    command: "npx",
+    args: ["-y", "@zed-industries/claude-code-acp"],
+  },
   seed: seedClaudeCode,
 }

@@ -9,17 +9,18 @@ import { SpawnAcpSessionFactory } from "./spawn-session-factory"
 /**
  * The harness whose ACP adapter backs **agent chat** on the external engine.
  *
- * Distinct from a Terminal Tab's harness (a per-tab, user-picked column): agent
- * chat has no per-chat harness today, so the desktop build names one installed
- * CLI here to drive every chat. The value is an *ACP-adapter* key
- * (`@/lib/agent/harnesses/acp-launch`: `claude`, `codex`), not a terminal
- * catalog key. Default `claude` — the Claude Code adapter, which rides the
- * user's existing login with no model key (PRD #404).
+ * Agent chat has no per-chat harness today, so the desktop build names one
+ * installed CLI here to drive every chat. The value is a Harness **catalog key**
+ * (`claude-code`, `codex`) — the same key that names the Terminal Tab and the
+ * `harness:` model id, since the per-CLI adapter is now folded into the one
+ * descriptor (#476) with no separate adapter-key namespace. Default `claude-code`
+ * — the Claude Code adapter, which rides the user's existing login with no model
+ * key (PRD #404).
  */
 export const ACP_HARNESS_ENV_VAR = "SCREENPLAY_ACP_HARNESS"
-const DEFAULT_ACP_HARNESS = "claude"
+const DEFAULT_ACP_HARNESS = "claude-code"
 
-/** Read the configured ACP harness key, defaulting to `claude`. */
+/** Read the configured ACP harness key, defaulting to `claude-code`. */
 export function acpHarnessFromEnv(
   env: Record<string, string | undefined> = process.env
 ): string {
