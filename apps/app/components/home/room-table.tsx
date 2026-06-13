@@ -20,6 +20,7 @@ import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
+import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
@@ -28,8 +29,12 @@ import type { FolderSummary } from "@/lib/folders-actions"
 
 // Compact folder row (PRD #475): a folder icon + name in the Name column, with
 // the date/owner columns left empty so folders read as a distinct section above
-// the canvases. Clicking does nothing yet.
+// the canvases. Clicking does nothing yet, but the ⋮ menu can rename it in
+// place (#484).
 function FolderRow({ folder }: { folder: FolderSummary }) {
+  const { renameFolder } = useHome()
+  const [renameOpen, setRenameOpen] = useState(false)
+
   return (
     <TableRow className="group">
       <TableCell className="w-full">
@@ -41,7 +46,28 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       <TableCell />
       <TableCell />
       <TableCell />
-      <TableCell className="w-8 pr-2" />
+      <TableCell className="w-8 pr-2">
+        <FolderActionMenu onRename={() => setRenameOpen(true)}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+            aria-label="Folder actions"
+          >
+            <MoreHorizontal />
+          </Button>
+        </FolderActionMenu>
+      </TableCell>
+
+      <InputDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="Rename folder"
+        initialValue={folder.name}
+        submitLabel="Save"
+        submittingLabel="Saving…"
+        onSubmit={(name) => renameFolder(folder.id, name)}
+      />
     </TableRow>
   )
 }

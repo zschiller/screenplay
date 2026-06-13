@@ -15,8 +15,10 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // sandbox and yjs-host stacks at import. Stub them so the import graph stays
 // client-only; the folder-create flow only needs `createFolder`.
 const createFolder = vi.fn<(name: string) => Promise<FolderSummary>>()
+const renameFolder = vi.fn<(id: string, name: string) => Promise<void>>()
 vi.mock("@/lib/folders-actions", () => ({
   createFolder: (name: string) => createFolder(name),
+  renameFolder: (id: string, name: string) => renameFolder(id, name),
 }))
 vi.mock("@/lib/rooms-actions", () => ({
   createRoom: vi.fn(),
@@ -45,6 +47,17 @@ if (!Element.prototype.hasPointerCapture) {
 afterEach(() => {
   cleanup()
   createFolder.mockReset()
+  renameFolder.mockReset()
+})
+
+const folder = (over: Partial<FolderSummary> = {}): FolderSummary => ({
+  id: "f1",
+  name: "Designs",
+  ownerId: "u1",
+  parentFolderId: null,
+  createdAt: 1,
+  updatedAt: 1,
+  ...over,
 })
 
 function renderFiles() {
@@ -86,6 +99,36 @@ describe("RoomsView — creating a folder", () => {
     // …and the new folder shows up in its section above the files.
     expect(await screen.findByText("Designs")).not.toBeNull()
     void dialog
+  })
+
+  it("renames a folder in place from its ⋮ menu", async () => {
+    renameFolder.mockResolvedValue()
+
+    render(
+      <HomeProvider initialRooms={[]} initialFolders={[folder()]}>
+        <RoomsView title="All files" showFolders />
+      </HomeProvider>
+    )
+
+    // Open the folder's action menu and choose Rename. Radix opens its menu on
+    // pointerdown (button 0), not a bare click, so drive it that way.
+    fireEvent.pointerDown(screen.getByLabelText("Folder actions"), {
+      button: 0,
+      ctrlKey: false,
+    })
+    fireEvent.click(await screen.findByText("Rename"))
+
+    // The reused InputDialog opens prefilled with the current name.
+    const input = (await screen.findByDisplayValue("Designs")) as HTMLInputElement
+    fireEvent.change(input, { target: { value: "Mockups" } })
+    fireEvent.submit(input.closest("form")!)
+
+    // The rename runs with the typed name…
+    await waitFor(() =>
+      expect(renameFolder).toHaveBeenCalledWith("f1", "Mockups")
+    )
+    // …and the folder reflects it in the list without a reload.
+    expect(await screen.findByText("Mockups")).not.toBeNull()
   })
 
   it("does not surface 'Add folder' when folders are disabled (Recents)", () => {

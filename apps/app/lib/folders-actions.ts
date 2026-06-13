@@ -4,7 +4,9 @@ import { nanoid } from "nanoid"
 import { requireUserId } from "@/lib/auth-helpers"
 import {
   createFolder as createFolderRecord,
+  getOwnedFolder,
   listFoldersForUser,
+  renameFolder as renameFolderRecord,
 } from "@/lib/folders"
 
 // Server actions over folders, mirroring `lib/rooms-actions`. Every action gates
@@ -54,6 +56,19 @@ export async function createFolder(
     parentFolderId,
   })
   return toSummary(folder)
+}
+
+export async function renameFolder(
+  folderId: string,
+  name: string
+): Promise<void> {
+  const ownerId = await requireUserId()
+  // Owner-scoped lookup gates the rename: a folder the caller doesn't own reads
+  // as not found, so one user can never rename another's folder (PRD #475).
+  const folder = await getOwnedFolder(folderId, ownerId)
+  if (!folder) throw new Error("Folder not found")
+  const trimmed = name.trim() || "Untitled folder"
+  await renameFolderRecord(folderId, trimmed)
 }
 
 export async function listFolders(): Promise<FolderSummary[]> {

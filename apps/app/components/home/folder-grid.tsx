@@ -1,16 +1,47 @@
 "use client"
 
-import { Folder as FolderIcon } from "lucide-react"
+import { useState } from "react"
+import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
+import { FolderActionMenu } from "./folder-action-menu"
+import { InputDialog } from "./input-dialog"
+import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
 
 // Compact folder tiles for the grid view (PRD #475): folder icon + name, no
-// thumbnail, sitting in their own section above the canvas cards. Clicking does
-// nothing yet — navigating into a folder lands in a later slice.
+// thumbnail, sitting in their own section above the canvas cards. Clicking the
+// tile does nothing yet — navigating into a folder lands in a later slice — but
+// the ⋮ menu can rename it in place (#484).
 function FolderCard({ folder }: { folder: FolderSummary }) {
+  const { renameFolder } = useHome()
+  const [renameOpen, setRenameOpen] = useState(false)
+
   return (
     <div className="group flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-foreground/20">
       <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate text-sm font-medium">{folder.name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        {folder.name}
+      </span>
+      <FolderActionMenu onRename={() => setRenameOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+          aria-label="Folder actions"
+        >
+          <MoreHorizontal />
+        </Button>
+      </FolderActionMenu>
+
+      <InputDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="Rename folder"
+        initialValue={folder.name}
+        submitLabel="Save"
+        submittingLabel="Saving…"
+        onSubmit={(name) => renameFolder(folder.id, name)}
+      />
     </div>
   )
 }
