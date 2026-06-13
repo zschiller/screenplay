@@ -27,6 +27,7 @@ import {
 } from "@/lib/folders-actions"
 import {
   listPins,
+  pinFolder as pinFolderAction,
   pinRoom as pinRoomAction,
   reorderPins as reorderPinsAction,
   unpin as unpinAction,
@@ -119,6 +120,12 @@ type HomeContextValue = {
    * row with no stale-state seam.
    */
   roomsById: Map<string, RoomSummary>
+  /**
+   * Every folder the user owns, keyed by id. The pinned sidebar rows read a
+   * Folder's live name through this, so a rename anywhere updates the pinned row
+   * with no stale-state seam — the Folder counterpart of `roomsById`.
+   */
+  foldersById: Map<string, FolderSummary>
   /** Whether the given target is currently pinned — drives the Pin/Unpin toggle. */
   isPinned: (kind: PinKind, id: string) => boolean
   /**
@@ -129,6 +136,11 @@ type HomeContextValue = {
   folderOfRoom: (roomId: string) => string | null
   /** Pin a Room to the sidebar (appends to the end); idempotent. */
   pinRoom: (roomId: string) => Promise<void>
+  /**
+   * Pin a Folder to the sidebar (appends to the end); idempotent. A shortcut,
+   * not a move — the Folder stays where it lives in the tree.
+   */
+  pinFolder: (folderId: string) => Promise<void>
   /** Unpin a target from the sidebar. */
   unpin: (kind: PinKind, targetId: string) => Promise<void>
   /**
@@ -260,6 +272,16 @@ export function HomeProvider({
     for (const room of rooms) map.set(room.id, room)
     return map
   }, [rooms])
+
+  // Every folder the user owns, keyed by id — the live source the pinned sidebar
+  // rows read a Folder's name from, so a rename anywhere flows straight through.
+  // Built from the full `folders` tree (server-seeded on every home route), so a
+  // Folder pin resolves regardless of which folder view is active.
+  const foldersById = useMemo(() => {
+    const map = new Map<string, FolderSummary>()
+    for (const folder of folders) map.set(folder.id, folder)
+    return map
+  }, [folders])
 
   const sortedRooms = useMemo(() => {
     if (!folderView) return sortRooms(rooms, sort, order)
@@ -400,6 +422,16 @@ export function HomeProvider({
     setFolders((prev) => prev.filter((f) => !removedFolders.has(f.id)))
     setRooms((prev) => prev.filter((r) => !removedRooms.has(r.id)))
     setPlacements((prev) => prev.filter((p) => !removedFolders.has(p.folderId)))
+    // Pins for any removed Folder cascade away server-side; drop them locally so
+    // the Pinned section doesn't keep a dangling row. The torn-down Rooms' pins
+    // cascade too — a Room pin survives only if the Room itself does.
+    setPins((prev) =>
+      prev.filter((p) =>
+        p.kind === "folder"
+          ? !removedFolders.has(p.targetId)
+          : !removedRooms.has(p.targetId)
+      )
+    )
   }, [])
 
   // Re-parent a folder (null = root). The server enforces the cycle guard and
@@ -422,6 +454,21 @@ export function HomeProvider({
   // a row. Per-user, so a shared Room's other viewers are unaffected.
   const pinRoom = useCallback(async (roomId: string) => {
     const summary = await pinRoomAction(roomId)
+    setPins((prev) =>
+      prev.some(
+        (p) => p.kind === summary.kind && p.targetId === summary.targetId
+      )
+        ? prev
+        : [...prev, summary]
+    )
+  }, [])
+
+  // Pin a Folder to the sidebar — the Folder counterpart of `pinRoom`. The
+  // server append is idempotent, so a double-pin reconciles to the one pin the
+  // action returns rather than stacking a row. A shortcut, not a move: the
+  // Folder's placement in the tree is untouched.
+  const pinFolder = useCallback(async (folderId: string) => {
+    const summary = await pinFolderAction(folderId)
     setPins((prev) =>
       prev.some(
         (p) => p.kind === summary.kind && p.targetId === summary.targetId
@@ -511,9 +558,11 @@ export function HomeProvider({
     moveFolder,
     pins: sortedPins,
     roomsById,
+    foldersById,
     isPinned,
     folderOfRoom,
     pinRoom,
+    pinFolder,
     unpin,
     reorderPins,
   }

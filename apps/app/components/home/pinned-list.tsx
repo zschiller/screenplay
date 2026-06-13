@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { FileText, MoreHorizontal } from "lucide-react"
+import { FileText, Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Reorder } from "motion/react"
 import {
   SidebarGroup,
@@ -12,24 +12,31 @@ import {
   SidebarMenuButton,
 } from "@workspace/ui/components/sidebar"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { PinKind } from "@/lib/pins"
+import type { FolderSummary } from "@/lib/folders-actions"
 import { useHome } from "./home-provider"
 import { RoomActionMenu } from "./room-action-menu"
+import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
 
 /**
  * The home sidebar's "Pinned" section (PRD #507): the user's pinned items as
- * quick-access rows, one click from the Canvas they point at. Rendered below the
- * Recents / All files / Settings nav and hidden entirely when nothing is pinned.
+ * quick-access rows, one click from the Canvas or Folder they point at. Rendered
+ * below the Recents / All files / Settings nav and hidden entirely when nothing
+ * is pinned.
  *
- * The rows read their target from the lifted store's live `roomsById`, so a
- * rename or delete anywhere flows straight through — there's no second copy of
- * the Room's name to drift. This first slice only pins Rooms; the Folder slice
- * extends the same list with folder rows.
+ * Rows render in pin order (the provider sorts `pins` by position), interleaving
+ * Canvas and Folder pins so a newly pinned item lands at the end regardless of
+ * kind. Each row reads its target from the lifted store's live `roomsById` /
+ * `foldersById`, so a rename or delete anywhere flows straight through — there's
+ * no second copy of the name to drift. Pins whose target isn't in the store
+ * (just deleted, or not yet loaded) are skipped so a dangling pin never paints
+ * an empty row.
  *
  * The list is drag-reorderable via Framer Motion's `Reorder` (PRD #513),
  * following the reorderable-tabs pattern in `components/agent/chat-panel.tsx` —
@@ -37,8 +44,8 @@ import { MoveToDialog } from "./move-to-dialog"
  * the whole reordered run, which `reorderPins` persists as dense `position`
  * values; Room and Folder pins share one position space, so a mixed list
  * reorders freely. The key for each row is `kind:targetId` (a pin is addressed
- * by its target, never its server-side row id), so folder rows slot into the
- * same group unchanged once the Folder slice lands.
+ * by its target, never its server-side row id), so Canvas and Folder rows slot
+ * into the same group.
  */
 
 /** A pin's stable drag key — its target, the same key the provider reorders by. */
@@ -47,22 +54,27 @@ function pinKey(kind: PinKind, targetId: string): string {
 }
 
 export function PinnedList() {
-  const { pins, roomsById, reorderPins } = useHome()
+  const { pins, roomsById, foldersById, reorderPins } = useHome()
 
   // Resolve each pin to a renderable row, dropping any whose target isn't in the
   // store (just deleted, or not yet loaded) so a dangling pin never paints an
-  // empty row. This first slice only renders Room pins; folder rows extend the
-  // same resolved list. The resolved order is what the Reorder group drags over,
-  // so its `values` and its rendered items stay in lockstep.
+  // empty row. Canvas and Folder pins interleave in pin order. The resolved
+  // order is what the Reorder group drags over, so its `values` and its rendered
+  // items stay in lockstep.
   const renderable = pins
     .map((p) => {
       if (p.kind === "room") {
         const room = roomsById.get(p.targetId)
-        return room ? { key: pinKey("room", p.targetId), room } : null
+        return room
+          ? { key: pinKey("room", p.targetId), kind: "room" as const, room }
+          : null
       }
-      return null
+      const folder = foldersById.get(p.targetId)
+      return folder
+        ? { key: pinKey("folder", p.targetId), kind: "folder" as const, folder }
+        : null
     })
-    .filter((r): r is { key: string; room: RoomSummary } => r !== null)
+    .filter((r): r is NonNullable<typeof r> => r !== null)
 
   if (renderable.length === 0) return null
 
@@ -93,9 +105,17 @@ export function PinnedList() {
           data-sidebar="menu"
           className="flex w-full min-w-0 flex-col gap-0"
         >
-          {renderable.map(({ key, room }) => (
-            <PinnedRoomRow key={key} dragKey={key} room={room} />
-          ))}
+          {renderable.map((row) =>
+            row.kind === "room" ? (
+              <PinnedRoomRow key={row.key} dragKey={row.key} room={row.room} />
+            ) : (
+              <PinnedFolderRow
+                key={row.key}
+                dragKey={row.key}
+                folder={row.folder}
+              />
+            )
+          )}
         </Reorder.Group>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -202,6 +222,96 @@ function PinnedRoomRow({
           roomName={room.name}
         />
       )}
+    </Reorder.Item>
+  )
+}
+
+function PinnedFolderRow({
+  dragKey,
+  folder,
+}: {
+  dragKey: string
+  folder: FolderSummary
+}) {
+  const {
+    renameFolder,
+    moveFolder,
+    allFolders,
+    previewFolderDeletion,
+    removeFolder,
+    unpin,
+  } = useHome()
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  // Enumerate the cascade only while the confirm is open, from the live tree.
+  const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
+
+  return (
+    // A draggable pinned row, mirroring `PinnedRoomRow`. `Reorder.Item` runs the
+    // drag/layout gesture and distinguishes a drag from a click by movement, so
+    // the Link still navigates on a plain click while a drag reorders.
+    <Reorder.Item
+      value={dragKey}
+      as="li"
+      data-slot="sidebar-menu-item"
+      data-sidebar="menu-item"
+      className="group/menu-item relative cursor-grab active:cursor-grabbing"
+    >
+      <SidebarMenuButton asChild>
+        {/* A Folder pin is a shortcut to the folder's page; clicking lands in
+            its contents (`/files/<id>`). It never moves the folder. */}
+        <Link href={`/files/${folder.id}`} draggable={false}>
+          <FolderIcon />
+          <span className="truncate">{folder.name}</span>
+        </Link>
+      </SidebarMenuButton>
+      {/* The identical full folder-action-menu the grid tile uses — rename /
+          move / delete / unpin all act on the lifted store, so edits made here
+          update the grid behind the sidebar with no stale-state seam. */}
+      <FolderActionMenu
+        onRename={() => setRenameOpen(true)}
+        onMove={() => setMoveOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
+        pinned
+        onTogglePin={() => unpin("folder", folder.id)}
+      >
+        <SidebarMenuAction showOnHover aria-label="Folder actions">
+          <MoreHorizontal />
+        </SidebarMenuAction>
+      </FolderActionMenu>
+
+      <InputDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="Rename folder"
+        initialValue={folder.name}
+        submitLabel="Save"
+        submittingLabel="Saving…"
+        onSubmit={(name) => renameFolder(folder.id, name)}
+      />
+      <MoveToDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        itemName={folder.name}
+        currentParentId={folder.parentFolderId}
+        movingFolderId={folder.id}
+        folders={allFolders}
+        onMove={(target) => moveFolder(folder.id, target)}
+      />
+      <DeleteFolderDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        folderName={folder.name}
+        deletedCount={cascade?.deletedCount ?? 0}
+        sharedOwnedCount={cascade?.sharedOwnedCount ?? 0}
+        sharedWithCount={cascade?.sharedWithCount ?? 0}
+        onConfirm={async () => {
+          await removeFolder(folder.id)
+          setDeleteOpen(false)
+        }}
+      />
     </Reorder.Item>
   )
 }

@@ -29,8 +29,8 @@ describe("lib/pins persistence", () => {
     vi.unstubAllEnvs()
   })
 
-  // A pin row's user + room FKs both have to resolve, so seed two users and a
-  // couple of Rooms (one shared, owned by Alice).
+  // A pin row's user + target FKs both have to resolve, so seed two users, a
+  // couple of Rooms (one shared, owned by Alice), and a couple of Folders.
   async function seedGraph() {
     const { db, dbReady, schema } = await import("@/lib/db")
     await dbReady
@@ -41,6 +41,10 @@ describe("lib/pins persistence", () => {
     await db.insert(schema.room).values([
       { id: "shared", name: "Shared", ownerId: "alice" },
       { id: "r2", name: "Second", ownerId: "alice" },
+    ])
+    await db.insert(schema.folder).values([
+      { id: "f1", name: "Designs", ownerId: "alice" },
+      { id: "f2", name: "Archive", ownerId: "alice" },
     ])
   }
 
@@ -200,5 +204,112 @@ describe("lib/pins persistence", () => {
     expect((await listPinsForUser("alice")).map((p) => p.targetId)).toEqual([
       "r2",
     ])
+  })
+
+  it("round-trips a pinned Folder with kind 'folder'", async () => {
+    await seedGraph()
+    const { pinFolder, listPinsForUser } = await import("./pins")
+
+    const pin = await pinFolder({ id: "p1", userId: "alice", folderId: "f1" })
+    expect(pin).toMatchObject({
+      id: "p1",
+      userId: "alice",
+      kind: "folder",
+      targetId: "f1",
+      position: 0,
+    })
+
+    expect(await listPinsForUser("alice")).toMatchObject([
+      { kind: "folder", targetId: "f1", position: 0 },
+    ])
+  })
+
+  it("appends a Folder pin after existing pins, regardless of kind", async () => {
+    await seedGraph()
+    const { pinRoom, pinFolder, listPinsForUser } = await import("./pins")
+
+    // A Room pin then a Folder pin: the Folder lands at the end of the one list,
+    // not in a separate per-kind sequence.
+    await pinRoom({ id: "p1", userId: "alice", roomId: "shared" })
+    const folderPin = await pinFolder({
+      id: "p2",
+      userId: "alice",
+      folderId: "f1",
+    })
+
+    expect(folderPin.position).toBe(1)
+    expect(
+      (await listPinsForUser("alice")).map((p) => `${p.kind}:${p.targetId}`)
+    ).toEqual(["room:shared", "folder:f1"])
+  })
+
+  it("is idempotent: re-pinning a Folder returns the existing pin, no duplicate", async () => {
+    await seedGraph()
+    const { pinFolder, listPinsForUser } = await import("./pins")
+
+    const first = await pinFolder({ id: "p1", userId: "alice", folderId: "f1" })
+    const again = await pinFolder({ id: "p2", userId: "alice", folderId: "f1" })
+
+    expect(again).toEqual(first)
+    expect(await listPinsForUser("alice")).toHaveLength(1)
+  })
+
+  it("keeps Folder pins private and unpins one owner-scoped", async () => {
+    await seedGraph()
+    const { db, schema } = await import("@/lib/db")
+    const { pinFolder, unpin, listPinsForUser } = await import("./pins")
+    // Bob owns his own folder so the FK resolves; pins are per-user either way.
+    await db
+      .insert(schema.folder)
+      .values({ id: "fb", name: "Bob's", ownerId: "bob" })
+
+    await pinFolder({ id: "pa", userId: "alice", folderId: "f1" })
+    await pinFolder({ id: "pb", userId: "bob", folderId: "fb" })
+
+    // Unpinning as Bob only clears Bob's pin — Alice's survives, scoped by user.
+    await unpin({ userId: "bob", kind: "folder", targetId: "fb" })
+    expect(await listPinsForUser("alice")).toMatchObject([{ targetId: "f1" }])
+    expect(await listPinsForUser("bob")).toEqual([])
+  })
+
+  it("drops a Folder's pin via cascade when the Folder is deleted", async () => {
+    await seedGraph()
+    const { db, schema } = await import("@/lib/db")
+    const { pinFolder, listPinsForUser } = await import("./pins")
+
+    await pinFolder({ id: "p1", userId: "alice", folderId: "f1" })
+    await pinFolder({ id: "p2", userId: "alice", folderId: "f2" })
+
+    // Deleting the Folder cascades its pin away — no orphan-cleanup logic.
+    await db.delete(schema.folder).where(eq(schema.folder.id, "f1"))
+
+    expect((await listPinsForUser("alice")).map((p) => p.targetId)).toEqual([
+      "f2",
+    ])
+  })
+
+  it("rejects a pin row with both targets set or neither (exactly-one CHECK)", async () => {
+    await seedGraph()
+    const { db, schema } = await import("@/lib/db")
+
+    // Both a Room and a Folder target: the CHECK requires exactly one.
+    await expect(
+      db.insert(schema.pin).values({
+        id: "both",
+        userId: "alice",
+        roomId: "shared",
+        folderId: "f1",
+        position: 0,
+      })
+    ).rejects.toThrow()
+
+    // Neither target: a pin must point at something.
+    await expect(
+      db.insert(schema.pin).values({
+        id: "neither",
+        userId: "alice",
+        position: 0,
+      })
+    ).rejects.toThrow()
   })
 })

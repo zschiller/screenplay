@@ -42,7 +42,11 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
     allFolders,
     previewFolderDeletion,
     removeFolder,
+    isPinned,
+    pinFolder,
+    unpin,
   } = useHome()
+  const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -79,6 +83,10 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
           onRename={() => setRenameOpen(true)}
           onMove={() => setMoveOpen(true)}
           onDelete={() => setDeleteOpen(true)}
+          pinned={pinned}
+          onTogglePin={() =>
+            pinned ? unpin("folder", folder.id) : pinFolder(folder.id)
+          }
         >
           <Button
             variant="ghost"
