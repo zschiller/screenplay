@@ -1,10 +1,34 @@
 import { describe, expect, it, vi } from "vitest"
 
+import type { ModelProvider } from "@/lib/agent/providers"
 import {
   createDesktopResolver,
+  createHostedResolver,
   filterByCapability,
+  resolveTerminalLaunch,
 } from "@/lib/agent/harnesses/availability"
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
+
+/**
+ * A stub provider whose only fold-relevant behavior is `egress()` (configured +
+ * header-brokerable ⇒ non-null), so the hosted resolver lists its harness.
+ * Mirrors the stub in `selection.test.ts`.
+ */
+function brokerableProvider(key: string): ModelProvider {
+  return {
+    key,
+    label: key,
+    isConfigured: () => true,
+    listModels: async () => [],
+    resolve: () => {
+      throw new Error("stub provider: resolve should not be called")
+    },
+    egress: () => ({
+      host: `api.${key}.com`,
+      headers: { "x-api-key": "real" },
+    }),
+  }
+}
 
 /**
  * The desktop Harness Availability resolver detects installed CLIs by probing
@@ -108,5 +132,61 @@ describe("filterByCapability", () => {
   it("preserves order and is a no-op for terminal on an empty list", () => {
     expect(filterByCapability([], "terminal")).toEqual([])
     expect(filterByCapability([], "chat")).toEqual([])
+  })
+})
+
+describe("resolveTerminalLaunch (terminal launch payload from the seam)", () => {
+  it("resolves a picked harness key against the desktop-detected harnesses → its wrapped launch argv", async () => {
+    // The desktop resolver detects `claude` on the host PATH; the tab's picked
+    // key resolves to that CLI's launch command, wrapped so Ctrl-D drops to a
+    // shell — the CLI runs on the user's own login (no broker, no API key).
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["claude"]),
+    }).list()
+
+    const { harnesses, launchArgv } = resolveTerminalLaunch(
+      "claude-code",
+      available
+    )
+
+    expect(harnesses).toEqual([{ key: "claude-code", label: "Claude Code" }])
+    expect(launchArgv).toEqual(["sh", "-c", "claude; exec $SHELL"])
+  })
+
+  it("routes both backends through the seam — the same picked key resolves identically off either resolver", async () => {
+    // Hosted: SANDBOX_HARNESSES ∩ broker-egress lists claude-code.
+    const hosted = await createHostedResolver({
+      sandboxHarnesses: "claude-code",
+      providers: [brokerableProvider("anthropic")],
+    }).list()
+    // Desktop: a detected `claude` host binary lists the same harness.
+    const desktop = await createDesktopResolver({
+      probe: fakeProbe(["claude"]),
+    }).list()
+
+    // The picked key resolves to the same launch payload regardless of which
+    // backend's resolver produced the availability list — one fold, many
+    // backends.
+    const fromHosted = resolveTerminalLaunch("claude-code", hosted)
+    const fromDesktop = resolveTerminalLaunch("claude-code", desktop)
+
+    expect(fromHosted).toEqual(fromDesktop)
+    expect(fromHosted.launchArgv).toEqual(["sh", "-c", "claude; exec $SHELL"])
+  })
+
+  it("opens a plain shell (empty argv) for a tab with no harness key", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["claude"]),
+    }).list()
+
+    expect(resolveTerminalLaunch(undefined, available).launchArgv).toEqual([])
+    expect(resolveTerminalLaunch(null, available).launchArgv).toEqual([])
+  })
+
+  it("opens a plain shell (empty argv + empty menu) when nothing is available", () => {
+    const { harnesses, launchArgv } = resolveTerminalLaunch("claude-code", [])
+
+    expect(harnesses).toEqual([])
+    expect(launchArgv).toEqual([])
   })
 })

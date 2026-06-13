@@ -216,15 +216,32 @@ describe("resolveLaunchArgv", () => {
 })
 
 describe("unconfiguredBannerArgv", () => {
-  it("wraps a SANDBOX_HARNESSES banner around a login shell (exec $SHELL)", () => {
-    const argv = unconfiguredBannerArgv()
+  it("wraps a SANDBOX_HARNESSES banner around a login shell (exec $SHELL) on the hosted backend", () => {
+    // Hosted is the default; an explicit "hosted" must read the same.
+    for (const argv of [
+      unconfiguredBannerArgv(),
+      unconfiguredBannerArgv("hosted"),
+    ]) {
+      // Wrapped like the harness launch so the operator lands in a normal shell
+      // after the banner prints.
+      expect(argv[0]).toBe("sh")
+      expect(argv[1]).toBe("-c")
+      const script = argv[2]!
+      expect(script).toContain("SANDBOX_HARNESSES")
+      expect(script).toMatch(/exec \$SHELL$/)
+    }
+  })
 
-    // Wrapped like the harness launch so the operator lands in a normal shell
-    // after the banner prints.
+  it("points the desktop banner at installing a CLI, not SANDBOX_HARNESSES", () => {
+    const argv = unconfiguredBannerArgv("desktop")
+
     expect(argv[0]).toBe("sh")
     expect(argv[1]).toBe("-c")
     const script = argv[2]!
-    expect(script).toContain("SANDBOX_HARNESSES")
+    // Desktop detects a host CLI — no env, no install — so its guidance points at
+    // installing one (managed from Settings), never at SANDBOX_HARNESSES.
+    expect(script).not.toContain("SANDBOX_HARNESSES")
+    expect(script).toContain("Settings")
     expect(script).toMatch(/exec \$SHELL$/)
   })
 })

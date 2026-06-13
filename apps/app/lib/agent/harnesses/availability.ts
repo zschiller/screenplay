@@ -2,7 +2,7 @@ import "server-only"
 
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import type { ModelProvider } from "@/lib/agent/providers"
-import { HARNESSES, selectHarnesses } from "./index"
+import { HARNESSES, resolveLaunchArgv, selectHarnesses } from "./index"
 import {
   defaultHostBinaryProber,
   detectInstalledHarnessKeys,
@@ -71,6 +71,44 @@ export function filterByCapability(
 ): AvailableHarness[] {
   if (capability === "terminal") return available
   return available.filter(({ harness }) => harness.acpAdapter !== null)
+}
+
+/** A terminal tab's launch payload: the new-tab menu + the picked key's argv. */
+export interface TerminalLaunch {
+  /** The new-tab picker menu — one `{ key, label }` per available harness. */
+  harnesses: { key: string; label: string }[]
+  /**
+   * Launch argv for the tab's stored `harnessKey`, resolved against the available
+   * harnesses (`[]` when the tab has no/unknown key — a plain shell). Wrapped so
+   * Ctrl-D drops to a shell, per {@link resolveLaunchArgv}.
+   */
+  launchArgv: string[]
+}
+
+/**
+ * Fold an availability list (the Harness Availability seam's answer for this
+ * backend) + a tab's picked `harnessKey` → its terminal launch payload: the menu
+ * the new-tab picker draws and the launch argv that drops the tab into the chosen
+ * CLI. Both `/api/terminal/url` backend branches call this, so the desktop tab
+ * resolves its argv from the picked key exactly as the hosted tab does — the only
+ * per-backend difference is which resolver produced `available`, and the
+ * empty-state banner the caller layers on when nothing is available. Pure;
+ * preserves the list's order.
+ */
+export function resolveTerminalLaunch(
+  harnessKey: string | null | undefined,
+  available: AvailableHarness[]
+): TerminalLaunch {
+  return {
+    harnesses: available.map(({ harness }) => ({
+      key: harness.key,
+      label: harness.label,
+    })),
+    launchArgv: resolveLaunchArgv(
+      harnessKey,
+      available.map(({ harness }) => harness)
+    ),
+  }
 }
 
 /**

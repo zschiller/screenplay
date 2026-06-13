@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server"
 import { getCurrentSession } from "@/lib/auth-helpers"
+import { parseHarnessKeys, unconfiguredBannerArgv } from "@/lib/agent/harnesses"
 import {
-  parseHarnessKeys,
-  resolveLaunchArgv,
-  selectHarnesses,
-  unconfiguredBannerArgv,
-} from "@/lib/agent/harnesses"
-import { getModelProviders } from "@/lib/agent/providers"
+  filterByCapability,
+  harnessAvailability,
+  resolveTerminalLaunch,
+} from "@/lib/agent/harnesses/availability"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { issueTerminalCredential } from "@/lib/sandbox/terminal-credential"
 import { ensureTerminal } from "@/lib/sandbox/terminal"
@@ -80,21 +79,46 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // The harnesses this deployment can launch, read through the backend-aware
+  // Harness Availability seam (#476) — the same fold the new-tab picker draws
+  // from (`/api/terminal/harnesses`), so the menu and the tab agree on both
+  // backends. The terminal surface needs only presence, so it filters on the
+  // `"terminal"` capability (every available harness, none dropped for lacking an
+  // ACP adapter). `harnesses` (key + label) is the menu payload returned
+  // alongside the URL; `launchArgv` is the resolved launch command for *this*
+  // tab's stored `harnessKey`, wrapped so Ctrl-D drops to a shell. An empty argv
+  // (no/unknown key, or a harness no longer available) means a plain shell.
+  const available = filterByCapability(
+    await harnessAvailability.list(),
+    "terminal"
+  )
+  const { harnesses, launchArgv } = resolveTerminalLaunch(harnessKey, available)
+
   // Desktop build: there is no remote VM or ttyd daemon — the terminal is a
   // node-pty process in the sidecar, reached over a localhost WebSocket
   // (`lib/terminal/local/`). Hand back that server's `ws` origin with the target
-  // sandbox; the unchanged client appends its session key + the (empty, this
-  // slice) launch argv as the wire protocol's `?arg=`s, exactly as it did for
-  // ttyd. No `domain(port)` bearer link, no fetched tmux. The dynamic import
-  // keeps node-pty/`ws` out of the hosted build's graph.
+  // sandbox; the unchanged client appends its session key + the resolved launch
+  // argv as the wire protocol's `?arg=`s, exactly as it did for ttyd. The
+  // node-pty transport already strips provider API keys from the interactive
+  // shell, so the chosen CLI runs on the user's own login, not an API key. No
+  // `domain(port)` bearer link, no fetched tmux. The dynamic import keeps
+  // node-pty/`ws` out of the hosted build's graph.
   if (isLocalSandboxBackend()) {
-    const { ensureLocalTerminalServer } = await import(
-      "@/lib/terminal/local/server"
-    )
+    const { ensureLocalTerminalServer } =
+      await import("@/lib/terminal/local/server")
     const { port } = await ensureLocalTerminalServer()
     const url = `http://localhost:${port}/?sandbox=${encodeURIComponent(sandboxName)}`
+    // Nothing detected on the host → a tab that would open a bare shell instead
+    // shows a banner pointing at installing a CLI (the deferred homescreen
+    // Settings surface), so an empty desktop explains itself rather than
+    // presenting a silent blank shell. A tab whose harness launches never shows
+    // it.
+    const desktopArgv =
+      launchArgv.length === 0 && available.length === 0
+        ? unconfiguredBannerArgv("desktop")
+        : launchArgv
     return NextResponse.json(
-      { url, ...credential, harnesses: [], launchArgv: [] },
+      { url, ...credential, harnesses, launchArgv: desktopArgv },
       { status: 200 }
     )
   }
@@ -104,33 +128,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
 
-  // The harnesses actually installed in this sandbox — the same selection fold
-  // provisioning runs over `SANDBOX_HARNESSES` + the configured providers. The
-  // `harnesses` list (key + label) is the menu a future picker draws from;
-  // `launchArgv` is the resolved launch command for *this* tab's stored
-  // `harnessKey`, wrapped so Ctrl-D drops to a shell. An empty argv (no/unknown
-  // key, or a harness no longer installed) means the tab opens a plain shell.
-  const sandboxHarnesses = process.env.SANDBOX_HARNESSES
-  const installable = selectHarnesses(
-    sandboxHarnesses,
-    getModelProviders()
-  ).installable
-  const harnesses = installable.map((h) => ({ key: h.key, label: h.label }))
   // When nothing is configured at all (SANDBOX_HARNESSES unset/empty), a tab that
   // would open a bare shell instead shows a banner telling the operator to set
   // SANDBOX_HARNESSES — so an empty config explains itself rather than presenting
-  // a silent blank shell. A tab whose harness launches (argv non-empty) never
-  // shows it; nor does a configured-but-this-tab-has-no-harness shell.
-  let launchArgv = resolveLaunchArgv(harnessKey, installable)
-  if (
+  // a silent blank shell. Gated on the *config* being empty (not the availability
+  // list) so a configured-but-unbrokerable harness still falls through to a plain
+  // shell exactly as before. A tab whose harness launches never shows it.
+  const hostedArgv =
     launchArgv.length === 0 &&
-    parseHarnessKeys(sandboxHarnesses).length === 0
-  ) {
-    launchArgv = unconfiguredBannerArgv()
-  }
+    parseHarnessKeys(process.env.SANDBOX_HARNESSES).length === 0
+      ? unconfiguredBannerArgv("hosted")
+      : launchArgv
 
   return NextResponse.json(
-    { url: result.value.url, ...credential, harnesses, launchArgv },
+    { url: result.value.url, ...credential, harnesses, launchArgv: hostedArgv },
     { status: 200 }
   )
 }
