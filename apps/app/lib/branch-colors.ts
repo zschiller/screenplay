@@ -123,6 +123,30 @@ function djb2(str: string): number {
 }
 
 /**
+ * Resolve the palette *index* for a key — the manual `overrideIndex` when it's
+ * a valid entry, otherwise the hashed index for `key`. Out-of-range overrides
+ * fall back to the hash so a stale stored index can't blow up rendering.
+ *
+ * Pure and SSR-safe. Returning the index (rather than the entry) lets callers
+ * snapshot it — e.g. into the Thumbnail Manifest — and re-resolve the
+ * theme-aware classes later via {@link getBranchColorByIndex}.
+ */
+export function resolveBranchColorIndex(
+  key: string,
+  overrideIndex?: number
+): number {
+  if (
+    typeof overrideIndex === "number" &&
+    Number.isInteger(overrideIndex) &&
+    overrideIndex >= 0 &&
+    overrideIndex < BRANCH_COLORS.length
+  ) {
+    return overrideIndex
+  }
+  return djb2(key) % BRANCH_COLORS.length
+}
+
+/**
  * Return the color entry for a given key (e.g. sandbox ID or branch name).
  * Pure function – same input always yields the same output (SSR-safe).
  *
@@ -134,15 +158,7 @@ export function getBranchColor(
   key: string,
   overrideIndex?: number
 ): BranchColor {
-  if (
-    typeof overrideIndex === "number" &&
-    Number.isInteger(overrideIndex) &&
-    overrideIndex >= 0 &&
-    overrideIndex < BRANCH_COLORS.length
-  ) {
-    return BRANCH_COLORS[overrideIndex]!
-  }
-  return BRANCH_COLORS[djb2(key) % BRANCH_COLORS.length]!
+  return BRANCH_COLORS[resolveBranchColorIndex(key, overrideIndex)]!
 }
 
 export function getBranchColorByIndex(index: number): BranchColor | undefined {

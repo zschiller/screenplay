@@ -1,5 +1,5 @@
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
-import type { IframeLayerData } from "@/lib/types"
+import { resolveBranchColorIndex } from "@/lib/branch-colors"
 
 /**
  * The Thumbnail Manifest — the per-Room snapshot a thumbnail is *composed from
@@ -22,8 +22,8 @@ export type FrameCapture = {
 /**
  * One Iframe Layer's placement in the composed thumbnail, with its capture when
  * one exists. `capture` is `null` for a frame whose preview hasn't been captured
- * yet — the compositor renders those as positioned blanks rather than dropping
- * them.
+ * yet (booting, skipped, or never captured) — the compositor renders those as
+ * branch-tinted, labeled placeholder rectangles rather than dropping them.
  */
 export type ManifestFrame = {
   /** Iframe Layer id. */
@@ -34,7 +34,28 @@ export type ManifestFrame = {
   y: number
   width: number
   height: number
+  /**
+   * Resolved index into `BRANCH_COLORS`, snapshotted from the Y.Doc at build
+   * time. `null` for a frame bound to no Branch. The compositor re-resolves it
+   * through `getBranchColorByIndex` so a placeholder's tint stays theme-aware.
+   */
+  paletteIndex: number | null
   capture: FrameCapture | null
+}
+
+/**
+ * The per-layer input `buildThumbnailManifest` needs: identity, label, and the
+ * bound Branch's palette inputs (its id is the hash key; `branchColorIndex` is
+ * the manual override). Kept separate from `IframeLayerData` because the palette
+ * override lives on `BranchData`, not the layer.
+ */
+export type ManifestLayer = {
+  id: string
+  label: string
+  /** The bound Branch's id (the palette hash key), or `null` for a frame with no Branch. */
+  branchKey: string | null
+  /** The Branch's manual palette override, if any. */
+  branchColorIndex?: number
 }
 
 export type ManifestBounds = {
@@ -45,8 +66,12 @@ export type ManifestBounds = {
 }
 
 export type ThumbnailManifest = {
-  /** Schema version, so the compositor can evolve the shape without a migration. */
-  version: 1
+  /**
+   * Schema version, so the compositor can evolve the shape without a migration.
+   * v2 added each frame's snapshotted Branch `paletteIndex`; legacy v1 rows lack
+   * it and the compositor treats the missing index as a neutral placeholder.
+   */
+  version: 2
   /** Union of all frame rects in world space — the compositor maps this onto the card. */
   bounds: ManifestBounds
   frames: ManifestFrame[]
@@ -71,15 +96,20 @@ function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
 /**
  * Build a Thumbnail Manifest from a Canvas Layout snapshot plus a map of Frame
  * Captures keyed by Iframe Layer id. Each Iframe Layer that has a computed
- * layout is placed (rect + label); a frame whose id is in `captures` carries its
- * capture reference, the rest carry `null`. Layers with no layout (not in any
- * group) are skipped — there's nowhere to place them.
+ * layout is placed (rect + label + resolved Branch palette index); a frame whose
+ * id is in `captures` carries its capture reference, the rest carry `null` and
+ * render as branch-tinted placeholders. Layers with no layout (not in any group)
+ * are skipped — there's nowhere to place them.
+ *
+ * The palette index is *resolved here*, at build time, against the Branch info
+ * snapshotted off the Y.Doc — so the manifest is decoupled from the live doc and
+ * the compositor only re-resolves the index to theme-aware classes.
  *
  * Pure and order-preserving: frames come out in `iframeLayers` order.
  */
 export function buildThumbnailManifest(
   layouts: IframeLayerLayoutMap,
-  iframeLayers: readonly Pick<IframeLayerData, "id" | "label">[],
+  iframeLayers: readonly ManifestLayer[],
   captures: ReadonlyMap<string, FrameCapture>
 ): ThumbnailManifest {
   const frames: ManifestFrame[] = []
@@ -93,8 +123,12 @@ export function buildThumbnailManifest(
       y: layout.y,
       width: layout.width,
       height: layout.height,
+      paletteIndex:
+        layer.branchKey === null
+          ? null
+          : resolveBranchColorIndex(layer.branchKey, layer.branchColorIndex),
       capture: captures.get(layer.id) ?? null,
     })
   }
-  return { version: 1, bounds: computeBounds(frames), frames }
+  return { version: 2, bounds: computeBounds(frames), frames }
 }

@@ -4,6 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
+import { getBranchColorByIndex } from "@/lib/branch-colors"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
@@ -19,9 +21,11 @@ import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
  * per Frame Capture, laid out by each frame's world-space rect normalized
  * against the manifest bounds. The composite box keeps the bounds' aspect ratio
  * and is centered inside the 4:3 card (contain, not stretch). Frames without a
- * capture yet render as positioned blanks. Returns null when there's nothing to
- * place, so the card's gradient shows through (legacy rows have a null manifest
- * and never reach here).
+ * capture yet (booting, skipped, or never captured) render as branch-tinted,
+ * labeled placeholder rectangles — the snapshotted palette index is re-resolved
+ * through `getBranchColorByIndex` so the tint stays theme-aware. Returns null
+ * when there's nothing to place, so the card's gradient shows through (legacy
+ * rows have a null manifest and never reach here).
  */
 function ThumbnailComposite({
   manifest,
@@ -54,12 +58,27 @@ function ThumbnailComposite({
             height: `${(frame.height / bounds.height) * 100}%`,
           }
           if (!frame.capture) {
+            // Branch-tinted, labeled placeholder: re-resolve the snapshotted
+            // palette index to theme-aware classes (light/dark). A frame bound
+            // to no Branch (or a legacy v1 manifest with no index) falls back to
+            // a neutral tint.
+            const color =
+              frame.paletteIndex != null
+                ? getBranchColorByIndex(frame.paletteIndex)
+                : undefined
             return (
               <div
                 key={frame.id}
                 style={style}
-                className="absolute bg-foreground/5"
-              />
+                className={cn(
+                  "absolute flex items-center justify-center overflow-hidden p-1 text-center text-[8px] font-medium leading-tight",
+                  color
+                    ? color.badge
+                    : "bg-foreground/5 text-muted-foreground"
+                )}
+              >
+                <span className="truncate">{frame.label}</span>
+              </div>
             )
           }
           // The blob key is stable per (room, frame) and served with a max-age,
