@@ -9,7 +9,6 @@ import {
 import {
   addMember,
   createRoom as createRoomRecord,
-  deleteRoom as deleteRoomRecord,
   getMemberCounts,
   getRoom,
   listMembers,
@@ -21,11 +20,8 @@ import {
   requireOwner,
 } from "@/lib/rooms"
 import { decideRoomDeletion } from "@/lib/room-deletion"
-import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
-import { killTerminalSessions } from "@/lib/sandbox/terminal"
-import { listTerminalTabs } from "@/lib/terminal-tabs"
+import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
 import { yjsHost } from "@/lib/yjs-host"
-import { readRoomDoc } from "@/lib/yjs/server"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
@@ -153,64 +149,15 @@ export async function deleteRoom(roomId: string): Promise<void> {
   })
 
   if (decision.action === "leave") {
-    // Shared non-owner: drop only the deleter's membership (their per-user
-    // folder placement will go too, once placements exist — folder slice,
-    // #475). The Room — its Sandboxes, Y.Doc and rows — is untouched for
-    // everyone else, so resync the remaining members on the host.
-    await removeMember(roomId, userId)
-    const remaining = await listMembers(roomId)
-    await yjsHost.syncRoomMembers(
-      roomId,
-      remaining.map((m) => ({ userId: m.userId, role: m.role }))
-    )
+    // Shared non-owner: drop only the deleter's membership; the Room stays
+    // intact for everyone else (shared `lib/room-teardown`).
+    await leaveRoom(roomId, userId)
     return
   }
 
   // hard-delete (sole member) or delete-for-all (shared owner): identical
   // teardown — the Room is gone for everyone who could see it.
   await teardownRoom(roomId, userId)
-}
-
-/**
- * Tear a Room down completely: its rows, Y.Doc, live terminal sessions, and
- * every Branch's Sandbox. Shared by the sole-member hard delete and the owner's
- * delete-for-all — both destroy the Room for everyone who could see it.
- */
-async function teardownRoom(roomId: string, userId: string): Promise<void> {
-  // Capture what the Room owns *before* its Y.Doc and rows are gone: the
-  // Branches' Sandbox names from the authoritative doc — enumerated
-  // server-side, never accepted from the client, so a forged list can't
-  // delete Sandboxes the caller doesn't own — and the caller's terminal tabs
-  // (their rows cascade away with the room record). Best-effort: an
-  // unreadable doc must not block the delete itself.
-  let sandboxNames: string[] = []
-  try {
-    sandboxNames = await readRoomDoc(roomId, (c) =>
-      c.branches
-        .toArray()
-        .map((b) => b.sandboxName)
-        .filter(Boolean)
-    )
-  } catch {}
-  let terminalSessionIds: string[] = []
-  try {
-    terminalSessionIds = (await listTerminalTabs({ userId, roomId })).map(
-      (t) => t.id
-    )
-  } catch {}
-
-  await deleteRoomRecord(roomId)
-  await yjsHost.deleteRoom(roomId)
-
-  // With the Room gone, tear down what backed it: live terminal sessions
-  // (desktop ptys — hosted tmux dies with its VM) and every Branch's Sandbox,
-  // upholding "a Sandbox never outlives its Branch". On desktop this is also
-  // what frees each Branch's git ref: a leaked worktree keeps its branch
-  // checked out and blocks reopening it anywhere (RefAlreadyOpenError). Both
-  // calls are internally best-effort so cleanup can never make the delete
-  // appear to fail after the Room is already gone.
-  await killTerminalSessions(terminalSessionIds)
-  await deleteSandboxes(sandboxNames)
 }
 
 export async function listCollaborators(

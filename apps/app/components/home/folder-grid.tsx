@@ -6,6 +6,7 @@ import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
+import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
 
@@ -14,8 +15,12 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // is a link that navigates into the folder (`/files/<id>`); the ⋮ menu (a
 // sibling, since an anchor can't wrap a button) renames it in place (#484).
 function FolderCard({ folder }: { folder: FolderSummary }) {
-  const { renameFolder } = useHome()
+  const { renameFolder, previewFolderDeletion, removeFolder } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  // Enumerate the cascade only while the confirm is open, from the live tree.
+  const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
 
   return (
     <div className="group flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-foreground/20">
@@ -26,7 +31,10 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
         <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm font-medium">{folder.name}</span>
       </Link>
-      <FolderActionMenu onRename={() => setRenameOpen(true)}>
+      <FolderActionMenu
+        onRename={() => setRenameOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
+      >
         <Button
           variant="ghost"
           size="icon-sm"
@@ -45,6 +53,18 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
         submitLabel="Save"
         submittingLabel="Saving…"
         onSubmit={(name) => renameFolder(folder.id, name)}
+      />
+      <DeleteFolderDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        folderName={folder.name}
+        deletedCount={cascade?.deletedCount ?? 0}
+        sharedOwnedCount={cascade?.sharedOwnedCount ?? 0}
+        sharedWithCount={cascade?.sharedWithCount ?? 0}
+        onConfirm={async () => {
+          await removeFolder(folder.id)
+          setDeleteOpen(false)
+        }}
       />
     </div>
   )

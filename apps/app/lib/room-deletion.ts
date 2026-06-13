@@ -45,6 +45,25 @@ export type RoomDeletionDecision = {
 }
 
 /**
+ * The rule itself, reduced to the two facts it turns on: whether the deleter
+ * owns the Room, and how many *other* people it's shared with. Factored out so
+ * the folder cascade (#488) can decide a per-Room outcome from the facts it
+ * already carries (a `RoomSummary`'s `isOwner` + `sharedWithCount`) without
+ * reconstructing a synthetic membership — the same rule, one definition.
+ *
+ * Not shared → clean teardown. Shared → the owner tears it down for all; a
+ * non-owner only removes themselves. (The owner is always a member, so a shared
+ * non-owner can never reach a teardown branch.)
+ */
+export function deletionActionFor(
+  isOwner: boolean,
+  sharedWithCount: number
+): RoomDeletionAction {
+  const isShared = sharedWithCount > 0
+  return !isShared ? "hard-delete" : isOwner ? "delete-for-all" : "leave"
+}
+
+/**
  * Decide the deletion outcome from a Room's membership. Pure: the same
  * membership always yields the same decision, with no I/O.
  */
@@ -56,15 +75,7 @@ export function decideRoomDeletion(
     (id) => id !== membership.deleterId
   ).length
   const isShared = sharedWithCount > 0
-
-  // Not shared → clean teardown. Shared → the owner tears it down for all;
-  // a non-owner only removes themselves. (The owner is always a member, so a
-  // shared non-owner can never reach a teardown branch.)
-  const action: RoomDeletionAction = !isShared
-    ? "hard-delete"
-    : isOwner
-      ? "delete-for-all"
-      : "leave"
+  const action = deletionActionFor(isOwner, sharedWithCount)
 
   return { action, isOwner, isShared, sharedWithCount }
 }
