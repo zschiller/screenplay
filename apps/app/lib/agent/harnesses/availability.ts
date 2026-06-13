@@ -1,14 +1,14 @@
 import "server-only"
 
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
-import type { ModelProvider } from "@/lib/agent/providers"
+import type { ModelInfo, ModelProvider } from "@/lib/agent/providers"
 import { HARNESSES, resolveLaunchArgv, selectHarnesses } from "./index"
 import {
   defaultHostBinaryProber,
   detectInstalledHarnessKeys,
   type HostBinaryProber,
 } from "./host-binary"
-import type { Harness } from "./types"
+import { HARNESS_ID_PREFIX, type Harness } from "./types"
 
 /**
  * The **Harness Availability** seam (issue #476, parent #466): the single
@@ -71,6 +71,41 @@ export function filterByCapability(
 ): AvailableHarness[] {
   if (capability === "terminal") return available
   return available.filter(({ harness }) => harness.acpAdapter !== null)
+}
+
+/**
+ * The single provider-group the desktop model dropdown files detected harnesses
+ * under. Every `harness:` `ModelInfo` carries this as its `provider`, so the
+ * shared `groupModelsByProvider` fold draws one **"Installed agents"** heading —
+ * the desktop analogue of the hosted picker's per-provider headings.
+ */
+export const INSTALLED_AGENTS_GROUP = {
+  key: "harness",
+  label: "Installed agents",
+} as const
+
+/**
+ * Fold an availability list (the Harness Availability seam's answer for the
+ * desktop backend) → the `harness:` `ModelInfo` entries the model dropdown lists.
+ * Keeps only **chat-capable** harnesses (those with an `acpAdapter` — the rest
+ * can't back agent chat) and stamps each with `id: harness:<key>` (the wire form
+ * `agent_chat.model` persists and the external engine reads back, #479) plus the
+ * shared {@link INSTALLED_AGENTS_GROUP}. Pure; preserves the list's order.
+ *
+ * This is the desktop arm of backend-uniform model enumeration: where the hosted
+ * backend folds the provider registry into `provider:` models, the desktop
+ * backend folds detected CLIs into these. An empty list yields `[]` — the
+ * dropdown's actionable empty state, never a hardcoded fallback agent.
+ */
+export function harnessModels(available: AvailableHarness[]): ModelInfo[] {
+  return filterByCapability(available, "chat").map(({ harness }) => ({
+    id: `${HARNESS_ID_PREFIX}${harness.key}`,
+    label: harness.label,
+    provider: {
+      key: INSTALLED_AGENTS_GROUP.key,
+      label: INSTALLED_AGENTS_GROUP.label,
+    },
+  }))
 }
 
 /** A terminal tab's launch payload: the new-tab menu + the picked key's argv. */

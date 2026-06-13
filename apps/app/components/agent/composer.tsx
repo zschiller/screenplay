@@ -186,6 +186,15 @@ export interface ComposerProps {
   enableSkills?: boolean
   /** The loaded model catalog. Empty while still fetching. */
   models: ModelInfo[]
+  /**
+   * Whether the model catalog fetch has settled. Gates the no-agent empty state:
+   * once loaded with an empty catalog, the composer shows an actionable
+   * "no coding agent detected" notice and disables send instead of a dead,
+   * always-"Loading…" dropdown. Defaults `false` so callers that don't track
+   * loading (the seed Composer) never trip the empty state — their dropdown just
+   * shows "Loading…" on an empty catalog, as before.
+   */
+  modelsLoaded?: boolean
   /** The currently-selected model id (already resolved by the caller). */
   model: string
   /** Called when the user picks a different model from the dropdown. */
@@ -275,6 +284,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       skillsLoading,
       enableSkills = false,
       models,
+      modelsLoaded = false,
       model,
       onModelChange,
       modelLocked = false,
@@ -504,8 +514,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       },
     })
 
+    // The catalog has loaded but is empty — on the desktop backend this means no
+    // coding CLI was detected (the seam returned nothing). Surface an actionable
+    // empty state and disable send rather than a dead model dropdown.
+    const noAgents = modelsLoaded && models.length === 0
+
     const handleSubmit = useCallback(() => {
       if (!editor || isStreaming) return
+      // No coding agent backs this chat — block send (Enter, too, not just the
+      // disabled button) so a typed turn can't fire into a dead chat.
+      if (noAgents) return
       // An empty draft only submits where the caller opted in — the seed
       // Composer treats it as a deliberate request for a bare scratch Branch.
       if (editor.isEmpty && !allowEmptySubmit) return
@@ -515,7 +533,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       editor.commands.clearContent()
       isEmptyRef.current = true
       setHasContent(false)
-    }, [editor, isStreaming, onSubmit, model, allowEmptySubmit])
+    }, [editor, isStreaming, onSubmit, model, allowEmptySubmit, noAgents])
 
     // Stash the latest submit handler in a ref so the editor's `handleKeyDown`
     // (registered once at construction) always calls the current closure.
@@ -550,46 +568,53 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EmptyAwarePlaceholder editor={editor} text={placeholder} />
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <InputGroupButton
-                  size="xs"
-                  className="-ml-1 text-xs"
-                  disabled={modelLocked}
-                  title={
-                    modelLocked
-                      ? "Model is locked to this session"
-                      : "Change model"
-                  }
-                >
-                  {currentModel.label}
-                  <ChevronDown />
-                </InputGroupButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {models.length === 0 ? (
-                  <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
-                ) : (
-                  modelGroups.map((group, idx) => (
-                    <div key={group.key}>
-                      {idx > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        {group.label}
-                      </DropdownMenuLabel>
-                      {group.models.map((m) => (
-                        <DropdownMenuItem
-                          key={m.id}
-                          onSelect={() => onModelChange(m.id)}
-                        >
-                          <span className="flex-1">{m.label}</span>
-                          {m.id === model && <Check className="size-3.5" />}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {noAgents ? (
+              <span className="-ml-1 text-xs text-muted-foreground">
+                No coding agent detected — install a CLI (e.g. Claude Code or
+                Codex) and restart, or add one in Settings.
+              </span>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <InputGroupButton
+                    size="xs"
+                    className="-ml-1 text-xs"
+                    disabled={modelLocked}
+                    title={
+                      modelLocked
+                        ? "Model is locked to this session"
+                        : "Change model"
+                    }
+                  >
+                    {currentModel.label}
+                    <ChevronDown />
+                  </InputGroupButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {models.length === 0 ? (
+                    <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
+                  ) : (
+                    modelGroups.map((group, idx) => (
+                      <div key={group.key}>
+                        {idx > 0 && <DropdownMenuSeparator />}
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                          {group.label}
+                        </DropdownMenuLabel>
+                        {group.models.map((m) => (
+                          <DropdownMenuItem
+                            key={m.id}
+                            onSelect={() => onModelChange(m.id)}
+                          >
+                            <span className="flex-1">{m.label}</span>
+                            {m.id === model && <Check className="size-3.5" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {onPlanModeChange && (
               <InputGroupButton
                 size="xs"
@@ -615,10 +640,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             ) : (
               <InputGroupButton
                 size="icon-xs"
-                variant={hasContent || allowEmptySubmit ? "default" : "ghost"}
+                variant={
+                  (hasContent || allowEmptySubmit) && !noAgents
+                    ? "default"
+                    : "ghost"
+                }
                 onClick={handleSubmit}
-                disabled={(!hasContent && !allowEmptySubmit) || isStreaming}
-                title="Send"
+                disabled={
+                  (!hasContent && !allowEmptySubmit) || isStreaming || noAgents
+                }
+                title={noAgents ? "No coding agent detected" : "Send"}
                 className="ml-auto"
               >
                 <ArrowUp />

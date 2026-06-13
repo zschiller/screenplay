@@ -5,6 +5,8 @@ import {
   createDesktopResolver,
   createHostedResolver,
   filterByCapability,
+  harnessModels,
+  INSTALLED_AGENTS_GROUP,
   resolveTerminalLaunch,
 } from "@/lib/agent/harnesses/availability"
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
@@ -132,6 +134,48 @@ describe("filterByCapability", () => {
   it("preserves order and is a no-op for terminal on an empty list", () => {
     expect(filterByCapability([], "terminal")).toEqual([])
     expect(filterByCapability([], "chat")).toEqual([])
+  })
+})
+
+describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
+  it("emits a harness: ModelInfo per detected chat-capable CLI, grouped under Installed agents, in catalog order", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["codex", "claude"]),
+    }).list()
+
+    expect(harnessModels(available)).toEqual([
+      {
+        id: "harness:claude-code",
+        label: "Claude Code",
+        provider: INSTALLED_AGENTS_GROUP,
+      },
+      {
+        id: "harness:codex",
+        label: "Codex",
+        provider: INSTALLED_AGENTS_GROUP,
+      },
+    ])
+  })
+
+  it("drops terminal-only harnesses (no ACP adapter can't back chat)", async () => {
+    // The opencode slots are detected (their shared host binary is present) but
+    // carry no acpAdapter, so they list in the terminal picker yet never as a
+    // chat model.
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["claude", "opencode"]),
+    }).list()
+
+    expect(harnessModels(available).map((m) => m.id)).toEqual([
+      "harness:claude-code",
+    ])
+  })
+
+  it("emits no models when the seam detects nothing — never a hardcoded fallback agent", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe([]),
+    }).list()
+
+    expect(harnessModels(available)).toEqual([])
   })
 })
 
