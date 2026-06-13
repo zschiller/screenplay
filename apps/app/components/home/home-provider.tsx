@@ -29,9 +29,12 @@ import {
   listPins,
   pinRoom as pinRoomAction,
   unpin as unpinAction,
-  type PinKind,
   type PinSummary,
 } from "@/lib/pins-actions"
+// `PinKind` lives in the server-only `@/lib/pins`; a type-only import is erased,
+// so it never pulls that module (or its `server-only` guard) into the client
+// bundle — and it sidesteps the "use server" re-export that breaks `next build`.
+import type { PinKind } from "@/lib/pins"
 import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
 import {
   ancestorChain,

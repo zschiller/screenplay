@@ -14,8 +14,12 @@ import {
 // on `requireUserId` and scopes to that user, so pins stay private per user
 // (PRD #507). Works unchanged on the local build, where `requireUserId`
 // resolves to the single seeded local user who owns every pin.
-
-export type { PinKind }
+//
+// `PinKind` is not re-exported from here: a "use server" module's named
+// `export type { … }` re-export is misread by Next's action transform as a
+// runtime export and breaks `next build`. Type-only consumers import `PinKind`
+// straight from `@/lib/pins` instead (erased, so the server-only guard never
+// reaches the client bundle).
 
 // The client-facing shape of a pin: its `kind`, the id of the Room or Folder it
 // points at, and its `position` in the user's list. The pin's own row id stays
