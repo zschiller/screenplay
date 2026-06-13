@@ -14,6 +14,7 @@ import type {
   FolderSummary,
   RoomPlacementSummary,
 } from "@/lib/folders-actions"
+import type { PinSummary } from "@/lib/pins-actions"
 import { HomeProvider } from "./home-provider"
 import { HomeSidebar } from "./home-sidebar"
 
@@ -35,12 +36,14 @@ export function HomeShell({
   initialRooms,
   initialFolders,
   initialPlacements,
+  initialPins,
 }: {
   children: React.ReactNode
   initialLayout?: PanelLayout
   initialRooms: RoomSummary[]
   initialFolders: FolderSummary[]
   initialPlacements: RoomPlacementSummary[]
+  initialPins: PinSummary[]
 }) {
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
     writePanelLayout("home-layout", layout)
@@ -58,6 +61,7 @@ export function HomeShell({
       initialRooms={initialRooms}
       initialFolders={initialFolders}
       initialPlacements={initialPlacements}
+      initialPins={initialPins}
       folderView={folderView}
       currentFolderId={currentFolderId}
     >

@@ -118,7 +118,11 @@ function RoomCard({ room }: { room: RoomSummary }) {
     allFolders,
     folderView,
     currentFolderId,
+    isPinned,
+    pinRoom,
+    unpin,
   } = useHome()
+  const pinned = isPinned("room", room.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -195,6 +199,10 @@ function RoomCard({ room }: { room: RoomSummary }) {
           // Filing only makes sense where there's a folder tree to file into —
           // the files page, not the flat Recents view.
           onMove={folderView ? () => setMoveOpen(true) : undefined}
+          pinned={pinned}
+          onTogglePin={() =>
+            pinned ? unpin("room", room.id) : pinRoom(room.id)
+          }
         >
           <Button
             variant="ghost"

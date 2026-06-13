@@ -1,6 +1,14 @@
 "use client"
 
-import { FolderInput, LogOut, Pencil, Share2, Trash2 } from "lucide-react"
+import {
+  FolderInput,
+  LogOut,
+  Pencil,
+  Pin,
+  PinOff,
+  Share2,
+  Trash2,
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +33,14 @@ type Props = {
    * where it hides.
    */
   onMove?: () => void
+  /** Whether this Room is pinned — flips the toggle label and icon. */
+  pinned: boolean
+  /**
+   * Pin the Room when unpinned, unpin it when pinned. Per-user, so it's offered
+   * to collaborators too — pinning a shared Room only touches the mover's
+   * sidebar (PRD #507).
+   */
+  onTogglePin: () => void
 }
 
 export function RoomActionMenu({
@@ -34,6 +50,8 @@ export function RoomActionMenu({
   onDelete,
   onShare,
   onMove,
+  pinned,
+  onTogglePin,
 }: Props) {
   return (
     <DropdownMenu>
@@ -58,6 +76,12 @@ export function RoomActionMenu({
             Move to…
           </DropdownMenuItem>
         )}
+        {/* Pinning is per-user and needs no ownership, so it's always offered —
+            owner or collaborator, Recents or a folder view. */}
+        <DropdownMenuItem onSelect={onTogglePin}>
+          {pinned ? <PinOff /> : <Pin />}
+          {pinned ? "Unpin" : "Pin to sidebar"}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {room.isOwner ? (
           <DropdownMenuItem variant="destructive" onSelect={onDelete}>

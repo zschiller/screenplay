@@ -25,6 +25,16 @@ import {
   type FolderSummary,
   type RoomPlacementSummary,
 } from "@/lib/folders-actions"
+import {
+  listPins,
+  pinRoom as pinRoomAction,
+  unpin as unpinAction,
+  type PinSummary,
+} from "@/lib/pins-actions"
+// `PinKind` lives in the server-only `@/lib/pins`; a type-only import is erased,
+// so it never pulls that module (or its `server-only` guard) into the client
+// bundle — and it sidesteps the "use server" re-export that breaks `next build`.
+import type { PinKind } from "@/lib/pins"
 import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
 import {
   ancestorChain,
@@ -40,6 +50,7 @@ import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type View = "grid" | "table"
 export type { SortKey, SortOrder }
+export type { PinKind, PinSummary }
 
 /** A→Z reads as the natural default for names; everything else newest-first. */
 export function defaultOrder(sort: SortKey): SortOrder {
@@ -97,6 +108,28 @@ type HomeContextValue = {
   removeFolder: (id: string) => Promise<void>
   /** Re-parent a folder (null = move it to the root). */
   moveFolder: (folderId: string, parentFolderId: string | null) => Promise<void>
+
+  /** The user's pins, ascending by position — what the sidebar's "Pinned"
+   * section renders (PRD #507). */
+  pins: PinSummary[]
+  /**
+   * Every Room the user can see, keyed by id. The pinned sidebar rows read a
+   * Room's live name/owner through this, so a rename anywhere updates the pinned
+   * row with no stale-state seam.
+   */
+  roomsById: Map<string, RoomSummary>
+  /** Whether the given target is currently pinned — drives the Pin/Unpin toggle. */
+  isPinned: (kind: PinKind, id: string) => boolean
+  /**
+   * The folder a Room is filed in for this user (null = the user's root). The
+   * pinned sidebar row reads this so its "Move to…" picker marks the Canvas's
+   * real current home, independent of which folder view is on screen.
+   */
+  folderOfRoom: (roomId: string) => string | null
+  /** Pin a Room to the sidebar (appends to the end); idempotent. */
+  pinRoom: (roomId: string) => Promise<void>
+  /** Unpin a target from the sidebar. */
+  unpin: (kind: PinKind, targetId: string) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -112,6 +145,7 @@ export function HomeProvider({
   initialRooms,
   initialFolders,
   initialPlacements,
+  initialPins,
   // A folder-scoped view (All files / a folder) partitions its contents by the
   // current folder; the flat view (Recents) leaves this off and shows every
   // Room with no folders. `currentFolderId` only applies when `folderView` is
@@ -123,6 +157,7 @@ export function HomeProvider({
   initialRooms?: RoomSummary[]
   initialFolders?: FolderSummary[]
   initialPlacements?: RoomPlacementSummary[]
+  initialPins?: PinSummary[]
   folderView?: boolean
   currentFolderId?: string | null
 }) {
@@ -131,6 +166,7 @@ export function HomeProvider({
   const [placements, setPlacements] = useState<RoomPlacementSummary[]>(
     initialPlacements ?? []
   )
+  const [pins, setPins] = useState<PinSummary[]>(initialPins ?? [])
   // With server-seeded rooms the grid is ready on first paint — no loading
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
@@ -179,6 +215,21 @@ export function HomeProvider({
     }
   }, [folderView, initialPlacements])
 
+  // Pins drive the persistent sidebar on every home route, so seed them like
+  // rooms; only fall back to a client fetch when the layout didn't provide them.
+  useEffect(() => {
+    if (initialPins) return
+    let cancelled = false
+    listPins()
+      .then((list) => {
+        if (!cancelled) setPins(list)
+      })
+      .catch((err) => console.error("Failed to load pins", err))
+    return () => {
+      cancelled = true
+    }
+  }, [initialPins])
+
   // Surface fresh capture rounds on an already-open grid without a reload:
   // poll the per-Room thumbnail record and merge newer manifests in place. Gated
   // on having rooms so an empty grid never polls.
@@ -191,6 +242,17 @@ export function HomeProvider({
     for (const p of placements) map.set(p.roomId, p.folderId)
     return map
   }, [placements])
+
+  // Every Room the user can see, keyed by id — the live source the pinned
+  // sidebar rows read a Room's name/owner from, so a rename or delete anywhere
+  // flows straight through to the pinned row. Built from the unsorted Room
+  // state (not the folder-scoped `sortedRooms`) so a pin resolves regardless of
+  // which folder view is active.
+  const roomsById = useMemo(() => {
+    const map = new Map<string, RoomSummary>()
+    for (const room of rooms) map.set(room.id, room)
+    return map
+  }, [rooms])
 
   const sortedRooms = useMemo(() => {
     if (!folderView) return sortRooms(rooms, sort, order)
@@ -253,6 +315,11 @@ export function HomeProvider({
     // The placement row cascades away with the Room server-side; drop the local
     // copy too so a folder view doesn't keep counting it.
     setPlacements((prev) => prev.filter((p) => p.roomId !== id))
+    // The pin row cascades away with the Room too; drop it locally so the
+    // Pinned section doesn't keep a dangling row for a deleted Canvas.
+    setPins((prev) =>
+      prev.filter((p) => !(p.kind === "room" && p.targetId === id))
+    )
   }, [])
 
   // File a Room under `folderId` (null = back to root) for this user. Mirrors
@@ -342,6 +409,45 @@ export function HomeProvider({
     []
   )
 
+  // Pin a Room to the sidebar. Mirrors the room/folder mutations: await the
+  // action, then patch local state — the server append is idempotent, so a
+  // double-pin reconciles to the one pin the action returns rather than stacking
+  // a row. Per-user, so a shared Room's other viewers are unaffected.
+  const pinRoom = useCallback(async (roomId: string) => {
+    const summary = await pinRoomAction(roomId)
+    setPins((prev) =>
+      prev.some(
+        (p) => p.kind === summary.kind && p.targetId === summary.targetId
+      )
+        ? prev
+        : [...prev, summary]
+    )
+  }, [])
+
+  const unpin = useCallback(async (kind: PinKind, targetId: string) => {
+    await unpinAction(kind, targetId)
+    setPins((prev) =>
+      prev.filter((p) => !(p.kind === kind && p.targetId === targetId))
+    )
+  }, [])
+
+  const isPinned = useCallback(
+    (kind: PinKind, id: string) =>
+      pins.some((p) => p.kind === kind && p.targetId === id),
+    [pins]
+  )
+
+  const folderOfRoom = useCallback(
+    (roomId: string) => placementByRoom.get(roomId) ?? null,
+    [placementByRoom]
+  )
+
+  // The pinned rows render ascending by position — the order pins were added.
+  const sortedPins = useMemo(
+    () => [...pins].sort((a, b) => a.position - b.position),
+    [pins]
+  )
+
   const value: HomeContextValue = {
     rooms: sortedRooms,
     folders: sortedFolders,
@@ -365,6 +471,12 @@ export function HomeProvider({
     previewFolderDeletion,
     removeFolder,
     moveFolder,
+    pins: sortedPins,
+    roomsById,
+    isPinned,
+    folderOfRoom,
+    pinRoom,
+    unpin,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>

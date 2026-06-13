@@ -1,13 +1,17 @@
 import {
   boolean,
+  check,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 import type { ModelMessage } from "ai"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
@@ -115,6 +119,45 @@ export const roomFolder = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.roomId] }),
     index("room_folder_user_folder_idx").on(t.userId, t.folderId),
+  ]
+)
+
+// A per-user shortcut surfacing a Room or Folder directly in the home sidebar's
+// "Pinned" section (PRD #507), independent of where the item sits in the Folder
+// tree — a Pin is a flat favorite, never a container and never a placement.
+// Lives in the core schema half so the local desktop/PGlite build gets pinning
+// too (there the single seeded local user owns every pin). `userId` scopes a pin
+// to its owner, so pinning a shared Room adds it only to that user's sidebar.
+// The target is polymorphic: exactly one of `roomId` / `folderId` is set, held
+// by the CHECK constraint — this first slice only exercises Room pinning, but
+// the `folderId` column ships now so the Folder slice extends the same table.
+// Both target FKs cascade, so deleting a Room (or Folder) drops its pin with no
+// orphan-cleanup. `position` is the dense order within the user's pin list. The
+// two partial-by-NULL unique indexes give per-user uniqueness on each target
+// (a user can't pin the same Room twice), while NULLs being distinct in Postgres
+// lets a user hold many Room pins and many Folder pins side by side.
+export const pin = pgTable(
+  "pin",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    roomId: text("room_id").references(() => room.id, { onDelete: "cascade" }),
+    folderId: text("folder_id").references((): AnyPgColumn => folder.id, {
+      onDelete: "cascade",
+    }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "pin_exactly_one_target",
+      sql`num_nonnulls(${t.roomId}, ${t.folderId}) = 1`
+    ),
+    uniqueIndex("pin_user_room_idx").on(t.userId, t.roomId),
+    uniqueIndex("pin_user_folder_idx").on(t.userId, t.folderId),
+    index("pin_user_position_idx").on(t.userId, t.position),
   ]
 )
 

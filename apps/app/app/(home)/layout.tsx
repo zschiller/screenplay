@@ -9,6 +9,7 @@ import {
 } from "@/lib/panel-layout"
 import { listRooms } from "@/lib/rooms-actions"
 import { listFolders, listRoomPlacements } from "@/lib/folders-actions"
+import { listPins } from "@/lib/pins-actions"
 
 /**
  * Shared chrome for the signed-in home surface (Recents, Canvases, Settings):
@@ -39,16 +40,19 @@ export default async function HomeLayout({
     cookieStore.get(panelLayoutCookieName("home-layout"))?.value
   )
 
-  // Seed rooms, folders, and placements server-side so the grid is populated on
-  // first paint — loading them client-side resolves in ~1 frame against the
-  // local sidecar, which strobes an empty/loading grid when returning home from
-  // a canvas. One fetch for the whole group: the lifted store is the single
-  // source of truth the sidebar and the content grid share.
-  const [initialRooms, initialFolders, initialPlacements] = await Promise.all([
-    listRooms().catch(() => []),
-    listFolders().catch(() => []),
-    listRoomPlacements().catch(() => []),
-  ])
+  // Seed rooms, folders, placements, and pins server-side so the grid and the
+  // sidebar's Pinned section are populated on first paint — loading them
+  // client-side resolves in ~1 frame against the local sidecar, which strobes an
+  // empty/loading grid (and an empty Pinned section) when returning home from a
+  // canvas. One fetch for the whole group: the lifted store is the single source
+  // of truth the sidebar and the content grid share.
+  const [initialRooms, initialFolders, initialPlacements, initialPins] =
+    await Promise.all([
+      listRooms().catch(() => []),
+      listFolders().catch(() => []),
+      listRoomPlacements().catch(() => []),
+      listPins().catch(() => []),
+    ])
 
   return (
     <HomeShell
@@ -56,6 +60,7 @@ export default async function HomeLayout({
       initialRooms={initialRooms}
       initialFolders={initialFolders}
       initialPlacements={initialPlacements}
+      initialPins={initialPins}
     >
       {children}
     </HomeShell>
