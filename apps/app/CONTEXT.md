@@ -341,34 +341,70 @@ auth), with the spawn argv/env resolved by a harness → ACP launch resolver
 (`harnesses/acp-launch.ts`) — the ACP sibling of the terminal's
 `resolveLaunchArgv`. Both speak ACP at the seam; they are
 named for _where the model runs_ (in-process vs. a separate external agent), not
-for the protocol. Which one runs is a per-deployment choice
+for the protocol. Which _engine_ runs is a per-deployment choice
 (`AGENT_ENGINE=in-process|external`, default in-process — `engine-select.ts`), not a
-per-Chat-Session column; an engine that can't honor a capability (e.g.
+per-Chat-Session column; but which **Harness backs the external engine _is_ a
+per-Chat-Session choice** — the chat's stored model id, when it carries the
+`harness:<key>` form, names the Harness whose ACP adapter is spawned (so the model
+dropdown selects the agent backing on desktop; `SCREENPLAY_ACP_HARNESS` is only the
+default for a chat with no stored id). An engine that can't honor a capability (e.g.
 prompt-cache usage) degrades via the `supports*` type guard. The shared contract
 test pins both engines to the _same_ observable outcome for the same turn, so the
 swap is honest. The server is the sole ACP peer;
 browsers render the server's ACP-shaped broadcast over the Y.Doc and never open
-an ACP connection (single ACP session in → N browsers out). The app owns this
-seam; it is deliberately **not** an external coding harness (Claude Code,
-Codex, …). See ADR 0006 for the seam, the multiplayer-brokering principle, and
-the swap-to-real-client design goal.
-_Avoid_: harness (reserve that word for an external/BYO agent tool — see Harness
-below), runtime; treating each browser as an ACP client (breaks multiplayer).
+an ACP connection (single ACP session in → N browsers out). What the app owns is
+the **ACP seam itself** — the contract, the multiplayer broadcast, the persistence
+— _not_ the model loop behind it: the in-process engine is screenplay's own loop,
+while the external engine's backing is deliberately someone else's tool (a detected
+**Harness** — Claude Code, Codex). The owned thing is the protocol boundary, never a
+bespoke wire format. See ADR 0006 for the seam, the multiplayer-brokering principle,
+and the swap-to-real-client design goal.
+_Avoid_: saying the Engine is "never a harness" flatly (the external engine's
+backing _is_ a Harness — what's owned is the ACP seam, not the loop); runtime;
+treating each browser as an ACP client (breaks multiplayer).
 
 **Harness** (BYO Coding CLI):
-An external, bring-your-own coding agent CLI — Claude Code, Codex, aider — that
-the operator runs _inside_ a Terminal Tab against a Branch's sandbox. Distinct
-from the Engine: the Engine is screenplay's owned Agent Loop; a Harness is
-someone else's tool we install and step out of the way for. Each is a descriptor
-in the catalog (`lib/agent/harnesses/`), enabled per deployment via
-`SANDBOX_HARNESSES` (comma-separated catalog keys) and installed into the
-sandbox — there is **no default**. A Harness is offered **only** when its broker
-model provider is configured _and_ header-brokerable (`egress()` non-null), so
-it reaches its model API on the operator's key injected at the firewall without
-ever holding it (ADR 0002's trust boundary).
-_Avoid_: engine, agent (screenplay's owned AI loop, never a BYO CLI); treating a
-Harness as a Chat Session (it produces no messages, runs, or Y.Doc state — its
-scrollback dies with the sandbox).
+An external, bring-your-own coding agent CLI — Claude Code, Codex, aider —
+someone else's tool we install (or detect) and step out of the way for, as
+opposed to screenplay's owned in-process Agent Loop. **One descriptor, one key per
+CLI** (`lib/agent/harnesses/`): the single catalog key (`claude-code`) is the
+`SANDBOX_HARNESSES` token, the Terminal Tab key, _and_ the `harness:<key>` model
+id — there is no separate adapter-key namespace. A Harness is consumed two ways
+off that one descriptor: run **interactively inside a Terminal Tab**, or spawned
+as the **ACP backing of the external Engine** to drive agent chat (its
+`acpAdapter` argv). Both read the same entry; the descriptor also carries the
+`hostBinary` the desktop detector probes.
+_Which Harnesses are offered is resolved per backend by the **Harness
+Availability** seam_ (below) — never a single hardcoded list. On the hosted
+backend a Harness is offered only when its broker model provider is configured
+_and_ header-brokerable (`egress()` non-null) and is installed into the sandbox
+(ADR 0002's firewall trust boundary); on the desktop backend it is offered when
+its `hostBinary` is present on the host PATH (the CLI runs on its own login, no
+broker, no install).
+_Avoid_: engine (the in-process loop is owned; a Harness only ever _backs_ the
+external engine, it is not the seam); saying a Harness "produces no messages"
+flatly (true of its Terminal Tab role — scrollback dies with the sandbox — but
+when it backs the external Engine it yields ACP updates, runs, and Y.Doc state
+like any engine backing); a per-CLI second key for the ACP adapter (folded into
+the one descriptor).
+
+**Harness Availability**:
+The per-backend seam that answers "which Harnesses can this deployment offer,
+and in what state" — folded over the **one** Harness catalog so the model
+dropdown, the Terminal-Tab new-tab picker, and the external-Engine backing all
+read the same answer instead of three divergent lists. Two resolvers behind it,
+selected by the build-time backend the way `SandboxProvider` is (ADR 0003): the
+hosted resolver returns `SANDBOX_HARNESSES ∩ broker-egress`; the desktop resolver
+**detects** installed CLIs by probing each descriptor's `hostBinary` in the host
+sidecar. Returns a per-Harness **status**, not a bare `{key,label}` — installed
+today, with room for `authenticated` later (the auth-aware pass surfaced in a
+homescreen Settings surface, deferred). Listing is gated on **presence**, never on
+auth: a detected-but-unauthenticated Harness still lists and fails loud at turn
+time with the CLI's own login message, mirroring how the hosted side lists on
+provider-_configured_, not provider-_verified_.
+_Avoid_: detector/registry (casual); a separate availability path per consumer
+(the whole point is one fold, many consumers); gating the list on auth state
+(presence lists; auth is surfaced, not pre-filtered).
 
 **Composer**:
 The shared rich-text input for authoring a single chat turn — owns model
