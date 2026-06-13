@@ -34,6 +34,7 @@ import { RoomGrid } from "./room-grid"
 import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
+import { FileDndProvider } from "./file-dnd"
 import { InputDialog } from "./input-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 
@@ -208,17 +209,23 @@ export function RoomsView({
           )
         ) : (
           <div className="mx-auto max-w-5xl px-16 pb-4">
-            {view === "grid" ? (
-              <div className="space-y-4">
-                {/* Folders render in their own section above the files. */}
-                {showFolders && folders.length > 0 && (
-                  <FolderGrid folders={folders} />
-                )}
-                <RoomGrid rooms={rooms} />
-              </div>
-            ) : (
-              <RoomTable rooms={rooms} folders={showFolders ? folders : []} />
-            )}
+            {/* On the files page, a single DndContext spans the folder section
+                and the canvas list so a canvas or folder can be dragged onto a
+                folder to file it (issue #487). Recents has no folders, so it
+                renders the plain list with no drag wiring. */}
+            <FilingArea enabled={folderView}>
+              {view === "grid" ? (
+                <div className="space-y-4">
+                  {/* Folders render in their own section above the files. */}
+                  {showFolders && folders.length > 0 && (
+                    <FolderGrid folders={folders} />
+                  )}
+                  <RoomGrid rooms={rooms} />
+                </div>
+              ) : (
+                <RoomTable rooms={rooms} folders={showFolders ? folders : []} />
+              )}
+            </FilingArea>
           </div>
         )}
       </HomeScrollBody>
@@ -270,6 +277,20 @@ export function RoomsView({
       )}
     </>
   )
+}
+
+// Wires the folder/canvas drag-drop filing context around the list, but only on
+// the files page (`enabled`). In the flat Recents view there are no folders to
+// file into, so it just renders the list as-is.
+function FilingArea({
+  enabled,
+  children,
+}: {
+  enabled: boolean
+  children: React.ReactNode
+}) {
+  if (!enabled) return <>{children}</>
+  return <FileDndProvider>{children}</FileDndProvider>
 }
 
 function EmptyState({
