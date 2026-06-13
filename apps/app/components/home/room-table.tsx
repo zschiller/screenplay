@@ -23,6 +23,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
+import { MoveToDialog } from "./move-to-dialog"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
@@ -33,8 +34,15 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // the canvases. Clicking the name navigates into the folder (`/files/<id>`);
 // the ⋮ menu renames it in place (#484).
 function FolderRow({ folder }: { folder: FolderSummary }) {
-  const { renameFolder, previewFolderDeletion, removeFolder } = useHome()
+  const {
+    renameFolder,
+    moveFolder,
+    allFolders,
+    previewFolderDeletion,
+    removeFolder,
+  } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   // Enumerate the cascade only while the confirm is open, from the live tree.
@@ -56,6 +64,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       <TableCell className="w-8 pr-2">
         <FolderActionMenu
           onRename={() => setRenameOpen(true)}
+          onMove={() => setMoveOpen(true)}
           onDelete={() => setDeleteOpen(true)}
         >
           <Button
@@ -78,6 +87,15 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameFolder(folder.id, name)}
       />
+      <MoveToDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        itemName={folder.name}
+        currentParentId={folder.parentFolderId}
+        movingFolderId={folder.id}
+        folders={allFolders}
+        onMove={(target) => moveFolder(folder.id, target)}
+      />
       <DeleteFolderDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -95,10 +113,18 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
 }
 
 function RoomRow({ room }: { room: RoomSummary }) {
-  const { renameRoom, removeRoom } = useHome()
+  const {
+    renameRoom,
+    removeRoom,
+    moveRoom,
+    allFolders,
+    folderView,
+    currentFolderId,
+  } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
 
   return (
     <TableRow
@@ -139,6 +165,9 @@ function RoomRow({ room }: { room: RoomSummary }) {
           onRename={() => setRenameOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
+          // Filing only makes sense where there's a folder tree to file into —
+          // the files page, not the flat Recents view.
+          onMove={folderView ? () => setMoveOpen(true) : undefined}
         >
           <Button
             variant="ghost"
@@ -159,6 +188,16 @@ function RoomRow({ room }: { room: RoomSummary }) {
         submitLabel="Save"
         submittingLabel="Saving…"
         onSubmit={(name) => renameRoom(room.id, name)}
+      />
+      {/* In a folder view every Room shown is placed in the folder being viewed,
+          so its current home is `currentFolderId`. */}
+      <MoveToDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        itemName={room.name}
+        currentParentId={currentFolderId}
+        folders={allFolders}
+        onMove={(target) => moveRoom(room.id, target)}
       />
       <DeleteRoomDialog
         open={deleteOpen}

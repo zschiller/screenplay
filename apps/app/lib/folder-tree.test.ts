@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   ancestorChain,
+  canMoveFolder,
   foldersInParent,
   roomsInFolder,
   sortFolders,
@@ -182,6 +183,42 @@ describe("ancestorChain", () => {
     const chain = ancestorChain(cyclic, "x").map((f) => f.id)
     // Both folders appear once; no infinite loop.
     expect(chain.sort()).toEqual(["x", "y"])
+  })
+})
+
+describe("canMoveFolder", () => {
+  // a > b > c, plus an unrelated sibling tree e > f.
+  const tree = [
+    folder("a"),
+    folder("b", { parentFolderId: "a" }),
+    folder("c", { parentFolderId: "b" }),
+    folder("e"),
+    folder("f", { parentFolderId: "e" }),
+  ]
+
+  it("rejects moving a folder into itself", () => {
+    expect(canMoveFolder(tree, "b", "b")).toBe(false)
+  })
+
+  it("rejects moving a folder into a direct child", () => {
+    expect(canMoveFolder(tree, "a", "b")).toBe(false)
+  })
+
+  it("rejects moving a folder into a deeper descendant", () => {
+    expect(canMoveFolder(tree, "a", "c")).toBe(false)
+  })
+
+  it("allows moving a folder to the root", () => {
+    expect(canMoveFolder(tree, "c", null)).toBe(true)
+  })
+
+  it("allows moving a folder into an unrelated branch", () => {
+    expect(canMoveFolder(tree, "a", "f")).toBe(true)
+  })
+
+  it("allows moving a folder up to one of its own ancestors", () => {
+    // c sits under b under a; re-homing it directly under a is not a cycle.
+    expect(canMoveFolder(tree, "c", "a")).toBe(true)
   })
 })
 
