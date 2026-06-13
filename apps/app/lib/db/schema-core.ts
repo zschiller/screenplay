@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core"
 import type { ModelMessage } from "ai"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
+import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
 // The tables that survive into the local desktop build (PRD #404). The
 // multi-user surface — auth (`session`/`account`/`verification`), `room_member`
@@ -46,8 +47,15 @@ export const room = pgTable("room", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   // Last time a member opened the room — surfaced in the projects list.
   lastOpenedAt: timestamp("last_opened_at"),
+  // Legacy single baked thumbnail (pre-#468). Superseded by `thumbnailManifest`,
+  // which the homescreen composes at display time; kept nullable so existing
+  // rows aren't dropped, but no longer written.
   thumbnailUrl: text("thumbnail_url"),
   thumbnailUpdatedAt: timestamp("thumbnail_updated_at"),
+  // Denormalized per-Room Thumbnail Manifest (#468): each Iframe Layer's
+  // placement + its most recent Frame Capture, composed into a thumbnail on the
+  // homescreen grid. Null for legacy rows captured before the manifest landed.
+  thumbnailManifest: jsonb("thumbnail_manifest").$type<ThumbnailManifest>(),
 })
 
 export type RoomRole = "owner" | "editor" | "viewer"

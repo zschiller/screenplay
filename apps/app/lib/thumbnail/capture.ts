@@ -1,47 +1,71 @@
 import "server-only"
 
 import sharp from "sharp"
-import { getBaseURL } from "@/lib/base-url"
-import { BASE_PATH } from "@/lib/base-path"
 import { blobStore } from "@/lib/blob"
-import { setRoomThumbnail } from "@/lib/rooms"
+import { setRoomThumbnailManifest } from "@/lib/rooms"
+import {
+  buildThumbnailManifest,
+  type FrameCapture,
+  type ThumbnailManifest,
+} from "./manifest"
+import { readRoomCaptureLayout } from "./room-layout"
 import { thumbnailCapturer, type ThumbnailCapturer } from "./capturer"
-import { signRenderToken } from "./token"
 
-const THUMB_W = 640
-const THUMB_H = 480
+// The longest side a stored Frame Capture is resized to. The homescreen grid
+// scales each capture into a small card, so a frame-sized webp is plenty —
+// keeping the blobs small keeps the per-Room manifest read cheap to render.
+const MAX_FRAME_DIM = 512
 
 /**
- * Capture a Room's render page into a stored thumbnail and record its URL on
- * the Room. The screenshot itself comes from the injected
- * {@link ThumbnailCapturer} seam (default: headless Chromium); the `sharp`
- * resize, `BlobStore.put`, and `setRoomThumbnail` orchestration here is shared
- * across every capturer, so a sibling capturer (e.g. the desktop Tauri-webview
- * one) is a drop-in rather than a fork of this path.
+ * Capture a Room's thumbnail as a per-frame composite. Reads the room's layout
+ * once (`readRoomCaptureLayout`), screenshots each ready Iframe Layer's live
+ * preview URL through the injected {@link ThumbnailCapturer} seam — called once
+ * per frame — resizes and stores each capture, then builds and persists the
+ * {@link ThumbnailManifest} on the Room row. No single baked `thumbnailUrl`
+ * anymore: the grid composes positioned images from the manifest at display
+ * time.
+ *
+ * This slice handles the simple "every frame is ready" case (#468): a frame
+ * with no preview URL is skipped and lands in the manifest captureless. The
+ * `sharp` resize, `BlobStore.put`, and Room write are shared across capturers,
+ * so a sibling capturer (the desktop Tauri-webview one) stays a drop-in.
  */
 export async function captureRoomThumbnail(
   roomId: string,
   capturer: ThumbnailCapturer = thumbnailCapturer
-): Promise<string> {
-  const baseURL = getBaseURL()
-  const token = signRenderToken(roomId)
-  // The render page lives under the product's `/app` basePath, so the capturer
-  // must hit `${origin}/app/${roomId}/render` — whether `${origin}` is the apex
-  // (which proxies `/app/*` here) or this deploy's own URL.
-  const renderUrl = `${baseURL}${BASE_PATH}/${roomId}/render?token=${encodeURIComponent(token)}`
+): Promise<ThumbnailManifest> {
+  const { layouts, frames } = await readRoomCaptureLayout(roomId)
 
-  const pngBuffer = await capturer.capture(renderUrl)
+  const captures = new Map<string, FrameCapture>()
+  for (const frame of frames) {
+    const layout = layouts.get(frame.id)
+    if (!frame.previewUrl || !layout) continue
 
-  const webp = await sharp(pngBuffer)
-    .resize(THUMB_W, THUMB_H, { fit: "cover" })
-    .webp({ quality: 80 })
-    .toBuffer()
+    const pngBuffer = await capturer.capture(frame.previewUrl)
 
-  const { url } = await blobStore.put(`thumbnails/${roomId}.webp`, webp, {
-    contentType: "image/webp",
-    cacheControlMaxAge: 60,
-  })
+    // Resize to the frame's own aspect ratio, capped at MAX_FRAME_DIM on the
+    // long side — the manifest carries the rect, so the capture only has to
+    // look right when scaled into it.
+    const scale = Math.min(
+      1,
+      MAX_FRAME_DIM / Math.max(layout.width, layout.height)
+    )
+    const webp = await sharp(pngBuffer)
+      .resize(Math.round(layout.width * scale), Math.round(layout.height * scale), {
+        fit: "cover",
+      })
+      .webp({ quality: 80 })
+      .toBuffer()
 
-  await setRoomThumbnail(roomId, url)
-  return url
+    const { url } = await blobStore.put(
+      `thumbnails/${roomId}/${frame.id}.webp`,
+      webp,
+      { contentType: "image/webp", cacheControlMaxAge: 60 }
+    )
+    captures.set(frame.id, { url })
+  }
+
+  const manifest = buildThumbnailManifest(layouts, frames, captures)
+  await setRoomThumbnailManifest(roomId, manifest)
+  return manifest
 }

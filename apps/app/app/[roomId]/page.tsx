@@ -70,7 +70,7 @@ export default async function RoomPage({
       <Canvas
         roomId={roomId}
         roomName={room.name}
-        hasThumbnail={!!room.thumbnailUrl}
+        hasThumbnail={!!room.thumbnailManifest}
         initialLayout={initialLayout}
         initialThreads={initialThreads}
         initialTerminalTabs={initialTerminalTabs}

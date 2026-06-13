@@ -24,6 +24,7 @@ import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { yjsHost } from "@/lib/yjs-host"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { isLocalBuild } from "@/lib/local-mode"
+import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
 // Sharing is excluded from the local desktop build (PRD #404, issue #417):
 // there is one local user and no `room_member` table. The UI affordances are
@@ -44,6 +45,7 @@ export type RoomSummary = {
   lastConnectionAt: number | null
   thumbnailUrl: string | null
   thumbnailUpdatedAt: number | null
+  thumbnailManifest: ThumbnailManifest | null
 }
 
 export type CollaboratorInfo = {
@@ -72,6 +74,7 @@ export async function createRoom(name: string): Promise<RoomSummary> {
     lastConnectionAt: room.lastOpenedAt,
     thumbnailUrl: room.thumbnailUrl,
     thumbnailUpdatedAt: room.thumbnailUpdatedAt,
+    thumbnailManifest: room.thumbnailManifest,
   }
 }
 
@@ -87,6 +90,7 @@ export async function listRooms(): Promise<RoomSummary[]> {
     lastConnectionAt: room.lastOpenedAt,
     thumbnailUrl: room.thumbnailUrl,
     thumbnailUpdatedAt: room.thumbnailUpdatedAt,
+    thumbnailManifest: room.thumbnailManifest,
   }))
 }
 

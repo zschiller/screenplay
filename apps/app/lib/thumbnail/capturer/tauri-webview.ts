@@ -27,11 +27,11 @@ const CAPTURE_TIMEOUT_MS = 20_000
  * it. The shell exposes a tiny localhost control server (its URL arrives via
  * `TAURI_CONTROL_URL`); this capturer POSTs the render URL there and gets raw
  * PNG bytes back. Everything downstream — the `sharp` resize, `BlobStore.put`,
- * and `setRoomThumbnail` write in `captureRoomThumbnail` — is unchanged, so this
+ * and Thumbnail Manifest write in `captureRoomThumbnail` — is unchanged, so this
  * is a drop-in sibling of the puppeteer capturer behind the same seam.
  */
 class TauriWebviewCapturer implements ThumbnailCapturer {
-  async capture(renderUrl: string): Promise<Buffer> {
+  async capture(previewUrl: string): Promise<Buffer> {
     const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
     if (!controlUrl) {
       throw new Error(
@@ -45,14 +45,17 @@ class TauriWebviewCapturer implements ThumbnailCapturer {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ renderUrl }),
+      // The shell's control server keys this `renderUrl` (serde rename in
+      // `thumbnail.rs`); keep the wire field name even though it's now a frame's
+      // preview URL.
+      body: JSON.stringify({ renderUrl: previewUrl }),
       signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
     })
 
     if (!response.ok) {
       throw new Error(
         `Tauri control server returned ${response.status} ${response.statusText} ` +
-          `capturing ${renderUrl}`
+          `capturing ${previewUrl}`
       )
     }
 
