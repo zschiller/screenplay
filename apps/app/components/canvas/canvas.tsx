@@ -117,6 +117,7 @@ import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
+import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
@@ -620,7 +621,19 @@ export function Canvas({
   // generic single-field `patch`. Trivial single-field writes below go through
   // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
   const ops = useMemo(() => createCanvasOps(collections), [collections])
-  useThumbnailHeartbeat(roomId, hasThumbnail)
+  // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
+  // Iframe Layers report their ready/HMR transitions into this tracker, and the
+  // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
+  const captureTracker = useMemo(() => new DirtyFrameTracker(), [])
+  useThumbnailHeartbeat(roomId, hasThumbnail, captureTracker)
+  const handleCaptureReadyChange = useCallback(
+    (id: string, ready: boolean) => captureTracker.setReady(id, ready),
+    [captureTracker]
+  )
+  const handleCaptureDirty = useCallback(
+    (id: string) => captureTracker.markDirty(id),
+    [captureTracker]
+  )
 
   // Publish identity + a stable color into awareness on mount and whenever the
   // session changes. Seed a placeholder viewport so `useSelfPresence` returns
@@ -944,6 +957,11 @@ export function Canvas({
   const iframeLayers = useIframeLayers()
   const iframeLayerGroups = useIframeLayerGroups()
   const markdownLayers = useMarkdownLayers()
+  // Prune capture bookkeeping for frames removed from the canvas so a deleted
+  // frame's stale dirty flag never lands in a POSTed subset (#474).
+  useEffect(() => {
+    captureTracker.retain(new Set(iframeLayers.map((layer) => layer.id)))
+  }, [captureTracker, iframeLayers])
   // Drop out of Focus or Create Flow mode the instant the frame it targets is
   // gone OR deselected, so the canvas pans/zooms/scrolls again with no Escape
   // needed. We reconcile against the live layer set and the current selection
@@ -5641,6 +5659,8 @@ export function Canvas({
                           onHover={handleInspectHover}
                           onWheel={handleIframeWheel}
                           onDomReady={handleIframeLayerDomReady}
+                          onCaptureReadyChange={handleCaptureReadyChange}
+                          onCaptureDirty={handleCaptureDirty}
                           assignableBranches={agents}
                           onAssignBranch={assignAgentToIframeLayer}
                           discoveredRoutes={agentInfo?.discoveredRoutes}

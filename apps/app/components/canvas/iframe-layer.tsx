@@ -188,6 +188,15 @@ interface IframeLayerProps {
    * to the right iframeLayer.
    */
   onDomReady?: (iframeLayerId: string, dom: ScreenplayDom | null) => void
+  /**
+   * Thumbnail-capture bookkeeping (#474). `onCaptureReadyChange` reports the
+   * frame's content-ready transitions (first load, and the reload after a
+   * route/branch change), so the heartbeat marks it dirty and recaptures it.
+   * `onCaptureDirty` reports an in-place change with no ready transition — an
+   * HMR reconnect — so a frame that's already loaded still gets recaptured.
+   */
+  onCaptureReadyChange?: (iframeLayerId: string, ready: boolean) => void
+  onCaptureDirty?: (iframeLayerId: string) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableBranches?: BranchData[]
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
@@ -268,6 +277,8 @@ export function IframeLayer({
   onHover,
   onWheel,
   onDomReady,
+  onCaptureReadyChange,
+  onCaptureDirty,
   assignableBranches,
   onAssignBranch,
   discoveredRoutes,
@@ -496,9 +507,40 @@ export function IframeLayer({
   // only while every item it would hold is absent.
   const showOverflow = !!onSetSize || showFit || showPlay || showOpenInBrowser
 
-  const handleHmrStatus = useCallback((_id: string, status: HmrStatus) => {
-    setHmrStatus(status)
-  }, [])
+  // Report content-ready transitions up to the thumbnail heartbeat (#474). The
+  // first paint and the re-paint after a route/branch change (which drops
+  // `contentReady` then reports it again) both flow through here, so the
+  // heartbeat marks the frame dirty and recaptures just it. Stored in a ref so
+  // the effect fires on the value, not on identity churn of the callback.
+  const onCaptureReadyChangeRef = useRef(onCaptureReadyChange)
+  useEffect(() => {
+    onCaptureReadyChangeRef.current = onCaptureReadyChange
+  })
+  useEffect(() => {
+    onCaptureReadyChangeRef.current?.(iframeLayer.id, contentReady)
+  }, [iframeLayer.id, contentReady])
+
+  // An HMR reconnect (`reconnecting`/`disconnected` → `connected`) means the
+  // dev server bounced and the preview most likely changed without a full
+  // reload — the closest signal the bridge gives us to "HMR applied an update"
+  // (it observes the HMR channel's open/close, not its message payloads). Mark
+  // the frame dirty so a loaded frame still gets recaptured.
+  const onCaptureDirtyRef = useRef(onCaptureDirty)
+  useEffect(() => {
+    onCaptureDirtyRef.current = onCaptureDirty
+  })
+  const prevHmrStatusRef = useRef<HmrStatus | null>(null)
+  const handleHmrStatus = useCallback(
+    (_id: string, status: HmrStatus) => {
+      const prev = prevHmrStatusRef.current
+      prevHmrStatusRef.current = status
+      setHmrStatus(status)
+      if (status === "connected" && prev !== null && prev !== "connected") {
+        onCaptureDirtyRef.current?.(iframeLayer.id)
+      }
+    },
+    [iframeLayer.id]
+  )
 
   const handleScroll = useCallback(
     (id: string, scrollX: number, scrollY: number) => {
