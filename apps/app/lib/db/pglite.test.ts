@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { and, eq, sql } from "drizzle-orm"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createPgliteDb } from "./pglite"
 import {
@@ -17,6 +17,14 @@ import {
   user,
 } from "./schema"
 import type { ModelMessage } from "ai"
+
+// Every test here boots its own embedded Postgres (PGlite/WASM) and runs the
+// migration set — inherently ~2s each even on an idle machine. Under the full
+// parallel suite the WASM boot competes for CPU with ~100 other test files and
+// can blow past Vitest's 5s default, which is what made the first migration
+// test flake. Raise the timeout for this file so a slow-but-healthy boot isn't
+// mistaken for a hang; a real hang still trips at 30s.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 
 // Each test that needs durability across reopens gets its own temp data dir;
 // we clean them up afterward.
