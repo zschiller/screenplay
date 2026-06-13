@@ -1,12 +1,8 @@
-import { cookies } from "next/headers"
 import Link from "next/link"
 import { Button } from "@workspace/ui/components/button"
-import { HomeWorkspace } from "@/components/home/home-workspace"
+import { HomeProvider } from "@/components/home/home-provider"
+import { RoomsView } from "@/components/home/rooms-view"
 import { getUserId } from "@/lib/auth-helpers"
-import {
-  panelLayoutCookieName,
-  parsePanelLayoutValue,
-} from "@/lib/panel-layout"
 
 export default async function Page() {
   const userId = await getUserId()
@@ -26,14 +22,9 @@ export default async function Page() {
     )
   }
 
-  // Read the persisted panel layout from the cookie server-side so SSR and the
-  // first client paint agree on panel sizes. Reading it on the client (e.g. via
-  // `document.cookie`) would make the server render `defaultSize` while the
-  // client renders the persisted layout — a hydration mismatch.
-  const cookieStore = await cookies()
-  const initialLayout = parsePanelLayoutValue(
-    cookieStore.get(panelLayoutCookieName("home-layout"))?.value
+  return (
+    <HomeProvider>
+      <RoomsView />
+    </HomeProvider>
   )
-
-  return <HomeWorkspace initialLayout={initialLayout} />
 }
