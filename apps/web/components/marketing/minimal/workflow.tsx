@@ -7,23 +7,23 @@ type Step = {
 const steps: Step[] = [
   {
     num: "01",
-    title: "Download and install",
-    body: "Install the native desktop app for macOS, Windows, or Linux. Launch it like any other app on your machine — no browser required.",
+    title: "Spin up branches",
+    body: "Each artboard is its own git branch in its own sandbox. Duplicate an artboard to explore an alternative. The AI agent builds each direction in parallel.",
   },
   {
     num: "02",
-    title: "Build with the agent",
-    body: "Each artboard runs a coding agent inside its own sandbox. Work locally with native performance, and your changes sync automatically when you're ready.",
+    title: "See them side by side",
+    body: "Branches don't live in tabs or terminal windows. They sit next to each other on the canvas, already running, already interactive. Pan to compare, click to focus.",
   },
   {
     num: "03",
-    title: "Compare and refine",
-    body: "Branch side by side in the desktop app. Each artboard is its own direction, all visible at once. Adjust values with live controls and see changes instantly.",
+    title: "Go broad with AI",
+    body: "Ask the agent for three takes on a layout. Try a different color system. Explore edge cases. Each direction gets its own artboard. The canvas holds them all.",
   },
   {
     num: "04",
-    title: "Share when ready",
-    body: "Export a shareable link when you want feedback. Your team can view and comment on your work without installing anything.",
+    title: "Share the whole space",
+    body: "Send one link. Your team sees every branch, every state, your live cursor. They comment on elements, not screenshots. Review happens on the canvas.",
   },
 ]
 
@@ -35,7 +35,7 @@ export function MinimalWorkflow() {
           How it works
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          A native app that works the way you think.
+          Multiple branches, one canvas, zero context switching.
         </h2>
 
         <ol className="mt-14 divide-y divide-border/60">

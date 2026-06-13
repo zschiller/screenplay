@@ -12,22 +12,22 @@ const packages: Pkg[] = [
   {
     name: "@screenplay.space/knobs",
     href: "https://www.npmjs.com/package/@screenplay.space/knobs",
-    pitch: "Live controls, built into the desktop app.",
-    body: "Expose values as adjustable knobs right in the app — spacing, colors, text, anything. Change them live and see updates instantly. The desktop app makes it seamless.",
+    pitch: "Refine values across multiple branches at once.",
+    body: "Expose spacing, colors, or copy as adjustable knobs. Change them live and watch every branch update in parallel. See which direction works best without re-prompting the agent.",
     bullets: [
-      "Integrated into the native UI",
-      "Real-time updates, no reload",
+      "Live updates across all artboards",
+      "Real components, real state",
       "Agent adds them on demand",
-      "Commit changes back to code",
+      "Commit the winner back to code",
     ],
   },
   {
     name: "@screenplay.space/state",
     href: "https://www.npmjs.com/package/@screenplay.space/state",
-    pitch: "Local state that syncs when you want it to.",
-    body: "Manage prototype state locally in the desktop app. When you're ready to share, state syncs across viewers. Forms, toggles, route params — it all just works.",
+    pitch: "Every branch sees the same state.",
+    body: "Forms, toggles, route params — share any value and it syncs across artboards. Compare how different branches handle the same state without manual setup.",
     bullets: [
-      "Local-first, syncs on demand",
+      "Shared state across branches",
       "Conflict-free (CRDTs)",
       "Persists per artboard",
       "Works with any state library",
@@ -43,7 +43,7 @@ export function MinimalPackages() {
           Built on open source
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          The desktop app uses the same open source packages.
+          Two packages that make parallel exploration real.
         </h2>
 
         <div className="mt-14 grid gap-12 sm:grid-cols-2 sm:gap-10">

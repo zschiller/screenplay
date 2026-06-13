@@ -5,11 +5,12 @@ export function MinimalCTA() {
     <section className="border-b border-border/60">
       <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-32">
         <h2 className="text-balance text-3xl font-medium tracking-tight sm:text-4xl">
-          Get the desktop app.
+          Stop choosing. Start comparing.
         </h2>
         <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Download Screenplay for macOS, Windows, or Linux. Build locally,
-          share globally. Available on GitHub.
+          Download the desktop app and turn every AI conversation into a
+          canvas of possibilities. Explore broadly, compare side by side,
+          ship the best direction.
         </p>
         <div className="mt-8 flex items-center gap-6 text-sm">
           <a

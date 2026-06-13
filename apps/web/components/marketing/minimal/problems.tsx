@@ -5,16 +5,16 @@ type Problem = {
 
 const problems: Problem[] = [
   {
-    label: "Native experience",
-    body: "Browser tabs slow you down. The Screenplay desktop app gives you a dedicated workspace with native performance, offline support, and no distractions. Focus on building without fighting your browser.",
+    label: "One at a time",
+    body: "AI agents explore one branch at a time. You can't ask for three variations and see them side by side. Screenplay runs each branch in its own sandbox, all visible on the canvas. Compare alternatives, not commit messages.",
   },
   {
-    label: "Local-first",
-    body: "Your prototypes live on your machine. Work offline, keep your code local, and sync when you're ready. The desktop app manages your sandboxes and branches without relying on cloud infrastructure.",
+    label: "Switching is slow",
+    body: "git checkout, wait for rebuild, refresh the page. Toggling between branches breaks your flow and hides the alternatives. In Screenplay, every branch is one click away, already running, already in view.",
   },
   {
-    label: "Integrated workflow",
-    body: "Jump between the canvas, the agent, and your code editor without switching apps. The desktop app integrates with your local development environment, making the loop from idea to prototype seamless.",
+    label: "Context collapse",
+    body: "Screenshots don't capture interaction. Screen recordings don't show state. Comparing branches means comparing static artifacts. Screenplay keeps every branch live — same state, same cursors, same canvas.",
   },
 ]
 
@@ -26,7 +26,7 @@ export function MinimalProblems() {
           What changed
         </span>
         <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          A desktop app built for the way you actually work.
+          AI agents go deep. Screenplay helps you go broad.
         </h2>
 
         <ul className="mt-14 divide-y divide-border/60">

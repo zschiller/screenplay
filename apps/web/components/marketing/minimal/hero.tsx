@@ -9,13 +9,13 @@ export function MinimalHero() {
           Screenplay
         </span>
         <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
-          The desktop app for building and reviewing prototypes.
+          Explore every direction at once.
         </h1>
         <p className="mt-6 max-w-xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Build prototypes with an AI agent, compare directions side by side,
-          and share your work with your team — all from a native desktop app.
-          No browser tabs, no context switching, just a clean workspace that
-          syncs across your team.
+          AI agents work one branch at a time. Screenplay lets you explore
+          broadly — spin up multiple branches in parallel, see every direction
+          side by side, and compare alternatives on a single canvas. Stop
+          toggling between tabs. Start seeing the whole design space.
         </p>
 
         <div className="mt-10 flex items-center gap-6 text-sm">
