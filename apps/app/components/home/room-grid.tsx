@@ -11,6 +11,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
+import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
 function RoomCard({ room }: { room: RoomSummary }) {
@@ -20,7 +21,14 @@ function RoomCard({ room }: { room: RoomSummary }) {
   const [shareOpen, setShareOpen] = useState(false)
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20">
+    <div
+      // Open the room's connection on hover/focus so it's synced by the time the
+      // route mounts — the canvas renders on the first frame with no sync-gate
+      // flash. No-op on the hosted build.
+      onPointerEnter={() => prewarmRoom(room.id)}
+      onFocus={() => prewarmRoom(room.id)}
+      className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20"
+    >
       <Link
         href={`/${room.id}`}
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
@@ -62,7 +70,10 @@ function RoomCard({ room }: { room: RoomSummary }) {
             {room.name}
           </Link>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>
+            {/* Relative time reads Date.now(), which differs between the SSR
+                pass and hydration; keep the server value rather than
+                regenerate. */}
+            <span suppressHydrationWarning>
               Edited{" "}
               {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
             </span>

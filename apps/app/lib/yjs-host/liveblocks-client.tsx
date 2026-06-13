@@ -25,6 +25,16 @@ import "@/liveblocks.config"
  * Adding another host (Hocuspocus, y-websocket, Durable Objects) is a swap
  * of the inner tree — `useYjs()` consumers don't change.
  */
+
+/**
+ * No-op on the hosted build. The local host prewarms a room's socket before
+ * navigation to avoid a sync-gate flash; Liveblocks prefetches differently, so
+ * this just keeps the client surface symmetric across the build switch.
+ */
+export function prewarmRoom(roomId: string): void {
+  void roomId
+}
+
 export function YjsRoomProvider({
   roomId,
   fallback,

@@ -15,10 +15,15 @@ import {
   renameRoom as renameRoomAction,
   type RoomSummary,
 } from "@/lib/rooms-actions"
-import { sortRooms, type SortKey } from "@/lib/room-sort"
+import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
 
 export type View = "grid" | "table"
-export type { SortKey }
+export type { SortKey, SortOrder }
+
+/** A→Z reads as the natural default for names; everything else newest-first. */
+export function defaultOrder(sort: SortKey): SortOrder {
+  return sort === "name" ? "asc" : "desc"
+}
 
 type HomeContextValue = {
   /** Every Room the user owns or can see, ordered by the current sort. */
@@ -28,6 +33,8 @@ type HomeContextValue = {
   setView: (v: View) => void
   sort: SortKey
   setSort: (s: SortKey) => void
+  order: SortOrder
+  setOrder: (o: SortOrder) => void
 
   createRoom: (name: string) => Promise<RoomSummary>
   renameRoom: (id: string, name: string) => Promise<void>
@@ -42,13 +49,31 @@ export function useHome(): HomeContextValue {
   return ctx
 }
 
-export function HomeProvider({ children }: { children: React.ReactNode }) {
-  const [rooms, setRooms] = useState<RoomSummary[]>([])
-  const [loading, setLoading] = useState(true)
+export function HomeProvider({
+  children,
+  initialRooms,
+}: {
+  children: React.ReactNode
+  initialRooms?: RoomSummary[]
+}) {
+  const [rooms, setRooms] = useState<RoomSummary[]>(initialRooms ?? [])
+  // With server-seeded rooms the grid is ready on first paint — no loading
+  // state, which is what avoids the empty-grid flash on the desktop build.
+  const [loading, setLoading] = useState(!initialRooms)
   const [view, setView] = useState<View>("grid")
-  const [sort, setSort] = useState<SortKey>("updated")
+  const [sort, setSortKey] = useState<SortKey>("updated")
+  const [order, setOrder] = useState<SortOrder>(defaultOrder("updated"))
+
+  // Switching the sort key resets direction to that key's natural default
+  // (names A→Z, timestamps newest-first); the user can then flip it.
+  const setSort = useCallback((next: SortKey) => {
+    setSortKey(next)
+    setOrder(defaultOrder(next))
+  }, [])
 
   useEffect(() => {
+    // Already seeded server-side; skip the client fetch (and its flash).
+    if (initialRooms) return
     let cancelled = false
     listRooms()
       .then((roomList) => {
@@ -61,9 +86,12 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [initialRooms])
 
-  const sortedRooms = useMemo(() => sortRooms(rooms, sort), [rooms, sort])
+  const sortedRooms = useMemo(
+    () => sortRooms(rooms, sort, order),
+    [rooms, sort, order]
+  )
 
   const createRoom = useCallback(async (name: string) => {
     const room = await createRoomAction(name)
@@ -91,6 +119,8 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     setView,
     sort,
     setSort,
+    order,
+    setOrder,
     createRoom,
     renameRoom,
     removeRoom,

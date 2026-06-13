@@ -18,6 +18,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
 import { useHome } from "./home-provider"
+import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
 function RoomRow({ room }: { room: RoomSummary }) {
@@ -27,7 +28,13 @@ function RoomRow({ room }: { room: RoomSummary }) {
   const [shareOpen, setShareOpen] = useState(false)
 
   return (
-    <TableRow className="group">
+    <TableRow
+      // Prewarm the room connection on hover/focus so the canvas renders on the
+      // first frame without a sync-gate flash. No-op on the hosted build.
+      onPointerEnter={() => prewarmRoom(room.id)}
+      onFocus={() => prewarmRoom(room.id)}
+      className="group"
+    >
       <TableCell className="w-full">
         <Link href={`/${room.id}`} className="flex items-center gap-2">
           <FileIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -36,10 +43,18 @@ function RoomRow({ room }: { room: RoomSummary }) {
           </span>
         </Link>
       </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">
+      {/* Relative times read Date.now(), which differs between the SSR pass
+          and hydration; keep the server value rather than regenerate. */}
+      <TableCell
+        suppressHydrationWarning
+        className="whitespace-nowrap text-muted-foreground"
+      >
         {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">
+      <TableCell
+        suppressHydrationWarning
+        className="whitespace-nowrap text-muted-foreground"
+      >
         {formatDistanceToNow(room.createdAt)}
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">

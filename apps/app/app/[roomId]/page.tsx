@@ -33,10 +33,14 @@ export default async function RoomPage({
   const userId = await getUserId()
   if (!userId) redirect(`/sign-in?redirect=/${roomId}`)
 
-  const room = await getRoom(roomId)
+  // Resolve the room and the access check together — neither depends on the
+  // other, and running them sequentially adds a round-trip to the open path.
+  const [room, access] = await Promise.all([
+    getRoom(roomId),
+    canAccess(roomId, userId),
+  ])
   if (!room) notFound()
-
-  if (!(await canAccess(roomId, userId))) notFound()
+  if (!access) notFound()
 
   // Best-effort: don't block render if the timestamp update fails.
   touchRoomOpened(roomId).catch(() => {})
@@ -46,20 +50,17 @@ export default async function RoomPage({
     cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value
   )
 
-  // Pre-fetch threads server-side so comment pins render on the very first
-  // client paint. The equivalent client-side server action gets queued behind
-  // the iframeLayer's probeSandboxUrl polling and otherwise wouldn't resolve
-  // until the dev server's iframe URL is up — making pins look like they
-  // were waiting on the iframe.
-  const initialThreads = await listThreads(roomId, userId).catch(() => [])
-
-  // Pre-fetch this User's terminal tabs server-side too, so restored terminals
-  // render on the first client paint alongside chats (which arrive in the
-  // synced Y.Doc). The client-side `listTerminalTabsAction` would otherwise
-  // resolve a beat after load, making terminal tabs pop in late.
-  const initialTerminalTabs = await listTerminalTabs({ userId, roomId }).catch(
-    () => []
-  )
+  // Pre-fetch threads and this User's terminal tabs server-side so comment pins
+  // and restored terminals render on the very first client paint. The
+  // equivalent client-side server actions get queued behind the iframeLayer's
+  // probeSandboxUrl polling and otherwise wouldn't resolve until the dev
+  // server's iframe URL is up — making pins look like they were waiting on the
+  // iframe and terminal tabs pop in late. Fetched in parallel since they're
+  // independent.
+  const [initialThreads, initialTerminalTabs] = await Promise.all([
+    listThreads(roomId, userId).catch(() => []),
+    listTerminalTabs({ userId, roomId }).catch(() => []),
+  ])
 
   return (
     <YjsRoomProvider
