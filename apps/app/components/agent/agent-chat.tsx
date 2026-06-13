@@ -139,46 +139,64 @@ export function AgentChat({
   }
 
   // Keep the message list pinned to the bottom as content resolves —
-  // react-markdown / code blocks / streaming tokens all grow the height
+  // react-markdown / code blocks / streaming tokens all change the height
   // asynchronously, so a single scrollTo after a `messages` update lands
-  // short of the new bottom. A ResizeObserver on the content wrapper
-  // catches every height change.
+  // short of the new bottom. A ResizeObserver on the content wrapper catches
+  // every height change (growth *and* shrink) and re-pins.
   //
-  // The first reveal (initial mount, or the panel transitioning from a
-  // collapsed 0px state to visible) jumps instantly so opening the chat
-  // doesn't animate from the top. Subsequent growth scrolls smoothly,
-  // but only when the user is already near the bottom — so manually
-  // scrolling up to read history isn't yanked away by streaming output.
+  // This follows the model proven by AI-chat scroll libraries such as
+  // `use-stick-to-bottom`, distilled to two rules:
   //
-  // "Near the bottom" is tracked as intent (`stick`) via scroll *direction*,
-  // not by reading `scrollTop` at insert time. A smooth scrollTo animates over
-  // a few hundred ms, during which `scrollTop` lags the true bottom; a discrete
-  // insertion (e.g. a tool-call row) that arrives mid-animation would read that
-  // lagging value as ">64px from bottom" and wrongly bail. Streaming text hides
-  // this — it re-fires every frame and catches up — but a one-shot tool call
-  // gets dropped. Deriving `stick` from whether the user scrolled *up* (only the
-  // user moves away from the bottom; our programmatic scroll only moves toward
-  // it) keeps the decision stable across the in-flight animation.
+  //  1. Pin *instantly* (`scrollTop = scrollHeight`), never with native
+  //     `behavior: "smooth"`. A smooth scroll animates toward a target that
+  //     streaming has already made stale, so it perpetually trails the bottom
+  //     and `scrollTop` lags during the animation. (The libraries replace it
+  //     with their own velocity spring; instant is the simpler safe choice and
+  //     matches ChatGPT/Claude, where the smoothness comes from tokens arriving
+  //     incrementally, not from scroll easing.)
+  //
+  //  2. Decide whether to keep following (`stick`) from the *user's input
+  //     gesture*, never from `scrollTop` deltas. The browser moves `scrollTop`
+  //     on its own — most importantly it clamps it downward when content
+  //     shrinks (a code fence closing, a thinking/tool-call row collapsing),
+  //     emitting a scroll event indistinguishable from a manual scroll-up. A
+  //     wheel-up is therefore the unpin signal: it fires synchronously, before
+  //     the next resize can yank the view back, so the user can read history
+  //     mid-stream. The scroll handler only supplies steady-state truth —
+  //     re-pinning once the viewport is back within THRESHOLD of the bottom
+  //     (covers scrollbar drags and keyboard paging too).
   useEffect(() => {
     const container = scrollContainerRef.current
     const content = scrollContentRef.current
     if (!container || !content) return
     const THRESHOLD = 64
     let stick = true
-    let lastTop = container.scrollTop
-    const onScroll = () => {
-      const top = container.scrollTop
-      const distance = container.scrollHeight - top - container.clientHeight
-      if (top < lastTop - 1) {
-        // Moved up → the user is reading history; stop following new output.
-        stick = false
-      } else if (distance <= THRESHOLD) {
-        // Back at/near the bottom (user or programmatic settle) → re-pin.
-        stick = true
-      }
-      lastTop = top
+    const distanceFromBottom = () =>
+      container.scrollHeight - container.scrollTop - container.clientHeight
+
+    // Wheel/touch up = the user is leaving the bottom on purpose. Set synchronously
+    // so an in-flight stream can't re-pin us before the intent registers.
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) stick = false
     }
+    let lastTouchY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      lastTouchY = e.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0
+      if (y > lastTouchY) stick = false // finger down → content scrolls up
+      lastTouchY = y
+    }
+    // Steady-state truth: wherever the scroll settles, follow iff near the bottom.
+    const onScroll = () => {
+      stick = distanceFromBottom() <= THRESHOLD
+    }
+    container.addEventListener("wheel", onWheel, { passive: true })
+    container.addEventListener("touchstart", onTouchStart, { passive: true })
+    container.addEventListener("touchmove", onTouchMove, { passive: true })
     container.addEventListener("scroll", onScroll, { passive: true })
+
     let lastClientHeight = 0
     const observer = new ResizeObserver(() => {
       const clientHeight = container.clientHeight
@@ -186,19 +204,20 @@ export function AgentChat({
         lastClientHeight = 0
         return
       }
+      // First reveal (mount, or the panel expanding from a collapsed 0px state)
+      // always jumps to the bottom; later changes only when still pinned.
       const isFirstReveal = lastClientHeight === 0
       lastClientHeight = clientHeight
       if (!isFirstReveal && !stick) return
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: isFirstReveal ? "auto" : "smooth",
-      })
-      lastTop = container.scrollTop
+      container.scrollTop = container.scrollHeight
     })
     observer.observe(content)
     observer.observe(container)
     return () => {
       observer.disconnect()
+      container.removeEventListener("wheel", onWheel)
+      container.removeEventListener("touchstart", onTouchStart)
+      container.removeEventListener("touchmove", onTouchMove)
       container.removeEventListener("scroll", onScroll)
     }
   }, [])

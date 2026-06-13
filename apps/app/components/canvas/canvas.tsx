@@ -51,6 +51,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
 import {
+  Crosshair,
   FileText,
   Frame,
   MessageSquare,
@@ -117,7 +118,6 @@ import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
-import { inputStore } from "@/lib/input-store"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
 import { ChatPanel, type ChatPanelTarget } from "@/components/agent/chat-panel"
@@ -2953,51 +2953,28 @@ export function Canvas({
                 documentTitle: docLayer.title || null,
               })}\n\n${note}`
             : note
-        const remembered = selectedChatByDocumentRef.current[docLayer.id]
-        const rememberedChat = remembered
-          ? chatSessions.find((c) => c.id === remembered && !c.closedAt)
-          : null
-        const fallback = chatSessions
-          .filter((c) => c.markdownLayerId === docLayer.id && !c.closedAt)
-          .sort((a, b) => a.createdAt - b.createdAt)[0]
-        const target = rememberedChat ?? fallback ?? null
-        const targetBusy = target
-          ? chatStore.getSnapshot(target.id).isStreaming ||
-            target.isStreaming === true
-          : false
-        let chatId: string
-        let planMode: boolean | undefined
-        let model: string | undefined
-        if (!target || targetBusy) {
-          chatId = nanoid()
-          planMode = undefined
-          model = undefined
-          addChatSession(chatId, {
-            id: chatId,
-            markdownLayerId: docLayer.id,
-            label: "Untitled",
-            createdAt: Date.now(),
-          })
-        } else {
-          chatId = target.id
-          planMode = target.planMode
-          model = target.model
-        }
+        // Always open a fresh chat bound to this doc — never reuse a
+        // remembered chat or a terminal.
+        const chatId = nanoid()
+        addChatSession(chatId, {
+          id: chatId,
+          markdownLayerId: docLayer.id,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+        const isFirstChat = !chatSessions.some(
+          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId
+        )
         setSelectedAgentId(null)
         setSelectedDocumentChatTargetId(docLayer.id)
         setSelectedChatId(chatId)
         selectedChatByDocumentRef.current[docLayer.id] = chatId
-        const isFirstChat = !chatSessions.some(
-          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId
-        )
         chatStore.sendMessage({
           roomId,
           chatId,
           markdownLayerId: docLayer.id,
           message: messageBody,
           isFirstChat,
-          planMode,
-          model,
           onChatRename: (label) =>
             inspectHandlersRef.current.renameChat(chatId, label),
         })
@@ -3005,68 +2982,49 @@ export function Canvas({
         return
       }
 
-      if (!selectedChatId) return
-      const currentChat = chatSessions.find((c) => c.id === selectedChatId)
-      const agent = currentChat
-        ? agents.find((a) => a.id === currentChat.branchId)
-        : null
+      // Element/frame target: route to the agent that owns the frame the
+      // target happened on (the frame's branch) — not whatever chat is
+      // currently focused — and always in a brand-new chat.
       const iframeLayer = ctx.iframeLayerId
         ? iframeLayers.find((a) => a.id === ctx.iframeLayerId)
         : undefined
+      const agent = iframeLayer?.branchId
+        ? agents.find((a) => a.id === iframeLayer.branchId)
+        : null
+      if (!agent?.sandboxName || !agent.ref) return
       const route = iframeLayer?.route || "/"
       const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
       const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
-      if (currentChat && agent?.sandboxName && agent.ref) {
-        const currentBusy =
-          chatStore.getSnapshot(currentChat.id).isStreaming ||
-          currentChat.isStreaming === true
-        let chatId = currentChat.id
-        let planMode = currentChat.planMode
-        let model = currentChat.model
-        if (currentBusy) {
-          chatId = nanoid()
-          planMode = undefined
-          model = undefined
-          addChatSession(chatId, {
-            id: chatId,
-            branchId: currentChat.branchId,
-            label: "Untitled",
-            createdAt: Date.now(),
-          })
-          setSelectedChatId(chatId)
-        }
-        const isFirstChat = !chatSessions.some(
-          (c) => c.branchId === currentChat.branchId && c.id !== chatId
-        )
-        chatStore.sendMessage({
-          roomId,
-          chatId,
-          sandboxName: agent.sandboxName,
-          branch: agent.ref,
-          message: text,
-          isFirstChat,
-          autoNamedBranch: agent.autoNamedBranch,
-          planMode,
-          model,
-          onBranchRename: (branch) =>
-            inspectHandlersRef.current.branchRename(agent.id, branch),
-          onChatRename: (label) =>
-            inspectHandlersRef.current.renameChat(chatId, label),
-        })
-      } else {
-        inputStore.append(selectedChatId, text)
-      }
+      const chatId = nanoid()
+      addChatSession(chatId, {
+        id: chatId,
+        branchId: agent.id,
+        label: "Untitled",
+        createdAt: Date.now(),
+      })
+      const isFirstChat = !chatSessions.some(
+        (c) => c.branchId === agent.id && c.id !== chatId
+      )
+      setSelectedAgentId(agent.id)
+      setSelectedDocumentChatTargetId(null)
+      setSelectedChatId(chatId)
+      selectedChatByAgentRef.current[agent.id] = chatId
+      chatStore.sendMessage({
+        roomId,
+        chatId,
+        sandboxName: agent.sandboxName,
+        branch: agent.ref,
+        message: text,
+        isFirstChat,
+        autoNamedBranch: agent.autoNamedBranch,
+        onBranchRename: (branch) =>
+          inspectHandlersRef.current.branchRename(agent.id, branch),
+        onChatRename: (label) =>
+          inspectHandlersRef.current.renameChat(chatId, label),
+      })
       expandPanel()
     },
-    [
-      markdownLayers,
-      selectedChatId,
-      chatSessions,
-      agents,
-      iframeLayers,
-      roomId,
-      addChatSession,
-    ]
+    [markdownLayers, chatSessions, agents, iframeLayers, roomId, addChatSession]
   )
 
   const handleRemoveChat = useCallback(
@@ -5843,6 +5801,7 @@ export function Canvas({
               documentDraft={documentDraft}
               othersSelections={othersSelections}
               snapGuides={snapGuides}
+              isResizeSnapped={resizeSnap?.snappedPresetId != null}
               inspectRect={(() => {
                 // Show the live hover overlay while in commentMode so the
                 // user can see what element they're about to anchor to.
@@ -6055,8 +6014,9 @@ export function Canvas({
                   </Tooltip>
                   {/* Comment mode is kept in the local build: it's how you
                       anchor an element/selection to reference it to the agent
-                      ("Send to Claude"). Only the *persisted* comment thread
-                      is excluded there (#417). */}
+                      ("Send to agent"). Only the *persisted* comment thread is
+                      excluded there (#417) — so on desktop this is a "target"
+                      affordance (crosshair), not a comment one. */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -6070,11 +6030,15 @@ export function Canvas({
                           setFrameMode(false)
                         }}
                       >
-                        <MessageSquare className="h-3.5 w-3.5" />
+                        {isLocalBuild ? (
+                          <Crosshair className="h-3.5 w-3.5" />
+                        ) : (
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      Comment <Kbd>C</Kbd>
+                      {isLocalBuild ? "Send to agent" : "Comment"} <Kbd>C</Kbd>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
