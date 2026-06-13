@@ -43,6 +43,19 @@ concept); tag/label (a Room lives in one Folder, not many); treating a Folder
 as something a Room contains (the containment runs Folder → Room, never the
 reverse).
 
+**Pin**:
+A per-user shortcut that surfaces a Room or Folder directly in the home sidebar
+for quick access, independent of where the item sits in the Folder tree —
+pinning never moves or files the item, and unpinning leaves its placement
+untouched. Each user has their own pins, so pinning a shared Room adds it only
+to that user's sidebar. A Room or Folder is simply pinned or not: a Pin is a
+flat favorite, never a container and never a second copy.
+_Shown to users as_: "Pinned" (the sidebar section).
+_Avoid_: bookmark, favorite, star; conflating a Pin with Folder placement (a
+Pin is a shortcut, a placement is a filing — the two are orthogonal); confusing
+the home sidebar's pins with the in-room sidebar's `sidebarOrder` (a different
+surface — Repos and Branches inside a Room).
+
 **Repo**:
 A GitHub repository configured into a Room — its repo identity, default branch,
 **clone URL or local path**, and run scripts. Holds one or more Branches. Lives
