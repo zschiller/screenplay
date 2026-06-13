@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import type { IframeLayerLayout } from "@/lib/canvas/layout"
-import { buildThumbnailManifest, type FrameCapture } from "./manifest"
+import { resolveBranchColorIndex } from "@/lib/branch-colors"
+import {
+  buildThumbnailManifest,
+  type FrameCapture,
+  type ManifestLayer,
+} from "./manifest"
 
 /** A layout-map entry with sensible defaults for the fields the manifest ignores. */
 function layout(
@@ -18,6 +23,15 @@ function layout(
   }
 }
 
+/** A layer input bound to a Branch, with the palette fields overridable. */
+function input(
+  id: string,
+  label: string,
+  branch?: Partial<Pick<ManifestLayer, "branchKey" | "branchColorIndex">>
+): ManifestLayer {
+  return { id, label, branchKey: `branch-${id}`, ...branch }
+}
+
 describe("buildThumbnailManifest", () => {
   it("places each iframe layer at its computed rect and label", () => {
     const layouts = new Map([
@@ -26,16 +40,22 @@ describe("buildThumbnailManifest", () => {
     ])
     const manifest = buildThumbnailManifest(
       layouts,
-      [
-        { id: "a", label: "Home" },
-        { id: "b", label: "Settings" },
-      ],
+      [input("a", "Home"), input("b", "Settings")],
       new Map()
     )
 
-    expect(manifest.version).toBe(1)
+    expect(manifest.version).toBe(2)
     expect(manifest.frames).toEqual([
-      { id: "a", label: "Home", x: 0, y: 0, width: 400, height: 300, capture: null },
+      {
+        id: "a",
+        label: "Home",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 300,
+        paletteIndex: resolveBranchColorIndex("branch-a"),
+        capture: null,
+      },
       {
         id: "b",
         label: "Settings",
@@ -43,6 +63,7 @@ describe("buildThumbnailManifest", () => {
         y: 0,
         width: 400,
         height: 300,
+        paletteIndex: resolveBranchColorIndex("branch-b"),
         capture: null,
       },
     ])
@@ -58,10 +79,7 @@ describe("buildThumbnailManifest", () => {
     ])
     const manifest = buildThumbnailManifest(
       layouts,
-      [
-        { id: "a", label: "Home" },
-        { id: "b", label: "Settings" },
-      ],
+      [input("a", "Home"), input("b", "Settings")],
       captures
     )
 
@@ -71,6 +89,47 @@ describe("buildThumbnailManifest", () => {
     expect(manifest.frames[1]!.capture).toBeNull()
   })
 
+  it("snapshots a Branch's manual palette override over the hash", () => {
+    const layouts = new Map([
+      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+    ])
+    const manifest = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home", { branchKey: "branch-a", branchColorIndex: 7 })],
+      new Map()
+    )
+
+    expect(manifest.frames[0]!.paletteIndex).toBe(7)
+  })
+
+  it("snapshots the hashed palette index when the Branch has no override", () => {
+    const layouts = new Map([
+      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+    ])
+    const manifest = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home", { branchKey: "feature-login" })],
+      new Map()
+    )
+
+    expect(manifest.frames[0]!.paletteIndex).toBe(
+      resolveBranchColorIndex("feature-login")
+    )
+  })
+
+  it("snapshots a null palette index for a frame bound to no Branch", () => {
+    const layouts = new Map([
+      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+    ])
+    const manifest = buildThumbnailManifest(
+      layouts,
+      [{ id: "a", label: "Empty frame", branchKey: null }],
+      new Map()
+    )
+
+    expect(manifest.frames[0]!.paletteIndex).toBeNull()
+  })
+
   it("computes bounds as the union of every placed frame's rect", () => {
     const layouts = new Map([
       ["a", layout("a", { x: 10, y: 20, width: 400, height: 300 })],
@@ -78,10 +137,7 @@ describe("buildThumbnailManifest", () => {
     ])
     const manifest = buildThumbnailManifest(
       layouts,
-      [
-        { id: "a", label: "A" },
-        { id: "b", label: "B" },
-      ],
+      [input("a", "A"), input("b", "B")],
       new Map()
     )
 
@@ -95,10 +151,7 @@ describe("buildThumbnailManifest", () => {
     ])
     const manifest = buildThumbnailManifest(
       layouts,
-      [
-        { id: "a", label: "Placed" },
-        { id: "orphan", label: "Unplaced" },
-      ],
+      [input("a", "Placed"), input("orphan", "Unplaced")],
       new Map()
     )
 

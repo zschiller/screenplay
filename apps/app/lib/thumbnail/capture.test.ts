@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { IframeLayerLayout } from "@/lib/canvas/layout"
+import { resolveBranchColorIndex } from "@/lib/branch-colors"
 import type { ThumbnailCapturer } from "./capturer"
 import type { RoomCaptureLayout } from "./room-layout"
 
@@ -66,6 +67,10 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe("captureRoomThumbnail", () => {
   it("captures every ready frame, stores each, and persists a composed manifest", async () => {
     const png = await fakePng()
@@ -77,11 +82,18 @@ describe("captureRoomThumbnail", () => {
         ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
       ]),
       frames: [
-        { id: "a", label: "Home", previewUrl: "https://a.preview.example/" },
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
         {
           id: "b",
           label: "Settings",
           previewUrl: "https://b.preview.example/settings",
+          branchKey: "branch-b",
+          branchColorIndex: 3,
         },
       ],
     }
@@ -124,6 +136,7 @@ describe("captureRoomThumbnail", () => {
         y: 0,
         width: 400,
         height: 300,
+        paletteIndex: resolveBranchColorIndex("branch-a"),
         capture: { url: "https://blob.example/thumbnails/room-1/a.webp" },
       },
       {
@@ -133,6 +146,7 @@ describe("captureRoomThumbnail", () => {
         y: 0,
         width: 400,
         height: 300,
+        paletteIndex: 3,
         capture: { url: "https://blob.example/thumbnails/room-1/b.webp" },
       },
     ])
@@ -148,8 +162,13 @@ describe("captureRoomThumbnail", () => {
         ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
       ]),
       frames: [
-        { id: "a", label: "Home", previewUrl: "https://a.preview.example/" },
-        { id: "b", label: "Booting", previewUrl: null },
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+        { id: "b", label: "Booting", previewUrl: null, branchKey: "branch-b" },
       ],
     } satisfies RoomCaptureLayout)
 
@@ -160,6 +179,89 @@ describe("captureRoomThumbnail", () => {
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
     })
+    // The booting frame lands captureless but still carries its placeholder tint.
     expect(manifest.frames[1]!.capture).toBeNull()
+    expect(manifest.frames[1]!.paletteIndex).toBe(
+      resolveBranchColorIndex("branch-b")
+    )
+  })
+
+  it("skips a frame whose capture throws, persisting every other frame's capture", async () => {
+    const png = await fakePng()
+    // Frame "a" captures fine; frame "b" (a still-booting dev server) throws.
+    const capturer: ThumbnailCapturer = {
+      capture: vi.fn(async (url: string) => {
+        if (url.includes("b.preview")) throw new Error("nav timeout")
+        return png
+      }),
+    }
+
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+        {
+          id: "b",
+          label: "Booting",
+          previewUrl: "https://b.preview.example/",
+          branchKey: "branch-b",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail("room-1", capturer)
+
+    // The round still completed and persisted, with only the good frame stored.
+    expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect((put.mock.calls[0] as unknown as PutCall)[0]).toBe(
+      "thumbnails/room-1/a.webp"
+    )
+    expect(manifest.frames[0]!.capture).toEqual({
+      url: "https://blob.example/thumbnails/room-1/a.webp",
+    })
+    expect(manifest.frames[1]!.capture).toBeNull()
+  })
+
+  it("skips a frame whose capture never resolves within the timeout", async () => {
+    vi.useFakeTimers()
+    // The capturer hangs — a booting preview that never signals ready. The
+    // orchestration's per-frame timeout is the only thing that ends the round.
+    const capturer: ThumbnailCapturer = {
+      capture: vi.fn(() => new Promise<Buffer>(() => {})),
+    }
+
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Booting",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const pending = captureRoomThumbnail("room-1", capturer)
+    // Advance past the per-frame ceiling so the timeout rejects and the frame
+    // is skipped rather than blocking the round forever.
+    await vi.advanceTimersByTimeAsync(31_000)
+    const manifest = await pending
+
+    expect(put).not.toHaveBeenCalled()
+    expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
+    expect(manifest.frames).toHaveLength(1)
+    expect(manifest.frames[0]!.capture).toBeNull()
   })
 })
