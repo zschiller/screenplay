@@ -10,6 +10,9 @@
 
 export type SortKey = "updated" | "created" | "name"
 
+/** Sort direction: ascending (low→high, A→Z) or descending (high→low, Z→A). */
+export type SortOrder = "asc" | "desc"
+
 export type RoomSortable = {
   name: string
   createdAt: number
@@ -28,22 +31,30 @@ export function lastEditedAt(room: RoomSortable): number {
 }
 
 /**
- * Order `rooms` by `sort` — "updated" by `lastEditedAt` descending, "created"
- * by `createdAt` descending, "name" locale-aware ascending. Stable and
- * non-mutating: ties keep their incoming relative order, so equal timestamps
- * or names produce a deterministic result for a given input list.
+ * The ascending comparison for a sort key: name locale-aware A→Z, timestamps
+ * oldest→newest. `sortRooms` flips its sign for descending order.
+ */
+function compareAscending<T extends RoomSortable>(
+  a: T,
+  b: T,
+  sort: SortKey
+): number {
+  if (sort === "name") return a.name.localeCompare(b.name)
+  if (sort === "created") return a.createdAt - b.createdAt
+  return lastEditedAt(a) - lastEditedAt(b)
+}
+
+/**
+ * Order `rooms` by `sort` in the given `order` (default descending). Stable and
+ * non-mutating: ties keep their incoming relative order — multiplying the
+ * comparator by the direction sign leaves ties at 0 — so equal timestamps or
+ * names produce a deterministic result for a given input list.
  */
 export function sortRooms<T extends RoomSortable>(
   rooms: readonly T[],
-  sort: SortKey
+  sort: SortKey,
+  order: SortOrder = "desc"
 ): T[] {
-  const sorted = [...rooms]
-  if (sort === "name") {
-    sorted.sort((a, b) => a.name.localeCompare(b.name))
-  } else if (sort === "created") {
-    sorted.sort((a, b) => b.createdAt - a.createdAt)
-  } else {
-    sorted.sort((a, b) => lastEditedAt(b) - lastEditedAt(a))
-  }
-  return sorted
+  const sign = order === "asc" ? 1 : -1
+  return [...rooms].sort((a, b) => sign * compareAscending(a, b, sort))
 }

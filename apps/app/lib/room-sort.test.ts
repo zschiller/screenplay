@@ -97,7 +97,7 @@ describe("sortRooms", () => {
     it("orders rooms alphabetically, locale-aware", () => {
       const rooms = [room("charlie", 1), room("alpha", 2), room("bravo", 3)]
 
-      const ordered = sortRooms(rooms, "name").map((r) => r.name)
+      const ordered = sortRooms(rooms, "name", "asc").map((r) => r.name)
 
       expect(ordered).toEqual(["alpha", "bravo", "charlie"])
     })
@@ -109,11 +109,50 @@ describe("sortRooms", () => {
         room("aardvark", 300),
       ]
 
-      const ordered = sortRooms(rooms, "name")
+      const ordered = sortRooms(rooms, "name", "asc")
 
       expect(ordered.map((r) => r.name)).toEqual(["aardvark", "dupe", "dupe"])
       expect(ordered[1]!.createdAt).toBe(100)
       expect(ordered[2]!.createdAt).toBe(200)
+    })
+  })
+
+  describe("order", () => {
+    it("defaults to descending", () => {
+      const rooms = [room("a", 100), room("c", 300), room("b", 200)]
+
+      const ordered = sortRooms(rooms, "created").map((r) => r.name)
+
+      expect(ordered).toEqual(["c", "b", "a"])
+    })
+
+    it("flips a timestamp sort to oldest-first when ascending", () => {
+      const rooms = [room("c", 300), room("a", 100), room("b", 200)]
+
+      const ordered = sortRooms(rooms, "created", "asc").map((r) => r.name)
+
+      expect(ordered).toEqual(["a", "b", "c"])
+    })
+
+    it("flips a name sort to Z→A when descending", () => {
+      const rooms = [room("alpha", 1), room("charlie", 2), room("bravo", 3)]
+
+      const ordered = sortRooms(rooms, "name", "desc").map((r) => r.name)
+
+      expect(ordered).toEqual(["charlie", "bravo", "alpha"])
+    })
+
+    it("keeps the incoming order for ties regardless of direction", () => {
+      const rooms = [room("first", 100), room("second", 100)]
+
+      expect(sortRooms(rooms, "created", "asc").map((r) => r.name)).toEqual([
+        "first",
+        "second",
+      ])
+      expect(sortRooms(rooms, "created", "desc").map((r) => r.name)).toEqual([
+        "first",
+        "second",
+      ])
     })
   })
 
