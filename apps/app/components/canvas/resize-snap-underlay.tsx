@@ -53,8 +53,9 @@ const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, LucideIcon> =
  *
  * Outlines: 1px crisp at any zoom (drawn on a screen-space canvas using the
  * same toScreen() trick as SelectionOverlay).
- * Snapped target: only the locked-in candidate gets a fuchsia label at its
- * lower-right; non-snapped candidates fade in/out as silent ghosts.
+ * Snapped target: its rect is NOT drawn here (the live SelectionOverlay rect
+ * already covers it and turns red); only its label is shown at the lower-right.
+ * Non-snapped candidates fade in/out as silent gray ghosts.
  */
 export function ResizeSnapUnderlay({
   zoom,
@@ -90,10 +91,11 @@ export function ResizeSnapUnderlay({
       return
     }
 
-    // Snapped: fuchsia matching SelectionOverlay primary.
-    // Non-snapped: --border (same gray as the placeholder rect).
+    // Non-snapped candidates draw as silent gray ghosts. The snapped target is
+    // NOT drawn here — the live SelectionOverlay rect already sits exactly on it
+    // (the iframeLayer is patched to the snapped size) and turns red itself, so
+    // a ghost here would just double up on that rect.
     const ghostColor = resolveColor(canvas, "--border", "#a1a1aa")
-    const snappedColor = "#d946ef"
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
@@ -127,9 +129,10 @@ export function ResizeSnapUnderlay({
       const t = Math.round(tl.y)
       const r = Math.round(br.x)
       const b = Math.round(br.y)
-      const isSnapped = snappedPresetId === c.preset.id
+      // Skip the snapped target — the live red selection rect already marks it.
+      if (snappedPresetId === c.preset.id) continue
       ctx.globalAlpha = c.alpha
-      ctx.strokeStyle = isSnapped ? snappedColor : ghostColor
+      ctx.strokeStyle = ghostColor
       ctx.lineWidth = 1
       // Match SelectionOverlay's outside-stroke convention so a snapped ghost
       // and the live selection rect line up pixel-for-pixel.
@@ -202,7 +205,7 @@ export function ResizeSnapUnderlay({
                 left: snappedLabelPos.screenX,
                 top: snappedLabelPos.screenY,
                 transform: "translate(-100%, 4px)",
-                color: "#d946ef",
+                color: "#ef4444",
               }}
             >
               <Icon className="h-3 w-3" />

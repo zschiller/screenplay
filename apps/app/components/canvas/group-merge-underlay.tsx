@@ -2,21 +2,6 @@
 
 import { useEffect, useRef } from "react"
 
-function resolveColor(
-  el: HTMLElement,
-  varName: string,
-  fallback: string
-): string {
-  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
-  if (!raw) return fallback
-  const temp = document.createElement("div")
-  temp.style.color = raw
-  document.body.appendChild(temp)
-  const resolved = getComputedStyle(temp).color
-  document.body.removeChild(temp)
-  return resolved
-}
-
 interface GroupMergeUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -31,8 +16,8 @@ interface GroupMergeUnderlayProps {
 
 /**
  * Screen-space underlay that renders the group-merge drop target while a
- * group is being dragged near another group's trailing "+ frame" slot. Uses
- * the same gray --border outline as a normal "add frame" placeholder.
+ * group is being dragged near another group's trailing "+ frame" slot. Drawn
+ * as a low-opacity red outline to signal the merge drop target.
  * Rendered before the TransformWrapper in DOM order so the source group (and
  * any other world content) paints on top — only the empty target slot remains
  * visible behind the preview outlines, mirroring [[ResizeSnapUnderlay]].
@@ -70,7 +55,7 @@ export function GroupMergeUnderlay({
       y: y * zoom + viewportPos.y,
     })
 
-    ctx.strokeStyle = resolveColor(canvas, "--border", "#a1a1aa")
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.4)"
     ctx.lineWidth = 1
     for (const rect of rects) {
       const tl = toScreen(rect.x, rect.y)

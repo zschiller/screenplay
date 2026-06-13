@@ -341,6 +341,44 @@ describe("LocalSandboxProvider", () => {
     expect(feature).toBe("feature work\n")
   })
 
+  it("forks a new Branch from current upstream main, not the clone-time tip", async () => {
+    // Reproduces the stale-base bug: the managed clone is created once, then
+    // upstream main advances. A later Branch whose start point falls through to
+    // the clone's HEAD (a ref that exists nowhere, no baseRevision) must fork
+    // from *current* origin/main — not the commit main pointed at when the
+    // repo was first cloned (which `fetch` never moves into local HEAD).
+
+    // First create clones the repo while main is still at the initial commit.
+    await provider.create(createOpts("branch-a", sourceRepo))
+
+    // Upstream main moves forward by a commit the clone hasn't seen yet.
+    await fs.writeFile(path.join(sourceRepo, "SHIPPED.md"), "after clone\n")
+    await git(sourceRepo, ["add", "."])
+    await git(sourceRepo, ["commit", "-m", "land a fix on main"])
+
+    // A brand-new ref (exists nowhere, no baseRevision) forces the start-point
+    // fallback to the clone's HEAD.
+    const sandbox = await provider.create(
+      createOpts("branch-b", sourceRepo, {
+        source: { type: "git", url: sourceRepo, revision: "untracked-feature" },
+      })
+    )
+
+    const branch = await git(sandbox.worktreePath, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ])
+    expect(branch.trim()).toBe("untracked-feature")
+    // The post-clone commit is present: the Branch forked from fresh main.
+    expect(
+      await fs
+        .access(path.join(sandbox.worktreePath, "SHIPPED.md"))
+        .then(() => true)
+        .catch(() => false)
+    ).toBe(true)
+  })
+
   it("checks out a remote branch that only exists on origin", async () => {
     const sandbox = await provider.create(
       createOpts("branch-a", sourceRepo, {

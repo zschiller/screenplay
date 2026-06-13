@@ -918,7 +918,7 @@ export function IframeLayer({
           (probeState !== "ready" ||
             recoveryTick < MAX_PLACEHOLDER_RELOADS) &&
           (desiredSrc || iframeLayer.branchId) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
               {probeState === "timedout" ? (
                 <>
                   <span className="text-xs font-medium text-foreground">

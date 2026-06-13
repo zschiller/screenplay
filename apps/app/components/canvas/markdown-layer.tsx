@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { MessageSquare } from "lucide-react"
+import { Crosshair, MessageSquare } from "lucide-react"
 import type { Editor } from "@tiptap/core"
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
 import { Extension } from "@tiptap/core"
@@ -19,6 +19,7 @@ import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { isLocalBuild } from "@/lib/local-mode"
 import {
   LayerTitleBar,
   LayerTitleText,
@@ -838,8 +839,17 @@ export function MarkdownLayer({
                 }}
                 className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
               >
-                <MessageSquare className="size-3.5" />
-                Comment
+                {isLocalBuild ? (
+                  <>
+                    <Crosshair className="size-3.5" />
+                    Send to agent
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="size-3.5" />
+                    Comment
+                  </>
+                )}
               </button>
             </div>
           </div>,
