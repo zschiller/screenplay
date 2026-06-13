@@ -84,6 +84,17 @@ describe("lib/folders persistence", () => {
     expect(await getOwnedFolder("a1", "bob")).toBeNull()
   })
 
+  it("renames a folder in place", async () => {
+    await seedUsers()
+    const { createFolder, renameFolder, getFolder } = await import("./folders")
+
+    await createFolder({ id: "f1", name: "Designs", ownerId: "alice" })
+    await renameFolder("f1", "Mockups")
+
+    const fetched = await getFolder("f1")
+    expect(fetched).toMatchObject({ id: "f1", name: "Mockups" })
+  })
+
   it("stores a nested folder's parent", async () => {
     await seedUsers()
     const { createFolder } = await import("./folders")

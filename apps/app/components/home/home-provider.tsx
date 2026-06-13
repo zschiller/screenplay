@@ -17,6 +17,7 @@ import {
 } from "@/lib/rooms-actions"
 import {
   createFolder as createFolderAction,
+  renameFolder as renameFolderAction,
   type FolderSummary,
 } from "@/lib/folders-actions"
 import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
@@ -48,6 +49,7 @@ type HomeContextValue = {
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
   createFolder: (name: string) => Promise<FolderSummary>
+  renameFolder: (id: string, name: string) => Promise<void>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -143,6 +145,14 @@ export function HomeProvider({
     return folder
   }, [])
 
+  const renameFolder = useCallback(async (id: string, name: string) => {
+    const trimmed = name.trim() || "Untitled folder"
+    await renameFolderAction(id, trimmed)
+    setFolders((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f))
+    )
+  }, [])
+
   const value: HomeContextValue = {
     rooms: sortedRooms,
     folders: sortedFolders,
@@ -157,6 +167,7 @@ export function HomeProvider({
     renameRoom,
     removeRoom,
     createFolder,
+    renameFolder,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>
