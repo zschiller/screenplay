@@ -15,7 +15,12 @@ import {
   renameRoom as renameRoomAction,
   type RoomSummary,
 } from "@/lib/rooms-actions"
+import {
+  createFolder as createFolderAction,
+  type FolderSummary,
+} from "@/lib/folders-actions"
 import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
+import { foldersInParent } from "@/lib/folder-tree"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type View = "grid" | "table"
@@ -29,6 +34,8 @@ export function defaultOrder(sort: SortKey): SortOrder {
 type HomeContextValue = {
   /** Every Room the user owns or can see, ordered by the current sort. */
   rooms: RoomSummary[]
+  /** The user's top-level folders, ordered by the current sort (PRD #475). */
+  folders: FolderSummary[]
   loading: boolean
   view: View
   setView: (v: View) => void
@@ -40,6 +47,7 @@ type HomeContextValue = {
   createRoom: (name: string) => Promise<RoomSummary>
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
+  createFolder: (name: string) => Promise<FolderSummary>
 }
 
 const HomeContext = createContext<HomeContextValue | null>(null)
@@ -53,11 +61,14 @@ export function useHome(): HomeContextValue {
 export function HomeProvider({
   children,
   initialRooms,
+  initialFolders,
 }: {
   children: React.ReactNode
   initialRooms?: RoomSummary[]
+  initialFolders?: FolderSummary[]
 }) {
   const [rooms, setRooms] = useState<RoomSummary[]>(initialRooms ?? [])
+  const [folders, setFolders] = useState<FolderSummary[]>(initialFolders ?? [])
   // With server-seeded rooms the grid is ready on first paint — no loading
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
@@ -99,6 +110,14 @@ export function HomeProvider({
     [rooms, sort, order]
   )
 
+  // Only the top-level folders render here; navigating into a folder lands in a
+  // later slice (PRD #475). They share the Room sort so both sections of the
+  // list order the same way.
+  const sortedFolders = useMemo(
+    () => foldersInParent(folders, null, sort, order),
+    [folders, sort, order]
+  )
+
   const createRoom = useCallback(async (name: string) => {
     const room = await createRoomAction(name)
     setRooms((prev) => [room, ...prev])
@@ -118,8 +137,15 @@ export function HomeProvider({
     setRooms((prev) => prev.filter((r) => r.id !== id))
   }, [])
 
+  const createFolder = useCallback(async (name: string) => {
+    const folder = await createFolderAction(name)
+    setFolders((prev) => [folder, ...prev])
+    return folder
+  }, [])
+
   const value: HomeContextValue = {
     rooms: sortedRooms,
+    folders: sortedFolders,
     loading,
     view,
     setView,
@@ -130,6 +156,7 @@ export function HomeProvider({
     createRoom,
     renameRoom,
     removeRoom,
+    createFolder,
   }
 
   return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>

@@ -25,8 +25,8 @@ const RECENTS: NavLink = { href: "/", label: "Recents", icon: Clock }
 
 /** Lower group, below the divider. */
 const SECTIONS: NavLink[] = [
-  // A flat grid today; it becomes the folder tree later.
-  { href: "/canvases", label: "All files", icon: LayoutGrid },
+  // The root of the folder tree (PRD #475): top-level folders above the files.
+  { href: "/files", label: "All files", icon: LayoutGrid },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
@@ -53,10 +53,7 @@ export function HomeSidebar() {
         {/* Web: account dropdown at the top. Desktop has no login, so the
             header is just the traffic-light spacer above. */}
         {!isLocalBuild && (
-          <div
-            data-tauri-drag-region
-            className="flex items-center px-3 py-2"
-          >
+          <div data-tauri-drag-region className="flex items-center px-3 py-2">
             <div className="ml-auto">
               <AccountMenu />
             </div>

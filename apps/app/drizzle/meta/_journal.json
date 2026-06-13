@@ -134,6 +134,13 @@
       "when": 1781379170956,
       "tag": "0018_thumbnail_manifest",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781379805805,
+      "tag": "0019_kind_power_man",
+      "breakpoints": true
     }
   ]
 }

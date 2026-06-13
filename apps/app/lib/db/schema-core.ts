@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 import type { ModelMessage } from "ai"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
@@ -59,6 +60,32 @@ export const room = pgTable("room", {
 })
 
 export type RoomRole = "owner" | "editor" | "viewer"
+
+// A user-private container that organizes Rooms into a tree (PRD #475). Lives in
+// the core schema half so the local desktop/PGlite build gets folders too,
+// mirroring how `room` collapses onto the single seeded local user. `ownerId`
+// scopes a folder to its creator; `parentFolderId` self-references for nesting
+// (null = top-level "All files" root) and cascades so deleting a folder removes
+// its subtree. Room placement within a folder is deliberately NOT a column here
+// — it is per-(user, Room) and lands in a later slice — so this table only
+// models the folder tree itself.
+export const folder = pgTable(
+  "folder",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    parentFolderId: text("parent_folder_id").references(
+      (): AnyPgColumn => folder.id,
+      { onDelete: "cascade" }
+    ),
+    name: text("name").notNull().default("Untitled folder"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("folder_owner_parent_idx").on(t.ownerId, t.parentFolderId)]
+)
 
 // Agent persistence — the ACP-native conversation log and run lifecycle the
 // Engine seam drives (lib/agent/acp/, lib/agent/run-state.ts).

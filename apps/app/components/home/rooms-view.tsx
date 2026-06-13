@@ -2,7 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowDown, ArrowUp, LayoutGrid, List, Plus } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  FolderPlus,
+  LayoutGrid,
+  List,
+  Plus,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
@@ -24,6 +31,7 @@ import {
 } from "./home-provider"
 import { RoomGrid } from "./room-grid"
 import { RoomTable } from "./room-table"
+import { FolderGrid } from "./folder-grid"
 import { InputDialog } from "./input-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 
@@ -44,18 +52,23 @@ const ORDER_LABELS: Record<SortKey, Record<SortOrder, string>> = {
 /**
  * The canvas list with grid/table toggle and New canvas. `showSort` exposes the
  * sort dropdown (Canvases); Recents omits it and rides the provider's default
- * last-edited order so it's always recency-first.
+ * last-edited order so it's always recency-first. `showFolders` adds the folder
+ * section + "Add folder" button — on for All files, off for Recents, which
+ * stays a flat cross-folder recency view (PRD #475).
  */
 export function RoomsView({
   title,
   showSort = true,
+  showFolders = false,
 }: {
   title: string
   showSort?: boolean
+  showFolders?: boolean
 }) {
   const router = useRouter()
   const {
     rooms,
+    folders,
     view,
     setView,
     sort,
@@ -63,10 +76,13 @@ export function RoomsView({
     order,
     setOrder,
     createRoom,
+    createFolder,
     loading,
   } = useHome()
   const [newRoomOpen, setNewRoomOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [newFolderOpen, setNewFolderOpen] = useState(false)
+  const [creatingFolder, setCreatingFolder] = useState(false)
 
   // The down arrow always marks each key's default order, which is also the
   // first item in the Order menu — so every sort key reads the same way
@@ -84,71 +100,78 @@ export function RoomsView({
         data-tauri-drag-region
         className="mx-auto flex w-full max-w-5xl items-center gap-2 px-16"
       >
-          <h1 className="text-2xl font-normal">{title}</h1>
-          <div className="ml-auto flex items-center gap-2">
-            {showSort && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    {isDefaultOrder ? <ArrowDown /> : <ArrowUp />}
-                    {SORT_LABELS[sort]}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={sort}
-                    onValueChange={(v) => setSort(v as SortKey)}
-                  >
-                    <DropdownMenuRadioItem value="updated">
-                      Last edited
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="created">
-                      Date created
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="name">
-                      Name
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Order</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={order}
-                    onValueChange={(v) => setOrder(v as SortOrder)}
-                  >
-                    <DropdownMenuRadioItem value={primaryOrder}>
-                      {ORDER_LABELS[sort][primaryOrder]}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value={reversedOrder}>
-                      {ORDER_LABELS[sort][reversedOrder]}
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+        <h1 className="text-2xl font-normal">{title}</h1>
+        <div className="ml-auto flex items-center gap-2">
+          {showSort && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  {isDefaultOrder ? <ArrowDown /> : <ArrowUp />}
+                  {SORT_LABELS[sort]}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(v) => setSort(v as SortKey)}
+                >
+                  <DropdownMenuRadioItem value="updated">
+                    Last edited
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="created">
+                    Date created
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="name">
+                    Name
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Order</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={order}
+                  onValueChange={(v) => setOrder(v as SortOrder)}
+                >
+                  <DropdownMenuRadioItem value={primaryOrder}>
+                    {ORDER_LABELS[sort][primaryOrder]}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value={reversedOrder}>
+                    {ORDER_LABELS[sort][reversedOrder]}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
-            <Tabs
-              value={view}
-              onValueChange={(v) => {
-                if (v === "grid" || v === "table") setView(v)
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value="grid" aria-label="Grid view">
-                  <LayoutGrid />
-                </TabsTrigger>
-                <TabsTrigger value="table" aria-label="Table view">
-                  <List />
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          <Tabs
+            value={view}
+            onValueChange={(v) => {
+              if (v === "grid" || v === "table") setView(v)
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="grid" aria-label="Grid view">
+                <LayoutGrid />
+              </TabsTrigger>
+              <TabsTrigger value="table" aria-label="Table view">
+                <List />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-            <Button onClick={() => setNewRoomOpen(true)}>
-              <Plus />
-              New canvas
+          {showFolders && (
+            <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
+              <FolderPlus />
+              Add folder
             </Button>
-          </div>
+          )}
+
+          <Button onClick={() => setNewRoomOpen(true)}>
+            <Plus />
+            New canvas
+          </Button>
         </div>
+      </div>
     </header>
   )
 
@@ -160,14 +183,20 @@ export function RoomsView({
             <Spinner className="size-4" />
             <span className="text-sm">Loading…</span>
           </div>
-        ) : rooms.length === 0 ? (
+        ) : rooms.length === 0 && folders.length === 0 ? (
           <EmptyState onCreate={() => setNewRoomOpen(true)} />
         ) : (
           <div className="mx-auto max-w-5xl px-16 pb-4">
             {view === "grid" ? (
-              <RoomGrid rooms={rooms} />
+              <div className="space-y-4">
+                {/* Folders render in their own section above the files. */}
+                {showFolders && folders.length > 0 && (
+                  <FolderGrid folders={folders} />
+                )}
+                <RoomGrid rooms={rooms} />
+              </div>
             ) : (
-              <RoomTable rooms={rooms} />
+              <RoomTable rooms={rooms} folders={showFolders ? folders : []} />
             )}
           </div>
         )}
@@ -195,6 +224,28 @@ export function RoomsView({
           }
         }}
       />
+
+      {showFolders && (
+        <InputDialog
+          open={newFolderOpen}
+          onOpenChange={(open) => {
+            if (!creatingFolder) setNewFolderOpen(open)
+          }}
+          title="New folder"
+          placeholder="Untitled folder"
+          submitLabel={creatingFolder ? "Creating…" : "Create"}
+          submittingLabel="Creating…"
+          onSubmit={async (name) => {
+            setCreatingFolder(true)
+            try {
+              // Created at the root for now; folders don't nest in this slice.
+              await createFolder(name)
+            } finally {
+              setCreatingFolder(false)
+            }
+          }}
+        />
+      )}
     </>
   )
 }
