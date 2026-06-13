@@ -256,7 +256,6 @@ fn apply_desktop_env(
         .env("BETTER_AUTH_URL", format!("http://127.0.0.1:{port}"))
         // Per-install secrets (see secrets.rs).
         .env("ENCRYPTION_KEY", &secrets.encryption_key)
-        .env("THUMBNAIL_RENDER_SECRET", &secrets.thumbnail_render_secret)
         .env("TERMINAL_AUTH_SECRET", &secrets.terminal_auth_secret);
 
     // The GitHub App client id for the optional "Connect GitHub" device flow

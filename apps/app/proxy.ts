@@ -11,9 +11,6 @@ function isPublic(pathname: string): boolean {
   ) {
     return true
   }
-  // Thumbnail render route: /[roomId]/render. Auth is enforced by the HMAC
-  // token check inside the page itself — Puppeteer can't carry a session.
-  if (/^\/[^/]+\/render\/?$/.test(pathname)) return true
   return false
 }
 

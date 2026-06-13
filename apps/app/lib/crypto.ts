@@ -7,8 +7,8 @@ const ALGORITHM = "aes-256-gcm"
 // per-install at runtime. Module-load `Buffer.from(undefined, "hex")` throws
 // before any handler runs, so importing this from a route that never encrypts
 // (the common local path under host git auth) would crash the whole server.
-// Reading inside the call mirrors the sibling secret-readers (thumbnail/token,
-// terminal-credential): absent key → a clear error only when you actually
+// Reading inside the call mirrors the sibling secret-reader
+// (terminal-credential): absent key → a clear error only when you actually
 // encrypt, never at import.
 let cachedKey: Buffer | undefined
 function key(): Buffer {

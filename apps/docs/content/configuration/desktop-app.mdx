@@ -46,11 +46,10 @@ Tauri owns the sidecar end-to-end:
 
 ## Secrets
 
-`ENCRYPTION_KEY` (repo-config / env-var encryption at rest),
-`THUMBNAIL_RENDER_SECRET`, and `TERMINAL_AUTH_SECRET` are deployment secrets in
-the hosted app. A desktop install has no deployment, so the shell **mints and
-persists them on first launch** next to the app data — stable across restarts,
-unique per install.
+`ENCRYPTION_KEY` (repo-config / env-var encryption at rest) and
+`TERMINAL_AUTH_SECRET` are deployment secrets in the hosted app. A desktop
+install has no deployment, so the shell **mints and persists them on first
+launch** next to the app data — stable across restarts, unique per install.
 
 ## Thumbnails
 

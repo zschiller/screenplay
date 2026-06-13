@@ -27,7 +27,7 @@ control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 - **The single build-time switch** lives in [`desktop.env`](./desktop.env): the
   one place every local backend is selected together. `scripts/build-sidecar.mjs`
   applies it at `next build`; the shell re-applies the runtime half at spawn.
-- **Secrets** (`ENCRYPTION_KEY`, `THUMBNAIL_RENDER_SECRET`, `TERMINAL_AUTH_SECRET`)
+- **Secrets** (`ENCRYPTION_KEY`, `TERMINAL_AUTH_SECRET`)
   are minted on first launch and persisted under the OS app-data dir — the
   hosted deploy gets them from deployment config; a desktop install has none.
 - **Clean shutdown**: the `Child` is parked in Tauri managed state and
