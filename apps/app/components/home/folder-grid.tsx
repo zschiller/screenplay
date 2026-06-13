@@ -4,9 +4,11 @@ import { useState } from "react"
 import Link from "next/link"
 import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
+import { useFolderDragDrop } from "./file-dnd"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -27,11 +29,28 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
   const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
+  // Both a drag source (file it elsewhere) and a drop target (file things into
+  // it). `isOver` lights the tile while a valid drag hovers; `isDragging` fades
+  // the lifted tile, leaving the DragOverlay as the moving preview.
+  const { setNodeRef, attributes, listeners, isDragging, isOver } =
+    useFolderDragDrop(folder)
+
   // Enumerate the cascade only while the confirm is open, from the live tree.
   const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
 
   return (
-    <div className="group flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-foreground/20">
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ opacity: isDragging ? 0 : undefined }}
+      className={cn(
+        "group flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5 transition-colors",
+        isOver
+          ? "border-primary ring-2 ring-primary"
+          : "border-border hover:border-foreground/20"
+      )}
+    >
       <Link
         href={`/files/${folder.id}`}
         className="flex min-w-0 flex-1 items-center gap-2"

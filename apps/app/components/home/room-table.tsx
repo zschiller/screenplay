@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
@@ -24,6 +25,7 @@ import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
+import { useFileDraggable, useFolderDragDrop } from "./file-dnd"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
@@ -45,11 +47,22 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
   const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
+  // Both a drag source and a drop target (issue #487): file the folder elsewhere
+  // by dragging it, or file canvases/folders into it by dropping onto its row.
+  const { setNodeRef, attributes, listeners, isDragging, isOver } =
+    useFolderDragDrop(folder)
+
   // Enumerate the cascade only while the confirm is open, from the live tree.
   const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
 
   return (
-    <TableRow className="group">
+    <TableRow
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ opacity: isDragging ? 0 : undefined }}
+      className={cn("group", isOver && "bg-accent")}
+    >
       <TableCell className="w-full">
         <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -126,12 +139,28 @@ function RoomRow({ room }: { room: RoomSummary }) {
   const [shareOpen, setShareOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
 
+  // Draggable onto a folder row to file it (issue #487); enabled only on the
+  // files page, where the displayed rooms live in the folder being viewed.
+  const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
+    {
+      kind: "room",
+      id: room.id,
+      name: room.name,
+      currentParentId: currentFolderId,
+    },
+    !folderView
+  )
+
   return (
     <TableRow
+      ref={setNodeRef}
+      {...(folderView ? attributes : {})}
+      {...(folderView ? listeners : {})}
       // Prewarm the room connection on hover/focus so the canvas renders on the
       // first frame without a sync-gate flash. No-op on the hosted build.
       onPointerEnter={() => prewarmRoom(room.id)}
       onFocus={() => prewarmRoom(room.id)}
+      style={{ opacity: isDragging ? 0 : undefined }}
       className="group"
     >
       <TableCell className="w-full">

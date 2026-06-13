@@ -12,6 +12,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
+import { useFileDraggable } from "./file-dnd"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
@@ -123,13 +124,31 @@ function RoomCard({ room }: { room: RoomSummary }) {
   const [shareOpen, setShareOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
 
+  // Draggable onto a folder to file it (issue #487), but only on the files page
+  // where there are folders to file into — the flat Recents view disables it.
+  // The displayed rooms all live in the folder being viewed, so that's the home
+  // a drop relocates from.
+  const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
+    {
+      kind: "room",
+      id: room.id,
+      name: room.name,
+      currentParentId: currentFolderId,
+    },
+    !folderView
+  )
+
   return (
     <div
+      ref={setNodeRef}
+      {...(folderView ? attributes : {})}
+      {...(folderView ? listeners : {})}
       // Open the room's connection on hover/focus so it's synced by the time the
       // route mounts — the canvas renders on the first frame with no sync-gate
       // flash. No-op on the hosted build.
       onPointerEnter={() => prewarmRoom(room.id)}
       onFocus={() => prewarmRoom(room.id)}
+      style={{ opacity: isDragging ? 0 : undefined }}
       className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20"
     >
       <Link
