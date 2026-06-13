@@ -17,16 +17,16 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tiny_http::{Header, Method, Response, Server};
 
-/// Off-screen window the render page loads into for screenshotting. Reused
+/// Off-screen window the preview URL loads into for screenshotting. Reused
 /// across captures (the control server handles one request at a time).
 const CAPTURE_LABEL: &str = "thumbnail-capture";
-/// Viewport the render page is screenshotted at — matches the puppeteer
+/// Viewport the preview is screenshotted at — matches the puppeteer
 /// capturer; downstream `sharp` resizes to the stored 640×480.
 const CAPTURE_W: f64 = 1280.0;
 const CAPTURE_H: f64 = 960.0;
-/// Settle delay after the page's `load` before snapshotting, to let the canvas
-/// paint (mirrors the puppeteer path's `__thumbnailReady` wait, with a fixed
-/// budget since a remote page can't signal the shell back over IPC).
+/// Settle delay after the page's `load` before snapshotting, to let the
+/// preview paint before the screenshot (a fixed budget since a remote page
+/// can't signal the shell back over IPC).
 const SETTLE_MS: u64 = 1_500;
 const CAPTURE_TIMEOUT_S: u64 = 25;
 

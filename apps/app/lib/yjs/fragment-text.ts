@@ -18,9 +18,7 @@ export function documentFragment(doc: Y.Doc, id: string): Y.XmlFragment {
 /**
  * Serialize a TipTap-managed Y.XmlFragment to plain text. Walks the fragment
  * tree and joins paragraphs / list items / etc. with newlines so the result
- * reads cleanly when handed to an LLM as context. Mirrors the rendering used
- * for thumbnails (`fragmentToText` in `app/[roomId]/render/page.tsx`) so the
- * client and the render pipeline agree on what "the document body" is.
+ * reads cleanly when handed to an LLM as context.
  *
  * The reverse direction — `writeMarkdownToFragment` and
  * `replaceFragmentBodyPreservingTitle` — runs the agent's markdown through

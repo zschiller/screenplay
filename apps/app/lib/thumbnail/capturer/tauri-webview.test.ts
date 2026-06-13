@@ -14,7 +14,7 @@ afterEach(() => {
 describe("TauriWebviewCapturer", () => {
   it("throws when the control URL is not set (only runs inside the shell)", async () => {
     delete process.env[TAURI_CONTROL_URL_ENV_VAR]
-    await expect(getTauriWebviewCapturer().capture("http://x/render")).rejects.toThrow(
+    await expect(getTauriWebviewCapturer().capture("http://preview/")).rejects.toThrow(
       /TAURI_CONTROL_URL is not set/
     )
   })
@@ -45,12 +45,12 @@ describe("TauriWebviewCapturer", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     })
 
-    it("POSTs the render URL to /thumbnail and returns the PNG bytes", async () => {
-      const buf = await getTauriWebviewCapturer().capture("http://app/42/render?token=t")
+    it("POSTs the preview URL to /thumbnail and returns the PNG bytes", async () => {
+      const buf = await getTauriWebviewCapturer().capture("http://preview-42.example.com/")
 
       expect(received.url).toBe("/thumbnail")
       expect(JSON.parse(received.body ?? "{}")).toEqual({
-        renderUrl: "http://app/42/render?token=t",
+        renderUrl: "http://preview-42.example.com/",
       })
       expect([...buf]).toEqual([0x89, 0x50, 0x4e, 0x47])
     })
@@ -81,7 +81,7 @@ describe("TauriWebviewCapturer", () => {
     process.env[TAURI_CONTROL_URL_ENV_VAR] = `http://127.0.0.1:${port}`
     try {
       await expect(
-        getTauriWebviewCapturer().capture("http://app/42/render")
+        getTauriWebviewCapturer().capture("http://preview-42.example.com/")
       ).rejects.toThrow(/returned 500/)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))

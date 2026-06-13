@@ -69,13 +69,6 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Generate with: openssl rand -hex 32
 ENCRYPTION_KEY=<64 hex chars>
 
-# --- Thumbnail capture ---
-# HMAC secret for the short-lived tokens that gate /[roomId]/render. The
-# capture pipeline hits that route with a signed token because it can't carry
-# a user session. Any long random string works.
-# Generate with: openssl rand -hex 32
-THUMBNAIL_RENDER_SECRET=<64 hex chars>
-
 # --- Terminal access ---
 # HMAC secret for the short-lived, per-session credentials that gate access to
 # a sandbox's terminal daemon (Terminal Tabs). A room member POSTs

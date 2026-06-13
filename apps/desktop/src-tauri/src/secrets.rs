@@ -1,8 +1,8 @@
 //! Per-install secrets the sidecar needs but the desktop build can't ship.
 //!
 //! The hosted deploy injects `ENCRYPTION_KEY` (repo-config / env-var encryption
-//! at rest), `THUMBNAIL_RENDER_SECRET` (HMAC on thumbnail render URLs), and
-//! `TERMINAL_AUTH_SECRET` (terminal auth tokens) as deployment secrets. A desktop
+//! at rest) and `TERMINAL_AUTH_SECRET` (terminal auth tokens) as deployment
+//! secrets. A desktop
 //! install is a single machine with no deployment, so the shell mints them on
 //! first launch and persists them next to the app data — stable across restarts
 //! (so data encrypted on one run decrypts on the next) and unique per install.
@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 pub struct Secrets {
     /// 32-byte key, hex-encoded — `lib/crypto` reads it as `Buffer.from(_, "hex")`.
     pub encryption_key: String,
-    pub thumbnail_render_secret: String,
     pub terminal_auth_secret: String,
 }
 
@@ -36,7 +35,6 @@ pub fn load_or_create(data_dir: &Path) -> Result<Secrets, Box<dyn Error>> {
 
     let secrets = Secrets {
         encryption_key: random_hex(32),
-        thumbnail_render_secret: random_hex(32),
         terminal_auth_secret: random_hex(32),
     };
     fs::create_dir_all(data_dir)?;
