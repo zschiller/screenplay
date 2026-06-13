@@ -18,6 +18,14 @@ export type FolderRecord = {
   updatedAt: number
 }
 
+// Where a user files a Room in their tree. The absence of a placement for a
+// (user, Room) pair means the Room sits at that user's root, so this only ever
+// carries Rooms a user has actively filed into a folder.
+export type RoomPlacement = {
+  roomId: string
+  folderId: string
+}
+
 function toFolder(row: typeof schema.folder.$inferSelect): FolderRecord {
   return {
     id: row.id,
@@ -103,4 +111,61 @@ export async function getOwnedFolder(
     )
     .limit(1)
   return rows[0] ? toFolder(rows[0]) : null
+}
+
+// --- Room placement within the tree (per-user) -----------------------------
+//
+// Placement is keyed `(userId, roomId)`, so it is private: filing a shared Room
+// moves it only in that user's view. "At root for this user" is modeled by the
+// *absence* of a row, which keeps the table holding only active filings and lets
+// `null` mean root everywhere in the pure layer.
+
+// File `roomId` under `folderId` for `userId`, or drop it back to the user's
+// root when `folderId` is null. Upserts on the `(userId, roomId)` PK, so each
+// user has at most one placement per Room — re-filing overwrites rather than
+// stacking rows.
+export async function placeRoomInFolder(opts: {
+  userId: string
+  roomId: string
+  folderId: string | null
+}): Promise<void> {
+  if (opts.folderId === null) {
+    // Root is the no-row state: clear any existing filing for this user+Room.
+    await db
+      .delete(schema.roomFolder)
+      .where(
+        and(
+          eq(schema.roomFolder.userId, opts.userId),
+          eq(schema.roomFolder.roomId, opts.roomId)
+        )
+      )
+    return
+  }
+  await db
+    .insert(schema.roomFolder)
+    .values({
+      userId: opts.userId,
+      roomId: opts.roomId,
+      folderId: opts.folderId,
+    })
+    .onConflictDoUpdate({
+      target: [schema.roomFolder.userId, schema.roomFolder.roomId],
+      set: { folderId: opts.folderId, updatedAt: new Date() },
+    })
+}
+
+// Every Room this user has filed into a folder, as a flat `(roomId, folderId)`
+// list. Rooms with no row are at the user's root; the caller (home provider /
+// `lib/folder-tree`) treats a missing entry as `folderId: null`.
+export async function listRoomPlacementsForUser(
+  userId: string
+): Promise<RoomPlacement[]> {
+  const rows = await db
+    .select({
+      roomId: schema.roomFolder.roomId,
+      folderId: schema.roomFolder.folderId,
+    })
+    .from(schema.roomFolder)
+    .where(eq(schema.roomFolder.userId, userId))
+  return rows.map((r) => ({ roomId: r.roomId, folderId: r.folderId }))
 }

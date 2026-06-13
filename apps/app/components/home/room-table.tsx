@@ -29,8 +29,8 @@ import type { FolderSummary } from "@/lib/folders-actions"
 
 // Compact folder row (PRD #475): a folder icon + name in the Name column, with
 // the date/owner columns left empty so folders read as a distinct section above
-// the canvases. Clicking does nothing yet, but the ⋮ menu can rename it in
-// place (#484).
+// the canvases. Clicking the name navigates into the folder (`/files/<id>`);
+// the ⋮ menu renames it in place (#484).
 function FolderRow({ folder }: { folder: FolderSummary }) {
   const { renameFolder } = useHome()
   const [renameOpen, setRenameOpen] = useState(false)
@@ -38,10 +38,12 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
   return (
     <TableRow className="group">
       <TableCell className="w-full">
-        <div className="flex items-center gap-2">
+        <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium">{folder.name}</span>
-        </div>
+          <span className="truncate font-medium hover:underline">
+            {folder.name}
+          </span>
+        </Link>
       </TableCell>
       <TableCell />
       <TableCell />
