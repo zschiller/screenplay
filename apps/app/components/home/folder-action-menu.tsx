@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderInput, Pencil, Trash2 } from "lucide-react"
+import { FolderInput, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,13 @@ type Props = {
   /** Opens the "Move to…" folder picker to re-parent this folder. */
   onMove: () => void
   onDelete: () => void
+  /** Whether this Folder is pinned — flips the toggle label and icon. */
+  pinned: boolean
+  /**
+   * Pin the Folder when unpinned, unpin it when pinned. Per-user, and a pure
+   * shortcut — it never moves the Folder in the tree (PRD #507).
+   */
+  onTogglePin: () => void
 }
 
 export function FolderActionMenu({
@@ -26,6 +33,8 @@ export function FolderActionMenu({
   onRename,
   onMove,
   onDelete,
+  pinned,
+  onTogglePin,
 }: Props) {
   return (
     <DropdownMenu>
@@ -38,6 +47,10 @@ export function FolderActionMenu({
         <DropdownMenuItem onSelect={onMove}>
           <FolderInput />
           Move to…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onTogglePin}>
+          {pinned ? <PinOff /> : <Pin />}
+          {pinned ? "Unpin" : "Pin to sidebar"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={onDelete}>

@@ -89,6 +89,43 @@ export async function pinRoom(opts: {
   return toPin(row)
 }
 
+// Pin a Folder to the end of the user's list — the Folder counterpart of
+// `pinRoom`, sharing every guarantee. Idempotent: re-pinning a Folder the user
+// already pinned returns the existing pin rather than inserting a duplicate (the
+// per-user unique index would reject it anyway). Owner-scoped, and a pure
+// shortcut — it never touches where the Folder lives in the tree.
+export async function pinFolder(opts: {
+  id: string
+  userId: string
+  folderId: string
+}): Promise<PinRecord> {
+  const existing = await db
+    .select()
+    .from(schema.pin)
+    .where(
+      and(
+        eq(schema.pin.userId, opts.userId),
+        eq(schema.pin.folderId, opts.folderId)
+      )
+    )
+    .limit(1)
+  if (existing[0]) return toPin(existing[0])
+
+  const pins = await listPinsForUser(opts.userId)
+  const position = appendPosition(pins.map((p) => p.position))
+  const [row] = await db
+    .insert(schema.pin)
+    .values({
+      id: opts.id,
+      userId: opts.userId,
+      folderId: opts.folderId,
+      position,
+    })
+    .returning()
+  if (!row) throw new Error("Failed to pin folder")
+  return toPin(row)
+}
+
 // Persist a user's manual pin ordering. `ordered` is the user's whole pin list
 // in the new display order — each entry a `kind` + `targetId`, the same key the
 // sidebar addresses a pin by — which the pure helper re-packs into dense 0-based

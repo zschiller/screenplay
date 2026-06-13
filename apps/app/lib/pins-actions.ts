@@ -4,6 +4,7 @@ import { nanoid } from "nanoid"
 import { requireUserId } from "@/lib/auth-helpers"
 import {
   listPinsForUser,
+  pinFolder as pinFolderRecord,
   pinRoom as pinRoomRecord,
   reorderPins as reorderPinsRecord,
   unpin as unpinRecord,
@@ -48,6 +49,15 @@ export async function listPins(): Promise<PinSummary[]> {
 export async function pinRoom(roomId: string): Promise<PinSummary> {
   const userId = await requireUserId()
   const pin = await pinRoomRecord({ id: nanoid(10), userId, roomId })
+  return toSummary(pin)
+}
+
+// Pin a Folder to the current user's sidebar (appends to the end). Idempotent —
+// re-pinning a Folder already pinned returns the existing pin. Pinning is a
+// per-user shortcut and leaves the Folder's placement in the tree untouched.
+export async function pinFolder(folderId: string): Promise<PinSummary> {
+  const userId = await requireUserId()
+  const pin = await pinFolderRecord({ id: nanoid(10), userId, folderId })
   return toSummary(pin)
 }
 
