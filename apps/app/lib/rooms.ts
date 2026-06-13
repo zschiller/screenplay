@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
+import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 
 export type { RoomRole }
 
@@ -98,6 +99,42 @@ export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
     .where(eq(schema.roomMember.userId, userId))
     .orderBy(desc(schema.room.createdAt))
   return rows.map(toRoom)
+}
+
+/**
+ * The thumbnail slice of every Room the user can see — id plus the
+ * compose-on-display manifest and its capture time. The homescreen polls this
+ * to surface a fresh capture round without a full reload; like
+ * {@link listRoomsForUser} it reads only the per-Room record (the `room`
+ * table), never a Room's Y.Doc, so it stays a cheap read. Unordered — the
+ * caller merges by id into its already-sorted grid.
+ */
+export async function listRoomThumbnailsForUser(
+  userId: string
+): Promise<RoomThumbnail[]> {
+  const columns = {
+    id: schema.room.id,
+    thumbnailUpdatedAt: schema.room.thumbnailUpdatedAt,
+    thumbnailManifest: schema.room.thumbnailManifest,
+  }
+  // Mirror listRoomsForUser's visibility: the local build owns every room
+  // implicitly (no `room_member` table to join); the hosted build scopes to
+  // the user's memberships (PRD #404, issue #417).
+  const rows = isLocalBuild
+    ? await db.select(columns).from(schema.room)
+    : await db
+        .select(columns)
+        .from(schema.room)
+        .innerJoin(
+          schema.roomMember,
+          eq(schema.roomMember.roomId, schema.room.id)
+        )
+        .where(eq(schema.roomMember.userId, userId))
+  return rows.map((row) => ({
+    id: row.id,
+    thumbnailUpdatedAt: row.thumbnailUpdatedAt?.getTime() ?? null,
+    thumbnailManifest: row.thumbnailManifest ?? null,
+  }))
 }
 
 export async function renameRoom(roomId: string, name: string): Promise<void> {

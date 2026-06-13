@@ -16,6 +16,7 @@ import {
   type RoomSummary,
 } from "@/lib/rooms-actions"
 import { sortRooms, type SortKey, type SortOrder } from "@/lib/room-sort"
+import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type View = "grid" | "table"
 export type { SortKey, SortOrder }
@@ -87,6 +88,11 @@ export function HomeProvider({
       cancelled = true
     }
   }, [initialRooms])
+
+  // Surface fresh capture rounds on an already-open grid without a reload:
+  // poll the per-Room thumbnail record and merge newer manifests in place. Gated
+  // on having rooms so an empty grid never polls.
+  useRoomThumbnailPoll(rooms.length > 0, setRooms)
 
   const sortedRooms = useMemo(
     () => sortRooms(rooms, sort, order),
