@@ -95,6 +95,7 @@ export function AgentChat({
     })
 
   const [models, setModels] = useState<ModelInfo[]>([])
+  const [modelsLoaded, setModelsLoaded] = useState(false)
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
   )
@@ -231,6 +232,12 @@ export function AgentChat({
         setServerDefaultModel(def)
       })
       .catch(() => {})
+      .finally(() => {
+        // Mark the fetch settled (success or failure) so the composer can tell a
+        // genuinely-empty catalog — the desktop "no agent detected" empty state —
+        // apart from one that's still loading.
+        if (!cancelled) setModelsLoaded(true)
+      })
     return () => {
       cancelled = true
     }
@@ -381,6 +388,7 @@ export function AgentChat({
         skillsLoading={skillsLoading}
         enableSkills={isAgentChat}
         models={models}
+        modelsLoaded={modelsLoaded}
         model={effectiveModel}
         onModelChange={handleModelChange}
         modelLocked={modelLocked}

@@ -1,6 +1,11 @@
 import "server-only"
 
 import type { LanguageModel } from "ai"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
+import {
+  harnessAvailability,
+  harnessModels,
+} from "@/lib/agent/harnesses/availability"
 import { getAnthropicProvider } from "./anthropic"
 import { getGoogleProvider } from "./google"
 import { getOpenAIProvider } from "./openai"
@@ -77,19 +82,20 @@ export function resolveLanguageModel(modelId: string): LanguageModel {
 }
 
 /**
- * Flat list of every model from every configured provider, in `PROVIDERS`
- * order. Drives the model picker. Decorates each entry with its origin
- * provider's metadata so the client can group by provider rather than by
- * model family — the per-provider `listModels()` implementations don't
- * need to populate this themselves.
- *
- * Each provider discovers live via its own API and caches; see
- * `./cache.ts`. A provider whose upstream is unreachable falls back to a
- * small curated list rather than blocking the whole catalog.
+ * The **hosted** enumeration fold: flat list of every model from every
+ * configured provider, in registry order, each decorated with its origin
+ * provider's metadata so the client can group by provider rather than by model
+ * family (the per-provider `listModels()` implementations don't populate this
+ * themselves). Each provider discovers live via its own API and caches (see
+ * `./cache.ts`); one whose upstream is unreachable falls back to a small curated
+ * list rather than blocking the whole catalog. Takes the registry explicitly so
+ * the fold is testable without the env-derived singleton.
  */
-export async function enumerateModels(): Promise<ModelInfo[]> {
+export async function providerModels(
+  providers: ModelProvider[]
+): Promise<ModelInfo[]> {
   const lists = await Promise.all(
-    PROVIDERS.map(async (p) => {
+    providers.map(async (p) => {
       const models = await p.listModels()
       return models.map((m) => ({
         ...m,
@@ -101,20 +107,57 @@ export async function enumerateModels(): Promise<ModelInfo[]> {
 }
 
 /**
- * Resolve the default model id for the currently-configured provider set.
- * Falls back to the first enabled model if `AGENT_DEFAULT_MODEL` points at
- * a provider that isn't configured (e.g. a deployment that has only
- * OPENAI_API_KEY set but left AGENT_DEFAULT_MODEL at its anthropic
- * default). Returns null when no providers are configured at all.
+ * The **hosted** default fold: `AGENT_DEFAULT_MODEL` when its provider is
+ * configured, else the first enabled model (e.g. a deployment that set only
+ * `OPENAI_API_KEY` but left `AGENT_DEFAULT_MODEL` at its anthropic default), else
+ * `null` when nothing is configured. Pure given the registry, the already-folded
+ * `models`, and the configured default — so no hardcoded constant survives when
+ * its provider isn't present. Reused by {@link getDefaultModelId} for the hosted
+ * backend.
+ */
+export function providerDefaultModelId(
+  providers: ModelProvider[],
+  models: ModelInfo[],
+  defaultModel: string = DEFAULT_MODEL
+): string | null {
+  const byKey = new Map(providers.map((p) => [p.key, p]))
+  try {
+    const { providerKey } = parseModelId(defaultModel)
+    if (byKey.get(providerKey)?.isConfigured()) return defaultModel
+  } catch {
+    // Malformed AGENT_DEFAULT_MODEL — fall through to the first-enabled fallback.
+  }
+  return models[0]?.id ?? null
+}
+
+/**
+ * Backend-uniform model enumeration, resolved through the same build-time switch
+ * that picks the {@link harnessAvailability} seam and the `SandboxProvider`
+ * (ADR 0003). The **desktop** backend folds detected harnesses into `harness:`
+ * entries grouped as "Installed agents"; the **hosted** backend folds the
+ * configured provider registry into `provider:` models as before. The dropdown
+ * and the terminal new-tab picker therefore read the *one* per-backend answer and
+ * can never drift apart.
+ */
+export async function enumerateModels(): Promise<ModelInfo[]> {
+  if (isLocalSandboxBackend())
+    return harnessModels(await harnessAvailability.list())
+  return providerModels(PROVIDERS)
+}
+
+/**
+ * The default model id for this deployment, always sourced through the seam.
+ * On the **desktop** backend it's the first detected chat-capable harness's
+ * `harness:` id (or `null` when none is detected) — the hardcoded anthropic
+ * `DEFAULT_MODEL` is hosted-only and is never returned here, so no constant can
+ * name an agent the deployment doesn't have. On the **hosted** backend it's the
+ * configured provider default (see {@link providerDefaultModelId}). Returns
+ * `null` when the backend offers nothing.
  */
 export async function getDefaultModelId(): Promise<string | null> {
-  try {
-    const { providerKey } = parseModelId(DEFAULT_MODEL)
-    const provider = PROVIDERS_BY_KEY.get(providerKey)
-    if (provider?.isConfigured()) return DEFAULT_MODEL
-  } catch {
-    // Malformed AGENT_DEFAULT_MODEL — fall through to picker fallback.
+  if (isLocalSandboxBackend()) {
+    const models = harnessModels(await harnessAvailability.list())
+    return models[0]?.id ?? null
   }
-  const all = await enumerateModels()
-  return all[0]?.id ?? null
+  return providerDefaultModelId(PROVIDERS, await providerModels(PROVIDERS))
 }

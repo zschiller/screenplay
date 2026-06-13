@@ -1,3 +1,4 @@
+import { HARNESS_ID_PREFIX } from "@/lib/agent/harnesses/types"
 import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
 import { inProcessEngine } from "./in-process-engine"
@@ -16,11 +17,11 @@ export const ENGINE_ENV_VAR = "AGENT_ENGINE"
 
 /**
  * Wire-format prefix marking a chat's stored `model` id as a **Harness
- * selection** (`harness:<key>`) rather than a `provider:<model>` id. The same
- * `harness:` form names the Terminal Tab key and the Harness catalog key — there
- * is no separate adapter-key namespace (#476).
+ * selection** (`harness:<key>`) rather than a `provider:<model>` id. Defined in
+ * the `harnesses/types` leaf (so the model-enumeration fold can build ids without
+ * the engine graph) and re-exported here for this module's existing consumers.
  */
-export const HARNESS_ID_PREFIX = "harness:"
+export { HARNESS_ID_PREFIX }
 
 /**
  * The Harness catalog key a chat's stored `model` id names for the **external
@@ -62,7 +63,9 @@ export function engineChoiceFromEnv(
  * an operator who asked for the external engine should hear that its transport
  * isn't configured, not get the in-process engine unannounced.
  */
-export function selectEngine(deps: { external?: ExternalEngineConfig } = {}): Engine {
+export function selectEngine(
+  deps: { external?: ExternalEngineConfig } = {}
+): Engine {
   if (engineChoiceFromEnv() === "external") {
     if (!deps.external) {
       throw new Error(

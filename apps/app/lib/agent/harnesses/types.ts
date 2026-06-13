@@ -12,6 +12,20 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
 export const BROKERED_VALUE = "brokered"
 
 /**
+ * Wire-format prefix marking a chat's stored `model` id as a **Harness
+ * selection** (`harness:<key>`) rather than a `provider:<model>` id. The same
+ * `harness:` form names the Terminal Tab key and the Harness catalog key — there
+ * is no separate adapter-key namespace (#476). The model dropdown emits these on
+ * the desktop backend, the external engine reads them back to pick the adapter
+ * (#479), and `agent_chat.model` persists them verbatim.
+ *
+ * Lives in this leaf (rather than `acp/engine-select`, which reads it back) so
+ * the model-enumeration fold can build harness ids without pulling the engine
+ * graph in. `engine-select` re-exports it for its existing consumers.
+ */
+export const HARNESS_ID_PREFIX = "harness:"
+
+/**
  * The always-commit-and-push rule, as markdown. Every harness seeds this into
  * its own *home-level* agents file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
  * …) so each session inherits the rule without it ever being written into the
