@@ -1,4 +1,5 @@
 import { HARNESS_ID_PREFIX } from "@/lib/agent/harnesses/types"
+import { decodeHarnessModelId } from "@/lib/agent/harnesses/model-id"
 import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import type { Engine } from "./engine-seam"
 import { inProcessEngine } from "./in-process-engine"
@@ -34,13 +35,15 @@ export { HARNESS_ID_PREFIX }
  * ADR 0006): a `provider:` id can't promote a chat onto the external engine, and
  * a `harness:` id can't appear on an in-process deployment. So `null` here means
  * "fall back to the `SCREENPLAY_ACP_HARNESS` default", not "switch engines".
+ *
+ * This reads only the *key* through the {@link decodeHarnessModelId} codec — a
+ * `harness:<key>:<modelId>` id resolves to its `<key>`, ignoring the model half
+ * (which the session path consumes in a later slice).
  */
 export function harnessKeyFromModelId(
   modelId: string | undefined | null
 ): string | null {
-  const trimmed = modelId?.trim()
-  if (!trimmed || !trimmed.startsWith(HARNESS_ID_PREFIX)) return null
-  return trimmed.slice(HARNESS_ID_PREFIX.length).trim() || null
+  return decodeHarnessModelId(modelId)?.key ?? null
 }
 
 /**

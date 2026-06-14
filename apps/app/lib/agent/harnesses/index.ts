@@ -19,6 +19,12 @@ export type {
   HarnessSelection,
   SkippedHarness,
 } from "./types"
+export {
+  decodeHarnessModelId,
+  encodeHarnessModelId,
+  isValidHarnessKey,
+} from "./model-id"
+export type { HarnessModelId } from "./model-id"
 
 /**
  * The active harness catalog. Extend it the same way the provider registry
