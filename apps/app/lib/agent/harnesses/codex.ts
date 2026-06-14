@@ -100,9 +100,10 @@ export const codexHarness: Harness = {
     args: ["-y", "@zed-industries/codex-acp"],
     modelArgs: (modelId) => ["--model", modelId],
   },
-  // Curated model list for the desktop dropdown (static for this slice — a
-  // discovered-once-and-cached catalog is a later slice). The ids are Codex's
-  // model slugs (the same names its `--model` flag / `config.toml` take); the
+  // Curated model floor for the desktop dropdown — authoritative; the model
+  // catalog (#527) only appends discovered-once-and-cached live models on top.
+  // The ids are Codex's model slugs (the same names its `--model` flag /
+  // `config.toml` take); the
   // flagship `gpt-5-codex` is the pre-selected per-Harness default.
   models: [
     { id: "gpt-5-codex", label: "GPT-5 Codex" },

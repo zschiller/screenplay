@@ -446,6 +446,27 @@ _Avoid_: detector/registry (casual); a separate availability path per consumer
 (the whole point is one fold, many consumers); gating the list on auth state
 (presence lists; auth is surfaced, not pre-filtered).
 
+**Harness model catalog**:
+The source the desktop model fold (`harnessModels`) reads each Harness's dropdown
+list from — its **curated floor** (the descriptor's `models`, authoritative) plus
+a **discover-once-and-cached** live augment (`lib/agent/harnesses/model-catalog.ts`).
+Mirrors the model-provider `discover()` cache and the desktop resolver's
+once-per-launch memoization: discovery runs at most once per app launch, a second
+`list()` reuses it, and an unreachable/empty source degrades to the curated floor
+— the same staleness contract as `hostBinary` detection (a model added to a
+subscription shows up after a restart, never via a mid-session re-probe). Spike
+#523 inverted the original "discover live `availableModels` as the source"
+framing: enumeration is stateless and can't open a session, and the advertised set
+under-delivers (claude-code advertises 3 buckets, codex none) — all ⊆ a sensible
+curated set. So the curated floor is **authoritative** and discovery is **purely
+additive** (a discovered modelId only appends a row the floor doesn't name).
+Today the production discovery is the deferred session-open augment and advertises
+nothing, so the dropdown is identical to the static-list slice.
+_Avoid_: "discover the dropdown's models" framing (curated floor is the source,
+discovery augments); a live re-probe on the dropdown path (it's stateless — no
+session); reordering/relabelling a curated entry a discovery also advertises (the
+floor wins on id collisions).
+
 **Composer**:
 The shared rich-text input for authoring a single chat turn — owns model
 selection, plan-mode, `@`-Layer mentions and `/`-Skill insertion, and serializes

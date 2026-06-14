@@ -83,10 +83,11 @@ export interface AcpAdapter {
  * `id` is the **opaque ACP model alias** (e.g. `default`/`sonnet`/`opus` for
  * claude-code) carried on `agent_chat.model` as `harness:<key>:<id>` — it may
  * itself contain colons; the codec splits only on the first colon after the key
- * so it survives intact (`decodeHarnessModelId`). For this slice the list is a
- * **static, curated** one on the descriptor; swapping it for a
- * discovered-once-and-cached catalog is a later slice with an identical dropdown
- * code path (#522).
+ * so it survives intact (`decodeHarnessModelId`). The descriptor's {@link
+ * Harness.models} is the **curated floor**; the {@link
+ * import("./model-catalog").HarnessModelCatalog} reads it through and may append a
+ * discovered-once-and-cached live model on top, but the dropdown code path is
+ * identical either way (#522/#527).
  */
 export interface HarnessModel {
   /** Opaque ACP model alias selecting a model within the Harness. */
@@ -189,8 +190,10 @@ export interface Harness {
    * degrades to a single selectable "harness default" entry (bare
    * `harness:<key>`), so the dropdown never regresses below the harness-picker
    * behavior. `enumerateModels` is stateless, so this list can never be a live
-   * session's `availableModels` — it's the descriptor's curated fallback (#523);
-   * a discovered-once-and-cached catalog is a later slice (#522).
+   * session's `availableModels` — it's the descriptor's **curated floor** (#523),
+   * which the {@link import("./model-catalog").HarnessModelCatalog} treats as
+   * authoritative and only appends discovered-once-and-cached live models on top
+   * of (#527).
    */
   models?: HarnessModel[]
 

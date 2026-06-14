@@ -142,7 +142,7 @@ export function providerDefaultModelId(
  */
 export async function enumerateModels(): Promise<ModelInfo[]> {
   if (isLocalSandboxBackend())
-    return harnessModels(await harnessAvailability.list())
+    return await harnessModels(await harnessAvailability.list())
   return providerModels(PROVIDERS)
 }
 
