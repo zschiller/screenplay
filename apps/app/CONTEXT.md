@@ -25,9 +25,11 @@ desktop build the member list collapses to a single seeded local user (see
 user.
 _Shown to users as_: "Canvas".
 _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
-(reserve that for the spatial surface below); file (the homescreen's legacy
-label and `File*` component names — the homescreen lists Rooms, labeled
-"Canvases", and code uses `Room*` identifiers).
+(reserve that for the spatial surface below); "file" as a label for a Room (a
+Room is shown as "Canvas" and is `Room*` in code, never "a file"). This bans
+only the noun: *filing* a Room into a Folder is the canonical verb, and the
+"All files" home root, the "New canvas" action, and the `file-dnd` / `File*`
+filing identifiers are all current (PRD #475) — see **Folder**.
 
 **Folder**:
 A user-private container on the homescreen for organizing Rooms into a tree:
