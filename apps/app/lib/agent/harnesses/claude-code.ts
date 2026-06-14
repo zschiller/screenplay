@@ -83,15 +83,19 @@ export const claudeCodeHarness: Harness = {
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
-  // The ids are the claude-code-acp opaque aliases (#523); `default` rides the
-  // CLI's own default,
-  // so it is the pre-selected per-Harness default and is backward-compatible with
-  // the bare `harness:claude-code` rows stored before this list existed.
+  // The ids are the Claude Code model aliases (https://code.claude.com/docs/en/model-config):
+  // `default` rides the CLI's own recommended model, so it is the pre-selected
+  // per-Harness default and is backward-compatible with the bare
+  // `harness:claude-code` rows stored before this list existed. `fable` selects
+  // the most capable model (Fable 5); `opusplan` is the hybrid mode that plans
+  // with Opus and executes with Sonnet. Aliases track the latest version of each
+  // family, so this floor doesn't pin a dated model id.
   models: [
     { id: "default", label: "Default" },
-    { id: "sonnet", label: "Sonnet" },
+    { id: "fable", label: "Fable" },
     { id: "opus", label: "Opus" },
     { id: "opusplan", label: "Opus (plan), Sonnet (execute)" },
+    { id: "sonnet", label: "Sonnet" },
     { id: "haiku", label: "Haiku" },
   ],
   defaultModelId: "default",

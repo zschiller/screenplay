@@ -184,12 +184,13 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         label: "Claude Code",
         models: [
           { id: "harness:claude-code:default", label: "Default" },
-          { id: "harness:claude-code:sonnet", label: "Sonnet" },
+          { id: "harness:claude-code:fable", label: "Fable" },
           { id: "harness:claude-code:opus", label: "Opus" },
           {
             id: "harness:claude-code:opusplan",
             label: "Opus (plan), Sonnet (execute)",
           },
+          { id: "harness:claude-code:sonnet", label: "Sonnet" },
           { id: "harness:claude-code:haiku", label: "Haiku" },
         ],
       },
@@ -197,9 +198,9 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         key: "codex",
         label: "Codex",
         models: [
-          { id: "harness:codex:gpt-5-codex", label: "GPT-5 Codex" },
-          { id: "harness:codex:gpt-5", label: "GPT-5" },
-          { id: "harness:codex:gpt-5-mini", label: "GPT-5 mini" },
+          { id: "harness:codex:gpt-5.5", label: "GPT-5.5" },
+          { id: "harness:codex:gpt-5.4", label: "GPT-5.4" },
+          { id: "harness:codex:gpt-5.3-codex", label: "GPT-5.3 Codex" },
         ],
       },
     ])
@@ -259,9 +260,10 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
     // Curated floor first (catalog order), the discovered alias appended last.
     expect(ids).toEqual([
       "harness:claude-code:default",
-      "harness:claude-code:sonnet",
+      "harness:claude-code:fable",
       "harness:claude-code:opus",
       "harness:claude-code:opusplan",
+      "harness:claude-code:sonnet",
       "harness:claude-code:haiku",
       "harness:claude-code:opus-4-1",
     ])
@@ -286,7 +288,7 @@ describe("harnessDefaultModelId (desktop default fold)", () => {
       probe: fakeProbe(["opencode", "codex"]),
     }).list()
 
-    expect(harnessDefaultModelId(available)).toBe("harness:codex:gpt-5-codex")
+    expect(harnessDefaultModelId(available)).toBe("harness:codex:gpt-5.5")
   })
 
   it("falls back to a bare harness:<key> when the first Harness advertises no models", () => {

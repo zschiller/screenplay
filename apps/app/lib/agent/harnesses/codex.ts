@@ -103,13 +103,14 @@ export const codexHarness: Harness = {
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
   // The ids are Codex's model slugs (the same names its `--model` flag /
-  // `config.toml` take); the
-  // flagship `gpt-5-codex` is the pre-selected per-Harness default.
+  // `config.toml` take, https://developers.openai.com/codex/models). `gpt-5.5` is
+  // the Codex CLI's current default and the pre-selected per-Harness default;
+  // `gpt-5.3-codex` is the Codex-tuned variant.
   models: [
-    { id: "gpt-5-codex", label: "GPT-5 Codex" },
-    { id: "gpt-5", label: "GPT-5" },
-    { id: "gpt-5-mini", label: "GPT-5 mini" },
+    { id: "gpt-5.5", label: "GPT-5.5" },
+    { id: "gpt-5.4", label: "GPT-5.4" },
+    { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
   ],
-  defaultModelId: "gpt-5-codex",
+  defaultModelId: "gpt-5.5",
   seed: seedCodex,
 }
