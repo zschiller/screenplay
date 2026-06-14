@@ -403,12 +403,22 @@ off that one descriptor: run **interactively inside a Terminal Tab**, or spawned
 as the **ACP backing of the external Engine** to drive agent chat (its
 `acpAdapter` argv). Both read the same entry; the descriptor also carries the
 `hostBinary` the desktop detector probes and an optional **curated model list**
-(`models` + `defaultModelId`) — the static set of models the desktop chat
+(`models` + `defaultModelId`) — the per-Harness set of models the desktop chat
 dropdown lists nested under the Harness, each carried as `harness:<key>:<modelId>`
 (the model axis refines _which model_ the Harness runs; a bare `harness:<key>`
 still means "the Harness's own default"). A Harness with no `models` degrades to
-that single default entry. The list is curated on the descriptor for now;
-discovering it once-and-caching is a later slice.
+that single default entry. The stored id is the **single home** for the choice
+(no parallel column): the codec splits the remainder after the `harness:` prefix
+on its _first_ colon, so the colon-free, comma-free `key` is always recovered
+whole and the opaque `modelId` survives intact even when it holds colons
+(`opus[1m]`, `openrouter:anthropic/claude:beta`); a `provider:<model>` id never
+decodes as a Harness (`harnesses/model-id.ts`). The dropdown list is the
+descriptor's **curated floor** plus a discover-once-and-cached live augment (the
+**Harness model catalog**, below; #527). _How_ the chosen model is applied is the
+adapter's call: an ACP-native adapter (claude-code) sets it in-session via ACP's
+`unstable_setSessionModel`; a spawn-env adapter (codex, which advertises no
+models) takes it at launch as `--model <id>`. See ADR 0011 for the capability
+binding and the `harness:<key>:<modelId>` wire format.
 _Which Harnesses are offered is resolved per backend by the **Harness
 Availability** seam_ (below) — never a single hardcoded list. On the hosted
 backend a Harness is offered only when its broker model provider is configured
@@ -438,10 +448,15 @@ gives **each** detected chat-capable Harness its own dropdown heading with its
 curated models nested as `harness:<key>:<modelId>` entries (and the first
 Harness's `defaultModelId` as the overall desktop default), replacing the single
 "Installed agents" heading the pre-model-selection fold drew; the hosted
-`provider:` enumeration is untouched. Listing is gated on **presence**, never on
-auth: a detected-but-unauthenticated Harness still lists and fails loud at turn
-time with the CLI's own login message, mirroring how the hosted side lists on
-provider-_configured_, not provider-_verified_.
+`provider:` enumeration is untouched. The availability seam only _lists_ a
+Harness and its models; **applying** a chosen model is the live session's job and
+is per-adapter — ACP-native in-session set vs. spawn `--model` (ADR 0011).
+Listing is gated on **presence**, never on auth: a detected-but-unauthenticated
+Harness still lists and fails loud at turn time with the CLI's own login message,
+mirroring how the hosted side lists on provider-_configured_, not
+provider-_verified_; a stale per-Harness model is likewise never pre-filtered —
+it lists, and reconciles to the Harness default only if the turn rejects it
+(ADR 0011).
 _Avoid_: detector/registry (casual); a separate availability path per consumer
 (the whole point is one fold, many consumers); gating the list on auth state
 (presence lists; auth is surfaced, not pre-filtered).
