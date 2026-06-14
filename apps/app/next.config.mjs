@@ -18,6 +18,12 @@ const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
   ...(isDesktopBuild ? { output: "standalone" } : {}),
+  // Next 16.2 blocks cross-origin requests to dev resources (HMR, /_next/*) by
+  // default. The Tauri desktop shell loads the sidecar over a loopback host that
+  // doesn't always match the server's own origin, so HMR is rejected with a
+  // "Blocked cross-origin request" warning. Allow the loopback hosts the shell
+  // uses in dev. Dev-only — the key is ignored by production builds.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   transpilePackages: ["@workspace/ui"],
   serverExternalPackages: [
     "@sparticuz/chromium",

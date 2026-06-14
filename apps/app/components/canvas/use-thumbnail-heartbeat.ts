@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useYjs } from "@/lib/yjs/context"
 import { withBasePath } from "@/lib/base-path"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -34,32 +34,50 @@ import {
  * pending layout write (persist the latest arrangement) and, if a capture was
  * scheduled and it's been long enough since the last one, flush that too
  * (catches "edit then close tab").
+ *
+ * Returns {@link flushLayout}: an awaitable that POSTs any pending layout edit
+ * and resolves once the server has rebuilt the manifest. A deliberate navigation
+ * away (the breadcrumb back, a full-page `window.location.assign`) awaits it so
+ * the home grid it lands on renders the just-saved arrangement — the React
+ * unmount cleanup below does NOT run on a full-page unload, so without this the
+ * last edit would never reach the server. A `pagehide` listener covers the
+ * fire-and-forget unloads (tab close, bfcache) the same way.
  */
 export function useThumbnailHeartbeat(
   roomId: string,
   hasThumbnail: boolean,
   tracker: DirtyFrameTracker
-): void {
+): { flushLayout: () => Promise<void> } {
   const { doc } = useYjs()
+  // Holds the live effect's flush so the stable callback returned below always
+  // calls the current room's implementation; reset to a no-op on unmount.
+  const flushRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
     let layoutTimer: ReturnType<typeof setTimeout> | null = null
     let captureTimer: ReturnType<typeof setTimeout> | null = null
     let initialTimer: ReturnType<typeof setTimeout> | null = null
     let lastCapture = 0
+    // The most recent layout-lane POST, so `flushLayout` can await an already
+    // fired-but-in-flight rebuild (not just one still sitting on the debounce).
+    let pendingLayoutPost: Promise<unknown> | null = null
 
     // POST the heartbeat. `frameIds` undefined → full-room capture (the backstop
     // fire); an array → the layout lane (empty: rebuild rects, no browser) or the
-    // capture lane (non-empty: screenshot exactly those frames).
+    // capture lane (non-empty: screenshot exactly those frames). Returns the
+    // fetch so the layout lane can be awaited.
     function post(frameIds?: readonly string[]) {
       const body = frameIds ? JSON.stringify({ frameIds }) : undefined
-      void fetch(withBasePath(`/api/thumbnail/${encodeURIComponent(roomId)}`), {
-        method: "POST",
-        keepalive: true,
-        ...(body
-          ? { headers: { "content-type": "application/json" }, body }
-          : {}),
-      }).catch(() => {})
+      return fetch(
+        withBasePath(`/api/thumbnail/${encodeURIComponent(roomId)}`),
+        {
+          method: "POST",
+          keepalive: true,
+          ...(body
+            ? { headers: { "content-type": "application/json" }, body }
+            : {}),
+        }
+      ).catch(() => {})
     }
 
     // Capture lane: screenshot the frames that are ready+dirty right now. No-op
@@ -77,8 +95,22 @@ export function useThumbnailHeartbeat(
     // Layout lane: rebuild the manifest's rects from the current doc, no browser.
     function fireLayout() {
       layoutTimer = null
-      post([])
+      pendingLayoutPost = post([])
+      return pendingLayoutPost
     }
+
+    // Send any pending layout edit and resolve once the rebuild lands. Fires a
+    // still-debounced edit immediately, then awaits the latest layout POST (the
+    // route rebuilds the layout lane inline, so a resolved POST means a persisted
+    // manifest). A no-op fast path when nothing's outstanding.
+    async function flushLayout() {
+      if (layoutTimer) {
+        clearTimeout(layoutTimer)
+        fireLayout()
+      }
+      await pendingLayoutPost
+    }
+    flushRef.current = flushLayout
 
     function onDocUpdate() {
       if (layoutTimer) clearTimeout(layoutTimer)
@@ -90,8 +122,29 @@ export function useThumbnailHeartbeat(
       captureTimer = setTimeout(fireCapture, CAPTURE_SETTLE_MS)
     }
 
-    doc.on("update", onDocUpdate)
+    // A full-page unload (the breadcrumb's `window.location.assign`, a tab close,
+    // or eviction into bfcache) tears the page down WITHOUT running the React
+    // unmount cleanup below, so the pending-layout flush there would be skipped
+    // and the last edit lost. `pagehide` fires in all of those; flush there too,
+    // relying on the POST's `keepalive` so it survives the unload. (The deliberate
+    // breadcrumb path also awaits `flushLayout` for an instant fresh landing; this
+    // is the fire-and-forget backstop for everything else.)
+    function onPageHide() {
+      if (layoutTimer) {
+        clearTimeout(layoutTimer)
+        fireLayout()
+      }
+    }
+
+    // Layout lane is CLIENT-driven only on the hosted build. On the local build
+    // the sidecar holds the authoritative doc and rebuilds the layout manifest
+    // itself (`watchLocalRoomLayout`), so skipping the client lane here avoids a
+    // redundant rebuild — and means the fragile flush-on-navigate paths below
+    // (pagehide, unmount, `flushLayout`) are inert locally, with `layoutTimer`
+    // never set. The capture lane stays client-driven on both backends.
+    if (!isLocalBuild) doc.on("update", onDocUpdate)
     const unsubscribe = tracker.subscribe(onContentSettling)
+    window.addEventListener("pagehide", onPageHide)
 
     // Locally, fire on every open, not just the first: captures are cheap (local
     // webview + local fs, deduped by the server cooldown), and it refreshes any
@@ -109,6 +162,8 @@ export function useThumbnailHeartbeat(
     return () => {
       doc.off("update", onDocUpdate)
       unsubscribe()
+      window.removeEventListener("pagehide", onPageHide)
+      flushRef.current = () => Promise.resolve()
       if (initialTimer) clearTimeout(initialTimer)
 
       // Flush a pending layout write so the latest arrangement is persisted even
@@ -133,4 +188,11 @@ export function useThumbnailHeartbeat(
       }
     }
   }, [doc, roomId, hasThumbnail, tracker])
+
+  // Stable handle that defers to whichever effect run is live (or a no-op once
+  // unmounted), so callers can hold it across renders.
+  return useMemo(
+    () => ({ flushLayout: () => flushRef.current() }),
+    []
+  )
 }

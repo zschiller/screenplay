@@ -63,10 +63,11 @@ function ThumbnailComposite({
             height: `${(frame.height / bounds.height) * 100}%`,
           }
           if (!frame.capture) {
-            // Branch-tinted, labeled placeholder: re-resolve the snapshotted
-            // palette index to theme-aware classes (light/dark). A frame bound
-            // to no Branch (or a legacy v1 manifest with no index) falls back to
-            // a neutral tint.
+            // Branch-tinted placeholder: re-resolve the snapshotted palette
+            // index to theme-aware classes (light/dark). A frame bound to no
+            // Branch (or a legacy v1 manifest with no index) falls back to a
+            // neutral tint. The thumbnail render never draws text — the tinted
+            // block stands in for an uncaptured frame on its own.
             const color =
               frame.paletteIndex != null
                 ? getBranchColorByIndex(frame.paletteIndex)
@@ -76,12 +77,10 @@ function ThumbnailComposite({
                 key={frame.id}
                 style={style}
                 className={cn(
-                  "absolute flex items-center justify-center overflow-hidden p-1 text-center text-[8px] leading-tight font-medium",
-                  color ? color.badge : "bg-foreground/5 text-muted-foreground"
+                  "absolute overflow-hidden",
+                  color ? color.badge : "bg-foreground/5"
                 )}
-              >
-                <span className="truncate">{frame.label}</span>
-              </div>
+              />
             )
           }
           // The blob key is stable per (room, frame) and served with a max-age,
@@ -148,7 +147,7 @@ function RoomTileFace({
         <div className="min-w-0 flex-1">
           <Link
             href={`/${room.id}`}
-            className="block truncate text-sm font-medium hover:underline"
+            className="block truncate text-sm font-medium"
           >
             {room.name}
           </Link>

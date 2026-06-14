@@ -6,20 +6,20 @@ import type { CaptureViewport, ThumbnailCapturer } from "./types"
 // frame carries its own width/height).
 const DEFAULT_VIEWPORT_W = 1280
 const DEFAULT_VIEWPORT_H = 960
-// Cap on the longer side of the capture viewport. A frame's shape is preserved
-// (both sides scale by the same factor), so the screenshot keeps the frame's
-// aspect ratio — this just stops an unusually large or fit-to-content frame
-// from rendering a giant page that the downstream resize would only shrink.
-const MAX_VIEWPORT_DIM = 1280
 const NAV_TIMEOUT_MS = 15_000
 
 type Browser = import("puppeteer-core").Browser
 
 /**
- * The Chromium viewport for a frame: its own size, scaled down (never up) so the
- * longer side is at most {@link MAX_VIEWPORT_DIM}, preserving the frame's aspect
- * ratio. Rounded to whole pixels with a 1px floor so a degenerate dimension
- * still yields a valid viewport.
+ * The Chromium viewport for a frame: its **own** width and height, 1:1, with no
+ * scaling. The live canvas renders each iframe layer at exactly these dimensions
+ * (`iframe-layer.tsx`), so capturing at the same size makes the page lay out at
+ * the same responsive breakpoint / fixed-width design it shows on the canvas —
+ * anything narrower would reflow or clip the content, distorting the screenshot.
+ * The downstream `sharp` resize shrinks the final blob to a thumbnail-sized webp,
+ * so a large render only costs transient memory, not output size. Rounded to
+ * whole pixels with a 1px floor so a degenerate dimension still yields a valid
+ * viewport. (The Tauri-webview capturer already sizes its webview the same way.)
  */
 function resolveViewport(viewport: CaptureViewport): {
   width: number
@@ -29,10 +29,9 @@ function resolveViewport(viewport: CaptureViewport): {
   if (!(width > 0) || !(height > 0)) {
     return { width: DEFAULT_VIEWPORT_W, height: DEFAULT_VIEWPORT_H }
   }
-  const scale = Math.min(1, MAX_VIEWPORT_DIM / Math.max(width, height))
   return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
   }
 }
 

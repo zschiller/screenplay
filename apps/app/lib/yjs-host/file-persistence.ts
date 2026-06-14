@@ -33,6 +33,14 @@ export class FileYjsPersistence implements Persistence {
 
   private static readonly FLUSH_DELAY_MS = 200
 
+  /**
+   * Optional hook fired once per doc when y-websocket first binds it (i.e. the
+   * room is opened). Lets a caller attach per-doc concerns — the thumbnail
+   * layout watcher (`watchLocalRoomLayout`) — without this generic persistence
+   * layer knowing about them. Kept narrow: "here is a freshly-bound doc."
+   */
+  onBindDoc?: (docName: string, ydoc: WSSharedDoc) => void
+
   constructor(dir: string) {
     this.dir = dir
   }
@@ -50,6 +58,10 @@ export class FileYjsPersistence implements Persistence {
     // destroyed (y-websocket destroys docs on last disconnect), so we don't
     // need to detach it explicitly.
     ydoc.on("update", () => this.scheduleFlush(docName, ydoc))
+
+    // Let a caller attach per-doc concerns (the thumbnail layout watcher). It
+    // self-detaches on doc destroy, so there's nothing to clean up here.
+    this.onBindDoc?.(docName, ydoc)
   }
 
   private async load(docName: string, ydoc: WSSharedDoc): Promise<void> {

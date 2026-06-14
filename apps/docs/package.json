@@ -12,11 +12,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "16.1.7",
+    "next": "16.2.9",
     "nextra": "^4.6.1",
     "nextra-theme-docs": "^4.6.1",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
@@ -25,7 +25,7 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.1.7",
+    "eslint-config-next": "16.2.9",
     "typescript": "^5.9.3"
   }
 }

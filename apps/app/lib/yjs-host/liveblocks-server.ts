@@ -1,6 +1,6 @@
 import "server-only"
 
-import { Liveblocks } from "@liveblocks/node"
+import { Liveblocks, WebhookHandler } from "@liveblocks/node"
 
 type UpdateAccesses = Record<
   string,
@@ -16,6 +16,9 @@ import type {
 
 class LiveblocksYjsHost implements YjsHost {
   private readonly client: Liveblocks
+  // Lazily built from `LIVEBLOCKS_WEBHOOK_SECRET` the first time a webhook
+  // arrives; absent when the secret isn't configured (webhooks disabled).
+  private webhooks: WebhookHandler | null = null
 
   constructor(secret: string) {
     this.client = new Liveblocks({ secret })
@@ -119,6 +122,57 @@ class LiveblocksYjsHost implements YjsHost {
       { userInfo: input.userInfo }
     )
     return { status, body }
+  }
+
+  /**
+   * Handle Liveblocks' `ydocUpdated` webhook: verify the signature, then rebuild
+   * the room's thumbnail layout server-side. This is how the hosted build keeps
+   * thumbnails fresh without depending on a canvas client to phone home — the
+   * webhook fires on any doc change, including edits made by an AI agent with no
+   * editor open. Liveblocks throttles `ydocUpdated` (at most once every few
+   * seconds per room), and the rebuild is idempotent, so handling each delivery
+   * inline is cheap and safe.
+   *
+   * Configure a webhook on the Liveblocks dashboard pointing at
+   * `/api/liveblocks/webhook` and set its signing secret as
+   * `LIVEBLOCKS_WEBHOOK_SECRET`. Without the secret this returns 501 and the
+   * hosted build falls back to the client heartbeat's layout lane.
+   */
+  async handleDocChangeWebhook(req: Request): Promise<Response> {
+    const secret = process.env.LIVEBLOCKS_WEBHOOK_SECRET
+    if (!secret) {
+      return new Response("LIVEBLOCKS_WEBHOOK_SECRET not configured", {
+        status: 501,
+      })
+    }
+    if (!this.webhooks) this.webhooks = new WebhookHandler(secret)
+
+    const rawBody = await req.text()
+    let event: ReturnType<WebhookHandler["verifyRequest"]>
+    try {
+      event = this.webhooks.verifyRequest({ headers: req.headers, rawBody })
+    } catch {
+      // A failed verification is an unsigned/forged request — reject it.
+      return new Response("Invalid webhook signature", { status: 400 })
+    }
+
+    if (event.type === "ydocUpdated") {
+      // Lazy import breaks the cycle: rebuild → capture → yjs/server →
+      // yjs-host (this module). The import resolves at call time, long after
+      // module evaluation has settled.
+      const { rebuildRoomLayoutThumbnail } = await import(
+        "@/lib/thumbnail/rebuild-layout"
+      )
+      try {
+        await rebuildRoomLayoutThumbnail(event.data.roomId)
+      } catch (err) {
+        // 5xx so Liveblocks retries the delivery rather than dropping the edit.
+        console.error("[thumbnail] webhook layout rebuild failed", err)
+        return new Response("Rebuild failed", { status: 500 })
+      }
+    }
+
+    return new Response(null, { status: 200 })
   }
 }
 

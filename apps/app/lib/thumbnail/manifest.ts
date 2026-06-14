@@ -1,4 +1,4 @@
-import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
+import type { IframeLayerLayout, IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import { resolveBranchColorIndex } from "@/lib/branch-colors"
 
 /**
@@ -19,10 +19,22 @@ import { resolveBranchColorIndex } from "@/lib/branch-colors"
  * the moment it was taken. `capturedAt` (ms epoch) both lets the grid cache-bust
  * a single frame's blob without re-fetching its untouched siblings and tells a
  * retained capture (carried over from a prior round) apart from a fresh one.
+ *
+ * `width`/`height` snapshot the frame's world-space size *at capture time* — the
+ * screenshot was shot at exactly that rect. The manifest frame's own
+ * `width`/`height` can't stand in for them: a layout-only round overwrites those
+ * with the current rect while retaining this image, so they track the live
+ * frame, not the image. When the frame is later resized at all,
+ * `buildThumbnailManifest` compares the two and discards the now-mismatched
+ * capture rather than letting the compositor scale/crop a stale image into a
+ * rect it was never shot for. Optional for legacy captures written before these
+ * fields existed — those can't be judged, so they're kept.
  */
 export type FrameCapture = {
   url: string
   capturedAt: number
+  width?: number
+  height?: number
 }
 
 /**
@@ -94,6 +106,32 @@ export type ThumbnailManifest = {
   frames: ManifestFrame[]
 }
 
+/**
+ * How far a retained capture's recorded size may drift from the frame's current
+ * rect before it's discarded — a sub-pixel epsilon that only absorbs
+ * floating-point noise from the layout derivation, not a real resize (frame
+ * dimensions in the doc are whole-ish numbers, so any deliberate resize clears
+ * this comfortably).
+ */
+const SIZE_DRIFT_EPSILON = 0.5
+
+/**
+ * Whether a retained capture's baked size no longer matches the frame's current
+ * rect. The screenshot was shot at `capture.width × capture.height`; if the
+ * frame has since been resized — in either dimension, by more than a sub-pixel —
+ * scaling/cropping that stale image into the new rect (`object-cover`) misframes
+ * it, so we discard it and fall back to a placeholder until the next capture.
+ *
+ * Legacy captures with no recorded size can't be judged and are kept.
+ */
+function sizeDrifted(capture: FrameCapture, layout: IframeLayerLayout): boolean {
+  if (capture.width == null || capture.height == null) return false
+  return (
+    Math.abs(layout.width - capture.width) > SIZE_DRIFT_EPSILON ||
+    Math.abs(layout.height - capture.height) > SIZE_DRIFT_EPSILON
+  )
+}
+
 /** Union of every frame's rect, or a zero rect when there are no frames. */
 function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
   if (frames.length === 0) return { x: 0, y: 0, width: 0, height: 0 }
@@ -126,6 +164,10 @@ function computeBounds(frames: readonly ManifestFrame[]): ManifestBounds {
  *   skipped, or a failed/timed-out capture) keeps the capture it carried in
  *   `previous`, rather than reverting to a placeholder. It lands captureless —
  *   a branch-tinted placeholder — only when neither source has an image.
+ * - **Discard on resize.** A retained capture whose baked size no longer matches
+ *   the frame's current rect is dropped (the frame was resized since it was last
+ *   shot), so the compositor shows a placeholder instead of scaling/cropping a
+ *   stale image into a rect it was never shot for.
  * - **Prune.** Frames that were in `previous` but are absent from the current
  *   layout simply aren't iterated, so they drop out of the rebuilt manifest.
  *
@@ -151,6 +193,15 @@ export function buildThumbnailManifest(
   for (const layer of iframeLayers) {
     const layout = layouts.get(layer.id)
     if (!layout) continue
+    // A fresh capture this round was shot at the current rect, so it's always
+    // valid. A retained one is dropped if the frame has been resized since.
+    const fresh = captures.get(layer.id)
+    const retainedCapture = retained.get(layer.id)
+    const capture =
+      fresh ??
+      (retainedCapture && !sizeDrifted(retainedCapture, layout)
+        ? retainedCapture
+        : null)
     frames.push({
       id: layer.id,
       label: layer.label,
@@ -162,7 +213,7 @@ export function buildThumbnailManifest(
         layer.branchKey === null
           ? null
           : resolveBranchColorIndex(layer.branchKey, layer.branchColorIndex),
-      capture: captures.get(layer.id) ?? retained.get(layer.id) ?? null,
+      capture,
     })
   }
   return {

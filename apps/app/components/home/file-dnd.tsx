@@ -214,6 +214,12 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
   return (
     <FileDndContext.Provider value={{ activeItem, blocked }}>
       <DndContext
+        // Stable id so dnd-kit's a11y `aria-describedby` is deterministic.
+        // Without it, dnd-kit derives the id from a module-level counter that
+        // increments differently on the server vs the client (Strict Mode
+        // double-renders the client pass), producing a hydration mismatch
+        // ("DndDescribedBy-N").
+        id="home-file-dnd"
         sensors={sensors}
         collisionDetection={pointerWithin}
         onDragStart={handleDragStart}

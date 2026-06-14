@@ -44,6 +44,22 @@ let persistence: FileYjsPersistence | null = null
 function ensureConfigured(): FileYjsPersistence {
   if (persistence) return persistence
   persistence = new FileYjsPersistence(persistenceDir())
+  // The sidecar holds the authoritative doc, so it — not the client — keeps the
+  // thumbnail's layout fresh: watch each room's doc and rebuild the manifest's
+  // rects when the canvas changes. Removes the client heartbeat's layout lane
+  // and its fragile flush-on-navigate (the capture lane stays client-driven).
+  //
+  // Imported lazily (not at module top) to break an import cycle: the watcher
+  // pulls in the thumbnail capture stack, which transitively re-enters
+  // `@/lib/yjs-host` and calls `getLocalYjsHost()` while this module is still
+  // evaluating — hitting `cached`'s temporal dead zone. The hook only fires at
+  // runtime, long after evaluation settles, so deferring the import is safe.
+  // The watcher self-detaches on doc destroy, so its return value is unused.
+  persistence.onBindDoc = (docName, ydoc) => {
+    void import("@/lib/thumbnail/local-layout-watcher").then(
+      ({ watchLocalRoomLayout }) => watchLocalRoomLayout(docName, ydoc)
+    )
+  }
   setPersistence(persistence)
   return persistence
 }

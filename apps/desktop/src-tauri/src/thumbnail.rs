@@ -29,10 +29,14 @@ use tiny_http::{Header, Method, Response, Server};
 const CAPTURE_LABEL_PREFIX: &str = "thumbnail-capture";
 /// Monotonic counter making each capture window's label unique.
 static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
-/// Viewport the preview is screenshotted at — matches the puppeteer
-/// capturer; downstream `sharp` resizes to the stored 640×480.
-const CAPTURE_W: f64 = 1280.0;
-const CAPTURE_H: f64 = 960.0;
+/// Fallback viewport, used only when the sidecar sends no usable width/height
+/// (an older sidecar, or a degenerate frame). The real capture size is the
+/// frame's own width/height — sent per request by `TauriWebviewCapturer` and
+/// matching exactly what the canvas renders the iframe at — so the screenshot
+/// shares the frame's aspect ratio rather than being cropped to a fixed box.
+/// Downstream `sharp` resizes the result to the stored thumbnail size.
+const DEFAULT_CAPTURE_W: f64 = 1280.0;
+const DEFAULT_CAPTURE_H: f64 = 960.0;
 /// Settle delay after the page's `load` before snapshotting, to let the
 /// preview paint before the screenshot (a fixed budget since a remote page
 /// can't signal the shell back over IPC).
@@ -43,6 +47,26 @@ const CAPTURE_TIMEOUT_S: u64 = 25;
 struct ThumbnailRequest {
     #[serde(rename = "renderUrl")]
     render_url: String,
+    /// The frame's own width/height (CSS px), sent so the off-screen webview
+    /// renders the page at the same size the canvas does. Optional so an older
+    /// sidecar that omits them still captures (at the fallback box).
+    #[serde(default)]
+    width: Option<f64>,
+    #[serde(default)]
+    height: Option<f64>,
+}
+
+impl ThumbnailRequest {
+    /// The capture viewport: the frame's own size when usable, else the
+    /// fallback. A non-positive or absent dimension falls back per-axis.
+    fn capture_size(&self) -> (f64, f64) {
+        let w = self.width.filter(|w| *w >= 1.0).unwrap_or(DEFAULT_CAPTURE_W);
+        let h = self
+            .height
+            .filter(|h| *h >= 1.0)
+            .unwrap_or(DEFAULT_CAPTURE_H);
+        (w, h)
+    }
 }
 
 /// A tiny HTTP server bound to a localhost ephemeral port, serving `POST
@@ -113,16 +137,17 @@ fn serve(server: &Server, app: &AppHandle) {
             continue;
         }
 
-        let render_url = match serde_json::from_str::<ThumbnailRequest>(&body) {
-            Ok(parsed) => parsed.render_url,
+        let parsed = match serde_json::from_str::<ThumbnailRequest>(&body) {
+            Ok(parsed) => parsed,
             Err(_) => {
                 let _ =
                     request.respond(Response::from_string("bad json").with_status_code(400));
                 continue;
             }
         };
+        let (width, height) = parsed.capture_size();
 
-        match capture(app, &render_url) {
+        match capture(app, &parsed.render_url, width, height) {
             Ok(png) => {
                 let header =
                     Header::from_bytes(&b"Content-Type"[..], &b"image/png"[..]).unwrap();
@@ -143,7 +168,7 @@ fn serve(server: &Server, app: &AppHandle) {
 /// control server calls one capture at a time, so a single reused off-screen
 /// window is safe. On any failure the capturer surfaces it and
 /// `captureRoomThumbnail`'s caller swallows it — a Room just shows no thumbnail.
-fn capture(app: &AppHandle, render_url: &str) -> Result<Vec<u8>, String> {
+fn capture(app: &AppHandle, render_url: &str, width: f64, height: f64) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
 
     // A fresh label per capture — see `CAPTURE_LABEL_PREFIX`.
@@ -158,7 +183,9 @@ fn capture(app: &AppHandle, render_url: &str) -> Result<Vec<u8>, String> {
     let tx_build = tx.clone();
     let label_build = label.clone();
     app.run_on_main_thread(move || {
-        if let Err(e) = open_capture_window(&app_main, &url, &label_build, tx_build.clone()) {
+        if let Err(e) =
+            open_capture_window(&app_main, &url, &label_build, width, height, tx_build.clone())
+        {
             let _ = tx_build.send(Err(e));
         }
     })
@@ -182,6 +209,8 @@ fn open_capture_window(
     app: &AppHandle,
     url: &str,
     label: &str,
+    width: f64,
+    height: f64,
     tx: mpsc::Sender<Result<Vec<u8>, String>>,
 ) -> Result<(), String> {
     let parsed = url.parse().map_err(|_| format!("bad render url: {url}"))?;
@@ -199,7 +228,7 @@ fn open_capture_window(
 
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::External(parsed))
         .title("")
-        .inner_size(CAPTURE_W, CAPTURE_H)
+        .inner_size(width, height)
         // Off-screen but on a real display so the webview actually renders.
         .position(-8000.0, -8000.0)
         // Built hidden: a window made visible at build time gets

@@ -71,7 +71,7 @@ export interface MoveSnapResult {
 }
 
 /** Snap engages within this many screen pixels of an edge/center match. */
-export const MOVE_SNAP_THRESHOLD_PX = 6
+export const MOVE_SNAP_THRESHOLD_PX = 8
 /** Below this world delta we consider two positions exactly aligned for guide emission. */
 const ALIGNMENT_EPSILON = 0.01
 
@@ -419,16 +419,16 @@ export function rectFromAnchor(
 //
 // Group merge detection during a single-group drag: the dragged Group goes
 // "hot" against the nearest other Group whose trailing "+ frame" placeholder
-// slot lands within a fixed world-space radius of the dragged Group's leading
+// slot lands within a fixed screen-pixel radius of the dragged Group's leading
 // (top-left) corner. Each candidate carries its own content rect and gap; the
 // trailing slot sits at `rect.x + rect.width + gap`, top-aligned with the
 // candidate (`rect.y`). On a hit we lay out one highlight rect per source
 // member starting at that slot, flexed left-to-right with the target's gap, so
 // the preview matches the post-merge layout.
 //
-// Distances are world-space (not screen pixels) so the snap zone stays
-// proportional to the content at any zoom — the same convention the inline
-// implementation used before it moved here.
+// Distance is evaluated in screen pixels (world distance × zoom) and compared
+// against a pixel threshold — exactly the move-snap / resize-snap convention
+// above — so the grab zone is a constant size on screen at any zoom.
 // ---------------------------------------------------------------------------
 
 /** A Group the dragged Group could merge into. */
@@ -448,8 +448,8 @@ export interface MergeSnapResult {
   rects: Rect[]
 }
 
-/** A Group goes hot within this many *world* units of a target's trailing slot. */
-export const MERGE_SNAP_THRESHOLD = 150
+/** A Group goes hot within this many *screen pixels* of a target's trailing slot — a touch more forgiving than move/device snap since it grabs a whole group. */
+export const MERGE_SNAP_THRESHOLD_PX = 16
 
 /**
  * Pick the nearest merge target for a dragged Group, or `null` when none is
@@ -458,16 +458,20 @@ export const MERGE_SNAP_THRESHOLD = 150
  * `rect` is the dragged Group's content rect; only its top-left corner drives
  * detection, while its width/height guard against degenerate (zero-size)
  * groups. `memberSizes` are the dragged Group's member box sizes in member
- * order — used to build the highlight preview at the chosen slot.
+ * order — used to build the highlight preview at the chosen slot. `zoom`
+ * converts the world distance to screen pixels so the grab zone is a constant
+ * size on screen at any zoom — the move-snap convention.
  */
 export function computeMergeSnap(opts: {
   rect: Rect
   memberSizes: readonly { width: number; height: number }[]
   candidates: readonly MergeSnapCandidate[]
-  threshold?: number
+  zoom?: number
+  thresholdPx?: number
 }): MergeSnapResult | null {
   const { rect, memberSizes, candidates } = opts
-  const threshold = opts.threshold ?? MERGE_SNAP_THRESHOLD
+  const zoom = opts.zoom ?? 1
+  const thresholdPx = opts.thresholdPx ?? MERGE_SNAP_THRESHOLD_PX
 
   // Degenerate source (no resolvable members) can't merge into anything.
   if (rect.width === 0 || rect.height === 0) return null
@@ -484,9 +488,10 @@ export function computeMergeSnap(opts: {
     const placeholderY = c.rect.y
     const dx = rect.x - placeholderX
     const dy = rect.y - placeholderY
-    const dist = Math.hypot(dx, dy)
-    if (dist < threshold && (!best || dist < best.dist)) {
-      best = { id: c.id, dist, x: placeholderX, y: placeholderY, gap: c.gap }
+    // World distance → screen pixels, so the threshold is a constant on-screen size.
+    const distPx = Math.hypot(dx, dy) * zoom
+    if (distPx < thresholdPx && (!best || distPx < best.dist)) {
+      best = { id: c.id, dist: distPx, x: placeholderX, y: placeholderY, gap: c.gap }
     }
   }
   if (!best) return null
