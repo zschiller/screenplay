@@ -11,6 +11,7 @@ import {
   resolveTerminalLaunch,
 } from "@/lib/agent/harnesses/availability"
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
+import { createHarnessModelCatalog } from "@/lib/agent/harnesses/model-catalog"
 import type { Harness } from "@/lib/agent/harnesses/types"
 import { groupModelsByProvider } from "@/lib/model-selection"
 
@@ -167,7 +168,7 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
       probe: fakeProbe(["codex", "claude"]),
     }).list()
 
-    const models = harnessModels(available)
+    const models = await harnessModels(available)
 
     // Per-Harness headings, in catalog order, each carrying its own models —
     // exactly what the shared groupModelsByProvider fold draws in the dropdown.
@@ -207,12 +208,12 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
     expect(models.some((m) => m.provider.key === "harness")).toBe(false)
   })
 
-  it("degrades a Harness advertising no models to a single bare harness:<key> 'harness default' entry", () => {
+  it("degrades a Harness advertising no models to a single bare harness:<key> 'harness default' entry", async () => {
     const available: AvailableHarness[] = [
       chatHarness({ key: "modelless", label: "Modelless" }),
     ].map((h) => ({ ...h, status: { installed: true } }))
 
-    expect(harnessModels(available)).toEqual([
+    expect(await harnessModels(available)).toEqual([
       {
         id: "harness:modelless",
         label: "Modelless",
@@ -232,7 +233,7 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
     // Only claude-code heads a group; the opencode slots never appear as chat
     // models even though the terminal picker would list them.
     expect(
-      groupModelsByProvider(harnessModels(available)).map((g) => g.key)
+      groupModelsByProvider(await harnessModels(available)).map((g) => g.key)
     ).toEqual(["claude-code"])
   })
 
@@ -241,7 +242,29 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
       probe: fakeProbe([]),
     }).list()
 
-    expect(harnessModels(available)).toEqual([])
+    expect(await harnessModels(available)).toEqual([])
+  })
+
+  it("sources each Harness's models from the catalog — a discovered model appends after the curated floor", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["claude"]),
+    }).list()
+    // A catalog whose discovery advertises one id beyond claude-code's floor.
+    const catalog = createHarnessModelCatalog({
+      discover: async () => new Map([["claude-code", ["opus-4-1"]]]),
+    })
+
+    const ids = (await harnessModels(available, catalog)).map((m) => m.id)
+
+    // Curated floor first (catalog order), the discovered alias appended last.
+    expect(ids).toEqual([
+      "harness:claude-code:default",
+      "harness:claude-code:sonnet",
+      "harness:claude-code:opus",
+      "harness:claude-code:opusplan",
+      "harness:claude-code:haiku",
+      "harness:claude-code:opus-4-1",
+    ])
   })
 })
 
