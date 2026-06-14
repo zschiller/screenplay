@@ -27,7 +27,7 @@ _Shown to users as_: "Canvas".
 _Avoid_: project (that's the UI label for a Repo, not a Room); "canvas" in code
 (reserve that for the spatial surface below); "file" as a label for a Room (a
 Room is shown as "Canvas" and is `Room*` in code, never "a file"). This bans
-only the noun: *filing* a Room into a Folder is the canonical verb, and the
+only the noun: _filing_ a Room into a Folder is the canonical verb, and the
 "All files" home root, the "New canvas" action, and the `file-dnd` / `File*`
 filing identifiers are all current (PRD #475) — see **Folder**.
 
@@ -213,7 +213,7 @@ anchor-and-send-to-agent reference path survives).
 
 **GitHub Connection** (local build):
 The local desktop build's **optional, on-demand GitHub API access** (PRD #428)
-— explicitly *not* the multi-tenant login #417 stripped (no session, no
+— explicitly _not_ the multi-tenant login #417 stripped (no session, no
 `room_member`, no login gate; the app still opens as the single seeded local
 user). The existing `getGitHubToken()` seam resolves through one fixed priority
 order on the local build (`lib/github-local/`): (1) the host **`gh` CLI**'s
@@ -402,7 +402,13 @@ id — there is no separate adapter-key namespace. A Harness is consumed two way
 off that one descriptor: run **interactively inside a Terminal Tab**, or spawned
 as the **ACP backing of the external Engine** to drive agent chat (its
 `acpAdapter` argv). Both read the same entry; the descriptor also carries the
-`hostBinary` the desktop detector probes.
+`hostBinary` the desktop detector probes and an optional **curated model list**
+(`models` + `defaultModelId`) — the static set of models the desktop chat
+dropdown lists nested under the Harness, each carried as `harness:<key>:<modelId>`
+(the model axis refines _which model_ the Harness runs; a bare `harness:<key>`
+still means "the Harness's own default"). A Harness with no `models` degrades to
+that single default entry. The list is curated on the descriptor for now;
+discovering it once-and-caching is a later slice.
 _Which Harnesses are offered is resolved per backend by the **Harness
 Availability** seam_ (below) — never a single hardcoded list. On the hosted
 backend a Harness is offered only when its broker model provider is configured
@@ -427,7 +433,12 @@ hosted resolver returns `SANDBOX_HARNESSES ∩ broker-egress`; the desktop resol
 **detects** installed CLIs by probing each descriptor's `hostBinary` in the host
 sidecar. Returns a per-Harness **status**, not a bare `{key,label}` — installed
 today, with room for `authenticated` later (the auth-aware pass surfaced in a
-homescreen Settings surface, deferred). Listing is gated on **presence**, never on
+homescreen Settings surface, deferred). The desktop model fold (`harnessModels`)
+gives **each** detected chat-capable Harness its own dropdown heading with its
+curated models nested as `harness:<key>:<modelId>` entries (and the first
+Harness's `defaultModelId` as the overall desktop default), replacing the single
+"Installed agents" heading the pre-model-selection fold drew; the hosted
+`provider:` enumeration is untouched. Listing is gated on **presence**, never on
 auth: a detected-but-unauthenticated Harness still lists and fails loud at turn
 time with the CLI's own login message, mirroring how the hosted side lists on
 provider-_configured_, not provider-_verified_.

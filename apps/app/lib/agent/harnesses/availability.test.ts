@@ -2,14 +2,17 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ModelProvider } from "@/lib/agent/providers"
 import {
+  type AvailableHarness,
   createDesktopResolver,
   createHostedResolver,
   filterByCapability,
+  harnessDefaultModelId,
   harnessModels,
-  INSTALLED_AGENTS_GROUP,
   resolveTerminalLaunch,
 } from "@/lib/agent/harnesses/availability"
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
+import type { Harness } from "@/lib/agent/harnesses/types"
+import { groupModelsByProvider } from "@/lib/model-selection"
 
 /**
  * A stub provider whose only fold-relevant behavior is `egress()` (configured +
@@ -137,22 +140,83 @@ describe("filterByCapability", () => {
   })
 })
 
+/**
+ * A chat-capable harness with a curated model list, for driving the per-Harness
+ * grouping fold directly (no host probe) — the only fold-relevant fields are
+ * `key`/`label`/`acpAdapter`/`models`/`defaultModelId`. Cast through `Harness`
+ * so the test states just those, mirroring the stub providers above.
+ */
+function chatHarness(partial: Partial<Harness> & Pick<Harness, "key">): {
+  harness: Harness
+} {
+  return {
+    harness: {
+      label: partial.key,
+      acpAdapter: { command: "npx", args: [] },
+      ...partial,
+    } as Harness,
+  }
+}
+
 describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
-  it("emits a harness: ModelInfo per detected chat-capable CLI, grouped under Installed agents, in catalog order", async () => {
+  it("gives each detected chat-capable Harness its own heading with its curated models nested, as harness:<key>:<modelId> entries", async () => {
+    // The real catalog: claude-code and codex both ship curated model lists, so
+    // each becomes its own dropdown heading with its models nested — replacing
+    // the single "Installed agents" heading this fold emitted before.
     const available = await createDesktopResolver({
       probe: fakeProbe(["codex", "claude"]),
     }).list()
 
-    expect(harnessModels(available)).toEqual([
+    const models = harnessModels(available)
+
+    // Per-Harness headings, in catalog order, each carrying its own models —
+    // exactly what the shared groupModelsByProvider fold draws in the dropdown.
+    expect(
+      groupModelsByProvider(models).map((g) => ({
+        key: g.key,
+        label: g.label,
+        models: g.models.map((m) => ({ id: m.id, label: m.label })),
+      }))
+    ).toEqual([
       {
-        id: "harness:claude-code",
+        key: "claude-code",
         label: "Claude Code",
-        provider: INSTALLED_AGENTS_GROUP,
+        models: [
+          { id: "harness:claude-code:default", label: "Default" },
+          { id: "harness:claude-code:sonnet", label: "Sonnet" },
+          { id: "harness:claude-code:opus", label: "Opus" },
+          {
+            id: "harness:claude-code:opusplan",
+            label: "Opus (plan), Sonnet (execute)",
+          },
+          { id: "harness:claude-code:haiku", label: "Haiku" },
+        ],
       },
       {
-        id: "harness:codex",
+        key: "codex",
         label: "Codex",
-        provider: INSTALLED_AGENTS_GROUP,
+        models: [
+          { id: "harness:codex:gpt-5-codex", label: "GPT-5 Codex" },
+          { id: "harness:codex:gpt-5", label: "GPT-5" },
+          { id: "harness:codex:gpt-5-mini", label: "GPT-5 mini" },
+        ],
+      },
+    ])
+    // The retired single "Installed agents" group is gone — no entry groups
+    // under the old shared `harness` provider key.
+    expect(models.some((m) => m.provider.key === "harness")).toBe(false)
+  })
+
+  it("degrades a Harness advertising no models to a single bare harness:<key> 'harness default' entry", () => {
+    const available: AvailableHarness[] = [
+      chatHarness({ key: "modelless", label: "Modelless" }),
+    ].map((h) => ({ ...h, status: { installed: true } }))
+
+    expect(harnessModels(available)).toEqual([
+      {
+        id: "harness:modelless",
+        label: "Modelless",
+        provider: { key: "modelless", label: "Modelless" },
       },
     ])
   })
@@ -165,9 +229,11 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
       probe: fakeProbe(["claude", "opencode"]),
     }).list()
 
-    expect(harnessModels(available).map((m) => m.id)).toEqual([
-      "harness:claude-code",
-    ])
+    // Only claude-code heads a group; the opencode slots never appear as chat
+    // models even though the terminal picker would list them.
+    expect(
+      groupModelsByProvider(harnessModels(available)).map((g) => g.key)
+    ).toEqual(["claude-code"])
   })
 
   it("emits no models when the seam detects nothing — never a hardcoded fallback agent", async () => {
@@ -176,6 +242,58 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
     }).list()
 
     expect(harnessModels(available)).toEqual([])
+  })
+})
+
+describe("harnessDefaultModelId (desktop default fold)", () => {
+  it("is the first detected chat-capable Harness's curated default, encoded", async () => {
+    // claude-code lists before codex in the catalog, so the overall desktop
+    // default is claude-code's curated default model.
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["codex", "claude"]),
+    }).list()
+
+    expect(harnessDefaultModelId(available)).toBe("harness:claude-code:default")
+  })
+
+  it("ignores terminal-only harnesses — the default is the first chat-capable one", async () => {
+    // opencode (terminal-only) sorts first in the catalog but can't back chat,
+    // so the default comes from codex, the first chat-capable detected harness.
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["opencode", "codex"]),
+    }).list()
+
+    expect(harnessDefaultModelId(available)).toBe("harness:codex:gpt-5-codex")
+  })
+
+  it("falls back to a bare harness:<key> when the first Harness advertises no models", () => {
+    const available: AvailableHarness[] = [
+      chatHarness({ key: "modelless" }),
+    ].map((h) => ({ ...h, status: { installed: true } }))
+
+    expect(harnessDefaultModelId(available)).toBe("harness:modelless")
+  })
+
+  it("falls back to the first curated model when a Harness lists models but names no default", () => {
+    const available: AvailableHarness[] = [
+      chatHarness({
+        key: "nodefault",
+        models: [
+          { id: "a", label: "A" },
+          { id: "b", label: "B" },
+        ],
+      }),
+    ].map((h) => ({ ...h, status: { installed: true } }))
+
+    expect(harnessDefaultModelId(available)).toBe("harness:nodefault:a")
+  })
+
+  it("is null when the seam detects nothing chat-capable", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe([]),
+    }).list()
+
+    expect(harnessDefaultModelId(available)).toBeNull()
   })
 })
 
