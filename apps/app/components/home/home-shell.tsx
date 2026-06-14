@@ -10,13 +10,11 @@ import {
 import { writePanelLayout, type PanelLayout } from "@/lib/panel-layout"
 import { deriveHomeScope } from "@/lib/home-scope"
 import type { RoomSummary } from "@/lib/rooms-actions"
-import type {
-  FolderSummary,
-  RoomPlacementSummary,
-} from "@/lib/folders-actions"
+import type { FolderSummary, RoomPlacementSummary } from "@/lib/folders-actions"
 import type { PinSummary } from "@/lib/pins-actions"
 import { HomeProvider } from "./home-provider"
 import { HomeSidebar } from "./home-sidebar"
+import { FileDndProvider } from "./file-dnd"
 
 /**
  * The two-column home frame: a drag-resizable sidebar and the scrollable
@@ -65,31 +63,37 @@ export function HomeShell({
       folderView={folderView}
       currentFolderId={currentFolderId}
     >
-      <ResizablePanelGroup
-        orientation="horizontal"
-        // `fixed inset-0` pins the frame to the viewport so both panels are
-        // always full-height — a plain `h-svh` collapses to content height on
-        // short pages (Canvases/Settings), leaving the sidebar short.
-        className="fixed inset-0 bg-background"
-        defaultLayout={initialLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
-        <ResizablePanel
-          id="home-sidebar"
-          defaultSize="240px"
-          minSize="180px"
-          maxSize="480px"
-          groupResizeBehavior="preserve-pixel-size"
+      {/* One DndContext spans both panels so a canvas/folder dragged in the
+          content grid can drop onto a pinned folder or "All files" in the
+          sidebar (and vice-versa). Mounted here, not per-route, for that reason;
+          the per-tile draggables stay disabled outside folder views. */}
+      <FileDndProvider>
+        <ResizablePanelGroup
+          orientation="horizontal"
+          // `fixed inset-0` pins the frame to the viewport so both panels are
+          // always full-height — a plain `h-svh` collapses to content height on
+          // short pages (Canvases/Settings), leaving the sidebar short.
+          className="fixed inset-0 bg-background"
+          defaultLayout={initialLayout}
+          onLayoutChanged={onLayoutChanged}
         >
-          <HomeSidebar />
-        </ResizablePanel>
-        <ResizableHandle className="focus-visible:ring-0" />
-        <ResizablePanel id="home-content">
-          <main className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
-            {children}
-          </main>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <ResizablePanel
+            id="home-sidebar"
+            defaultSize="240px"
+            minSize="180px"
+            maxSize="480px"
+            groupResizeBehavior="preserve-pixel-size"
+          >
+            <HomeSidebar />
+          </ResizablePanel>
+          <ResizableHandle className="focus-visible:ring-0" />
+          <ResizablePanel id="home-content">
+            <main className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
+              {children}
+            </main>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </FileDndProvider>
     </HomeProvider>
   )
 }

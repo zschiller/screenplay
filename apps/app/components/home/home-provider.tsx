@@ -358,11 +358,23 @@ export function HomeProvider({
   // viewers are unaffected.
   const moveRoom = useCallback(
     async (roomId: string, folderId: string | null) => {
-      await placeRoomAction(roomId, folderId)
-      setPlacements((prev) => {
-        const rest = prev.filter((p) => p.roomId !== roomId)
+      // Patch optimistically so the moved tile leaves its current view in the
+      // *same* render that ends the drag. The source tile is hidden via
+      // `opacity:0` while dragging; if the removal waited on the server round
+      // trip, the tile would snap back to full opacity at its old spot for a
+      // frame the instant you drop (the drop "flash"). Roll back on failure.
+      let prev: RoomPlacementSummary[] | undefined
+      setPlacements((current) => {
+        prev = current
+        const rest = current.filter((p) => p.roomId !== roomId)
         return folderId === null ? rest : [...rest, { roomId, folderId }]
       })
+      try {
+        await placeRoomAction(roomId, folderId)
+      } catch (error) {
+        if (prev) setPlacements(prev)
+        throw error
+      }
     },
     []
   )
@@ -435,15 +447,28 @@ export function HomeProvider({
   }, [])
 
   // Re-parent a folder (null = root). The server enforces the cycle guard and
-  // owner checks; on success we patch the local parent so the moved folder
+  // owner checks; we patch the local parent optimistically so the moved folder
   // leaves the current level — falling out of `foldersInParent` for the view
   // it left — without a reload.
   const moveFolder = useCallback(
     async (folderId: string, parentFolderId: string | null) => {
-      await moveFolderAction(folderId, parentFolderId)
-      setFolders((prev) =>
-        prev.map((f) => (f.id === folderId ? { ...f, parentFolderId } : f))
-      )
+      // Optimistic for the same reason as moveRoom: re-parent locally now so the
+      // dragged folder leaves the level it left in the drag-end render, instead
+      // of flashing back into place until the server confirms. Roll back on
+      // failure (the server still enforces the cycle guard and owner checks).
+      let prev: FolderSummary[] | undefined
+      setFolders((current) => {
+        prev = current
+        return current.map((f) =>
+          f.id === folderId ? { ...f, parentFolderId } : f
+        )
+      })
+      try {
+        await moveFolderAction(folderId, parentFolderId)
+      } catch (error) {
+        if (prev) setFolders(prev)
+        throw error
+      }
     },
     []
   )

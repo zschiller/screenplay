@@ -927,7 +927,7 @@ export function IframeLayer({
           </div>,
           toolbarPortalTarget
         )}
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900">
         {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on
             it meant the browser only started fetching the page *after* the probe

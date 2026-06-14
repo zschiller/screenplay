@@ -5,6 +5,7 @@ import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { getUserId } from "@/lib/auth-helpers"
 import { listThreads } from "@/lib/comments"
+import { getRoomParentFolderForUser } from "@/lib/folders"
 import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
@@ -65,13 +66,18 @@ export default async function RoomPage({
   // independent.
   // Member count feeds the shared-aware delete confirm in the breadcrumb menu.
   // The local build has no `room_member` table and no sharing, so report 0.
-  const [initialThreads, initialTerminalTabs, memberCounts] = await Promise.all([
-    listThreads(roomId, userId).catch(() => []),
-    listTerminalTabs({ userId, roomId }).catch(() => []),
-    isLocalBuild
-      ? Promise.resolve(new Map<string, number>())
-      : getMemberCounts([roomId]).catch(() => new Map<string, number>()),
-  ])
+  // The breadcrumb's parent crumb points at the folder this user filed the Room
+  // into ("All files" root when unfiled), so it returns to the Room's actual
+  // home rather than always "Home".
+  const [initialThreads, initialTerminalTabs, memberCounts, parentFolder] =
+    await Promise.all([
+      listThreads(roomId, userId).catch(() => []),
+      listTerminalTabs({ userId, roomId }).catch(() => []),
+      isLocalBuild
+        ? Promise.resolve(new Map<string, number>())
+        : getMemberCounts([roomId]).catch(() => new Map<string, number>()),
+      getRoomParentFolderForUser(userId, roomId).catch(() => null),
+    ])
   const isOwner = room.ownerId === userId
   const sharedWithCount = Math.max(0, (memberCounts.get(roomId) ?? 1) - 1)
 
@@ -86,6 +92,7 @@ export default async function RoomPage({
         isOwner={isOwner}
         sharedWithCount={sharedWithCount}
         hasThumbnail={!!room.thumbnailManifest}
+        parentFolder={parentFolder}
         initialLayout={initialLayout}
         initialThreads={initialThreads}
         initialTerminalTabs={initialTerminalTabs}

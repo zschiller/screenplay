@@ -20,14 +20,17 @@ const { doc, emitUpdate } = vi.hoisted(() => {
 })
 
 vi.mock("@/lib/yjs/context", () => ({ useYjs: () => ({ doc }) }))
-// Force the hosted cadence (PERIOD 30s) and keep the initial mount fire off the
+// Force the hosted cadence and keep the backstop mount fire off the
 // `isLocalBuild` path so tests opt into it via `hasThumbnail`.
 vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
 
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 
-const PERIOD_MS = 30_000
+// Hosted bounds (see cadence.ts).
+const SETTLE_MS = 1_500
+const LAYOUT_DEBOUNCE_MS = 500
 const INITIAL_DELAY_MS = 3_000
+const MIN_REFRESH_GAP_MS = 3_000
 const URL = "/api/thumbnail/room-1"
 
 /** Parsed body of one fetch call, or `undefined` when none was sent. */
@@ -55,100 +58,171 @@ afterEach(() => {
 })
 
 describe("useThumbnailHeartbeat", () => {
-  it("coalesces dirty frames into one throttled fire carrying the subset", () => {
-    const tracker = new DirtyFrameTracker()
-    renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+  describe("capture lane", () => {
+    it("coalesces frames that settle together into one post-settle capture", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
 
-    // Two frames load within the same window — one fire should carry both.
-    act(() => {
-      tracker.setReady("a", true)
-      tracker.setReady("b", true)
+      // Two frames settle within the same window — one capture carries both.
+      act(() => {
+        tracker.setReady("a", true)
+        tracker.setReady("b", true)
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      act(() => vi.advanceTimersByTime(SETTLE_MS))
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchMock.mock.calls[0]!
+      expect(url).toBe(URL)
+      expect((init as RequestInit).method).toBe("POST")
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["a", "b"] })
     })
-    expect(fetchMock).not.toHaveBeenCalled()
 
-    act(() => vi.advanceTimersByTime(PERIOD_MS))
+    it("debounces: a fresh settle signal resets the window", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toBe(URL)
-    expect((init as RequestInit).method).toBe("POST")
-    expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["a", "b"] })
+      act(() => tracker.setReady("a", true))
+      act(() => {
+        vi.advanceTimersByTime(SETTLE_MS - 1)
+        tracker.markDirty("a") // ready+dirty → resets the settle timer
+      })
+      // The first window would have fired here had it not been reset.
+      act(() => vi.advanceTimersByTime(SETTLE_MS - 1))
+      expect(fetchMock).not.toHaveBeenCalled()
 
-    // The posted frames are cleared, so an idle next window posts an empty
-    // (layout-only) subset rather than re-capturing them.
-    act(() => {
-      emitUpdate()
-      vi.advanceTimersByTime(PERIOD_MS)
+      act(() => vi.advanceTimersByTime(1))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["a"] })
     })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(bodyOf(fetchMock.mock.calls[1])).toEqual({ frameIds: [] })
+
+    it("does not capture a frame that is dirty but never reports ready", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+
+      // Dirty but still booting: not in the subset, so the settle window opened
+      // by a *different* frame captures nothing for it.
+      act(() => {
+        tracker.markDirty("a") // a is not ready → no notify, no timer
+        tracker.setReady("b", true) // b settles → window opens
+        vi.advanceTimersByTime(SETTLE_MS)
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["b"] })
+    })
   })
 
-  it("throttles: a burst of changes still fires at most once per period", () => {
-    const tracker = new DirtyFrameTracker()
-    renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+  describe("layout lane", () => {
+    it("posts an empty subset shortly after a layout-only Y.Doc update", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
 
-    act(() => tracker.setReady("a", true))
-    // Keep dirtying inside the window — none of these reset the timer.
-    act(() => {
-      vi.advanceTimersByTime(PERIOD_MS / 2)
-      tracker.markDirty("a")
-      vi.advanceTimersByTime(PERIOD_MS / 2 - 1)
-      tracker.markDirty("a")
+      // A move/resize/rename is a doc update with no frame dirty.
+      act(() => {
+        emitUpdate()
+        vi.advanceTimersByTime(LAYOUT_DEBOUNCE_MS)
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: [] })
     })
-    expect(fetchMock).not.toHaveBeenCalled()
 
-    act(() => vi.advanceTimersByTime(1))
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
+    it("coalesces a burst of doc updates into one layout write", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
 
-  it("posts an empty subset for a layout-only Y.Doc update", () => {
-    const tracker = new DirtyFrameTracker()
-    renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+      act(() => {
+        emitUpdate()
+        vi.advanceTimersByTime(LAYOUT_DEBOUNCE_MS - 1)
+        emitUpdate() // resets the debounce
+        vi.advanceTimersByTime(LAYOUT_DEBOUNCE_MS - 1)
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
 
-    // A move/resize/rename is a doc update with no frame dirty.
-    act(() => {
-      emitUpdate()
-      vi.advanceTimersByTime(PERIOD_MS)
+      act(() => vi.advanceTimersByTime(1))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: [] })
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: [] })
   })
 
-  it("fires a full capture (no body) on mount when the room has no thumbnail", () => {
-    const tracker = new DirtyFrameTracker()
-    renderHook(() => useThumbnailHeartbeat("room-1", false, tracker))
+  describe("backstop + unmount", () => {
+    it("fires a full capture (no body) on mount when the room has no thumbnail", () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", false, tracker))
 
-    act(() => vi.advanceTimersByTime(INITIAL_DELAY_MS))
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const init = fetchMock.mock.calls[0]![1] as RequestInit
-    expect(init.method).toBe("POST")
-    expect(init.body).toBeUndefined()
-  })
-
-  it("flushes a scheduled-but-unfired window on unmount (edit then close)", () => {
-    const tracker = new DirtyFrameTracker()
-    const { unmount } = renderHook(() =>
-      useThumbnailHeartbeat("room-1", true, tracker)
-    )
-
-    act(() => {
-      tracker.setReady("a", true)
-      vi.advanceTimersByTime(PERIOD_MS / 2) // close before the fire lands
+      act(() => vi.advanceTimersByTime(INITIAL_DELAY_MS))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const init = fetchMock.mock.calls[0]![1] as RequestInit
+      expect(init.method).toBe("POST")
+      expect(init.body).toBeUndefined()
     })
-    expect(fetchMock).not.toHaveBeenCalled()
 
-    act(() => unmount())
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["a"] })
-  })
+    it("flushes a pending layout write on unmount", () => {
+      const tracker = new DirtyFrameTracker()
+      const { unmount } = renderHook(() =>
+        useThumbnailHeartbeat("room-1", true, tracker)
+      )
 
-  it("does not flush on unmount when nothing was scheduled", () => {
-    const tracker = new DirtyFrameTracker()
-    const { unmount } = renderHook(() =>
-      useThumbnailHeartbeat("room-1", true, tracker)
-    )
-    act(() => unmount())
-    expect(fetchMock).not.toHaveBeenCalled()
+      act(() => {
+        emitUpdate()
+        vi.advanceTimersByTime(LAYOUT_DEBOUNCE_MS / 2) // close mid-debounce
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      act(() => unmount())
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: [] })
+    })
+
+    it("flushes a scheduled-but-unfired capture on unmount (edit then close)", () => {
+      const tracker = new DirtyFrameTracker()
+      const { unmount } = renderHook(() =>
+        useThumbnailHeartbeat("room-1", true, tracker)
+      )
+
+      act(() => {
+        tracker.setReady("a", true)
+        vi.advanceTimersByTime(SETTLE_MS / 2) // close before the capture lands
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      act(() => unmount())
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ frameIds: ["a"] })
+    })
+
+    it("does not flush a capture on unmount right after one fired", () => {
+      const tracker = new DirtyFrameTracker()
+      const { unmount } = renderHook(() =>
+        useThumbnailHeartbeat("room-1", true, tracker)
+      )
+
+      // A capture fires, then the frame re-dirties and the tab closes before the
+      // new settle window lands — still within the min-refresh gap, so the
+      // unmount flush is suppressed rather than firing a near-duplicate capture.
+      act(() => {
+        tracker.setReady("a", true)
+        vi.advanceTimersByTime(SETTLE_MS)
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      act(() => {
+        tracker.markDirty("a")
+        // Less than both the settle window (timer still pending) and the refresh
+        // gap (so the flush is suppressed).
+        vi.advanceTimersByTime(Math.min(SETTLE_MS, MIN_REFRESH_GAP_MS) / 2)
+        unmount()
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it("does not flush on unmount when nothing was scheduled", () => {
+      const tracker = new DirtyFrameTracker()
+      const { unmount } = renderHook(() =>
+        useThumbnailHeartbeat("room-1", true, tracker)
+      )
+      act(() => unmount())
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 })

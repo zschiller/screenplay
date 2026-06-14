@@ -14,6 +14,7 @@ import {
   useFileDraggable,
   useFolderDragDrop,
   useFolderDroppable,
+  useRootDroppable,
 } from "./file-dnd"
 import type { FolderSummary } from "@/lib/folders-actions"
 
@@ -126,11 +127,27 @@ function DraggableFolder({ folder }: { folder: FolderSummary }) {
   )
 }
 
-function DropFolder({ folder }: { folder: FolderSummary }) {
-  const { setNodeRef, isOver } = useFolderDroppable(folder.id)
+function DropFolder({
+  folder,
+  scope,
+}: {
+  folder: FolderSummary
+  scope?: string
+}) {
+  const { setNodeRef, isOver } = useFolderDroppable(folder.id, scope)
+  const testid = scope ? `drop-${scope}-${folder.id}` : `drop-${folder.id}`
   return (
-    <div ref={setNodeRef} data-testid={`drop-${folder.id}`} data-over={isOver}>
+    <div ref={setNodeRef} data-testid={testid} data-over={isOver}>
       {folder.name}
+    </div>
+  )
+}
+
+function DropRoot() {
+  const { setNodeRef, isOver } = useRootDroppable()
+  return (
+    <div ref={setNodeRef} data-testid="drop-root" data-over={isOver}>
+      All files
     </div>
   )
 }
@@ -241,6 +258,55 @@ describe("FileDndProvider — drag-drop filing", () => {
     // Give any (unexpected) async move a chance to fire before asserting absence.
     await Promise.resolve()
     expect(moveFolder).not.toHaveBeenCalled()
+  })
+
+  it("files onto a pinned folder row even when its grid tile is also mounted", async () => {
+    // The same folder is a drop target twice — its grid tile and its pinned
+    // sidebar row. They must use distinct droppable ids, or dnd-kit's id-keyed
+    // registry clobbers one and it stops being hittable. Park the pinned copy
+    // where the drag lands and confirm the drop still files the canvas.
+    renderHarness(
+      <>
+        <DraggableRoom parent={null} />
+        <DropFolder folder={folders[0]!} scope="grid" />
+        <DropFolder folder={folders[0]!} scope="pinned" />
+      </>
+    )
+    stubRect(screen.getByTestId("drop-pinned-a"), {
+      top: 0,
+      bottom: 50,
+      left: 150,
+      right: 250,
+      width: 100,
+      height: 50,
+    })
+
+    await dragOnto(screen.getByTestId("room"), 200)
+
+    await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r1", "a"))
+  })
+
+  it("files a canvas back to the root when dropped on 'All files'", async () => {
+    // The canvas lives in folder "a"; dropping it on the root drop zone files it
+    // to the top level — `placeRoom` with a null folder.
+    renderHarness(
+      <>
+        <DraggableRoom parent="a" />
+        <DropRoot />
+      </>
+    )
+    stubRect(screen.getByTestId("drop-root"), {
+      top: 0,
+      bottom: 50,
+      left: 150,
+      right: 250,
+      width: 100,
+      height: 50,
+    })
+
+    await dragOnto(screen.getByTestId("room"), 200)
+
+    await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r1", null))
   })
 
   it("re-parents a folder dropped onto a folder outside its subtree", async () => {

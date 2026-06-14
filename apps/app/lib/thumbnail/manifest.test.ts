@@ -168,6 +168,25 @@ describe("buildThumbnailManifest", () => {
     expect(manifest.bounds).toEqual({ x: 0, y: 0, width: 0, height: 0 })
   })
 
+  it("bumps the revision off the previous manifest on every rebuild", () => {
+    const layouts = new Map([
+      ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+    ])
+    // First build (no previous) lands at revision 1.
+    const first = buildThumbnailManifest(layouts, [input("a", "Home")], new Map())
+    expect(first.revision).toBe(1)
+
+    // A layout-only rebuild (no fresh captures) still advances the revision, so
+    // the home grid's poll-merge sees the moved frame.
+    const second = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home")],
+      new Map(),
+      first
+    )
+    expect(second.revision).toBe(2)
+  })
+
   describe("merge / prune / retain / reposition across rounds", () => {
     const layouts = new Map([
       ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],

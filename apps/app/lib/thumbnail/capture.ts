@@ -93,15 +93,22 @@ export async function captureRoomThumbnail(
     if (dirtySet && !dirtySet.has(frame.id)) continue
 
     try {
+      // Capture at the frame's own shape so the screenshot shares its aspect
+      // ratio — the iframe on the canvas renders its page at exactly these
+      // dimensions, so this reproduces what the user sees rather than a fixed
+      // viewport cropped to fit.
       const pngBuffer = await withTimeout(
-        capturer.capture(frame.previewUrl),
+        capturer.capture(frame.previewUrl, {
+          width: layout.width,
+          height: layout.height,
+        }),
         FRAME_CAPTURE_TIMEOUT_MS,
         `frame ${frame.id} capture`
       )
 
-      // Resize to the frame's own aspect ratio, capped at MAX_FRAME_DIM on the
-      // long side — the manifest carries the rect, so the capture only has to
-      // look right when scaled into it.
+      // Downscale to the frame's rect, capped at MAX_FRAME_DIM on the long side.
+      // The capture already shares the frame's aspect ratio, so `cover` only
+      // shrinks here (and absorbs any sub-pixel rounding) rather than cropping.
       const scale = Math.min(
         1,
         MAX_FRAME_DIM / Math.max(layout.width, layout.height)
@@ -137,6 +144,11 @@ export async function captureRoomThumbnail(
     captures,
     previousRoom?.thumbnailManifest ?? null
   )
-  await setRoomThumbnailManifest(roomId, manifest)
+  // A layout-only round (empty subset, no browser) rewrites just the rects, so
+  // it must not bump the capture clock — otherwise a stream of layout writes
+  // would starve the route's capture cooldown (#474). Any round that could have
+  // captured pixels (a non-empty subset, or a full `undefined` round) touches it.
+  const layoutOnly = options?.frameIds?.length === 0
+  await setRoomThumbnailManifest(roomId, manifest, !layoutOnly)
   return manifest
 }

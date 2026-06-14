@@ -78,6 +78,17 @@ export type ThumbnailManifest = {
    * it and the compositor treats the missing index as a neutral placeholder.
    */
   version: 2
+  /**
+   * Monotonic per-Room write counter, bumped on *every* rebuild — a capture
+   * round and a layout-only rebuild alike. The home grid's poll-merge
+   * (`room-thumbnail-merge.ts`) keys freshness off this rather than
+   * `thumbnailUpdatedAt`: a layout-only write deliberately leaves the capture
+   * clock untouched (so it doesn't trip the capture cooldown), so without a
+   * revision the grid would discard a moved/resized/renamed frame until the next
+   * capture or a full reload. Optional for legacy rows written before this field
+   * existed — the merge treats a missing revision as the oldest.
+   */
+  revision?: number
   /** Union of all frame rects in world space — the compositor maps this onto the card. */
   bounds: ManifestBounds
   frames: ManifestFrame[]
@@ -154,5 +165,15 @@ export function buildThumbnailManifest(
       capture: captures.get(layer.id) ?? retained.get(layer.id) ?? null,
     })
   }
-  return { version: 2, bounds: computeBounds(frames), frames }
+  return {
+    version: 2,
+    // Bump the prior manifest's revision so every rebuild — capture or
+    // layout-only — advances a signal the home grid's poll-merge can see, even
+    // when the layout lane leaves the capture clock (`thumbnailUpdatedAt`)
+    // untouched. Missing on legacy rows → treated as 0, so the first new write
+    // lands at revision 1.
+    revision: (previous?.revision ?? 0) + 1,
+    bounds: computeBounds(frames),
+    frames,
+  }
 }

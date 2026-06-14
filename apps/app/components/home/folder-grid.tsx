@@ -13,6 +13,66 @@ import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
 
+// Structural classes of a folder tile's outer box, shared by the live card and
+// its drag preview so the two stay identical.
+const FOLDER_TILE_OUTER =
+  "flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5"
+
+// The visual face of a folder tile — icon + name link, then the trailing ⋮
+// slot. Rendered by both `FolderCard` (live menu) and `FolderTileDragPreview`
+// (invisible placeholder reserving the menu's space). Single source of truth so
+// the drag preview tracks any edit to the tile.
+function FolderTileFace({
+  folder,
+  menu,
+}: {
+  folder: FolderSummary
+  menu: React.ReactNode
+}) {
+  return (
+    <>
+      <Link
+        href={`/files/${folder.id}`}
+        className="flex min-w-0 flex-1 items-center gap-2"
+      >
+        <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate text-sm font-medium">{folder.name}</span>
+      </Link>
+      {menu}
+    </>
+  )
+}
+
+/**
+ * The node floated under the cursor while a folder tile is dragged — the same
+ * `FolderTileFace` the live card renders, lifted with a shadow.
+ */
+export function FolderTileDragPreview({ folder }: { folder: FolderSummary }) {
+  return (
+    <div
+      className={cn(
+        FOLDER_TILE_OUTER,
+        "border-border shadow-lg ring-1 ring-foreground/10"
+      )}
+    >
+      <FolderTileFace
+        folder={folder}
+        menu={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="opacity-0"
+            aria-hidden
+            tabIndex={-1}
+          >
+            <MoreHorizontal />
+          </Button>
+        }
+      />
+    </div>
+  )
+}
+
 // Compact folder tiles for the grid view (PRD #475): folder icon + name, no
 // thumbnail, sitting in their own section above the canvas cards. The icon+name
 // is a link that navigates into the folder (`/files/<id>`); the ⋮ menu (a
@@ -37,7 +97,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
   // it). `isOver` lights the tile while a valid drag hovers; `isDragging` fades
   // the lifted tile, leaving the DragOverlay as the moving preview.
   const { setNodeRef, attributes, listeners, isDragging, isOver } =
-    useFolderDragDrop(folder)
+    useFolderDragDrop(folder, <FolderTileDragPreview folder={folder} />)
 
   // Enumerate the cascade only while the confirm is open, from the live tree.
   const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
@@ -49,37 +109,36 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
       {...listeners}
       style={{ opacity: isDragging ? 0 : undefined }}
       className={cn(
-        "group flex items-center gap-2 rounded-lg border bg-background px-3 py-2.5 transition-colors",
+        FOLDER_TILE_OUTER,
+        "group transition-colors",
         isOver
           ? "border-primary ring-2 ring-primary"
           : "border-border hover:border-foreground/20"
       )}
     >
-      <Link
-        href={`/files/${folder.id}`}
-        className="flex min-w-0 flex-1 items-center gap-2"
-      >
-        <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-sm font-medium">{folder.name}</span>
-      </Link>
-      <FolderActionMenu
-        onRename={() => setRenameOpen(true)}
-        onMove={() => setMoveOpen(true)}
-        onDelete={() => setDeleteOpen(true)}
-        pinned={pinned}
-        onTogglePin={() =>
-          pinned ? unpin("folder", folder.id) : pinFolder(folder.id)
+      <FolderTileFace
+        folder={folder}
+        menu={
+          <FolderActionMenu
+            onRename={() => setRenameOpen(true)}
+            onMove={() => setMoveOpen(true)}
+            onDelete={() => setDeleteOpen(true)}
+            pinned={pinned}
+            onTogglePin={() =>
+              pinned ? unpin("folder", folder.id) : pinFolder(folder.id)
+            }
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+              aria-label="Folder actions"
+            >
+              <MoreHorizontal />
+            </Button>
+          </FolderActionMenu>
         }
-      >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
-          aria-label="Folder actions"
-        >
-          <MoreHorizontal />
-        </Button>
-      </FolderActionMenu>
+      />
 
       <InputDialog
         open={renameOpen}
