@@ -73,9 +73,11 @@ export interface AcpAdapter {
  */
 export interface Harness {
   /**
-   * Stable key named in `SANDBOX_HARNESSES` (comma-separated). Must not contain
-   * a comma. Once an operator deploys with it, it's part of the config wire
-   * format — don't rename it.
+   * Stable key named in `SANDBOX_HARNESSES` (comma-separated). Must contain
+   * neither a comma (it's the list separator) nor a colon (it's the model-id
+   * codec's separator — see `isValidHarnessKey` / `decodeHarnessModelId` in
+   * `./model-id`). Once an operator deploys with it, it's part of the config
+   * wire format — don't rename it.
    */
   key: string
 
