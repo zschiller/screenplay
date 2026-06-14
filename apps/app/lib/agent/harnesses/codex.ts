@@ -93,5 +93,15 @@ export const codexHarness: Harness = {
   // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
   // `CODEX_API_KEY`, per spike #405.
   acpAdapter: { command: "npx", args: ["-y", "@zed-industries/codex-acp"] },
+  // Curated model list for the desktop dropdown (static for this slice — a
+  // discovered-once-and-cached catalog is a later slice). The ids are Codex's
+  // model slugs (the same names its `--model` flag / `config.toml` take); the
+  // flagship `gpt-5-codex` is the pre-selected per-Harness default.
+  models: [
+    { id: "gpt-5-codex", label: "GPT-5 Codex" },
+    { id: "gpt-5", label: "GPT-5" },
+    { id: "gpt-5-mini", label: "GPT-5 mini" },
+  ],
+  defaultModelId: "gpt-5-codex",
   seed: seedCodex,
 }

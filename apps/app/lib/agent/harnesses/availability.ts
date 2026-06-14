@@ -8,7 +8,8 @@ import {
   detectInstalledHarnessKeys,
   type HostBinaryProber,
 } from "./host-binary"
-import { HARNESS_ID_PREFIX, type Harness } from "./types"
+import { encodeHarnessModelId } from "./model-id"
+import { type Harness } from "./types"
 
 /**
  * The **Harness Availability** seam (issue #476, parent #466): the single
@@ -74,38 +75,65 @@ export function filterByCapability(
 }
 
 /**
- * The single provider-group the desktop model dropdown files detected harnesses
- * under. Every `harness:` `ModelInfo` carries this as its `provider`, so the
- * shared `groupModelsByProvider` fold draws one **"Installed agents"** heading —
- * the desktop analogue of the hosted picker's per-provider headings.
- */
-export const INSTALLED_AGENTS_GROUP = {
-  key: "harness",
-  label: "Installed agents",
-} as const
-
-/**
  * Fold an availability list (the Harness Availability seam's answer for the
  * desktop backend) → the `harness:` `ModelInfo` entries the model dropdown lists.
  * Keeps only **chat-capable** harnesses (those with an `acpAdapter` — the rest
- * can't back agent chat) and stamps each with `id: harness:<key>` (the wire form
- * `agent_chat.model` persists and the external engine reads back, #479) plus the
- * shared {@link INSTALLED_AGENTS_GROUP}. Pure; preserves the list's order.
+ * can't back agent chat) and gives each Harness its **own** dropdown heading:
+ * every entry is stamped with `provider: { key, label }` from the Harness itself,
+ * so the shared `groupModelsByProvider` fold draws one heading per Harness with
+ * its models nested (replacing the single "Installed agents" heading this fold
+ * emitted before per-Harness model selection existed).
+ *
+ * A Harness with a curated {@link Harness.models} list contributes one
+ * `harness:<key>:<modelId>` entry per model; a Harness advertising **no** models
+ * degrades to a single bare `harness:<key>` "harness default" entry, so the
+ * dropdown never regresses below the harness-picker behavior. The ids are the
+ * wire form `agent_chat.model` persists and the external engine reads back (#479,
+ * via the {@link encodeHarnessModelId} codec).
  *
  * This is the desktop arm of backend-uniform model enumeration: where the hosted
  * backend folds the provider registry into `provider:` models, the desktop
  * backend folds detected CLIs into these. An empty list yields `[]` — the
- * dropdown's actionable empty state, never a hardcoded fallback agent.
+ * dropdown's actionable empty state, never a hardcoded fallback agent. Pure;
+ * preserves the list's (catalog) order, models in descriptor order within each.
  */
 export function harnessModels(available: AvailableHarness[]): ModelInfo[] {
-  return filterByCapability(available, "chat").map(({ harness }) => ({
-    id: `${HARNESS_ID_PREFIX}${harness.key}`,
-    label: harness.label,
-    provider: {
-      key: INSTALLED_AGENTS_GROUP.key,
-      label: INSTALLED_AGENTS_GROUP.label,
-    },
-  }))
+  return filterByCapability(available, "chat").flatMap(({ harness }) => {
+    const provider = { key: harness.key, label: harness.label }
+    const models = harness.models ?? []
+    if (models.length === 0) {
+      return [
+        {
+          id: encodeHarnessModelId(harness.key),
+          label: harness.label,
+          provider,
+        },
+      ]
+    }
+    return models.map((model) => ({
+      id: encodeHarnessModelId(harness.key, model.id),
+      label: model.label,
+      provider,
+    }))
+  })
+}
+
+/**
+ * The desktop default model id: the **first detected chat-capable Harness's**
+ * default — its curated {@link Harness.defaultModelId} (or its first model, or a
+ * bare `harness:<key>` when it advertises none) — encoded through the same codec
+ * `harnessModels` uses, so the default is always an id the dropdown actually
+ * lists. `null` when nothing chat-capable is detected (the dropdown's empty
+ * state). Pure; mirrors the hosted `providerDefaultModelId` for the desktop arm.
+ */
+export function harnessDefaultModelId(
+  available: AvailableHarness[]
+): string | null {
+  const [first] = filterByCapability(available, "chat")
+  if (!first) return null
+  const { harness } = first
+  const modelId = harness.defaultModelId ?? harness.models?.[0]?.id
+  return encodeHarnessModelId(harness.key, modelId)
 }
 
 /** A terminal tab's launch payload: the new-tab menu + the picked key's argv. */

@@ -65,6 +65,23 @@ export interface AcpAdapter {
 }
 
 /**
+ * One model a Harness can run, as the desktop chat model dropdown lists it. The
+ * `id` is the **opaque ACP model alias** (e.g. `default`/`sonnet`/`opus` for
+ * claude-code) carried on `agent_chat.model` as `harness:<key>:<id>` — it may
+ * itself contain colons; the codec splits only on the first colon after the key
+ * so it survives intact (`decodeHarnessModelId`). For this slice the list is a
+ * **static, curated** one on the descriptor; swapping it for a
+ * discovered-once-and-cached catalog is a later slice with an identical dropdown
+ * code path (#522).
+ */
+export interface HarnessModel {
+  /** Opaque ACP model alias selecting a model within the Harness. */
+  id: string
+  /** Human-readable label shown nested under the Harness's dropdown heading. */
+  label: string
+}
+
+/**
  * A coding-harness descriptor. The flat catalog in `index.ts` is an array of
  * these keyed by `key`, mirroring the model-provider registry
  * (`lib/agent/providers`): teach the system a new harness by dropping a
@@ -150,6 +167,28 @@ export interface Harness {
    * `acpAdapter` is non-null; the terminal filter keeps all.
    */
   acpAdapter: AcpAdapter | null
+
+  /**
+   * The curated, static list of models this Harness can run, shown nested under
+   * the Harness's own heading in the desktop chat model dropdown. Each entry
+   * becomes a `harness:<key>:<id>` `ModelInfo`. Empty/omitted ⇒ the Harness
+   * degrades to a single selectable "harness default" entry (bare
+   * `harness:<key>`), so the dropdown never regresses below the harness-picker
+   * behavior. `enumerateModels` is stateless, so this list can never be a live
+   * session's `availableModels` — it's the descriptor's curated fallback (#523);
+   * a discovered-once-and-cached catalog is a later slice (#522).
+   */
+  models?: HarnessModel[]
+
+  /**
+   * The Harness's pre-selected default model — the `id` of an entry in
+   * {@link models}. The dropdown sits on it per Harness, and the first detected
+   * Harness's default is the overall desktop default. Curated on the descriptor,
+   * never read from a live `currentModelId` (an enumeration is stateless;
+   * reconciling against the live session is a session-open concern, #526).
+   * Omitted when {@link models} is empty (the bare-`harness:<key>` default).
+   */
+  defaultModelId?: string
 
   /**
    * Reproduce the harness's in-sandbox setup after install (onboarding state,

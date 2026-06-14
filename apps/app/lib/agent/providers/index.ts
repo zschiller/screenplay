@@ -4,6 +4,7 @@ import type { LanguageModel } from "ai"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import {
   harnessAvailability,
+  harnessDefaultModelId,
   harnessModels,
 } from "@/lib/agent/harnesses/availability"
 import { getAnthropicProvider } from "./anthropic"
@@ -134,10 +135,10 @@ export function providerDefaultModelId(
  * Backend-uniform model enumeration, resolved through the same build-time switch
  * that picks the {@link harnessAvailability} seam and the `SandboxProvider`
  * (ADR 0003). The **desktop** backend folds detected harnesses into `harness:`
- * entries grouped as "Installed agents"; the **hosted** backend folds the
- * configured provider registry into `provider:` models as before. The dropdown
- * and the terminal new-tab picker therefore read the *one* per-backend answer and
- * can never drift apart.
+ * entries — one heading per detected Harness with its curated models nested; the
+ * **hosted** backend folds the configured provider registry into `provider:`
+ * models as before. The dropdown and the terminal new-tab picker therefore read
+ * the *one* per-backend answer and can never drift apart.
  */
 export async function enumerateModels(): Promise<ModelInfo[]> {
   if (isLocalSandboxBackend())
@@ -148,16 +149,15 @@ export async function enumerateModels(): Promise<ModelInfo[]> {
 /**
  * The default model id for this deployment, always sourced through the seam.
  * On the **desktop** backend it's the first detected chat-capable harness's
- * `harness:` id (or `null` when none is detected) — the hardcoded anthropic
+ * default model id (its curated per-Harness default, or `null` when none is
+ * detected — see {@link harnessDefaultModelId}); the hardcoded anthropic
  * `DEFAULT_MODEL` is hosted-only and is never returned here, so no constant can
  * name an agent the deployment doesn't have. On the **hosted** backend it's the
  * configured provider default (see {@link providerDefaultModelId}). Returns
  * `null` when the backend offers nothing.
  */
 export async function getDefaultModelId(): Promise<string | null> {
-  if (isLocalSandboxBackend()) {
-    const models = harnessModels(await harnessAvailability.list())
-    return models[0]?.id ?? null
-  }
+  if (isLocalSandboxBackend())
+    return harnessDefaultModelId(await harnessAvailability.list())
   return providerDefaultModelId(PROVIDERS, await providerModels(PROVIDERS))
 }

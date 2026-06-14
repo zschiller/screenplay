@@ -81,5 +81,18 @@ export const claudeCodeHarness: Harness = {
     command: "npx",
     args: ["-y", "@zed-industries/claude-code-acp"],
   },
+  // Curated model list for the desktop dropdown (static for this slice — a
+  // discovered-once-and-cached catalog is a later slice). The ids are the
+  // claude-code-acp opaque aliases (#523); `default` rides the CLI's own default,
+  // so it is the pre-selected per-Harness default and is backward-compatible with
+  // the bare `harness:claude-code` rows stored before this list existed.
+  models: [
+    { id: "default", label: "Default" },
+    { id: "sonnet", label: "Sonnet" },
+    { id: "opus", label: "Opus" },
+    { id: "opusplan", label: "Opus (plan), Sonnet (execute)" },
+    { id: "haiku", label: "Haiku" },
+  ],
+  defaultModelId: "default",
   seed: seedClaudeCode,
 }
