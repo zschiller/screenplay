@@ -87,15 +87,18 @@ export const claudeCodeHarness: Harness = {
   // `default` rides the CLI's own recommended model, so it is the pre-selected
   // per-Harness default and is backward-compatible with the bare
   // `harness:claude-code` rows stored before this list existed. `fable` selects
-  // the most capable model (Fable 5). Aliases track the latest version of each
-  // family, so this floor doesn't pin a dated model id. `opusplan` is omitted: it
-  // is the interactive CLI's plan-mode/execute-mode hybrid, which has no analogue
-  // over the ACP adapter backing this Harness's chat.
+  // the most capable model (Fable 5). The `[1m]` suffix selects the 1M-token
+  // context window (`opus[1m]` / `sonnet[1m]`). Aliases track the latest version
+  // of each family, so this floor doesn't pin a dated model id. `opusplan` is
+  // omitted: it is the interactive CLI's plan-mode/execute-mode hybrid, which has
+  // no analogue over the ACP adapter backing this Harness's chat.
   models: [
     { id: "default", label: "Default" },
     { id: "fable", label: "Fable" },
     { id: "opus", label: "Opus" },
+    { id: "opus[1m]", label: "Opus (1M context)" },
     { id: "sonnet", label: "Sonnet" },
+    { id: "sonnet[1m]", label: "Sonnet (1M context)" },
     { id: "haiku", label: "Haiku" },
   ],
   defaultModelId: "default",

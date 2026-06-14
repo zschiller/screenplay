@@ -186,7 +186,12 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
           { id: "harness:claude-code:default", label: "Default" },
           { id: "harness:claude-code:fable", label: "Fable" },
           { id: "harness:claude-code:opus", label: "Opus" },
+          { id: "harness:claude-code:opus[1m]", label: "Opus (1M context)" },
           { id: "harness:claude-code:sonnet", label: "Sonnet" },
+          {
+            id: "harness:claude-code:sonnet[1m]",
+            label: "Sonnet (1M context)",
+          },
           { id: "harness:claude-code:haiku", label: "Haiku" },
         ],
       },
@@ -258,7 +263,9 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
       "harness:claude-code:default",
       "harness:claude-code:fable",
       "harness:claude-code:opus",
+      "harness:claude-code:opus[1m]",
       "harness:claude-code:sonnet",
+      "harness:claude-code:sonnet[1m]",
       "harness:claude-code:haiku",
       "harness:claude-code:opus-4-1",
     ])
