@@ -25,6 +25,15 @@ describe("encode/decode harness model id (round-trip)", () => {
     })
   })
 
+  it("keeps a `[1m]` context-window suffix on the modelId intact", () => {
+    const id = encodeHarnessModelId("claude-code", "opus[1m]")
+    expect(id).toBe("harness:claude-code:opus[1m]")
+    expect(decodeHarnessModelId(id)).toEqual({
+      key: "claude-code",
+      modelId: "opus[1m]",
+    })
+  })
+
   it("keeps a modelId that itself contains colons intact (splits only once)", () => {
     const id = encodeHarnessModelId("codex", "openrouter:anthropic/claude:beta")
     expect(id).toBe("harness:codex:openrouter:anthropic/claude:beta")

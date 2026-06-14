@@ -240,31 +240,33 @@ export class AcpSession {
   }
 
   /**
-   * Apply the chat's chosen model when the turn carries one *and* the agent
-   * advertised it (#522, #526) — the model counterpart of
-   * {@link maybeEnterPlanMode}, driven off the advertised `models` exactly as
-   * mode is driven off `modes`. Four cases, all silent:
+   * Apply the chat's chosen model when the turn carries one (#522, #526) — the
+   * model counterpart of {@link maybeEnterPlanMode}. Three cases:
    *
-   *  - no `modelId`, or the agent advertises no `models` (codex — spike #523):
-   *    no call, the Harness runs its own default (codex took its model at spawn);
+   *  - no `modelId`, or the agent sends no model state (codex — spike #523): no
+   *    call, the Harness runs its own default (codex took its model at spawn);
    *  - `modelId` is the current model already: no call;
-   *  - `modelId` is advertised: `unstable_setSessionModel` switches to it, and we
-   *    remember the Harness default to recover to if the *first prompt* rejects
-   *    it (`setSessionModel` validates lazily — spike #523);
-   *  - `modelId` is **absent** from the live `availableModels`: the stale-model
-   *    fallback — no call (the Harness keeps its default `currentModelId`) and
-   *    {@link reconcileModel} rewrites the stored id so the next open is clean.
+   *  - otherwise: `unstable_setSessionModel` forwards it, and we remember the
+   *    Harness default to recover to if the *first prompt* rejects it.
+   *
+   * We forward the id **without gating on `availableModels`**. The adapter honors
+   * a much richer id space than it advertises — `setSessionModel` accepts aliases
+   * and full slugs the advertised list omits, and validates lazily (spike #523),
+   * so a bad id only surfaces at the first prompt as `-32603`. Gating on the
+   * under-reported `availableModels` would silently suppress valid models (a
+   * curated `opus`/`fable` that the adapter accepts but doesn't list), reconciling
+   * the user's choice away to the default for no reason. So we apply it and let
+   * the prompt-time fallback ({@link prompt} → {@link fallBackToDefaultModel}) be
+   * the single arbiter of validity: a genuinely stale id fails the first prompt,
+   * recovers to the default, reconciles the stored id, and retries once — the same
+   * silent recovery, just driven by the agent's verdict rather than a guess from
+   * its advertised list.
    */
   private async maybeSetModel(
     modelId: string | undefined,
     models: SessionModels | null | undefined
   ): Promise<void> {
     if (!modelId || !models) return
-    const advertised = models.availableModels.some((m) => m.modelId === modelId)
-    if (!advertised) {
-      await this.reconcileModel?.(models.currentModelId)
-      return
-    }
     if (modelId === models.currentModelId) return
     await this.conn.unstable_setSessionModel({ sessionId: this.id, modelId })
     this.appliedModelFallback = models.currentModelId
@@ -284,13 +286,15 @@ export class AcpSession {
     try {
       return await this.sendTurn(blocks, signal)
     } catch (e) {
-      // The model applied at open was advertised but turned out unentitled, so
-      // the agent rejects the *first* prompt with `-32603` rather than the
-      // `setSessionModel` call (it validates lazily — spike #523). Silently
-      // recover to the Harness default, reconcile the stored id, and retry once,
-      // so a stale model preference never surfaces as a hard turn error
-      // (#526, story #6). Every other error — and a second model failure —
-      // propagates to the engine unchanged.
+      // The model applied at open turned out invalid — unentitled, or an id the
+      // agent doesn't accept (we forward without gating on `availableModels`, so
+      // this path is the single arbiter of validity). It validates lazily, so the
+      // agent rejects the *first* prompt with `-32603` rather than the
+      // `setSessionModel` call (spike #523). Silently recover to the Harness
+      // default, reconcile the stored id, and retry once, so a stale model
+      // preference never surfaces as a hard turn error (#526, story #6). Every
+      // other error — and a second model failure — propagates to the engine
+      // unchanged.
       if (!this.canRecoverModel(e, signal)) throw e
       await this.fallBackToDefaultModel()
       return await this.sendTurn(blocks, signal)
