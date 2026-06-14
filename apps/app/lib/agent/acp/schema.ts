@@ -32,6 +32,7 @@ import {
   ClientSideConnection,
   ndJsonStream,
   PROTOCOL_VERSION,
+  RequestError,
   type Agent,
   type AnyMessage,
   type Client,
@@ -44,7 +45,10 @@ import {
   type PromptResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
+  type SessionModelState,
   type SessionNotification,
+  type SetSessionModelRequest,
+  type SetSessionModelResponse,
   type Stream,
   type ToolCallContent,
   type ToolCallStatus,
@@ -65,6 +69,10 @@ export {
   ClientSideConnection,
   ndJsonStream,
   PROTOCOL_VERSION,
+  // The genuine ACP JSON-RPC error (`{ code, message, data }`). Re-exported so
+  // the session module and tests can recognise the internal-error code an
+  // adapter returns for an unentitled/unknown model (spike #523) in one place.
+  RequestError,
   type Agent,
   type AnyMessage,
   type Client,
@@ -77,7 +85,14 @@ export {
   type PromptResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
+  // The model-selection capability shapes (ACP `unstable_`/`@experimental`):
+  // the advertised model state on new/load session, and the `set_model` request/
+  // response. Bound here so the in-session model application reads ACP's own
+  // types, not a hand-rolled shape.
+  type SessionModelState,
   type SessionNotification,
+  type SetSessionModelRequest,
+  type SetSessionModelResponse,
   type Stream,
   type ToolCallUpdate,
   // Tool-call vocabulary (ADR 0006, issue #377). `ToolCallContent` is the

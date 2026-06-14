@@ -13,21 +13,25 @@ const get = vi.fn(async ({ name }: { name: string }) => ({
 }))
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: { get: (o: { name: string }) => get(o) } }))
 
-// Native session resume reads/writes the chat's stored ACP session id. Mock the
-// persistence seam so this unit doesn't reach the db.
+// Native session resume reads/writes the chat's stored ACP session id, and a
+// stale-model fallback reconciles the stored `model`. Mock the persistence seam
+// so this unit doesn't reach the db.
 const getAcpSessionId = vi.fn(async (_chatId: string): Promise<string | null> => null)
 const setAcpSessionId = vi.fn(async (_chatId: string, _id: string) => {})
+const setChatModel = vi.fn(async (_chatId: string, _model: string) => {})
 vi.mock("@/lib/agent/persistence", () => ({
   getAcpSessionId: (chatId: string) => getAcpSessionId(chatId),
   setAcpSessionId: (chatId: string, id: string) => setAcpSessionId(chatId, id),
+  setChatModel: (chatId: string, model: string) => setChatModel(chatId, model),
 }))
 
-// Capture which harness key the external engine is wired to spawn, without
-// reaching the real adapter resolver / subprocess spawn.
-const factoryConfig = vi.fn<(config: { harnessKey: string }) => void>()
+// Capture which harness key + model the external engine is wired to spawn,
+// without reaching the real adapter resolver / subprocess spawn.
+const factoryConfig =
+  vi.fn<(config: { harnessKey: string; modelId?: string }) => void>()
 vi.mock("./spawn-session-factory", () => ({
   SpawnAcpSessionFactory: class {
-    constructor(config: { harnessKey: string }) {
+    constructor(config: { harnessKey: string; modelId?: string }) {
       factoryConfig(config)
     }
   },
@@ -64,6 +68,7 @@ describe("resolveLiveEngine", () => {
     get.mockClear()
     getAcpSessionId.mockClear()
     setAcpSessionId.mockClear()
+    setChatModel.mockClear()
     factoryConfig.mockClear()
   })
 
@@ -129,6 +134,87 @@ describe("resolveLiveEngine", () => {
       sandboxName: "branch-7",
       model: "anthropic:claude-sonnet-4-6",
     })
-    expect(factoryConfig).toHaveBeenCalledWith({ harnessKey: "claude-code" })
+    expect(factoryConfig).toHaveBeenCalledWith({
+      harnessKey: "claude-code",
+      modelId: undefined,
+    })
+  })
+
+  // Per-chat *model* selection (#526, AC#1): the stored id's `:<modelId>` half
+  // is parsed alongside the key and threaded to the spawn factory, so a
+  // spawn-applied adapter (codex's `--model`) gets it on the argv.
+  it("threads the chat's `harness:<key>:<modelId>` model to the spawn factory", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      model: "harness:codex:gpt-5.5",
+    })
+    expect(factoryConfig).toHaveBeenCalledWith({
+      harnessKey: "codex",
+      modelId: "gpt-5.5",
+    })
+  })
+
+  it("keeps a model id with colons intact (split on the first colon only)", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      model: "harness:claude-code:vendor:opus:4.6",
+    })
+    expect(factoryConfig).toHaveBeenCalledWith({
+      harnessKey: "claude-code",
+      modelId: "vendor:opus:4.6",
+    })
+  })
+
+  it("threads no model id for a bare `harness:<key>` (Harness default)", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    await resolveLiveEngine({
+      sandboxName: "branch-7",
+      model: "harness:claude-code",
+    })
+    expect(factoryConfig).toHaveBeenCalledWith({
+      harnessKey: "claude-code",
+      modelId: undefined,
+    })
+  })
+
+  // The reconcile callback (#526, story #6): a stale-model fallback rewrites the
+  // stored `model` to the resolved id re-encoded under the same Harness key.
+  it("reconciles a resolved model back to the chat's stored id under its harness key", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    // The resolver returns a real ExternalEngine; read the reconcile callback off
+    // the config it was built with and invoke it as the session would on a
+    // stale-model fallback.
+    const engine = (await resolveLiveEngine({
+      sandboxName: "branch-7",
+      chatId: "chat-9",
+      model: "harness:claude-code:sonnet",
+    })) as ExternalEngine
+    const reconcile = (
+      engine as unknown as {
+        config: { reconcileModel?: (m: string) => unknown }
+      }
+    ).config.reconcileModel
+    expect(reconcile).toBeTypeOf("function")
+    await reconcile!("default")
+    expect(setChatModel).toHaveBeenCalledWith(
+      "chat-9",
+      "harness:claude-code:default"
+    )
+  })
+
+  it("wires no reconcile callback for a chat with no id to key on", async () => {
+    process.env[ENGINE_ENV_VAR] = "external"
+    const engine = (await resolveLiveEngine({
+      sandboxName: "branch-7",
+      model: "harness:claude-code:sonnet",
+    })) as ExternalEngine
+    const reconcile = (
+      engine as unknown as {
+        config: { reconcileModel?: (m: string) => unknown }
+      }
+    ).config.reconcileModel
+    expect(reconcile).toBeUndefined()
   })
 })

@@ -75,6 +75,25 @@ export async function setAcpSessionId(
 }
 
 /**
+ * Reconcile the chat's stored `model` id after a session-open silent fallback
+ * (#526). When the chat's stored model is no longer offered by the live Harness
+ * (e.g. the subscription tier changed), the session falls back to the Harness
+ * default and calls this to rewrite the stored id to the resolved one, so the
+ * next open is clean rather than re-tripping the same stale lookup. A model is a
+ * preference refinement, not an identity — so this corrects silently, unlike a
+ * missing Harness, which fails loud.
+ */
+export async function setChatModel(
+  chatId: string,
+  model: string
+): Promise<void> {
+  await db
+    .update(agentChat)
+    .set({ model, updatedAt: new Date() })
+    .where(eq(agentChat.id, chatId))
+}
+
+/**
  * Append one ACP-native message record to the durable log (ADR 0006). The
  * ACP-update consumer calls this for every agent/reasoning turn, and the routes
  * call it to land the incoming user turn before the engine runs.

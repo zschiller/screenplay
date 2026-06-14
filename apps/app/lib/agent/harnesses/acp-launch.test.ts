@@ -28,6 +28,39 @@ describe("resolveAcpLaunch", () => {
     expect(launch?.args).toEqual(["-y", "@zed-industries/codex-acp"])
   })
 
+  // Codex advertises no `availableModels` (spike #523), so a per-chat model
+  // choice rides the spawn argv as `--model <id>` rather than ACP's in-session
+  // `setSessionModel`.
+  it("appends codex's `--model <id>` when a model is chosen", () => {
+    const launch = resolveAcpLaunch("codex", {
+      cwd: "/work/tree",
+      env: {},
+      modelId: "gpt-5.5",
+    })
+    expect(launch?.args).toEqual([
+      "-y",
+      "@zed-industries/codex-acp",
+      "--model",
+      "gpt-5.5",
+    ])
+  })
+
+  it("leaves codex's argv unchanged when no model is chosen (Harness default)", () => {
+    const launch = resolveAcpLaunch("codex", { cwd: "/work/tree", env: {} })
+    expect(launch?.args).toEqual(["-y", "@zed-industries/codex-acp"])
+  })
+
+  // claude-code is ACP-native (no `modelArgs`): a chosen model is applied
+  // in-session via `setSessionModel`, never on the spawn argv (spike #523).
+  it("does not fold a model into claude-code's argv (it is ACP-native)", () => {
+    const launch = resolveAcpLaunch("claude-code", {
+      cwd: "/work/tree",
+      env: {},
+      modelId: "sonnet",
+    })
+    expect(launch?.args).toEqual(["-y", "@zed-industries/claude-code-acp"])
+  })
+
   it("uses the worktree as the child cwd", () => {
     const launch = resolveAcpLaunch("claude-code", {
       cwd: "/repos/x/wt-42",

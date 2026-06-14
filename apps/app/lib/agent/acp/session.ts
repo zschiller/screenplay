@@ -93,6 +93,29 @@ export interface OpenSessionOptions {
    * through the prompt instead).
    */
   planMode?: boolean
+  /**
+   * The chat's chosen model *within* the Harness, applied at session open via
+   * ACP's native model selection (`unstable_setSessionModel`) — mirroring how
+   * {@link planMode} drives `setSessionMode` off the advertised `modes` (#522,
+   * #526). When the agent advertises this id in `availableModels`, the session
+   * switches to it; when it doesn't (subscription tier changed, curated id
+   * retired), the session **silently** falls back to the Harness default and
+   * reconciles via {@link reconcileModel} — a model is a preference refinement,
+   * not an identity, so a stale one never fails the turn (unlike a missing
+   * Harness, which fails loud). Absent ⇒ no model call, the Harness runs its own
+   * default. An adapter that advertises *no* models (codex — spike #523) takes
+   * the no-op branch here; its model rode the spawn argv instead.
+   */
+  modelId?: string
+  /**
+   * Persist the resolved model id after a silent fallback (#526): called with
+   * the *bare* in-Harness model id the session settled on (the Harness default)
+   * when {@link modelId} was stale, so the chat's stored id stops re-tripping the
+   * absent model on the next open. The codec re-encoding to `harness:<key>:<id>`
+   * lives with the caller, which knows the key; absent ⇒ no reconciliation (e.g.
+   * a chat the caller can't key on).
+   */
+  reconcileModel?(modelId: string): Promise<void> | void
 }
 
 /**
@@ -105,6 +128,22 @@ interface SessionModes {
   availableModes: { id: string; name: string }[]
   currentModeId: string
 }
+
+/**
+ * The session-model state an agent advertises in `session/new` / `session/load`
+ * (a subset of ACP's `unstable_`/`@experimental` `SessionModelState`): the
+ * models it can run and the one currently active. Kept structural so this module
+ * reads only what it needs, mirroring {@link SessionModes}. An adapter that
+ * advertises no models (codex — spike #523) sends no state at all, which the
+ * model-application path treats as "the Harness runs its own default".
+ */
+interface SessionModels {
+  availableModels: { modelId: string }[]
+  currentModelId: string
+}
+
+/** ACP/JSON-RPC internal-error code; an adapter returns it for a model it can't run. */
+const INTERNAL_ERROR_CODE = -32603
 
 /**
  * One live ACP conversation session over an {@link AcpTransport}. Construct it
@@ -120,6 +159,18 @@ export class AcpSession {
    * than waiting on a gate whose run is already terminal.
    */
   private activeSignal: AbortSignal | null = null
+  /** Persist a silently-resolved model id after a stale-model fallback (#526). */
+  private reconcileModel?: (modelId: string) => Promise<void> | void
+  /**
+   * The Harness default to recover to if the model applied at open — advertised,
+   * but possibly entitlement-stale — fails the first prompt with `-32603` (spike
+   * #523: `setSessionModel` validates lazily, so a bad id only surfaces at prompt
+   * time). `null` when no model was applied, so the prompt-time guard never fires
+   * for a session running the Harness's own default.
+   */
+  private appliedModelFallback: string | null = null
+  /** Guards the prompt-time model fallback to a single retry per session. */
+  private modelRetried = false
 
   private constructor(
     transport: AcpTransport,
@@ -145,6 +196,7 @@ export class AcpSession {
     options: OpenSessionOptions
   ): Promise<AcpSession> {
     const session = new AcpSession(transport, ports)
+    session.reconcileModel = options.reconcileModel
     await session.conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
       clientCapabilities: {},
@@ -157,6 +209,7 @@ export class AcpSession {
       })
       session.sessionId = options.loadSessionId
       await session.maybeEnterPlanMode(options.planMode, loaded?.modes)
+      await session.maybeSetModel(options.modelId, loaded?.models)
     } else {
       const created = await session.conn.newSession({
         cwd: options.cwd,
@@ -164,6 +217,7 @@ export class AcpSession {
       })
       session.sessionId = created.sessionId
       await session.maybeEnterPlanMode(options.planMode, created.modes)
+      await session.maybeSetModel(options.modelId, created.models)
     }
     return session
   }
@@ -186,6 +240,37 @@ export class AcpSession {
   }
 
   /**
+   * Apply the chat's chosen model when the turn carries one *and* the agent
+   * advertised it (#522, #526) — the model counterpart of
+   * {@link maybeEnterPlanMode}, driven off the advertised `models` exactly as
+   * mode is driven off `modes`. Four cases, all silent:
+   *
+   *  - no `modelId`, or the agent advertises no `models` (codex — spike #523):
+   *    no call, the Harness runs its own default (codex took its model at spawn);
+   *  - `modelId` is the current model already: no call;
+   *  - `modelId` is advertised: `unstable_setSessionModel` switches to it, and we
+   *    remember the Harness default to recover to if the *first prompt* rejects
+   *    it (`setSessionModel` validates lazily — spike #523);
+   *  - `modelId` is **absent** from the live `availableModels`: the stale-model
+   *    fallback — no call (the Harness keeps its default `currentModelId`) and
+   *    {@link reconcileModel} rewrites the stored id so the next open is clean.
+   */
+  private async maybeSetModel(
+    modelId: string | undefined,
+    models: SessionModels | null | undefined
+  ): Promise<void> {
+    if (!modelId || !models) return
+    const advertised = models.availableModels.some((m) => m.modelId === modelId)
+    if (!advertised) {
+      await this.reconcileModel?.(models.currentModelId)
+      return
+    }
+    if (modelId === models.currentModelId) return
+    await this.conn.unstable_setSessionModel({ sessionId: this.id, modelId })
+    this.appliedModelFallback = models.currentModelId
+  }
+
+  /**
    * Send one turn as an ACP `prompt`, resolving with its `stopReason` once the
    * agent reports the turn complete. `session/update` notifications stream to
    * {@link AcpSessionPorts.onUpdate} throughout. Aborting `signal` (a user
@@ -193,6 +278,27 @@ export class AcpSession {
    * resolves the turn with `stopReason: "cancelled"`.
    */
   async prompt(
+    blocks: ContentBlock[],
+    signal: AbortSignal
+  ): Promise<StopReason> {
+    try {
+      return await this.sendTurn(blocks, signal)
+    } catch (e) {
+      // The model applied at open was advertised but turned out unentitled, so
+      // the agent rejects the *first* prompt with `-32603` rather than the
+      // `setSessionModel` call (it validates lazily — spike #523). Silently
+      // recover to the Harness default, reconcile the stored id, and retry once,
+      // so a stale model preference never surfaces as a hard turn error
+      // (#526, story #6). Every other error — and a second model failure —
+      // propagates to the engine unchanged.
+      if (!this.canRecoverModel(e, signal)) throw e
+      await this.fallBackToDefaultModel()
+      return await this.sendTurn(blocks, signal)
+    }
+  }
+
+  /** Send one turn as an ACP `prompt`, wiring `/stop` cancellation for it. */
+  private async sendTurn(
     blocks: ContentBlock[],
     signal: AbortSignal
   ): Promise<StopReason> {
@@ -212,6 +318,34 @@ export class AcpSession {
       signal.removeEventListener("abort", cancel)
       this.activeSignal = null
     }
+  }
+
+  /**
+   * Whether a failed turn is the lazy-validation model rejection we can silently
+   * recover from: a model was applied this session, we haven't already retried,
+   * the turn wasn't stopped, and the error is the adapter's internal-error code
+   * naming the model (spike #523). Narrow on purpose — a generic internal error
+   * or a `/stop` must still surface, never be masked as a model fallback.
+   */
+  private canRecoverModel(e: unknown, signal: AbortSignal): boolean {
+    return (
+      this.appliedModelFallback !== null &&
+      !this.modelRetried &&
+      !signal.aborted &&
+      isStaleModelError(e)
+    )
+  }
+
+  /** Switch back to the Harness default, reconcile the stored id, and disarm the guard. */
+  private async fallBackToDefaultModel(): Promise<void> {
+    const fallback = this.appliedModelFallback!
+    this.modelRetried = true
+    this.appliedModelFallback = null
+    await this.conn.unstable_setSessionModel({
+      sessionId: this.id,
+      modelId: fallback,
+    })
+    await this.reconcileModel?.(fallback)
   }
 
   /** The {@link Client} half of the connection — where the agent calls back. */
@@ -248,6 +382,20 @@ export class AcpSession {
 /** Whether an advertised session mode is the agent's plan mode (id or name). */
 function isPlanMode(mode: { id: string; name: string }): boolean {
   return mode.id === "plan" || /plan/i.test(mode.name)
+}
+
+/**
+ * Whether a thrown error is an adapter rejecting the selected model on a prompt
+ * turn (spike #523): the ACP/JSON-RPC internal-error code whose message names
+ * the model ("issue with the selected model … may not exist or you may not have
+ * access"). Both signals are required so an unrelated internal error isn't
+ * mistaken for a stale model and silently retried.
+ */
+function isStaleModelError(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false
+  if ((e as { code?: unknown }).code !== INTERNAL_ERROR_CODE) return false
+  const message = (e as { message?: unknown }).message
+  return typeof message === "string" && /model/i.test(message)
 }
 
 /**

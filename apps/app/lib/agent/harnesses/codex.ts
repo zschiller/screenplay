@@ -91,8 +91,15 @@ export const codexHarness: Harness = {
   // The desktop detector probes `codex` on PATH (the global install exposes it).
   hostBinary: "codex",
   // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
-  // `CODEX_API_KEY`, per spike #405.
-  acpAdapter: { command: "npx", args: ["-y", "@zed-industries/codex-acp"] },
+  // `CODEX_API_KEY`, per spike #405. The adapter advertises no `availableModels`
+  // (spike #523), so a per-chat model choice can't ride ACP's in-session
+  // `setSessionModel`; it's applied at spawn as `--model <id>` instead. Omitted
+  // when no model is stored (bare `harness:codex`), so codex spawns unchanged.
+  acpAdapter: {
+    command: "npx",
+    args: ["-y", "@zed-industries/codex-acp"],
+    modelArgs: (modelId) => ["--model", modelId],
+  },
   // Curated model list for the desktop dropdown (static for this slice — a
   // discovered-once-and-cached catalog is a later slice). The ids are Codex's
   // model slugs (the same names its `--model` flag / `config.toml` take); the
