@@ -66,7 +66,15 @@ export function useRoomThumbnailPoll(
       }
     }
 
-    if (document.visibilityState === "visible") start()
+    // Poll once immediately on mount, not just on the interval: navigating back
+    // to home from a room re-seeds the grid from a server render that races the
+    // editor's layout write (it lands in the route's `after()`), so the seed is
+    // usually a beat stale. An immediate poll picks up the just-saved layout at
+    // once instead of leaving the old arrangement on screen for a full interval.
+    if (document.visibilityState === "visible") {
+      void poll()
+      start()
+    }
     document.addEventListener("visibilitychange", onVisibilityChange)
 
     return () => {

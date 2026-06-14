@@ -5,9 +5,10 @@ import {
 } from "@/lib/room-thumbnail-merge"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
-function manifest(label: string): ThumbnailManifest {
+function manifest(label: string, revision?: number): ThumbnailManifest {
   return {
     version: 2,
+    ...(revision != null ? { revision } : {}),
     bounds: { x: 0, y: 0, width: 100, height: 100 },
     frames: [
       {
@@ -110,5 +111,44 @@ describe("mergeRoomThumbnails", () => {
   it("is a no-op for an empty poll", () => {
     const rooms = [room("a", 100, manifest("a"))]
     expect(mergeRoomThumbnails(rooms, [])).toBe(rooms)
+  })
+
+  it("adopts a newer-revision manifest even when the capture time is unchanged", () => {
+    // The layout lane's signature: a moved/renamed frame bumps the manifest's
+    // revision but deliberately leaves `thumbnailUpdatedAt` alone. Gating on the
+    // capture clock would discard it; the revision must carry it through.
+    const rooms = [room("a", 200, manifest("old", 5))]
+
+    const merged = mergeRoomThumbnails(rooms, [
+      { id: "a", thumbnailUpdatedAt: 200, thumbnailManifest: manifest("moved", 6) },
+    ])
+
+    expect(merged).not.toBe(rooms)
+    expect(merged[0]!.thumbnailManifest).toEqual(manifest("moved", 6))
+  })
+
+  it("ignores an equal-or-older revision, even on a newer capture time", () => {
+    const rooms = [room("a", 100, manifest("current", 6))]
+
+    const equal = mergeRoomThumbnails(rooms, [
+      { id: "a", thumbnailUpdatedAt: 999, thumbnailManifest: manifest("stale", 6) },
+    ])
+    const older = mergeRoomThumbnails(rooms, [
+      { id: "a", thumbnailUpdatedAt: 999, thumbnailManifest: manifest("stale", 4) },
+    ])
+
+    expect(equal).toBe(rooms)
+    expect(older).toBe(rooms)
+  })
+
+  it("prefers a revisioned manifest over a legacy revisionless one", () => {
+    const rooms = [room("a", 500, manifest("legacy"))]
+
+    const merged = mergeRoomThumbnails(rooms, [
+      { id: "a", thumbnailUpdatedAt: 100, thumbnailManifest: manifest("fresh", 1) },
+    ])
+
+    expect(merged).not.toBe(rooms)
+    expect(merged[0]!.thumbnailManifest).toEqual(manifest("fresh", 1))
   })
 })

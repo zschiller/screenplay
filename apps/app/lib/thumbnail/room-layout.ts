@@ -7,13 +7,18 @@ import {
 import { readRoomDoc } from "@/lib/yjs/server"
 
 /**
- * One Iframe Layer as the capture path sees it: its label (for the manifest),
- * the live preview URL to screenshot, and its bound Branch's palette inputs
- * (`branchKey` is the hash key; `branchColorIndex` the manual override).
+ * One layer as the capture path sees it: its label (for the manifest), the live
+ * preview URL to screenshot, and its bound Branch's palette inputs (`branchKey`
+ * is the hash key; `branchColorIndex` the manual override).
  * `previewUrl` is `null` when the layer's Branch has no ready preview yet (no
  * `previewDomain`), so the capture loop skips it and the manifest records a
  * branch-tinted, captureless placeholder. `branchKey` is `null` for a frame
  * bound to no Branch.
+ *
+ * Markdown (document) layers ride this same path: they have no preview to
+ * screenshot, so they land with `previewUrl` and `branchKey` both `null` — a
+ * neutral, captureless placeholder labeled by the document's title — and still
+ * occupy their place in the composed thumbnail.
  */
 export type CaptureFrame = {
   id: string
@@ -44,7 +49,7 @@ export async function readRoomCaptureLayout(
     const markdownLayers = c.markdownLayers.toArray()
     const groups = c.iframeLayerGroups.toArray()
     const layouts = computeIframeLayerLayouts(groups, iframeLayers, markdownLayers)
-    const frames: CaptureFrame[] = iframeLayers.map((a) => {
+    const iframeFrames: CaptureFrame[] = iframeLayers.map((a) => {
       const branch = a.branchId ? branches.get(a.branchId) : undefined
       const previewDomain = branch?.previewDomain
       return {
@@ -57,6 +62,15 @@ export async function readRoomCaptureLayout(
         branchColorIndex: branch?.colorIndex,
       }
     })
-    return { layouts, frames }
+    // Markdown (document) layers have nothing to screenshot, so they ride the
+    // path as captureless, Branch-less placeholders labeled by their title —
+    // they hold their place in the composed thumbnail alongside iframe layers.
+    const markdownFrames: CaptureFrame[] = markdownLayers.map((m) => ({
+      id: m.id,
+      label: m.title,
+      previewUrl: null,
+      branchKey: null,
+    }))
+    return { layouts, frames: [...iframeFrames, ...markdownFrames] }
   })
 }

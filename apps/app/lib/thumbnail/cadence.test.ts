@@ -17,42 +17,42 @@ afterEach(() => {
 })
 
 describe("thumbnail cadence bounds", () => {
-  it("keeps the heartbeat period above the capture cooldown in both builds", async () => {
-    // The load-bearing invariant: a throttled heartbeat fires once per period,
-    // so the period must clear the route's dedup cooldown — otherwise every
-    // throttled fire lands inside the cooldown and the per-frame round never
-    // runs.
+  it("keeps the capture cooldown above the settle window in both builds", async () => {
+    // A capture fires once its content settles (`SETTLE_MS` of quiet). The
+    // cooldown is the floor on capture frequency, so it must clear the settle
+    // window — otherwise a single post-settle capture lands inside its own
+    // cooldown and is dropped.
     for (const local of [true, false]) {
       const c = await loadCadence(local)
-      expect(c.THUMBNAIL_HEARTBEAT_PERIOD_MS).toBeGreaterThan(
-        c.THUMBNAIL_CAPTURE_COOLDOWN_MS
+      expect(c.THUMBNAIL_CAPTURE_COOLDOWN_MS).toBeGreaterThan(
+        c.THUMBNAIL_CAPTURE_SETTLE_MS
       )
     }
   })
 
-  it("runs the local build hotter than the hosted build on both bounds", async () => {
+  it("keeps the cheap layout lane faster than the capture lane", async () => {
+    // The layout-only rebuild opens no browser, so it coalesces and writes
+    // faster than a capture settles — the home grid's rects track edits ahead of
+    // the screenshots catching up.
+    for (const local of [true, false]) {
+      const c = await loadCadence(local)
+      expect(c.THUMBNAIL_LAYOUT_DEBOUNCE_MS).toBeLessThan(
+        c.THUMBNAIL_CAPTURE_SETTLE_MS
+      )
+    }
+  })
+
+  it("runs the local build hotter than the hosted build on both capture bounds", async () => {
     const localBuild = await loadCadence(true)
     const hosted = await loadCadence(false)
 
-    // Desktop rounds are local-webview + local-fs, so both the trigger cadence
-    // and the dedup window are shorter than the hosted, paid-function bounds.
-    expect(localBuild.THUMBNAIL_HEARTBEAT_PERIOD_MS).toBeLessThan(
-      hosted.THUMBNAIL_HEARTBEAT_PERIOD_MS
+    // Desktop rounds are local-webview + local-fs, so both the settle and the
+    // dedup window are shorter than the hosted, paid-function bounds.
+    expect(localBuild.THUMBNAIL_CAPTURE_SETTLE_MS).toBeLessThan(
+      hosted.THUMBNAIL_CAPTURE_SETTLE_MS
     )
     expect(localBuild.THUMBNAIL_CAPTURE_COOLDOWN_MS).toBeLessThan(
       hosted.THUMBNAIL_CAPTURE_COOLDOWN_MS
     )
-  })
-
-  it("keeps the unmount catch-up gap below the heartbeat period", async () => {
-    // The catch-up round on unmount only fires when no round has run within the
-    // gap; it must be shorter than the period so it stays a catch-up, not a
-    // second throttled lane.
-    for (const local of [true, false]) {
-      const c = await loadCadence(local)
-      expect(c.THUMBNAIL_HEARTBEAT_MIN_REFRESH_GAP_MS).toBeLessThan(
-        c.THUMBNAIL_HEARTBEAT_PERIOD_MS
-      )
-    }
   })
 })

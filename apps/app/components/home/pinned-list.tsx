@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import { FileText, Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Reorder } from "motion/react"
@@ -11,6 +11,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
 } from "@workspace/ui/components/sidebar"
+import { cn } from "@workspace/ui/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
@@ -23,6 +24,7 @@ import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
+import { useFolderDroppable } from "./file-dnd"
 
 /**
  * The home sidebar's "Pinned" section (PRD #507): the user's pinned items as
@@ -51,6 +53,38 @@ import { MoveToDialog } from "./move-to-dialog"
 /** A pin's stable drag key — its target, the same key the provider reorders by. */
 function pinKey(kind: PinKind, targetId: string): string {
   return `${kind}:${targetId}`
+}
+
+/**
+ * Suppress the navigation a drag-release would otherwise trigger. After a
+ * reorder drag, the browser still fires a `click` on the row's `Link` (pointer
+ * down and up land on the same element, which moved with the pointer), and Next
+ * navigates on it — so a reorder would also open the dropped item. `Reorder.Item`
+ * only fires `onDragStart` past its movement threshold, i.e. on a real drag and
+ * never a plain click, so we flag that and `preventDefault` the click that
+ * follows. The flag clears a tick after `onDragEnd` — after that post-drag click
+ * has fired and been swallowed (pointerup → click → timeout) — leaving plain
+ * clicks free to navigate.
+ */
+function useDragNavGuard() {
+  const dragged = useRef(false)
+  return {
+    onDragStart: () => {
+      dragged.current = true
+    },
+    onDragEnd: () => {
+      setTimeout(() => {
+        dragged.current = false
+      }, 0)
+    },
+    guardClick: (e: React.MouseEvent) => {
+      if (dragged.current) {
+        e.preventDefault()
+        return true
+      }
+      return false
+    },
+  }
 }
 
 export function PinnedList() {
@@ -131,6 +165,7 @@ function PinnedRoomRow({
 }) {
   const { renameRoom, removeRoom, moveRoom, allFolders, folderOfRoom, unpin } =
     useHome()
+  const { onDragStart, onDragEnd, guardClick } = useDragNavGuard()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -143,13 +178,17 @@ function PinnedRoomRow({
   return (
     // A draggable pinned row. `Reorder.Item` runs the drag/layout gesture and
     // distinguishes a drag from a click by movement, so the Link still navigates
-    // on a plain click while a drag reorders. `cursor-grab` signals the affordance.
+    // on a plain click while a drag reorders — `useDragNavGuard` swallows the
+    // stray click a drag-release fires so a reorder never also opens the row.
+    // `cursor-grab` signals the affordance.
     <Reorder.Item
       value={dragKey}
       as="li"
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
       className="group/menu-item relative cursor-grab active:cursor-grabbing"
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
     >
       <SidebarMenuButton asChild>
         <Link
@@ -159,9 +198,13 @@ function PinnedRoomRow({
           draggable={false}
           // Open the room's connection on hover/focus/click so the canvas renders
           // synced on the first frame, matching the grid tiles. No-op on hosted.
+          // Skip the prewarm too when the click is a drag-release we're swallowing.
           onPointerEnter={() => prewarmRoom(room.id)}
           onFocus={() => prewarmRoom(room.id)}
-          onClick={() => prewarmRoom(room.id)}
+          onClick={(e) => {
+            if (guardClick(e)) return
+            prewarmRoom(room.id)
+          }}
         >
           <FileText />
           <span className="truncate">{room.name}</span>
@@ -241,9 +284,20 @@ function PinnedFolderRow({
     removeFolder,
     unpin,
   } = useHome()
+  const { onDragStart, onDragEnd, guardClick } = useDragNavGuard()
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+
+  // A pinned folder row is also a drop target: a canvas/folder dragged from the
+  // content grid can land here to be filed into this folder (issue #487). This
+  // is the shell's dnd-kit DndContext, orthogonal to the Reorder drag the row
+  // uses to reorder pins — the droppable only reacts while a grid drag is live.
+  // `useFolderDroppable` disables it (and skips the ring) when the dragged folder
+  // is this folder or one of its ancestors, so a drop can never form a cycle.
+  // Scoped "pinned" so this droppable's id can't collide with the same folder's
+  // grid tile (dnd-kit keys droppables by id; a shared id makes one un-hittable).
+  const { setNodeRef, isOver } = useFolderDroppable(folder.id, "pinned")
 
   // Enumerate the cascade only while the confirm is open, from the live tree.
   const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
@@ -251,18 +305,34 @@ function PinnedFolderRow({
   return (
     // A draggable pinned row, mirroring `PinnedRoomRow`. `Reorder.Item` runs the
     // drag/layout gesture and distinguishes a drag from a click by movement, so
-    // the Link still navigates on a plain click while a drag reorders.
+    // the Link still navigates on a plain click while a drag reorders;
+    // `useDragNavGuard` swallows the stray click a drag-release fires. The
+    // dnd-kit droppable ref rides the same node so the row also accepts filing
+    // drops from the grid.
     <Reorder.Item
+      ref={setNodeRef}
       value={dragKey}
       as="li"
       data-slot="sidebar-menu-item"
       data-sidebar="menu-item"
-      className="group/menu-item relative cursor-grab active:cursor-grabbing"
+      className={cn(
+        "group/menu-item relative cursor-grab rounded-md active:cursor-grabbing",
+        // Outset ring, matching the grid folder tile's drop affordance. It sits
+        // on the <li> (outside the button), so the SidebarGroup's padding gives
+        // it room and the button never paints over it.
+        isOver && "ring-2 ring-primary"
+      )}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
     >
       <SidebarMenuButton asChild>
         {/* A Folder pin is a shortcut to the folder's page; clicking lands in
             its contents (`/files/<id>`). It never moves the folder. */}
-        <Link href={`/files/${folder.id}`} draggable={false}>
+        <Link
+          href={`/files/${folder.id}`}
+          draggable={false}
+          onClick={guardClick}
+        >
           <FolderIcon />
           <span className="truncate">{folder.name}</span>
         </Link>

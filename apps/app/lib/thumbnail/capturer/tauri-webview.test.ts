@@ -14,9 +14,12 @@ afterEach(() => {
 describe("TauriWebviewCapturer", () => {
   it("throws when the control URL is not set (only runs inside the shell)", async () => {
     delete process.env[TAURI_CONTROL_URL_ENV_VAR]
-    await expect(getTauriWebviewCapturer().capture("http://preview/")).rejects.toThrow(
-      /TAURI_CONTROL_URL is not set/
-    )
+    await expect(
+      getTauriWebviewCapturer().capture("http://preview/", {
+        width: 400,
+        height: 300,
+      })
+    ).rejects.toThrow(/TAURI_CONTROL_URL is not set/)
   })
 
   describe("against a stub control server", () => {
@@ -45,12 +48,17 @@ describe("TauriWebviewCapturer", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     })
 
-    it("POSTs the preview URL to /thumbnail and returns the PNG bytes", async () => {
-      const buf = await getTauriWebviewCapturer().capture("http://preview-42.example.com/")
+    it("POSTs the preview URL and frame size to /thumbnail and returns the PNG bytes", async () => {
+      const buf = await getTauriWebviewCapturer().capture(
+        "http://preview-42.example.com/",
+        { width: 400, height: 300 }
+      )
 
       expect(received.url).toBe("/thumbnail")
       expect(JSON.parse(received.body ?? "{}")).toEqual({
         renderUrl: "http://preview-42.example.com/",
+        width: 400,
+        height: 300,
       })
       expect([...buf]).toEqual([0x89, 0x50, 0x4e, 0x47])
     })
@@ -59,12 +67,19 @@ describe("TauriWebviewCapturer", () => {
       // The per-frame input: the local backend's named `.localhost` route for
       // one frame's dev server, not a whole-canvas render page.
       const frameUrl = "http://feat-x.myapp.localhost:1355/settings"
-      const buf = await getTauriWebviewCapturer().capture(frameUrl)
+      const buf = await getTauriWebviewCapturer().capture(frameUrl, {
+        width: 375,
+        height: 812,
+      })
 
-      // Exactly one screenshot request, carrying just this frame's URL.
+      // Exactly one screenshot request, carrying just this frame's URL + size.
       expect(received.posts).toBe(1)
       expect(received.url).toBe("/thumbnail")
-      expect(JSON.parse(received.body ?? "{}")).toEqual({ renderUrl: frameUrl })
+      expect(JSON.parse(received.body ?? "{}")).toEqual({
+        renderUrl: frameUrl,
+        width: 375,
+        height: 812,
+      })
       // And raw PNG bytes come back as a Buffer for the shared resize/store path.
       expect(Buffer.isBuffer(buf)).toBe(true)
       expect([...buf]).toEqual([0x89, 0x50, 0x4e, 0x47])
@@ -81,7 +96,10 @@ describe("TauriWebviewCapturer", () => {
     process.env[TAURI_CONTROL_URL_ENV_VAR] = `http://127.0.0.1:${port}`
     try {
       await expect(
-        getTauriWebviewCapturer().capture("http://preview-42.example.com/")
+        getTauriWebviewCapturer().capture("http://preview-42.example.com/", {
+          width: 400,
+          height: 300,
+        })
       ).rejects.toThrow(/returned 500/)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))

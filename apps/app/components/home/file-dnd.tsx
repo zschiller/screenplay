@@ -21,23 +21,26 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
-import { File as FileIcon, Folder as FolderIcon } from "lucide-react"
-import { cn } from "@workspace/ui/lib/utils"
 import { descendantFolderIds } from "@/lib/folder-cascade"
 import { planFileDrop, type FileDragItem } from "@/lib/file-dnd"
+import type { FolderSummary } from "@/lib/folders-actions"
 import { useHome } from "./home-provider"
 
-// Drag-drop filing for the files page (issue #487). A single DndContext spans
-// both the folder section and the canvas list, so a canvas or folder can be
-// dragged onto any folder tile/row to file it there — reusing the same move
-// path and cycle guard as the "Move to…" dialog. Moving *up* the tree stays the
-// dialog's job; breadcrumb crumbs are deliberately not drop targets. Built on
-// the same dnd-kit setup as the in-room sidebar (PointerSensor with a small
-// activation distance so clicks/navigation still pass through).
+// Drag-drop filing for the home (issue #487). A single DndContext spans the
+// whole home shell — the folder section, the canvas list, *and* the sidebar — so
+// a canvas or folder can be dragged onto any folder tile/row to file it there, or
+// onto a pinned folder / the "All files" root in the sidebar. All paths reuse the
+// same move path and cycle guard as the "Move to…" dialog. Breadcrumb crumbs are
+// deliberately not drop targets. Built on the same dnd-kit setup as the in-room
+// sidebar (PointerSensor with a small activation distance so clicks/navigation
+// still pass through).
 
 // Carries the dragged item through dnd-kit's `active.data`, keyed so it can't be
 // confused with any other payload on the event.
 const DRAG_DATA_KEY = "fileDragItem"
+// Carries the drag preview node — the very same tile "face" the source renders,
+// so the floating overlay can never drift out of sync with the real tile.
+const DRAG_PREVIEW_KEY = "fileDragPreview"
 
 type FileDndContextValue = {
   activeItem: FileDragItem | null
@@ -52,13 +55,18 @@ const FileDndContext = createContext<FileDndContextValue | null>(null)
 
 /**
  * Make a canvas or folder draggable. `disabled` turns it off where filing makes
- * no sense (the flat Recents view has no folders to file into).
+ * no sense (the flat Recents view has no folders to file into). `preview` is the
+ * node the DragOverlay floats under the cursor — pass the *same* face component
+ * the tile renders so the preview stays a pixel-exact copy of the source.
  */
-export function useFileDraggable(item: FileDragItem, disabled = false) {
+export function useFileDraggable(
+  item: FileDragItem,
+  opts: { disabled?: boolean; preview?: React.ReactNode } = {}
+) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `${item.kind}:${item.id}`,
-    data: { [DRAG_DATA_KEY]: item },
-    disabled,
+    data: { [DRAG_DATA_KEY]: item, [DRAG_PREVIEW_KEY]: opts.preview },
+    disabled: opts.disabled,
   })
   return { attributes, listeners, setNodeRef, isDragging }
 }
@@ -68,12 +76,18 @@ export function useFileDraggable(item: FileDragItem, disabled = false) {
  * drop) when the active drag is the folder itself or one of its descendants, so
  * a cycle can never be formed by dropping. `isOver` is true only while a valid
  * drag hovers it, which the tile/row uses to paint its active affordance.
+ *
+ * The same folder can be a drop target in two places at once — its grid tile and
+ * its pinned sidebar row — and dnd-kit keys its droppable registry by id, so two
+ * droppables sharing one id clobber each other (only one stays hittable). The
+ * `scope` keeps each registration's id unique; the move still resolves off the
+ * `folderId` in the data payload, so both behave identically.
  */
-export function useFolderDroppable(folderId: string) {
+export function useFolderDroppable(folderId: string, scope = "grid") {
   const ctx = useContext(FileDndContext)
   const disabled = ctx ? ctx.blocked.has(folderId) : true
   const { setNodeRef, isOver } = useDroppable({
-    id: `folder:${folderId}`,
+    id: `${scope}:folder:${folderId}`,
     data: { folderId },
     disabled,
   })
@@ -81,25 +95,42 @@ export function useFolderDroppable(folderId: string) {
 }
 
 /**
+ * Make the "All files" root a drop target, so an item dragged onto the sidebar's
+ * "All files" entry is filed back at the top of the tree. The root is never a
+ * cycle, so it's always enabled; `planFileDrop` skips the no-op when the item
+ * already lives there. The `folderId: null` payload is what `handleDragEnd`
+ * reads to resolve the move to the root.
+ */
+export function useRootDroppable() {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "file-dnd-root",
+    data: { folderId: null },
+  })
+  return { setNodeRef, isOver }
+}
+
+/**
  * A folder is both a drag source (file it elsewhere) and a drop target (file
  * things into it), so it needs both refs merged onto its one root node.
  */
-export function useFolderDragDrop(folder: {
-  id: string
-  name: string
-  parentFolderId: string | null
-}) {
+export function useFolderDragDrop(
+  folder: FolderSummary,
+  preview?: React.ReactNode
+) {
   const {
     attributes,
     listeners,
     isDragging,
     setNodeRef: setDragRef,
-  } = useFileDraggable({
-    kind: "folder",
-    id: folder.id,
-    name: folder.name,
-    currentParentId: folder.parentFolderId,
-  })
+  } = useFileDraggable(
+    {
+      kind: "folder",
+      id: folder.id,
+      name: folder.name,
+      currentParentId: folder.parentFolderId,
+    },
+    { preview }
+  )
   const { isOver, setNodeRef: setDropRef } = useFolderDroppable(folder.id)
   const setNodeRef = useCallback(
     (node: HTMLElement | null) => {
@@ -112,15 +143,21 @@ export function useFolderDragDrop(folder: {
 }
 
 /**
- * Wraps the files content (folder section + canvas list) in a DndContext so a
- * drag started on any canvas/folder can drop onto any folder. On drop, resolves
- * the move with `planFileDrop` (the shared cycle guard) and commits it through
- * the home provider's `moveRoom` / `moveFolder` — the same server path the
- * dialog uses.
+ * Wraps the whole home shell (sidebar + content) in a DndContext so a drag
+ * started on any canvas/folder can drop onto any folder tile, any pinned folder
+ * row, or the "All files" root. On drop, resolves the move with `planFileDrop`
+ * (the shared cycle guard) and commits it through the home provider's `moveRoom`
+ * / `moveFolder` — the same server path the dialog uses. Mounted once at the
+ * shell so the sidebar and content share one context; the per-tile draggables
+ * stay disabled outside folder views, so nothing picks up in flat Recents.
  */
 export function FileDndProvider({ children }: { children: React.ReactNode }) {
   const { moveRoom, moveFolder, allFolders } = useHome()
   const [activeItem, setActiveItem] = useState<FileDragItem | null>(null)
+  // The source tile's own preview node and its on-screen width, snapshotted at
+  // drag start so the overlay renders a same-size, same-look copy.
+  const [activePreview, setActivePreview] = useState<React.ReactNode>(null)
+  const [activeWidth, setActiveWidth] = useState<number | null>(null)
 
   const sensors = useSensors(
     // A 6px activation distance lets plain clicks (navigation, the ⋮ menu) pass
@@ -143,15 +180,27 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
       | FileDragItem
       | undefined
     setActiveItem(item ?? null)
+    setActivePreview(event.active.data.current?.[DRAG_PREVIEW_KEY] ?? null)
+    setActiveWidth(event.active.rect.current.initial?.width ?? null)
+  }, [])
+
+  const resetDrag = useCallback(() => {
+    setActiveItem(null)
+    setActivePreview(null)
+    setActiveWidth(null)
   }, [])
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const item = activeItem
-      setActiveItem(null)
+      resetDrag()
       if (!item) return
-      const targetId = event.over?.data.current?.folderId as string | undefined
-      if (!targetId) return
+      const over = event.over
+      // No droppable under the pointer (released over empty space) → no move.
+      // Folder targets carry their id; the "All files" root carries `null`, so
+      // read the key's presence — not its truthiness — to tell them apart.
+      if (!over) return
+      const targetId = (over.data.current?.folderId ?? null) as string | null
       const plan = planFileDrop(item, targetId, allFolders)
       if (!plan) return
       // Fire-and-forget like the dialog's onMove; the provider patches local
@@ -159,7 +208,7 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
       if (plan.kind === "room") void moveRoom(plan.id, plan.targetId)
       else void moveFolder(plan.id, plan.targetId)
     },
-    [activeItem, allFolders, moveRoom, moveFolder]
+    [activeItem, allFolders, moveRoom, moveFolder, resetDrag]
   )
 
   return (
@@ -169,30 +218,31 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
         collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setActiveItem(null)}
+        onDragCancel={resetDrag}
+        autoScroll={{
+          // dnd-kit auto-scrolls the nearest scrollable ancestor of whatever the
+          // drag is over. The sidebar's content is `overflow-auto`, so hovering
+          // its drop targets (pinned folders, "All files") would let the drag
+          // scroll it — including sideways, which shoves the fixed two-pane
+          // layout off-screen. Forbid scrolling the sidebar; the content grid
+          // still auto-scrolls, so dragging toward an off-screen folder works.
+          canScroll: (element) =>
+            !(element instanceof HTMLElement) ||
+            element.dataset.sidebar !== "content",
+        }}
       >
         {children}
+        {/* The overlay just floats the source tile's own preview node, sized to
+            the width it had on the page — so it's a pixel-exact copy and there's
+            no second copy of the tile markup to keep in sync. */}
         <DragOverlay dropAnimation={null}>
-          {activeItem ? <DragPreview item={activeItem} /> : null}
+          {activePreview ? (
+            <div style={{ width: activeWidth ?? undefined }}>
+              {activePreview}
+            </div>
+          ) : null}
         </DragOverlay>
       </DndContext>
     </FileDndContext.Provider>
-  )
-}
-
-// The floating preview under the cursor while dragging — a compact chip echoing
-// the item's icon + name, matching the tile/row it was lifted from.
-function DragPreview({ item }: { item: FileDragItem }) {
-  const Icon = item.kind === "folder" ? FolderIcon : FileIcon
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5",
-        "text-sm font-medium shadow-lg ring-1 ring-foreground/10"
-      )}
-    >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{item.name}</span>
-    </div>
   )
 }

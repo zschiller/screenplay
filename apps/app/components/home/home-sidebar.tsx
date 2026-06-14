@@ -14,10 +14,12 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
+import { cn } from "@workspace/ui/lib/utils"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { AccountMenu } from "./account-menu"
 import { PinnedList } from "./pinned-list"
+import { useRootDroppable } from "./file-dnd"
 
 type NavLink = { href: string; label: string; icon: LucideIcon }
 
@@ -76,13 +78,25 @@ export function HomeSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {SECTIONS.map((link) => (
-                <NavItem
-                  key={link.href}
-                  link={link}
-                  active={isActive(link.href)}
-                />
-              ))}
+              {SECTIONS.map((link) =>
+                // "All files" is the folder-tree root, so it doubles as a drop
+                // zone: dragging a canvas/folder onto it files the item back at
+                // the top of the tree (the sidebar twin of the "Move to → All
+                // files" option).
+                link.href === "/files" ? (
+                  <FilesRootNavItem
+                    key={link.href}
+                    link={link}
+                    active={isActive(link.href)}
+                  />
+                ) : (
+                  <NavItem
+                    key={link.href}
+                    link={link}
+                    active={isActive(link.href)}
+                  />
+                )
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -98,6 +112,37 @@ function NavItem({ link, active }: { link: NavLink; active: boolean }) {
   const Icon = link.icon
   return (
     <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={active}>
+        <Link href={link.href}>
+          <Icon />
+          <span>{link.label}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
+/**
+ * The "All files" nav item, doubling as the drop target for the folder-tree root
+ * (issue #487). Identical to `NavItem` but its row is a dnd-kit droppable; while
+ * a valid drag hovers it the row rings to signal the drop. The button stays a
+ * plain navigating Link — the droppable lives on the wrapping <li>, which only
+ * reacts to the shell's DndContext during a drag and never intercepts a click.
+ */
+function FilesRootNavItem({
+  link,
+  active,
+}: {
+  link: NavLink
+  active: boolean
+}) {
+  const Icon = link.icon
+  const { setNodeRef, isOver } = useRootDroppable()
+  return (
+    <SidebarMenuItem
+      ref={setNodeRef}
+      className={cn("rounded-md", isOver && "ring-2 ring-primary")}
+    >
       <SidebarMenuButton asChild isActive={active}>
         <Link href={link.href}>
           <Icon />

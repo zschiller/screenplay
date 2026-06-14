@@ -238,6 +238,7 @@ export function Canvas({
   isOwner,
   sharedWithCount,
   hasThumbnail,
+  parentFolder,
   initialLayout,
   initialThreads,
   initialTerminalTabs,
@@ -247,6 +248,9 @@ export function Canvas({
   isOwner: boolean
   sharedWithCount: number
   hasThumbnail: boolean
+  // The folder this user filed the Room into, or null for the "All files" root.
+  // Drives the breadcrumb's parent crumb so it returns to the Room's home.
+  parentFolder: { id: string; name: string } | null
   initialLayout?: PanelLayout
   initialThreads?: ThreadWithComments[]
   initialTerminalTabs?: TerminalTabRecord[]
@@ -5259,7 +5263,16 @@ export function Canvas({
         <ResizableHandle className="focus-visible:ring-0" />
 
         {/* Canvas */}
-        <ResizablePanel id="canvas">
+        {/* react-resizable-panels wraps each panel's children in a div with
+            `overflow: auto` + `max-width/height: 100%`. The canvas fills that
+            wrapper exactly (`h-full w-full`), so sub-pixel width rounding mid
+            drag-resize momentarily overflows it and flashes a scrollbar — which
+            steals vertical space and shoves the bottom toolbar (absolutely
+            pinned to `bottom-0`) up and down. The panel never needs to scroll —
+            the transformed world is clipped — so pin it to `overflow: hidden`.
+            Inline style (not a className) is required: the library sets
+            `overflow: auto` inline, which wins over any class. */}
+        <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
           <div
             className="relative h-full w-full"
             data-canvas-wrapper
@@ -5895,15 +5908,30 @@ export function Canvas({
                   <BreadcrumbList className="gap-0 text-xs sm:gap-0">
                     <BreadcrumbItem className="gap-0">
                       <BreadcrumbLink
-                        href="/"
-                        className="px-1.5 py-1 font-medium"
+                        href={
+                          parentFolder ? `/files/${parentFolder.id}` : "/files"
+                        }
+                        className="max-w-[14rem] truncate px-1.5 py-1 font-medium"
                         onClick={(e) => {
                           e.preventDefault()
                           stopRoomDevServers()
-                          router.push("/")
+                          // Full-page navigation (not router.push): a soft nav
+                          // serves the home page from the client Router Cache,
+                          // which is the copy captured when we ENTERED the room —
+                          // so a layout edit made in here shows up stale on the
+                          // grid. A hard navigation re-renders home from the
+                          // server (fresh thumbnail manifest) every time, which is
+                          // the behavior that actually works.
+                          window.location.assign(
+                            withBasePath(
+                              parentFolder
+                                ? `/files/${parentFolder.id}`
+                                : "/files"
+                            )
+                          )
                         }}
                       >
-                        Home
+                        {parentFolder ? parentFolder.name : "All files"}
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator className="text-muted-foreground/60">

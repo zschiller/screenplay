@@ -31,6 +31,50 @@ import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
 
+// The Name-column content of a folder row — icon + name link. Shared by the
+// live row and its drag preview so they stay in sync.
+function FolderRowName({ folder }: { folder: FolderSummary }) {
+  return (
+    <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
+      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="truncate font-medium hover:underline">{folder.name}</span>
+    </Link>
+  )
+}
+
+// The Name-column content of a canvas row — icon + name link. Shared by the live
+// row and its drag preview.
+function RoomRowName({ room }: { room: RoomSummary }) {
+  return (
+    <Link href={`/${room.id}`} className="flex items-center gap-2">
+      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="truncate font-medium hover:underline">{room.name}</span>
+    </Link>
+  )
+}
+
+// A dragged row can't float as a real <tr> (it needs its table), so its preview
+// is the row's own Name cell in a lifted chip — same icon+name component, sized
+// by the overlay to the row's width.
+const ROW_PREVIEW_CHIP =
+  "rounded-lg border border-border bg-background px-4 py-2 text-sm shadow-lg ring-1 ring-foreground/10"
+
+export function FolderRowDragPreview({ folder }: { folder: FolderSummary }) {
+  return (
+    <div className={ROW_PREVIEW_CHIP}>
+      <FolderRowName folder={folder} />
+    </div>
+  )
+}
+
+export function RoomRowDragPreview({ room }: { room: RoomSummary }) {
+  return (
+    <div className={ROW_PREVIEW_CHIP}>
+      <RoomRowName room={room} />
+    </div>
+  )
+}
+
 // Compact folder row (PRD #475): a folder icon + name in the Name column, with
 // the date/owner columns left empty so folders read as a distinct section above
 // the canvases. Clicking the name navigates into the folder (`/files/<id>`);
@@ -54,7 +98,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
   // Both a drag source and a drop target (issue #487): file the folder elsewhere
   // by dragging it, or file canvases/folders into it by dropping onto its row.
   const { setNodeRef, attributes, listeners, isDragging, isOver } =
-    useFolderDragDrop(folder)
+    useFolderDragDrop(folder, <FolderRowDragPreview folder={folder} />)
 
   // Enumerate the cascade only while the confirm is open, from the live tree.
   const cascade = deleteOpen ? previewFolderDeletion(folder.id) : null
@@ -68,12 +112,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       className={cn("group", isOver && "bg-accent")}
     >
       <TableCell className="w-full">
-        <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
-          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium hover:underline">
-            {folder.name}
-          </span>
-        </Link>
+        <FolderRowName folder={folder} />
       </TableCell>
       <TableCell />
       <TableCell />
@@ -160,7 +199,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
       name: room.name,
       currentParentId: currentFolderId,
     },
-    !folderView
+    { disabled: !folderView, preview: <RoomRowDragPreview room={room} /> }
   )
 
   return (
@@ -176,12 +215,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
       className="group"
     >
       <TableCell className="w-full">
-        <Link href={`/${room.id}`} className="flex items-center gap-2">
-          <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium hover:underline">
-            {room.name}
-          </span>
-        </Link>
+        <RoomRowName room={room} />
       </TableCell>
       {/* Relative times read Date.now(), which differs between the SSR pass
           and hydration; keep the server value rather than regenerate. */}

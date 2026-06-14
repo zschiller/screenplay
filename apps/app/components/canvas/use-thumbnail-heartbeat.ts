@@ -6,36 +6,34 @@ import { withBasePath } from "@/lib/base-path"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import {
+  THUMBNAIL_CAPTURE_SETTLE_MS as CAPTURE_SETTLE_MS,
   THUMBNAIL_HEARTBEAT_INITIAL_DELAY_MS as INITIAL_DELAY_MS,
   THUMBNAIL_HEARTBEAT_MIN_REFRESH_GAP_MS as MIN_REFRESH_GAP_MS,
-  THUMBNAIL_HEARTBEAT_PERIOD_MS as PERIOD_MS,
+  THUMBNAIL_LAYOUT_DEBOUNCE_MS as LAYOUT_DEBOUNCE_MS,
 } from "@/lib/thumbnail/cadence"
 
 /**
- * Periodically POSTs to /api/thumbnail/[roomId] while the editor is open,
- * carrying only the **dirty subset** of frames to recapture (#474).
+ * Drives the per-Room thumbnail while the editor is open, on two independent
+ * debounced lanes (#474) so the cheap work never waits on the expensive work:
  *
- * Trigger shape (throttle, not debounce):
- * - The first wake schedules a fire `PERIOD_MS` out. Subsequent wakes inside
- *   that window do NOT reset the timer — they piggy-back on the already-
- *   scheduled fire, so every change coalesced into the window ships together.
- *   After firing, the next wake opens a fresh window. Net: at most one fire per
- *   `PERIOD_MS` of activity.
- * - Two things wake the heartbeat: Y.Doc updates (a moved/resized/renamed frame
- *   — layout, not pixels) and the {@link DirtyFrameTracker} (first load, route/
- *   branch change, HMR — a frame's content actually changed).
- * - At fire time we read the tracker's dirty subset and POST it. A non-empty
- *   subset recaptures exactly those frames; an empty subset still POSTs
- *   (`frameIds: []`) so the server rebuilds the manifest's layout — repositioning
- *   a moved frame — without opening a browser. The posted frames are cleared so
- *   the next round starts from a clean slate.
- * - On mount, if the room has no thumbnail yet, fire once with no subset (a full
- *   capture of every ready frame) after a short settle so iframes can load.
- * - On unmount, flush a scheduled-but-unfired window (catches "edit then close
- *   tab"). Skipped if we just fired.
+ * - **Layout lane.** Every Y.Doc update (a moved/resized/renamed/recolored
+ *   frame) resets a short trailing debounce; when it goes quiet we POST
+ *   `frameIds: []`, a layout-only rebuild that repositions the manifest's rects
+ *   without opening a browser. A drag coalesces into one write, and the home
+ *   grid's skeleton tracks edits almost live.
+ * - **Capture lane.** The {@link DirtyFrameTracker} fires when a frame becomes
+ *   ready+dirty — its content actually settled (first paint, a route/branch
+ *   reload, or an HMR reconnect). That resets a settle debounce; when it goes
+ *   quiet we read the dirty subset and POST it, screenshotting exactly the
+ *   frames whose pixels changed, of a settled page rather than a mid-reload
+ *   flash. The server route applies the capture cooldown to this lane only.
  *
- * The server route applies its own cooldown, which deduplicates any overlap
- * between the initial fire and the throttled fire.
+ * On mount, if the room has no thumbnail yet (or always, on the cheap local
+ * build), a backstop full capture fires after a short settle so a brand-new room
+ * gets an image even if no ready transition is observed. On unmount we flush a
+ * pending layout write (persist the latest arrangement) and, if a capture was
+ * scheduled and it's been long enough since the last one, flush that too
+ * (catches "edit then close tab").
  */
 export function useThumbnailHeartbeat(
   roomId: string,
@@ -45,15 +43,15 @@ export function useThumbnailHeartbeat(
   const { doc } = useYjs()
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
+    let layoutTimer: ReturnType<typeof setTimeout> | null = null
+    let captureTimer: ReturnType<typeof setTimeout> | null = null
     let initialTimer: ReturnType<typeof setTimeout> | null = null
-    let lastFire = 0
+    let lastCapture = 0
 
-    // POST the heartbeat. `frameIds` undefined → full-room capture (the initial
-    // fire); an array (possibly empty) → the dirty subset to recapture, with an
-    // empty array meaning "rebuild the manifest layout, capture nothing".
+    // POST the heartbeat. `frameIds` undefined → full-room capture (the backstop
+    // fire); an array → the layout lane (empty: rebuild rects, no browser) or the
+    // capture lane (non-empty: screenshot exactly those frames).
     function post(frameIds?: readonly string[]) {
-      lastFire = Date.now()
       const body = frameIds ? JSON.stringify({ frameIds }) : undefined
       void fetch(withBasePath(`/api/thumbnail/${encodeURIComponent(roomId)}`), {
         method: "POST",
@@ -64,43 +62,74 @@ export function useThumbnailHeartbeat(
       }).catch(() => {})
     }
 
-    function fire() {
-      timer = null
+    // Capture lane: screenshot the frames that are ready+dirty right now. No-op
+    // when nothing settled (the debounce can outlive its dirty frames if they
+    // were already cleared). Clears dirty so the next round starts clean.
+    function fireCapture() {
+      captureTimer = null
       const subset = tracker.dirtySubset()
+      if (subset.length === 0) return
       tracker.clear(subset)
+      lastCapture = Date.now()
       post(subset)
     }
 
-    function ensureScheduled() {
-      if (timer) return
-      timer = setTimeout(fire, PERIOD_MS)
+    // Layout lane: rebuild the manifest's rects from the current doc, no browser.
+    function fireLayout() {
+      layoutTimer = null
+      post([])
     }
 
-    doc.on("update", ensureScheduled)
-    const unsubscribe = tracker.subscribe(ensureScheduled)
+    function onDocUpdate() {
+      if (layoutTimer) clearTimeout(layoutTimer)
+      layoutTimer = setTimeout(fireLayout, LAYOUT_DEBOUNCE_MS)
+    }
 
-    // Locally, fire on every open, not just the first: captures are cheap
-    // (local webview + local fs, deduped by the server cooldown), and it
-    // refreshes any thumbnail that went stale while the room was closed —
-    // including rows persisted before a restart (the blob URL scheme changed
-    // once; see lib/blob/local-fs.ts).
+    function onContentSettling() {
+      if (captureTimer) clearTimeout(captureTimer)
+      captureTimer = setTimeout(fireCapture, CAPTURE_SETTLE_MS)
+    }
+
+    doc.on("update", onDocUpdate)
+    const unsubscribe = tracker.subscribe(onContentSettling)
+
+    // Locally, fire on every open, not just the first: captures are cheap (local
+    // webview + local fs, deduped by the server cooldown), and it refreshes any
+    // thumbnail that went stale while the room was closed — including rows
+    // persisted before a restart (the blob URL scheme changed once; see
+    // lib/blob/local-fs.ts).
     if (!hasThumbnail || isLocalBuild) {
       initialTimer = setTimeout(() => {
         initialTimer = null
+        lastCapture = Date.now()
         post()
       }, INITIAL_DELAY_MS)
     }
 
     return () => {
-      doc.off("update", ensureScheduled)
+      doc.off("update", onDocUpdate)
       unsubscribe()
       if (initialTimer) clearTimeout(initialTimer)
-      const hadPending = timer !== null
-      if (timer) clearTimeout(timer)
-      if (hadPending && Date.now() - lastFire > MIN_REFRESH_GAP_MS) {
-        const subset = tracker.dirtySubset()
-        tracker.clear(subset)
-        post(subset)
+
+      // Flush a pending layout write so the latest arrangement is persisted even
+      // if the tab closes mid-debounce — it's cheap and opens no browser.
+      if (layoutTimer) {
+        clearTimeout(layoutTimer)
+        fireLayout()
+      }
+
+      // Flush a scheduled-but-unfired capture (edit then close), but only if it's
+      // been long enough since the last one — mirrors the route's cooldown intent
+      // client-side so closing the tab doesn't fire a capture we'd otherwise drop.
+      if (captureTimer) {
+        clearTimeout(captureTimer)
+        if (Date.now() - lastCapture > MIN_REFRESH_GAP_MS) {
+          const subset = tracker.dirtySubset()
+          if (subset.length > 0) {
+            tracker.clear(subset)
+            post(subset)
+          }
+        }
       }
     }
   }, [doc, roomId, hasThumbnail, tracker])

@@ -21,26 +21,29 @@ export type FileDragItem = {
 export type FileDropPlan = {
   kind: "room" | "folder"
   id: string
-  /** The destination folder the item was dropped on. */
-  targetId: string
+  /** The destination folder, or `null` for the "All files" root. */
+  targetId: string | null
 }
 
 /**
- * Decide what dropping `item` onto folder `targetId` should do. Returns the move
- * to commit, or `null` when the drop changes nothing (already filed there) or is
- * rejected — a folder dropped onto itself or one of its descendants would create
- * a cycle. `descendantFolderIds` includes the folder itself, so the self-drop is
- * covered by the same check, matching the dialog's guard and `canMoveFolder`.
+ * Decide what dropping `item` onto folder `targetId` should do — `null` targets
+ * the "All files" root (used by the sidebar's "All files" drop zone). Returns the
+ * move to commit, or `null` when the drop changes nothing (already filed there)
+ * or is rejected — a folder dropped onto itself or one of its descendants would
+ * create a cycle. `descendantFolderIds` includes the folder itself, so the
+ * self-drop is covered by the same check, matching the dialog's guard and
+ * `canMoveFolder`. The root is never a cycle, so a folder can always go there.
  */
 export function planFileDrop(
   item: FileDragItem,
-  targetId: string,
+  targetId: string | null,
   folders: readonly CascadeFolder[]
 ): FileDropPlan | null {
-  // Dropping where it already lives is a no-op, not a move.
+  // Dropping where it already lives is a no-op, not a move (root → root too).
   if (targetId === item.currentParentId) return null
   if (
     item.kind === "folder" &&
+    targetId !== null &&
     descendantFolderIds(item.id, folders).includes(targetId)
   ) {
     return null

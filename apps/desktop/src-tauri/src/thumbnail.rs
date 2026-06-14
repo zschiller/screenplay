@@ -8,6 +8,7 @@
 //! `TAURI_CONTROL_URL`) so it never collides with the app's port.
 
 use std::error::Error;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -17,9 +18,17 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tiny_http::{Header, Method, Response, Server};
 
-/// Off-screen window the preview URL loads into for screenshotting. Reused
-/// across captures (the control server handles one request at a time).
-const CAPTURE_LABEL: &str = "thumbnail-capture";
+/// Label prefix for the off-screen window the preview URL loads into for
+/// screenshotting. Each capture builds its own uniquely-suffixed window rather
+/// than reusing one label: `destroy()` dispatched from the worker thread (the
+/// teardown in `capture`) completes asynchronously on the event loop, so the
+/// previous capture's window can still be registered under its label when the
+/// next request — the control server handles them serially — goes to build.
+/// Reusing a fixed label then fails with "a webview with label X already
+/// exists"; a fresh label per capture sidesteps that race entirely.
+const CAPTURE_LABEL_PREFIX: &str = "thumbnail-capture";
+/// Monotonic counter making each capture window's label unique.
+static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
 /// Viewport the preview is screenshotted at — matches the puppeteer
 /// capturer; downstream `sharp` resizes to the stored 640×480.
 const CAPTURE_W: f64 = 1280.0;
@@ -137,12 +146,19 @@ fn serve(server: &Server, app: &AppHandle) {
 fn capture(app: &AppHandle, render_url: &str) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
 
+    // A fresh label per capture — see `CAPTURE_LABEL_PREFIX`.
+    let label = format!(
+        "{CAPTURE_LABEL_PREFIX}-{}",
+        CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+
     // Window + webview work must run on the UI thread.
     let app_main = app.clone();
     let url = render_url.to_string();
     let tx_build = tx.clone();
+    let label_build = label.clone();
     app.run_on_main_thread(move || {
-        if let Err(e) = open_capture_window(&app_main, &url, tx_build.clone()) {
+        if let Err(e) = open_capture_window(&app_main, &url, &label_build, tx_build.clone()) {
             let _ = tx_build.send(Err(e));
         }
     })
@@ -152,8 +168,10 @@ fn capture(app: &AppHandle, render_url: &str) -> Result<Vec<u8>, String> {
         .recv_timeout(Duration::from_secs(CAPTURE_TIMEOUT_S))
         .unwrap_or_else(|_| Err("thumbnail capture timed out".into()));
 
-    // Tear the off-screen window down regardless of outcome.
-    if let Some(window) = app.get_webview_window(CAPTURE_LABEL) {
+    // Tear the off-screen window down regardless of outcome. Dispatched async
+    // from this worker thread; the unique label keeps the next capture from
+    // colliding with it before it lands.
+    if let Some(window) = app.get_webview_window(&label) {
         let _ = window.destroy();
     }
     result
@@ -163,16 +181,12 @@ fn capture(app: &AppHandle, render_url: &str) -> Result<Vec<u8>, String> {
 fn open_capture_window(
     app: &AppHandle,
     url: &str,
+    label: &str,
     tx: mpsc::Sender<Result<Vec<u8>, String>>,
 ) -> Result<(), String> {
-    // A leftover window from a prior capture would make the build fail on a
-    // duplicate label.
-    if let Some(prev) = app.get_webview_window(CAPTURE_LABEL) {
-        let _ = prev.destroy();
-    }
-
     let parsed = url.parse().map_err(|_| format!("bad render url: {url}"))?;
     let app_for_load = app.clone();
+    let label_load = label.to_string();
 
     // Record whoever is frontmost *before* we build the window. `wry` calls
     // `NSApplication.activate` unconditionally when it injects the WKWebview
@@ -183,7 +197,7 @@ fn open_capture_window(
     #[cfg(target_os = "macos")]
     let prev_app = unsafe { macos::frontmost_app() };
 
-    let window = WebviewWindowBuilder::new(app, CAPTURE_LABEL, WebviewUrl::External(parsed))
+    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::External(parsed))
         .title("")
         .inner_size(CAPTURE_W, CAPTURE_H)
         // Off-screen but on a real display so the webview actually renders.
@@ -202,13 +216,15 @@ fn open_capture_window(
             }
             let app = app_for_load.clone();
             let tx = tx.clone();
+            let label = label_load.clone();
             // Let the canvas paint, then snapshot back on the UI thread.
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(SETTLE_MS));
                 let app_snap = app.clone();
                 let tx_snap = tx.clone();
+                let label_snap = label.clone();
                 let _ = app.clone().run_on_main_thread(move || {
-                    snapshot(&app_snap, tx_snap);
+                    snapshot(&app_snap, &label_snap, tx_snap);
                 });
             });
         })
@@ -239,8 +255,8 @@ fn open_capture_window(
 
 /// Snapshot the capture window's webview to PNG and send it. Runs on the UI
 /// thread; `takeSnapshot`'s completion handler fires later on the same run loop.
-fn snapshot(app: &AppHandle, tx: mpsc::Sender<Result<Vec<u8>, String>>) {
-    let Some(window) = app.get_webview_window(CAPTURE_LABEL) else {
+fn snapshot(app: &AppHandle, label: &str, tx: mpsc::Sender<Result<Vec<u8>, String>>) {
+    let Some(window) = app.get_webview_window(label) else {
         let _ = tx.send(Err("capture window vanished before snapshot".into()));
         return;
     };

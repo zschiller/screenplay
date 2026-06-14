@@ -168,6 +168,28 @@ export async function placeRoomInFolder(opts: {
     })
 }
 
+// The folder this user has filed `roomId` into, or null when the Room sits at
+// the user's root (no placement row). Joins through `roomFolder` so the canvas
+// breadcrumb can point its parent crumb at the Room's actual home (PRD #475);
+// per-user, so a collaborator who filed the same Room elsewhere sees their own.
+export async function getRoomParentFolderForUser(
+  userId: string,
+  roomId: string
+): Promise<{ id: string; name: string } | null> {
+  const rows = await db
+    .select({ id: schema.folder.id, name: schema.folder.name })
+    .from(schema.roomFolder)
+    .innerJoin(schema.folder, eq(schema.folder.id, schema.roomFolder.folderId))
+    .where(
+      and(
+        eq(schema.roomFolder.userId, userId),
+        eq(schema.roomFolder.roomId, roomId)
+      )
+    )
+    .limit(1)
+  return rows[0] ?? null
+}
+
 // Every Room this user has filed into a folder, as a flat `(roomId, folderId)`
 // list. Rooms with no row are at the user's root; the caller (home provider /
 // `lib/folder-tree`) treats a missing entry as `folderId: null`.

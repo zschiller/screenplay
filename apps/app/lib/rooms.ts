@@ -155,13 +155,26 @@ export async function touchRoomOpened(roomId: string): Promise<void> {
     .where(eq(schema.room.id, roomId))
 }
 
+/**
+ * Persist a Room's Thumbnail Manifest. `touch` controls the capture clock: a
+ * real capture round (`touch: true`, the default) bumps `thumbnailUpdatedAt` so
+ * the route's cooldown and the home poll see a fresh capture, while a layout-only
+ * rebuild (`touch: false`) rewrites just the rects and deliberately leaves the
+ * timestamp alone — so a stream of cheap layout writes never trips the capture
+ * cooldown (#474). Retained per-frame `capture.capturedAt` stamps mean the grid
+ * still cache-busts changed images regardless of this row-level timestamp.
+ */
 export async function setRoomThumbnailManifest(
   roomId: string,
-  thumbnailManifest: ThumbnailManifest
+  thumbnailManifest: ThumbnailManifest,
+  touch = true
 ): Promise<void> {
   await db
     .update(schema.room)
-    .set({ thumbnailManifest, thumbnailUpdatedAt: new Date() })
+    .set({
+      thumbnailManifest,
+      ...(touch ? { thumbnailUpdatedAt: new Date() } : {}),
+    })
     .where(eq(schema.room.id, roomId))
 }
 

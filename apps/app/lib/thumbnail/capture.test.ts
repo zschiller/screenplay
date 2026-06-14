@@ -112,12 +112,14 @@ describe("captureRoomThumbnail", () => {
 
     const manifest = await captureRoomThumbnail("room-1", capturer)
 
-    // 1. The capturer was driven once per frame, with each frame's preview URL.
+    // 1. The capturer was driven once per frame, with each frame's preview URL
+    //    and its own world-space size as the capture viewport (so the
+    //    screenshot shares the frame's aspect ratio).
     const captureFn = capturer.capture as ReturnType<typeof vi.fn>
     expect(captureFn).toHaveBeenCalledTimes(2)
-    expect(captureFn.mock.calls.map((c) => c[0])).toEqual([
-      "https://a.preview.example/",
-      "https://b.preview.example/settings",
+    expect(captureFn.mock.calls).toEqual([
+      ["https://a.preview.example/", { width: 400, height: 300 }],
+      ["https://b.preview.example/settings", { width: 400, height: 300 }],
     ])
 
     // 2. Each screenshot was resized to a webp and stored under a per-frame key.
@@ -439,6 +441,15 @@ describe("captureRoomThumbnail", () => {
     expect(capturer.capture).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
     expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
+    // A layout-only round must not bump the capture clock, so it persists with
+    // `touch: false` — otherwise frequent layout writes would starve the
+    // route's capture cooldown (#474).
+    const [, , touch] = setRoomThumbnailManifest.mock.calls[0] as unknown as [
+      string,
+      ThumbnailManifest,
+      boolean,
+    ]
+    expect(touch).toBe(false)
     // The frame's new position is reflected, and it kept its last-good image.
     expect(manifest.frames[0]!.x).toBe(50)
     expect(manifest.frames[0]!.y).toBe(60)

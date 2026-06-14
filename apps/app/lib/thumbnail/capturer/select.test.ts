@@ -61,10 +61,13 @@ describe("selectThumbnailCapturer (per-frame URL input)", () => {
       [THUMBNAIL_CAPTURER_ENV_VAR]: "tauri-webview",
     })
 
-    const buf = await capturer.capture(FRAME_URL)
+    const buf = await capturer.capture(FRAME_URL, { width: 400, height: 300 })
 
     expect(tauriCapture).toHaveBeenCalledTimes(1)
-    expect(tauriCapture).toHaveBeenCalledWith(FRAME_URL)
+    expect(tauriCapture).toHaveBeenCalledWith(FRAME_URL, {
+      width: 400,
+      height: 300,
+    })
     expect(puppeteerCapture).not.toHaveBeenCalled()
     expect(buf.toString()).toBe("tauri-png")
   })
@@ -73,10 +76,13 @@ describe("selectThumbnailCapturer (per-frame URL input)", () => {
     const { selectThumbnailCapturer } = await import("./select")
     const capturer = selectThumbnailCapturer({})
 
-    const buf = await capturer.capture(FRAME_URL)
+    const buf = await capturer.capture(FRAME_URL, { width: 400, height: 300 })
 
     expect(puppeteerCapture).toHaveBeenCalledTimes(1)
-    expect(puppeteerCapture).toHaveBeenCalledWith(FRAME_URL)
+    expect(puppeteerCapture).toHaveBeenCalledWith(FRAME_URL, {
+      width: 400,
+      height: 300,
+    })
     expect(tauriCapture).not.toHaveBeenCalled()
     expect(buf.toString()).toBe("puppeteer-png")
   })

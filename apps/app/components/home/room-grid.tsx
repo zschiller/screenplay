@@ -22,7 +22,9 @@ import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
  * Composes a Room's thumbnail from its Thumbnail Manifest: one positioned image
  * per Frame Capture, laid out by each frame's world-space rect normalized
  * against the manifest bounds. The composite box keeps the bounds' aspect ratio
- * and is centered inside the 4:3 card (contain, not stretch). Frames without a
+ * and is centered inside the 4:3 card (contain, not stretch), inset by a small
+ * padding so frames breathe rather than butting up against the card edge. Frames
+ * without a
  * capture yet (booting, skipped, or never captured) render as branch-tinted,
  * labeled placeholder rectangles — the snapshotted palette index is re-resolved
  * through `getBranchColorByIndex` so the tint stays theme-aware. Returns null
@@ -51,7 +53,7 @@ function ThumbnailComposite({
       : { height: "100%", aspectRatio: `${bounds.width} / ${bounds.height}` }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
+    <div className="absolute inset-0 flex items-center justify-center p-3">
       <div className="relative" style={sizeStyle}>
         {frames.map((frame) => {
           const style = {
@@ -110,51 +112,26 @@ function ThumbnailComposite({
   )
 }
 
-function RoomCard({ room }: { room: RoomSummary }) {
-  const {
-    renameRoom,
-    removeRoom,
-    moveRoom,
-    allFolders,
-    folderView,
-    currentFolderId,
-    isPinned,
-    pinRoom,
-    unpin,
-  } = useHome()
-  const pinned = isPinned("room", room.id)
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [shareOpen, setShareOpen] = useState(false)
-  const [moveOpen, setMoveOpen] = useState(false)
+// The structural classes of a canvas tile's outer box, shared by the live card
+// and its drag preview so they can never drift apart. The card layers on hover
+// affordances; the preview layers on the lifted shadow.
+const ROOM_TILE_OUTER =
+  "flex flex-col overflow-hidden rounded-lg border border-border bg-background"
 
-  // Draggable onto a folder to file it (issue #487), but only on the files page
-  // where there are folders to file into — the flat Recents view disables it.
-  // The displayed rooms all live in the folder being viewed, so that's the home
-  // a drop relocates from.
-  const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
-    {
-      kind: "room",
-      id: room.id,
-      name: room.name,
-      currentParentId: currentFolderId,
-    },
-    !folderView
-  )
-
+// The full visual face of a canvas tile — thumbnail panel over name/metadata,
+// with the ⋮ menu in the trailing slot. Rendered by both `RoomCard` (live, with
+// the real action menu) and `RoomTileDragPreview` (static, with an invisible
+// placeholder that just reserves the menu's space). One source of truth: edit
+// the tile here and the drag preview follows automatically.
+function RoomTileFace({
+  room,
+  menu,
+}: {
+  room: RoomSummary
+  menu: React.ReactNode
+}) {
   return (
-    <div
-      ref={setNodeRef}
-      {...(folderView ? attributes : {})}
-      {...(folderView ? listeners : {})}
-      // Open the room's connection on hover/focus so it's synced by the time the
-      // route mounts — the canvas renders on the first frame with no sync-gate
-      // flash. No-op on the hosted build.
-      onPointerEnter={() => prewarmRoom(room.id)}
-      onFocus={() => prewarmRoom(room.id)}
-      style={{ opacity: isDragging ? 0 : undefined }}
-      className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-background transition-colors hover:border-foreground/20"
-    >
+    <>
       <Link
         href={`/${room.id}`}
         className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
@@ -191,29 +168,114 @@ function RoomCard({ room }: { room: RoomSummary }) {
             )}
           </div>
         </div>
-        <RoomActionMenu
-          room={room}
-          onRename={() => setRenameOpen(true)}
-          onDelete={() => setDeleteOpen(true)}
-          onShare={() => setShareOpen(true)}
-          // Filing only makes sense where there's a folder tree to file into —
-          // the files page, not the flat Recents view.
-          onMove={folderView ? () => setMoveOpen(true) : undefined}
-          pinned={pinned}
-          onTogglePin={() =>
-            pinned ? unpin("room", room.id) : pinRoom(room.id)
-          }
-        >
+        {menu}
+      </div>
+    </>
+  )
+}
+
+/**
+ * The node floated under the cursor while a canvas tile is dragged — the same
+ * `RoomTileFace` the live card renders, lifted off the page with a shadow. The
+ * menu slot is an invisible button that only reserves the trailing space (its
+ * resting state on the card), so widths line up exactly.
+ */
+export function RoomTileDragPreview({ room }: { room: RoomSummary }) {
+  return (
+    <div className={cn(ROOM_TILE_OUTER, "shadow-lg ring-1 ring-foreground/10")}>
+      <RoomTileFace
+        room={room}
+        menu={
           <Button
             variant="ghost"
             size="icon-sm"
-            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
-            aria-label="Canvas actions"
+            className="opacity-0"
+            aria-hidden
+            tabIndex={-1}
           >
             <MoreHorizontal />
           </Button>
-        </RoomActionMenu>
-      </div>
+        }
+      />
+    </div>
+  )
+}
+
+function RoomCard({ room }: { room: RoomSummary }) {
+  const {
+    renameRoom,
+    removeRoom,
+    moveRoom,
+    allFolders,
+    folderView,
+    currentFolderId,
+    isPinned,
+    pinRoom,
+    unpin,
+  } = useHome()
+  const pinned = isPinned("room", room.id)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+
+  // Draggable onto a folder to file it (issue #487), but only on the files page
+  // where there are folders to file into — the flat Recents view disables it.
+  // The displayed rooms all live in the folder being viewed, so that's the home
+  // a drop relocates from.
+  const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
+    {
+      kind: "room",
+      id: room.id,
+      name: room.name,
+      currentParentId: currentFolderId,
+    },
+    { disabled: !folderView, preview: <RoomTileDragPreview room={room} /> }
+  )
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...(folderView ? attributes : {})}
+      {...(folderView ? listeners : {})}
+      // Open the room's connection on hover/focus so it's synced by the time the
+      // route mounts — the canvas renders on the first frame with no sync-gate
+      // flash. No-op on the hosted build.
+      onPointerEnter={() => prewarmRoom(room.id)}
+      onFocus={() => prewarmRoom(room.id)}
+      style={{ opacity: isDragging ? 0 : undefined }}
+      className={cn(
+        ROOM_TILE_OUTER,
+        "group relative transition-colors hover:border-foreground/20"
+      )}
+    >
+      <RoomTileFace
+        room={room}
+        menu={
+          <RoomActionMenu
+            room={room}
+            onRename={() => setRenameOpen(true)}
+            onDelete={() => setDeleteOpen(true)}
+            onShare={() => setShareOpen(true)}
+            // Filing only makes sense where there's a folder tree to file into —
+            // the files page, not the flat Recents view.
+            onMove={folderView ? () => setMoveOpen(true) : undefined}
+            pinned={pinned}
+            onTogglePin={() =>
+              pinned ? unpin("room", room.id) : pinRoom(room.id)
+            }
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+              aria-label="Canvas actions"
+            >
+              <MoreHorizontal />
+            </Button>
+          </RoomActionMenu>
+        }
+      />
 
       <InputDialog
         open={renameOpen}

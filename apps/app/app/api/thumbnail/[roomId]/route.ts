@@ -24,20 +24,28 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  // The throttled heartbeat carries the dirty subset of frames to recapture
-  // (#474). A missing/invalid body means a full-room capture — the initial and
-  // unmount fires send none — so `frameIds` stays undefined and every ready
-  // frame is captured.
+  // The heartbeat carries the dirty subset of frames to recapture (#474). A
+  // missing/invalid body means a full-room capture — the backstop and unmount
+  // fires send none — so `frameIds` stays undefined and every ready frame is
+  // captured. An explicit empty array is a layout-only rebuild (the layout lane:
+  // a moved/renamed frame) that opens no browser.
   const frameIds = await readFrameIds(req)
+  const layoutOnly = Array.isArray(frameIds) && frameIds.length === 0
 
-  const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
-  if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
-    return NextResponse.json({ skipped: true }, { status: 200 })
+  // The capture cooldown guards the expensive lane only. A layout-only rebuild
+  // is cheap (a Y.Doc read + a manifest write, no browser) and must run every
+  // time so the home grid's rects stay live — it neither checks nor bumps the
+  // capture clock (`captureRoomThumbnail` persists it with `touch: false`).
+  if (!layoutOnly) {
+    const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
+    if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
+      return NextResponse.json({ skipped: true }, { status: 200 })
+    }
+
+    // Bump the timestamp before queueing so concurrent captures dedup against
+    // the in-flight one instead of stacking duplicate jobs.
+    await touchRoomThumbnailUpdatedAt(roomId)
   }
-
-  // Bump the timestamp before queueing so concurrent heartbeats dedup against
-  // the in-flight capture instead of stacking duplicate jobs.
-  await touchRoomThumbnailUpdatedAt(roomId)
 
   after(async () => {
     try {

@@ -54,4 +54,26 @@ describe("planFileDrop", () => {
     expect(planFileDrop(room("a"), "a", folders)).toBeNull()
     expect(planFileDrop(folder("b", "a"), "a", folders)).toBeNull()
   })
+
+  it("files a canvas back to the root when dropped on 'All files'", () => {
+    expect(planFileDrop(room("a"), null, folders)).toEqual({
+      kind: "room",
+      id: "r1",
+      targetId: null,
+    })
+  })
+
+  it("re-parents a folder to the root — never a cycle", () => {
+    // "b" lives under "a"; dropping it on the root pulls it to the top level.
+    expect(planFileDrop(folder("b", "a"), null, folders)).toEqual({
+      kind: "folder",
+      id: "b",
+      targetId: null,
+    })
+  })
+
+  it("is a no-op when a root-level item is dropped on the root", () => {
+    expect(planFileDrop(room(null), null, folders)).toBeNull()
+    expect(planFileDrop(folder("e", null), null, folders)).toBeNull()
+  })
 })

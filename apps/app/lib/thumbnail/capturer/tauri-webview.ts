@@ -1,6 +1,6 @@
 import "server-only"
 
-import type { ThumbnailCapturer } from "./types"
+import type { CaptureViewport, ThumbnailCapturer } from "./types"
 
 /**
  * The base URL of the Tauri shell's localhost control server, handed to the
@@ -31,7 +31,7 @@ const CAPTURE_TIMEOUT_MS = 20_000
  * is a drop-in sibling of the puppeteer capturer behind the same seam.
  */
 class TauriWebviewCapturer implements ThumbnailCapturer {
-  async capture(previewUrl: string): Promise<Buffer> {
+  async capture(previewUrl: string, viewport: CaptureViewport): Promise<Buffer> {
     const controlUrl = process.env[TAURI_CONTROL_URL_ENV_VAR]
     if (!controlUrl) {
       throw new Error(
@@ -47,8 +47,13 @@ class TauriWebviewCapturer implements ThumbnailCapturer {
       headers: { "content-type": "application/json" },
       // The shell's control server keys this `renderUrl` (serde rename in
       // `thumbnail.rs`); keep the wire field name even though it's now a frame's
-      // preview URL.
-      body: JSON.stringify({ renderUrl: previewUrl }),
+      // preview URL. `width`/`height` size the background webview to the frame's
+      // shape so the screenshot shares its aspect ratio.
+      body: JSON.stringify({
+        renderUrl: previewUrl,
+        width: Math.max(1, Math.round(viewport.width)),
+        height: Math.max(1, Math.round(viewport.height)),
+      }),
       signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
     })
 
