@@ -36,6 +36,23 @@ export interface ExternalEngineConfig {
    * `session/load` miss); a successful load reuses the same id and skips this.
    */
   onSessionId?: (sessionId: string) => Promise<void> | void
+  /**
+   * The chat's chosen model *within* the Harness (the `modelId` half of its
+   * stored `harness:<key>:<modelId>` id — ADR 0006: it refines which model the
+   * already-build-selected external engine runs, never the engine itself). At
+   * session open the ACP-native adapter applies it via `setSessionModel`; an
+   * adapter that takes its model at spawn (codex) already has it on the argv, so
+   * this is inert there. Absent ⇒ the Harness runs its own default.
+   */
+  modelId?: string
+  /**
+   * Persist the resolved model id after a session-open silent fallback, when the
+   * stored model was stale (#526). Threaded to {@link AcpSession} so both the
+   * eager open-time reconcile and the prompt-time recovery write through one
+   * path. Absent ⇒ no reconciliation (e.g. a sandbox-less chat with no id to key
+   * on).
+   */
+  reconcileModel?: (modelId: string) => Promise<void> | void
 }
 
 /**
@@ -195,11 +212,19 @@ export class ExternalEngine implements Engine {
     // #408). Non-plan turns and mode-less agents pass through.
     const planMode = turn.planMode
 
+    // The chat's per-chat model choice, applied at open via ACP-native model
+    // selection (claude-code) — inert for a spawn-applied adapter (codex) and
+    // for a chat with no stored model. Reconciliation rewrites a stale stored id
+    // to the resolved one (#526).
+    const { modelId, reconcileModel } = this.config
+
     if (this.config.loadSessionId) {
       try {
         const session = await this.config.sessionFactory.open(ports, {
           cwd,
           planMode,
+          modelId,
+          reconcileModel,
           loadSessionId: this.config.loadSessionId,
         })
         return { session, resumed: true }
@@ -211,6 +236,8 @@ export class ExternalEngine implements Engine {
     const session = await this.config.sessionFactory.open(ports, {
       cwd,
       planMode,
+      modelId,
+      reconcileModel,
     })
     await this.config.onSessionId?.(session.id)
     return { session, resumed: false }

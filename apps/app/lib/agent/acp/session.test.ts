@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   AgentSideConnection,
   PROTOCOL_VERSION,
+  RequestError,
   agentMessageChunk,
   blockText,
   isUpdate,
@@ -54,19 +55,31 @@ interface FakeModes {
   currentModeId: string
 }
 
+interface FakeModels {
+  availableModels: { modelId: string; name: string }[]
+  currentModelId: string
+}
+
+type FakeAgentOpts = {
+  loadSession?: boolean
+  modes?: FakeModes
+  models?: FakeModels
+}
+
 class FakeAcpAgent implements Agent {
   initializeCalls = 0
   newSessionCalls = 0
   loadedSessionId: string | null = null
   cancelCalls = 0
   setSessionModeCalls: string[] = []
+  setSessionModelCalls: string[] = []
   private cancelled = false
   private cancelWaiters: Array<() => void> = []
 
   constructor(
     private readonly conn: AgentSideConnection,
     private readonly behavior: PromptBehavior,
-    private readonly opts: { loadSession?: boolean; modes?: FakeModes } = {}
+    private readonly opts: FakeAgentOpts = {}
   ) {}
 
   async initialize(): Promise<InitializeResponse> {
@@ -77,9 +90,17 @@ class FakeAcpAgent implements Agent {
     }
   }
 
-  async newSession(): Promise<{ sessionId: string; modes?: FakeModes }> {
+  async newSession(): Promise<{
+    sessionId: string
+    modes?: FakeModes
+    models?: FakeModels
+  }> {
     this.newSessionCalls++
-    return { sessionId: SESSION_ID, modes: this.opts.modes }
+    return {
+      sessionId: SESSION_ID,
+      modes: this.opts.modes,
+      models: this.opts.models,
+    }
   }
 
   async authenticate(): Promise<void> {
@@ -88,13 +109,19 @@ class FakeAcpAgent implements Agent {
 
   async loadSession(
     params: LoadSessionRequest
-  ): Promise<{ modes?: FakeModes }> {
+  ): Promise<{ modes?: FakeModes; models?: FakeModels }> {
     this.loadedSessionId = params.sessionId
-    return { modes: this.opts.modes }
+    return { modes: this.opts.modes, models: this.opts.models }
   }
 
   async setSessionMode(params: { modeId: string }): Promise<void> {
     this.setSessionModeCalls.push(params.modeId)
+  }
+
+  async unstable_setSessionModel(params: {
+    modelId: string
+  }): Promise<void> {
+    this.setSessionModelCalls.push(params.modelId)
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -136,7 +163,7 @@ function inMemoryStreams(): { client: Stream; agent: Stream } {
 /** Stand up a fake agent on one end and hand back the client-side transport. */
 function connectFakeAgent(
   behavior: PromptBehavior,
-  opts: { loadSession?: boolean; modes?: FakeModes } = {}
+  opts: FakeAgentOpts = {}
 ): { transport: AcpTransport; agent: FakeAcpAgent } {
   const { client, agent: agentStream } = inMemoryStreams()
   let agent!: FakeAcpAgent
@@ -405,6 +432,163 @@ describe("AcpSession — plan mode (session/set_mode)", () => {
     await AcpSession.open(transport, ports, { cwd: "/work", planMode: true })
 
     expect(agent.setSessionModeCalls).toEqual([])
+  })
+})
+
+describe("AcpSession — model selection (unstable_setSessionModel)", () => {
+  // Mirrors the claude-code adapter from spike #523: it advertises a model list
+  // and honors `setSessionModel`. `default` is itself a real, current model.
+  const models: FakeModels = {
+    availableModels: [
+      { modelId: "default", name: "Default" },
+      { modelId: "sonnet", name: "Sonnet" },
+      { modelId: "haiku", name: "Haiku" },
+    ],
+    currentModelId: "default",
+  }
+
+  it("applies the chat's model at open when the agent advertises it", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      models,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work", modelId: "sonnet" })
+
+    expect(agent.setSessionModelCalls).toEqual(["sonnet"])
+  })
+
+  it("applies the model on a loaded (resumed) session too", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      models,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      loadSessionId: "sess_prior",
+      modelId: "haiku",
+    })
+
+    expect(agent.setSessionModelCalls).toEqual(["haiku"])
+  })
+
+  it("makes no model call when the stored model is already current", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      models,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work", modelId: "default" })
+
+    expect(agent.setSessionModelCalls).toEqual([])
+  })
+
+  it("makes no model call when no model is stored — the Harness runs its default", async () => {
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      models,
+    })
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, { cwd: "/work" })
+
+    expect(agent.setSessionModelCalls).toEqual([])
+  })
+
+  it("silently falls back and reconciles when the stored model is not advertised", async () => {
+    // The stored model vanished from the live list (subscription tier changed):
+    // no throw, no `setSessionModel`, and the stored id is reconciled to the
+    // Harness default so the next open is clean — a model is a preference
+    // refinement, not an identity (#526, story #6).
+    const { transport, agent } = connectFakeAgent(async () => "end_turn", {
+      models,
+    })
+    const reconciled: string[] = []
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "opus-ultra-9000",
+      reconcileModel: (id) => void reconciled.push(id),
+    })
+
+    expect(agent.setSessionModelCalls).toEqual([])
+    expect(reconciled).toEqual(["default"])
+  })
+
+  it("makes no model call when the agent advertises no models (e.g. codex)", async () => {
+    // codex advertises no `SessionModelState` (spike #523): the ACP path is a
+    // no-op (its model rode the spawn argv), and there is nothing to reconcile.
+    const { transport, agent } = connectFakeAgent(async () => "end_turn")
+    const reconciled: string[] = []
+    const { ports } = collectingPorts()
+
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "gpt-5.5",
+      reconcileModel: (id) => void reconciled.push(id),
+    })
+
+    expect(agent.setSessionModelCalls).toEqual([])
+    expect(reconciled).toEqual([])
+  })
+
+  it("recovers when an advertised model fails the first prompt with -32603", async () => {
+    // `setSessionModel` validates lazily (spike #523): an advertised-but-
+    // unentitled model is accepted on the call and only rejected on the first
+    // prompt (`-32603`). The session falls back to the Harness default,
+    // reconciles, and retries once, so the turn succeeds rather than erroring.
+    let prompts = 0
+    const behavior: PromptBehavior = async () => {
+      prompts++
+      if (prompts === 1) {
+        throw new RequestError(
+          -32603,
+          "There was an issue with the selected model: it may not exist or you may not have access"
+        )
+      }
+      return "end_turn"
+    }
+    const { transport, agent } = connectFakeAgent(behavior, { models })
+    const reconciled: string[] = []
+    const { ports } = collectingPorts()
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "sonnet",
+      reconcileModel: (id) => void reconciled.push(id),
+    })
+
+    const stopReason = await session.prompt(
+      [textBlock("hi")],
+      new AbortController().signal
+    )
+
+    expect(stopReason).toBe("end_turn")
+    expect(prompts).toBe(2)
+    // Applied the chosen model, then fell back to the Harness default on the
+    // prompt-time rejection.
+    expect(agent.setSessionModelCalls).toEqual(["sonnet", "default"])
+    expect(reconciled).toEqual(["default"])
+  })
+
+  it("does not mask a non-model internal error as a stale-model fallback", async () => {
+    // A generic `-32603` whose message doesn't name the model must surface, not
+    // be silently retried — the recovery is narrow on purpose.
+    const behavior: PromptBehavior = async () => {
+      throw new RequestError(-32603, "database connection exploded")
+    }
+    const { transport, agent } = connectFakeAgent(behavior, { models })
+    const { ports } = collectingPorts()
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "sonnet",
+    })
+
+    await expect(
+      session.prompt([textBlock("hi")], new AbortController().signal)
+    ).rejects.toMatchObject({ code: -32603 })
+    // Applied the model once; never fell back, since this wasn't a model error.
+    expect(agent.setSessionModelCalls).toEqual(["sonnet"])
   })
 })
 

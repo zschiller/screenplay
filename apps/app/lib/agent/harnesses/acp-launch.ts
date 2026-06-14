@@ -76,16 +76,29 @@ export function acpChildEnv(
  * `cwd` is the Branch's worktree root; `env` defaults to the host
  * `process.env`. The returned `env` is the host env with the Claude-Code
  * session vars stripped (see {@link acpChildEnv}).
+ *
+ * `modelId` is the chat's chosen model within the Harness. For an adapter that
+ * applies the model at spawn ({@link AcpAdapter.modelArgs} — codex's `--model`,
+ * spike #523) its args are appended here; for an ACP-native adapter (no
+ * `modelArgs` — claude-code) it is ignored, since that path applies the model
+ * in-session via `setSessionModel`. With no `modelId` the argv is unchanged, so
+ * a Harness with no stored model spawns exactly as before.
  */
 export function resolveAcpLaunch(
   harnessKey: string | null | undefined,
-  opts: { cwd: string; env?: Record<string, string | undefined> }
+  opts: {
+    cwd: string
+    env?: Record<string, string | undefined>
+    modelId?: string
+  }
 ): AcpLaunch | null {
   const adapter = harnessAcpAdapter(harnessKey)
   if (!adapter) return null
+  const modelArgs =
+    opts.modelId && adapter.modelArgs ? adapter.modelArgs(opts.modelId) : []
   return {
     command: adapter.command,
-    args: [...adapter.args],
+    args: [...adapter.args, ...modelArgs],
     cwd: opts.cwd,
     env: acpChildEnv(opts.env ?? process.env),
   }

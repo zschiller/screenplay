@@ -33,6 +33,15 @@ import {
 export interface SpawnAcpSessionFactoryConfig {
   /** Harness key whose ACP adapter to spawn (e.g. `claude`, `codex`). */
   harnessKey: string
+  /**
+   * The chat's chosen model within the Harness, for an adapter that takes its
+   * model at spawn ({@link import("../harnesses/types").AcpAdapter.modelArgs} —
+   * codex's `--model`, spike #523). Folded into the launch argv by
+   * {@link resolveAcpLaunch}; ignored by ACP-native adapters (claude-code),
+   * which apply the model in-session. Absent ⇒ the Harness default, argv
+   * unchanged.
+   */
+  modelId?: string
   /** Base environment for the child; defaults to the host `process.env`. */
   env?: Record<string, string | undefined>
   /**
@@ -70,6 +79,7 @@ export class SpawnAcpSessionFactory implements AcpSessionFactory {
     const launch = resolveAcpLaunch(this.config.harnessKey, {
       cwd: options.cwd,
       env: this.config.env ?? process.env,
+      modelId: this.config.modelId,
     })
     if (!launch) {
       throw new Error(
