@@ -3,7 +3,7 @@ import {
   computeDeviceSnap,
   computeMergeSnap,
   computeMoveSnap,
-  MERGE_SNAP_THRESHOLD,
+  MERGE_SNAP_THRESHOLD_PX,
   MOVE_SNAP_THRESHOLD_PX,
   SNAP_THRESHOLD_PX,
   type MergeSnapCandidate,
@@ -55,9 +55,9 @@ describe("computeMoveSnap", () => {
   })
 
   it("snaps at exactly the threshold but not just beyond it", () => {
-    const threshold = MOVE_SNAP_THRESHOLD_PX // 6
+    const threshold = MOVE_SNAP_THRESHOLD_PX // 8
 
-    // Just below: delta 5.9px → snaps.
+    // Just below: delta 7.9px → snaps.
     expect(
       computeMoveSnap({
         rect,
@@ -75,7 +75,7 @@ describe("computeMoveSnap", () => {
       }).snapDx
     ).toBe(threshold)
 
-    // Just above: delta 6.1px → no snap, no guides.
+    // Just above: delta 8.1px → no snap, no guides.
     const above = computeMoveSnap({
       rect,
       candidates: [{ x: threshold + 0.1, y: 5000, width: 1000, height: 10 }],
@@ -86,8 +86,8 @@ describe("computeMoveSnap", () => {
   })
 
   it("scales the threshold with zoom (screen-pixel distances)", () => {
-    // At 2× zoom a 4px world delta is 8 screen px — beyond the 6px threshold.
-    const candidate: Rect = { x: 4, y: 5000, width: 1000, height: 10 }
+    // At 2× zoom a 5px world delta is 10 screen px — beyond the 8px threshold.
+    const candidate: Rect = { x: 5, y: 5000, width: 1000, height: 10 }
     expect(
       computeMoveSnap({ rect, candidates: [candidate], zoom: 2 }).snapDx
     ).toBe(0)
@@ -213,12 +213,13 @@ describe("computeMergeSnap", () => {
 
   it("picks the nearest target among several", () => {
     // Source at (120, 30). The "near" slot is at (120, 0) → 30 away; the "far"
-    // slot is at (120, 100) → 70 away. Both are within the default radius, so
+    // slot is at (120, 100) → 70 away. Both are within the threshold here, so
     // the tie-break is pure distance.
     const result = computeMergeSnap({
       rect: { ...rect, x: 120, y: 30 },
       candidates: [candidate("far", 0, 100), candidate("near", 0, 0)],
       memberSizes,
+      thresholdPx: 150,
     })
 
     expect(result!.targetId).toBe("near")
@@ -235,30 +236,62 @@ describe("computeMergeSnap", () => {
     expect(result).toBeNull()
   })
 
-  it("goes hot just below the threshold but not at or beyond it", () => {
-    const threshold = 100
+  it("goes hot just below the threshold but not at or beyond it (at zoom 1)", () => {
+    const thresholdPx = 100
     // Slot is at (120, 0); push the source down the y axis so distance == |dy|.
     const at = (dy: number) =>
       computeMergeSnap({
         rect: { ...rect, x: 120, y: dy },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
-        threshold,
+        thresholdPx,
       })
 
     // Just below → hot.
-    expect(at(threshold - 0.1)?.targetId).toBe("target")
+    expect(at(thresholdPx - 0.1)?.targetId).toBe("target")
     // Exactly at the threshold → cold (detection uses a strict `<`).
-    expect(at(threshold)).toBeNull()
+    expect(at(thresholdPx)).toBeNull()
     // Just above → cold.
-    expect(at(threshold + 0.1)).toBeNull()
+    expect(at(thresholdPx + 0.1)).toBeNull()
   })
 
-  it("uses MERGE_SNAP_THRESHOLD as the default radius", () => {
+  it("snaps at a constant screen-pixel distance regardless of zoom", () => {
+    const thresholdPx = 100
+    // Slot at (120, 0); the source sits a fixed 100px ON SCREEN below it at every
+    // zoom — world dy = 100 / zoom — so it must stay hot just inside the threshold.
+    const atScreen100 = (zoom: number) =>
+      computeMergeSnap({
+        rect: { ...rect, x: 120, y: 99 / zoom },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+        thresholdPx,
+        zoom,
+      })
+
+    // 99px on screen < 100px threshold → hot at any zoom.
+    expect(atScreen100(0.25)?.targetId).toBe("target")
+    expect(atScreen100(1)?.targetId).toBe("target")
+    expect(atScreen100(4)?.targetId).toBe("target")
+
+    // The same world gap that's hot zoomed in goes cold zoomed out: world dy 80,
+    // 80 × 0.25 = 20px hot, 80 × 2 = 160px ≥ 100 cold.
+    const atWorld80 = (zoom: number) =>
+      computeMergeSnap({
+        rect: { ...rect, x: 120, y: 80 },
+        candidates: [candidate("target", 0, 0)],
+        memberSizes,
+        thresholdPx,
+        zoom,
+      })
+    expect(atWorld80(0.25)?.targetId).toBe("target")
+    expect(atWorld80(2)).toBeNull()
+  })
+
+  it("uses MERGE_SNAP_THRESHOLD_PX as the default radius (at zoom 1)", () => {
     // Just inside the default radius along y.
     expect(
       computeMergeSnap({
-        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD - 1 },
+        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD_PX - 1 },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
       })?.targetId
@@ -266,7 +299,7 @@ describe("computeMergeSnap", () => {
     // Just outside it.
     expect(
       computeMergeSnap({
-        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD + 1 },
+        rect: { ...rect, x: 120, y: MERGE_SNAP_THRESHOLD_PX + 1 },
         candidates: [candidate("target", 0, 0)],
         memberSizes,
       })

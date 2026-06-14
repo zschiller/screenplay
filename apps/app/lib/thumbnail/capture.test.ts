@@ -153,6 +153,8 @@ describe("captureRoomThumbnail", () => {
         capture: {
           url: "https://blob.example/thumbnails/room-1/a.webp",
           capturedAt: NOW,
+          width: 400,
+          height: 300,
         },
       },
       {
@@ -166,6 +168,8 @@ describe("captureRoomThumbnail", () => {
         capture: {
           url: "https://blob.example/thumbnails/room-1/b.webp",
           capturedAt: NOW,
+          width: 400,
+          height: 300,
         },
       },
     ])
@@ -198,6 +202,8 @@ describe("captureRoomThumbnail", () => {
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
       capturedAt: NOW,
+      width: 400,
+      height: 300,
     })
     // The booting frame lands captureless but still carries its placeholder tint.
     expect(manifest.frames[1]!.capture).toBeNull()
@@ -248,6 +254,8 @@ describe("captureRoomThumbnail", () => {
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
       capturedAt: NOW,
+      width: 400,
+      height: 300,
     })
     expect(manifest.frames[1]!.capture).toBeNull()
   })
@@ -309,6 +317,8 @@ describe("captureRoomThumbnail", () => {
     expect(manifest.frames[0]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/a.webp",
       capturedAt: NOW,
+      width: 400,
+      height: 300,
     })
     expect(manifest.frames[1]!.capture).toEqual({
       url: "https://blob.example/old/b.webp",
@@ -394,6 +404,8 @@ describe("captureRoomThumbnail", () => {
     expect(manifest.frames[1]!.capture).toEqual({
       url: "https://blob.example/thumbnails/room-1/b.webp",
       capturedAt: NOW,
+      width: 400,
+      height: 300,
     })
   })
 
@@ -457,6 +469,55 @@ describe("captureRoomThumbnail", () => {
       url: "https://blob.example/old/a.webp",
       capturedAt: 1,
     })
+  })
+
+  it("skips the write on a layout-only round when the layout is unchanged", async () => {
+    const capturer: ThumbnailCapturer = { capture: vi.fn() }
+
+    const previousManifest: ThumbnailManifest = {
+      version: 2,
+      revision: 7,
+      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 300,
+          paletteIndex: resolveBranchColorIndex("branch-a"),
+          capture: { url: "https://blob.example/old/a.webp", capturedAt: 1 },
+        },
+      ],
+    }
+    getRoom.mockResolvedValue({ thumbnailManifest: previousManifest })
+
+    // The doc changed (a layout-lane / webhook trigger fired) but nothing that
+    // affects the layout moved — same rect, label, palette, frame set.
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "a",
+          label: "Home",
+          previewUrl: "https://a.preview.example/",
+          branchKey: "branch-a",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail("room-1", capturer, {
+      frameIds: [],
+    })
+
+    // No write, no revision bump — so a chat-stream doc change firing the hosted
+    // webhook can't thrash the home grid's poll.
+    expect(setRoomThumbnailManifest).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+    expect(manifest).toBe(previousManifest)
   })
 
   it("skips a frame whose capture never resolves within the timeout", async () => {

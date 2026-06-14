@@ -33,6 +33,15 @@ export async function register(): Promise<void> {
   const { watchParentShell } = await import("@/lib/desktop/parent-watch")
   watchParentShell()
 
+  // A thumbnail capture tearing down headless Chromium mid-navigation (or an
+  // aborted keepalive heartbeat POST) resets an in-flight connection to this
+  // server; Node would otherwise treat that benign `ECONNRESET` as a fatal
+  // uncaughtException and take the whole sidecar down. Armed before the
+  // long-lived servers below so a reset can never crash them.
+  const { installSocketResetGuard } =
+    await import("@/lib/desktop/socket-reset-guard")
+  installSocketResetGuard()
+
   // Desktop only: the local backend's dev servers / proxies / terminals are
   // detached host process groups, so they'd outlive this sidecar unless someone
   // reaps them. Installed before the boot work below so the exit hook is armed

@@ -32,20 +32,32 @@ export async function POST(
   const frameIds = await readFrameIds(req)
   const layoutOnly = Array.isArray(frameIds) && frameIds.length === 0
 
-  // The capture cooldown guards the expensive lane only. A layout-only rebuild
-  // is cheap (a Y.Doc read + a manifest write, no browser) and must run every
-  // time so the home grid's rects stay live — it neither checks nor bumps the
-  // capture clock (`captureRoomThumbnail` persists it with `touch: false`).
-  if (!layoutOnly) {
-    const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
-    if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
-      return NextResponse.json({ skipped: true }, { status: 200 })
+  // The layout lane is cheap (a Y.Doc read + a manifest write, no browser) and a
+  // navigation away from the editor awaits this POST before it unloads (see the
+  // heartbeat's `flushLayout`), so run it INLINE rather than in `after()`: the
+  // response only resolves once the manifest is persisted, so the home grid the
+  // user lands on reads the just-saved arrangement instead of racing a deferred
+  // rebuild. It neither checks nor bumps the capture clock — `captureRoomThumbnail`
+  // persists it with `touch: false` for an empty subset — so a stream of layout
+  // writes never starves the capture cooldown.
+  if (layoutOnly) {
+    try {
+      await captureRoomThumbnail(roomId, undefined, { frameIds })
+    } catch (err) {
+      console.error("[thumbnail] layout rebuild failed", err)
     }
-
-    // Bump the timestamp before queueing so concurrent captures dedup against
-    // the in-flight one instead of stacking duplicate jobs.
-    await touchRoomThumbnailUpdatedAt(roomId)
+    return NextResponse.json({ rebuilt: true }, { status: 200 })
   }
+
+  // The capture cooldown guards the expensive lane only.
+  const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
+  if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
+    return NextResponse.json({ skipped: true }, { status: 200 })
+  }
+
+  // Bump the timestamp before queueing so concurrent captures dedup against the
+  // in-flight one instead of stacking duplicate jobs.
+  await touchRoomThumbnailUpdatedAt(roomId)
 
   after(async () => {
     try {

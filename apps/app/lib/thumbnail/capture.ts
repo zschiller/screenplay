@@ -23,6 +23,25 @@ const MAX_FRAME_DIM = 512
 // capturer's internal budget so it only fires on a genuine hang.
 const FRAME_CAPTURE_TIMEOUT_MS = 30_000
 
+/**
+ * Whether two manifests describe the same layout — every field except the
+ * `revision` counter (bumped on each write) and ignoring frame order. Used to
+ * keep a layout-only rebuild idempotent: a doc change that didn't move/rename/
+ * recolor/add/remove a frame produces an equal layout and is skipped. A
+ * layout-only round retains prior captures, so comparing the whole frame
+ * (capture included) is correct — captures only differ when pixels were actually
+ * recaptured, which a layout-only round never does.
+ */
+function sameLayout(a: ThumbnailManifest, b: ThumbnailManifest): boolean {
+  const strip = (m: ThumbnailManifest) =>
+    JSON.stringify({
+      version: m.version,
+      bounds: m.bounds,
+      frames: [...m.frames].sort((x, y) => x.id.localeCompare(y.id)),
+    })
+  return strip(a) === strip(b)
+}
+
 /** Reject `p` if it hasn't settled within `ms` — the per-frame capture ceiling. */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>
@@ -127,7 +146,15 @@ export async function captureRoomThumbnail(
         webp,
         { contentType: "image/webp", cacheControlMaxAge: 60 }
       )
-      captures.set(frame.id, { url, capturedAt })
+      // Stamp the rect this screenshot was shot at, so a later resize can tell
+      // the retained image is stale and discard it rather than scale/crop it
+      // (see `buildThumbnailManifest`).
+      captures.set(frame.id, {
+        url,
+        capturedAt,
+        width: layout.width,
+        height: layout.height,
+      })
     } catch (err) {
       // Skip this frame and keep going: it lands in the manifest captureless
       // (a branch-tinted placeholder) and every other frame's capture survives.
@@ -138,17 +165,26 @@ export async function captureRoomThumbnail(
     }
   }
 
-  const manifest = buildThumbnailManifest(
-    layouts,
-    frames,
-    captures,
-    previousRoom?.thumbnailManifest ?? null
-  )
+  const previousManifest = previousRoom?.thumbnailManifest ?? null
+  const manifest = buildThumbnailManifest(layouts, frames, captures, previousManifest)
   // A layout-only round (empty subset, no browser) rewrites just the rects, so
   // it must not bump the capture clock — otherwise a stream of layout writes
   // would starve the route's capture cooldown (#474). Any round that could have
   // captured pixels (a non-empty subset, or a full `undefined` round) touches it.
   const layoutOnly = options?.frameIds?.length === 0
+
+  // A layout-only round retains every prior capture, so the *only* thing that can
+  // differ from the previous manifest is the layout (rects/labels/palette/frame
+  // set). When it's unchanged, skip the write entirely: this keeps the rebuild
+  // idempotent so a trigger that fires on *any* doc change — the hosted Liveblocks
+  // `ydocUpdated` webhook, which can't tell a frame move from a chat-stream write
+  // — doesn't bump the revision and thrash the home grid's poll on every chat
+  // token. (The local watcher already filters to layout collections; this is the
+  // matching guard for the webhook.)
+  if (layoutOnly && previousManifest && sameLayout(previousManifest, manifest)) {
+    return previousManifest
+  }
+
   await setRoomThumbnailManifest(roomId, manifest, !layoutOnly)
   return manifest
 }

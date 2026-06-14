@@ -1375,6 +1375,9 @@ export function RoomSidebar({
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <DndContext
+            // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
+            // across SSR/hydration (see file-dnd.tsx for the full rationale).
+            id="room-sidebar-branches"
             sensors={sensors}
             collisionDetection={branchesCollision}
             onDragStart={handleBranchesDragStart}
@@ -1923,6 +1926,9 @@ export function RoomSidebar({
           </DndContext>
 
           <DndContext
+            // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
+            // across SSR/hydration (see file-dnd.tsx for the full rationale).
+            id="room-sidebar-canvases"
             sensors={sensors}
             collisionDetection={canvasCollision}
             onDragStart={handleDragStart}

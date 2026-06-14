@@ -32,11 +32,16 @@ function input(
   return { id, label, branchKey: `branch-${id}`, ...branch }
 }
 
-/** A fresh capture for `id`, captured at `capturedAt`. */
-function capture(id: string, capturedAt: number): FrameCapture {
+/** A fresh capture for `id`, captured at `capturedAt`, optionally sized. */
+function capture(
+  id: string,
+  capturedAt: number,
+  size?: { width: number; height: number }
+): FrameCapture {
   return {
     url: `https://blob.example/thumbnails/room-1/${id}.webp`,
     capturedAt,
+    ...size,
   }
 }
 
@@ -276,6 +281,72 @@ describe("buildThumbnailManifest", () => {
       })
       // Bounds widen to the union of the new geometry.
       expect(next.bounds).toEqual({ x: 0, y: 0, width: 1300, height: 1050 })
+    })
+
+    it("discard: a retained capture is dropped when the frame was resized", () => {
+      // `a` was shot at 400x300, then resized (any dimension change counts).
+      const shot = buildThumbnailManifest(
+        layouts,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map<string, FrameCapture>([
+          ["a", capture("a", 1000, { width: 400, height: 300 })],
+        ])
+      )
+      const resized = new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 500, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ])
+      const next = buildThumbnailManifest(
+        resized,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map(),
+        shot
+      )
+
+      // The stale image would misframe in the new rect, so it's discarded.
+      expect(next.frames[0]!.capture).toBeNull()
+    })
+
+    it("retains a capture across a pure move that keeps the frame's size", () => {
+      // `a` was shot at 400x300, then dragged to a new position — same size.
+      const shot = buildThumbnailManifest(
+        layouts,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map<string, FrameCapture>([
+          ["a", capture("a", 1000, { width: 400, height: 300 })],
+        ])
+      )
+      const moved = new Map([
+        ["a", layout("a", { x: 90, y: 120, width: 400, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ])
+      const next = buildThumbnailManifest(
+        moved,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map(),
+        shot
+      )
+
+      expect(next.frames[0]!.capture).toEqual(
+        capture("a", 1000, { width: 400, height: 300 })
+      )
+    })
+
+    it("keeps a legacy retained capture with no recorded size", () => {
+      // Pre-field captures can't be judged for drift, so a resize leaves them be
+      // rather than wiping every existing thumbnail on the first deploy.
+      const resized = new Map([
+        ["a", layout("a", { x: 0, y: 0, width: 500, height: 300 })],
+        ["b", layout("b", { x: 420, y: 0, width: 400, height: 300 })],
+      ])
+      const next = buildThumbnailManifest(
+        resized,
+        [input("a", "Home"), input("b", "Settings")],
+        new Map(),
+        previous
+      )
+
+      expect(next.frames[0]!.capture).toEqual(capture("a", 1000))
     })
 
     it("re-snapshots label and palette index from the current layout while retaining the image", () => {

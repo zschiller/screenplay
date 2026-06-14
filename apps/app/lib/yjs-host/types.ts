@@ -57,4 +57,16 @@ export interface YjsHost {
    * sent verbatim to the client (Liveblocks expects a JWT envelope, etc.).
    */
   issueToken(input: IssueTokenInput): Promise<IssueTokenResult>
+
+  /**
+   * Verify and handle a provider webhook that signals a room's doc changed,
+   * letting the server react to canvas edits WITHOUT a client open (e.g. an AI
+   * agent mutating the doc) — currently to rebuild the thumbnail layout. The
+   * provider-specific bits (signature verification, event shape) live here in
+   * the adapter so the route stays a thin, provider-agnostic delegate.
+   *
+   * Optional: a host with no external change feed (the local in-process host,
+   * which observes its own doc directly) omits it, and the route 404s.
+   */
+  handleDocChangeWebhook?(req: Request): Promise<Response>
 }

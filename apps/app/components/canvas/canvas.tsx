@@ -629,7 +629,11 @@ export function Canvas({
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
   // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
   const captureTracker = useMemo(() => new DirtyFrameTracker(), [])
-  useThumbnailHeartbeat(roomId, hasThumbnail, captureTracker)
+  const { flushLayout } = useThumbnailHeartbeat(
+    roomId,
+    hasThumbnail,
+    captureTracker
+  )
   const handleCaptureReadyChange = useCallback(
     (id: string, ready: boolean) => captureTracker.setReady(id, ready),
     [captureTracker]
@@ -1511,6 +1515,7 @@ export function Canvas({
         },
         memberSizes: state.memberSizes,
         candidates: state.candidates,
+        zoom: transformRef.current?.state.scale ?? 1,
       })
       groupDragTargetRef.current = result?.targetId ?? null
       setGroupDragSnapRects(result?.rects ?? null)
@@ -1772,9 +1777,24 @@ export function Canvas({
   )
 
   const handleResizeEnd = useCallback(() => {
+    // A resize changes the frame's rect, so its retained thumbnail no longer
+    // matches and the manifest discards it (see `buildThumbnailManifest`). Mark
+    // the frame dirty so the heartbeat recaptures it at the new size — but only
+    // when the size actually changed, so grabbing and releasing a handle without
+    // dragging doesn't trigger a needless recapture.
+    const raw = resizeRawRef.current
+    if (raw) {
+      const a = collections.iframeLayers.get(raw.iframeLayerId)
+      if (
+        a &&
+        (a.width !== raw.initialWidth || a.height !== raw.initialHeight)
+      ) {
+        captureTracker.markDirty(raw.iframeLayerId)
+      }
+    }
     resizeRawRef.current = null
     setResizeSnap(null)
-  }, [])
+  }, [collections, captureTracker])
 
   /**
    * Resize handler from a single iframeLayer's edge.
@@ -1889,9 +1909,16 @@ export function Canvas({
       // repeated Fit click).
       const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.ceil(width))
       const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
+      const prev = collections.iframeLayers.get(id)
       ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
+      // Fit-to-content and device-size presets resize the frame too, so the
+      // manifest discards its now-mismatched capture — mark it dirty to
+      // recapture at the new size when the size actually changed.
+      if (prev && (prev.width !== newWidth || prev.height !== newHeight)) {
+        captureTracker.markDirty(id)
+      }
     },
-    [ops]
+    [ops, collections, captureTracker]
   )
 
   const removeIframeLayers = useCallback(
@@ -5915,19 +5942,26 @@ export function Canvas({
                         onClick={(e) => {
                           e.preventDefault()
                           stopRoomDevServers()
+                          const target = withBasePath(
+                            parentFolder
+                              ? `/files/${parentFolder.id}`
+                              : "/files"
+                          )
                           // Full-page navigation (not router.push): a soft nav
                           // serves the home page from the client Router Cache,
                           // which is the copy captured when we ENTERED the room —
                           // so a layout edit made in here shows up stale on the
                           // grid. A hard navigation re-renders home from the
-                          // server (fresh thumbnail manifest) every time, which is
-                          // the behavior that actually works.
-                          window.location.assign(
-                            withBasePath(
-                              parentFolder
-                                ? `/files/${parentFolder.id}`
-                                : "/files"
-                            )
+                          // server (fresh thumbnail manifest) every time.
+                          //
+                          // But a full-page unload skips React's unmount cleanup,
+                          // so flush the pending layout edit FIRST and await it
+                          // (the route rebuilds the manifest inline) — otherwise
+                          // the last edit never reaches the server and the fresh
+                          // render is still stale. `.finally` so a failed flush
+                          // still navigates rather than trapping the user.
+                          void flushLayout().finally(() =>
+                            window.location.assign(target)
                           )
                         }}
                       >
