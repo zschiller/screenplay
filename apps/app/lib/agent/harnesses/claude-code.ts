@@ -87,14 +87,14 @@ export const claudeCodeHarness: Harness = {
   // `default` rides the CLI's own recommended model, so it is the pre-selected
   // per-Harness default and is backward-compatible with the bare
   // `harness:claude-code` rows stored before this list existed. `fable` selects
-  // the most capable model (Fable 5); `opusplan` is the hybrid mode that plans
-  // with Opus and executes with Sonnet. Aliases track the latest version of each
-  // family, so this floor doesn't pin a dated model id.
+  // the most capable model (Fable 5). Aliases track the latest version of each
+  // family, so this floor doesn't pin a dated model id. `opusplan` is omitted: it
+  // is the interactive CLI's plan-mode/execute-mode hybrid, which has no analogue
+  // over the ACP adapter backing this Harness's chat.
   models: [
     { id: "default", label: "Default" },
     { id: "fable", label: "Fable" },
     { id: "opus", label: "Opus" },
-    { id: "opusplan", label: "Opus (plan), Sonnet (execute)" },
     { id: "sonnet", label: "Sonnet" },
     { id: "haiku", label: "Haiku" },
   ],
