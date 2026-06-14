@@ -118,9 +118,7 @@ class FakeAcpAgent implements Agent {
     this.setSessionModeCalls.push(params.modeId)
   }
 
-  async unstable_setSessionModel(params: {
-    modelId: string
-  }): Promise<void> {
+  async unstable_setSessionModel(params: { modelId: string }): Promise<void> {
     this.setSessionModelCalls.push(params.modelId)
   }
 
@@ -479,7 +477,10 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
     })
     const { ports } = collectingPorts()
 
-    await AcpSession.open(transport, ports, { cwd: "/work", modelId: "default" })
+    await AcpSession.open(transport, ports, {
+      cwd: "/work",
+      modelId: "default",
+    })
 
     expect(agent.setSessionModelCalls).toEqual([])
   })
@@ -495,11 +496,12 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
     expect(agent.setSessionModelCalls).toEqual([])
   })
 
-  it("silently falls back and reconciles when the stored model is not advertised", async () => {
-    // The stored model vanished from the live list (subscription tier changed):
-    // no throw, no `setSessionModel`, and the stored id is reconciled to the
-    // Harness default so the next open is clean — a model is a preference
-    // refinement, not an identity (#526, story #6).
+  it("forwards a model the agent doesn't advertise — the advertised list under-reports (spike #523)", async () => {
+    // The adapter honors a richer id space than `availableModels` lists (`opus`
+    // here is real and accepted but not advertised), validating lazily. So we
+    // apply the chosen id without gating on the list rather than reconciling a
+    // valid choice away to the default. Validity is the prompt's verdict (the
+    // -32603 path below), not a guess from the advertised list.
     const { transport, agent } = connectFakeAgent(async () => "end_turn", {
       models,
     })
@@ -508,11 +510,49 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
 
     await AcpSession.open(transport, ports, {
       cwd: "/work",
+      modelId: "opus",
+      reconcileModel: (id) => void reconciled.push(id),
+    })
+
+    // Forwarded though `opus` isn't in availableModels; no premature reconcile.
+    expect(agent.setSessionModelCalls).toEqual(["opus"])
+    expect(reconciled).toEqual([])
+  })
+
+  it("recovers a genuinely stale unadvertised model via the prompt-time fallback", async () => {
+    // A model that is neither advertised nor accepted is forwarded at open
+    // (lazy validation), fails the first prompt with -32603, then recovers to the
+    // Harness default, reconciles the stored id, and retries — the same silent
+    // recovery as an advertised-but-unentitled model, now the single arbiter of a
+    // bad id (#526, story #6).
+    let prompts = 0
+    const behavior: PromptBehavior = async () => {
+      prompts++
+      if (prompts === 1) {
+        throw new RequestError(
+          -32603,
+          "There was an issue with the selected model: it may not exist or you may not have access"
+        )
+      }
+      return "end_turn"
+    }
+    const { transport, agent } = connectFakeAgent(behavior, { models })
+    const reconciled: string[] = []
+    const { ports } = collectingPorts()
+    const session = await AcpSession.open(transport, ports, {
+      cwd: "/work",
       modelId: "opus-ultra-9000",
       reconcileModel: (id) => void reconciled.push(id),
     })
 
-    expect(agent.setSessionModelCalls).toEqual([])
+    const stopReason = await session.prompt(
+      [textBlock("hi")],
+      new AbortController().signal
+    )
+
+    expect(stopReason).toBe("end_turn")
+    expect(prompts).toBe(2)
+    expect(agent.setSessionModelCalls).toEqual(["opus-ultra-9000", "default"])
     expect(reconciled).toEqual(["default"])
   })
 
