@@ -287,6 +287,17 @@ A reference (`{ kind, id }`) from a Group to the Iframe Layer or Markdown Layer
 it contains.
 _Avoid_: child, item.
 
+**Layer**:
+The umbrella for the two kinds of content a Group's Member references — an **Iframe
+Layer** or a **Markdown Layer**. Both are positioned in world space, selectable,
+draggable (group-move + merge) and resizable on the canvas; they differ only in
+content. The shared frame around either is the **Layer Shell**, and the shared
+gesture machinery (`useLayerDrag`, `useLayerResize`) and the common
+selection/position/drag/resize props are named for the Layer, not for one of its
+kinds.
+_Avoid_: using "Iframe Layer" as the generic (it is one kind, not the umbrella);
+naming shared layer machinery `*IframeLayer*` (it serves both kinds).
+
 **Iframe Layer**:
 A live preview pane on the canvas rendering a sandbox dev-server URL (or a blank
 frame). Belongs to exactly one Group.
@@ -297,6 +308,21 @@ A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
 the layer's collection record.
 _Avoid_: note, text layer.
+
+**Layer Shell**:
+The canvas frame that wraps either Layer kind: it owns the world-space container,
+the selection wiring, the drag (group-move / merge routing plus the deferred
+click-to-select), the resize handles, and the LayerTitleBar. An Iframe Layer and a
+Markdown Layer plug in as **content adapters** — the shell renders the frame, the
+adapter renders what's inside (the live preview, or the TipTap document) and its
+content-specific toolbar. Two adapters make the seam real (one adapter is a
+hypothetical seam, two is a real one). The Shell absorbs what was copy-pasted across
+the two layer components: the `handleDrag` selection routing, the
+`selectedOnPointerDown` deferred select, the group-label drag handlers, and the
+resize wiring.
+_Avoid_: layer wrapper (casual); putting content-specific behaviour (dev-server
+probe, editor, route picker, inline-comment bubble) in the Shell — that stays in the
+adapter; standing up a third Shell per future kind (one Shell, N content adapters).
 
 **Chat Session**:
 The _identity_ of a chat tab (id, label, target). The conversation itself —
