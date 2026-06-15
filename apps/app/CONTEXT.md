@@ -335,6 +335,26 @@ Layer (a document). The target decides the system prompt and which Tools the
 model is given.
 _Avoid_: subject, destination.
 
+**Chat-Target selection**:
+*Which* Chat Target the agent panel shows — the other half of the panel model
+from the Tab Pool, which owns the tabs *within* a target. Owned by the
+**Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent / doc
+/ chat, the **per-target memory** (last chat per agent, per document; last agent
+per repo) that restores your place when you switch back, and the **pending-agent
+readiness** (a just-created agent renders a LogProbe; selection flips to it once
+its sandbox streams logs). The decisions are **pure functions** (`lib/chat/chat-target`,
+the sibling of `lib/chat/tab-pool`): resolving the `ChatPanelTarget`, the
+remembered-chat rule (the remembered chat if still open, else the first open
+one), and the readiness transitions; the controller applies them and exposes the
+resolved `target` plus selection verbs (`selectAgent`, `selectDocument`,
+`selectChat`, …). The Tab Pool and Branch Intake controllers **compose with it**
+for their selection side effects rather than poking raw setters. Same shape as
+the Tab Pool: decide purely, apply at the call site (the call site is the
+controller).
+_Avoid_: conflating *which* target is shown (this) with the tabs within it (Tab
+Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId`
+directly; folding the pure decisions into the controller.
+
 **Terminal Tab**:
 A BYO-harness shell surfaced as a tab in the agent panel, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
