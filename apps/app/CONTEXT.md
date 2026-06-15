@@ -395,6 +395,15 @@ backend runs a **node-pty** process in the sidecar over a localhost WebSocket
 socket — no tmux, no public URL. Explicitly **not** a Chat Session: nothing here
 enters the chat-store, the conversation tables, or the Y.Doc, and it is modeled
 by its own `TerminalTabData`, never `ChatSessionData`.
+Its **lifecycle** is owned by the **Terminal Tab controller** (`useTerminalTabs`,
+PRD #579): the client-local `localTerminals` state, the first-paint seed from the
+server-fetched rows, the `listTerminalTabsAction` re-fetch-and-**merge** (pure
+`mergeRestoredTabs` — restored-first, never replace, so a tab opened mid-resolve
+isn't dropped), and the **orphan prune** (drop the tab + delete the persisted row
+when its Branch is gone, over the pure `partitionTerminalsByBranch`). The Tab Pool
+controller **composes it** (the way it composes Chat-Target), so the Terminal Tab
+apply-side and lifecycle share one ownership chain rather than being split between
+the canvas composition root and the Tab Pool.
 _Avoid_: chat tab; terminal session (reserve "tmux session" for the hosted
 backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 (that's the tool the operator runs _inside_ the tab — see Engine for why the

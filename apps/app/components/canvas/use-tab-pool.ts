@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useCallback } from "react"
+import { useCallback } from "react"
 import { nanoid } from "nanoid"
 
 import { chatStore } from "@/lib/chat-store"
@@ -9,6 +9,7 @@ import {
   type TabPoolTarget,
 } from "@/lib/chat/tab-pool"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
+import type { TerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import {
   createTerminalTab,
   DEFAULT_HARNESS_KEY,
@@ -20,12 +21,7 @@ import {
   deleteTerminalTabAction,
   killTerminalSessionAction,
 } from "@/lib/terminal-tabs-actions"
-import type {
-  BranchData,
-  ChatSessionData,
-  TabKind,
-  TerminalTabData,
-} from "@/lib/types"
+import type { BranchData, ChatSessionData, TabKind } from "@/lib/types"
 
 /**
  * Tab Pool controller (PRD #563) — the apply-side of a Chat Target's tab pool,
@@ -62,10 +58,16 @@ export interface TabPoolDeps {
   userId: string | undefined
   agents: BranchData[]
   chatSessions: ChatSessionData[]
-  /** Client-local Terminal Tabs — a distinct type, never in `chatSessions`. */
-  localTerminals: TerminalTabData[]
-  setLocalTerminals: Dispatch<SetStateAction<TerminalTabData[]>>
-  isLocalTerminal: (id: string | null) => boolean
+  /**
+   * The Terminal Tab controller (#582) — owns this client's `localTerminals`
+   * plus their seed / re-fetch-merge / orphan-prune lifecycle. The Tab Pool
+   * composes it for the apply-side reads and writes (`localTerminals`,
+   * `setLocalTerminals`, `isLocalTerminal`), the same way it composes
+   * Chat-Target for selection, so the Terminal Tab apply-side and lifecycle
+   * share one ownership chain. Terminal Tabs are a distinct type, never in
+   * `chatSessions`.
+   */
+  terminalTabs: TerminalTabs
   /**
    * The Chat-Target controller (#569). The Tab Pool composes with it for the
    * selection side effects it used to perform by poking raw setters and memory
@@ -121,11 +123,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     userId,
     agents,
     chatSessions,
-    localTerminals,
-    setLocalTerminals,
-    isLocalTerminal,
+    terminalTabs,
     chatTarget,
   } = deps
+  const { localTerminals, setLocalTerminals, isLocalTerminal } = terminalTabs
 
   /**
    * Create the user's preferred default tab (chat or terminal) for an agent
