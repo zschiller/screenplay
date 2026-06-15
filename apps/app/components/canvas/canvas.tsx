@@ -24,24 +24,11 @@ import {
   useYjsHistory,
 } from "@/lib/yjs/react"
 import { resolveEscapeAction } from "@/lib/canvas/escape"
-import {
-  buildTabPool,
-  resolveTabClose,
-  type TabCloseOutcome,
-  type TabPoolTarget,
-} from "@/lib/chat/tab-pool"
 import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
 import { createCanvasOps } from "@/lib/canvas/ops"
+import { createTerminalTab } from "@/lib/canvas/tab-kind"
 import {
-  createTerminalTab,
-  DEFAULT_HARNESS_KEY,
-  readLastHarnessKey,
-  readLastTabKind,
-} from "@/lib/canvas/tab-kind"
-import {
-  createTerminalTabAction,
   deleteTerminalTabAction,
-  killTerminalSessionAction,
   listTerminalTabsAction,
 } from "@/lib/terminal-tabs-actions"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
@@ -131,7 +118,6 @@ import type {
   GroupMember,
   ViewportData,
   RepoData,
-  TabKind,
   TerminalTabData,
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
@@ -150,6 +136,7 @@ import {
   restartSandbox as restartSandboxRecovery,
 } from "@/lib/branch/recovery"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
+import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import {
@@ -2503,225 +2490,6 @@ export function Canvas({
     [agents, chatSessions, selectedAgentId, selectedChatId]
   )
 
-  const handleCreateChat = useCallback(
-    (agentId: string) => {
-      const id = nanoid()
-      const data: ChatSessionData = {
-        id,
-        branchId: agentId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      }
-      addChatSession(id, data)
-      setSelectedAgentId(agentId)
-      setSelectedChatId(id)
-    },
-    [addChatSession]
-  )
-
-  /**
-   * Create a new terminal tab against `agentId`'s sandbox. Unlike
-   * `handleCreateChat` it builds a `TerminalTabData` (using the tab id as the
-   * shared live-view `terminalSessionId`) held in the client-local
-   * `localTerminals` collection — never in `chatSessions` — so the panel mounts
-   * a terminal body instead of the Engine chat and the conversation model can
-   * never, by type, see it.
-   */
-  const handleCreateTerminal = useCallback(
-    (agentId: string, harnessKey: string) => {
-      const id = nanoid()
-      const tab = createTerminalTab({
-        id,
-        branchId: agentId,
-        createdAt: Date.now(),
-        // The harness the operator picked (or the sticky default) — #290. Stored
-        // on the row so it's authoritative and survives reload/rebuild.
-        harnessKey,
-      })
-      setLocalTerminals((prev) => [...prev, tab])
-      setSelectedAgentId(agentId)
-      setSelectedChatId(id)
-      // Persist so the tab survives reload and follows the User across devices.
-      // Optimistic: the tab is already in local state; a failed write only
-      // means it won't be restored next load.
-      createTerminalTabAction({
-        roomId,
-        branch: agentId,
-        id: tab.id,
-        label: tab.label,
-        harnessKey: tab.harnessKey,
-        createdAt: tab.createdAt,
-      }).catch((err) => {
-        console.error("Failed to persist terminal tab", err)
-      })
-    },
-    [roomId]
-  )
-
-  /**
-   * Create the user's preferred default tab (chat or terminal) for an agent
-   * branch. This is the one place the "open a fresh branch" and "the last tab
-   * was just closed" flows share, so the auto-created tab always follows the
-   * per-user pref ({@link readLastTabKind}) rather than whatever kind happened
-   * to be closed. Selects the new tab unless `select` is false (branch-create
-   * defers selection to when the sandbox is ready). Returns the new tab id.
-   */
-  const createDefaultTabForBranch = useCallback(
-    (branchId: string, kind: TabKind, options?: { select?: boolean }) => {
-      const select = options?.select !== false
-      if (kind === "terminal") {
-        const tab = createTerminalTab({
-          id: nanoid(),
-          branchId,
-          createdAt: Date.now(),
-          // A terminal-default tab launches the same harness as the "+" button:
-          // the operator's last-selected harness (#290), falling back to the
-          // catalog default. If it's since been uninstalled the server resolves
-          // it to a plain shell, so a stale pref degrades gracefully.
-          harnessKey:
-            (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY,
-        })
-        setLocalTerminals((prev) => [...prev, tab])
-        if (select) setSelectedChatId(tab.id)
-        createTerminalTabAction({
-          roomId,
-          branch: branchId,
-          id: tab.id,
-          label: tab.label,
-          harnessKey: tab.harnessKey,
-          createdAt: tab.createdAt,
-        }).catch((err) => {
-          console.error("Failed to persist terminal tab", err)
-        })
-        return tab.id
-      }
-      const id = nanoid()
-      addChatSession(id, {
-        id,
-        branchId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
-      if (select) setSelectedChatId(id)
-      return id
-    },
-    [roomId, addChatSession, userId]
-  )
-
-  // Apply a Tab Pool close decision (the effect half of the pure
-  // `resolveTabClose`). A respawn recreates the target's preferred default tab
-  // so the panel is never left empty — for an agent that's whichever kind the
-  // per-user pref names (chat or terminal, via createDefaultTabForBranch); a doc
-  // target always gets a fresh chat. With no respawn, selection moves only when
-  // the decision says so (`nextSelectedId` set); an omitted value leaves the
-  // current selection in place.
-  const applyTabCloseOutcome = useCallback(
-    (outcome: TabCloseOutcome) => {
-      const { respawn, nextSelectedId } = outcome
-      if (respawn) {
-        if (respawn.target === "agent") {
-          // Creates + selects the replacement (and persists it when it's a
-          // terminal), so no inline add/select here.
-          createDefaultTabForBranch(respawn.branchId, readLastTabKind())
-        } else {
-          const newId = nanoid()
-          addChatSession(newId, {
-            id: newId,
-            markdownLayerId: respawn.markdownLayerId,
-            label: "Untitled",
-            createdAt: Date.now(),
-          })
-          setSelectedChatId(newId)
-          selectedChatByDocumentRef.current[respawn.markdownLayerId] = newId
-        }
-        return
-      }
-      if (nextSelectedId !== undefined) setSelectedChatId(nextSelectedId)
-    },
-    [createDefaultTabForBranch, addChatSession]
-  )
-
-  // Close a local terminal tab: it's ephemeral, so closing simply drops it
-  // (no closed-chats archive). The Tab Pool decision keeps the never-empty
-  // invariant — if this terminal is the last tab on its branch (no sibling
-  // terminal and no open chat) it returns a respawn for the user's preferred
-  // default kind (which may be a chat); otherwise, if it was selected, it picks
-  // the fallback selection. We then apply the row/session teardown effects.
-  const handleCloseTerminal = useCallback(
-    (id: string, nextSelectedId?: string) => {
-      const closing = localTerminals.find((t) => t.id === id)
-      const branchId = closing?.branchId
-      setLocalTerminals((prev) => prev.filter((t) => t.id !== id))
-      if (branchId) {
-        const pool = buildTabPool(
-          { kind: "agent", branchId },
-          chatSessions,
-          localTerminals
-        )
-        const outcome = resolveTabClose(
-          pool,
-          id,
-          selectedChatId,
-          nextSelectedId
-        )
-        applyTabCloseOutcome(outcome)
-      } else if (selectedChatId === id) {
-        // No branch to form a pool around (e.g. the row is already gone); just
-        // clear the selection if it was the selected tab.
-        setSelectedChatId(nextSelectedId ?? null)
-      }
-      // Closing an X permanently deletes the row (a reload alone never does).
-      deleteTerminalTabAction({ roomId, id }).catch((err) => {
-        console.error("Failed to delete terminal tab", err)
-      })
-      // …and kills the tab's tmux session so its shell + any running process
-      // (e.g. a harness) actually stops, not just the tab UI. Separate from the
-      // row delete so a down sandbox can't keep the tab around. Best-effort: a
-      // session that's already gone resolves fine.
-      const sandboxName = agents.find((a) => a.id === branchId)?.sandboxName
-      if (closing && sandboxName) {
-        killTerminalSessionAction({
-          roomId,
-          sandboxName,
-          terminalSessionId: closing.terminalSessionId,
-        }).catch((err) => {
-          console.error("Failed to kill terminal session", err)
-        })
-      }
-    },
-    [
-      selectedChatId,
-      chatSessions,
-      localTerminals,
-      roomId,
-      agents,
-      applyTabCloseOutcome,
-    ]
-  )
-
-  /**
-   * Create a new chat tab targeting a document layer. Mirrors
-   * `handleCreateChat` but stamps `markdownLayerId` instead of `agentId` so the
-   * server picks the doc-targeted flow when this chat first sends a
-   * message.
-   */
-  const handleCreateDocumentChat = useCallback(
-    (markdownLayerId: string) => {
-      const id = nanoid()
-      addChatSession(id, {
-        id,
-        markdownLayerId,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
-      setSelectedAgentId(null)
-      setSelectedDocumentChatTargetId(markdownLayerId)
-      setSelectedChatId(id)
-      selectedChatByDocumentRef.current[markdownLayerId] = id
-    },
-    [addChatSession]
-  )
-
   const handleRebaseOnDefault = useCallback(
     (agentId: string) => {
       const agent = agents.find((a) => a.id === agentId)
@@ -2830,53 +2598,6 @@ export function Canvas({
       }
     },
     [agents, roomId, setBranchPr]
-  )
-
-  const handleCloseChat = useCallback(
-    (chatId: string, nextSelectedId?: string) => {
-      if (isLocalTerminal(chatId)) {
-        handleCloseTerminal(chatId, nextSelectedId)
-        return
-      }
-      const chat = chatSessions.find((c) => c.id === chatId)
-      // Resolve the target's pool (agent vs doc, kept apart in buildTabPool) and
-      // let the pure Tab Pool decision say what survives, where selection lands,
-      // and whether to respawn — the same module both close handlers route
-      // through, so the never-empty invariant and the sibling-filtering live in
-      // one tested place.
-      const target: TabPoolTarget | null = chat?.branchId
-        ? { kind: "agent", branchId: chat.branchId }
-        : chat?.markdownLayerId
-          ? { kind: "doc", markdownLayerId: chat.markdownLayerId }
-          : null
-      updateChatSession(chatId, { closedAt: Date.now() })
-      if (!target) return
-      const pool = buildTabPool(target, chatSessions, localTerminals)
-      const outcome = resolveTabClose(
-        pool,
-        chatId,
-        selectedChatId,
-        nextSelectedId
-      )
-      applyTabCloseOutcome(outcome)
-    },
-    [
-      selectedChatId,
-      chatSessions,
-      localTerminals,
-      updateChatSession,
-      isLocalTerminal,
-      handleCloseTerminal,
-      applyTabCloseOutcome,
-    ]
-  )
-
-  const handleReopenChat = useCallback(
-    (chatId: string) => {
-      updateChatSession(chatId, { closedAt: 0 })
-      setSelectedChatId(chatId)
-    },
-    [updateChatSession]
   )
 
   const handleInspectHover = useCallback(
@@ -3033,80 +2754,30 @@ export function Canvas({
     [markdownLayers, chatSessions, agents, iframeLayers, roomId, addChatSession]
   )
 
-  const handleRemoveChat = useCallback(
-    (chatId: string) => {
-      if (isLocalTerminal(chatId)) {
-        handleCloseTerminal(chatId)
-        return
-      }
-      if (selectedChatId === chatId) {
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (chat) {
-          const sameTarget = (c: ChatSessionData) =>
-            chat.branchId
-              ? c.branchId === chat.branchId
-              : chat.markdownLayerId
-                ? c.markdownLayerId === chat.markdownLayerId
-                : false
-          const siblings = chatSessions
-            .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
-            .sort((a, b) => a.createdAt - b.createdAt)
-          setSelectedChatId(siblings[0]?.id ?? null)
-        } else {
-          setSelectedChatId(null)
-        }
-      }
-      chatStore.cleanup(chatId)
-      removeChatSession(chatId)
-    },
-    [
-      selectedChatId,
-      chatSessions,
-      removeChatSession,
-      isLocalTerminal,
-      handleCloseTerminal,
-    ]
-  )
-
-  const handleRenameChat = useCallback(
-    (chatId: string, label: string) => {
-      if (isLocalTerminal(chatId)) {
-        setLocalTerminals((prev) =>
-          prev.map((t) => (t.id === chatId ? { ...t, label } : t))
-        )
-        return
-      }
-      updateChatSession(chatId, { label })
-    },
-    [updateChatSession, isLocalTerminal]
-  )
-
-  const handleSelectChat = useCallback(
-    (chatId: string | null) => {
-      setSelectedChatId(chatId)
-      if (chatId) {
-        const terminal = localTerminals.find((t) => t.id === chatId)
-        if (terminal) {
-          // Local terminals aren't in the Y.Doc; just track their branch so
-          // the agent target stays selected. No per-target "remember" ref —
-          // they don't survive a remount anyway.
-          if (terminal.branchId) setSelectedAgentId(terminal.branchId)
-          return
-        }
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (!chat) return
-        if (chat.branchId) {
-          setSelectedAgentId(chat.branchId)
-          selectedChatByAgentRef.current[chat.branchId] = chatId
-        }
-        if (chat.markdownLayerId) {
-          setSelectedDocumentChatTargetId(chat.markdownLayerId)
-          selectedChatByDocumentRef.current[chat.markdownLayerId] = chatId
-        }
-      }
-    },
-    [chatSessions, localTerminals]
-  )
+  // Tab Pool controller (PRD #563): the chat/terminal/tab apply-side — create,
+  // close, remove, select, rename, reopen, and the `seed` entry Branch Intake
+  // calls — lifted into `useTabPool`. The component renders the tab strip and
+  // calls these verbs; the controller owns the chat-store and Y.Doc tab writes,
+  // the Terminal Tab server actions, the never-empty invariant, and the
+  // agent-pool-vs-doc-pool split (over the pure `resolveTabClose` decision).
+  const tabPool = useTabPool({
+    addChatSession,
+    updateChatSession,
+    removeChatSession,
+    roomId,
+    userId,
+    agents,
+    chatSessions,
+    localTerminals,
+    setLocalTerminals,
+    isLocalTerminal,
+    selectedChatId,
+    setSelectedChatId,
+    setSelectedAgentId,
+    setSelectedDocumentChatTargetId,
+    selectedChatByAgentRef,
+    selectedChatByDocumentRef,
+  })
 
   // Branch Intake controller (PRD #562): the Repo -> Branch -> Sandbox
   // create/teardown orchestration, Branch rename, and the seed-tab / seed-frame
@@ -3129,7 +2800,7 @@ export function Canvas({
     removeAgentFromStorage,
     updateAgentInStorage,
     updateChatSession,
-    createDefaultTabForBranch,
+    createDefaultTabForBranch: tabPool.seed,
     getViewportCenter,
     setSelectedGroupIds,
     setSelectedIframeLayerIds,
@@ -3181,7 +2852,7 @@ export function Canvas({
   useEffect(() => {
     inspectHandlersRef.current = {
       branchRename: renameBranch,
-      renameChat: handleRenameChat,
+      renameChat: tabPool.rename,
     }
   })
 
@@ -5159,25 +4830,30 @@ export function Canvas({
                 terminalTabs={terminalTabs}
                 selectedChatId={selectedChatId}
                 roomId={roomId}
-                onSelectChat={handleSelectChat}
+                onSelectChat={tabPool.select}
                 onCreateChat={() => {
-                  if (target.kind === "agent") handleCreateChat(target.agent.id)
-                  // Event handler (fires on click), so the ref write inside
-                  // handleCreateDocumentChat is deferred past render.
+                  if (target.kind === "agent")
+                    tabPool.open({ kind: "chat", branchId: target.agent.id })
                   else if (target.layerKind === "markdown-layer")
-                    // eslint-disable-next-line react-hooks/refs
-                    handleCreateDocumentChat(target.layer.id)
+                    tabPool.open({
+                      kind: "doc-chat",
+                      markdownLayerId: target.layer.id,
+                    })
                 }}
                 onCreateTerminal={
                   target.kind === "agent"
                     ? (harnessKey) =>
-                        handleCreateTerminal(target.agent.id, harnessKey)
+                        tabPool.open({
+                          kind: "terminal",
+                          branchId: target.agent.id,
+                          harnessKey,
+                        })
                     : undefined
                 }
-                onRenameChat={handleRenameChat}
-                onRemoveChat={handleRemoveChat}
-                onCloseChat={handleCloseChat}
-                onReopenChat={handleReopenChat}
+                onRenameChat={tabPool.rename}
+                onRemoveChat={tabPool.remove}
+                onCloseChat={tabPool.close}
+                onReopenChat={tabPool.reopen}
                 onBranchRename={(branch) => {
                   if (target.kind === "agent")
                     renameBranch(target.agent.id, branch)
