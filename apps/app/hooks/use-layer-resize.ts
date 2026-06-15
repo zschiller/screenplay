@@ -17,7 +17,7 @@ interface UseResizeOptions {
   onResizeEnd?: () => void
 }
 
-export function useIframeLayerResize({
+export function useLayerResize({
   zoom,
   onResize,
   onResizeStart,

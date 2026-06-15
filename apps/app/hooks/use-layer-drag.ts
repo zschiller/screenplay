@@ -26,21 +26,21 @@ interface UseDragOptions {
   onClick?: (e: React.PointerEvent) => void
 }
 
-/** Pointer handlers returned by {@link useIframeLayerDrag}, spread onto the
+/** Pointer handlers returned by {@link useLayerDrag}, spread onto the
  *  element that should start a move-drag. */
-export interface DragHandlers {
+export interface LayerDragHandlers {
   onPointerDown: (e: React.PointerEvent) => void
   onPointerMove: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
 }
 
-export function useIframeLayerDrag({
+export function useLayerDrag({
   zoom,
   onDrag,
   onDragStart,
   onDragEnd,
   onClick,
-}: UseDragOptions): DragHandlers {
+}: UseDragOptions): LayerDragHandlers {
   const dragging = useRef(false)
   const didMove = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })

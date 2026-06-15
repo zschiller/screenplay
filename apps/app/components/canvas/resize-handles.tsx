@@ -1,6 +1,6 @@
 "use client"
 
-import type { ResizeEdge } from "@/hooks/use-iframe-layer-resize"
+import type { ResizeEdge } from "@/hooks/use-layer-resize"
 
 interface ResizeHandlesProps {
   zoom: number

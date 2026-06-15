@@ -27,7 +27,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
-import { type ResizeEdge } from "@/hooks/use-iframe-layer-resize"
+import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
