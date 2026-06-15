@@ -192,7 +192,10 @@ import {
   groupGap,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
-import type { GestureIntent } from "@/lib/canvas/gesture"
+import type {
+  GestureIntent,
+  ReorderMemberSnapshot,
+} from "@/lib/canvas/gesture"
 import { useCanvasGesture } from "./use-canvas-gesture"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
@@ -514,27 +517,6 @@ export function Canvas({
     groupId: string
     gapIndex: number
   } | null>(null)
-  const reorderDragRef = useRef<{
-    groupId: string
-    iframeLayerId: string
-    /** Pointer position (canvas space) at drag start — used on pointerup to
-     *  distinguish a click (no movement → fire selection) from a drag. */
-    startCanvas: { x: number; y: number }
-    /** Vector from the dragged frame's top-left to the cursor at drag start.
-     *  Preserves the grab point so the frame stays under the cursor exactly
-     *  where the user grabbed it (rather than jumping to be center-aligned). */
-    grabOffset: { x: number; y: number }
-    /** Shift key state captured at pointerdown. Used when a click-no-move
-     *  release falls through to selection so shift-click still works. */
-    startShiftKey: boolean
-    /** When `true`, a release without movement triggers selection of the
-     *  layer — set for drags initiated from the frame's name label so the
-     *  user can still single-click to select. The reorder-dot path leaves
-     *  this `false` since the dot itself isn't a selection affordance. */
-    selectOnNoMove: boolean
-  } | null>(null)
-  const [reorderDraggingIframeLayerId, setReorderDraggingIframeLayerId] =
-    useState<string | null>(null)
   /**
    * In-flight group-merge state. `sourceGroupId` is set when a layer drag
    * begins translating exactly one group; mirrored into `groupDragSourceRef`
@@ -586,36 +568,6 @@ export function Canvas({
   const [groupDragSnapRects, setGroupDragSnapRects] = useState<
     MoveSnapRect[] | null
   >(null)
-  /** Cursor in canvas space while a reorder drag is active — drives the lifted iframeLayer's translate. */
-  const [reorderDragCursor, setReorderDragCursor] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  /** Grab offset for the active reorder drag, mirrored into state (set
-   *  alongside `reorderDragRef` at drag-start) so layout math can read it
-   *  during render without touching the ref. Constant for a drag's duration. */
-  const [reorderGrabOffset, setReorderGrabOffset] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  /** True while the user is holding the meta/cmd key during a reorder drag —
-   * pops the iframeLayer out of its source group as a preview. The pop is only
-   * committed (new group created, source group updated) on pointer-up if the
-   * key is still held. */
-  const [reorderDragPopped, setReorderDragPopped] = useState(false)
-  // Track meta-key changes during a reorder drag even when the pointer isn't
-  // moving, so the popped preview kicks in the instant the user presses cmd.
-  useEffect(() => {
-    if (!reorderDraggingIframeLayerId) return
-    const onKey = (ev: KeyboardEvent) => setReorderDragPopped(ev.metaKey)
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("keyup", onKey)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("keyup", onKey)
-    }
-  }, [reorderDraggingIframeLayerId])
-
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
@@ -1034,10 +986,9 @@ export function Canvas({
   useEffect(() => {
     iframeLayerLayoutsRef.current = iframeLayerLayouts
   })
-  const reorderDragRef_iframeLayerId = reorderDraggingIframeLayerId
 
-  // Canvas Gesture FSM (gap-resize for now; other gestures port in per #535).
-  // The hook holds the gesture state, exposes the Gesture Preview fed into
+  // Canvas Gesture FSM (gap-resize + reorder so far; remaining gestures port in
+  // per #535). The hook holds the gesture state, exposes the Gesture Preview fed into
   // `deriveCanvasLayout` below, and applies emitted Gesture Intents through the
   // Canvas Operations — the gesture itself never touches the Y.Doc.
   const {
@@ -1049,8 +1000,78 @@ export function Canvas({
       case "setGroupGap":
         setGroupGap(intent.groupId, intent.gap)
         break
+      case "reorderMember":
+        // In-flow reorder commits live: each tick the cursor crosses a sibling
+        // center, the gesture emits the new ordering and we write it.
+        ops.patch("iframeLayerGroups", intent.groupId, {
+          members: intent.members,
+        })
+        break
+      case "popOutToNewGroup": {
+        // Meta held at release → split the popped Member into a fresh Group
+        // anchored where it was floating; select it like the old inline path.
+        // Skip if the underlying layer vanished mid-drag so we never select a
+        // group that `splitToNewGroup` declined to create.
+        const exists =
+          collections.iframeLayers.get(intent.memberId) != null ||
+          collections.markdownLayers.get(intent.memberId) != null
+        if (!exists) break
+        const newGroupId = ops.splitToNewGroup([intent.memberId], {
+          x: intent.x,
+          y: intent.y,
+        })
+        setSelectedGroupIds(new Set([newGroupId]))
+        break
+      }
+      case "selectMember": {
+        // Click-no-move from a Member's label falls through to plain selection
+        // (mirrors `handleIframeLayerSelect` / `handleDocumentLayerSelect`).
+        setSelectedGroupIds(new Set())
+        if (intent.kind === "markdown-layer") {
+          if (intent.additive) {
+            setSelectedDocumentLayerIds((prev) => {
+              const next = new Set(prev)
+              if (next.has(intent.memberId)) next.delete(intent.memberId)
+              else next.add(intent.memberId)
+              return next
+            })
+          } else {
+            setSelectedDocumentLayerIds(new Set([intent.memberId]))
+            setSelectedIframeLayerIds(new Set())
+          }
+        } else {
+          if (intent.additive) {
+            setSelectedIframeLayerIds((prev) => {
+              const next = new Set(prev)
+              if (next.has(intent.memberId)) next.delete(intent.memberId)
+              else next.add(intent.memberId)
+              return next
+            })
+          } else {
+            setSelectedIframeLayerIds(new Set([intent.memberId]))
+            setSelectedDocumentLayerIds(new Set())
+          }
+        }
+        break
+      }
     }
   })
+
+  // While a reorder is in flight, track meta-key changes even when the pointer
+  // isn't moving so the pop-out preview flips the instant cmd is pressed or
+  // released. The Preview's reorder slice tells us a reorder is active.
+  const reorderActive = gesturePreview.reorder != null
+  useEffect(() => {
+    if (!reorderActive) return
+    const onKey = (ev: KeyboardEvent) =>
+      dispatchGesture({ type: "metaChange", meta: ev.metaKey })
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [reorderActive, dispatchGesture])
   /**
    * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
    * layout plus the placeholder rects and gap/reorder handle positions derived
@@ -1070,15 +1091,22 @@ export function Canvas({
           documentLayerIds: selectedDocumentLayerIds,
           groupIds: selectedGroupIds,
         },
+        // The Gesture Preview's reorder slice drives the pop-out reflow: while
+        // popped, the dragged Member floats at the cursor and its siblings close
+        // the gap. In-flow reorder needs neither field (it commits live to the
+        // Group), so both stay null until meta lifts the Member out.
         activeReorderDrag:
-          reorderDragPopped && reorderDragRef_iframeLayerId && reorderDragCursor
+          gesturePreview.reorder && gesturePreview.reorder.popped
             ? {
-                memberId: reorderDragRef_iframeLayerId,
-                cursor: reorderDragCursor,
-                grabOffset: reorderGrabOffset,
+                memberId: gesturePreview.reorder.memberId,
+                cursor: gesturePreview.reorder.cursor,
+                grabOffset: gesturePreview.reorder.grabOffset,
               }
             : null,
-        poppedMemberId: reorderDragPopped ? reorderDragRef_iframeLayerId : null,
+        poppedMemberId:
+          gesturePreview.reorder && gesturePreview.reorder.popped
+            ? gesturePreview.reorder.memberId
+            : null,
         gapOverride: gesturePreview.gapOverride,
       }),
     [
@@ -1088,10 +1116,7 @@ export function Canvas({
       selectedIframeLayerIds,
       selectedDocumentLayerIds,
       selectedGroupIds,
-      reorderDragPopped,
-      reorderDragRef_iframeLayerId,
-      reorderDragCursor,
-      reorderGrabOffset,
+      gesturePreview.reorder,
       gesturePreview.gapOverride,
     ]
   )
@@ -1476,12 +1501,29 @@ export function Canvas({
    * can skip its own fallback drag), or `false` for single-member groups
    * where reorder doesn't make sense.
    */
+  // Snapshot a group's members (kind + width) for the reorder gesture's
+  // sibling-center math. Stable for a drag — reordering never resizes a member
+  // or moves the group — so the FSM can carry it in its start context.
+  const reorderOrderSnapshot = useCallback(
+    (group: IframeLayerGroupData): ReorderMemberSnapshot[] =>
+      getGroupMembers(group).map((m) => {
+        const size =
+          m.kind === "iframe-layer"
+            ? collections.iframeLayers.get(m.id)
+            : collections.markdownLayers.get(m.id)
+        return { id: m.id, kind: m.kind, width: size?.width ?? null }
+      }),
+    [collections]
+  )
+
   const requestReorderDrag = useCallback(
     (iframeLayerId: string, e: React.PointerEvent): boolean => {
       const group = collections.iframeLayerGroups
         .toArray()
         .find((g) => getGroupMembers(g).some((m) => m.id === iframeLayerId))
       if (!group) return false
+      const member = getGroupMembers(group).find((m) => m.id === iframeLayerId)
+      if (!member) return false
       if (getGroupMembers(group).length < 2) return false
       const wrapper = canvasWrapperRef.current
       if (!wrapper) return false
@@ -1497,22 +1539,33 @@ export function Canvas({
       const grabOffset = layout
         ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
         : { x: 0, y: 0 }
-      reorderDragRef.current = {
-        groupId: group.id,
-        iframeLayerId,
-        startCanvas: canvas,
-        grabOffset,
-        startShiftKey: e.shiftKey,
-        selectOnNoMove: true,
-      }
-      setReorderDraggingIframeLayerId(iframeLayerId)
-      setReorderGrabOffset(grabOffset)
+      dispatchGesture({
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: {
+            groupId: group.id,
+            memberId: iframeLayerId,
+            memberKind: member.kind,
+            groupX: group.x,
+            gap: groupGap(group),
+            grabOffset,
+            startCanvas: canvas,
+            startShiftKey: e.shiftKey,
+            // The name label is also a selection affordance, so a click that
+            // never moves should still select the member.
+            selectOnNoMove: true,
+          },
+          order: reorderOrderSnapshot(group),
+          meta: e.metaKey,
+        },
+      })
       wrapper.setPointerCapture(e.pointerId)
       e.stopPropagation()
       e.preventDefault()
       return true
     },
-    [collections]
+    [collections, dispatchGesture, reorderOrderSnapshot]
   )
 
   /**
@@ -2046,18 +2099,6 @@ export function Canvas({
           ops.patch("iframeLayerGroups", id, { sidebarOrder: index })
         })
       })
-    },
-    [ops]
-  )
-
-  /**
-   * Reorder the members inside a group — also reflects on the canvas via
-   * flex order. Accepts a fully-typed member ordering so callers can mix
-   * iframeLayers and markdownLayers in the same row.
-   */
-  const reorderGroupMembers = useCallback(
-    (groupId: string, orderedMembers: GroupMember[]) => {
-      ops.patch("iframeLayerGroups", groupId, { members: orderedMembers })
     },
     [ops]
   )
@@ -4108,21 +4149,37 @@ export function Canvas({
           const group = iframeLayerGroups.find((g) =>
             getGroupMembers(g).some((m) => m.id === reorderHit.iframeLayerId)
           )
-          if (group) {
+          const member = group
+            ? getGroupMembers(group).find(
+                (m) => m.id === reorderHit.iframeLayerId
+              )
+            : undefined
+          if (group && member) {
             const layout = iframeLayerLayouts.get(reorderHit.iframeLayerId)
             const grabOffset = layout
               ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
               : { x: 0, y: 0 }
-            reorderDragRef.current = {
-              groupId: group.id,
-              iframeLayerId: reorderHit.iframeLayerId,
-              startCanvas: { x: canvas.x, y: canvas.y },
-              grabOffset,
-              startShiftKey: e.shiftKey,
-              selectOnNoMove: false,
-            }
-            setReorderDraggingIframeLayerId(reorderHit.iframeLayerId)
-            setReorderGrabOffset(grabOffset)
+            dispatchGesture({
+              type: "start",
+              start: {
+                kind: "reorder",
+                ctx: {
+                  groupId: group.id,
+                  memberId: reorderHit.iframeLayerId,
+                  memberKind: member.kind,
+                  groupX: group.x,
+                  gap: groupGap(group),
+                  grabOffset,
+                  startCanvas: { x: canvas.x, y: canvas.y },
+                  startShiftKey: e.shiftKey,
+                  // The dot itself isn't a selection affordance, so a no-move
+                  // release leaves selection untouched.
+                  selectOnNoMove: false,
+                },
+                order: reorderOrderSnapshot(group),
+                meta: e.metaKey,
+              },
+            })
             e.currentTarget.setPointerCapture(e.pointerId)
             e.stopPropagation()
             e.preventDefault()
@@ -4167,6 +4224,7 @@ export function Canvas({
       iframeLayerGroups,
       iframeLayerLayouts,
       dispatchGesture,
+      reorderOrderSnapshot,
     ]
   )
 
@@ -4267,57 +4325,18 @@ export function Canvas({
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      // Reorder drag: cursor X picks the destination index by walking the
-      // current sibling centers in order. Layouts get rebuilt when we update
-      // iframeLayerIds, so subsequent ticks see the new arrangement.
-      if (reorderDragRef.current) {
+      // Reorder drag: feed the live cursor + meta state to the gesture FSM. The
+      // reducer picks the destination index (in-flow) and emits `reorderMember`
+      // when it changes, or previews the meta-key pop-out. All the index math
+      // lives in the reducer now.
+      if (getGestureState().kind === "reorder") {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const drag = reorderDragRef.current
-        const popped = e.metaKey
-        setReorderDragPopped(popped)
-        setReorderDragCursor({ x: canvas.x, y: canvas.y })
-        // Holding meta previews popping the iframeLayer out into a new group.
-        // The actual data update is deferred until pointer-up so releasing
-        // without meta still leaves the source group as-is.
-        if (popped) return
-
-        const group = collections.iframeLayerGroups.get(drag.groupId)
-        if (!group) return
-        const members = getGroupMembers(group)
-        const currentIndex = members.findIndex(
-          (m) => m.id === drag.iframeLayerId
-        )
-        if (currentIndex < 0) return
-
-        const gap = groupGap(group)
-        let walkX = group.x
-        const siblingCenters: { id: string; centerX: number }[] = []
-        for (const m of members) {
-          const size =
-            m.kind === "iframe-layer"
-              ? collections.iframeLayers.get(m.id)
-              : collections.markdownLayers.get(m.id)
-          if (!size) continue
-          if (m.id !== drag.iframeLayerId) {
-            siblingCenters.push({ id: m.id, centerX: walkX + size.width / 2 })
-          }
-          walkX += size.width + gap
-        }
-
-        let newIndex = siblingCenters.length
-        for (let i = 0; i < siblingCenters.length; i++) {
-          if (canvas.x < siblingCenters[i]!.centerX) {
-            newIndex = i
-            break
-          }
-        }
-        if (newIndex !== currentIndex) {
-          const dragged = members[currentIndex]!
-          const without = members.filter((m) => m.id !== drag.iframeLayerId)
-          without.splice(newIndex, 0, dragged)
-          reorderGroupMembers(drag.groupId, without)
-        }
+        dispatchGesture({
+          type: "move",
+          cursor: { x: canvas.x, y: canvas.y },
+          meta: e.metaKey,
+        })
         return
       }
 
@@ -4423,8 +4442,6 @@ export function Canvas({
       screenToCanvas,
       iframeLayerLayouts,
       markdownLayers,
-      collections,
-      reorderGroupMembers,
       getGestureState,
       dispatchGesture,
     ]
@@ -4432,102 +4449,20 @@ export function Canvas({
 
   const handleCanvasPointerUp = useCallback(
     (e: React.PointerEvent) => {
-      // Reorder drag: end interaction. The order has already been written to
-      // the group on every move tick, so nothing to commit here. Re-hit-test
-      // at the release point so the dot drops back to its hollow state when
-      // the cursor isn't actually over it (during the drag we locked the
-      // highlight to the dragged dot).
-      if (reorderDragRef.current) {
-        const drag = reorderDragRef.current
+      // Reorder drag: hand the release to the gesture FSM, which decides the
+      // commit — a `reorderMember` (already emitted live on each move), a
+      // meta-held `popOutToNewGroup`, or a no-move `selectMember` (label
+      // click-vs-drag). Re-hit-test at the release point so the dot drops back
+      // to its hollow state when the cursor isn't over it (during the drag the
+      // highlight is locked to the dragged dot).
+      if (getGestureState().kind === "reorder") {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        reorderDragRef.current = null
-        setReorderDraggingIframeLayerId(null)
-        setReorderDragCursor(null)
-        setReorderDragPopped(false)
-        setReorderGrabOffset(null)
-
-        // Click-no-move on a drag initiated from a layer's name label →
-        // forward to the regular select path for whichever kind of layer
-        // started the gesture. Without this, clicking a multi-member layer's
-        // name (which takes over the pointer for reorder) would swallow the
-        // click instead of selecting the layer.
-        const moved =
-          Math.abs(canvas.x - drag.startCanvas.x) > 3 ||
-          Math.abs(canvas.y - drag.startCanvas.y) > 3
-        if (!moved && drag.selectOnNoMove) {
-          const sourceGroup = collections.iframeLayerGroups.get(drag.groupId)
-          const memberKind = sourceGroup
-            ? getGroupMembers(sourceGroup).find(
-                (m) => m.id === drag.iframeLayerId
-              )?.kind
-            : undefined
-          // Inline selection — mirrors `handleIframeLayerSelect` /
-          // `handleDocumentLayerSelect` below but avoids the forward reference
-          // (they're declared later in this file).
-          setSelectedGroupIds(new Set())
-          if (memberKind === "markdown-layer") {
-            if (drag.startShiftKey) {
-              setSelectedDocumentLayerIds((prev) => {
-                const next = new Set(prev)
-                if (next.has(drag.iframeLayerId))
-                  next.delete(drag.iframeLayerId)
-                else next.add(drag.iframeLayerId)
-                return next
-              })
-            } else {
-              setSelectedDocumentLayerIds(new Set([drag.iframeLayerId]))
-              setSelectedIframeLayerIds(new Set())
-            }
-          } else {
-            if (drag.startShiftKey) {
-              setSelectedIframeLayerIds((prev) => {
-                const next = new Set(prev)
-                if (next.has(drag.iframeLayerId))
-                  next.delete(drag.iframeLayerId)
-                else next.add(drag.iframeLayerId)
-                return next
-              })
-            } else {
-              setSelectedIframeLayerIds(new Set([drag.iframeLayerId]))
-              setSelectedDocumentLayerIds(new Set())
-            }
-          }
-          return
-        }
-
-        // Meta still held at release → commit the pop: detach from the source
-        // group and create a new single-member group anchored at the cursor.
-        if (e.metaKey) {
-          const sourceGroup = collections.iframeLayerGroups.get(drag.groupId)
-          if (!sourceGroup) {
-            // continue with the rest of pointer-up
-          } else {
-            const sourceMembers = getGroupMembers(sourceGroup)
-            const popped = sourceMembers.find(
-              (m) => m.id === drag.iframeLayerId
-            )
-            const ab =
-              popped?.kind === "iframe-layer"
-                ? collections.iframeLayers.get(drag.iframeLayerId)
-                : null
-            const docMember =
-              popped?.kind === "markdown-layer"
-                ? collections.markdownLayers.get(drag.iframeLayerId)
-                : null
-            const size = ab ?? docMember
-            if (popped && size) {
-              // Split the popped member into a fresh group at the cursor; the
-              // verb prunes the source if this was its last member.
-              const newGroupId = ops.splitToNewGroup([drag.iframeLayerId], {
-                x: canvas.x - drag.grabOffset.x,
-                y: canvas.y - drag.grabOffset.y,
-              })
-              setSelectedGroupIds(new Set([newGroupId]))
-            }
-          }
-        }
-
+        dispatchGesture({
+          type: "release",
+          cursor: { x: canvas.x, y: canvas.y },
+          meta: e.metaKey,
+        })
         const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
         setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null)
         return
@@ -4626,8 +4561,6 @@ export function Canvas({
       addFrame,
       hitTestReorderHandle,
       zoom,
-      collections,
-      ops,
       getGestureState,
       dispatchGesture,
     ]
@@ -4848,7 +4781,7 @@ export function Canvas({
       // drag is active so the dragged iframeLayer sweeping over its siblings
       // doesn't paint a hover outline on each one in turn.
       let hovered: string | null = null
-      if (!reorderDragRef.current && !layerDraggingRef.current) {
+      if (getGestureState().kind !== "reorder" && !layerDraggingRef.current) {
         for (const layout of iframeLayerLayouts.values()) {
           if (
             canvasX >= layout.x &&
@@ -4895,11 +4828,10 @@ export function Canvas({
       // from a hollow ring to a filled circle. While dragging, lock the
       // highlight to the dragged dot so the cursor can stray off-center
       // without the dot flipping back to its hollow state.
-      if (reorderDragRef.current) {
+      if (gestureState.kind === "reorder") {
+        const draggedId = gestureState.ctx.memberId
         setHoveredReorderIframeLayerId((prev) =>
-          prev === reorderDragRef.current!.iframeLayerId
-            ? prev
-            : reorderDragRef.current!.iframeLayerId
+          prev === draggedId ? prev : draggedId
         )
       } else {
         const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
@@ -5263,7 +5195,7 @@ export function Canvas({
                     ? "crosshair"
                     : activeGapHandle
                       ? "col-resize"
-                      : reorderDraggingIframeLayerId
+                      : gesturePreview.reorder
                         ? "grabbing"
                         : hoveredReorderIframeLayerId
                           ? "grab"
@@ -5461,22 +5393,20 @@ export function Canvas({
                       let dragTranslateX: number | undefined
                       let dragTranslateY: number | undefined
                       let dragPopped = false
-                      if (
-                        reorderDraggingIframeLayerId === member.id &&
-                        reorderDragCursor != null
-                      ) {
-                        const grab = reorderGrabOffset ?? {
+                      const reorderPreview = gesturePreview.reorder
+                      if (reorderPreview?.memberId === member.id) {
+                        const grab = reorderPreview.grabOffset ?? {
                           x: layout.width / 2,
                           y: layout.height / 2,
                         }
-                        if (reorderDragPopped) {
+                        if (reorderPreview.popped) {
                           dragPopped = true
                         } else {
                           const raw = iframeLayerLayouts.get(member.id)
                           if (raw) {
                             // Lock Y so the dragged frame slides only horizontally.
                             dragTranslateX =
-                              reorderDragCursor.x - grab.x - raw.x
+                              reorderPreview.cursor.x - grab.x - raw.x
                             dragTranslateY = 0
                           }
                         }
@@ -5790,23 +5720,17 @@ export function Canvas({
                 // from that same map). Only the in-flow reorder case
                 // needs a translation delta layered on top of the raw
                 // flex slot.
-                if (
-                  !reorderDraggingIframeLayerId ||
-                  !reorderDragCursor ||
-                  reorderDragPopped
-                )
-                  return null
-                const layout = iframeLayerLayouts.get(
-                  reorderDraggingIframeLayerId
-                )
+                const reorderPreview = gesturePreview.reorder
+                if (!reorderPreview || reorderPreview.popped) return null
+                const layout = iframeLayerLayouts.get(reorderPreview.memberId)
                 if (!layout) return null
-                const grab = reorderGrabOffset ?? {
+                const grab = reorderPreview.grabOffset ?? {
                   x: layout.width / 2,
                   y: layout.height / 2,
                 }
                 return {
-                  iframeLayerId: reorderDraggingIframeLayerId,
-                  dx: reorderDragCursor.x - grab.x - layout.x,
+                  iframeLayerId: reorderPreview.memberId,
+                  dx: reorderPreview.cursor.x - grab.x - layout.x,
                   dy: 0,
                 }
               })()}
