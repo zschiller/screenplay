@@ -2,6 +2,7 @@
 
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
+import type { DragHandlers } from "@/hooks/use-iframe-layer-drag"
 
 interface GroupLabelProps {
   label: string
@@ -20,7 +21,7 @@ interface GroupLabelProps {
    * Pointer events on the button stop propagation so the parent frame label
    * — which now runs reorder logic in multi-member groups — doesn't fire.
    */
-  dragHandlers?: Record<string, unknown>
+  dragHandlers?: DragHandlers
   /** Optional inline rename. When provided, double-click flips the label
    *  into a contenteditable with the same affordance the frame name uses. */
   onRename?: (next: string) => void

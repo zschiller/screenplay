@@ -27,11 +27,9 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
-import { LayerTitleBar, LayerTitleText } from "./layer-title-bar"
+import { LayerTitleText } from "./layer-title-bar"
 
 interface IframeLayerLabelProps {
-  /** Frame id — routed through `LayerTitleBar` to start reorder drags. */
-  iframeLayerId: string
   label: string
   branch?: string
   branchId?: string
@@ -39,24 +37,6 @@ interface IframeLayerLabelProps {
   /** Bidirectional shared state from `@screenplay.space/state`. When present
    *  with non-empty keys, a tiny indicator renders inside the route pill. */
   sharedState?: JsonObject
-  zoom: number
-  iframeLayerWidth: number
-  /** Base move-drag handlers — `LayerTitleBar` composes them with the
-   *  reorder-request hook so the bar lifts the frame into a reorder gesture
-   *  in multi-member groups and falls back to a group-move drag otherwise. */
-  dragHandlers?: {
-    onPointerDown: (e: React.PointerEvent) => void
-    [key: string]: unknown
-  }
-  /** Ask the canvas to start a reorder drag from this frame's title bar. */
-  onRequestReorderDrag?: (
-    iframeLayerId: string,
-    e: React.PointerEvent
-  ) => boolean
-  /** Drag handlers attached to the GroupLabel button — separate set so the
-   *  group label moves the whole group rather than reordering a single
-   *  frame within the group. */
-  groupLabelDragHandlers?: Record<string, unknown>
   /** Agents the user can pick from (typically all running agents in the room). */
   assignableBranches?: BranchData[]
   onAssignBranch?: (branchId: string) => void
@@ -67,29 +47,6 @@ interface IframeLayerLabelProps {
   selected?: boolean
   /** Remote selector's color for the name. Ignored while locally selected. */
   remoteSelectedColor?: string
-  /** Remote selector's color for the group label. */
-  remoteGroupSelectedColor?: string
-  /** Group display name — only passed for the leftmost iframeLayer in a multi-iframeLayer group. */
-  groupLabel?: string
-  /** True when the parent group is selected — colors the group label. */
-  groupSelected?: boolean
-  /** Click handler for the group label. When provided, the label is interactive. */
-  onSelectGroup?: (shiftKey: boolean) => void
-  /** Inline rename for the group label. */
-  onRenameGroup?: (next: string) => void
-  /**
-   * When the frame is being reorder-dragged, these world-space translation
-   * values are applied to the outer frame container. The group label sits
-   * inside that container, so we apply an inverse translate here to keep it
-   * visually anchored to the group's original top-left while the rest of
-   * the frame moves with the cursor.
-   */
-  reorderDragTranslateX?: number
-  reorderDragTranslateY?: number
-  /** True when the frame is in cmd-pop preview — hide the group label so the
-   *  about-to-be-new-group doesn't visually pretend it's still in the source
-   *  group. */
-  reorderDragPopped?: boolean
   /** Pointer-down select for the frame name — mirrors the frame body's instant-select behavior. */
   onSelectFrame?: (shiftKey: boolean) => void
   /** Inline rename for the frame name. When provided, double-clicking the
@@ -97,101 +54,76 @@ interface IframeLayerLabelProps {
   onRename?: (next: string) => void
 }
 
+/**
+ * The Iframe Layer's title row — the branch picker/badge, the frame name, and
+ * the route picker/badge. Rendered inside the shared `LayerTitleBar` (owned by
+ * the Layer Shell), which supplies the drag-handle routing and group label;
+ * this component is purely the content-specific row.
+ */
 export function IframeLayerLabel({
-  iframeLayerId,
   label,
   branch,
   branchId,
   route,
   sharedState,
-  zoom,
-  iframeLayerWidth,
-  dragHandlers,
-  onRequestReorderDrag,
-  groupLabelDragHandlers,
   assignableBranches,
   onAssignBranch,
   discoveredRoutes,
   onSelectRoute,
   selected,
   remoteSelectedColor,
-  remoteGroupSelectedColor,
-  groupLabel,
-  groupSelected,
-  onSelectGroup,
-  onRenameGroup,
   onSelectFrame,
   onRename,
-  reorderDragTranslateX,
-  reorderDragTranslateY,
-  reorderDragPopped,
 }: IframeLayerLabelProps) {
   return (
-    <LayerTitleBar
-      layerId={iframeLayerId}
-      layerWidth={iframeLayerWidth}
-      zoom={zoom}
-      dragHandlers={dragHandlers}
-      onRequestReorderDrag={onRequestReorderDrag}
-      groupLabel={groupLabel}
-      groupSelected={groupSelected}
-      groupSelectedColor={remoteGroupSelectedColor}
-      onSelectGroup={onSelectGroup}
-      onRenameGroup={onRenameGroup}
-      groupLabelDragHandlers={groupLabelDragHandlers}
-      reorderDragTranslateX={reorderDragTranslateX}
-      reorderDragTranslateY={reorderDragTranslateY}
-      reorderDragPopped={reorderDragPopped}
-    >
-      <div className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
-        {onAssignBranch ? (
-          <BranchPicker
-            branch={branch}
-            currentBranchId={branchId}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            assignableBranches={assignableBranches ?? []}
-            onAssignBranch={onAssignBranch}
-          />
-        ) : branch ? (
-          <BranchBadge
-            branch={branch}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
-          />
-        ) : null}
-        <LayerTitleText
-          title={label}
-          selected={selected}
-          color={remoteSelectedColor}
-          onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
-          onRename={onRename}
-          placeholder="Untitled"
+    <div className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
+      {onAssignBranch ? (
+        <BranchPicker
+          branch={branch}
+          currentBranchId={branchId}
+          colorKey={branchId}
+          colorIndex={
+            assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+          }
+          assignableBranches={assignableBranches ?? []}
+          onAssignBranch={onAssignBranch}
         />
-        {branch &&
-          (onSelectRoute ? (
-            <RoutePicker
-              route={route}
-              discoveredRoutes={discoveredRoutes ?? []}
-              onSelectRoute={onSelectRoute}
-              sharedState={sharedState}
-            />
-          ) : (
-            <Badge
-              variant="outline"
-              className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
-            >
-              <span className="truncate">{route || "/"}</span>
-              <SharedStateIndicator sharedState={sharedState} />
-            </Badge>
-          ))}
-      </div>
-    </LayerTitleBar>
+      ) : branch ? (
+        <BranchBadge
+          branch={branch}
+          colorKey={branchId}
+          colorIndex={
+            assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+          }
+          className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
+        />
+      ) : null}
+      <LayerTitleText
+        title={label}
+        selected={selected}
+        color={remoteSelectedColor}
+        onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
+        onRename={onRename}
+        placeholder="Untitled"
+      />
+      {branch &&
+        (onSelectRoute ? (
+          <RoutePicker
+            route={route}
+            discoveredRoutes={discoveredRoutes ?? []}
+            onSelectRoute={onSelectRoute}
+            sharedState={sharedState}
+          />
+        ) : (
+          <Badge
+            variant="outline"
+            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
+          >
+            <span className="truncate">{route || "/"}</span>
+            <SharedStateIndicator sharedState={sharedState} />
+          </Badge>
+        ))}
+    </div>
   )
 }
 

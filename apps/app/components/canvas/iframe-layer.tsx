@@ -27,11 +27,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
-import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
-import {
-  useIframeLayerResize,
-  type ResizeEdge,
-} from "@/hooks/use-iframe-layer-resize"
+import { type ResizeEdge } from "@/hooks/use-iframe-layer-resize"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
   useScreenplayDom,
@@ -43,7 +39,7 @@ import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
-import { ResizeHandles } from "./resize-handles"
+import { LayerShell } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
 import type {
   DomRect,
@@ -297,79 +293,6 @@ export function IframeLayer({
   dragTranslateY,
   dragPopped,
 }: IframeLayerProps) {
-  const handleDrag = useCallback(
-    (
-      dx: number,
-      dy: number,
-      totalDx: number,
-      totalDy: number,
-      metaKey: boolean
-    ) => {
-      // `groupSelected` routes through the selection mover too, so grabbing a
-      // selected group (its label or any member) drags the whole selection —
-      // including other selected groups and loose frames — not just this group.
-      if (selected || groupSelected) {
-        onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
-      } else {
-        onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
-      }
-    },
-    [selected, groupSelected, onMoveGroup, onMoveSelected]
-  )
-
-  const selectedOnPointerDown = useRef(false)
-
-  const dragHandlers = useIframeLayerDrag({
-    zoom,
-    onDrag: handleDrag,
-    onDragStart: onGroupDragStart,
-    onDragEnd: onGroupDragEnd,
-    onClick: (e) => {
-      if (selectedOnPointerDown.current) {
-        selectedOnPointerDown.current = false
-        return
-      }
-      onSelect(iframeLayer.id, e.shiftKey)
-    },
-  })
-
-  // Separate drag handlers for the *group* label — dragging it translates the
-  // whole group (like the frame body) but a release without movement does
-  // NOT fall through to the frame's `onSelect` (group selection was already
-  // applied on pointerdown). Reuses `handleDrag` so the snap-merge feature
-  // still kicks in.
-  const groupLabelDragHandlers = useIframeLayerDrag({
-    zoom,
-    onDrag: handleDrag,
-    onDragStart: onGroupDragStart,
-    onDragEnd: onGroupDragEnd,
-  })
-
-  const handleResize = useCallback(
-    (edge: ResizeEdge, dx: number, dy: number, dw: number, dh: number) => {
-      onResize(iframeLayer.id, edge, dx, dy, dw, dh)
-    },
-    [iframeLayer.id, onResize]
-  )
-
-  const handleResizeStart = useCallback(
-    (edge: ResizeEdge) => {
-      onResizeStart?.(iframeLayer.id, edge)
-    },
-    [iframeLayer.id, onResizeStart]
-  )
-
-  const handleResizeEnd = useCallback(() => {
-    onResizeEnd?.(iframeLayer.id)
-  }, [iframeLayer.id, onResizeEnd])
-
-  const { makeHandleProps } = useIframeLayerResize({
-    zoom,
-    onResize: handleResize,
-    onResizeStart: handleResizeStart,
-    onResizeEnd: handleResizeEnd,
-  })
-
   // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
   // navigation and should not reload the iframe.
@@ -708,225 +631,210 @@ export function IframeLayer({
   const interactive = focused || createFlow
 
   return (
-    <div
-      ref={frameRef}
-      id={`iframe-layer-${iframeLayer.id}`}
-      data-iframe-layer
-      className="absolute"
-      style={{
-        width: iframeLayer.width,
-        height: iframeLayer.height,
-        // Flat, absolutely-positioned in world space. Moving between groups
-        // only changes `worldX/worldY`, never the React parent, so the iframe
-        // element is never unmounted/remounted — no reload on pop-out/in.
-        left: worldX,
-        top: worldY,
-        transform:
-          dragTranslateX != null || dragTranslateY != null
-            ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
-            : undefined,
-        // Dragged/popped frame floats above its siblings; otherwise paint
-        // order follows the group's sidebar position.
-        zIndex:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? 9999
-            : zIndex,
-        // The lifted frame is non-interactive so drop hit-testing falls
-        // through to whatever sits beneath the cursor.
-        pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? "none"
-            : "auto",
-      }}
+    <LayerShell
+      layerId={iframeLayer.id}
+      width={iframeLayer.width}
+      height={iframeLayer.height}
+      worldX={worldX}
+      worldY={worldY}
+      zIndex={zIndex}
+      dragTranslateX={dragTranslateX}
+      dragTranslateY={dragTranslateY}
+      dragPopped={dragPopped}
+      containerId={`iframe-layer-${iframeLayer.id}`}
+      containerClassName="absolute"
+      containerRef={frameRef}
+      containerProps={{ "data-iframe-layer": "" }}
+      zoom={zoom}
+      selected={selected}
+      groupSelected={groupSelected}
+      multiSelected={multiSelected}
+      spaceHeld={spaceHeld}
+      onSelect={onSelect}
+      onMoveGroup={onMoveGroup}
+      onMoveSelected={onMoveSelected}
+      onGroupDragStart={onGroupDragStart}
+      onGroupDragEnd={onGroupDragEnd}
+      onRequestReorderDrag={onRequestReorderDrag}
+      // Interactive (focus / Create Flow) frames forward pointers to the iframe,
+      // so the title bar's drag is detached just like the body overlay is hidden.
+      titleDragDisabled={interactive}
+      onResize={onResize}
+      onResizeStart={onResizeStart}
+      onResizeEnd={onResizeEnd}
+      groupLabel={groupLabel}
+      remoteGroupSelectedColor={remoteGroupSelectedColor}
+      onSelectGroup={onSelectGroup}
+      onRenameGroup={onRenameGroup}
+      renderTitle={(api) => (
+        <IframeLayerLabel
+          label={iframeLayer.label}
+          branch={iframeLayer.branch}
+          branchId={iframeLayer.branchId}
+          route={iframeLayer.route}
+          sharedState={iframeLayer.sharedState}
+          assignableBranches={assignableBranches}
+          onAssignBranch={
+            onAssignBranch
+              ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
+              : undefined
+          }
+          discoveredRoutes={discoveredRoutes}
+          onSelectRoute={
+            onSelectRoute && iframeLayer.branchId
+              ? (route) => onSelectRoute(iframeLayer.id, route)
+              : undefined
+          }
+          selected={selected || groupSelected}
+          remoteSelectedColor={remoteSelectedColor}
+          onSelectFrame={(shiftKey) => {
+            if (selected && !shiftKey) return
+            if (groupSelected && !shiftKey) return
+            api.deferSelect(shiftKey)
+          }}
+          onRename={
+            onRename ? (next) => onRename(iframeLayer.id, next) : undefined
+          }
+        />
+      )}
     >
-      <IframeLayerLabel
-        iframeLayerId={iframeLayer.id}
-        label={iframeLayer.label}
-        branch={iframeLayer.branch}
-        branchId={iframeLayer.branchId}
-        route={iframeLayer.route}
-        sharedState={iframeLayer.sharedState}
-        zoom={zoom}
-        iframeLayerWidth={iframeLayer.width}
-        dragHandlers={interactive ? undefined : dragHandlers}
-        onRequestReorderDrag={interactive ? undefined : onRequestReorderDrag}
-        groupLabelDragHandlers={
-          interactive ? undefined : groupLabelDragHandlers
-        }
-        assignableBranches={assignableBranches}
-        onAssignBranch={
-          onAssignBranch
-            ? (branchId) => onAssignBranch(iframeLayer.id, branchId)
-            : undefined
-        }
-        discoveredRoutes={discoveredRoutes}
-        onSelectRoute={
-          onSelectRoute && iframeLayer.branchId
-            ? (route) => onSelectRoute(iframeLayer.id, route)
-            : undefined
-        }
-        selected={selected || groupSelected}
-        remoteSelectedColor={remoteSelectedColor}
-        remoteGroupSelectedColor={remoteGroupSelectedColor}
-        groupLabel={groupLabel}
-        groupSelected={groupSelected}
-        onSelectGroup={
-          onSelectGroup
-            ? (shiftKey) => {
-                selectedOnPointerDown.current = true
-                onSelectGroup(shiftKey)
-              }
-            : undefined
-        }
-        onRenameGroup={onRenameGroup}
-        onSelectFrame={(shiftKey) => {
-          if (selected && !shiftKey) return
-          if (groupSelected && !shiftKey) return
-          selectedOnPointerDown.current = true
-          onSelect(iframeLayer.id, shiftKey)
-        }}
-        onRename={
-          onRename ? (next) => onRename(iframeLayer.id, next) : undefined
-        }
-        reorderDragTranslateX={dragTranslateX}
-        reorderDragTranslateY={dragTranslateY}
-        reorderDragPopped={dragPopped}
-      />
-      {iframeLayer.branchId &&
-        showToolbar &&
-        toolbarPortalTarget &&
-        createPortal(
-          <div
-            ref={toolbarRef}
-            // Positioned every frame by the rAF loop above (translate is set
-            // imperatively from the frame's getBoundingClientRect). Lives
-            // outside the world transform, so it's already at constant screen
-            // size — no inverse-zoom scaling needed.
-            className="pointer-events-auto absolute top-0 left-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-xxs"
-                    variant={focused ? "default" : "ghost"}
-                    onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                  >
-                    {focused ? <Move /> : <MousePointer />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {focused ? "Back to canvas" : "Interact"}
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-xxs"
-                    variant={createFlow ? "default" : "ghost"}
-                    onClick={() =>
-                      onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                    }
-                  >
-                    <Route />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {createFlow ? "Stop Create Flow" : "Create Flow"}
-                </TooltipContent>
-              </Tooltip>
-              {/* interaction modes above ∣ everything else below */}
-              <div className="my-0.5 h-px w-full bg-foreground/10" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-xxs"
-                    variant={showReload ? "default" : "ghost"}
-                    onClick={reloadIframe}
-                  >
-                    <RotateCw />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">Reload</TooltipContent>
-              </Tooltip>
-              <KnobsPopover
-                knobs={iframeLayer.knobs}
-                values={iframeLayer.knobValues}
-                onChange={(values) =>
-                  onKnobValuesChange?.(iframeLayer.id, values)
-                }
-              />
-              {showOverflow && (
-                <DropdownMenu>
+      {(api) => (
+        <>
+          {iframeLayer.branchId &&
+            showToolbar &&
+            toolbarPortalTarget &&
+            createPortal(
+              <div
+                ref={toolbarRef}
+                // Positioned every frame by the rAF loop above (translate is set
+                // imperatively from the frame's getBoundingClientRect). Lives
+                // outside the world transform, so it's already at constant screen
+                // size — no inverse-zoom scaling needed.
+                className="pointer-events-auto absolute top-0 left-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon-xxs" variant="ghost">
-                          <MoreHorizontal className="text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">More</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent
-                    side="right"
-                    align="start"
-                    sideOffset={8}
-                  >
-                    {onSetSize && (
-                      <DeviceSizeSubMenu
-                        width={iframeLayer.width}
-                        height={iframeLayer.height}
-                        onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                      />
-                    )}
-                    {showFit && (
-                      <DropdownMenuItem onSelect={handleFitToContent}>
-                        <Maximize2 />
-                        Fit to content
-                      </DropdownMenuItem>
-                    )}
-                    {(!!onSetSize || showFit) &&
-                      (showPlay || showOpenInBrowser) && (
-                        <DropdownMenuSeparator />
-                      )}
-                    {showPlay && (
-                      <DropdownMenuItem
-                        onSelect={() => onPlay?.(iframeLayer.id)}
+                      <Button
+                        size="icon-xxs"
+                        variant={focused ? "default" : "ghost"}
+                        onClick={() => onFocus(focused ? null : iframeLayer.id)}
                       >
-                        <Play />
-                        Open prototype player
-                      </DropdownMenuItem>
-                    )}
-                    {showOpenInBrowser && (
-                      <OpenInBrowserItem url={openInBrowserUrl} />
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </TooltipProvider>
-          </div>,
-          toolbarPortalTarget
-        )}
-      <div className="relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900">
-        {/* Mount the iframe as soon as there's a URL — don't gate it on the
+                        {focused ? <Move /> : <MousePointer />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {focused ? "Back to canvas" : "Interact"}
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon-xxs"
+                        variant={createFlow ? "default" : "ghost"}
+                        onClick={() =>
+                          onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                        }
+                      >
+                        <Route />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {createFlow ? "Stop Create Flow" : "Create Flow"}
+                    </TooltipContent>
+                  </Tooltip>
+                  {/* interaction modes above ∣ everything else below */}
+                  <div className="my-0.5 h-px w-full bg-foreground/10" />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon-xxs"
+                        variant={showReload ? "default" : "ghost"}
+                        onClick={reloadIframe}
+                      >
+                        <RotateCw />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Reload</TooltipContent>
+                  </Tooltip>
+                  <KnobsPopover
+                    knobs={iframeLayer.knobs}
+                    values={iframeLayer.knobValues}
+                    onChange={(values) =>
+                      onKnobValuesChange?.(iframeLayer.id, values)
+                    }
+                  />
+                  {showOverflow && (
+                    <DropdownMenu>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon-xxs" variant="ghost">
+                              <MoreHorizontal className="text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">More</TooltipContent>
+                      </Tooltip>
+                      <DropdownMenuContent
+                        side="right"
+                        align="start"
+                        sideOffset={8}
+                      >
+                        {onSetSize && (
+                          <DeviceSizeSubMenu
+                            width={iframeLayer.width}
+                            height={iframeLayer.height}
+                            onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                          />
+                        )}
+                        {showFit && (
+                          <DropdownMenuItem onSelect={handleFitToContent}>
+                            <Maximize2 />
+                            Fit to content
+                          </DropdownMenuItem>
+                        )}
+                        {(!!onSetSize || showFit) &&
+                          (showPlay || showOpenInBrowser) && (
+                            <DropdownMenuSeparator />
+                          )}
+                        {showPlay && (
+                          <DropdownMenuItem
+                            onSelect={() => onPlay?.(iframeLayer.id)}
+                          >
+                            <Play />
+                            Open prototype player
+                          </DropdownMenuItem>
+                        )}
+                        {showOpenInBrowser && (
+                          <OpenInBrowserItem url={openInBrowserUrl} />
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </TooltipProvider>
+              </div>,
+              toolbarPortalTarget
+            )}
+          <div className="relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900">
+            {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on
             it meant the browser only started fetching the page *after* the probe
             had already fetched it once, serializing two full loads. Now the
             iframe loads in parallel with the probe and the overlay below just
             hides it until the dev server is confirmed reachable. */}
-        {iframeSrc && (
-          <iframe
-            ref={iframeRef}
-            src={iframeSrc}
-            className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-zinc-900"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            style={{ pointerEvents: interactive ? "auto" : "none" }}
-          />
-        )}
-        {/* Overlay covering the still-loading (or placeholder) iframe. It drops
+            {iframeSrc && (
+              <iframe
+                ref={iframeRef}
+                src={iframeSrc}
+                className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-zinc-900"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                style={{ pointerEvents: interactive ? "auto" : "none" }}
+              />
+            )}
+            {/* Overlay covering the still-loading (or placeholder) iframe. It drops
             the instant the iframe's bridge reports the real page is up
             (`contentReady`) — a postMessage, no server round-trip — so the warm
             path doesn't sit on the spinner waiting for the probe RPC to return.
@@ -939,87 +847,72 @@ export function IframeLayer({
             before its dev server is up, so there may be no URL to probe yet —
             still show the waiting state (the probe holds in `waiting` without a
             URL) so the frame isn't blank. */}
-        {!contentReady &&
-          (probeState !== "ready" ||
-            recoveryTick < MAX_PLACEHOLDER_RELOADS) &&
-          (desiredSrc || iframeLayer.branchId) && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
-              {probeState === "timedout" ? (
-                <>
-                  <span className="text-xs font-medium text-foreground">
-                    Dev server not responding
-                  </span>
-                  <span className="max-w-[240px] text-xs text-muted-foreground">
-                    The preview couldn&apos;t be reached. It may still be
-                    starting up.
-                  </span>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    className="pointer-events-auto mt-1"
-                    onClick={retryProbe}
-                  >
-                    <RotateCw />
-                    Retry
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-                  <span className="text-xs text-muted-foreground">
-                    Waiting for dev server...
-                  </span>
-                </>
+            {!contentReady &&
+              (probeState !== "ready" ||
+                recoveryTick < MAX_PLACEHOLDER_RELOADS) &&
+              (desiredSrc || iframeLayer.branchId) && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center dark:bg-zinc-900">
+                  {probeState === "timedout" ? (
+                    <>
+                      <span className="text-xs font-medium text-foreground">
+                        Dev server not responding
+                      </span>
+                      <span className="max-w-[240px] text-xs text-muted-foreground">
+                        The preview couldn&apos;t be reached. It may still be
+                        starting up.
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="pointer-events-auto mt-1"
+                        onClick={retryProbe}
+                      >
+                        <RotateCw />
+                        Retry
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                      <span className="text-xs text-muted-foreground">
+                        Waiting for dev server...
+                      </span>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-        {/* Overlay sits above the iframe (which is pointer-events:none unless
+            {/* Overlay sits above the iframe (which is pointer-events:none unless
             focused). Handles drag-to-move / click; in comment mode it also
             forwards pointer tracking to the in-iframe picker so the canvas
             can render an element hover overlay. */}
-        {!interactive && (
-          <div
-            className="absolute inset-0 touch-none"
-            style={{ cursor: "inherit" }}
-            {...(spaceHeld ? {} : dragHandlers)}
-            {...(commentMode && !spaceHeld
-              ? {
-                  // Hover-only: show the inspect overlay so the user can see
-                  // what element they're about to comment on. The click is
-                  // handled by the canvas-level handleCanvasClick (which
-                  // also re-runs elementAtPoint to capture the selector).
-                  onPointerMove: async (e: React.PointerEvent) => {
-                    const result = await queryElementAtPoint(
-                      e.clientX,
-                      e.clientY
-                    )
-                    onHover(iframeLayer.id, result ? result.rect : null)
-                  },
-                  onPointerLeave: () => onHover(iframeLayer.id, null),
-                }
-              : {})}
-            onPointerDownCapture={(e) => {
-              if (e.button === 0 && !spaceHeld) {
-                selectedOnPointerDown.current = false
-                // When the parent group is selected, defer selection to the
-                // click handler so a drag here moves the whole group instead
-                // of piercing to this child frame.
-                if (groupSelected && !e.shiftKey) return
-                if (!selected || e.shiftKey) {
-                  selectedOnPointerDown.current = true
-                  onSelect(iframeLayer.id, e.shiftKey)
-                }
-              }
-            }}
-          />
-        )}
-      </div>
-
-      {/* Resize handles — only when singly selected. */}
-      {selected && !multiSelected && (
-        <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
+            {!interactive && (
+              <div
+                className="absolute inset-0 touch-none"
+                style={{ cursor: "inherit" }}
+                {...api.bodyDragHandlers}
+                {...(commentMode && !spaceHeld
+                  ? {
+                      // Hover-only: show the inspect overlay so the user can see
+                      // what element they're about to comment on. The click is
+                      // handled by the canvas-level handleCanvasClick (which
+                      // also re-runs elementAtPoint to capture the selector).
+                      onPointerMove: async (e: React.PointerEvent) => {
+                        const result = await queryElementAtPoint(
+                          e.clientX,
+                          e.clientY
+                        )
+                        onHover(iframeLayer.id, result ? result.rect : null)
+                      },
+                      onPointerLeave: () => onHover(iframeLayer.id, null),
+                    }
+                  : {})}
+                onPointerDownCapture={api.onBodyPointerDownCapture}
+              />
+            )}
+          </div>
+        </>
       )}
-    </div>
+    </LayerShell>
   )
 }
