@@ -97,7 +97,7 @@ import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
-import { ChatPanel, type ChatPanelTarget } from "@/components/agent/chat-panel"
+import { ChatPanel } from "@/components/agent/chat-panel"
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
   ResizablePanelGroup,
@@ -131,6 +131,7 @@ import {
   restartSandbox as restartSandboxRecovery,
 } from "@/lib/branch/recovery"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
+import { useChatTarget } from "@/components/canvas/use-chat-target"
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
@@ -274,21 +275,9 @@ export function Canvas({
   const [createFlowIframeLayerId, setCreateFlowIframeLayerId] = useState<
     string | null
   >(null)
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  /**
-   * When a chat tab is targeting a document layer (instead of an agent's
-   * branch), the panel pivots into "doc mode" — the picker shows a doc
-   * pill, the tools are doc-mutation tools, etc. Mutually exclusive with
-   * `selectedAgentId` from the panel's POV.
-   */
-  const [selectedDocumentChatTargetId, setSelectedDocumentChatTargetId] =
-    useState<string | null>(null)
-  // Agents created this session whose sandbox isn't streaming logs yet.
-  // A LogProbe is rendered for each; on ready we flip selection and drop
-  // the id. No cleanup effect — filtering in render handles deletions,
-  // so agents from Liveblocks can be a new reference every render safely.
-  const [pendingAgentIds, setPendingAgentIds] = useState<string[]>([])
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  // Chat-Target selection — which target the panel shows, the per-target memory,
+  // and the pending-agent readiness — is owned by the `useChatTarget` controller
+  // (#569), created once its dependencies are in scope below.
   // Terminal tabs are deliberately kept out of the shared `chatSessions` Y.Doc
   // collection: they're per-user, BYO-harness shells that must never appear in
   // collaborators' tab strips or enter the conversation model. They live in
@@ -349,11 +338,6 @@ export function Canvas({
       cancelled = true
     }
   }, [roomId])
-  // Per-repo / per-agent memory so switching back restores prior selection
-  const selectedAgentByRepoRef = useRef<Record<string, string>>({})
-  const selectedChatByAgentRef = useRef<Record<string, string>>({})
-  /** Per-document memory: switching back to a doc target restores the last open chat tab. */
-  const selectedChatByDocumentRef = useRef<Record<string, string>>({})
   const inspectHandlersRef = useRef<{
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
@@ -1224,6 +1208,19 @@ export function Canvas({
 
   const getViewportCenter = camera.getViewportCenter
 
+  // Chat-Target selection controller (PRD #569): owns which Chat Target the
+  // panel shows — the selected agent/doc/chat, the per-target memory, and the
+  // pending-agent readiness — and resolves the `ChatPanelTarget`. The symmetric
+  // sibling of the Tab Pool controller (which owns the tabs *within* a target);
+  // both `useTabPool` and `useBranchIntake` compose with it for selection.
+  const chatTarget = useChatTarget({
+    agents,
+    chatSessions,
+    markdownLayers,
+    localTerminals,
+    chatPanelRef,
+  })
+
   // --- Repo mutations ---
 
   const addRepoToStorage = useCallback(
@@ -1689,10 +1686,10 @@ export function Canvas({
         { x: canvasX, y: canvasY },
         { width, height }
       )
-      selectedChatByDocumentRef.current[docId] = chatId
+      chatTarget.rememberDocChat(docId, chatId)
       return docId
     },
-    [ops]
+    [ops, chatTarget]
   )
 
   /**
@@ -1917,45 +1914,7 @@ export function Canvas({
     [iframeLayers, roomId]
   )
 
-  const handleSelectAgent = useCallback(
-    (agentId: string | null, options?: { expandPanel?: boolean }) => {
-      if (!agentId) return
-
-      // Save outgoing agent's chat selection
-      if (selectedAgentId && selectedChatId) {
-        selectedChatByAgentRef.current[selectedAgentId] = selectedChatId
-      }
-
-      // Save agent selection for its repo
-      const agent = agents.find((a) => a.id === agentId)
-      if (agent) {
-        selectedAgentByRepoRef.current[agent.repoId] = agentId
-      }
-
-      setSelectedAgentId(agentId)
-
-      // Restore remembered chat or fall back to first open
-      const rememberedChat = selectedChatByAgentRef.current[agentId]
-      const agentChats = chatSessions
-        .filter((c) => c.branchId === agentId && !c.closedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-      if (rememberedChat && agentChats.some((c) => c.id === rememberedChat)) {
-        setSelectedChatId(rememberedChat)
-      } else {
-        setSelectedChatId(agentChats[0]?.id ?? null)
-      }
-
-      if (options?.expandPanel !== false) {
-        const panel = chatPanelRef.current
-        if (panel?.isCollapsed()) {
-          panel.expand()
-          const { inPixels } = panel.getSize()
-          if (inPixels < 480) panel.resize(480)
-        }
-      }
-    },
-    [agents, chatSessions, selectedAgentId, selectedChatId]
-  )
+  const handleSelectAgent = chatTarget.selectAgent
 
   const handleRebaseOnDefault = useCallback(
     (agentId: string) => {
@@ -1969,7 +1928,7 @@ export function Canvas({
       const existingChats = chatSessions
         .filter((c) => c.branchId === agentId && !c.closedAt)
         .sort((a, b) => a.createdAt - b.createdAt)
-      const remembered = selectedChatByAgentRef.current[agentId]
+      const remembered = chatTarget.rememberedAgentChatId(agentId)
       const targetChat =
         existingChats.find((c) => c.id === remembered) ?? existingChats[0]
 
@@ -2017,14 +1976,7 @@ export function Canvas({
         onChatRename: (label) => updateChatSession(chatId, { label }),
       })
 
-      setSelectedAgentId(agentId)
-      setSelectedChatId(chatId)
-      const panel = chatPanelRef.current
-      if (panel?.isCollapsed()) {
-        panel.expand()
-        const { inPixels } = panel.getSize()
-        if (inPixels < 480) panel.resize(480)
-      }
+      chatTarget.selectAgentChat(agentId, chatId, { expandPanel: true })
     },
     [
       agents,
@@ -2034,6 +1986,7 @@ export function Canvas({
       addChatSession,
       updateChatSession,
       updateAgentInStorage,
+      chatTarget,
     ]
   )
 
@@ -2116,15 +2069,6 @@ export function Canvas({
   // note as-is (no route/element to attach).
   const handleCommentSendToChat = useCallback(
     (note: string, ctx: SendToChatContext) => {
-      const expandPanel = () => {
-        const panel = chatPanelRef.current
-        if (panel?.isCollapsed()) {
-          panel.expand()
-          const { inPixels } = panel.getSize()
-          if (inPixels < 480) panel.resize(480)
-        }
-      }
-
       // Document-layer comment: pivot the panel to that doc's chat (or
       // create one if none exists / the remembered chat is busy) and send
       // the note — prepended with the quoted span + line range when the
@@ -2159,10 +2103,7 @@ export function Canvas({
         const isFirstChat = !chatSessions.some(
           (c) => c.markdownLayerId === docLayer.id && c.id !== chatId
         )
-        setSelectedAgentId(null)
-        setSelectedDocumentChatTargetId(docLayer.id)
-        setSelectedChatId(chatId)
-        selectedChatByDocumentRef.current[docLayer.id] = chatId
+        chatTarget.selectDocChat(docLayer.id, chatId)
         chatStore.sendMessage({
           roomId,
           chatId,
@@ -2172,7 +2113,7 @@ export function Canvas({
           onChatRename: (label) =>
             inspectHandlersRef.current.renameChat(chatId, label),
         })
-        expandPanel()
+        chatTarget.expandPanel()
         return
       }
 
@@ -2199,10 +2140,10 @@ export function Canvas({
       const isFirstChat = !chatSessions.some(
         (c) => c.branchId === agent.id && c.id !== chatId
       )
-      setSelectedAgentId(agent.id)
-      setSelectedDocumentChatTargetId(null)
-      setSelectedChatId(chatId)
-      selectedChatByAgentRef.current[agent.id] = chatId
+      chatTarget.selectAgentChat(agent.id, chatId, {
+        clearDocument: true,
+        remember: true,
+      })
       chatStore.sendMessage({
         roomId,
         chatId,
@@ -2216,9 +2157,17 @@ export function Canvas({
         onChatRename: (label) =>
           inspectHandlersRef.current.renameChat(chatId, label),
       })
-      expandPanel()
+      chatTarget.expandPanel()
     },
-    [markdownLayers, chatSessions, agents, iframeLayers, roomId, addChatSession]
+    [
+      markdownLayers,
+      chatSessions,
+      agents,
+      iframeLayers,
+      roomId,
+      addChatSession,
+      chatTarget,
+    ]
   )
 
   // Tab Pool controller (PRD #563): the chat/terminal/tab apply-side — create,
@@ -2238,12 +2187,7 @@ export function Canvas({
     localTerminals,
     setLocalTerminals,
     isLocalTerminal,
-    selectedChatId,
-    setSelectedChatId,
-    setSelectedAgentId,
-    setSelectedDocumentChatTargetId,
-    selectedChatByAgentRef,
-    selectedChatByDocumentRef,
+    chatTarget,
   })
 
   // Branch Intake controller (PRD #562): the Repo -> Branch -> Sandbox
@@ -2272,11 +2216,7 @@ export function Canvas({
     setSelectedGroupIds,
     setSelectedIframeLayerIds,
     handleSelectIframeLayer,
-    setPendingAgentIds,
-    selectedAgentId,
-    setSelectedAgentId,
-    setSelectedChatId,
-    chatPanelRef,
+    chatTarget,
   })
 
   // The injected seams the Branch recovery verbs run over: the agent + repo
@@ -2898,32 +2838,6 @@ export function Canvas({
     }
   }
 
-  // Auto-select the first running agent when none is selected. Booting
-  // agents aren't picked here — a LogProbe (rendered for each pending id)
-  // promotes them once their sandbox is streaming logs, which avoids the
-  // "switch to empty panel then hang on 'Connecting…'" flicker.
-  // Skipped when the user has explicitly pointed the chat panel at a
-  // document — otherwise picking a doc from the target dropdown
-  // (which sets `selectedAgentId` to null) would immediately snap
-  // selection back to a running agent and clobber the doc target.
-  useEffect(() => {
-    if (selectedDocumentChatTargetId) return
-    if (selectedAgentId && agents.some((a) => a.id === selectedAgentId)) return
-    const firstRunning = agents.find(
-      (a) => a.status === "running" && a.sandboxName
-    )
-    // Picking a default once async-loaded agent data arrives is a legitimate
-    // effect sync, not an avoidable render cascade.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (firstRunning) setSelectedAgentId(firstRunning.id)
-  }, [selectedAgentId, agents, selectedDocumentChatTargetId])
-
-  const handlePendingReady = useCallback((id: string) => {
-    setSelectedAgentId(id)
-    setPendingAgentIds((prev) => prev.filter((p) => p !== id))
-  }, [])
-
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Desktop + non-fullscreen: the macOS traffic lights overlay the top-left,
@@ -2949,17 +2863,13 @@ export function Canvas({
 
   return (
     <>
-      {pendingAgentIds.map((id) => {
-        const pending = agents.find((a) => a.id === id)
-        if (!pending?.sandboxName) return null
-        return (
-          <LogProbe
-            key={id}
-            sandboxName={pending.sandboxName}
-            onReady={() => handlePendingReady(id)}
-          />
-        )
-      })}
+      {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
+        <LogProbe
+          key={agentId}
+          sandboxName={sandboxName}
+          onReady={() => chatTarget.handlePendingReady(agentId)}
+        />
+      ))}
       <ResizablePanelGroup
         orientation="horizontal"
         className="fixed inset-0 bg-muted/30"
@@ -3040,7 +2950,7 @@ export function Canvas({
                   .map((a) => a.id)
               )
             }
-            chatPanelBranchId={chatCollapsed ? null : selectedAgentId}
+            chatPanelBranchId={chatCollapsed ? null : chatTarget.selectedAgentId}
             branchPrs={branchPrs}
           />
         </ResizablePanel>
@@ -3897,31 +3807,12 @@ export function Canvas({
           onResize={(size) => setChatCollapsed(size.inPixels === 0)}
         >
           {(() => {
-            // Resolve the panel's current target: an agent (sandbox-backed)
-            // when one is selected and ready, otherwise the doc-chat target
-            // when one was picked from the dropdown. Falls through to the
-            // empty-state below when neither is set.
-            const docTarget = selectedDocumentChatTargetId
-              ? (markdownLayers.find(
-                  (d) => d.id === selectedDocumentChatTargetId
-                ) ?? null)
-              : null
-            // Resolve the target. For layer-kind targets we pack the layer
-            // into the generic `{ kind: "layer", layerKind, layer }` shape
-            // — that's what the chat panel expects so it can dispatch
-            // through the layer-kinds registry.
-            const target: ChatPanelTarget | null = selectedAgent?.sandboxName
-              ? { kind: "agent", agent: selectedAgent }
-              : docTarget
-                ? {
-                    kind: "layer",
-                    layerKind: "markdown-layer",
-                    layer: docTarget as unknown as { id: string } & Record<
-                      string,
-                      unknown
-                    >,
-                  }
-                : null
+            // The panel's current target is resolved by the Chat-Target
+            // controller (#569): an agent (sandbox-backed) when one is selected
+            // and ready, otherwise the doc-chat target when one was picked from
+            // the dropdown. Falls through to the empty-state below when neither
+            // is set.
+            const target = chatTarget.target
             if (!target) return null
             const filteredSessions = chatSessions.filter((c) => {
               if (target.kind === "agent") return c.branchId === target.agent.id
@@ -3943,24 +3834,20 @@ export function Canvas({
                 target={target}
                 agents={agents}
                 markdownLayers={markdownLayers}
-                onSelectAgent={(id) => {
-                  setSelectedDocumentChatTargetId(null)
-                  handleSelectAgent(id)
-                }}
+                onSelectAgent={(id) =>
+                  chatTarget.selectAgent(id, { clearDocument: true })
+                }
                 onSelectLayer={(layerKind, id) => {
                   if (layerKind === "markdown-layer") {
-                    setSelectedAgentId(null)
-                    setSelectedDocumentChatTargetId(id)
-                    const lastChat = selectedChatByDocumentRef.current[id]
-                    setSelectedChatId(lastChat ?? null)
+                    chatTarget.selectDocument(id)
                     return
                   }
                 }}
                 chatSessions={filteredSessions}
                 terminalTabs={terminalTabs}
-                selectedChatId={selectedChatId}
+                selectedChatId={chatTarget.selectedChatId}
                 roomId={roomId}
-                onSelectChat={tabPool.select}
+                onSelectChat={chatTarget.selectChat}
                 onCreateChat={() => {
                   if (target.kind === "agent")
                     tabPool.open({ kind: "chat", branchId: target.agent.id })

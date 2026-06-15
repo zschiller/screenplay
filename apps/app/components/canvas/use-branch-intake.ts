@@ -1,6 +1,5 @@
 import {
   type Dispatch,
-  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -13,7 +12,6 @@ import {
   colors,
   uniqueNamesGenerator,
 } from "unique-names-generator"
-import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { withBasePath } from "@/lib/base-path"
 import { chatStore } from "@/lib/chat-store"
@@ -31,6 +29,7 @@ import {
 } from "@/lib/branch/intake"
 import { readLastTabKind } from "@/lib/canvas/tab-kind"
 import type { CanvasOps } from "@/lib/canvas/ops"
+import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type {
   BranchData,
@@ -83,11 +82,13 @@ export interface BranchIntakeDeps {
   setSelectedGroupIds: Dispatch<SetStateAction<Set<string>>>
   setSelectedIframeLayerIds: Dispatch<SetStateAction<Set<string>>>
   handleSelectIframeLayer: (id: string) => void
-  setPendingAgentIds: Dispatch<SetStateAction<string[]>>
-  selectedAgentId: string | null
-  setSelectedAgentId: (id: string | null) => void
-  setSelectedChatId: (id: string | null) => void
-  chatPanelRef: RefObject<PanelImperativeHandle | null>
+  /**
+   * The Chat-Target controller (#569). Branch Intake hands off to it for the
+   * selection effects of create + teardown: registering a just-created Branch as
+   * pending (`addPending`) and clearing + collapsing the panel when the deleted
+   * Branch was the selected one (`clearIfSelected`).
+   */
+  chatTarget: ChatTarget
 }
 
 export interface BranchIntake {
@@ -140,11 +141,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     setSelectedGroupIds,
     setSelectedIframeLayerIds,
     handleSelectIframeLayer,
-    setPendingAgentIds,
-    selectedAgentId,
-    setSelectedAgentId,
-    setSelectedChatId,
-    chatPanelRef,
+    chatTarget,
   } = deps
 
   // Eagerly seed a single new Branch's canvas frame at creation time, rather
@@ -280,9 +277,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           },
         }).branchId
       })
-      setPendingAgentIds((prev) =>
-        prev.includes(agentId) ? prev : [...prev, agentId]
-      )
+      chatTarget.addPending([agentId])
       const seedChat = seedDefaultTabForNewBranch(agentId)
       seedEagerFrameForBranch(agentId)
 
@@ -306,7 +301,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       roomId,
       seedDefaultTabForNewBranch,
       seedEagerFrameForBranch,
-      setPendingAgentIds,
+      chatTarget,
     ]
   )
 
@@ -480,12 +475,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         frameGroup = ops.createFramesForAgents(frameSpecs, { x: cx, y: cy })
       })
 
-      setPendingAgentIds((prev) => {
-        const additions = dispatched
-          .map((d) => d.id)
-          .filter((id) => !prev.includes(id))
-        return additions.length > 0 ? [...prev, ...additions] : prev
-      })
+      chatTarget.addPending(dispatched.map((d) => d.id))
 
       // Surface the just-created frames: select the new Group and bring it into
       // view once its frames have mounted. Zooming to the first member's DOM
@@ -536,7 +526,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       createDefaultTabForBranch,
       getViewportCenter,
       handleSelectIframeLayer,
-      setPendingAgentIds,
+      chatTarget,
       setSelectedGroupIds,
       setSelectedIframeLayerIds,
     ]
@@ -563,7 +553,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           autoNamedBranch: false,
         },
       })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      chatTarget.addPending([id])
       const seedChat = seedDefaultTabForNewBranch(id)
       seedEagerFrameForBranch(id)
 
@@ -587,7 +577,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       roomId,
       seedDefaultTabForNewBranch,
       seedEagerFrameForBranch,
-      setPendingAgentIds,
+      chatTarget,
     ]
   )
 
@@ -730,11 +720,8 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           }
         }
       }
-      if (selectedAgentId === id) {
-        setSelectedAgentId(null)
-        setSelectedChatId(null)
-        chatPanelRef.current?.collapse()
-      }
+      // Clear selection + collapse the panel if this was the selected Branch.
+      chatTarget.clearIfSelected(id)
       // removeAgentFromStorage clears the chat-store mirror for the Chat
       // Sessions the verb deletes.
       removeAgentFromStorage(id)
@@ -746,15 +733,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         void deleteSandboxes(plan.sandboxNames).catch(() => {})
       }
     },
-    [
-      agents,
-      repos,
-      selectedAgentId,
-      setSelectedAgentId,
-      setSelectedChatId,
-      chatPanelRef,
-      removeAgentFromStorage,
-    ]
+    [agents, repos, chatTarget, removeAgentFromStorage]
   )
 
   return {

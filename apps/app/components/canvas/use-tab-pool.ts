@@ -1,9 +1,4 @@
-import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-  useCallback,
-} from "react"
+import { type Dispatch, type SetStateAction, useCallback } from "react"
 import { nanoid } from "nanoid"
 
 import { chatStore } from "@/lib/chat-store"
@@ -13,6 +8,7 @@ import {
   type TabCloseOutcome,
   type TabPoolTarget,
 } from "@/lib/chat/tab-pool"
+import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import {
   createTerminalTab,
   DEFAULT_HARNESS_KEY,
@@ -35,10 +31,12 @@ import type {
  * Tab Pool controller (PRD #563) — the apply-side of a Chat Target's tab pool,
  * lifted out of `components/canvas/canvas.tsx`. The component renders the tab
  * strip and calls the verbs this hook returns (`open`, `close`, `remove`,
- * `select`, `rename`, `reopen`, `seed`); the effects — the chat-store and Y.Doc
- * tab writes, the Terminal Tab server actions, the tmux / PTY teardown, and the
- * selection writes — live here, in one place, rather than smeared across the
- * Canvas surface.
+ * `rename`, `reopen`, `seed`); the effects — the chat-store and Y.Doc tab
+ * writes, the Terminal Tab server actions, and the tmux / PTY teardown — live
+ * here, in one place, rather than smeared across the Canvas surface. The
+ * selection side effects each verb performs are delegated to the Chat-Target
+ * controller (`useChatTarget`, #569), which owns *which* target is shown;
+ * selecting a tab itself is now a Chat-Target verb (`selectChat`).
  *
  * The pure decision core stays in `lib/chat/tab-pool.ts`: {@link buildTabPool}
  * scopes the room-wide lists down to one target's pool (the agent-vs-doc split
@@ -68,13 +66,13 @@ export interface TabPoolDeps {
   localTerminals: TerminalTabData[]
   setLocalTerminals: Dispatch<SetStateAction<TerminalTabData[]>>
   isLocalTerminal: (id: string | null) => boolean
-  selectedChatId: string | null
-  setSelectedChatId: (id: string | null) => void
-  setSelectedAgentId: (id: string | null) => void
-  setSelectedDocumentChatTargetId: (id: string | null) => void
-  /** Per-target "remember the last-selected chat" refs (UI-only state). */
-  selectedChatByAgentRef: RefObject<Record<string, string>>
-  selectedChatByDocumentRef: RefObject<Record<string, string>>
+  /**
+   * The Chat-Target controller (#569). The Tab Pool composes with it for the
+   * selection side effects it used to perform by poking raw setters and memory
+   * refs: it reads the current `selectedChatId` and calls the chat-target verbs
+   * (`selectChatId`, `selectAgentChat`, `selectDocChat`) to move selection.
+   */
+  chatTarget: ChatTarget
 }
 
 /**
@@ -98,8 +96,6 @@ export interface TabPool {
   close: (chatId: string, nextSelectedId?: string) => void
   /** Permanently delete a Chat Session (or close a Terminal Tab). */
   remove: (chatId: string) => void
-  /** Move selection to a tab (or clear it with `null`). */
-  select: (chatId: string | null) => void
   /** Rename a Chat Session or Terminal Tab. */
   rename: (chatId: string, label: string) => void
   /** Restore a previously-closed Chat Session into its pool. */
@@ -128,12 +124,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     localTerminals,
     setLocalTerminals,
     isLocalTerminal,
-    selectedChatId,
-    setSelectedChatId,
-    setSelectedAgentId,
-    setSelectedDocumentChatTargetId,
-    selectedChatByAgentRef,
-    selectedChatByDocumentRef,
+    chatTarget,
   } = deps
 
   /**
@@ -160,7 +151,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
             (userId ? readLastHarnessKey(userId) : null) ?? DEFAULT_HARNESS_KEY,
         })
         setLocalTerminals((prev) => [...prev, tab])
-        if (select) setSelectedChatId(tab.id)
+        if (select) chatTarget.selectChatId(tab.id)
         createTerminalTabAction({
           roomId,
           branch: branchId,
@@ -180,10 +171,10 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         label: "Untitled",
         createdAt: Date.now(),
       })
-      if (select) setSelectedChatId(id)
+      if (select) chatTarget.selectChatId(id)
       return id
     },
-    [roomId, addChatSession, userId, setLocalTerminals, setSelectedChatId]
+    [roomId, addChatSession, userId, setLocalTerminals, chatTarget]
   )
 
   // Apply a Tab Pool close decision (the effect half of the pure
@@ -209,14 +200,13 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
             label: "Untitled",
             createdAt: Date.now(),
           })
-          setSelectedChatId(newId)
-          selectedChatByDocumentRef.current[respawn.markdownLayerId] = newId
+          chatTarget.selectDocChat(respawn.markdownLayerId, newId)
         }
         return
       }
-      if (nextSelectedId !== undefined) setSelectedChatId(nextSelectedId)
+      if (nextSelectedId !== undefined) chatTarget.selectChatId(nextSelectedId)
     },
-    [seed, addChatSession, setSelectedChatId, selectedChatByDocumentRef]
+    [seed, addChatSession, chatTarget]
   )
 
   // Close a local terminal tab: it's ephemeral, so closing simply drops it
@@ -236,12 +226,17 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
           chatSessions,
           localTerminals
         )
-        const outcome = resolveTabClose(pool, id, selectedChatId, nextSelectedId)
+        const outcome = resolveTabClose(
+          pool,
+          id,
+          chatTarget.selectedChatId,
+          nextSelectedId
+        )
         applyTabCloseOutcome(outcome)
-      } else if (selectedChatId === id) {
+      } else if (chatTarget.selectedChatId === id) {
         // No branch to form a pool around (e.g. the row is already gone); just
         // clear the selection if it was the selected tab.
-        setSelectedChatId(nextSelectedId ?? null)
+        chatTarget.selectChatId(nextSelectedId ?? null)
       }
       // Closing an X permanently deletes the row (a reload alone never does).
       deleteTerminalTabAction({ roomId, id }).catch((err) => {
@@ -263,13 +258,12 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
       }
     },
     [
-      selectedChatId,
+      chatTarget,
       chatSessions,
       localTerminals,
       roomId,
       agents,
       setLocalTerminals,
-      setSelectedChatId,
       applyTabCloseOutcome,
     ]
   )
@@ -285,8 +279,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
           createdAt: Date.now(),
         }
         addChatSession(id, data)
-        setSelectedAgentId(spec.branchId)
-        setSelectedChatId(id)
+        chatTarget.selectAgentChat(spec.branchId, id)
         return
       }
       if (spec.kind === "terminal") {
@@ -305,8 +298,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
           harnessKey: spec.harnessKey,
         })
         setLocalTerminals((prev) => [...prev, tab])
-        setSelectedAgentId(spec.branchId)
-        setSelectedChatId(id)
+        chatTarget.selectAgentChat(spec.branchId, id)
         // Persist so the tab survives reload and follows the User across
         // devices. Optimistic: the tab is already in local state; a failed write
         // only means it won't be restored next load.
@@ -332,20 +324,9 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         label: "Untitled",
         createdAt: Date.now(),
       })
-      setSelectedAgentId(null)
-      setSelectedDocumentChatTargetId(spec.markdownLayerId)
-      setSelectedChatId(id)
-      selectedChatByDocumentRef.current[spec.markdownLayerId] = id
+      chatTarget.selectDocChat(spec.markdownLayerId, id)
     },
-    [
-      addChatSession,
-      roomId,
-      setLocalTerminals,
-      setSelectedAgentId,
-      setSelectedChatId,
-      setSelectedDocumentChatTargetId,
-      selectedChatByDocumentRef,
-    ]
+    [addChatSession, roomId, setLocalTerminals, chatTarget]
   )
 
   const close = useCallback(
@@ -368,11 +349,16 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
       updateChatSession(chatId, { closedAt: Date.now() })
       if (!target) return
       const pool = buildTabPool(target, chatSessions, localTerminals)
-      const outcome = resolveTabClose(pool, chatId, selectedChatId, nextSelectedId)
+      const outcome = resolveTabClose(
+        pool,
+        chatId,
+        chatTarget.selectedChatId,
+        nextSelectedId
+      )
       applyTabCloseOutcome(outcome)
     },
     [
-      selectedChatId,
+      chatTarget,
       chatSessions,
       localTerminals,
       updateChatSession,
@@ -385,9 +371,9 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
   const reopen = useCallback(
     (chatId: string) => {
       updateChatSession(chatId, { closedAt: 0 })
-      setSelectedChatId(chatId)
+      chatTarget.selectChatId(chatId)
     },
-    [updateChatSession, setSelectedChatId]
+    [updateChatSession, chatTarget]
   )
 
   const remove = useCallback(
@@ -396,7 +382,7 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
         closeTerminal(chatId)
         return
       }
-      if (selectedChatId === chatId) {
+      if (chatTarget.selectedChatId === chatId) {
         const chat = chatSessions.find((c) => c.id === chatId)
         if (chat) {
           const sameTarget = (c: ChatSessionData) =>
@@ -408,21 +394,20 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
           const siblings = chatSessions
             .filter((c) => sameTarget(c) && c.id !== chatId && !c.closedAt)
             .sort((a, b) => a.createdAt - b.createdAt)
-          setSelectedChatId(siblings[0]?.id ?? null)
+          chatTarget.selectChatId(siblings[0]?.id ?? null)
         } else {
-          setSelectedChatId(null)
+          chatTarget.selectChatId(null)
         }
       }
       chatStore.cleanup(chatId)
       removeChatSession(chatId)
     },
     [
-      selectedChatId,
+      chatTarget,
       chatSessions,
       removeChatSession,
       isLocalTerminal,
       closeTerminal,
-      setSelectedChatId,
     ]
   )
 
@@ -439,40 +424,5 @@ export function useTabPool(deps: TabPoolDeps): TabPool {
     [updateChatSession, isLocalTerminal, setLocalTerminals]
   )
 
-  const select = useCallback(
-    (chatId: string | null) => {
-      setSelectedChatId(chatId)
-      if (chatId) {
-        const terminal = localTerminals.find((t) => t.id === chatId)
-        if (terminal) {
-          // Local terminals aren't in the Y.Doc; just track their branch so
-          // the agent target stays selected. No per-target "remember" ref —
-          // they don't survive a remount anyway.
-          if (terminal.branchId) setSelectedAgentId(terminal.branchId)
-          return
-        }
-        const chat = chatSessions.find((c) => c.id === chatId)
-        if (!chat) return
-        if (chat.branchId) {
-          setSelectedAgentId(chat.branchId)
-          selectedChatByAgentRef.current[chat.branchId] = chatId
-        }
-        if (chat.markdownLayerId) {
-          setSelectedDocumentChatTargetId(chat.markdownLayerId)
-          selectedChatByDocumentRef.current[chat.markdownLayerId] = chatId
-        }
-      }
-    },
-    [
-      chatSessions,
-      localTerminals,
-      setSelectedChatId,
-      setSelectedAgentId,
-      setSelectedDocumentChatTargetId,
-      selectedChatByAgentRef,
-      selectedChatByDocumentRef,
-    ]
-  )
-
-  return { open, close, remove, select, rename, reopen, seed }
+  return { open, close, remove, rename, reopen, seed }
 }
