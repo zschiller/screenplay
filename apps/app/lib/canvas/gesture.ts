@@ -33,20 +33,34 @@
  *     still derives no geometry, so the rect-vs-layout hit-test stays in the
  *     component and arrives here as plain id sets; the reducer owns only the
  *     selection algebra (shift toggle vs replace).
+ *   - **device-resize** (#545): drag an Iframe Layer's resize handle — corner
+ *     drags snap to standard device sizes (ghost candidates in the Preview),
+ *     emitting `resizeLayer` live on every move (the original wrote to the
+ *     Y.Doc per move too); meta held bypasses the snap for free resize.
  *
- * The move arm's Snap math is *orchestrated*, not reimplemented: it calls
- * `computeMoveSnap` / `computeMergeSnap` from `lib/canvas/snap` (also pure), so
- * this module still imports neither React nor Yjs.
+ * The move and device-resize arms' Snap math is *orchestrated*, not
+ * reimplemented: they call `computeMoveSnap` / `computeMergeSnap` /
+ * `computeDeviceSnap` from `lib/canvas/snap` (also pure), so this module still
+ * imports neither React nor Yjs.
  */
 
 import type { GroupMember, GroupMemberKind } from "@/lib/types"
 import {
+  anchorCornerForEdge,
+  computeDeviceSnap,
   computeMergeSnap,
   computeMoveSnap,
+  type AnchorCorner,
   type MergeSnapCandidate,
   type Rect,
+  type ResizeEdge,
+  type SnapCandidate,
   type SnapGuide,
 } from "@/lib/canvas/snap"
+import {
+  MIN_IFRAME_LAYER_HEIGHT,
+  MIN_IFRAME_LAYER_WIDTH,
+} from "@/lib/constants"
 
 /**
  * Context snapshotted when a gap-resize gesture starts. Subsequent events carry
@@ -166,8 +180,42 @@ export type MarqueeGestureContext = {
 }
 
 /**
- * The single active gesture, or `idle` at rest. New arms (device-resize) join
- * this union as each gesture is ported.
+ * Context snapshotted when a device-resize gesture starts. The raw (un-snapped)
+ * proposed size accumulates against `initialWidth`/`initialHeight`, not the
+ * already-snapped value committed on the previous frame — otherwise, once the
+ * layer locked onto a preset, the cumulative delta would never reach the next
+ * one. `edge` fixes which corner/side is dragged (resize starts from a handle,
+ * not a canvas pointerdown — a wiring detail of the thin hook, not a
+ * state-machine difference) and drives both the device snap and the anchor.
+ */
+export type ResizeGestureContext = {
+  iframeLayerId: string
+  edge: ResizeEdge
+  /** The layer's committed size at drag start — raw deltas accumulate from here. */
+  initialWidth: number
+  initialHeight: number
+}
+
+/**
+ * In-flight device-resize bookkeeping. `rawDw`/`rawDh` accumulate the raw
+ * (un-snapped) pointer deltas so the snap math always sees the proposed size.
+ * `width`/`height` are the last *committed* size — the baseline the next
+ * `resizeLayer` intent's group-anchor shift is measured against. `candidates`
+ * and `snappedPresetId` feed the device-size ghosts in the Gesture Preview.
+ */
+export type ResizeDeviceState = {
+  rawDw: number
+  rawDh: number
+  width: number
+  height: number
+  candidates: SnapCandidate[]
+  snappedPresetId: string | null
+  /** The corner that stays put while the dragged edge moves (drives the ghosts). */
+  anchor: AnchorCorner
+}
+
+/**
+ * The single active gesture, or `idle` at rest.
  */
 export type GestureState =
   | { kind: "idle" }
@@ -207,6 +255,7 @@ export type GestureState =
       /** Last cursor (canvas space) — the moving corner of the live rect. */
       cursor: { x: number; y: number }
     }
+  | { kind: "resize"; ctx: ResizeGestureContext; device: ResizeDeviceState }
 
 /**
  * The layers the marquee rect currently covers, hit-tested by the component
@@ -222,9 +271,10 @@ export type MarqueeHits = {
  * Pointer/key input the FSM reduces. `start` snapshots the gesture context;
  * `move` carries the live cursor (for the move arm, the cumulative delta from
  * drag start), meta-key state for gestures that read it, and — for marquee — the
- * layers the rect now covers (`hits`); `metaChange` flips the meta-key between
- * moves (a key press with no pointer motion); `release` commits; `cancel` aborts
- * with no intent.
+ * layers the rect now covers (`hits`); `resizeMove` carries the raw size delta
+ * plus the snap-bypass flag and zoom the device snap needs; `metaChange` flips
+ * the meta-key between moves (a key press with no pointer motion); `release`
+ * commits; `cancel` aborts with no intent.
  */
 export type GestureEvent =
   | { type: "start"; start: GestureStart }
@@ -233,6 +283,13 @@ export type GestureEvent =
       cursor: { x: number; y: number }
       meta?: boolean
       hits?: MarqueeHits
+    }
+  | {
+      type: "resizeMove"
+      dw: number
+      dh: number
+      metaHeld: boolean
+      zoom: number
     }
   | { type: "metaChange"; meta: boolean }
   | { type: "release"; cursor?: { x: number; y: number }; meta?: boolean }
@@ -250,6 +307,7 @@ export type GestureStart =
     }
   | { kind: "move"; ctx: MoveGestureContext }
   | { kind: "marquee"; ctx: MarqueeGestureContext }
+  | { kind: "resize"; ctx: ResizeGestureContext }
 
 /**
  * A reorder drag the Canvas shows mid-flight: the dragged Member floats at
@@ -279,6 +337,9 @@ export type ReorderPreview = {
  *   - `marqueeRect` is the in-flight selection rect (canvas space), drawn straight
  *     by the SelectionOverlay. Unlike the others it does *not* feed
  *     `deriveCanvasLayout` — a marquee changes selection, not geometry.
+ *   - `resizeSnap` drives the device-size ghost rects (and the snapped-preset
+ *     outline) shown during a device-resize. Like `marqueeRect` it feeds an
+ *     overlay (the ResizeSnapUnderlay), not `deriveCanvasLayout`.
  *
  * Each is empty/null outside its gesture.
  */
@@ -293,6 +354,13 @@ export type GesturePreview = {
     currentX: number
     currentY: number
   } | null
+  resizeSnap: {
+    iframeLayerId: string
+    edge: ResizeEdge
+    anchor: AnchorCorner
+    candidates: SnapCandidate[]
+    snappedPresetId: string | null
+  } | null
 }
 
 /** Empty preview — the resting state and the post-release/-cancel reset. */
@@ -302,6 +370,7 @@ export const EMPTY_PREVIEW: GesturePreview = {
   snapGuides: [],
   mergeRects: null,
   marqueeRect: null,
+  resizeSnap: null,
 }
 
 /**
@@ -318,6 +387,9 @@ export const EMPTY_PREVIEW: GesturePreview = {
  *   plain click (label drags), so click-vs-drag stays in the gesture.
  * - `marqueeSelect`: selection only — the resolved set of layers the marquee
  *   covers, applied to local selection state (never a Y.Doc write).
+ * - `resizeLayer`: resize one Iframe Layer to the snapped size and shift its
+ *   parent group so the un-dragged edge stays pinned; emitted live on every
+ *   device-resize move (the original handler wrote to the Y.Doc per move too).
  */
 export type GestureIntent =
   | { type: "setGroupGap"; groupId: string; gap: number }
@@ -335,6 +407,15 @@ export type GestureIntent =
       type: "marqueeSelect"
       iframeLayerIds: ReadonlySet<string>
       documentLayerIds: ReadonlySet<string>
+    }
+  | {
+      type: "resizeLayer"
+      iframeLayerId: string
+      width: number
+      height: number
+      /** World-space shift for the parent group (non-zero only for w/n edges). */
+      shiftX: number
+      shiftY: number
     }
 
 export type GestureResult = {
@@ -575,6 +656,107 @@ function marqueeSelectIntent(selection: {
   }
 }
 
+/** The device-resize preview (ghost candidates + snapped outline) for a state. */
+function resizeSnapPreview(
+  ctx: ResizeGestureContext,
+  device: ResizeDeviceState
+): GesturePreview {
+  return {
+    gapOverride: null,
+    reorder: null,
+    snapGuides: [],
+    mergeRects: null,
+    marqueeRect: null,
+    resizeSnap: {
+      iframeLayerId: ctx.iframeLayerId,
+      edge: ctx.edge,
+      anchor: device.anchor,
+      candidates: device.candidates,
+      snappedPresetId: device.snappedPresetId,
+    },
+  }
+}
+
+/**
+ * Reduce one device-resize `resizeMove`. Accumulates the raw size delta, runs
+ * the device snap (bypassed while meta is held), clamps to the minimum size,
+ * and computes the group-anchor shift so the un-dragged edge stays pinned. Only
+ * emits a `resizeLayer` intent when the *committed* size actually moves — a
+ * snap-locked drag that doesn't clear the next preset leaves width/height alone
+ * and writes nothing, exactly like the original handler's guarded patch.
+ */
+function reduceResizeMove(
+  ctx: ResizeGestureContext,
+  device: ResizeDeviceState,
+  event: { dw: number; dh: number; metaHeld: boolean; zoom: number }
+): {
+  device: ResizeDeviceState
+  preview: GesturePreview
+  intent?: GestureIntent
+} {
+  const rawDw = device.rawDw + event.dw
+  const rawDh = device.rawDh + event.dh
+  const rawWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, ctx.initialWidth + rawDw)
+  const rawHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, ctx.initialHeight + rawDh)
+
+  // Cmd/meta held → bypass snap entirely (no candidates, no lock) so the user
+  // can fine-tune freely past a preset.
+  const snap = event.metaHeld
+    ? {
+        candidates: [] as SnapCandidate[],
+        width: rawWidth,
+        height: rawHeight,
+        snappedPresetId: null,
+      }
+    : computeDeviceSnap({
+        edge: ctx.edge,
+        rawWidth,
+        rawHeight,
+        zoom: event.zoom,
+      })
+
+  const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, snap.width)
+  const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, snap.height)
+  // Measured against the last committed size, not the raw proposal — once the
+  // layer hits its minimum this shrinks toward 0, so the group anchor stays
+  // pinned to the un-dragged side instead of marching off with the cursor.
+  const actualDw = newWidth - device.width
+  const actualDh = newHeight - device.height
+  // Left/top edge drags pull the group anchor by the opposite of the size
+  // change so the right/bottom edge stays put; right/bottom drags leave it.
+  const shiftX = ctx.edge.includes("w") ? -actualDw : 0
+  const shiftY = ctx.edge.includes("n") ? -actualDh : 0
+
+  const nextDevice: ResizeDeviceState = {
+    rawDw,
+    rawDh,
+    width: newWidth,
+    height: newHeight,
+    candidates: snap.candidates,
+    snappedPresetId: snap.snappedPresetId,
+    anchor: device.anchor,
+  }
+  const preview = resizeSnapPreview(ctx, nextDevice)
+
+  if (actualDw === 0 && actualDh === 0) {
+    // Size unchanged (e.g. still snapped to the same preset) — update the ghost
+    // candidates but write nothing to the Y.Doc.
+    return { device: nextDevice, preview }
+  }
+  return {
+    device: nextDevice,
+    preview,
+    intent: {
+      type: "resizeLayer",
+      iframeLayerId: ctx.iframeLayerId,
+      width: newWidth,
+      height: newHeight,
+      shiftX,
+      shiftY,
+    },
+  }
+}
+
 /**
  * Reduce one event against the current gesture state. Pure: same inputs always
  * produce the same `{ state, preview, intent? }`, so a synthetic event sequence
@@ -602,6 +784,7 @@ export function reduceGesture(
             snapGuides: [],
             mergeRects: null,
             marqueeRect: null,
+            resizeSnap: null,
           },
         }
       }
@@ -636,6 +819,27 @@ export function reduceGesture(
           intent: marqueeSelectIntent(selection),
         }
       }
+      if (start.kind === "resize") {
+        // No ghosts until the first move — grabbing a handle without dragging
+        // shows no underlay (matches the original, which set the snap state
+        // lazily on the first resize move, not on resize start).
+        return {
+          state: {
+            kind: "resize",
+            ctx: start.ctx,
+            device: {
+              rawDw: 0,
+              rawDh: 0,
+              width: start.ctx.initialWidth,
+              height: start.ctx.initialHeight,
+              candidates: [],
+              snappedPresetId: null,
+              anchor: anchorCornerForEdge(start.ctx.edge),
+            },
+          },
+          preview: EMPTY_PREVIEW,
+        }
+      }
       // start.kind === "move": seed the merge preview from the resting position
       // so a drag that begins already over a target's slot goes hot at once.
       const { targetId, rects } = mergeStep(start.ctx, { x: 0, y: 0 }, false)
@@ -657,6 +861,7 @@ export function reduceGesture(
           snapGuides: [],
           mergeRects: rects,
           marqueeRect: null,
+          resizeSnap: null,
         },
       }
     }
@@ -672,6 +877,7 @@ export function reduceGesture(
             snapGuides: [],
             mergeRects: null,
             marqueeRect: null,
+            resizeSnap: null,
           },
         }
       }
@@ -745,6 +951,7 @@ export function reduceGesture(
           snapGuides: guides,
           mergeRects: rects,
           marqueeRect: null,
+          resizeSnap: null,
         }
         // Apply the move live (every move) so collaborators see the drag in real
         // time — only the merge waits for release.
@@ -763,6 +970,23 @@ export function reduceGesture(
         return { state: next, preview }
       }
       // No gesture in flight — a move is just hover; nothing to reduce.
+      return { state, preview: previewFor(state) }
+    }
+
+    case "resizeMove": {
+      if (state.kind === "resize") {
+        const { device, preview, intent } = reduceResizeMove(
+          state.ctx,
+          state.device,
+          event
+        )
+        return {
+          state: { kind: "resize", ctx: state.ctx, device },
+          preview,
+          intent,
+        }
+      }
+      // No resize in flight — ignore (single-active invariant).
       return { state, preview: previewFor(state) }
     }
 
@@ -792,6 +1016,7 @@ export function reduceGesture(
             snapGuides: state.guides,
             mergeRects: rects,
             marqueeRect: null,
+            resizeSnap: null,
           },
         }
       }
@@ -874,6 +1099,11 @@ export function reduceGesture(
         }
         return { state: { kind: "idle" }, preview: EMPTY_PREVIEW }
       }
+      if (state.kind === "resize") {
+        // Device-resize commits live on every move, so release just returns to
+        // rest with no intent — the in-flight ghosts clear.
+        return { state: { kind: "idle" }, preview: EMPTY_PREVIEW }
+      }
       return { state, preview: previewFor(state) }
     }
 
@@ -892,6 +1122,7 @@ function previewFor(state: GestureState): GesturePreview {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     }
   }
   if (state.kind === "reorder") {
@@ -901,6 +1132,7 @@ function previewFor(state: GestureState): GesturePreview {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     }
   }
   if (state.kind === "move") {
@@ -911,6 +1143,7 @@ function previewFor(state: GestureState): GesturePreview {
       snapGuides: state.guides,
       mergeRects: rects,
       marqueeRect: null,
+      resizeSnap: null,
     }
   }
   if (state.kind === "marquee") {
@@ -920,7 +1153,11 @@ function previewFor(state: GestureState): GesturePreview {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: marqueeRectOf(state.ctx, state.cursor),
+      resizeSnap: null,
     }
+  }
+  if (state.kind === "resize") {
+    return resizeSnapPreview(state.ctx, state.device)
   }
   return EMPTY_PREVIEW
 }

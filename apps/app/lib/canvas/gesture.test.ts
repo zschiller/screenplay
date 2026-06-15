@@ -28,6 +28,18 @@ function run(events: GestureEvent[]): GestureResult {
   return result
 }
 
+/** Fold from `idle`, returning every intermediate result (one per event). */
+function runAll(events: GestureEvent[]): GestureResult[] {
+  let state: GestureState = { kind: "idle" }
+  const results: GestureResult[] = []
+  for (const event of events) {
+    const result = reduceGesture(state, event)
+    results.push(result)
+    state = result.state
+  }
+  return results
+}
+
 const ctx: GapGestureContext = {
   groupId: "g1",
   gapIndex: 1,
@@ -49,6 +61,7 @@ describe("reduceGesture — gap-resize", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -68,6 +81,7 @@ describe("reduceGesture — gap-resize", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -178,6 +192,7 @@ describe("reduceGesture — gap-resize", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     })
   })
 })
@@ -497,6 +512,7 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -527,6 +543,7 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,
+      resizeSnap: null,
     })
   })
 
@@ -756,6 +773,7 @@ describe("reduceGesture — marquee selection", () => {
       snapGuides: [],
       mergeRects: null,
       marqueeRect: { startX: 100, startY: 100, currentX: 100, currentY: 100 },
+      resizeSnap: null,
     })
     // Opening a non-shift marquee clears the layer selection.
     expect(result.intent).toEqual({
@@ -933,5 +951,381 @@ describe("reduceGesture — marquee selection", () => {
     expect(result.state).toEqual({ kind: "idle" })
     expect(result.preview).toEqual(EMPTY_PREVIEW)
     expect(result.intent).toBeUndefined()
+  })
+})
+
+// Device-resize: the FSM accumulates the raw (un-snapped) size delta against
+// the layer's size at gesture start, orchestrates `computeDeviceSnap` (corner
+// drags snap to standard device sizes within a screen-pixel threshold, with
+// fading ghost candidates in the Preview), and emits a `resizeLayer` intent on
+// every move so the frame resizes live. These exercise the orchestration — not
+// the snap math itself, which has its own tests (`snap.test.ts`). Sizes below
+// reference the real `desktop-default` preset (1280×800) at zoom 1.
+
+describe("reduceGesture — device-resize", () => {
+  it("starts from idle: snapshots the size + anchor and shows no ghosts yet", () => {
+    const result = reduceGesture(
+      { kind: "idle" },
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1290,
+            initialHeight: 810,
+          },
+        },
+      }
+    )
+
+    // `se` keeps the top-left corner pinned while the bottom-right edge moves.
+    expect(result.state).toEqual({
+      kind: "resize",
+      ctx: {
+        iframeLayerId: "f1",
+        edge: "se",
+        initialWidth: 1290,
+        initialHeight: 810,
+      },
+      device: {
+        rawDw: 0,
+        rawDh: 0,
+        width: 1290,
+        height: 810,
+        candidates: [],
+        snappedPresetId: null,
+        anchor: "tl",
+      },
+    })
+    // No underlay until the first move — grabbing a handle without dragging
+    // shows nothing.
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("snaps a corner drag to the nearest device preset and emits a resizeLayer intent", () => {
+    // From 1290×810, a -10/-10 corner drag proposes 1280×800 — an exact match
+    // for desktop-default, so it locks and commits.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1290,
+            initialHeight: 810,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -10, dh: -10, metaHeld: false, zoom: 1 },
+    ])
+
+    // se is a right/bottom drag, so the parent group doesn't shift.
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1280,
+      height: 800,
+      shiftX: 0,
+      shiftY: 0,
+    })
+    const snap = result.preview.resizeSnap
+    expect(snap?.snappedPresetId).toBe("desktop-default")
+    expect(snap?.iframeLayerId).toBe("f1")
+    expect(snap?.anchor).toBe("tl")
+    // The ghost candidate surfaces at full opacity (exact match).
+    expect(snap?.candidates).toHaveLength(1)
+    expect(snap?.candidates[0]).toMatchObject({
+      ghostWidth: 1280,
+      ghostHeight: 800,
+      alpha: 1,
+      distancePx: 0,
+      orientation: "portrait",
+    })
+    expect(snap?.candidates[0]?.preset.id).toBe("desktop-default")
+  })
+
+  it("surfaces a fading ghost candidate without locking when outside the snap threshold", () => {
+    // From 1280×800, a -10/-10 drag proposes 1270×790: ~14px from the preset,
+    // past the 8px snap threshold but inside the 80px fade radius. The ghost
+    // shows (faded), but the size stays free.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1280,
+            initialHeight: 800,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -10, dh: -10, metaHeld: false, zoom: 1 },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1270,
+      height: 790,
+      shiftX: 0,
+      shiftY: 0,
+    })
+    const snap = result.preview.resizeSnap
+    expect(snap?.snappedPresetId).toBeNull()
+    expect(snap?.candidates).toHaveLength(1)
+    expect(snap?.candidates[0]?.preset.id).toBe("desktop-default")
+    expect(snap?.candidates[0]?.alpha).toBeCloseTo(1 - Math.hypot(10, 10) / 80)
+  })
+
+  it("pins the un-dragged edge: a NW corner drag shifts the parent group", () => {
+    // Same -10/-10 snap to 1280×800, but dragging the top-left corner: the
+    // group anchor shifts by +10/+10 so the bottom-right edge stays put.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "nw",
+            initialWidth: 1290,
+            initialHeight: 810,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -10, dh: -10, metaHeld: false, zoom: 1 },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1280,
+      height: 800,
+      shiftX: 10,
+      shiftY: 10,
+    })
+    expect(result.preview.resizeSnap?.anchor).toBe("br")
+  })
+
+  it("bypasses the device snap entirely while meta is held (free resize)", () => {
+    // Meta held → no candidates, no lock: the raw proposed size commits as-is.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1000,
+            initialHeight: 700,
+          },
+        },
+      },
+      { type: "resizeMove", dw: 50, dh: 30, metaHeld: true, zoom: 1 },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1050,
+      height: 730,
+      shiftX: 0,
+      shiftY: 0,
+    })
+    expect(result.preview.resizeSnap?.candidates).toEqual([])
+    expect(result.preview.resizeSnap?.snappedPresetId).toBeNull()
+  })
+
+  it("doesn't device-snap a single-edge drag (corner-only)", () => {
+    // A pure east drag never snaps to a device size — no candidates surface.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "e",
+            initialWidth: 1285,
+            initialHeight: 800,
+          },
+        },
+      },
+      { type: "resizeMove", dw: 5, dh: 0, metaHeld: false, zoom: 1 },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1290,
+      height: 800,
+      shiftX: 0,
+      shiftY: 0,
+    })
+    expect(result.preview.resizeSnap?.candidates).toEqual([])
+    expect(result.preview.resizeSnap?.snappedPresetId).toBeNull()
+  })
+
+  it("clamps the committed size to the minimum", () => {
+    // Shrinking a 120×120 layer by 50 on each axis floors at the 100×100 min.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 120,
+            initialHeight: 120,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -50, dh: -50, metaHeld: false, zoom: 1 },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 100,
+      height: 100,
+      shiftX: 0,
+      shiftY: 0,
+    })
+  })
+
+  it("stays on a preset until the raw delta clears it (no redundant writes)", () => {
+    // Starting exactly on desktop-default (1280×800), a small +5/+5 nudge stays
+    // within the 8px snap threshold (≈7px) so the size is unchanged — no intent.
+    // A second +5/+5 nudge pushes the *raw* size past threshold (≈14px), so it
+    // un-snaps and commits — proving the raw delta accumulates against the start
+    // size, not the snapped value written last frame.
+    const [, first, second] = runAll([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1280,
+            initialHeight: 800,
+          },
+        },
+      },
+      { type: "resizeMove", dw: 5, dh: 5, metaHeld: false, zoom: 1 },
+      { type: "resizeMove", dw: 5, dh: 5, metaHeld: false, zoom: 1 },
+    ])
+
+    // First nudge: still snapped to 1280×800 → no commit, but the ghost shows.
+    expect(first!.intent).toBeUndefined()
+    expect(first!.preview.resizeSnap?.snappedPresetId).toBe("desktop-default")
+
+    // Second nudge: raw 1290×810 clears the preset → commits the free size.
+    expect(second!.intent).toEqual({
+      type: "resizeLayer",
+      iframeLayerId: "f1",
+      width: 1290,
+      height: 810,
+      shiftX: 0,
+      shiftY: 0,
+    })
+    expect(second!.preview.resizeSnap?.snappedPresetId).toBeNull()
+  })
+
+  it("release returns to idle with no intent (resize commits live per move)", () => {
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1290,
+            initialHeight: 810,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -10, dh: -10, metaHeld: false, zoom: 1 },
+      { type: "release" },
+    ])
+
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("cancels back to idle, discarding the ghosts", () => {
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "se",
+            initialWidth: 1290,
+            initialHeight: 810,
+          },
+        },
+      },
+      { type: "resizeMove", dw: -10, dh: -10, metaHeld: false, zoom: 1 },
+      { type: "cancel" },
+    ])
+
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("ignores resizeMove while idle (single-active invariant)", () => {
+    const idle: GestureState = { kind: "idle" }
+    expect(
+      reduceGesture(idle, {
+        type: "resizeMove",
+        dw: 10,
+        dh: 10,
+        metaHeld: false,
+        zoom: 1,
+      })
+    ).toEqual({ state: idle, preview: EMPTY_PREVIEW })
+  })
+
+  it("replaces an in-flight resize on a fresh gap start (one active at a time)", () => {
+    const inFlight: GestureState = {
+      kind: "resize",
+      ctx: {
+        iframeLayerId: "f1",
+        edge: "se",
+        initialWidth: 1290,
+        initialHeight: 810,
+      },
+      device: {
+        rawDw: -10,
+        rawDh: -10,
+        width: 1280,
+        height: 800,
+        candidates: [],
+        snappedPresetId: "desktop-default",
+        anchor: "tl",
+      },
+    }
+    const result = reduceGesture(inFlight, {
+      type: "start",
+      start: { kind: "gap", ctx },
+    })
+
+    expect(result.state).toEqual({ kind: "gap", ctx, gap: 50 })
+    expect(result.preview.gapOverride).toEqual({ groupId: "g1", gap: 50 })
+    expect(result.preview.resizeSnap).toBeNull()
   })
 })
