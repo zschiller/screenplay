@@ -1161,3 +1161,194 @@ function previewFor(state: GestureState): GesturePreview {
   }
   return EMPTY_PREVIEW
 }
+
+/**
+ * A Group projected to the plain values the move-start assembly reads: its world
+ * anchor, effective gap, member list (kind + id, flow order), content-bbox size,
+ * and the per-member sizes of members whose layer still exists (in flow order —
+ * the merge highlight preview). The controller builds these from the live
+ * collections (via `groupContentWidth`/`groupContentHeight`/`groupGap`) so the
+ * assembly stays Yjs-free.
+ */
+export type MoveAssemblyGroup = {
+  id: string
+  /** World-space left anchor. */
+  x: number
+  /** World-space top anchor. */
+  y: number
+  /** Effective inter-member gap (the group's override, or the default). */
+  gap: number
+  /** Members in flow order — `id` matched against the selection, `kind` carried. */
+  members: readonly { kind: GroupMemberKind; id: string }[]
+  /** Content-bbox width — the merge source/candidate rect. */
+  contentWidth: number
+  /** Content-bbox height — the merge source/candidate rect. */
+  contentHeight: number
+  /** Sizes of members whose layer exists, in flow order (the merge highlight). */
+  memberSizes: readonly { width: number; height: number }[]
+}
+
+/**
+ * One layer's world rect plus owning Group, for the move edge-snap union and
+ * candidates: a layer in a moving Group joins the union, every other layer is a
+ * snap candidate. The same projection the marquee/route layouts carry, narrowed
+ * to what the union/candidate split reads.
+ */
+export type MoveAssemblyLayout = {
+  id: string
+  groupId: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Assemble a group-move `start` for a grabbed layer — the pure core of what
+ * `canvas.tsx`'s `handleLayerGroupDragStart` did inline. Decides which Groups the
+ * drag translates (whole selection when the grabbed layer — or its Group — is
+ * selected, else just the grabbed layer's Group), then snapshots the move
+ * gesture's stationary context: the representative `moveMemberIds` the `moveBy`
+ * intent shifts, the single source Group (or `null` for a multi-group drag), and
+ * — armed only for a single moving Group — the edge-snap union/candidates and the
+ * merge candidates (every *other* non-empty Group's trailing slot, excluding the
+ * source). Pure: same snapshots always produce the same start, so the
+ * whole-selection-vs-single-group routing and the snap/merge arming are asserted
+ * against plain values.
+ */
+export function assembleMoveStart(input: {
+  /** The grabbed layer (frame or document member). */
+  layerId: string
+  selectedIframeLayerIds: ReadonlySet<string>
+  selectedDocumentLayerIds: ReadonlySet<string>
+  selectedGroupIds: ReadonlySet<string>
+  groups: readonly MoveAssemblyGroup[]
+  /** Every layer's world rect — partitioned into the moving union vs candidates. */
+  layouts: Iterable<MoveAssemblyLayout>
+  /** Zoom at drag start — snap thresholds are evaluated in screen pixels. */
+  zoom: number
+}): Extract<GestureStart, { kind: "move" }> {
+  const {
+    layerId,
+    selectedIframeLayerIds: selectedAb,
+    selectedDocumentLayerIds: selectedDoc,
+    selectedGroupIds: selectedGroups,
+    groups,
+    zoom,
+  } = input
+
+  // Mirror the move routing (see IframeLayer.handleDrag): grabbing a selected
+  // layer or a member of a selected Group drags the whole selection — all
+  // selected frames'/docs' Groups plus all selected Groups; anything else drags
+  // just the grabbed layer's Group. `moveMemberIds` are the representative ids
+  // whose Groups the `moveBy` intent translates (one per selected Group, plus
+  // every loose selected frame/doc), captured here so move events stay
+  // delta-only.
+  const layerSelected = selectedAb.has(layerId) || selectedDoc.has(layerId)
+  const layerGroupSelected = groups.some(
+    (g) => selectedGroups.has(g.id) && g.members.some((m) => m.id === layerId)
+  )
+
+  const groupIds = new Set<string>()
+  const moveMemberIds: string[] = []
+  if (layerSelected || layerGroupSelected) {
+    for (const g of groups) {
+      if (g.members.some((m) => selectedAb.has(m.id) || selectedDoc.has(m.id)))
+        groupIds.add(g.id)
+    }
+    for (const gid of selectedGroups) groupIds.add(gid)
+    for (const id of selectedAb) moveMemberIds.push(id)
+    for (const id of selectedDoc) moveMemberIds.push(id)
+    for (const g of groups) {
+      if (!selectedGroups.has(g.id)) continue
+      const firstMember = g.members[0]
+      if (firstMember) moveMemberIds.push(firstMember.id)
+    }
+  } else {
+    for (const g of groups) {
+      if (g.members.some((m) => m.id === layerId)) groupIds.add(g.id)
+    }
+    moveMemberIds.push(layerId)
+  }
+
+  // Edge-snap and merge only arm for a single moving Group: a multi-group drag
+  // is ambiguous (which Group merges into which?), so it gets a plain move.
+  const sourceGroupId =
+    groupIds.size === 1 ? (groupIds.values().next().value as string) : null
+
+  // Merge-snap setup. The merge targets are every *other* non-empty Group's
+  // trailing "+ frame" slot; those don't move during this drag, so capture them
+  // — along with the dragged Group's member sizes — once here. The source's live
+  // position is `sourceStart + appliedTranslation`, tracked inside the FSM.
+  let sourceStart: MoveGestureContext["sourceStart"] = null
+  let merge: MoveGestureContext["merge"] = null
+  if (sourceGroupId) {
+    const sourceGroup = groups.find((g) => g.id === sourceGroupId)
+    if (sourceGroup) {
+      sourceStart = { x: sourceGroup.x, y: sourceGroup.y }
+      const mergeCandidates: MergeSnapCandidate[] = []
+      for (const target of groups) {
+        if (target.id === sourceGroupId) continue
+        if (target.members.length === 0) continue
+        mergeCandidates.push({
+          id: target.id,
+          rect: {
+            x: target.x,
+            y: target.y,
+            width: target.contentWidth,
+            height: target.contentHeight,
+          },
+          gap: target.gap,
+        })
+      }
+      merge = {
+        sourceContentW: sourceGroup.contentWidth,
+        sourceContentH: sourceGroup.contentHeight,
+        memberSizes: sourceGroup.memberSizes,
+        candidates: mergeCandidates,
+      }
+    }
+  }
+
+  // Edge-snap setup. Union bbox of every layer that will move (all members of the
+  // affected Groups) vs the rects of every layer that *won't* move as candidates.
+  let snap: MoveGestureContext["snap"] = null
+  if (sourceGroupId) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    const candidates: Rect[] = []
+    for (const layout of input.layouts) {
+      if (groupIds.has(layout.groupId)) {
+        if (layout.x < minX) minX = layout.x
+        if (layout.y < minY) minY = layout.y
+        if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
+        if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
+      } else {
+        candidates.push({
+          x: layout.x,
+          y: layout.y,
+          width: layout.width,
+          height: layout.height,
+        })
+      }
+    }
+    if (minX < Infinity && candidates.length > 0) {
+      snap = {
+        startUnion: {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        },
+        candidates,
+      }
+    }
+  }
+
+  return {
+    kind: "move",
+    ctx: { moveMemberIds, sourceGroupId, sourceStart, snap, merge, zoom },
+  }
+}

@@ -33,6 +33,13 @@ describe("LocalYjsHost", () => {
     // The persistence singleton fixes its dir on first construction, so set
     // this before any host use.
     process.env.YJS_PERSISTENCE_DIR = dir
+    // Binding a doc fires a fire-and-forget dynamic import of the layout watcher
+    // (it pulls in the thumbnail → DB → drizzle stack). In a long-running sidecar
+    // that resolves harmlessly, but here a bind late in a test can still be
+    // loading those modules when Vitest tears the environment down — an
+    // `EnvironmentTeardownError`. Preload the module graph up front so a late
+    // bind resolves from cache instead of triggering a fresh load after teardown.
+    await import("@/lib/thumbnail/local-layout-watcher")
   })
 
   afterAll(async () => {

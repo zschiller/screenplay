@@ -588,11 +588,21 @@ module is the orchestration around it that previously had no home (~700 lines sm
 across `canvas.tsx`). The pure decision core (`reduceGesture`) and the input edge
 (see **Pointer→Gesture Routing**) are both attached behind one React seam,
 `useCanvasGesture` — the component spreads the hook's pointer handlers onto the
-canvas root and stops defining its own.
+canvas root and stops defining its own. Gestures that begin **on a Layer** —
+group move (with edge-snap and merge-snap), in-flow reorder, and device-resize —
+enter the *same* seam, not a separate machine: the Layer components dispatch
+through the controller's Layer handlers (`onGroupDragStart`/`onGroupDragEnd`/
+`onMove`/`onRequestReorderDrag`/`onResize*`), which assemble the `start` context
+from plain snapshots (the pure `assembleMoveStart` / `assembleReorderStart`) and
+reduce through the one FSM. The controller also owns the gesture-phase
+book-keeping (`activeGapHandle`, the hovered reorder dot, the move/resize
+meta-key window listeners) so the component stops tracking it out of band.
 _Avoid_: handler, drag state (casual); a separate machine per gesture (one FSM
-enforces the single-active invariant); mutating the Y.Doc from the gesture (it emits
-a Gesture Intent, never calls a Canvas Operation itself); recomputing layout inside
-the gesture (it emits a Preview that `deriveCanvasLayout` consumes).
+enforces the single-active invariant); a bespoke Layer drag path in `canvas.tsx`
+(the Layer drags route through the same controller); mutating the Y.Doc from the
+gesture (it emits a Gesture Intent, never calls a Canvas Operation itself);
+recomputing layout inside the gesture (it emits a Preview that
+`deriveCanvasLayout` consumes).
 
 **Pointer→Gesture Routing**:
 The input edge of the triad — the pure decision "which gesture (if any) does this
@@ -605,12 +615,19 @@ mode-suppression gate as one testable decision. React-free, Yjs-free, DOM-free: 
 sibling of `reduceGesture` and `computeMoveSnap`, asserted against plain values. The
 coordinate and hit math (`screenToCanvas`, `hitTestReorderHandle`,
 `hitTestGapHandle`, `hitTestMarquee`) lives here too, next to the routing that
-consumes it. The hook (`useCanvasGesture`) owns the DOM-side wiring — event
-attachment, pointer capture, `stopPropagation` — and converts the raw event into
-these plain inputs.
+consumes it, as do the pure **start-context assemblers** — `assembleReorderStart`
+(here) and `assembleMoveStart` (in `lib/canvas/gesture.ts`) — that turn the
+selection + group/layout snapshots into the `reorder` / `move` Gesture Start a
+Layer-initiated drag dispatches. A pointer-down on the canvas root routes through
+`routePointerToGesture`; a drag that begins on a Layer skips the router (it
+already knows its kind) and calls the matching assembler directly — both paths
+feed the same `start`. The hook (`useCanvasGesture`) owns the DOM-side wiring —
+event attachment, pointer capture, `stopPropagation` — and converts the raw event
+into these plain inputs.
 _Avoid_: pointer handler, adapter (too vague); reading component state inside the
 routing (it takes resolved flags and snapshots); deciding gestures from handler
-ordering (the precedence is pinned in the pure function).
+ordering (the precedence is pinned in the pure function); assembling the move/
+reorder start inline in the component (it's a pure function with a fixture test).
 
 **Gesture Intent**:
 The descriptive result a completed Canvas Gesture emits — a discriminated union

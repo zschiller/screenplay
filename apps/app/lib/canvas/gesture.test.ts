@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  assembleMoveStart,
   EMPTY_PREVIEW,
   reduceGesture,
   type GapGestureContext,
@@ -7,6 +8,8 @@ import {
   type GestureResult,
   type GestureState,
   type MarqueeGestureContext,
+  type MoveAssemblyGroup,
+  type MoveAssemblyLayout,
   type MoveGestureContext,
   type ReorderGestureContext,
   type ReorderMemberSnapshot,
@@ -1327,5 +1330,172 @@ describe("reduceGesture — device-resize", () => {
     expect(result.state).toEqual({ kind: "gap", ctx, gap: 50 })
     expect(result.preview.gapOverride).toEqual({ groupId: "g1", gap: 50 })
     expect(result.preview.resizeSnap).toBeNull()
+  })
+})
+
+describe("assembleMoveStart — move-context assembly", () => {
+  // A plain three-group world: group "a" holds two frames (f1, f2), group "b"
+  // holds one (f3), group "c" is empty. The layouts mirror the flow positions.
+  const groupA: MoveAssemblyGroup = {
+    id: "a",
+    x: 0,
+    y: 0,
+    gap: 24,
+    members: [
+      { kind: "iframe-layer", id: "f1" },
+      { kind: "iframe-layer", id: "f2" },
+    ],
+    contentWidth: 224,
+    contentHeight: 80,
+    memberSizes: [
+      { width: 100, height: 80 },
+      { width: 100, height: 80 },
+    ],
+  }
+  const groupB: MoveAssemblyGroup = {
+    id: "b",
+    x: 1000,
+    y: 0,
+    gap: 24,
+    members: [{ kind: "iframe-layer", id: "f3" }],
+    contentWidth: 200,
+    contentHeight: 100,
+    memberSizes: [{ width: 200, height: 100 }],
+  }
+  const groupC: MoveAssemblyGroup = {
+    id: "c",
+    x: 0,
+    y: 500,
+    gap: 24,
+    members: [],
+    contentWidth: 0,
+    contentHeight: 0,
+    memberSizes: [],
+  }
+  const groups = [groupA, groupB, groupC]
+  const layouts: MoveAssemblyLayout[] = [
+    { id: "f1", groupId: "a", x: 0, y: 0, width: 100, height: 80 },
+    { id: "f2", groupId: "a", x: 124, y: 0, width: 100, height: 80 },
+    { id: "f3", groupId: "b", x: 1000, y: 0, width: 200, height: 100 },
+  ]
+  const empty: ReadonlySet<string> = new Set()
+
+  it("drags just the grabbed layer's group when nothing is selected", () => {
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: empty,
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: empty,
+      groups,
+      layouts,
+      zoom: 1,
+    })
+
+    expect(ctx.moveMemberIds).toEqual(["f1"])
+    expect(ctx.sourceGroupId).toBe("a")
+    expect(ctx.sourceStart).toEqual({ x: 0, y: 0 })
+    expect(ctx.zoom).toBe(1)
+  })
+
+  it("unions every moving layer and keeps the rest as snap candidates", () => {
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: empty,
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: empty,
+      groups,
+      layouts,
+      zoom: 1,
+    })
+
+    // f1 (0..100) + f2 (124..224) → union x:0 width:224; f3 is the lone candidate.
+    expect(ctx.snap).toEqual({
+      startUnion: { x: 0, y: 0, width: 224, height: 80 },
+      candidates: [{ x: 1000, y: 0, width: 200, height: 100 }],
+    })
+  })
+
+  it("merges against every other non-empty group, excluding source and empties", () => {
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: empty,
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: empty,
+      groups,
+      layouts,
+      zoom: 1,
+    })
+
+    expect(ctx.merge).toEqual({
+      sourceContentW: 224,
+      sourceContentH: 80,
+      memberSizes: groupA.memberSizes,
+      // Only "b": "a" is the source, "c" is empty.
+      candidates: [
+        {
+          id: "b",
+          rect: { x: 1000, y: 0, width: 200, height: 100 },
+          gap: 24,
+        },
+      ],
+    })
+  })
+
+  it("drags the whole selection when the grabbed layer is selected", () => {
+    // f1 selected as a loose frame AND group "b" selected → both groups move.
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: new Set(["f1"]),
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: new Set(["b"]),
+      groups,
+      layouts,
+      zoom: 1,
+    })
+
+    // Loose selected frames first (f1), then one representative per selected
+    // group (b's first member f3).
+    expect(ctx.moveMemberIds).toEqual(["f1", "f3"])
+    // Two moving groups is ambiguous to merge into — snap/merge stay disarmed.
+    expect(ctx.sourceGroupId).toBeNull()
+    expect(ctx.sourceStart).toBeNull()
+    expect(ctx.snap).toBeNull()
+    expect(ctx.merge).toBeNull()
+  })
+
+  it("arms snap/merge for a single selected group drag (one representative member)", () => {
+    // Grabbing a member of a selected group drags that group alone.
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: empty,
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: new Set(["a"]),
+      groups,
+      layouts,
+      zoom: 1,
+    })
+
+    expect(ctx.moveMemberIds).toEqual(["f1"])
+    expect(ctx.sourceGroupId).toBe("a")
+    expect(ctx.snap).not.toBeNull()
+    expect(ctx.merge).not.toBeNull()
+  })
+
+  it("leaves snap null when there are no stationary candidates", () => {
+    // Only group "a" exists → every layer moves, nothing to snap against.
+    const { ctx } = assembleMoveStart({
+      layerId: "f1",
+      selectedIframeLayerIds: empty,
+      selectedDocumentLayerIds: empty,
+      selectedGroupIds: empty,
+      groups: [groupA],
+      layouts: layouts.filter((l) => l.groupId === "a"),
+      zoom: 1,
+    })
+
+    expect(ctx.sourceGroupId).toBe("a")
+    expect(ctx.snap).toBeNull()
+    // No other non-empty group → merge candidates empty (but merge still armed).
+    expect(ctx.merge?.candidates).toEqual([])
   })
 })
