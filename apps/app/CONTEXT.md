@@ -336,8 +336,8 @@ model is given.
 _Avoid_: subject, destination.
 
 **Chat-Target selection**:
-*Which* Chat Target the agent panel shows — the other half of the panel model
-from the Tab Pool, which owns the tabs *within* a target. Owned by the
+_Which_ Chat Target the agent panel shows — the other half of the panel model
+from the Tab Pool, which owns the tabs _within_ a target. Owned by the
 **Chat-Target controller** (`useChatTarget`, PRD #569): the selected agent / doc
 / chat, the **per-target memory** (last chat per agent, per document; last agent
 per repo) that restores your place when you switch back, and the **pending-agent
@@ -351,9 +351,33 @@ resolved `target` plus selection verbs (`selectAgent`, `selectDocument`,
 for their selection side effects rather than poking raw setters. Same shape as
 the Tab Pool: decide purely, apply at the call site (the call site is the
 controller).
-_Avoid_: conflating *which* target is shown (this) with the tabs within it (Tab
+_Avoid_: conflating _which_ target is shown (this) with the tabs within it (Tab
 Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId`
 directly; folding the pure decisions into the controller.
+
+**Element Reference**:
+The single-user "anchor an element or doc text span and **Send to agent**"
+reference path — the kept half of the comment surface on the local build (see
+**Multi-user surface**: the comment UI minus the persisted thread). Owned by the
+**Element Reference controller** (`useElementReference`, PRD #570): the
+comment-mode placement state (`newCommentPos`, the open inline thread, the
+inspect-hover overlay) and the two ref-backed registries the flow reads — the
+per-Iframe-Layer DOM accessors and the per-Markdown-Layer TipTap editors, each
+with a version counter so membership changes re-render their consumers. The
+message-formatting + target-routing decision is a **pure function**
+(`lib/canvas/chat-reference`, sibling of `lib/chat/chat-target`): a **document**
+selection routes to that document and prepends the quoted span + line range (via
+`formatQuoteForChat`); a **frame element** routes to the agent that **owns the
+frame (the frame's branch) — not the focused chat** — and tags the message with
+the picked route + element selector. Both always open a **fresh** chat; a missing
+branch / sandbox yields no send. The controller applies the decision — create the
+Chat Session through the canvas ops seam (ADR 0001), select the target **through
+the Chat-Target controller** (#569), and call `chatStore.sendMessage` — exposing
+the placement verbs plus a single `sendReference` verb.
+_Avoid_: routing a frame reference to the focused chat instead of the frame's
+branch; reusing a remembered chat instead of a fresh one; folding the formatting
+/ routing decision into the controller; calling this "comments" (the persisted
+thread is the excluded half).
 
 **Terminal Tab**:
 A BYO-harness shell surfaced as a tab in the agent panel, attached to one
@@ -610,7 +634,7 @@ across `canvas.tsx`). The pure decision core (`reduceGesture`) and the input edg
 `useCanvasGesture` — the component spreads the hook's pointer handlers onto the
 canvas root and stops defining its own. Gestures that begin **on a Layer** —
 group move (with edge-snap and merge-snap), in-flow reorder, and device-resize —
-enter the *same* seam, not a separate machine: the Layer components dispatch
+enter the _same_ seam, not a separate machine: the Layer components dispatch
 through the controller's Layer handlers (`onGroupDragStart`/`onGroupDragEnd`/
 `onMove`/`onRequestReorderDrag`/`onResize*`), which assemble the `start` context
 from plain snapshots (the pure `assembleMoveStart` / `assembleReorderStart`) and
