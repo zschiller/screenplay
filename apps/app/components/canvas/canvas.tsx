@@ -55,7 +55,6 @@ import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
-import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
@@ -92,20 +91,18 @@ import {
 } from "@/components/canvas/use-element-reference"
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
+import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 import { openExternal } from "@/lib/open-external"
 import {
   DEFAULT_IFRAME_LAYER_WIDTH,
   DEFAULT_IFRAME_LAYER_HEIGHT,
-  MIN_IFRAME_LAYER_WIDTH,
-  MIN_IFRAME_LAYER_HEIGHT,
   CANVAS_SIZE,
 } from "@/lib/constants"
 import {
   computeIframeLayerLayouts,
   deriveCanvasLayout,
-  getGroupMemberIds,
   getGroupMembers,
   groupContentHeight,
   groupContentWidth,
@@ -1198,49 +1195,6 @@ export function Canvas({
     [getViewportCenter, ops]
   )
 
-  /** Append a new iframeLayer to an existing group, mirroring the last sibling iframeLayer's size and agent. */
-  const addIframeLayerToGroup = useCallback(
-    (groupId: string): string | undefined => {
-      const group = collections.iframeLayerGroups.get(groupId)
-      if (!group) return
-      const members = getGroupMembers(group)
-      if (members.length === 0) return
-      // Mirror the last *iframeLayer* sibling for size/agent/route when one
-      // exists. For doc-only groups, fall back to the last member's bounds
-      // so the new frame visually replaces the placeholder rect the user
-      // just clicked.
-      const iframeLayerIds = getGroupMemberIds(group, "iframe-layer")
-      const lastIframeLayerId = iframeLayerIds[iframeLayerIds.length - 1]
-      const lastIframeLayer = lastIframeLayerId
-        ? collections.iframeLayers.get(lastIframeLayerId)
-        : undefined
-      let width: number
-      let height: number
-      let branchId: string | undefined
-      let route: string | undefined
-      if (lastIframeLayer) {
-        width = lastIframeLayer.width
-        height = lastIframeLayer.height
-        branchId = lastIframeLayer.branchId
-        route = lastIframeLayer.route
-      } else {
-        const lastMember = members[members.length - 1]!
-        const lastDoc = collections.markdownLayers.get(lastMember.id)
-        if (!lastDoc) return
-        width = lastDoc.width
-        height = lastDoc.height
-      }
-      return ops.addFrameToGroup(groupId, {
-        width,
-        height,
-        label: branchId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
-        ...(branchId ? { branchId } : {}),
-        ...(route ? { route } : {}),
-      })
-    },
-    [collections, ops]
-  )
-
   /**
    * Start a reorder drag programmatically from a layer-owned element (e.g. the
    * frame's name label). Mirrors the path taken when the user grabs the
@@ -1320,32 +1274,6 @@ export function Canvas({
     return { groups, layouts: iframeLayerLayoutsRef.current.values() }
   }, [collections])
 
-  const renameIframeLayer = useCallback(
-    (id: string, label: string) => {
-      ops.patch("iframeLayers", id, { label })
-    },
-    [ops]
-  )
-
-  const fitIframeLayerToContent = useCallback(
-    (id: string, width: number, height: number) => {
-      // Ceil rather than round so sub-pixel content extents never shrink the
-      // iframeLayer below the actual content (which would creep smaller on each
-      // repeated Fit click).
-      const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.ceil(width))
-      const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
-      const prev = collections.iframeLayers.get(id)
-      ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
-      // Fit-to-content and device-size presets resize the frame too, so the
-      // manifest discards its now-mismatched capture — mark it dirty to
-      // recapture at the new size when the size actually changed.
-      if (prev && (prev.width !== newWidth || prev.height !== newHeight)) {
-        captureTracker.markDirty(id)
-      }
-    },
-    [ops, collections, captureTracker]
-  )
-
   // `removeIframeLayers` / `removeDocumentLayers` are defined up top (the Canvas
   // Operation wrappers the controllers apply removals through). The single
   // sidebar "remove frame" path — remove + keep selection on the neighbor —
@@ -1360,36 +1288,22 @@ export function Canvas({
     createFlowIframeLayerIdRef.current = createFlowIframeLayerId
   })
 
-  const updateIframeLayerRoute = useCallback(
-    (id: string, route: string, replace = false) => {
-      // In Create Flow mode the verb leaves a clone of the previous route in
-      // the group (immediately left of the navigated frame) and reports how far
-      // to pan so the navigated frame stays visually anchored as the trail
-      // grows leftward. The pan is the only part that touches React/viewport
-      // state, so it stays here; every Y.Doc write lives behind the verb.
-      //
-      // A `replace` change (replaceState / initial-load report) edits the
-      // current URL in place rather than navigating, so it never leaves a
-      // trail clone — otherwise a framework's post-navigation replaceState
-      // (path normalization, query/scroll sync) would double every step.
-      const cloneTrail = !replace && createFlowIframeLayerIdRef.current === id
-      const { viewportShift } = ops.navigateRoute(id, route, { cloneTrail })
-
-      if (viewportShift > 0) {
-        const ref = transformRef.current
-        if (ref) {
-          const { positionX, positionY, scale } = ref.state
-          ref.setTransform(
-            positionX - viewportShift * scale,
-            positionY,
-            scale,
-            0
-          )
-        }
-      }
-    },
-    [ops]
-  )
+  // Layer Mutation controller (PRD #579, cut 1/4): the thin per-Layer Canvas
+  // Operation wrappers — Iframe Layer field writers (rename / assignAgent /
+  // updateState / updateScroll / updateKnobs / updateKnobValues /
+  // updateSharedState / updateRoute / fitToContent), Markdown Layer writers
+  // (resizeDocument / setTitle / setTitleCache), and addIframeLayerToGroup —
+  // bundled into one `LayerMutations` object passed to `CanvasMemberLayer` as a
+  // single prop, the way `selection` / `camera` / `reference` already are.
+  // `updateRoute` reads `transformRef` (the Create-Flow pan) and the live
+  // `createFlowIframeLayerIdRef` through refs to stay stable across renders.
+  const layerMutations = useLayerMutations({
+    ops,
+    collections,
+    captureTracker,
+    transformRef,
+    createFlowIframeLayerIdRef,
+  })
 
   /** Reorder groups in the sidebar Frames list. */
   const reorderIframeLayerGroups = useCallback(
@@ -1530,48 +1444,6 @@ export function Canvas({
     [collections, ops, selection]
   )
 
-  const assignAgentToIframeLayer = useCallback(
-    (iframeLayerId: string, agentId: string) => {
-      ops.patch("iframeLayers", iframeLayerId, { branchId: agentId })
-    },
-    [ops]
-  )
-
-  const updateIframeLayerState = useCallback(
-    (id: string, state: JsonObject) => {
-      ops.patch("iframeLayers", id, { iframeState: state })
-    },
-    [ops]
-  )
-
-  const updateIframeLayerScroll = useCallback(
-    (id: string, scrollX: number, scrollY: number) => {
-      ops.patch("iframeLayers", id, { scrollX, scrollY })
-    },
-    [ops]
-  )
-
-  const updateIframeLayerKnobs = useCallback(
-    (id: string, knobs: JsonValue[]) => {
-      ops.patch("iframeLayers", id, { knobs })
-    },
-    [ops]
-  )
-
-  const updateIframeLayerKnobValues = useCallback(
-    (id: string, knobValues: JsonObject) => {
-      ops.patch("iframeLayers", id, { knobValues })
-    },
-    [ops]
-  )
-
-  const updateIframeLayerSharedState = useCallback(
-    (id: string, sharedState: JsonObject) => {
-      ops.patch("iframeLayers", id, { sharedState })
-    },
-    [ops]
-  )
-
   // --- Document layer mutations ---
 
   /**
@@ -1594,68 +1466,6 @@ export function Canvas({
       return docId
     },
     [ops, chatTarget]
-  )
-
-  /**
-   * Resize a document by edge deltas. `dw`/`dh` adjust this doc's own width
-   * and height; `dx`/`dy` are non-zero only for left/top edge drags and shift
-   * the parent group's anchor so the un-dragged side stays put — mirrors
-   * `resizeIframeLayerEdge` exactly so docs feel like iframeLayers.
-   */
-  const resizeDocumentLayer = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) => {
-      ops.batch(() => {
-        const d = collections.markdownLayers.get(id)
-        if (!d) return
-        const minW = 200
-        const minH = 120
-        const newWidth = Math.max(minW, d.width + dw)
-        const newHeight = Math.max(minH, d.height + dh)
-        const actualDw = newWidth - d.width
-        const actualDh = newHeight - d.height
-        const shiftX = dx === 0 ? 0 : -actualDw
-        const shiftY = dy === 0 ? 0 : -actualDh
-        if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.iframeLayerGroups.toArray()) {
-            if (getGroupMembers(g).some((m) => m.id === id)) {
-              ops.patch("iframeLayerGroups", g.id, {
-                x: g.x + shiftX,
-                y: g.y + shiftY,
-              })
-              break
-            }
-          }
-        }
-        if (actualDw !== 0 || actualDh !== 0) {
-          ops.patch("markdownLayers", id, {
-            width: newWidth,
-            height: newHeight,
-          })
-        }
-      })
-    },
-    [collections, ops]
-  )
-
-  /** Mirror the editor's first-heading text onto the cached `title` field.
-   *  Called from inside the editor's update handler so it must NOT rewrite
-   *  the heading itself — that would clobber the user's active selection
-   *  on every keystroke. Cache-only. */
-  const setDocumentLayerTitleCache = useCallback(
-    (id: string, title: string) => {
-      ops.patch("markdownLayers", id, { title })
-    },
-    [ops]
-  )
-
-  /** Rename a document from outside the editor (sidebar, agent tool). Writes
-   *  the new title text into the editor's first heading so every peer's
-   *  editor view updates, then mirrors onto the cache. */
-  const setDocumentLayerTitle = useCallback(
-    (id: string, title: string) => {
-      ops.renameDocument(id, title)
-    },
-    [ops]
   )
 
   // `removeDocumentLayers` is defined up top (a Canvas Operation wrapper the
@@ -2522,7 +2332,7 @@ export function Canvas({
             onZoomToGroup={handleZoomToGroup}
             onSelectDocument={handleDocumentLayerSelect}
             onZoomToDocument={handleZoomToDocument}
-            onRenameDocument={setDocumentLayerTitle}
+            onRenameDocument={layerMutations.setTitle}
             onRemoveDocument={(id) => removeDocumentLayers([id])}
             onSelectBranch={handleSelectAgent}
             onCreateRepo={createRepo}
@@ -2543,7 +2353,7 @@ export function Canvas({
             onRenameBranch={renameBranch}
             onSelectIframeLayer={handleIframeLayerSelect}
             onZoomToIframeLayer={handleSelectIframeLayer}
-            onRenameIframeLayer={renameIframeLayer}
+            onRenameIframeLayer={layerMutations.rename}
             onRemoveIframeLayer={removeIframeLayer}
             onReorderIframeLayerGroups={reorderIframeLayerGroups}
             onReorderRepos={ops.reorderRepos}
@@ -2699,23 +2509,11 @@ export function Canvas({
                     createFlowIframeLayerId={createFlowIframeLayerId}
                     setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                     renameIframeLayerGroup={renameIframeLayerGroup}
-                    renameIframeLayer={renameIframeLayer}
                     removeIframeLayer={removeIframeLayer}
-                    updateIframeLayerState={updateIframeLayerState}
-                    updateIframeLayerRoute={updateIframeLayerRoute}
-                    updateIframeLayerScroll={updateIframeLayerScroll}
-                    updateIframeLayerKnobs={updateIframeLayerKnobs}
-                    updateIframeLayerKnobValues={updateIframeLayerKnobValues}
-                    updateIframeLayerSharedState={updateIframeLayerSharedState}
                     handlePlayIframeLayer={handlePlayIframeLayer}
-                    fitIframeLayerToContent={fitIframeLayerToContent}
                     handleCaptureReadyChange={handleCaptureReadyChange}
                     handleCaptureDirty={handleCaptureDirty}
-                    assignAgentToIframeLayer={assignAgentToIframeLayer}
-                    resizeDocumentLayer={resizeDocumentLayer}
-                    setDocumentLayerTitle={setDocumentLayerTitle}
-                    setDocumentLayerTitleCache={setDocumentLayerTitleCache}
-                    addIframeLayerToGroup={addIframeLayerToGroup}
+                    layerMutations={layerMutations}
                   />
                 </div>
               </TransformComponent>

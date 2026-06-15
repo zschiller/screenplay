@@ -17,9 +17,9 @@ import { useCanvasGesture } from "./use-canvas-gesture"
 import type { CanvasCamera } from "./use-canvas-camera"
 import type { CanvasSelection } from "./use-canvas-selection"
 import type { ElementReference } from "./use-element-reference"
+import type { LayerMutations } from "./use-layer-mutations"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
-type MarkdownLayerProps = React.ComponentProps<typeof MarkdownLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
 type GesturePreview = ReturnType<typeof useCanvasGesture>["preview"]
 
@@ -81,23 +81,11 @@ export function CanvasMemberLayer({
   createFlowIframeLayerId,
   setCreateFlowIframeLayerId,
   renameIframeLayerGroup,
-  renameIframeLayer,
   removeIframeLayer,
-  updateIframeLayerState,
-  updateIframeLayerRoute,
-  updateIframeLayerScroll,
-  updateIframeLayerKnobs,
-  updateIframeLayerKnobValues,
-  updateIframeLayerSharedState,
   handlePlayIframeLayer,
-  fitIframeLayerToContent,
   handleCaptureReadyChange,
   handleCaptureDirty,
-  assignAgentToIframeLayer,
-  resizeDocumentLayer,
-  setDocumentLayerTitle,
-  setDocumentLayerTitleCache,
-  addIframeLayerToGroup,
+  layerMutations,
 }: {
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
@@ -129,23 +117,16 @@ export function CanvasMemberLayer({
     React.SetStateAction<string | null>
   >
   renameIframeLayerGroup: (groupId: string, name: string) => void
-  renameIframeLayer: IframeLayerProps["onRename"]
   removeIframeLayer: IframeLayerProps["onRemove"]
-  updateIframeLayerState: IframeLayerProps["onStateChanged"]
-  updateIframeLayerRoute: (id: string, route: string, replace?: boolean) => void
-  updateIframeLayerScroll: IframeLayerProps["onScrollChange"]
-  updateIframeLayerKnobs: IframeLayerProps["onKnobsDeclared"]
-  updateIframeLayerKnobValues: IframeLayerProps["onKnobValuesChange"]
-  updateIframeLayerSharedState: IframeLayerProps["onSharedStateChanged"]
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
-  fitIframeLayerToContent: IframeLayerProps["onFitToContent"]
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
-  assignAgentToIframeLayer: IframeLayerProps["onAssignBranch"]
-  resizeDocumentLayer: MarkdownLayerProps["onResize"]
-  setDocumentLayerTitle: MarkdownLayerProps["onRename"]
-  setDocumentLayerTitleCache: MarkdownLayerProps["onTitleChange"]
-  addIframeLayerToGroup: (groupId: string) => string | undefined
+  /**
+   * The per-Layer Canvas Operation writers, bundled into one controller object
+   * (PRD #579) — the Iframe Layer / Markdown Layer content adapters read their
+   * mutators from here instead of taking ~13 loose props.
+   */
+  layerMutations: LayerMutations
 }) {
   // Alias the controller state/verbs to the local names the JSX reads, so the
   // flat-member render below stays a verbatim move from `canvas.tsx`.
@@ -273,9 +254,9 @@ export function CanvasMemberLayer({
                 }
                 onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
                 onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
-                onResize={resizeDocumentLayer}
-                onTitleChange={setDocumentLayerTitleCache}
-                onRename={setDocumentLayerTitle}
+                onResize={layerMutations.resizeDocument}
+                onTitleChange={layerMutations.setTitleCache}
+                onRename={layerMutations.setTitle}
                 onStartEdit={setEditingDocumentLayerId}
                 onStopEdit={() => setEditingDocumentLayerId(null)}
                 onEditorReady={reference.onDocumentEditorReady}
@@ -334,16 +315,16 @@ export function CanvasMemberLayer({
               onResizeStart={gestureLayerHandlers.onResizeStart}
               onResizeEnd={gestureLayerHandlers.onResizeEnd}
               onRemove={removeIframeLayer}
-              onRename={renameIframeLayer}
-              onStateChanged={updateIframeLayerState}
-              onRouteChange={updateIframeLayerRoute}
-              onScrollChange={updateIframeLayerScroll}
-              onKnobsDeclared={updateIframeLayerKnobs}
-              onKnobValuesChange={updateIframeLayerKnobValues}
-              onSharedStateChanged={updateIframeLayerSharedState}
+              onRename={layerMutations.rename}
+              onStateChanged={layerMutations.updateState}
+              onRouteChange={layerMutations.updateRoute}
+              onScrollChange={layerMutations.updateScroll}
+              onKnobsDeclared={layerMutations.updateKnobs}
+              onKnobValuesChange={layerMutations.updateKnobValues}
+              onSharedStateChanged={layerMutations.updateSharedState}
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
-              onFitToContent={fitIframeLayerToContent}
-              onSetSize={fitIframeLayerToContent}
+              onFitToContent={layerMutations.fitToContent}
+              onSetSize={layerMutations.fitToContent}
               multiSelected={
                 selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1
               }
@@ -355,9 +336,9 @@ export function CanvasMemberLayer({
               onCaptureReadyChange={handleCaptureReadyChange}
               onCaptureDirty={handleCaptureDirty}
               assignableBranches={agents}
-              onAssignBranch={assignAgentToIframeLayer}
+              onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}
-              onSelectRoute={updateIframeLayerRoute}
+              onSelectRoute={layerMutations.updateRoute}
               remoteSelectedColor={remoteSelectedColor}
               remoteGroupSelectedColor={remoteGroupSelectedColor}
               groupLabel={index === 0 ? groupLabel : undefined}
@@ -403,7 +384,7 @@ export function CanvasMemberLayer({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
-            const newId = addIframeLayerToGroup(rect.groupId)
+            const newId = layerMutations.addIframeLayerToGroup(rect.groupId)
             if (newId) {
               setSelectedIframeLayerIds(new Set([newId]))
               setSelectedGroupIds(new Set())

@@ -749,3 +749,28 @@ _Avoid_: scattering `transformRef.current.setTransform` math across the render
 tree (it goes through the camera verbs / the pure fit math); recomputing
 zoom-to-fit inline; writing the viewport to the Y.Doc directly (persistence goes
 through `ops.saveViewport`).
+
+**Layer Mutation**:
+The bundle of thin per-Layer **Canvas Operation** writers that used to be ~13
+one-line `useCallback`s inlined in `canvas.tsx` and drilled into
+`CanvasMemberLayer` as separate props. The **Layer Mutation controller**
+(`useLayerMutations`, PRD #579) groups them into one `LayerMutations` object —
+the Iframe Layer field writers (`rename`, `assignAgent`, `updateState`,
+`updateScroll`, `updateKnobs`, `updateKnobValues`, `updateSharedState`,
+`updateRoute`, `fitToContent`), the Markdown Layer writers (`resizeDocument`,
+`setTitle`, `setTitleCache`), and `addIframeLayerToGroup` — passed to
+`CanvasMemberLayer` (and onward to the Iframe Layer / Markdown Layer adapters) as
+a **single prop**, exactly the way `selection` / `camera` / `reference` already
+are. It is the **React binding, not a new write path**: every write routes
+through the Canvas Operations seam (`ops`, ADR 0001) and never touches the Y.Doc
+directly. The two verbs that carry real composition keep their bodies — the
+controller is constructed from `ops`, `collections`, and the dirty-frame
+`captureTracker` so `updateRoute` can apply the Create-Flow trail pan (via the
+`transformRef` it reads through a ref) and `fitToContent` can mark a frame's
+thumbnail dirty only when its size actually changes.
+_Avoid_: reintroducing per-mutator props on `CanvasMemberLayer` (add a field to
+`LayerMutations` instead); writing a Layer record outside `ops` (the bundle is a
+binding over the already-tested verbs); flattening `updateRoute`'s pan or
+`fitToContent`'s `markDirty` into a bare `patch`. Group teardown / cross-group
+moves (`removeIframeLayerGroup`, `moveMember`) carry chat-store cleanup and
+selection follow and stay on the composition root, not in this bundle.
