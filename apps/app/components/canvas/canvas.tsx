@@ -182,6 +182,8 @@ import {
   groupGap,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import type { GestureIntent } from "@/lib/canvas/gesture"
+import { useCanvasGesture } from "./use-canvas-gesture"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
@@ -498,12 +500,6 @@ export function Canvas({
     currentX: number
     currentY: number
   } | null>(null)
-  const gapDragRef = useRef<{
-    groupId: string
-    gapIndex: number
-    startGap: number
-    startCanvasX: number
-  } | null>(null)
   const [activeGapHandle, setActiveGapHandle] = useState<{
     groupId: string
     gapIndex: number
@@ -625,6 +621,16 @@ export function Canvas({
   // generic single-field `patch`. Trivial single-field writes below go through
   // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
   const ops = useMemo(() => createCanvasOps(collections), [collections])
+
+  // Canvas Operation: set a group's inter-member gap. Applied by the Canvas
+  // Gesture's `setGroupGap` intent on gap-resize release. Defined up here so the
+  // gesture hook (which forwards intents to it) can reference it.
+  const setGroupGap = useCallback(
+    (groupId: string, gap: number) => {
+      ops.patch("iframeLayerGroups", groupId, { gap: Math.max(0, gap) })
+    },
+    [ops]
+  )
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
   // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
@@ -1019,6 +1025,22 @@ export function Canvas({
     iframeLayerLayoutsRef.current = iframeLayerLayouts
   })
   const reorderDragRef_iframeLayerId = reorderDraggingIframeLayerId
+
+  // Canvas Gesture FSM (gap-resize for now; other gestures port in per #535).
+  // The hook holds the gesture state, exposes the Gesture Preview fed into
+  // `deriveCanvasLayout` below, and applies emitted Gesture Intents through the
+  // Canvas Operations — the gesture itself never touches the Y.Doc.
+  const {
+    dispatch: dispatchGesture,
+    getState: getGestureState,
+    preview: gesturePreview,
+  } = useCanvasGesture((intent: GestureIntent) => {
+    switch (intent.type) {
+      case "setGroupGap":
+        setGroupGap(intent.groupId, intent.gap)
+        break
+    }
+  })
   /**
    * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
    * layout plus the placeholder rects and gap/reorder handle positions derived
@@ -1047,6 +1069,7 @@ export function Canvas({
               }
             : null,
         poppedMemberId: reorderDragPopped ? reorderDragRef_iframeLayerId : null,
+        gapOverride: gesturePreview.gapOverride,
       }),
     [
       iframeLayerGroups,
@@ -1059,6 +1082,7 @@ export function Canvas({
       reorderDragRef_iframeLayerId,
       reorderDragCursor,
       reorderGrabOffset,
+      gesturePreview.gapOverride,
     ]
   )
   const effectiveIframeLayerLayouts = canvasLayout.layouts
@@ -2123,13 +2147,6 @@ export function Canvas({
   const renameIframeLayerGroup = useCallback(
     (groupId: string, name: string) => {
       ops.patch("iframeLayerGroups", groupId, { name })
-    },
-    [ops]
-  )
-
-  const setGroupGap = useCallback(
-    (groupId: string, gap: number) => {
-      ops.patch("iframeLayerGroups", groupId, { gap: Math.max(0, gap) })
     },
     [ops]
   )
@@ -4209,12 +4226,18 @@ export function Canvas({
       const group = collections.iframeLayerGroups.get(hit.groupId)
       if (!group) return
 
-      gapDragRef.current = {
-        groupId: hit.groupId,
-        gapIndex: hit.gapIndex,
-        startGap: groupGap(group),
-        startCanvasX: canvas.x,
-      }
+      dispatchGesture({
+        type: "start",
+        start: {
+          kind: "gap",
+          ctx: {
+            groupId: hit.groupId,
+            gapIndex: hit.gapIndex,
+            startGap: groupGap(group),
+            startCanvasX: canvas.x,
+          },
+        },
+      })
       e.currentTarget.setPointerCapture(e.pointerId)
       e.stopPropagation()
       e.preventDefault()
@@ -4232,6 +4255,7 @@ export function Canvas({
       collections,
       iframeLayerGroups,
       iframeLayerLayouts,
+      dispatchGesture,
     ]
   )
 
@@ -4246,7 +4270,7 @@ export function Canvas({
       if (!e.currentTarget.contains(target)) return
       // Gap drag has already been claimed by `onPointerDownCapture`; nothing to
       // do here — the early-return below would have skipped it anyway.
-      if (gapDragRef.current) return
+      if (getGestureState().kind === "gap") return
 
       if (
         target.closest("[data-iframe-layer]") ||
@@ -4326,6 +4350,7 @@ export function Canvas({
       screenToCanvas,
       selectedIframeLayerIds,
       selectedDocumentLayerIds,
+      getGestureState,
     ]
   )
 
@@ -4385,16 +4410,13 @@ export function Canvas({
         return
       }
 
-      // Gap-handle drag: dragging gap j by `dx` in world space changes the
-      // shared per-group gap by `dx / (j - 0.5)` so the dragged handle's
-      // center tracks the cursor. Same proportional rule as in symaphore.
-      if (gapDragRef.current) {
+      // Gap-handle drag: feed the live cursor to the gesture FSM, which previews
+      // the new gap (via `deriveCanvasLayout`) and commits it on release. The
+      // proportional gap math lives in the reducer.
+      if (getGestureState().kind === "gap") {
         const rect = e.currentTarget.getBoundingClientRect()
         const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const drag = gapDragRef.current
-        const dx = canvas.x - drag.startCanvasX
-        const newGap = Math.max(0, drag.startGap + dx / (drag.gapIndex - 0.5))
-        setGroupGap(drag.groupId, newGap)
+        dispatchGesture({ type: "move", cursor: { x: canvas.x, y: canvas.y } })
         return
       }
 
@@ -4490,9 +4512,10 @@ export function Canvas({
       screenToCanvas,
       iframeLayerLayouts,
       markdownLayers,
-      setGroupGap,
       collections,
       reorderGroupMembers,
+      getGestureState,
+      dispatchGesture,
     ]
   )
 
@@ -4599,9 +4622,10 @@ export function Canvas({
         return
       }
 
-      // Gap-handle drag: end interaction
-      if (gapDragRef.current) {
-        gapDragRef.current = null
+      // Gap-handle drag: release commits the previewed gap via the gesture's
+      // `setGroupGap` intent and resets the FSM to idle.
+      if (getGestureState().kind === "gap") {
+        dispatchGesture({ type: "release" })
         return
       }
 
@@ -4693,6 +4717,8 @@ export function Canvas({
       zoom,
       collections,
       ops,
+      getGestureState,
+      dispatchGesture,
     ]
   )
 
@@ -4929,13 +4955,19 @@ export function Canvas({
       // Track which gap handle is hovered/dragged so the wrapper can show a
       // col-resize cursor. While dragging, lock to the dragged handle even if
       // the cursor briefly slips outside the gap rect.
-      const drag = gapDragRef.current
-      const next = drag
-        ? { groupId: drag.groupId, gapIndex: drag.gapIndex }
-        : (() => {
-            const hit = hitTestGapHandle(canvasX, canvasY, scale)
-            return hit ? { groupId: hit.groupId, gapIndex: hit.gapIndex } : null
-          })()
+      const gestureState = getGestureState()
+      const next =
+        gestureState.kind === "gap"
+          ? {
+              groupId: gestureState.ctx.groupId,
+              gapIndex: gestureState.ctx.gapIndex,
+            }
+          : (() => {
+              const hit = hitTestGapHandle(canvasX, canvasY, scale)
+              return hit
+                ? { groupId: hit.groupId, gapIndex: hit.gapIndex }
+                : null
+            })()
       setActiveGapHandle((prev) => {
         if (prev === next) return prev
         if (
@@ -4966,7 +4998,13 @@ export function Canvas({
         })
       }
     },
-    [setPresence, iframeLayerLayouts, hitTestGapHandle, hitTestReorderHandle]
+    [
+      setPresence,
+      iframeLayerLayouts,
+      hitTestGapHandle,
+      hitTestReorderHandle,
+      getGestureState,
+    ]
   )
 
   const handlePointerLeave = useCallback(() => {
@@ -6159,44 +6197,47 @@ export function Canvas({
                   className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
                   onClick={(e) => e.stopPropagation()}
                 >
-                {/* Following other users' viewports and sharing are part of
+                  {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                {!isLocalBuild && (
-                  <>
-                    <FollowingToolbar
-                      followingId={followingConnectionId}
-                      onFollow={setFollowingConnectionId}
-                    />
-                    <Button size="sm" onClick={() => setShareDialogOpen(true)}>
-                      Share
-                    </Button>
-                    <ShareRoomDialog
-                      open={shareDialogOpen}
-                      onOpenChange={setShareDialogOpen}
-                      roomId={roomId}
-                      roomName={currentRoomName}
-                    />
-                  </>
-                )}
-                {chatCollapsed && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => chatPanelRef.current?.expand()}
-                        >
-                          <PanelRightOpen className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        Expand chat <Kbd>⌘I</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                  {!isLocalBuild && (
+                    <>
+                      <FollowingToolbar
+                        followingId={followingConnectionId}
+                        onFollow={setFollowingConnectionId}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => setShareDialogOpen(true)}
+                      >
+                        Share
+                      </Button>
+                      <ShareRoomDialog
+                        open={shareDialogOpen}
+                        onOpenChange={setShareDialogOpen}
+                        roomId={roomId}
+                        roomName={currentRoomName}
+                      />
+                    </>
+                  )}
+                  {chatCollapsed && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => chatPanelRef.current?.expand()}
+                          >
+                            <PanelRightOpen className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Expand chat <Kbd>⌘I</Kbd>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </div>
             )}
