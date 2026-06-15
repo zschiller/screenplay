@@ -521,6 +521,39 @@ gesture → commit via a Canvas Operation.
 _Avoid_: positions, coordinates (too vague); computing this geometry inline in a
 component.
 
+**Canvas Gesture**:
+The in-flight interaction stage of the Canvas — the middle of the triad **derive
+→ gesture → commit** (Canvas Layout derives, Canvas Operation commits). A
+React-free, Yjs-free state machine (`lib/canvas/gesture.ts`) that reduces pointer
+and key events against a **context snapshotted at gesture start** into the next
+gesture state plus a **Gesture Preview** (snap guides, merge rects, pop-out flag,
+marquee rect), and on release a **Gesture Intent**. One discriminated-union state
+so **exactly one gesture is active at a time** by construction — covering reorder
+(in-flow and meta-key pop-out), group move with merge-snap, edge/center move-snap,
+gap-resize, marquee, and device-resize. Its Preview feeds `deriveCanvasLayout`
+(which already takes the in-flight slice); it never derives geometry itself, and it
+never touches the Y.Doc — it emits a Gesture Intent the component applies. The Snap
+math it calls already lives behind its own seam (see **Snap**); the Canvas Gesture
+module is the orchestration around it that previously had no home (~700 lines smeared
+across `canvas.tsx`).
+_Avoid_: handler, drag state (casual); a separate machine per gesture (one FSM
+enforces the single-active invariant); mutating the Y.Doc from the gesture (it emits
+a Gesture Intent, never calls a Canvas Operation itself); recomputing layout inside
+the gesture (it emits a Preview that `deriveCanvasLayout` consumes).
+
+**Gesture Intent**:
+The descriptive result a completed Canvas Gesture emits — a discriminated union
+(`moveBy`, `reorderMember`, `mergeGroups`, `popOutToNewGroup`, `resizeLayer`,
+`setGroupGap`, `marqueeSelect`, …) that **describes** the committed change without
+performing it. The component applies each Intent: canvas-mutating ones through a
+Canvas Operation, selection-only ones (`marqueeSelect`) through local selection
+state. Because the gesture stops at the Intent, the Intent **is** the gesture
+module's test assertion — feed a synthetic pointer/key sequence, assert the Intent
+and the Snap Guides against plain values.
+_Avoid_: command, mutation (casual); conflating it with a Canvas Operation (the
+Intent describes, the Operation performs); assuming every Intent is a Y.Doc write
+(`marqueeSelect` changes selection only).
+
 **Snap**:
 Gesture-time alignment on the Canvas, computed by a React-free module
 (`lib/canvas/snap.ts`): move-snap (a dragged rect aligns to its peers' edges,
