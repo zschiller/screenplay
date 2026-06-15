@@ -37,29 +37,8 @@ import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
-import {
-  Crosshair,
-  FileText,
-  Frame,
-  LogOut,
-  MessageSquare,
-  MoreHorizontal,
-  MousePointer2,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  Pencil,
-  Trash2,
-} from "lucide-react"
-import { useRouter } from "next/navigation"
+import { PanelRightOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@workspace/ui/components/breadcrumb"
 import {
   Tooltip,
   TooltipContent,
@@ -67,22 +46,9 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { Kbd } from "@workspace/ui/components/kbd"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import {
-  EditableText,
-  type EditableTextHandle,
-} from "@workspace/ui/components/editable-text"
-import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
-import { deleteRoom, renameRoom } from "@/lib/rooms-actions"
-import { IframeLayer } from "./iframe-layer"
-import { MarkdownLayer } from "./markdown-layer"
+import { renameRoom } from "@/lib/rooms-actions"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -93,7 +59,6 @@ import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
-import { ChatPanel } from "@/components/agent/chat-panel"
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 import {
   ResizablePanelGroup,
@@ -169,6 +134,10 @@ import {
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
+import { CanvasMemberLayer } from "./canvas-member-layer"
+import { CanvasToolbar } from "./canvas-toolbar"
+import { CanvasTopBar } from "./canvas-top-bar"
+import { ChatPanelHost } from "./chat-panel-host"
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -239,7 +208,6 @@ export function Canvas({
   initialThreads?: ThreadWithComments[]
   initialTerminalTabs?: TerminalTabRecord[]
 }) {
-  const router = useRouter()
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   // Inline rename of the room name in the floating breadcrumb. The menu's
@@ -2833,328 +2801,53 @@ export function Canvas({
                   className="relative"
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
                 >
-                  {/* Flat member layer. Every iframe/markdown layer across all
-                      groups renders as a stable, id-sorted, absolutely-positioned
-                      sibling — NOT nested in a per-group element. A member keeps
-                      its React identity (and its live DOM: the running iframe or
-                      the TipTap editor) when it moves between groups, so pop-out
-                      / drag-in no longer remount it → no reload. Group membership
-                      only changes the member's computed world position. */}
-                  {(() => {
-                    // Flatten to [member, group] pairs, then sort by member id so
-                    // React never reparents or re-orders a member node (either of
-                    // which remounts the iframe / TipTap editor — see the
-                    // `groupZIndex` note for why DOM order has to stay fixed).
-                    const entries: Array<{
-                      member: GroupMember
-                      group: IframeLayerGroupData
-                    }> = []
-                    for (const group of iframeLayerGroups) {
-                      for (const member of getGroupMembers(group)) {
-                        entries.push({ member, group })
-                      }
-                    }
-                    entries.sort((a, b) =>
-                      a.member.id.localeCompare(b.member.id)
-                    )
-
-                    return entries.map(({ member, group }) => {
-                      const members = getGroupMembers(group)
-                      const index = members.findIndex((m) => m.id === member.id)
-                      const groupSelected = selectedGroupIds.has(group.id)
-                      const showGroupLabel = members.length > 1
-                      const groupLabel = showGroupLabel
-                        ? groupDisplayNames.get(group.id)
-                        : undefined
-                      // Tint this member's name (and, on the leftmost member,
-                      // the group label) to match a remote user's selection
-                      // rect. Skipped when we've selected it locally — our own
-                      // fuchsia takes precedence.
-                      const remoteSelectedColor = remoteSelectionColors.get(
-                        member.id
-                      )
-                      const remoteGroupSelectedColor =
-                        index === 0
-                          ? remoteGroupSelectionColors.get(member.id)
-                          : undefined
-                      const layout = effectiveIframeLayerLayouts.get(member.id)
-                      if (!layout) return null
-
-                      // In-flow reorder: layer a cursor-tracking translate over
-                      // the layout slot (siblings reflow via the layout map). A
-                      // popped frame already sits at `cursor - grab` in
-                      // effectiveIframeLayerLayouts, so it needs no transform —
-                      // only the `dragPopped` flag for z-elevation / pointer
-                      // pass-through / group-label anchoring.
-                      let dragTranslateX: number | undefined
-                      let dragTranslateY: number | undefined
-                      let dragPopped = false
-                      const reorderPreview = gesturePreview.reorder
-                      if (reorderPreview?.memberId === member.id) {
-                        const grab = reorderPreview.grabOffset ?? {
-                          x: layout.width / 2,
-                          y: layout.height / 2,
-                        }
-                        if (reorderPreview.popped) {
-                          dragPopped = true
-                        } else {
-                          const raw = iframeLayerLayouts.get(member.id)
-                          if (raw) {
-                            // Lock Y so the dragged frame slides only horizontally.
-                            dragTranslateX =
-                              reorderPreview.cursor.x - grab.x - raw.x
-                            dragTranslateY = 0
-                          }
-                        }
-                      }
-
-                      const zIndex = groupZIndex.get(group.id)
-
-                      if (member.kind === "markdown-layer") {
-                        const doc = markdownLayers.find(
-                          (d) => d.id === member.id
-                        )
-                        if (!doc) return null
-                        return (
-                          <MarkdownLayer
-                            key={doc.id}
-                            layer={doc}
-                            zoom={zoom}
-                            selected={selectedDocumentLayerIds.has(doc.id)}
-                            multiSelected={
-                              selectedIframeLayerIds.size +
-                                selectedDocumentLayerIds.size >
-                              1
-                            }
-                            editing={editingDocumentLayerId === doc.id}
-                            spaceHeld={spaceHeld}
-                            userName={self?.identity.name || "Anonymous"}
-                            userColor={self?.color || "#888888"}
-                            worldX={layout.x}
-                            worldY={layout.y}
-                            zIndex={zIndex}
-                            dragTranslateX={dragTranslateX}
-                            dragTranslateY={dragTranslateY}
-                            dragPopped={dragPopped}
-                            remoteSelectedColor={remoteSelectedColor}
-                            remoteGroupSelectedColor={remoteGroupSelectedColor}
-                            groupLabel={index === 0 ? groupLabel : undefined}
-                            groupSelected={groupSelected}
-                            onSelectGroup={
-                              index === 0 && showGroupLabel
-                                ? (shiftKey) =>
-                                    handleGroupSelect(group.id, shiftKey)
-                                : undefined
-                            }
-                            onRenameGroup={
-                              index === 0 && showGroupLabel
-                                ? (name) =>
-                                    renameIframeLayerGroup(group.id, name)
-                                : undefined
-                            }
-                            onSelect={handleDocumentLayerSelect}
-                            onMoveGroup={(
-                              _dx,
-                              _dy,
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            ) =>
-                              gestureLayerHandlers.onMove(
-                                totalDx,
-                                totalDy,
-                                metaKey
-                              )
-                            }
-                            onMoveSelected={(
-                              _dx,
-                              _dy,
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            ) =>
-                              gestureLayerHandlers.onMove(
-                                totalDx,
-                                totalDy,
-                                metaKey
-                              )
-                            }
-                            onGroupDragStart={() =>
-                              gestureLayerHandlers.onGroupDragStart(doc.id)
-                            }
-                            onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
-                            onRequestReorderDrag={
-                              gestureLayerHandlers.onRequestReorderDrag
-                            }
-                            onResize={resizeDocumentLayer}
-                            onTitleChange={setDocumentLayerTitleCache}
-                            onRename={setDocumentLayerTitle}
-                            onStartEdit={setEditingDocumentLayerId}
-                            onStopEdit={() => setEditingDocumentLayerId(null)}
-                            onEditorReady={reference.onDocumentEditorReady}
-                            onStartInlineComment={reference.startInlineComment}
-                            onSelectInlineThread={reference.setActiveThread}
-                          />
-                        )
-                      }
-
-                      const iframeLayer = iframeLayers.find(
-                        (a) => a.id === member.id
-                      )
-                      if (!iframeLayer) return null
-                      const agentInfo = iframeLayer.branchId
-                        ? agentDomains[iframeLayer.branchId]
-                        : undefined
-                      // Resolve the assigned branch's ref independently of
-                      // preview readiness: the dropdown must reflect the
-                      // selection (and the frame show a "waiting" state) as
-                      // soon as a branch is picked, before its dev server —
-                      // and thus its previewDomain in `agentDomains` — is up.
-                      const assignedAgent = iframeLayer.branchId
-                        ? agents.find((a) => a.id === iframeLayer.branchId)
-                        : undefined
-                      return (
-                        <IframeLayer
-                          key={iframeLayer.id}
-                          iframeLayer={{
-                            ...iframeLayer,
-                            iframeUrl: agentInfo?.previewDomain,
-                            branch: agentInfo?.branch ?? assignedAgent?.ref,
-                          }}
-                          zoom={zoom}
-                          focused={focusedIframeLayerId === iframeLayer.id}
-                          createFlow={
-                            createFlowIframeLayerId === iframeLayer.id
-                          }
-                          selected={selectedIframeLayerIds.has(iframeLayer.id)}
-                          onFocus={(id) => {
-                            setFocusedIframeLayerId(id)
-                            if (id !== null) setCreateFlowIframeLayerId(null)
-                          }}
-                          onToggleCreateFlow={(id) => {
-                            setCreateFlowIframeLayerId(id)
-                            if (id !== null) setFocusedIframeLayerId(null)
-                          }}
-                          onSelect={handleIframeLayerSelect}
-                          onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                            gestureLayerHandlers.onMove(
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            )
-                          }
-                          onMoveSelected={(
-                            _dx,
-                            _dy,
-                            totalDx,
-                            totalDy,
-                            metaKey
-                          ) =>
-                            gestureLayerHandlers.onMove(
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            )
-                          }
-                          onGroupDragStart={() =>
-                            gestureLayerHandlers.onGroupDragStart(
-                              iframeLayer.id
-                            )
-                          }
-                          onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
-                          onRequestReorderDrag={
-                            gestureLayerHandlers.onRequestReorderDrag
-                          }
-                          onResize={gestureLayerHandlers.onResize}
-                          onResizeStart={gestureLayerHandlers.onResizeStart}
-                          onResizeEnd={gestureLayerHandlers.onResizeEnd}
-                          onRemove={removeIframeLayer}
-                          onRename={renameIframeLayer}
-                          onStateChanged={updateIframeLayerState}
-                          onRouteChange={updateIframeLayerRoute}
-                          onScrollChange={updateIframeLayerScroll}
-                          onKnobsDeclared={updateIframeLayerKnobs}
-                          onKnobValuesChange={updateIframeLayerKnobValues}
-                          onSharedStateChanged={updateIframeLayerSharedState}
-                          onPlay={
-                            iframeLayer.branchId
-                              ? handlePlayIframeLayer
-                              : undefined
-                          }
-                          onFitToContent={fitIframeLayerToContent}
-                          onSetSize={fitIframeLayerToContent}
-                          multiSelected={
-                            selectedIframeLayerIds.size +
-                              selectedDocumentLayerIds.size >
-                            1
-                          }
-                          spaceHeld={spaceHeld}
-                          commentMode={commentMode}
-                          onHover={reference.setInspectHover}
-                          onWheel={camera.handleIframeWheel}
-                          onDomReady={reference.onIframeLayerDomReady}
-                          onCaptureReadyChange={handleCaptureReadyChange}
-                          onCaptureDirty={handleCaptureDirty}
-                          assignableBranches={agents}
-                          onAssignBranch={assignAgentToIframeLayer}
-                          discoveredRoutes={agentInfo?.discoveredRoutes}
-                          onSelectRoute={updateIframeLayerRoute}
-                          remoteSelectedColor={remoteSelectedColor}
-                          remoteGroupSelectedColor={remoteGroupSelectedColor}
-                          groupLabel={index === 0 ? groupLabel : undefined}
-                          groupSelected={groupSelected}
-                          onSelectGroup={
-                            index === 0 && showGroupLabel
-                              ? (shiftKey) =>
-                                  handleGroupSelect(group.id, shiftKey)
-                              : undefined
-                          }
-                          onRenameGroup={
-                            index === 0 && showGroupLabel
-                              ? (name) => renameIframeLayerGroup(group.id, name)
-                              : undefined
-                          }
-                          worldX={layout.x}
-                          worldY={layout.y}
-                          zIndex={zIndex}
-                          dragTranslateX={dragTranslateX}
-                          dragTranslateY={dragTranslateY}
-                          dragPopped={dragPopped}
-                        />
-                      )
-                    })
-                  })()}
-
-                  {/* Trailing "+ frame" placeholder click targets — one per group
-                      with a selected member. The visible outline is painted by
-                      PlaceholderRectsUnderlay; this is just the transparent hit
-                      target, positioned absolutely in world space. */}
-                  {placeholderRects.map((rect) => (
-                    <button
-                      key={`placeholder-${rect.groupId}`}
-                      type="button"
-                      data-iframe-layer-placeholder
-                      className="absolute cursor-pointer bg-transparent"
-                      style={{
-                        left: rect.x,
-                        top: rect.y,
-                        width: rect.width,
-                        height: rect.height,
-                        zIndex: groupZIndex.get(rect.groupId),
-                      }}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const newId = addIframeLayerToGroup(rect.groupId)
-                        if (newId) {
-                          setSelectedIframeLayerIds(new Set([newId]))
-                          setSelectedGroupIds(new Set())
-                          setSelectedDocumentLayerIds(new Set())
-                        }
-                      }}
-                      aria-label="Add frame to group"
-                    />
-                  ))}
+                  <CanvasMemberLayer
+                    iframeLayerGroups={iframeLayerGroups}
+                    iframeLayers={iframeLayers}
+                    markdownLayers={markdownLayers}
+                    selection={selection}
+                    camera={camera}
+                    reference={reference}
+                    gesturePreview={gesturePreview}
+                    gestureLayerHandlers={gestureLayerHandlers}
+                    effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
+                    iframeLayerLayouts={iframeLayerLayouts}
+                    groupZIndex={groupZIndex}
+                    groupDisplayNames={groupDisplayNames}
+                    placeholderRects={placeholderRects}
+                    remoteSelectionColors={remoteSelectionColors}
+                    remoteGroupSelectionColors={remoteGroupSelectionColors}
+                    agentDomains={agentDomains}
+                    agents={agents}
+                    zoom={zoom}
+                    spaceHeld={spaceHeld}
+                    commentMode={commentMode}
+                    self={self}
+                    editingDocumentLayerId={editingDocumentLayerId}
+                    setEditingDocumentLayerId={setEditingDocumentLayerId}
+                    focusedIframeLayerId={focusedIframeLayerId}
+                    setFocusedIframeLayerId={setFocusedIframeLayerId}
+                    createFlowIframeLayerId={createFlowIframeLayerId}
+                    setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
+                    renameIframeLayerGroup={renameIframeLayerGroup}
+                    renameIframeLayer={renameIframeLayer}
+                    removeIframeLayer={removeIframeLayer}
+                    updateIframeLayerState={updateIframeLayerState}
+                    updateIframeLayerRoute={updateIframeLayerRoute}
+                    updateIframeLayerScroll={updateIframeLayerScroll}
+                    updateIframeLayerKnobs={updateIframeLayerKnobs}
+                    updateIframeLayerKnobValues={updateIframeLayerKnobValues}
+                    updateIframeLayerSharedState={updateIframeLayerSharedState}
+                    handlePlayIframeLayer={handlePlayIframeLayer}
+                    fitIframeLayerToContent={fitIframeLayerToContent}
+                    handleCaptureReadyChange={handleCaptureReadyChange}
+                    handleCaptureDirty={handleCaptureDirty}
+                    assignAgentToIframeLayer={assignAgentToIframeLayer}
+                    resizeDocumentLayer={resizeDocumentLayer}
+                    setDocumentLayerTitle={setDocumentLayerTitle}
+                    setDocumentLayerTitleCache={setDocumentLayerTitleCache}
+                    addIframeLayerToGroup={addIframeLayerToGroup}
+                  />
                 </div>
               </TransformComponent>
             </TransformWrapper>
@@ -3291,238 +2984,28 @@ export function Canvas({
               data-tauri-drag-region
               className="absolute top-0 right-0 left-0 z-[9997] h-12"
             />
-            <div
-              className={`pointer-events-none absolute top-0 left-0 z-[9998] flex h-12 items-center pr-2 ${
-                // When the macOS traffic lights are showing (desktop, not
-                // fullscreen) and the sidebar is collapsed, the canvas fills the
-                // full width — shift these pills right to clear the lights.
-                trafficLightsPresent && sidebarCollapsed ? "pl-[88px]" : "pl-2"
-              }`}
-            >
-              <div
-                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {sidebarCollapsed && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => sidebarPanelRef.current?.expand()}
-                        >
-                          <PanelLeftOpen className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        Expand sidebar <Kbd>⌘B</Kbd>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                <Breadcrumb>
-                  <BreadcrumbList className="gap-0 text-xs sm:gap-0">
-                    <BreadcrumbItem className="gap-0">
-                      <BreadcrumbLink
-                        href={
-                          parentFolder ? `/files/${parentFolder.id}` : "/files"
-                        }
-                        className="max-w-[14rem] truncate px-1.5 py-1 font-medium"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          stopRoomDevServers()
-                          const target = withBasePath(
-                            parentFolder
-                              ? `/files/${parentFolder.id}`
-                              : "/files"
-                          )
-                          // Full-page navigation (not router.push): a soft nav
-                          // serves the home page from the client Router Cache,
-                          // which is the copy captured when we ENTERED the room —
-                          // so a layout edit made in here shows up stale on the
-                          // grid. A hard navigation re-renders home from the
-                          // server (fresh thumbnail manifest) every time.
-                          //
-                          // But a full-page unload skips React's unmount cleanup,
-                          // so flush the pending layout edit FIRST and await it
-                          // (the route rebuilds the manifest inline) — otherwise
-                          // the last edit never reaches the server and the fresh
-                          // render is still stale. `.finally` so a failed flush
-                          // still navigates rather than trapping the user.
-                          void flushLayout().finally(() =>
-                            window.location.assign(target)
-                          )
-                        }}
-                      >
-                        {parentFolder ? parentFolder.name : "All files"}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator className="text-muted-foreground/60">
-                      /
-                    </BreadcrumbSeparator>
-                    <BreadcrumbItem className="gap-0.5">
-                      <EditableText
-                        ref={roomNameEditableRef}
-                        as="span"
-                        value={currentRoomName}
-                        onCommit={handleRoomRename}
-                        placeholder="Untitled"
-                        className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
-                        viewClassName="truncate"
-                        editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 mx-1 my-0.5"
-                      />
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="h-6 w-6 text-muted-foreground"
-                          >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="start"
-                          onCloseAutoFocus={onRoomMenuCloseAutoFocus}
-                        >
-                          {/* Only the owner can rename; a collaborator's
-                              rename would be refused server-side. */}
-                          {isOwner && (
-                            <>
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  pendingRoomRenameRef.current = true
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onSelect={() => setDeleteDialogOpen(true)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {/* A shared Room the user doesn't own: they leave it
-                              rather than destroy it for everyone else. */}
-                          {!isOwner && (
-                            <DropdownMenuItem
-                              onSelect={() => setDeleteDialogOpen(true)}
-                            >
-                              <LogOut className="h-3.5 w-3.5" />
-                              Leave
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-                <DeleteRoomDialog
-                  open={deleteDialogOpen}
-                  onOpenChange={setDeleteDialogOpen}
-                  roomName={currentRoomName}
-                  isOwner={isOwner}
-                  sharedWithCount={sharedWithCount}
-                  onConfirm={async () => {
-                    await deleteRoom(roomId)
-                    setDeleteDialogOpen(false)
-                    router.push("/")
-                  }}
-                />
-              </div>
-            </div>
-            <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
-              <div
-                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={toolMode.isSelect ? "default" : "ghost"}
-                        size="icon-xs"
-                        onClick={() => {
-                          toolMode.set("select")
-                          reference.clearMode()
-                        }}
-                      >
-                        <MousePointer2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Select <Kbd>V</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={frameMode ? "default" : "ghost"}
-                        size="icon-xs"
-                        onClick={() => {
-                          toolMode.toggle("frame")
-                          reference.clearMode()
-                        }}
-                      >
-                        <Frame className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Frame <Kbd>F</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={documentMode ? "default" : "ghost"}
-                        size="icon-xs"
-                        onClick={() => {
-                          toolMode.toggle("document")
-                          reference.clearMode()
-                        }}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Document <Kbd>D</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                  {/* Comment mode is kept in the local build: it's how you
-                      anchor an element/selection to reference it to the agent
-                      ("Send to agent"). Only the *persisted* comment thread is
-                      excluded there (#417) — so on desktop this is a "target"
-                      affordance (crosshair), not a comment one. */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={commentMode ? "default" : "ghost"}
-                        size="icon-xs"
-                        onClick={() => {
-                          toolMode.toggle("comment")
-                          reference.clearMode()
-                        }}
-                      >
-                        {isLocalBuild ? (
-                          <Crosshair className="h-3.5 w-3.5" />
-                        ) : (
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      {isLocalBuild ? "Send to agent" : "Comment"} <Kbd>C</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </div>
+            <CanvasTopBar
+              roomId={roomId}
+              isOwner={isOwner}
+              sharedWithCount={sharedWithCount}
+              parentFolder={parentFolder}
+              currentRoomName={currentRoomName}
+              onRoomRename={handleRoomRename}
+              sidebarCollapsed={sidebarCollapsed}
+              trafficLightsPresent={trafficLightsPresent}
+              sidebarPanelRef={sidebarPanelRef}
+              roomNameEditableRef={roomNameEditableRef}
+              pendingRoomRenameRef={pendingRoomRenameRef}
+              onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
+              deleteDialogOpen={deleteDialogOpen}
+              onDeleteDialogOpenChange={setDeleteDialogOpen}
+              stopRoomDevServers={stopRoomDevServers}
+              flushLayout={flushLayout}
+            />
+            <CanvasToolbar
+              toolMode={toolMode}
+              onClearMode={reference.clearMode}
+            />
             {/* Only render the top-right pill when it has content: the
                 Share/Following controls (web only) or the expand-chat button
                 (when the right sidebar is collapsed). On desktop with the chat
@@ -3595,128 +3078,23 @@ export function Canvas({
           panelRef={chatPanelRef}
           onResize={(size) => setChatCollapsed(size.inPixels === 0)}
         >
-          {(() => {
-            // The panel's current target is resolved by the Chat-Target
-            // controller (#569): an agent (sandbox-backed) when one is selected
-            // and ready, otherwise the doc-chat target when one was picked from
-            // the dropdown. Falls through to the empty-state below when neither
-            // is set.
-            const target = chatTarget.target
-            if (!target) return null
-            const filteredSessions = chatSessions.filter((c) => {
-              if (target.kind === "agent") return c.branchId === target.agent.id
-              // Layer targets: per-kind state lives on the chat session
-              // under different fields.
-              if (target.layerKind === "markdown-layer")
-                return c.markdownLayerId === target.layer.id
-              return false
-            })
-            // This client's local terminal tabs for an agent target. Passed as a
-            // separate collection (never merged into `chatSessions`), so a
-            // terminal can't structurally reach the conversation model.
-            const terminalTabs =
-              target.kind === "agent"
-                ? localTerminals.filter((t) => t.branchId === target.agent.id)
-                : []
-            return (
-              <ChatPanel
-                target={target}
-                agents={agents}
-                markdownLayers={markdownLayers}
-                onSelectAgent={(id) =>
-                  chatTarget.selectAgent(id, { clearDocument: true })
-                }
-                onSelectLayer={(layerKind, id) => {
-                  if (layerKind === "markdown-layer") {
-                    chatTarget.selectDocument(id)
-                    return
-                  }
-                }}
-                chatSessions={filteredSessions}
-                terminalTabs={terminalTabs}
-                selectedChatId={chatTarget.selectedChatId}
-                roomId={roomId}
-                onSelectChat={chatTarget.selectChat}
-                onCreateChat={() => {
-                  if (target.kind === "agent")
-                    tabPool.open({ kind: "chat", branchId: target.agent.id })
-                  else if (target.layerKind === "markdown-layer")
-                    tabPool.open({
-                      kind: "doc-chat",
-                      markdownLayerId: target.layer.id,
-                    })
-                }}
-                onCreateTerminal={
-                  target.kind === "agent"
-                    ? (harnessKey) =>
-                        tabPool.open({
-                          kind: "terminal",
-                          branchId: target.agent.id,
-                          harnessKey,
-                        })
-                    : undefined
-                }
-                onRenameChat={tabPool.rename}
-                onRemoveChat={tabPool.remove}
-                onCloseChat={tabPool.close}
-                onReopenChat={tabPool.reopen}
-                onBranchRename={(branch) => {
-                  if (target.kind === "agent")
-                    renameBranch(target.agent.id, branch)
-                }}
-                onPlanModeChange={(chatId, pm) =>
-                  updateChatSession(chatId, { planMode: pm })
-                }
-                onModelChange={(chatId, model) =>
-                  updateChatSession(chatId, { model })
-                }
-                diffStats={
-                  target.kind === "agent"
-                    ? diffStats.get(target.agent.id)
-                    : undefined
-                }
-                branchPr={
-                  target.kind === "agent"
-                    ? (branchPrs.get(target.agent.id) ?? null)
-                    : null
-                }
-                onPrCreated={setBranchPr}
-                onCollapse={() => chatPanelRef.current?.collapse()}
-                onLogsReady={handleLogsReady}
-              />
-            )
-          })() || (
-            <div className="flex h-full flex-col bg-background">
-              <div className="flex h-12 items-center bg-background px-3">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-                        onClick={() => chatPanelRef.current?.collapse()}
-                      >
-                        <PanelRightClose className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      Collapse chat <Kbd>⌘I</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <span className="text-xs text-muted-foreground">
-                  {repos.length === 0 ? "No workspaces" : "No active agents"}
-                </span>
-              </div>
-              <div className="border-b border-border" />
-              <div className="flex flex-1 items-center justify-center px-6">
-                <p className="text-sm text-muted-foreground">
-                  {repos.length === 0
-                    ? "Add a workspace to get started"
-                    : "Waiting for an agent to start…"}
-                </p>
-              </div>
-            </div>
-          )}
+          <ChatPanelHost
+            chatTarget={chatTarget}
+            tabPool={tabPool}
+            agents={agents}
+            markdownLayers={markdownLayers}
+            chatSessions={chatSessions}
+            localTerminals={localTerminals}
+            repos={repos}
+            roomId={roomId}
+            diffStats={diffStats}
+            branchPrs={branchPrs}
+            chatPanelRef={chatPanelRef}
+            onRenameBranch={renameBranch}
+            onUpdateChatSession={updateChatSession}
+            onSetBranchPr={setBranchPr}
+            onLogsReady={handleLogsReady}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
     </>

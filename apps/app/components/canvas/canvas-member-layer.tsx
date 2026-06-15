@@ -1,0 +1,418 @@
+"use client"
+
+import { getGroupMembers } from "@/lib/canvas/layout"
+import type { IframeLayerLayoutMap, PlaceholderRect } from "@/lib/canvas/layout"
+import type {
+  BranchData,
+  GroupMember,
+  IframeLayerData,
+  IframeLayerGroupData,
+  MarkdownLayerData,
+} from "@/lib/types"
+import { useSelfPresence } from "@/lib/yjs/react"
+
+import { IframeLayer } from "./iframe-layer"
+import { MarkdownLayer } from "./markdown-layer"
+import { useCanvasGesture } from "./use-canvas-gesture"
+import type { CanvasCamera } from "./use-canvas-camera"
+import type { CanvasSelection } from "./use-canvas-selection"
+import type { ElementReference } from "./use-element-reference"
+
+type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
+type MarkdownLayerProps = React.ComponentProps<typeof MarkdownLayer>
+type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
+type GesturePreview = ReturnType<typeof useCanvasGesture>["preview"]
+
+/** The per-agent preview/branch resolution the member map reads per Iframe Layer. */
+type AgentDomains = Record<
+  string,
+  {
+    previewDomain: string
+    branch: string
+    discoveredRoutes?: { route: string; label: string }[]
+  }
+>
+
+/**
+ * The flat member layer (PRD #571) — every Iframe Layer and Markdown Layer
+ * across all Groups rendered as a stable, id-sorted, absolutely-positioned
+ * sibling, plus the trailing "+ frame" placeholder hit targets.
+ *
+ * THE FLAT-SIBLING + ID-SORT INVARIANT: a Member is NOT nested inside a
+ * per-Group element. Flattening to `[member, group]` pairs and sorting by
+ * member id means React never reparents or re-orders a Member node — either of
+ * which remounts the running iframe or the live TipTap editor. So pop-out /
+ * drag-in across Groups keeps a Member's React identity and live DOM (no
+ * reload); Group membership only changes the Member's computed world position.
+ * Preserve this ordering exactly when touching this component.
+ *
+ * Backed by controllers rather than a long list of loose props: the Canvas
+ * Selection controller (#567), the Canvas Camera controller (#567, wheel), the
+ * gesture preview + Layer drag/resize callbacks (#568), the element-reference
+ * controller (#570), the derived layout maps, and the thin per-Layer mutation
+ * handlers (which run through Canvas Operations at their definition sites).
+ */
+export function CanvasMemberLayer({
+  iframeLayerGroups,
+  iframeLayers,
+  markdownLayers,
+  selection,
+  camera,
+  reference,
+  gesturePreview,
+  gestureLayerHandlers,
+  effectiveIframeLayerLayouts,
+  iframeLayerLayouts,
+  groupZIndex,
+  groupDisplayNames,
+  placeholderRects,
+  remoteSelectionColors,
+  remoteGroupSelectionColors,
+  agentDomains,
+  agents,
+  zoom,
+  spaceHeld,
+  commentMode,
+  self,
+  editingDocumentLayerId,
+  setEditingDocumentLayerId,
+  focusedIframeLayerId,
+  setFocusedIframeLayerId,
+  createFlowIframeLayerId,
+  setCreateFlowIframeLayerId,
+  renameIframeLayerGroup,
+  renameIframeLayer,
+  removeIframeLayer,
+  updateIframeLayerState,
+  updateIframeLayerRoute,
+  updateIframeLayerScroll,
+  updateIframeLayerKnobs,
+  updateIframeLayerKnobValues,
+  updateIframeLayerSharedState,
+  handlePlayIframeLayer,
+  fitIframeLayerToContent,
+  handleCaptureReadyChange,
+  handleCaptureDirty,
+  assignAgentToIframeLayer,
+  resizeDocumentLayer,
+  setDocumentLayerTitle,
+  setDocumentLayerTitleCache,
+  addIframeLayerToGroup,
+}: {
+  iframeLayerGroups: IframeLayerGroupData[]
+  iframeLayers: IframeLayerData[]
+  markdownLayers: MarkdownLayerData[]
+  selection: CanvasSelection
+  camera: CanvasCamera
+  reference: ElementReference
+  gesturePreview: GesturePreview
+  gestureLayerHandlers: GestureLayerHandlers
+  effectiveIframeLayerLayouts: IframeLayerLayoutMap
+  iframeLayerLayouts: IframeLayerLayoutMap
+  groupZIndex: Map<string, number>
+  groupDisplayNames: Map<string, string>
+  placeholderRects: PlaceholderRect[]
+  remoteSelectionColors: Map<string, string>
+  remoteGroupSelectionColors: Map<string, string>
+  agentDomains: AgentDomains
+  agents: BranchData[]
+  zoom: number
+  spaceHeld: boolean
+  commentMode: boolean
+  self: ReturnType<typeof useSelfPresence>
+  editingDocumentLayerId: string | null
+  setEditingDocumentLayerId: React.Dispatch<React.SetStateAction<string | null>>
+  focusedIframeLayerId: string | null
+  setFocusedIframeLayerId: React.Dispatch<React.SetStateAction<string | null>>
+  createFlowIframeLayerId: string | null
+  setCreateFlowIframeLayerId: React.Dispatch<
+    React.SetStateAction<string | null>
+  >
+  renameIframeLayerGroup: (groupId: string, name: string) => void
+  renameIframeLayer: IframeLayerProps["onRename"]
+  removeIframeLayer: IframeLayerProps["onRemove"]
+  updateIframeLayerState: IframeLayerProps["onStateChanged"]
+  updateIframeLayerRoute: (id: string, route: string, replace?: boolean) => void
+  updateIframeLayerScroll: IframeLayerProps["onScrollChange"]
+  updateIframeLayerKnobs: IframeLayerProps["onKnobsDeclared"]
+  updateIframeLayerKnobValues: IframeLayerProps["onKnobValuesChange"]
+  updateIframeLayerSharedState: IframeLayerProps["onSharedStateChanged"]
+  handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
+  fitIframeLayerToContent: IframeLayerProps["onFitToContent"]
+  handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
+  handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
+  assignAgentToIframeLayer: IframeLayerProps["onAssignBranch"]
+  resizeDocumentLayer: MarkdownLayerProps["onResize"]
+  setDocumentLayerTitle: MarkdownLayerProps["onRename"]
+  setDocumentLayerTitleCache: MarkdownLayerProps["onTitleChange"]
+  addIframeLayerToGroup: (groupId: string) => string | undefined
+}) {
+  // Alias the controller state/verbs to the local names the JSX reads, so the
+  // flat-member render below stays a verbatim move from `canvas.tsx`.
+  const selectedIframeLayerIds = selection.iframeLayerIds
+  const selectedGroupIds = selection.groupIds
+  const selectedDocumentLayerIds = selection.documentLayerIds
+  const setSelectedIframeLayerIds = selection.setIframeLayerIds
+  const setSelectedGroupIds = selection.setGroupIds
+  const setSelectedDocumentLayerIds = selection.setDocumentLayerIds
+  const handleIframeLayerSelect = selection.selectIframeLayer
+  const handleGroupSelect = selection.selectGroup
+  const handleDocumentLayerSelect = selection.selectDocumentLayer
+
+  return (
+    <>
+      {(() => {
+        // Flatten to [member, group] pairs, then sort by member id so
+        // React never reparents or re-orders a member node (either of
+        // which remounts the iframe / TipTap editor — see the
+        // `groupZIndex` note for why DOM order has to stay fixed).
+        const entries: Array<{
+          member: GroupMember
+          group: IframeLayerGroupData
+        }> = []
+        for (const group of iframeLayerGroups) {
+          for (const member of getGroupMembers(group)) {
+            entries.push({ member, group })
+          }
+        }
+        entries.sort((a, b) => a.member.id.localeCompare(b.member.id))
+
+        return entries.map(({ member, group }) => {
+          const members = getGroupMembers(group)
+          const index = members.findIndex((m) => m.id === member.id)
+          const groupSelected = selectedGroupIds.has(group.id)
+          const showGroupLabel = members.length > 1
+          const groupLabel = showGroupLabel
+            ? groupDisplayNames.get(group.id)
+            : undefined
+          // Tint this member's name (and, on the leftmost member,
+          // the group label) to match a remote user's selection
+          // rect. Skipped when we've selected it locally — our own
+          // fuchsia takes precedence.
+          const remoteSelectedColor = remoteSelectionColors.get(member.id)
+          const remoteGroupSelectedColor =
+            index === 0 ? remoteGroupSelectionColors.get(member.id) : undefined
+          const layout = effectiveIframeLayerLayouts.get(member.id)
+          if (!layout) return null
+
+          // In-flow reorder: layer a cursor-tracking translate over
+          // the layout slot (siblings reflow via the layout map). A
+          // popped frame already sits at `cursor - grab` in
+          // effectiveIframeLayerLayouts, so it needs no transform —
+          // only the `dragPopped` flag for z-elevation / pointer
+          // pass-through / group-label anchoring.
+          let dragTranslateX: number | undefined
+          let dragTranslateY: number | undefined
+          let dragPopped = false
+          const reorderPreview = gesturePreview.reorder
+          if (reorderPreview?.memberId === member.id) {
+            const grab = reorderPreview.grabOffset ?? {
+              x: layout.width / 2,
+              y: layout.height / 2,
+            }
+            if (reorderPreview.popped) {
+              dragPopped = true
+            } else {
+              const raw = iframeLayerLayouts.get(member.id)
+              if (raw) {
+                // Lock Y so the dragged frame slides only horizontally.
+                dragTranslateX = reorderPreview.cursor.x - grab.x - raw.x
+                dragTranslateY = 0
+              }
+            }
+          }
+
+          const zIndex = groupZIndex.get(group.id)
+
+          if (member.kind === "markdown-layer") {
+            const doc = markdownLayers.find((d) => d.id === member.id)
+            if (!doc) return null
+            return (
+              <MarkdownLayer
+                key={doc.id}
+                layer={doc}
+                zoom={zoom}
+                selected={selectedDocumentLayerIds.has(doc.id)}
+                multiSelected={
+                  selectedIframeLayerIds.size + selectedDocumentLayerIds.size >
+                  1
+                }
+                editing={editingDocumentLayerId === doc.id}
+                spaceHeld={spaceHeld}
+                userName={self?.identity.name || "Anonymous"}
+                userColor={self?.color || "#888888"}
+                worldX={layout.x}
+                worldY={layout.y}
+                zIndex={zIndex}
+                dragTranslateX={dragTranslateX}
+                dragTranslateY={dragTranslateY}
+                dragPopped={dragPopped}
+                remoteSelectedColor={remoteSelectedColor}
+                remoteGroupSelectedColor={remoteGroupSelectedColor}
+                groupLabel={index === 0 ? groupLabel : undefined}
+                groupSelected={groupSelected}
+                onSelectGroup={
+                  index === 0 && showGroupLabel
+                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                    : undefined
+                }
+                onRenameGroup={
+                  index === 0 && showGroupLabel
+                    ? (name) => renameIframeLayerGroup(group.id, name)
+                    : undefined
+                }
+                onSelect={handleDocumentLayerSelect}
+                onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                }
+                onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                }
+                onGroupDragStart={() =>
+                  gestureLayerHandlers.onGroupDragStart(doc.id)
+                }
+                onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
+                onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
+                onResize={resizeDocumentLayer}
+                onTitleChange={setDocumentLayerTitleCache}
+                onRename={setDocumentLayerTitle}
+                onStartEdit={setEditingDocumentLayerId}
+                onStopEdit={() => setEditingDocumentLayerId(null)}
+                onEditorReady={reference.onDocumentEditorReady}
+                onStartInlineComment={reference.startInlineComment}
+                onSelectInlineThread={reference.setActiveThread}
+              />
+            )
+          }
+
+          const iframeLayer = iframeLayers.find((a) => a.id === member.id)
+          if (!iframeLayer) return null
+          const agentInfo = iframeLayer.branchId
+            ? agentDomains[iframeLayer.branchId]
+            : undefined
+          // Resolve the assigned branch's ref independently of
+          // preview readiness: the dropdown must reflect the
+          // selection (and the frame show a "waiting" state) as
+          // soon as a branch is picked, before its dev server —
+          // and thus its previewDomain in `agentDomains` — is up.
+          const assignedAgent = iframeLayer.branchId
+            ? agents.find((a) => a.id === iframeLayer.branchId)
+            : undefined
+          return (
+            <IframeLayer
+              key={iframeLayer.id}
+              iframeLayer={{
+                ...iframeLayer,
+                iframeUrl: agentInfo?.previewDomain,
+                branch: agentInfo?.branch ?? assignedAgent?.ref,
+              }}
+              zoom={zoom}
+              focused={focusedIframeLayerId === iframeLayer.id}
+              createFlow={createFlowIframeLayerId === iframeLayer.id}
+              selected={selectedIframeLayerIds.has(iframeLayer.id)}
+              onFocus={(id) => {
+                setFocusedIframeLayerId(id)
+                if (id !== null) setCreateFlowIframeLayerId(null)
+              }}
+              onToggleCreateFlow={(id) => {
+                setCreateFlowIframeLayerId(id)
+                if (id !== null) setFocusedIframeLayerId(null)
+              }}
+              onSelect={handleIframeLayerSelect}
+              onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+              }
+              onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+              }
+              onGroupDragStart={() =>
+                gestureLayerHandlers.onGroupDragStart(iframeLayer.id)
+              }
+              onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
+              onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
+              onResize={gestureLayerHandlers.onResize}
+              onResizeStart={gestureLayerHandlers.onResizeStart}
+              onResizeEnd={gestureLayerHandlers.onResizeEnd}
+              onRemove={removeIframeLayer}
+              onRename={renameIframeLayer}
+              onStateChanged={updateIframeLayerState}
+              onRouteChange={updateIframeLayerRoute}
+              onScrollChange={updateIframeLayerScroll}
+              onKnobsDeclared={updateIframeLayerKnobs}
+              onKnobValuesChange={updateIframeLayerKnobValues}
+              onSharedStateChanged={updateIframeLayerSharedState}
+              onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
+              onFitToContent={fitIframeLayerToContent}
+              onSetSize={fitIframeLayerToContent}
+              multiSelected={
+                selectedIframeLayerIds.size + selectedDocumentLayerIds.size > 1
+              }
+              spaceHeld={spaceHeld}
+              commentMode={commentMode}
+              onHover={reference.setInspectHover}
+              onWheel={camera.handleIframeWheel}
+              onDomReady={reference.onIframeLayerDomReady}
+              onCaptureReadyChange={handleCaptureReadyChange}
+              onCaptureDirty={handleCaptureDirty}
+              assignableBranches={agents}
+              onAssignBranch={assignAgentToIframeLayer}
+              discoveredRoutes={agentInfo?.discoveredRoutes}
+              onSelectRoute={updateIframeLayerRoute}
+              remoteSelectedColor={remoteSelectedColor}
+              remoteGroupSelectedColor={remoteGroupSelectedColor}
+              groupLabel={index === 0 ? groupLabel : undefined}
+              groupSelected={groupSelected}
+              onSelectGroup={
+                index === 0 && showGroupLabel
+                  ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
+                  : undefined
+              }
+              onRenameGroup={
+                index === 0 && showGroupLabel
+                  ? (name) => renameIframeLayerGroup(group.id, name)
+                  : undefined
+              }
+              worldX={layout.x}
+              worldY={layout.y}
+              zIndex={zIndex}
+              dragTranslateX={dragTranslateX}
+              dragTranslateY={dragTranslateY}
+              dragPopped={dragPopped}
+            />
+          )
+        })
+      })()}
+
+      {/* Trailing "+ frame" placeholder click targets — one per group
+          with a selected member. The visible outline is painted by
+          PlaceholderRectsUnderlay; this is just the transparent hit
+          target, positioned absolutely in world space. */}
+      {placeholderRects.map((rect) => (
+        <button
+          key={`placeholder-${rect.groupId}`}
+          type="button"
+          data-iframe-layer-placeholder
+          className="absolute cursor-pointer bg-transparent"
+          style={{
+            left: rect.x,
+            top: rect.y,
+            width: rect.width,
+            height: rect.height,
+            zIndex: groupZIndex.get(rect.groupId),
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            const newId = addIframeLayerToGroup(rect.groupId)
+            if (newId) {
+              setSelectedIframeLayerIds(new Set([newId]))
+              setSelectedGroupIds(new Set())
+              setSelectedDocumentLayerIds(new Set())
+            }
+          }}
+          aria-label="Add frame to group"
+        />
+      ))}
+    </>
+  )
+}
