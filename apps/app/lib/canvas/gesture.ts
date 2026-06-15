@@ -25,6 +25,14 @@
  *     selection) with sticky edge/center snap, emitting `moveBy` live; a
  *     single-group drag goes "hot" against another Group's trailing slot and
  *     emits `mergeGroups` only on release.
+ *   - **marquee** (#544): the selection-only gesture — emits a `marqueeSelect`
+ *     intent the component applies to *local selection state*, never a Canvas
+ *     Operation, the deliberate proof that not every Gesture Intent is a Y.Doc
+ *     write. Its drag rect surfaces via the Gesture Preview (drawn by the
+ *     SelectionOverlay) rather than feeding `deriveCanvasLayout` — the gesture
+ *     still derives no geometry, so the rect-vs-layout hit-test stays in the
+ *     component and arrives here as plain id sets; the reducer owns only the
+ *     selection algebra (shift toggle vs replace).
  *
  * The move arm's Snap math is *orchestrated*, not reimplemented: it calls
  * `computeMoveSnap` / `computeMergeSnap` from `lib/canvas/snap` (also pure), so
@@ -141,7 +149,24 @@ export type MoveGestureContext = {
 }
 
 /**
- * The single active gesture, or `idle` at rest. New arms (marquee, resize) join
+ * Context snapshotted when a marquee gesture starts. The base selections are the
+ * selection at drag start, frozen so a shift-marquee toggles against a stable
+ * baseline rather than the live (mid-drag) selection. The hit-test that turns the
+ * live rect into hit ids is geometry, so it stays in the component; only these
+ * plain snapshots cross into the reducer.
+ */
+export type MarqueeGestureContext = {
+  /** Drag-start corner (canvas space) — the fixed corner of the live rect. */
+  startX: number
+  startY: number
+  /** Shift held at drag start → toggle hits against the base, else replace. */
+  shiftKey: boolean
+  baseIframeLayerIds: ReadonlySet<string>
+  baseDocumentLayerIds: ReadonlySet<string>
+}
+
+/**
+ * The single active gesture, or `idle` at rest. New arms (device-resize) join
  * this union as each gesture is ported.
  */
 export type GestureState =
@@ -176,17 +201,39 @@ export type GestureState =
       /** Latest meta/cmd state — `release` reads it to gate the merge commit. */
       meta: boolean
     }
+  | {
+      kind: "marquee"
+      ctx: MarqueeGestureContext
+      /** Last cursor (canvas space) — the moving corner of the live rect. */
+      cursor: { x: number; y: number }
+    }
+
+/**
+ * The layers the marquee rect currently covers, hit-tested by the component
+ * (which owns the geometry) and handed to the reducer as plain id sets. The
+ * reducer never computes these — it only folds them into selection.
+ */
+export type MarqueeHits = {
+  iframeLayerIds: ReadonlySet<string>
+  documentLayerIds: ReadonlySet<string>
+}
 
 /**
  * Pointer/key input the FSM reduces. `start` snapshots the gesture context;
  * `move` carries the live cursor (for the move arm, the cumulative delta from
- * drag start) and meta-key state for gestures that read it; `metaChange` flips
- * the meta-key between moves (a key press with no pointer motion); `release`
- * commits; `cancel` aborts with no intent.
+ * drag start), meta-key state for gestures that read it, and — for marquee — the
+ * layers the rect now covers (`hits`); `metaChange` flips the meta-key between
+ * moves (a key press with no pointer motion); `release` commits; `cancel` aborts
+ * with no intent.
  */
 export type GestureEvent =
   | { type: "start"; start: GestureStart }
-  | { type: "move"; cursor: { x: number; y: number }; meta?: boolean }
+  | {
+      type: "move"
+      cursor: { x: number; y: number }
+      meta?: boolean
+      hits?: MarqueeHits
+    }
   | { type: "metaChange"; meta: boolean }
   | { type: "release"; cursor?: { x: number; y: number }; meta?: boolean }
   | { type: "cancel" }
@@ -202,6 +249,7 @@ export type GestureStart =
       meta: boolean
     }
   | { kind: "move"; ctx: MoveGestureContext }
+  | { kind: "marquee"; ctx: MarqueeGestureContext }
 
 /**
  * A reorder drag the Canvas shows mid-flight: the dragged Member floats at
@@ -228,6 +276,9 @@ export type ReorderPreview = {
  *   - `snapGuides` are the red edge/center guide lines drawn during a move.
  *   - `mergeRects` are the merge-preview highlight rects while a group drag is
  *     hot against a target, else `null`.
+ *   - `marqueeRect` is the in-flight selection rect (canvas space), drawn straight
+ *     by the SelectionOverlay. Unlike the others it does *not* feed
+ *     `deriveCanvasLayout` — a marquee changes selection, not geometry.
  *
  * Each is empty/null outside its gesture.
  */
@@ -236,6 +287,12 @@ export type GesturePreview = {
   reorder: ReorderPreview | null
   snapGuides: SnapGuide[]
   mergeRects: Rect[] | null
+  marqueeRect: {
+    startX: number
+    startY: number
+    currentX: number
+    currentY: number
+  } | null
 }
 
 /** Empty preview — the resting state and the post-release/-cancel reset. */
@@ -244,13 +301,14 @@ export const EMPTY_PREVIEW: GesturePreview = {
   reorder: null,
   snapGuides: [],
   mergeRects: null,
+  marqueeRect: null,
 }
 
 /**
  * The descriptive result a completed (or in-flight) gesture emits. The
  * component applies it: canvas-mutating intents through a Canvas Operation,
- * selection-only ones through local selection state. New arms (`resizeLayer`,
- * `marqueeSelect`, …) join as each gesture is ported.
+ * selection-only ones through local selection state. New arms (`resizeLayer`, …)
+ * join as each gesture is ported.
  *
  * - `setGroupGap` / `reorderMember` / `popOutToNewGroup` / `mergeGroups`:
  *   canvas writes.
@@ -258,6 +316,8 @@ export const EMPTY_PREVIEW: GesturePreview = {
  *   emitted live on every move, so collaborators see the drag in real time.
  * - `selectMember`: selection only — a no-move release that falls through to a
  *   plain click (label drags), so click-vs-drag stays in the gesture.
+ * - `marqueeSelect`: selection only — the resolved set of layers the marquee
+ *   covers, applied to local selection state (never a Y.Doc write).
  */
 export type GestureIntent =
   | { type: "setGroupGap"; groupId: string; gap: number }
@@ -270,6 +330,11 @@ export type GestureIntent =
       memberId: string
       kind: GroupMemberKind
       additive: boolean
+    }
+  | {
+      type: "marqueeSelect"
+      iframeLayerIds: ReadonlySet<string>
+      documentLayerIds: ReadonlySet<string>
     }
 
 export type GestureResult = {
@@ -439,6 +504,78 @@ function mergeStep(
 }
 
 /**
+ * A drag this small (canvas units, per axis) is treated as a click, not a
+ * marquee: a plain click on empty canvas deselects (the shift variant keeps the
+ * existing selection). Matches the original inline handler's 3px threshold.
+ */
+const MARQUEE_CLICK_THRESHOLD = 3
+
+/** Toggle each hit id against the base set (shift-marquee's symmetric add/remove). */
+function toggleSelection(
+  base: ReadonlySet<string>,
+  hits: ReadonlySet<string>
+): Set<string> {
+  const next = new Set(base)
+  for (const id of hits) {
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+  }
+  return next
+}
+
+/**
+ * Fold the live hits into selection: shift toggles them against the frozen base,
+ * otherwise the hits replace the selection outright. Pure set algebra — the only
+ * marquee logic the reducer owns (the geometry hit-test lives in the component).
+ */
+function resolveMarqueeSelection(
+  ctx: MarqueeGestureContext,
+  hits: MarqueeHits
+): { iframeLayerIds: Set<string>; documentLayerIds: Set<string> } {
+  if (!ctx.shiftKey) {
+    return {
+      iframeLayerIds: new Set(hits.iframeLayerIds),
+      documentLayerIds: new Set(hits.documentLayerIds),
+    }
+  }
+  return {
+    iframeLayerIds: toggleSelection(
+      ctx.baseIframeLayerIds,
+      hits.iframeLayerIds
+    ),
+    documentLayerIds: toggleSelection(
+      ctx.baseDocumentLayerIds,
+      hits.documentLayerIds
+    ),
+  }
+}
+
+/** The marquee rect (canvas space) from the frozen start corner to the cursor. */
+function marqueeRectOf(
+  ctx: MarqueeGestureContext,
+  cursor: { x: number; y: number }
+) {
+  return {
+    startX: ctx.startX,
+    startY: ctx.startY,
+    currentX: cursor.x,
+    currentY: cursor.y,
+  }
+}
+
+/** A `marqueeSelect` intent for the given resolved selection. */
+function marqueeSelectIntent(selection: {
+  iframeLayerIds: ReadonlySet<string>
+  documentLayerIds: ReadonlySet<string>
+}): GestureIntent {
+  return {
+    type: "marqueeSelect",
+    iframeLayerIds: selection.iframeLayerIds,
+    documentLayerIds: selection.documentLayerIds,
+  }
+}
+
+/**
  * Reduce one event against the current gesture state. Pure: same inputs always
  * produce the same `{ state, preview, intent? }`, so a synthetic event sequence
  * can be asserted against plain values with no React, DOM, or Y.Doc.
@@ -464,6 +601,7 @@ export function reduceGesture(
             reorder: null,
             snapGuides: [],
             mergeRects: null,
+            marqueeRect: null,
           },
         }
       }
@@ -476,6 +614,27 @@ export function reduceGesture(
           popped: start.meta,
         }
         return { state: next, preview: previewFor(next) }
+      }
+      if (start.kind === "marquee") {
+        const { ctx } = start
+        const cursor = { x: ctx.startX, y: ctx.startY }
+        // Opening the marquee clears group selection and, without shift, the
+        // layer selection too (shift keeps the base to toggle against).
+        const selection = ctx.shiftKey
+          ? {
+              iframeLayerIds: new Set(ctx.baseIframeLayerIds),
+              documentLayerIds: new Set(ctx.baseDocumentLayerIds),
+            }
+          : {
+              iframeLayerIds: new Set<string>(),
+              documentLayerIds: new Set<string>(),
+            }
+        const next = { kind: "marquee" as const, ctx, cursor }
+        return {
+          state: next,
+          preview: previewFor(next),
+          intent: marqueeSelectIntent(selection),
+        }
       }
       // start.kind === "move": seed the merge preview from the resting position
       // so a drag that begins already over a target's slot goes hot at once.
@@ -497,6 +656,7 @@ export function reduceGesture(
           reorder: null,
           snapGuides: [],
           mergeRects: rects,
+          marqueeRect: null,
         },
       }
     }
@@ -511,7 +671,23 @@ export function reduceGesture(
             reorder: null,
             snapGuides: [],
             mergeRects: null,
+            marqueeRect: null,
           },
+        }
+      }
+      if (state.kind === "marquee") {
+        const cursor = event.cursor
+        const next = { kind: "marquee" as const, ctx: state.ctx, cursor }
+        const preview = previewFor(next)
+        // The component re-hit-tests on every move and passes the covered
+        // layers in; absent them this is just a rect update (no selection).
+        if (!event.hits) return { state: next, preview }
+        return {
+          state: next,
+          preview,
+          intent: marqueeSelectIntent(
+            resolveMarqueeSelection(state.ctx, event.hits)
+          ),
         }
       }
       if (state.kind === "reorder") {
@@ -568,6 +744,7 @@ export function reduceGesture(
           reorder: null,
           snapGuides: guides,
           mergeRects: rects,
+          marqueeRect: null,
         }
         // Apply the move live (every move) so collaborators see the drag in real
         // time — only the merge waits for release.
@@ -614,6 +791,7 @@ export function reduceGesture(
             reorder: null,
             snapGuides: state.guides,
             mergeRects: rects,
+            marqueeRect: null,
           },
         }
       }
@@ -631,6 +809,26 @@ export function reduceGesture(
             gap: state.gap,
           },
         }
+      }
+      if (state.kind === "marquee") {
+        // A drag too small to be a marquee is a click: deselect (shift keeps the
+        // selection the moves already settled). A real drag leaves the last
+        // move's selection standing, so it emits no further intent.
+        const dx = Math.abs(state.cursor.x - state.ctx.startX)
+        const dy = Math.abs(state.cursor.y - state.ctx.startY)
+        const tinyClick =
+          dx < MARQUEE_CLICK_THRESHOLD && dy < MARQUEE_CLICK_THRESHOLD
+        if (tinyClick && !state.ctx.shiftKey) {
+          return {
+            state: { kind: "idle" },
+            preview: EMPTY_PREVIEW,
+            intent: marqueeSelectIntent({
+              iframeLayerIds: new Set(),
+              documentLayerIds: new Set(),
+            }),
+          }
+        }
+        return { state: { kind: "idle" }, preview: EMPTY_PREVIEW }
       }
       if (state.kind === "reorder") {
         const cursor = event.cursor ?? state.cursor
@@ -693,6 +891,7 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     }
   }
   if (state.kind === "reorder") {
@@ -701,6 +900,7 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: reorderPreviewOf(state),
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     }
   }
   if (state.kind === "move") {
@@ -710,6 +910,16 @@ function previewFor(state: GestureState): GesturePreview {
       reorder: null,
       snapGuides: state.guides,
       mergeRects: rects,
+      marqueeRect: null,
+    }
+  }
+  if (state.kind === "marquee") {
+    return {
+      gapOverride: null,
+      reorder: null,
+      snapGuides: [],
+      mergeRects: null,
+      marqueeRect: marqueeRectOf(state.ctx, state.cursor),
     }
   }
   return EMPTY_PREVIEW

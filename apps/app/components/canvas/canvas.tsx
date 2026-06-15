@@ -469,19 +469,6 @@ export function Canvas({
   const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<
     string | null
   >(null)
-  const [marquee, setMarquee] = useState<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
-  const marqueeRef = useRef<{
-    startX: number
-    startY: number
-    shiftKey: boolean
-    baseIframeLayers: Set<string>
-    baseDocumentLayers: Set<string>
-  } | null>(null)
   const [documentMode, setDocumentMode] = useState(false)
   const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<
     string | null
@@ -1057,6 +1044,13 @@ export function Canvas({
         }
         break
       }
+      // Selection-only intent: applied to local selection state, never the
+      // Y.Doc. A marquee never selects groups, so clear them alongside.
+      case "marqueeSelect":
+        setSelectedGroupIds(new Set())
+        setSelectedIframeLayerIds(new Set(intent.iframeLayerIds))
+        setSelectedDocumentLayerIds(new Set(intent.documentLayerIds))
+        break
     }
   })
 
@@ -4230,24 +4224,22 @@ export function Canvas({
 
       const rect = e.currentTarget.getBoundingClientRect()
       const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      marqueeRef.current = {
-        startX: canvas.x,
-        startY: canvas.y,
-        shiftKey: e.shiftKey,
-        baseIframeLayers: new Set(selectedIframeLayerIds),
-        baseDocumentLayers: new Set(selectedDocumentLayerIds),
-      }
-      setMarquee({
-        startX: canvas.x,
-        startY: canvas.y,
-        currentX: canvas.x,
-        currentY: canvas.y,
+      // Open the marquee through the gesture FSM. The emitted `marqueeSelect`
+      // intent clears the group selection (and, without shift, the layer
+      // selection) so the drag toggles against a frozen baseline.
+      dispatchGesture({
+        type: "start",
+        start: {
+          kind: "marquee",
+          ctx: {
+            startX: canvas.x,
+            startY: canvas.y,
+            shiftKey: e.shiftKey,
+            baseIframeLayerIds: new Set(selectedIframeLayerIds),
+            baseDocumentLayerIds: new Set(selectedDocumentLayerIds),
+          },
+        },
       })
-      setSelectedGroupIds(new Set())
-      if (!e.shiftKey) {
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set())
-      }
       e.currentTarget.setPointerCapture(e.pointerId)
     },
     [
@@ -4260,6 +4252,7 @@ export function Canvas({
       selectedIframeLayerIds,
       selectedDocumentLayerIds,
       getGestureState,
+      dispatchGesture,
     ]
   )
 
@@ -4318,64 +4311,54 @@ export function Canvas({
         return
       }
 
-      if (!marqueeRef.current) return
-      const start = marqueeRef.current
-      const rect = e.currentTarget.getBoundingClientRect()
-      const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      setMarquee((m) =>
-        m ? { ...m, currentX: canvas.x, currentY: canvas.y } : null
-      )
+      // Marquee drag: hit-test the live rect against the layouts (the geometry
+      // the gesture FSM never touches) and feed the covered layers in. The
+      // reducer folds them into selection — replace, or toggle under shift —
+      // and emits the `marqueeSelect` intent applied to local selection state.
+      const marqueeState = getGestureState()
+      if (marqueeState.kind === "marquee") {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
+        const { startX, startY } = marqueeState.ctx
+        const left = Math.min(startX, canvas.x)
+        const top = Math.min(startY, canvas.y)
+        const right = Math.max(startX, canvas.x)
+        const bottom = Math.max(startY, canvas.y)
 
-      // Live hit-testing during drag
-      const left = Math.min(start.startX, canvas.x)
-      const top = Math.min(start.startY, canvas.y)
-      const right = Math.max(start.startX, canvas.x)
-      const bottom = Math.max(start.startY, canvas.y)
+        const iframeLayerIds = new Set<string>()
+        for (const layout of iframeLayerLayouts.values()) {
+          if (
+            layout.x < right &&
+            layout.x + layout.width > left &&
+            layout.y < bottom &&
+            layout.y + layout.height > top
+          ) {
+            iframeLayerIds.add(layout.id)
+          }
+        }
+        const documentLayerIds = new Set<string>()
+        for (const d of markdownLayers) {
+          // Documents now live inside groups, so their world rect comes from
+          // the layout map rather than a self-position. Skip orphans (which the
+          // schema migration shouldn't leave behind).
+          const layout = iframeLayerLayouts.get(d.id)
+          if (!layout) continue
+          if (
+            layout.x < right &&
+            layout.x + layout.width > left &&
+            layout.y < bottom &&
+            layout.y + layout.height > top
+          ) {
+            documentLayerIds.add(d.id)
+          }
+        }
 
-      const abHits = new Set<string>()
-      for (const layout of iframeLayerLayouts.values()) {
-        if (
-          layout.x < right &&
-          layout.x + layout.width > left &&
-          layout.y < bottom &&
-          layout.y + layout.height > top
-        ) {
-          abHits.add(layout.id)
-        }
-      }
-      const docHits = new Set<string>()
-      for (const d of markdownLayers) {
-        // Documents now live inside groups, so their world rect comes from
-        // the layout map rather than a self-position. Skip orphans (which the
-        // schema migration shouldn't leave behind).
-        const layout = iframeLayerLayouts.get(d.id)
-        if (!layout) continue
-        if (
-          layout.x < right &&
-          layout.x + layout.width > left &&
-          layout.y < bottom &&
-          layout.y + layout.height > top
-        ) {
-          docHits.add(d.id)
-        }
-      }
-
-      if (start.shiftKey) {
-        const nextAb = new Set(start.baseIframeLayers)
-        for (const id of abHits) {
-          if (nextAb.has(id)) nextAb.delete(id)
-          else nextAb.add(id)
-        }
-        setSelectedIframeLayerIds(nextAb)
-        const nextDoc = new Set(start.baseDocumentLayers)
-        for (const id of docHits) {
-          if (nextDoc.has(id)) nextDoc.delete(id)
-          else nextDoc.add(id)
-        }
-        setSelectedDocumentLayerIds(nextDoc)
-      } else {
-        setSelectedIframeLayerIds(abHits)
-        setSelectedDocumentLayerIds(docHits)
+        dispatchGesture({
+          type: "move",
+          cursor: { x: canvas.x, y: canvas.y },
+          hits: { iframeLayerIds, documentLayerIds },
+        })
+        return
       }
     },
     [
@@ -4478,21 +4461,12 @@ export function Canvas({
         return
       }
 
-      if (!marqueeRef.current) return
-      const start = marqueeRef.current
-      const rect = e.currentTarget.getBoundingClientRect()
-      const end = screenToCanvas(e.clientX, e.clientY, rect)
-      marqueeRef.current = null
-      setMarquee(null)
-
-      // Treat tiny drags as clicks — deselect
-      const dx = Math.abs(end.x - start.startX)
-      const dy = Math.abs(end.y - start.startY)
-      if (dx < 3 && dy < 3) {
-        if (!e.shiftKey) {
-          setSelectedIframeLayerIds(new Set())
-          setSelectedDocumentLayerIds(new Set())
-        }
+      // Marquee release: the FSM decides — a real drag keeps the selection the
+      // moves settled; a drag too small to be a marquee deselects (the
+      // tiny-drag-as-click rule lives in the reducer).
+      if (getGestureState().kind === "marquee") {
+        dispatchGesture({ type: "release" })
+        return
       }
     },
     [
@@ -5619,7 +5593,7 @@ export function Canvas({
                   dy: 0,
                 }
               })()}
-              marquee={marquee}
+              marquee={gesturePreview.marqueeRect}
               frameDraft={frameDraft}
               documentDraft={documentDraft}
               othersSelections={othersSelections}
