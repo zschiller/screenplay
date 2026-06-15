@@ -76,15 +76,11 @@ import type {
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
 import { useDiffStats } from "@/hooks/use-diff-stats"
-import {
-  recreateSandbox,
-  reconnectSandbox,
-  keepAliveSandbox,
-  stopDevServers,
-} from "@/lib/sandbox/lifecycle"
+import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { useChatTarget } from "@/components/canvas/use-chat-target"
+import { useSandboxReconnect } from "@/components/canvas/use-sandbox-reconnect"
 import {
   useElementReference,
   type ElementReferenceInputs,
@@ -1776,28 +1772,19 @@ export function Canvas({
     setSelectedGroupIds,
   ])
 
-  // Hydrate chatStore streaming state from Yjs storage on mount/reconnect.
-  // For each chat that's marked streaming in storage, ask the server to
-  // verify the underlying agent run is still actually active. If it's
-  // ended, the heal endpoint broadcasts chat-stream-end to unstick the
-  // spinner. The previous empty-deps form ran before Yjs initial sync
-  // completed, so for slow connections the streaming flag from storage
-  // was missed; now we hydrate the first time `chatSessions` actually has
-  // entries, then never again.
-  const hydratedStreamingRef = useRef(false)
-  useEffect(() => {
-    if (hydratedStreamingRef.current || chatSessions.length === 0) return
-    hydratedStreamingRef.current = true
-    for (const cs of chatSessions) {
-      if (!cs.isStreaming) continue
-      chatStore.setStreaming(cs.id, true)
-      fetch(withBasePath("/api/branch/heal"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatId: cs.id }),
-      }).catch((e) => console.error("Heal request failed:", e))
-    }
-  }, [chatSessions, roomId])
+  // Sandbox Reconnect controller (PRD #579, cut 2/4): the single home for all
+  // mount-time Sandbox-lifecycle orchestration — the reconnect/recover-on-mount
+  // recovery (over the pure `resolveReconnect`), the visibility-gated ~20-minute
+  // keep-alive heartbeat, and the streaming-heal hydration. Lifted out of this
+  // composition root so the recovery cascade — including the expired-snapshot →
+  // Recreate rule (ADR 0005) — is testable as a pure decision.
+  useSandboxReconnect({
+    agents,
+    repos,
+    chatSessions,
+    roomId,
+    updateAgentInStorage,
+  })
 
   // Receive server-broadcast chat events via the room Y.Doc and feed into chat store.
   useChatStreamEvents((e) => {
@@ -1817,130 +1804,8 @@ export function Canvas({
     }
   })
 
-  // Reconnect agents on mount — check if they're still alive,
-  // and recover any that were mid-creation when the page was reloaded.
-  const reconnectedRef = useRef(false)
-  useEffect(() => {
-    if (reconnectedRef.current || agents.length === 0) return
-    reconnectedRef.current = true
-
-    for (const agent of agents) {
-      // Agents stuck mid-creation — ask server to resume the pipeline.
-      // The server uses a Redis lock so only one instance handles it.
-      if (agent.status === "creating") {
-        if (!agent.sandboxName) {
-          // VM was never created — unrecoverable
-          updateAgentInStorage(agent.id, {
-            status: "error",
-            statusMessage: undefined,
-            error: "Sandbox creation was interrupted — delete and try again",
-          })
-          continue
-        }
-        fetch(withBasePath("/api/branch/create"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            flow: "from-branch",
-            roomId,
-            branchId: agent.id,
-            sandboxName: agent.sandboxName,
-            branch: agent.ref,
-            repoId: agent.repoId,
-          }),
-        })
-        continue
-      }
-
-      if (!agent.sandboxName) continue
-
-      // Covers normal reloads and restarts (status === "starting") that were
-      // interrupted by a page reload. reconnectSandbox probes the existing
-      // sandbox first, so it won't recreate one that's already running.
-      const repo = repos.find((w) => w.id === agent.repoId)
-      const sandboxName = agent.sandboxName
-      // The restart fallback below needs a source to provision from, so bail
-      // early if the workspace is gone.
-      if (!repo) {
-        updateAgentInStorage(agent.id, {
-          status: "stopped",
-          statusMessage: "",
-          error: "Workspace not found — click refresh to retry",
-        })
-        continue
-      }
-      reconnectSandbox(sandboxName, repo).then((result) => {
-        if (result.success) {
-          updateAgentInStorage(agent.id, {
-            previewDomain: result.value.previewDomain,
-            status: "running",
-            statusMessage: "",
-            error: "",
-          })
-          return
-        }
-        // Resume failed — likely the snapshot has fully expired (>24h) and
-        // been deleted, so there's nothing left to restore from. Reclone fresh
-        // from git (recreateSandbox) instead of stranding the user at "stopped":
-        // a plain restart would just fail loud on the snapshot miss now that the
-        // silent reclone fallback is gone.
-        updateAgentInStorage(agent.id, {
-          status: "starting",
-          statusMessage: "Recreating expired sandbox…",
-          error: "",
-        })
-        recreateSandbox(sandboxName, repo, agent.ref).then((restartResult) => {
-          if (restartResult.success) {
-            updateAgentInStorage(agent.id, {
-              sandboxName: restartResult.value.sandboxName,
-              previewDomain:
-                restartResult.value.previewDomain || agent.previewDomain,
-              status: "running",
-              statusMessage: "",
-              error: "",
-            })
-          } else {
-            updateAgentInStorage(agent.id, {
-              status: "stopped",
-              statusMessage: "",
-              error:
-                restartResult.error ||
-                "Sandbox could not be restarted — click refresh to retry",
-            })
-          }
-        })
-      })
-    }
-  }, [agents, repos, updateAgentInStorage, roomId])
-
-  // Heartbeat: extend sandbox timeouts while the tab is visible so they
-  // stay alive as long as the user is actively using the page.
-  // Fires every 20 minutes (well within the 30-minute timeout) and pauses
-  // when the tab is hidden so sandboxes can expire when the user leaves.
-  useEffect(() => {
-    const HEARTBEAT_MS = 20 * 60 * 1000
-
-    const pingAll = () => {
-      if (document.hidden) return
-      for (const agent of agents) {
-        if (agent.sandboxName && agent.status === "running") {
-          keepAliveSandbox(agent.sandboxName).catch(() => {})
-        }
-      }
-    }
-
-    const interval = setInterval(pingAll, HEARTBEAT_MS)
-
-    const onVisibilityChange = () => {
-      if (!document.hidden) pingAll()
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-    }
-  }, [agents])
+  // Mount-time Sandbox recovery (reconnect), the keep-alive heartbeat, and the
+  // streaming-heal hydration now all live in `useSandboxReconnect`, called above.
 
   // Following another user's viewport, the manual follow-break, the Figma-style
   // wheel pan/zoom, and the forwarded-from-iframe wheel all live in the Canvas

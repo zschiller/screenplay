@@ -774,3 +774,27 @@ binding over the already-tested verbs); flattening `updateRoute`'s pan or
 `fitToContent`'s `markDirty` into a bare `patch`. Group teardown / cross-group
 moves (`removeIframeLayerGroup`, `moveMember`) carry chat-store cleanup and
 selection follow and stay on the composition root, not in this bundle.
+
+**Sandbox Reconnect**:
+The Canvas's mount-time Sandbox-lifecycle orchestration, split the way the rest
+of the canvas triad already is: a React-free, Yjs-free **decision**
+(`resolveReconnect` in `lib/sandbox/reconnect.ts`) plus a thin controller that
+**applies** it (`useSandboxReconnect`, PRD #579). `resolveReconnect(agent, repo)`
+returns a discriminated `ReconnectAction` over the recovery branches —
+`resume-create` (creating + a `sandboxName`: ask the server to resume the create
+pipeline), `unrecoverable` (creating, no `sandboxName`: the VM never existed,
+error it), `reconnect` (a sandbox + resolvable Repo: probe + reattach), and
+`repo-missing` (sandbox, no Repo: stop with a retry hint), plus `none` for a
+Branch with nothing to recover. The controller owns the **mount-once guard**, the
+visibility-gated **~20-minute keep-alive heartbeat**, and the **streaming-heal
+hydration** (verify each storage-`streaming` chat's run is still live), so all
+Sandbox-lifecycle orchestration shares one home. The `reconnect` action carries
+the Repo and ref precisely so a resume that fails on an **expired snapshot**
+routes to an explicit **Recreate** (ADR 0005) — never a silent reclone, never
+stranding the user at "stopped". The async apply (the resume / heal POSTs,
+`reconnectSandbox` / `recreateSandbox`, the `updateAgentInStorage` writes) lives
+in the controller; only the per-Branch branch selection is pure.
+_Avoid_: putting branch selection back in `canvas.tsx` (it goes through
+`resolveReconnect`); re-adding a silent reclone fallback to the resume failure
+path (ADR 0005); splitting the heartbeat or heal back out into their own
+composition-root effects.
