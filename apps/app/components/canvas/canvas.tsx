@@ -98,7 +98,7 @@ import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
-import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
+import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
@@ -137,12 +137,12 @@ import {
 } from "@/lib/branch/recovery"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { useTabPool } from "@/components/canvas/use-tab-pool"
+import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
+import { useToolMode } from "@/components/canvas/use-tool-mode"
+import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import {
-  ZOOM_MIN,
-  ZOOM_MAX,
-  ZOOM_STEP,
   DEFAULT_IFRAME_LAYER_WIDTH,
   DEFAULT_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
@@ -275,8 +275,6 @@ export function Canvas({
     },
     [currentRoomName, roomId]
   )
-  const [zoom, setZoom] = useState(1)
-  const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<
     string | null
   >(null)
@@ -369,9 +367,6 @@ export function Canvas({
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
   }>({ branchRename: () => {}, renameChat: () => {} })
-  const [followingConnectionId, setFollowingConnectionId] = useState<
-    number | null
-  >(null)
   // Per-iframeLayer iframe DOM accessor registry. IframeLayers register on mount and
   // unregister on unmount; selector-anchored comments use it to query element
   // rects in the right iframe.
@@ -412,7 +407,6 @@ export function Canvas({
       documentEditorsRef.current.get(id),
     []
   )
-  const [commentMode, setCommentMode] = useState(false)
   const [newCommentPos, setNewCommentPos] = useState<{
     x: number
     y: number
@@ -435,20 +429,9 @@ export function Canvas({
     rect: DomRect
   } | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
-  const [isPanning, setIsPanning] = useState(false)
-  const [selectedIframeLayerIds, setSelectedIframeLayerIds] = useState<
-    Set<string>
-  >(new Set())
-  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(
-    new Set()
-  )
-  const [selectedDocumentLayerIds, setSelectedDocumentLayerIds] = useState<
-    Set<string>
-  >(new Set())
   const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<
     string | null
   >(null)
-  const [documentMode, setDocumentMode] = useState(false)
   const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<
     string | null
   >(null)
@@ -464,7 +447,6 @@ export function Canvas({
     currentX: number
     currentY: number
   } | null>(null)
-  const [frameMode, setFrameMode] = useState(false)
   const [frameDraft, setFrameDraft] = useState<{
     startX: number
     startY: number
@@ -492,10 +474,14 @@ export function Canvas({
    * FSM; the Gesture Preview supplies the Snap Guides and merge rects).
    */
   const [moveGestureActive, setMoveGestureActive] = useState(false)
-  const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
-  const viewportRestoredRef = useRef(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
+  // Figma-style wheel pan/zoom listener attaches to this wrapper; declared up
+  // here so the Canvas Camera controller (below) can own that listener.
+  const canvasWrapperRef = useRef<HTMLDivElement>(null)
+  // The react-zoom-pan-pinch transform ref. Owned by the component (read in the
+  // pointer/route callbacks below) and driven by the Canvas Camera controller.
+  const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const setPresence = useSetPresence()
   const self = useSelfPresence()
   const others = useOtherPresences()
@@ -566,6 +552,85 @@ export function Canvas({
     },
     [collections, ops]
   )
+
+  // Synced canvas collections — read by the controllers below (selection needs
+  // the live Groups; the camera reads the saved viewport).
+  const iframeLayers = useIframeLayers()
+  const iframeLayerGroups = useIframeLayerGroups()
+  const markdownLayers = useMarkdownLayers()
+  const savedViewport = useSavedViewport()
+
+  // Canvas Operation wrappers the controllers apply removals / persistence
+  // through (ADR 0001: mutations go through `ops`, never the Y.Doc directly).
+  const removeIframeLayers = useCallback(
+    (ids: string[]) => {
+      ops.removeLayers(ids)
+    },
+    [ops]
+  )
+  const removeDocumentLayers = useCallback(
+    (ids: string[]) => {
+      const { removedChatIds } = ops.removeDocuments(ids)
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+    },
+    [ops]
+  )
+  const saveViewport = useCallback(
+    (vp: ViewportData) => {
+      ops.saveViewport(vp)
+    },
+    [ops]
+  )
+
+  // Tool Mode controller (PRD #567): the four draw tools (Select / Frame /
+  // Document / Comment) as one discriminated value, so "exactly one tool active"
+  // holds by construction. The booleans below are read-aliases for the existing
+  // call sites; mode changes dispatch `toolMode.set` / `toolMode.toggle`.
+  const toolMode = useToolMode()
+  const commentMode = toolMode.commentMode
+  const documentMode = toolMode.documentMode
+  const frameMode = toolMode.frameMode
+
+  // Canvas Selection controller (PRD #567): owns the three selection Sets, the
+  // mirror refs the keydown handler reads via `current()`, the delete decision
+  // (applied through `ops`), and the overlay / group projections. The locals
+  // below alias its state + setters so the existing call sites are unchanged.
+  const selection = useCanvasSelection({
+    groups: iframeLayerGroups,
+    removeIframeLayers,
+    removeDocumentLayers,
+  })
+  const selectedIframeLayerIds = selection.iframeLayerIds
+  const selectedGroupIds = selection.groupIds
+  const selectedDocumentLayerIds = selection.documentLayerIds
+  const setSelectedIframeLayerIds = selection.setIframeLayerIds
+  const setSelectedGroupIds = selection.setGroupIds
+  const setSelectedDocumentLayerIds = selection.setDocumentLayerIds
+  const overlaySelectedIds = selection.overlaySelectedIds
+  const groupSelectedIframeLayerIds = selection.groupSelectedIframeLayerIds
+
+  // Canvas Camera controller (PRD #567): owns the react-zoom-pan-pinch
+  // transform, the zoom / viewport mirrors, persistence, presence broadcast,
+  // follow, and the wheel pan/zoom. The locals below alias its values so the
+  // rest of the component reads `zoom` / `viewportPos` / `transformRef` as
+  // before.
+  const camera = useCanvasCamera({
+    transformRef,
+    canvasWrapperRef,
+    setPresence,
+    saveViewport,
+    savedViewport,
+    others,
+    focusedIframeLayerId,
+    createFlowIframeLayerId,
+    editingDocumentLayerId,
+    spaceHeld,
+  })
+  const zoom = camera.zoom
+  const viewportPos = camera.viewportPos
+  const isPanning = camera.isPanning
+  const followingConnectionId = camera.followingConnectionId
+
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
   // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
@@ -635,15 +700,11 @@ export function Canvas({
     setPresence({ message: "" })
   }, [setPresence])
 
-  // Refs so keyboard handler stays current without re-binding
-  const selectedIframeLayerIdsRef = useRef(selectedIframeLayerIds)
-  const selectedGroupIdsRef = useRef(selectedGroupIds)
-  const selectedDocumentLayerIdsRef = useRef(selectedDocumentLayerIds)
+  // Refs so keyboard handler stays current without re-binding. The selection
+  // and Tool Mode mirror refs now live inside their controllers (read via
+  // `selection.current()` / `toolMode.current()`); only the cursor-chat and
+  // inline-edit refs remain the component's own.
   const editingDocumentLayerIdRef = useRef(editingDocumentLayerId)
-  const documentModeRef = useRef(documentMode)
-  const frameModeRef = useRef(frameMode)
-  const removeIframeLayersRef = useRef<(ids: string[]) => void>(() => {})
-  const removeDocumentLayersRef = useRef<(ids: string[]) => void>(() => {})
 
   // Keep the above "latest value" refs current — written after commit (not
   // during render) so the long-lived keyboard/pointer handlers below can read
@@ -651,12 +712,7 @@ export function Canvas({
   useEffect(() => {
     selfPointerRef.current = self?.pointer ?? null
     selfMessageRef.current = self?.message ?? null
-    selectedIframeLayerIdsRef.current = selectedIframeLayerIds
-    selectedGroupIdsRef.current = selectedGroupIds
-    selectedDocumentLayerIdsRef.current = selectedDocumentLayerIds
     editingDocumentLayerIdRef.current = editingDocumentLayerId
-    documentModeRef.current = documentMode
-    frameModeRef.current = frameMode
   })
 
   // Keyboard shortcuts
@@ -680,9 +736,7 @@ export function Canvas({
           resolveEscapeAction({
             cursorChatOpen: selfMessageRef.current !== null,
             editingDocumentLayerId: editingDocumentLayerIdRef.current,
-            documentMode: documentModeRef.current,
-            frameMode: frameModeRef.current,
-            commentMode,
+            toolMode: toolMode.current(),
             hasNewCommentPos: newCommentPos !== null,
             focusedIframeLayerId,
             createFlowIframeLayerId,
@@ -695,13 +749,13 @@ export function Canvas({
             setEditingDocumentLayerId(null)
             break
           case "exit-document-mode":
-            setDocumentMode(false)
+            toolMode.set("select")
             break
           case "exit-frame-mode":
-            setFrameMode(false)
+            toolMode.set("select")
             break
           case "exit-comment-mode":
-            setCommentMode(false)
+            toolMode.set("select")
             setNewCommentPos(null)
             setInspectHover(null)
             break
@@ -712,38 +766,31 @@ export function Canvas({
             setCreateFlowIframeLayerId(null)
             break
           case "clear-selection":
-            setSelectedIframeLayerIds(new Set())
-            setSelectedGroupIds(new Set())
-            setSelectedDocumentLayerIds(new Set())
+            selection.clear()
             break
         }
         return
       }
+      // The four draw-tool shortcuts each dispatch one Tool Mode intent; the
+      // union keeps the tools mutually exclusive, so there's no "clear the other
+      // three" to do here. Resetting the comment-placement sub-state stays.
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setCommentMode(false)
+        toolMode.set("select")
         setNewCommentPos(null)
         setInspectHover(null)
-        setDocumentMode(false)
-        setFrameMode(false)
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setCommentMode((m) => !m)
+        toolMode.toggle("comment")
         setNewCommentPos(null)
         setInspectHover(null)
-        setDocumentMode(false)
-        setFrameMode(false)
       }
       if (e.key === "d" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setDocumentMode((m) => !m)
-        setCommentMode(false)
+        toolMode.toggle("document")
         setNewCommentPos(null)
         setInspectHover(null)
-        setFrameMode(false)
       }
       if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
-        setFrameMode((m) => !m)
-        setDocumentMode(false)
-        setCommentMode(false)
+        toolMode.toggle("frame")
         setNewCommentPos(null)
         setInspectHover(null)
       }
@@ -812,53 +859,12 @@ export function Canvas({
           setSpaceHeld(true)
         }
       }
-      // Delete/Backspace removes selected iframeLayers (including all members
-      // of selected groups) and document layers.
+      // Delete/Backspace removes the selection (cascading selected groups to
+      // their members) and selects what's next — the decision + apply both live
+      // in the Canvas Selection controller, which reads its own current
+      // selection. preventDefault only when something was actually deleted.
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditing(e)) {
-        const abIds = selectedIframeLayerIdsRef.current
-        const grpIds = selectedGroupIdsRef.current
-        const docIds = selectedDocumentLayerIdsRef.current
-        if (abIds.size > 0 || grpIds.size > 0 || docIds.size > 0) {
-          e.preventDefault()
-          const allIframeLayerIds = new Set<string>(abIds)
-          const allDocumentIds = new Set<string>(docIds)
-          if (grpIds.size > 0) {
-            // Selecting a whole group cascades the delete to every member,
-            // regardless of kind.
-            for (const g of collections.iframeLayerGroups.toArray()) {
-              if (!grpIds.has(g.id)) continue
-              for (const m of getGroupMembers(g)) {
-                if (m.kind === "iframe-layer") allIframeLayerIds.add(m.id)
-                else if (m.kind === "markdown-layer") allDocumentIds.add(m.id)
-              }
-            }
-          }
-          if (allIframeLayerIds.size > 0) {
-            // Single-frame delete: keep selection on the right neighbor (or
-            // left if there's nothing to the right). Multi-frame deletes
-            // clear selection — no obvious "next" candidate.
-            let nextSelected: string | null = null
-            if (allIframeLayerIds.size === 1 && allDocumentIds.size === 0) {
-              const onlyId = allIframeLayerIds.values().next().value as string
-              for (const g of collections.iframeLayerGroups.toArray()) {
-                const ids = getGroupMemberIds(g, "iframe-layer")
-                const idx = ids.indexOf(onlyId)
-                if (idx === -1) continue
-                nextSelected = ids[idx + 1] ?? ids[idx - 1] ?? null
-                break
-              }
-            }
-            removeIframeLayersRef.current(Array.from(allIframeLayerIds))
-            setSelectedIframeLayerIds(
-              nextSelected ? new Set([nextSelected]) : new Set()
-            )
-            setSelectedGroupIds(new Set())
-          }
-          if (allDocumentIds.size > 0) {
-            removeDocumentLayersRef.current(Array.from(allDocumentIds))
-            setSelectedDocumentLayerIds(new Set())
-          }
-        }
+        if (selection.deleteSelected()) e.preventDefault()
       }
       // Undo: Cmd/Ctrl+Z
       if (
@@ -893,19 +899,16 @@ export function Canvas({
       window.removeEventListener("keyup", handleKeyUp)
     }
   }, [
-    commentMode,
+    toolMode,
+    selection,
     newCommentPos,
     focusedIframeLayerId,
     createFlowIframeLayerId,
     history,
     openCursorChat,
     closeCursorChat,
-    collections,
   ])
 
-  const iframeLayers = useIframeLayers()
-  const iframeLayerGroups = useIframeLayerGroups()
-  const markdownLayers = useMarkdownLayers()
   // Prune capture bookkeeping for frames removed from the canvas so a deleted
   // frame's stale dirty flag never lands in a POSTed subset (#474).
   useEffect(() => {
@@ -1037,43 +1040,19 @@ export function Canvas({
           setSelectedGroupIds(new Set([newGroupId]))
           break
         }
-        case "selectMember": {
-          // Click-no-move from a Member's label falls through to plain selection
-          // (mirrors `handleIframeLayerSelect` / `handleDocumentLayerSelect`).
-          setSelectedGroupIds(new Set())
-          if (intent.kind === "markdown-layer") {
-            if (intent.additive) {
-              setSelectedDocumentLayerIds((prev) => {
-                const next = new Set(prev)
-                if (next.has(intent.memberId)) next.delete(intent.memberId)
-                else next.add(intent.memberId)
-                return next
-              })
-            } else {
-              setSelectedDocumentLayerIds(new Set([intent.memberId]))
-              setSelectedIframeLayerIds(new Set())
-            }
-          } else {
-            if (intent.additive) {
-              setSelectedIframeLayerIds((prev) => {
-                const next = new Set(prev)
-                if (next.has(intent.memberId)) next.delete(intent.memberId)
-                else next.add(intent.memberId)
-                return next
-              })
-            } else {
-              setSelectedIframeLayerIds(new Set([intent.memberId]))
-              setSelectedDocumentLayerIds(new Set())
-            }
-          }
+        case "selectMember":
+          // Click-no-move from a Member's label falls through to plain
+          // selection — the same selection interface the click path uses.
+          selection.selectMember(
+            intent.memberId,
+            intent.kind,
+            intent.additive
+          )
           break
-        }
         // Selection-only intent: applied to local selection state, never the
-        // Y.Doc. A marquee never selects groups, so clear them alongside.
+        // Y.Doc. A marquee never selects groups, so the interface clears them.
         case "marqueeSelect":
-          setSelectedGroupIds(new Set())
-          setSelectedIframeLayerIds(new Set(intent.iframeLayerIds))
-          setSelectedDocumentLayerIds(new Set(intent.documentLayerIds))
+          selection.applyMarquee(intent.iframeLayerIds, intent.documentLayerIds)
           break
         case "resizeLayer":
           resizeLayer(
@@ -1086,7 +1065,17 @@ export function Canvas({
           break
       }
     },
-    [collections, ops, setGroupGap, moveIframeLayersByDelta, resizeLayer]
+    [
+      collections,
+      ops,
+      selection,
+      setGroupGap,
+      moveIframeLayersByDelta,
+      resizeLayer,
+      setSelectedGroupIds,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+    ]
   )
 
   // While a reorder is in flight, track meta-key changes even when the pointer
@@ -1242,28 +1231,9 @@ export function Canvas({
     []
   )
 
-  /** Set of iframeLayer ids whose parent group is currently selected. */
-  const groupSelectedIframeLayerIds = useMemo(() => {
-    const ids = new Set<string>()
-    if (selectedGroupIds.size === 0) return ids
-    for (const g of iframeLayerGroups) {
-      if (!selectedGroupIds.has(g.id)) continue
-      // Highlight every member of the selected group — iframeLayers *and*
-      // markdownLayers — so docs visually participate in group selection the
-      // same way frames do.
-      for (const m of getGroupMembers(g)) ids.add(m.id)
-    }
-    return ids
-  }, [iframeLayerGroups, selectedGroupIds])
-  // Documents share iframeLayer layouts and the same selection visuals (1px
-  // fuchsia ring on hover/select, resize handle dots when single-selected).
-  // The overlay treats every member id uniformly via `iframeLayerLayouts`, so
-  // we just merge selection sets here.
-  const overlaySelectedIds = useMemo(() => {
-    const ids = new Set<string>(selectedIframeLayerIds)
-    for (const id of selectedDocumentLayerIds) ids.add(id)
-    return ids
-  }, [selectedIframeLayerIds, selectedDocumentLayerIds])
+  // `groupSelectedIframeLayerIds` (every member of a selected group) and
+  // `overlaySelectedIds` (the iframe ∪ markdown union the overlay reads) are
+  // projections owned by the Canvas Selection controller, aliased above.
   const repos = useRepos()
   const agents = useBranches()
 
@@ -1311,38 +1281,6 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
-  const savedViewport = useSavedViewport()
-
-  const saveViewport = useCallback(
-    (vp: ViewportData) => {
-      ops.saveViewport(vp)
-    },
-    [ops]
-  )
-
-  const saveViewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  )
-  const saveViewportDebounced = useCallback(
-    (vp: ViewportData) => {
-      if (saveViewportTimerRef.current)
-        clearTimeout(saveViewportTimerRef.current)
-      saveViewportTimerRef.current = setTimeout(() => saveViewport(vp), 500)
-    },
-    [saveViewport]
-  )
-
-  useEffect(() => {
-    if (viewportRestoredRef.current) return
-    if (!savedViewport) return
-    const ref = transformRef.current
-    if (!ref) return
-    viewportRestoredRef.current = true
-    ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
-    setZoom(savedViewport.zoom)
-    setViewportPos({ x: savedViewport.x, y: savedViewport.y })
-    setPresence({ viewport: savedViewport })
-  }, [savedViewport, setPresence])
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -1365,20 +1303,7 @@ export function Canvas({
     return domains
   }, [agents])
 
-  const getViewportCenter = useCallback(() => {
-    const ref = transformRef.current
-    let cx = CANVAS_SIZE / 2
-    let cy = CANVAS_SIZE / 2
-
-    if (ref) {
-      const { positionX, positionY, scale } = ref.state
-      const w = window.innerWidth
-      const h = window.innerHeight
-      cx = (-positionX + w / 2) / scale
-      cy = (-positionY + h / 2) / scale
-    }
-    return { cx, cy }
-  }, [])
+  const getViewportCenter = camera.getViewportCenter
 
   // --- Repo mutations ---
 
@@ -1621,9 +1546,10 @@ export function Canvas({
     (layerId: string) => {
       layerDraggingRef.current = true
       setHoveredIframeLayerId(null)
-      const selectedAb = selectedIframeLayerIdsRef.current
-      const selectedDoc = selectedDocumentLayerIdsRef.current
-      const selectedGroups = selectedGroupIdsRef.current
+      const sel = selection.current()
+      const selectedAb = sel.iframeLayerIds
+      const selectedDoc = sel.markdownLayerIds
+      const selectedGroups = sel.groupIds
       const allGroups = collections.iframeLayerGroups.toArray()
       const layerSelected = selectedAb.has(layerId) || selectedDoc.has(layerId)
       const layerGroupSelected = allGroups.some(
@@ -1765,7 +1691,7 @@ export function Canvas({
         },
       })
     },
-    [collections, dispatchGesture]
+    [collections, dispatchGesture, selection]
   )
 
   /**
@@ -1899,49 +1825,11 @@ export function Canvas({
     [ops, collections, captureTracker]
   )
 
-  const removeIframeLayers = useCallback(
-    (ids: string[]) => {
-      ops.removeLayers(ids)
-    },
-    [ops]
-  )
-  useEffect(() => {
-    removeIframeLayersRef.current = removeIframeLayers
-  })
-
-  /**
-   * After deleting a single iframeLayer, prefer keeping the user near the same
-   * spot in the row: pick the right-hand iframeLayer neighbor, falling back to
-   * the left. Skips document members so the next selection is always a
-   * frame. Returns null if no neighbor iframeLayer exists.
-   */
-  const computeNextSelectionAfterDelete = useCallback(
-    (deletedId: string): string | null => {
-      for (const g of collections.iframeLayerGroups.toArray()) {
-        const ids = getGroupMemberIds(g, "iframe-layer")
-        const idx = ids.indexOf(deletedId)
-        if (idx === -1) continue
-        return ids[idx + 1] ?? ids[idx - 1] ?? null
-      }
-      return null
-    },
-    [collections]
-  )
-
-  const removeIframeLayer = useCallback(
-    (id: string) => {
-      const next = computeNextSelectionAfterDelete(id)
-      removeIframeLayers([id])
-      if (next) {
-        setSelectedIframeLayerIds(new Set([next]))
-        setSelectedGroupIds(new Set())
-        setSelectedDocumentLayerIds(new Set())
-      } else {
-        setSelectedIframeLayerIds(new Set())
-      }
-    },
-    [computeNextSelectionAfterDelete, removeIframeLayers]
-  )
+  // `removeIframeLayers` / `removeDocumentLayers` are defined up top (the Canvas
+  // Operation wrappers the controllers apply removals through). The single
+  // sidebar "remove frame" path — remove + keep selection on the neighbor —
+  // lives on the Canvas Selection controller as `removeIframeLayerAndReselect`.
+  const removeIframeLayer = selection.removeIframeLayerAndReselect
 
   // Use a ref so the route handler (passed as a stable callback to many
   // places) sees the latest Create Flow selection without forcing every
@@ -2116,14 +2004,9 @@ export function Canvas({
         }
       })
       for (const chatId of removedChatIds) chatStore.cleanup(chatId)
-      setSelectedGroupIds((prev) => {
-        if (!prev.has(groupId)) return prev
-        const next = new Set(prev)
-        next.delete(groupId)
-        return next
-      })
+      selection.removeGroupFromSelection(groupId)
     },
-    [collections, ops]
+    [collections, ops, selection]
   )
 
   const assignAgentToIframeLayer = useCallback(
@@ -2254,16 +2137,8 @@ export function Canvas({
     [ops]
   )
 
-  const removeDocumentLayers = useCallback(
-    (ids: string[]) => {
-      const { removedChatIds } = ops.removeDocuments(ids)
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
-    },
-    [ops]
-  )
-  useEffect(() => {
-    removeDocumentLayersRef.current = removeDocumentLayers
-  })
+  // `removeDocumentLayers` is defined up top (a Canvas Operation wrapper the
+  // controllers and the sidebar's remove-document action share).
 
   // --- Agent mutations ---
 
@@ -2307,42 +2182,26 @@ export function Canvas({
 
   // --- Handlers ---
 
-  const zoomToDomElement = useCallback((el: HTMLElement) => {
-    const ref = transformRef.current
-    if (!ref) return
-    const padding = 20
-    const wrapperW =
-      ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-    const wrapperH =
-      ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-    const scale = Math.min(
-      (wrapperW - padding * 2) / el.offsetWidth,
-      (wrapperH - padding * 2) / el.offsetHeight,
-      ZOOM_MAX
-    )
-    ref.zoomToElement(el, scale, 300)
-  }, [])
-
+  // Zoom-to actions delegate the fit math to the Canvas Camera controller
+  // (`zoomToElement` / `zoomToRect`, over the pure `lib/canvas/camera`).
   const handleSelectIframeLayer = useCallback(
     (iframeLayerId: string) => {
       const el = document.getElementById(`iframe-layer-${iframeLayerId}`)
-      if (el) zoomToDomElement(el)
+      if (el) camera.zoomToElement(el)
     },
-    [zoomToDomElement]
+    [camera]
   )
 
   const handleZoomToDocument = useCallback(
     (markdownLayerId: string) => {
       const el = document.getElementById(`markdown-layer-${markdownLayerId}`)
-      if (el) zoomToDomElement(el)
+      if (el) camera.zoomToElement(el)
     },
-    [zoomToDomElement]
+    [camera]
   )
 
   const handleZoomToGroup = useCallback(
     (groupId: string) => {
-      const ref = transformRef.current
-      if (!ref) return
       const group = iframeLayerGroups.find((g) => g.id === groupId)
       if (!group) return
       const members = getGroupMembers(group)
@@ -2360,26 +2219,14 @@ export function Canvas({
         if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
       }
       if (!isFinite(minX) || !isFinite(minY)) return
-      const worldW = maxX - minX
-      const worldH = maxY - minY
-      if (worldW <= 0 || worldH <= 0) return
-      const padding = 20
-      const wrapperW =
-        ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-      const wrapperH =
-        ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-      const scale = Math.min(
-        (wrapperW - padding * 2) / worldW,
-        (wrapperH - padding * 2) / worldH,
-        ZOOM_MAX
-      )
-      const centerX = (minX + maxX) / 2
-      const centerY = (minY + maxY) / 2
-      const positionX = wrapperW / 2 - centerX * scale
-      const positionY = wrapperH / 2 - centerY * scale
-      ref.setTransform(positionX, positionY, scale, 300)
+      camera.zoomToRect({
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      })
     },
-    [iframeLayerGroups, effectiveIframeLayerLayouts]
+    [camera, iframeLayerGroups, effectiveIframeLayerLayouts]
   )
 
   const handleAddIframeLayerForAgent = useCallback(
@@ -2888,16 +2735,22 @@ export function Canvas({
     const { layerId } = ops.seedFrameForAgent(target.id, { x: cx, y: cy })
     // Selecting the just-seeded frame is the intended reaction to a Yjs
     // mutation triggered by externally-driven agent state, not an avoidable
-    // render cascade.
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // render cascade. Goes through the Canvas Selection setters.
     setSelectedIframeLayerIds(new Set([layerId]))
     setSelectedGroupIds(new Set())
-    /* eslint-enable react-hooks/set-state-in-effect */
     // Wait for the new iframeLayer DOM node to mount before zooming.
     requestAnimationFrame(() => {
       handleSelectIframeLayer(layerId)
     })
-  }, [agents, iframeLayers, ops, getViewportCenter, handleSelectIframeLayer])
+  }, [
+    agents,
+    iframeLayers,
+    ops,
+    getViewportCenter,
+    handleSelectIframeLayer,
+    setSelectedIframeLayerIds,
+    setSelectedGroupIds,
+  ])
 
   // Hydrate chatStore streaming state from Yjs storage on mount/reconnect.
   // For each chat that's marked streaming in storage, ask the server to
@@ -3065,41 +2918,11 @@ export function Canvas({
     }
   }, [agents])
 
-  // Follow another user's viewport
-  useEffect(() => {
-    if (followingConnectionId === null) return
-    const followed = others.find((o) => o.clientId === followingConnectionId)
-    // If the user we're following disconnected, stop following. Reacting to
-    // another client leaving (external presence data) is a legitimate effect
-    // sync, not an avoidable render cascade.
-    if (!followed) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFollowingConnectionId(null)
-      return
-    }
-    const { viewport } = followed.presence
-    const ref = transformRef.current
-    if (!ref) return
-
-    // Only move if our viewport actually differs
-    const { positionX, positionY, scale } = ref.state
-    const dx = Math.abs(positionX - viewport.x)
-    const dy = Math.abs(positionY - viewport.y)
-    const dz = Math.abs(scale - viewport.zoom)
-    if (dx < 1 && dy < 1 && dz < 0.001) return
-
-    ref.setTransform(viewport.x, viewport.y, viewport.zoom, 200)
-  }, [followingConnectionId, others])
-
-  // Stop following when the user manually pans/zooms
-  const handleFollowBreak = useCallback(() => {
-    if (followingConnectionId !== null) {
-      setFollowingConnectionId(null)
-    }
-  }, [followingConnectionId])
-
-  // Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom
-  const canvasWrapperRef = useRef<HTMLDivElement>(null)
+  // Following another user's viewport, the manual follow-break, the Figma-style
+  // wheel pan/zoom, and the forwarded-from-iframe wheel all live in the Canvas
+  // Camera controller now (`camera.follow` / `camera.breakFollow` /
+  // `camera.handleIframeWheel`, plus the wheel listener it attaches to
+  // `canvasWrapperRef`).
 
   // Cross-origin iframes inside an iframeLayer can cause the browser to walk up
   // the ancestor chain calling `scrollIntoView` (e.g. when their content
@@ -3132,91 +2955,6 @@ export function Canvas({
       }
     }
   }, [])
-
-  useEffect(() => {
-    const el = canvasWrapperRef.current
-    if (!el) return
-
-    const onWheel = (e: WheelEvent) => {
-      // In interact (focus) / Create Flow mode the focused frame owns plain
-      // scrolling. A real loaded cross-origin preview captures the wheel itself,
-      // so it never reaches this wrapper listener — but when the wheel *does*
-      // leak here (over the loading/placeholder overlay stacked on the iframe,
-      // or the frame's title-bar chrome), panning the canvas steals the scroll
-      // the user meant for the frame. Bail so the frame keeps the gesture. Zoom
-      // (ctrl/cmd) still falls through so pinch-zoom over a focused frame works,
-      // and wheel over the canvas background pans/zooms as usual.
-      const activeFrameId = focusedIframeLayerId ?? createFlowIframeLayerId
-      if (activeFrameId && !e.ctrlKey && !e.metaKey) {
-        const frameEl = document.getElementById(`iframe-layer-${activeFrameId}`)
-        if (frameEl && frameEl.contains(e.target as Node)) return
-      }
-      e.preventDefault()
-      const ref = transformRef.current
-      if (!ref) return
-      if (followingConnectionId !== null) setFollowingConnectionId(null)
-      const rect = el.getBoundingClientRect()
-      if (e.ctrlKey || e.metaKey) {
-        const cursorX = e.clientX - rect.left
-        const cursorY = e.clientY - rect.top
-        const { positionX, positionY, scale } = ref.state
-        const delta = -e.deltaY
-        const factor = 1 + delta * ZOOM_STEP
-        const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale * factor))
-        const ratio = newScale / scale
-        const newPosX = cursorX - (cursorX - positionX) * ratio
-        const newPosY = cursorY - (cursorY - positionY) * ratio
-        ref.setTransform(newPosX, newPosY, newScale, 0)
-      } else {
-        const { positionX, positionY, scale } = ref.state
-        ref.setTransform(positionX - e.deltaX, positionY - e.deltaY, scale, 0)
-      }
-    }
-
-    el.addEventListener("wheel", onWheel, { passive: false })
-    return () => el.removeEventListener("wheel", onWheel)
-  }, [followingConnectionId, focusedIframeLayerId, createFlowIframeLayerId])
-
-  // Zoom gestures (pinch / ctrl|cmd-wheel) that land on an interactive iframe
-  // can't reach the wrapper-level wheel listener — the cross-origin iframe
-  // captures them. The bridge cancels the browser's native page zoom and
-  // forwards them here so a pinch zooms the canvas (centered on the cursor)
-  // exactly like a pinch over the canvas background would.
-  const handleIframeWheel = useCallback(
-    (iframeLayerId: string, w: WheelForward) => {
-      const ref = transformRef.current
-      const wrapper = canvasWrapperRef.current
-      if (!ref || !wrapper) return
-      const frameEl = document.getElementById(`iframe-layer-${iframeLayerId}`)
-      if (!frameEl) return
-      if (followingConnectionId !== null) setFollowingConnectionId(null)
-      const wrapperRect = wrapper.getBoundingClientRect()
-      const frameRect = frameEl.getBoundingClientRect()
-      const { positionX, positionY, scale } = ref.state
-      // Forwarded clientX/clientY are in the iframe's own (unscaled) viewport
-      // pixels; the iframe paints at `scale`, so convert to screen pixels and
-      // make them wrapper-relative to match the wrapper wheel handler's math.
-      const cursorX = frameRect.left - wrapperRect.left + w.clientX * scale
-      const cursorY = frameRect.top - wrapperRect.top + w.clientY * scale
-      const delta = -w.deltaY
-      const factor = 1 + delta * ZOOM_STEP
-      const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale * factor))
-      const ratio = newScale / scale
-      const newPosX = cursorX - (cursorX - positionX) * ratio
-      const newPosY = cursorY - (cursorY - positionY) * ratio
-      ref.setTransform(newPosX, newPosY, newScale, 0)
-    },
-    [followingConnectionId]
-  )
-
-  /** Id of the group containing `memberId`, or undefined for an ungrouped layer. */
-  const findGroupIdForMember = useCallback(
-    (memberId: string): string | undefined =>
-      collections.iframeLayerGroups
-        .toArray()
-        .find((g) => getGroupMembers(g).some((m) => m.id === memberId))?.id,
-    [collections]
-  )
 
   /**
    * The draw-tool drafts (document / frame mode) the gesture seam shares its
@@ -3296,7 +3034,7 @@ export function Canvas({
             h = Math.max(120, Math.abs(dy))
           }
           const id = addDocumentLayer(x, y, w, h)
-          setDocumentMode(false)
+          toolMode.set("select")
           setSelectedIframeLayerIds(new Set())
           setSelectedDocumentLayerIds(new Set([id]))
           setEditingDocumentLayerId(id)
@@ -3325,7 +3063,7 @@ export function Canvas({
             h = Math.abs(dy)
           }
           const id = addFrame(x, y, w, h)
-          setFrameMode(false)
+          toolMode.set("select")
           setSelectedDocumentLayerIds(new Set())
           setSelectedIframeLayerIds(new Set([id]))
           return true
@@ -3333,7 +3071,15 @@ export function Canvas({
         return false
       },
     }),
-    [documentMode, frameMode, addDocumentLayer, addFrame]
+    [
+      documentMode,
+      frameMode,
+      addDocumentLayer,
+      addFrame,
+      toolMode,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+    ]
   )
 
   // Repopulate the gesture seam's inputs every render so its pointer handlers
@@ -3375,80 +3121,12 @@ export function Canvas({
   //     own — the group owns it. We no-op rather than splitting the group.
   //   - Selecting a group (below) drops any of its members that were
   //     individually selected, so the group supersedes its children.
-  const handleIframeLayerSelect = useCallback(
-    (id: string, shiftKey: boolean) => {
-      if (shiftKey) {
-        const parentGroupId = findGroupIdForMember(id)
-        if (parentGroupId && selectedGroupIdsRef.current.has(parentGroupId))
-          return
-        setSelectedIframeLayerIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return next
-        })
-      } else {
-        setSelectedGroupIds(new Set())
-        setSelectedIframeLayerIds(new Set([id]))
-        setSelectedDocumentLayerIds(new Set())
-      }
-    },
-    [findGroupIdForMember]
-  )
-
-  const handleGroupSelect = useCallback(
-    (groupId: string, shiftKey: boolean) => {
-      if (shiftKey) {
-        const group = collections.iframeLayerGroups.get(groupId)
-        const memberIds = group
-          ? new Set(getGroupMembers(group).map((m) => m.id))
-          : new Set<string>()
-        setSelectedGroupIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(groupId)) next.delete(groupId)
-          else next.add(groupId)
-          return next
-        })
-        // Taking the group supersedes any of its members that were selected
-        // individually — drop them so the member isn't represented twice.
-        const dropMembers = (prev: Set<string>) => {
-          if (![...memberIds].some((mid) => prev.has(mid))) return prev
-          const next = new Set(prev)
-          for (const mid of memberIds) next.delete(mid)
-          return next
-        }
-        setSelectedIframeLayerIds(dropMembers)
-        setSelectedDocumentLayerIds(dropMembers)
-      } else {
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set())
-        setSelectedGroupIds(new Set([groupId]))
-      }
-    },
-    [collections]
-  )
-
-  const handleDocumentLayerSelect = useCallback(
-    (id: string, shiftKey: boolean) => {
-      // Mirrors handleIframeLayerSelect for documents.
-      if (shiftKey) {
-        const parentGroupId = findGroupIdForMember(id)
-        if (parentGroupId && selectedGroupIdsRef.current.has(parentGroupId))
-          return
-        setSelectedDocumentLayerIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return next
-        })
-      } else {
-        setSelectedGroupIds(new Set())
-        setSelectedDocumentLayerIds(new Set([id]))
-        setSelectedIframeLayerIds(new Set())
-      }
-    },
-    [findGroupIdForMember]
-  )
+  // The shift-toggle / parent-group guard / member-drop rules all live on the
+  // Canvas Selection controller now; these are thin aliases the render tree and
+  // sidebar keep calling.
+  const handleIframeLayerSelect = selection.selectIframeLayer
+  const handleGroupSelect = selection.selectGroup
+  const handleDocumentLayerSelect = selection.selectDocumentLayer
 
   /**
    * Forward a group-move heartbeat into the Canvas Gesture FSM. The dragged
@@ -3926,77 +3604,7 @@ export function Canvas({
               rects={placeholderRects}
             />
 
-            <TransformWrapper
-              ref={transformRef}
-              initialScale={1}
-              initialPositionX={
-                -CANVAS_SIZE / 2 +
-                (typeof window !== "undefined" ? window.innerWidth / 2 : 500)
-              }
-              initialPositionY={
-                -CANVAS_SIZE / 2 +
-                (typeof window !== "undefined" ? window.innerHeight / 2 : 400)
-              }
-              minScale={ZOOM_MIN}
-              maxScale={ZOOM_MAX}
-              limitToBounds={false}
-              centerOnInit={false}
-              doubleClick={{ disabled: true }}
-              wheel={{
-                disabled: true,
-              }}
-              trackPadPanning={{
-                disabled: true,
-              }}
-              panning={{
-                velocityDisabled: true,
-                disabled:
-                  focusedIframeLayerId !== null ||
-                  createFlowIframeLayerId !== null ||
-                  editingDocumentLayerId !== null,
-                allowLeftClickPan: spaceHeld,
-                allowMiddleClickPan: true,
-              }}
-              onInit={(ref) => {
-                if (!viewportRestoredRef.current && savedViewport) {
-                  viewportRestoredRef.current = true
-                  ref.setTransform(
-                    savedViewport.x,
-                    savedViewport.y,
-                    savedViewport.zoom,
-                    0
-                  )
-                  setZoom(savedViewport.zoom)
-                  setViewportPos({ x: savedViewport.x, y: savedViewport.y })
-                  setPresence({ viewport: savedViewport })
-                } else {
-                  const { scale, positionX, positionY } = ref.state
-                  setZoom(scale)
-                  setViewportPos({ x: positionX, y: positionY })
-                  setPresence({
-                    viewport: { x: positionX, y: positionY, zoom: scale },
-                  })
-                }
-              }}
-              onPanningStart={() => {
-                handleFollowBreak()
-                setIsPanning(true)
-              }}
-              onPanningStop={() => setIsPanning(false)}
-              onWheelStart={handleFollowBreak}
-              onPinchStart={handleFollowBreak}
-              onTransform={(_ref, state) => {
-                const vp = {
-                  x: state.positionX,
-                  y: state.positionY,
-                  zoom: state.scale,
-                }
-                setZoom(state.scale)
-                setViewportPos({ x: state.positionX, y: state.positionY })
-                setPresence({ viewport: vp })
-                saveViewportDebounced(vp)
-              }}
-            >
+            <TransformWrapper ref={transformRef} {...camera.transformWrapperProps}>
               <TransformComponent
                 wrapperStyle={{
                   width: "100%",
@@ -4246,7 +3854,7 @@ export function Canvas({
                           spaceHeld={spaceHeld}
                           commentMode={commentMode}
                           onHover={handleInspectHover}
-                          onWheel={handleIframeWheel}
+                          onWheel={camera.handleIframeWheel}
                           onDomReady={handleIframeLayerDomReady}
                           onCaptureReadyChange={handleCaptureReadyChange}
                           onCaptureDirty={handleCaptureDirty}
@@ -4334,7 +3942,7 @@ export function Canvas({
                 newCommentPos={newCommentPos}
                 onNewCommentPlaced={() => {
                   setNewCommentPos(null)
-                  setCommentMode(false)
+                  toolMode.set("select")
                 }}
                 onCancelComment={() => setNewCommentPos(null)}
                 iframeLayers={Array.from(iframeLayerLayouts.values())}
@@ -4601,18 +4209,12 @@ export function Canvas({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant={
-                          !commentMode && !documentMode && !frameMode
-                            ? "default"
-                            : "ghost"
-                        }
+                        variant={toolMode.isSelect ? "default" : "ghost"}
                         size="icon-xs"
                         onClick={() => {
-                          setCommentMode(false)
+                          toolMode.set("select")
                           setNewCommentPos(null)
                           setInspectHover(null)
-                          setDocumentMode(false)
-                          setFrameMode(false)
                         }}
                       >
                         <MousePointer2 className="h-3.5 w-3.5" />
@@ -4628,9 +4230,7 @@ export function Canvas({
                         variant={frameMode ? "default" : "ghost"}
                         size="icon-xs"
                         onClick={() => {
-                          setFrameMode((m) => !m)
-                          setDocumentMode(false)
-                          setCommentMode(false)
+                          toolMode.toggle("frame")
                           setNewCommentPos(null)
                           setInspectHover(null)
                         }}
@@ -4648,11 +4248,9 @@ export function Canvas({
                         variant={documentMode ? "default" : "ghost"}
                         size="icon-xs"
                         onClick={() => {
-                          setDocumentMode((m) => !m)
-                          setCommentMode(false)
+                          toolMode.toggle("document")
                           setNewCommentPos(null)
                           setInspectHover(null)
-                          setFrameMode(false)
                         }}
                       >
                         <FileText className="h-3.5 w-3.5" />
@@ -4673,11 +4271,9 @@ export function Canvas({
                         variant={commentMode ? "default" : "ghost"}
                         size="icon-xs"
                         onClick={() => {
-                          setCommentMode((m) => !m)
+                          toolMode.toggle("comment")
                           setNewCommentPos(null)
                           setInspectHover(null)
-                          setDocumentMode(false)
-                          setFrameMode(false)
                         }}
                       >
                         {isLocalBuild ? (
@@ -4711,7 +4307,7 @@ export function Canvas({
                     <>
                       <FollowingToolbar
                         followingId={followingConnectionId}
-                        onFollow={setFollowingConnectionId}
+                        onFollow={camera.follow}
                       />
                       <Button
                         size="sm"

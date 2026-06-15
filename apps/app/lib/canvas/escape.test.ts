@@ -14,9 +14,7 @@ function idleState(overrides: Partial<EscapeState> = {}): EscapeState {
   return {
     cursorChatOpen: false,
     editingDocumentLayerId: null,
-    documentMode: false,
-    frameMode: false,
-    commentMode: false,
+    toolMode: "select",
     hasNewCommentPos: false,
     focusedIframeLayerId: null,
     createFlowIframeLayerId: null,
@@ -77,7 +75,7 @@ describe("resolveEscapeAction — precedence", () => {
 
   it("exits document mode before focus mode", () => {
     const action = resolveEscapeAction(
-      idleState({ documentMode: true, focusedIframeLayerId: "frame-1" })
+      idleState({ toolMode: "document", focusedIframeLayerId: "frame-1" })
     )
 
     expect(action).toBe("exit-document-mode")
@@ -85,15 +83,15 @@ describe("resolveEscapeAction — precedence", () => {
 
   it("exits frame mode before focus mode", () => {
     const action = resolveEscapeAction(
-      idleState({ frameMode: true, focusedIframeLayerId: "frame-1" })
+      idleState({ toolMode: "frame", focusedIframeLayerId: "frame-1" })
     )
 
     expect(action).toBe("exit-frame-mode")
   })
 
-  it("exits comment mode (active flag) before focus mode", () => {
+  it("exits comment mode (active tool) before focus mode", () => {
     const action = resolveEscapeAction(
-      idleState({ commentMode: true, focusedIframeLayerId: "frame-1" })
+      idleState({ toolMode: "comment", focusedIframeLayerId: "frame-1" })
     )
 
     expect(action).toBe("exit-comment-mode")

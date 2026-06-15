@@ -635,3 +635,56 @@ Pure functions of plain geometry with the threshold as a parameter, so snapping
 is pinned by fixtures and runs off the React render path.
 _Avoid_: magnet, guide (reserve "Snap Guide" for the drawn line); folding snap
 math into drag event handlers.
+
+**Canvas Selection**:
+The single owner of what is selected on the Canvas — three coordinated Sets
+(selected Iframe Layers, Groups, Markdown Layers) kept apart so a member is
+never represented twice (a selected Group supersedes its children). Split like
+the rest of the canvas triad: a React-free pure core (`lib/canvas/selection.ts`)
+holds the decisions — the cascade of a selected Group to its Members across
+both kinds, the delete resolution (a single Iframe Layer delete keeps the
+right/left neighbor, multi-selection clears), the shift-toggle rule, and the
+derived projections (the overlay id union, the group-selected member ids) — and
+a thin controller (`useCanvasSelection`) owns the Sets, the internal mirror refs
+the global keydown handler reads via `current()`, and `deleteSelected()`, which
+applies removals through a Canvas Operation (never the Y.Doc directly) and then
+sets the next selection. The render tree and sidebar read its projections rather
+than recomputing them inline.
+_Avoid_: a shadow copy of selection in the keydown handler (it asks the
+controller via `current()`); recomputing the overlay / group-member projections
+in the render tree; mutating the Y.Doc to delete (the controller goes through
+`ops`); a fourth selection Set for documents-in-groups (the Group cascade covers
+it).
+
+**Tool Mode**:
+The armed draw tool on the canvas toolbar — `ToolMode = "select" | "frame" |
+"comment" | "document"` — modeled as one discriminated value so "exactly one
+tool active" holds by construction, replacing the three independent booleans
+that every button and shortcut had to hand-clear. The pure transition
+(`reduceToolMode` in `lib/canvas/tool-mode.ts`) decides the next mode; the
+controller (`useToolMode`) owns the React state, mirrors the mode into a ref for
+the keydown handler (which feeds it to the Escape resolver), and exposes
+`set` / `toggle` plus boolean reads.
+_Avoid_: re-introducing per-mode booleans; folding Focus mode or Create-Flow
+mode into Tool Mode (those stay in **interaction-mode** — they govern frame
+interaction, not draw-tool selection); putting the comment-placement sub-state
+(new-comment position, inspect hover) in Tool Mode (it stays in the component for
+now and moves with the Send-to-Agent work).
+
+**Canvas Camera**:
+The single owner of the canvas viewport — zoom, position, persistence, presence
+broadcast, and following another user. The pure core (`lib/canvas/camera.ts`)
+holds the zoom-to-fit math: given a target rect (or element bounds) and the
+viewport size, compute the `{ x, y, zoom }` transform that frames it with
+padding and min/max-zoom clamping. The controller (`useCanvasCamera`) owns the
+`react-zoom-pan-pinch` transform, the `zoom` / viewport mirrors, debounced
+viewport persistence (through `ops.saveViewport`), the presence viewport
+broadcast, the follow-another-user effect, and the Figma-style wheel pan/zoom; it
+exposes the verbs (`zoomToElement` / `zoomToRect` / `getViewportCenter` /
+`follow`) and the `TransformWrapper` props the wiring shrinks to. Overlays, the
+comments transform, the gesture inputs, and the sidebar zoom-to actions all read
+this one interface.
+_Avoid_: scattering `transformRef.current.setTransform` math across the render
+tree (it goes through the camera verbs / the pure fit math); recomputing
+zoom-to-fit inline; writing the viewport to the Y.Doc directly (persistence goes
+through `ops.saveViewport`).
