@@ -1,3 +1,5 @@
+import type { ToolMode } from "@/lib/canvas/tool-mode"
+
 /**
  * The single action the Escape key takes on the canvas, resolved from the
  * current interaction state.
@@ -30,12 +32,12 @@ export interface EscapeState {
   cursorChatOpen: boolean
   /** A Markdown Layer is being edited inline. */
   editingDocumentLayerId: string | null
-  /** Document-placement mode is active. */
-  documentMode: boolean
-  /** Frame-placement mode is active. */
-  frameMode: boolean
-  /** Comment mode is active. */
-  commentMode: boolean
+  /**
+   * The armed draw tool (Tool Mode). Document / frame / comment placement read
+   * from this single union instead of three separate booleans, so the escape
+   * precedence has one source of truth for the active tool.
+   */
+  toolMode: ToolMode
   /** A new comment position is staged. */
   hasNewCommentPos: boolean
   /** The focused ("interactive") Iframe Layer, or null when not focused. */
@@ -54,9 +56,10 @@ export interface EscapeState {
 export function resolveEscapeAction(state: EscapeState): EscapeAction {
   if (state.cursorChatOpen) return "close-cursor-chat"
   if (state.editingDocumentLayerId) return "stop-editing-document"
-  if (state.documentMode) return "exit-document-mode"
-  if (state.frameMode) return "exit-frame-mode"
-  if (state.commentMode || state.hasNewCommentPos) return "exit-comment-mode"
+  if (state.toolMode === "document") return "exit-document-mode"
+  if (state.toolMode === "frame") return "exit-frame-mode"
+  if (state.toolMode === "comment" || state.hasNewCommentPos)
+    return "exit-comment-mode"
   if (state.focusedIframeLayerId) return "exit-focus-mode"
   if (state.createFlowIframeLayerId) return "exit-create-flow-mode"
   return "clear-selection"
