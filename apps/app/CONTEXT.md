@@ -579,11 +579,32 @@ gap-resize, marquee, and device-resize. Its Preview feeds `deriveCanvasLayout`
 never touches the Y.Doc — it emits a Gesture Intent the component applies. The Snap
 math it calls already lives behind its own seam (see **Snap**); the Canvas Gesture
 module is the orchestration around it that previously had no home (~700 lines smeared
-across `canvas.tsx`).
+across `canvas.tsx`). The pure decision core (`reduceGesture`) and the input edge
+(see **Pointer→Gesture Routing**) are both attached behind one React seam,
+`useCanvasGesture` — the component spreads the hook's pointer handlers onto the
+canvas root and stops defining its own.
 _Avoid_: handler, drag state (casual); a separate machine per gesture (one FSM
 enforces the single-active invariant); mutating the Y.Doc from the gesture (it emits
 a Gesture Intent, never calls a Canvas Operation itself); recomputing layout inside
 the gesture (it emits a Preview that `deriveCanvasLayout` consumes).
+
+**Pointer→Gesture Routing**:
+The input edge of the triad — the pure decision "which gesture (if any) does this
+pointer-down begin." `routePointerToGesture` (`lib/canvas/route.ts`) takes a
+pointer-down position in canvas space, the live reorder/gap handle geometry, the
+interaction-mode flags, and plain group/layout snapshots, and returns the
+**Gesture Start** to dispatch (a `start` of kind `reorder` / `gap` / `marquee`) or
+`null` — encoding the reorder-dot-over-gap-handle precedence and the
+mode-suppression gate as one testable decision. React-free, Yjs-free, DOM-free: the
+sibling of `reduceGesture` and `computeMoveSnap`, asserted against plain values. The
+coordinate and hit math (`screenToCanvas`, `hitTestReorderHandle`,
+`hitTestGapHandle`, `hitTestMarquee`) lives here too, next to the routing that
+consumes it. The hook (`useCanvasGesture`) owns the DOM-side wiring — event
+attachment, pointer capture, `stopPropagation` — and converts the raw event into
+these plain inputs.
+_Avoid_: pointer handler, adapter (too vague); reading component state inside the
+routing (it takes resolved flags and snapshots); deciding gestures from handler
+ordering (the precedence is pinned in the pure function).
 
 **Gesture Intent**:
 The descriptive result a completed Canvas Gesture emits — a discriminated union

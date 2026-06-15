@@ -190,7 +190,16 @@ import type {
   MoveGestureContext,
   ReorderMemberSnapshot,
 } from "@/lib/canvas/gesture"
-import { useCanvasGesture } from "./use-canvas-gesture"
+import {
+  hitTestGapHandle as hitTestGapHandlePure,
+  hitTestReorderHandle as hitTestReorderHandlePure,
+  type RouteGroup,
+} from "@/lib/canvas/route"
+import {
+  useCanvasGesture,
+  type CanvasDrawTool,
+  type CanvasGestureInputs,
+} from "./use-canvas-gesture"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
@@ -982,11 +991,23 @@ export function Canvas({
   // exposes the Gesture Preview fed into `deriveCanvasLayout` and the overlays
   // below, and applies emitted Gesture Intents through the Canvas Operations —
   // the gesture itself never touches the Y.Doc.
+  // The gesture seam is created high in the component (its `dispatch`/`preview`
+  // feed `deriveCanvasLayout` below), but most of its inputs — the derived
+  // handle geometry, the draw-tool drafts — are defined further down. A ref the
+  // component repopulates every render (the effect near the bottom) breaks that
+  // ordering cycle, exactly as the old geometry refs did.
+  const gestureInputsRef = useRef<CanvasGestureInputs | null>(null)
   const {
     dispatch: dispatchGesture,
     getState: getGestureState,
     preview: gesturePreview,
-  } = useCanvasGesture((intent: GestureIntent) => {
+    handlers: canvasGestureHandlers,
+  } = useCanvasGesture(gestureInputsRef)
+
+  // Apply an emitted Gesture Intent: canvas-mutating intents through the Canvas
+  // Operations, selection-only ones (`marqueeSelect` / `selectMember`) through
+  // local selection state. The gesture itself never touches the Y.Doc.
+  const applyGestureIntent = useCallback((intent: GestureIntent) => {
     switch (intent.type) {
       case "setGroupGap":
         setGroupGap(intent.groupId, intent.gap)
@@ -1089,7 +1110,13 @@ export function Canvas({
         )
         break
     }
-  })
+  }, [
+    collections,
+    ops,
+    setGroupGap,
+    moveIframeLayersByDelta,
+    resizeLayer,
+  ])
 
   // While a reorder is in flight, track meta-key changes even when the pointer
   // isn't moving so the pop-out preview flips the instant cmd is pressed or
@@ -1216,15 +1243,13 @@ export function Canvas({
    * any zoom, and we add a small pad so it stays grabbable at the edges.
    */
   const hitTestReorderHandle = useCallback(
-    (canvasX: number, canvasY: number, currentZoom: number) => {
-      const radiusCanvas = 8 / currentZoom
-      for (const h of reorderHandlesRef.current) {
-        const dx = canvasX - h.centerX
-        const dy = canvasY - h.centerY
-        if (dx * dx + dy * dy <= radiusCanvas * radiusCanvas) return h
-      }
-      return null
-    },
+    (canvasX: number, canvasY: number, currentZoom: number) =>
+      hitTestReorderHandlePure(
+        reorderHandlesRef.current,
+        canvasX,
+        canvasY,
+        currentZoom
+      ),
     []
   )
 
@@ -1236,16 +1261,13 @@ export function Canvas({
    * iframeLayer, but the canvas wrapper still picks the gap drag).
    */
   const hitTestGapHandle = useCallback(
-    (canvasX: number, canvasY: number, currentZoom: number) => {
-      const padCanvas = 6 / currentZoom
-      for (const h of gapHandlesRef.current) {
-        if (canvasY < h.top || canvasY > h.bottom) continue
-        if (canvasX < h.left - padCanvas || canvasX > h.right + padCanvas)
-          continue
-        return h
-      }
-      return null
-    },
+    (canvasX: number, canvasY: number, currentZoom: number) =>
+      hitTestGapHandlePure(
+        gapHandlesRef.current,
+        canvasX,
+        canvasY,
+        currentZoom
+      ),
     []
   )
 
@@ -1507,8 +1529,8 @@ export function Canvas({
    * Start a reorder drag programmatically from a layer-owned element (e.g. the
    * frame's name label). Mirrors the path taken when the user grabs the
    * reorder dot directly: pointer capture is moved to the canvas wrapper so
-   * the existing `handleCanvasPointerMove` / `handleCanvasPointerUp` handlers
-   * drive the gesture. Returns `true` if the reorder started (so the caller
+   * the gesture seam's pointer move/up handlers (`useCanvasGesture`) drive the
+   * gesture. Returns `true` if the reorder started (so the caller
    * can skip its own fallback drag), or `false` for single-member groups
    * where reorder doesn't make sense.
    */
@@ -1525,6 +1547,27 @@ export function Canvas({
         return { id: m.id, kind: m.kind, width: size?.width ?? null }
       }),
     [collections]
+  )
+
+  // Plain group snapshots the gesture seam routes a pointer-down against — the
+  // world anchor, effective gap, and per-member kind/width the reorder walk
+  // reads. Rebuilt when the groups or their members' widths change.
+  const routeGroups = useMemo<RouteGroup[]>(
+    () =>
+      iframeLayerGroups.map((g) => ({
+        id: g.id,
+        x: g.x,
+        gap: groupGap(g),
+        members: reorderOrderSnapshot(g),
+      })),
+    [iframeLayerGroups, reorderOrderSnapshot]
+  )
+
+  // Markdown-layer ids, so the marquee hit-test can classify a covered layer as
+  // a document (it lives in the shared layout map alongside frames).
+  const markdownLayerIdSet = useMemo(
+    () => new Set(markdownLayers.map((d) => d.id)),
+    [markdownLayers]
   )
 
   const requestReorderDrag = useCallback(
@@ -3958,20 +4001,6 @@ export function Canvas({
     return () => el.removeEventListener("wheel", onWheel)
   }, [followingConnectionId, focusedIframeLayerId, createFlowIframeLayerId])
 
-  // Convert screen coordinates to canvas coordinates
-  const screenToCanvas = useCallback(
-    (clientX: number, clientY: number, rect: DOMRect) => {
-      const ref = transformRef.current
-      if (!ref) return { x: 0, y: 0 }
-      const { positionX, positionY, scale } = ref.state
-      return {
-        x: (clientX - rect.left - positionX) / scale,
-        y: (clientY - rect.top - positionY) / scale,
-      }
-    },
-    []
-  )
-
   // Zoom gestures (pinch / ctrl|cmd-wheel) that land on an interactive iframe
   // can't reach the wrapper-level wheel listener — the cross-origin iframe
   // captures them. The bridge cancels the browser's native page zoom and
@@ -4004,430 +4033,6 @@ export function Canvas({
     [followingConnectionId]
   )
 
-  /**
-   * Gap-handle hit test runs in the *capture* phase so it fires before the
-   * iframeLayer overlay's `onPointerDown` (which `stopPropagation`s and captures
-   * the pointer). Without this the gap handle is unreachable once the gap
-   * collapses to 0 — the cursor is then over an iframeLayer, and the iframeLayer's
-   * drag hook grabs the pointer first.
-   */
-  const handleCanvasPointerDownCapture = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0 || spaceHeld || focusedIframeLayerId !== null) return
-      if (commentMode || documentMode || frameMode) return
-      const target = e.target as HTMLElement
-      if (!e.currentTarget.contains(target)) return
-      // Top window-drag strip: defer to Tauri's native window drag.
-      if (target.closest("[data-tauri-drag-region]")) return
-
-      const rect = e.currentTarget.getBoundingClientRect()
-      const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-
-      // Reorder dots take priority — they sit over the iframeLayer center, so the
-      // iframeLayer's overlay would otherwise grab the pointer first.
-      if (reorderHandlesRef.current.length > 0) {
-        const reorderHit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
-        if (reorderHit) {
-          const group = iframeLayerGroups.find((g) =>
-            getGroupMembers(g).some((m) => m.id === reorderHit.iframeLayerId)
-          )
-          const member = group
-            ? getGroupMembers(group).find(
-                (m) => m.id === reorderHit.iframeLayerId
-              )
-            : undefined
-          if (group && member) {
-            const layout = iframeLayerLayouts.get(reorderHit.iframeLayerId)
-            const grabOffset = layout
-              ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
-              : { x: 0, y: 0 }
-            dispatchGesture({
-              type: "start",
-              start: {
-                kind: "reorder",
-                ctx: {
-                  groupId: group.id,
-                  memberId: reorderHit.iframeLayerId,
-                  memberKind: member.kind,
-                  groupX: group.x,
-                  gap: groupGap(group),
-                  grabOffset,
-                  startCanvas: { x: canvas.x, y: canvas.y },
-                  startShiftKey: e.shiftKey,
-                  // The dot itself isn't a selection affordance, so a no-move
-                  // release leaves selection untouched.
-                  selectOnNoMove: false,
-                },
-                order: reorderOrderSnapshot(group),
-                meta: e.metaKey,
-              },
-            })
-            e.currentTarget.setPointerCapture(e.pointerId)
-            e.stopPropagation()
-            e.preventDefault()
-            return
-          }
-        }
-      }
-
-      if (gapHandlesRef.current.length === 0) return
-      const hit = hitTestGapHandle(canvas.x, canvas.y, zoom)
-      if (!hit) return
-      const group = collections.iframeLayerGroups.get(hit.groupId)
-      if (!group) return
-
-      dispatchGesture({
-        type: "start",
-        start: {
-          kind: "gap",
-          ctx: {
-            groupId: hit.groupId,
-            gapIndex: hit.gapIndex,
-            startGap: groupGap(group),
-            startCanvasX: canvas.x,
-          },
-        },
-      })
-      e.currentTarget.setPointerCapture(e.pointerId)
-      e.stopPropagation()
-      e.preventDefault()
-    },
-    [
-      spaceHeld,
-      focusedIframeLayerId,
-      commentMode,
-      documentMode,
-      frameMode,
-      screenToCanvas,
-      hitTestGapHandle,
-      hitTestReorderHandle,
-      zoom,
-      collections,
-      iframeLayerGroups,
-      iframeLayerLayouts,
-      dispatchGesture,
-      reorderOrderSnapshot,
-    ]
-  )
-
-  // Marquee selection / text-tool draft: pointerdown on empty canvas starts the interaction
-  const handleCanvasPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0 || spaceHeld || focusedIframeLayerId !== null) return
-      const target = e.target as HTMLElement
-      // React forwards events from portaled children (dropdowns, dialogs, popovers)
-      // through the React tree even though the DOM target lives on document.body.
-      // Ignore those so we don't capture the pointer and swallow the child's click.
-      if (!e.currentTarget.contains(target)) return
-      // Gap drag has already been claimed by `onPointerDownCapture`; nothing to
-      // do here — the early-return below would have skipped it anyway.
-      if (getGestureState().kind === "gap") return
-
-      if (
-        target.closest("[data-iframe-layer]") ||
-        target.closest("[data-markdown-layer]") ||
-        target.closest("button") ||
-        target.closest("a") ||
-        // Top window-drag strip: let Tauri start a native window drag instead
-        // of beginning a marquee/draft here.
-        target.closest("[data-tauri-drag-region]")
-      )
-        return
-
-      // Document tool: start a draft rectangle (click for default size, drag for custom bounds)
-      if (documentMode) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        documentDraftRef.current = {
-          startX: canvas.x,
-          startY: canvas.y,
-          currentX: canvas.x,
-          currentY: canvas.y,
-        }
-        setDocumentDraft(documentDraftRef.current)
-        e.currentTarget.setPointerCapture(e.pointerId)
-        return
-      }
-
-      // Frame tool: start a draft rectangle (click for default size, drag for custom)
-      if (frameMode) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        frameDraftRef.current = {
-          startX: canvas.x,
-          startY: canvas.y,
-          currentX: canvas.x,
-          currentY: canvas.y,
-        }
-        setFrameDraft(frameDraftRef.current)
-        e.currentTarget.setPointerCapture(e.pointerId)
-        return
-      }
-
-      if (commentMode) return
-      // Ignore clicks near the left/right edges so resize-handle grabs don't start a marquee
-      const wrapperRect = e.currentTarget.getBoundingClientRect()
-      if (e.clientX - wrapperRect.left < 8 || wrapperRect.right - e.clientX < 8)
-        return
-
-      const rect = e.currentTarget.getBoundingClientRect()
-      const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-      // Open the marquee through the gesture FSM. The emitted `marqueeSelect`
-      // intent clears the group selection (and, without shift, the layer
-      // selection) so the drag toggles against a frozen baseline.
-      dispatchGesture({
-        type: "start",
-        start: {
-          kind: "marquee",
-          ctx: {
-            startX: canvas.x,
-            startY: canvas.y,
-            shiftKey: e.shiftKey,
-            baseIframeLayerIds: new Set(selectedIframeLayerIds),
-            baseDocumentLayerIds: new Set(selectedDocumentLayerIds),
-          },
-        },
-      })
-      e.currentTarget.setPointerCapture(e.pointerId)
-    },
-    [
-      spaceHeld,
-      commentMode,
-      focusedIframeLayerId,
-      frameMode,
-      documentMode,
-      screenToCanvas,
-      selectedIframeLayerIds,
-      selectedDocumentLayerIds,
-      getGestureState,
-      dispatchGesture,
-    ]
-  )
-
-  const handleCanvasPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      // Reorder drag: feed the live cursor + meta state to the gesture FSM. The
-      // reducer picks the destination index (in-flow) and emits `reorderMember`
-      // when it changes, or previews the meta-key pop-out. All the index math
-      // lives in the reducer now.
-      if (getGestureState().kind === "reorder") {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        dispatchGesture({
-          type: "move",
-          cursor: { x: canvas.x, y: canvas.y },
-          meta: e.metaKey,
-        })
-        return
-      }
-
-      // Gap-handle drag: feed the live cursor to the gesture FSM, which previews
-      // the new gap (via `deriveCanvasLayout`) and commits it on release. The
-      // proportional gap math lives in the reducer.
-      if (getGestureState().kind === "gap") {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        dispatchGesture({ type: "move", cursor: { x: canvas.x, y: canvas.y } })
-        return
-      }
-
-      // Document-tool draft tracking
-      if (documentDraftRef.current) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const next = {
-          ...documentDraftRef.current,
-          currentX: canvas.x,
-          currentY: canvas.y,
-        }
-        documentDraftRef.current = next
-        setDocumentDraft(next)
-        return
-      }
-
-      // Frame-tool draft tracking
-      if (frameDraftRef.current) {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const next = {
-          ...frameDraftRef.current,
-          currentX: canvas.x,
-          currentY: canvas.y,
-        }
-        frameDraftRef.current = next
-        setFrameDraft(next)
-        return
-      }
-
-      // Marquee drag: hit-test the live rect against the layouts (the geometry
-      // the gesture FSM never touches) and feed the covered layers in. The
-      // reducer folds them into selection — replace, or toggle under shift —
-      // and emits the `marqueeSelect` intent applied to local selection state.
-      const marqueeState = getGestureState()
-      if (marqueeState.kind === "marquee") {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        const { startX, startY } = marqueeState.ctx
-        const left = Math.min(startX, canvas.x)
-        const top = Math.min(startY, canvas.y)
-        const right = Math.max(startX, canvas.x)
-        const bottom = Math.max(startY, canvas.y)
-
-        const iframeLayerIds = new Set<string>()
-        for (const layout of iframeLayerLayouts.values()) {
-          if (
-            layout.x < right &&
-            layout.x + layout.width > left &&
-            layout.y < bottom &&
-            layout.y + layout.height > top
-          ) {
-            iframeLayerIds.add(layout.id)
-          }
-        }
-        const documentLayerIds = new Set<string>()
-        for (const d of markdownLayers) {
-          // Documents now live inside groups, so their world rect comes from
-          // the layout map rather than a self-position. Skip orphans (which the
-          // schema migration shouldn't leave behind).
-          const layout = iframeLayerLayouts.get(d.id)
-          if (!layout) continue
-          if (
-            layout.x < right &&
-            layout.x + layout.width > left &&
-            layout.y < bottom &&
-            layout.y + layout.height > top
-          ) {
-            documentLayerIds.add(d.id)
-          }
-        }
-
-        dispatchGesture({
-          type: "move",
-          cursor: { x: canvas.x, y: canvas.y },
-          hits: { iframeLayerIds, documentLayerIds },
-        })
-        return
-      }
-    },
-    [
-      screenToCanvas,
-      iframeLayerLayouts,
-      markdownLayers,
-      getGestureState,
-      dispatchGesture,
-    ]
-  )
-
-  const handleCanvasPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      // Reorder drag: hand the release to the gesture FSM, which decides the
-      // commit — a `reorderMember` (already emitted live on each move), a
-      // meta-held `popOutToNewGroup`, or a no-move `selectMember` (label
-      // click-vs-drag). Re-hit-test at the release point so the dot drops back
-      // to its hollow state when the cursor isn't over it (during the drag the
-      // highlight is locked to the dragged dot).
-      if (getGestureState().kind === "reorder") {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const canvas = screenToCanvas(e.clientX, e.clientY, rect)
-        dispatchGesture({
-          type: "release",
-          cursor: { x: canvas.x, y: canvas.y },
-          meta: e.metaKey,
-        })
-        const hit = hitTestReorderHandle(canvas.x, canvas.y, zoom)
-        setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null)
-        return
-      }
-
-      // Gap-handle drag: release commits the previewed gap via the gesture's
-      // `setGroupGap` intent and resets the FSM to idle.
-      if (getGestureState().kind === "gap") {
-        dispatchGesture({ type: "release" })
-        return
-      }
-
-      // Document-tool: release creates a new document layer with a fixed
-      // container. Click-without-drag uses a sensible default size; drag
-      // sets explicit bounds.
-      if (documentDraftRef.current) {
-        const d = documentDraftRef.current
-        documentDraftRef.current = null
-        setDocumentDraft(null)
-        const dx = d.currentX - d.startX
-        const dy = d.currentY - d.startY
-        const DEFAULT_W = 480
-        const DEFAULT_H = 640
-        let x: number
-        let y: number
-        let w: number
-        let h: number
-        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-          w = DEFAULT_W
-          h = DEFAULT_H
-          x = d.startX
-          y = d.startY
-        } else {
-          x = Math.min(d.startX, d.currentX)
-          y = Math.min(d.startY, d.currentY)
-          w = Math.max(200, Math.abs(dx))
-          h = Math.max(120, Math.abs(dy))
-        }
-        const id = addDocumentLayer(x, y, w, h)
-        setDocumentMode(false)
-        setSelectedIframeLayerIds(new Set())
-        setSelectedDocumentLayerIds(new Set([id]))
-        setEditingDocumentLayerId(id)
-        return
-      }
-
-      // Frame-tool: release creates a new empty frame
-      if (frameDraftRef.current) {
-        const d = frameDraftRef.current
-        frameDraftRef.current = null
-        setFrameDraft(null)
-        const dx = d.currentX - d.startX
-        const dy = d.currentY - d.startY
-        let x: number
-        let y: number
-        let w: number
-        let h: number
-        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-          w = DEFAULT_IFRAME_LAYER_WIDTH
-          h = DEFAULT_IFRAME_LAYER_HEIGHT
-          x = d.startX - w / 2
-          y = d.startY - h / 2
-        } else {
-          x = Math.min(d.startX, d.currentX)
-          y = Math.min(d.startY, d.currentY)
-          w = Math.abs(dx)
-          h = Math.abs(dy)
-        }
-        const id = addFrame(x, y, w, h)
-        setFrameMode(false)
-        setSelectedDocumentLayerIds(new Set())
-        setSelectedIframeLayerIds(new Set([id]))
-        return
-      }
-
-      // Marquee release: the FSM decides — a real drag keeps the selection the
-      // moves settled; a drag too small to be a marquee deselects (the
-      // tiny-drag-as-click rule lives in the reducer).
-      if (getGestureState().kind === "marquee") {
-        dispatchGesture({ type: "release" })
-        return
-      }
-    },
-    [
-      screenToCanvas,
-      addDocumentLayer,
-      addFrame,
-      hitTestReorderHandle,
-      zoom,
-      getGestureState,
-      dispatchGesture,
-    ]
-  )
-
   /** Id of the group containing `memberId`, or undefined for an ungrouped layer. */
   const findGroupIdForMember = useCallback(
     (memberId: string): string | undefined =>
@@ -4436,6 +4041,151 @@ export function Canvas({
         .find((g) => getGroupMembers(g).some((m) => m.id === memberId))?.id,
     [collections]
   )
+
+  /**
+   * The draw-tool drafts (document / frame mode) the gesture seam shares its
+   * pointer handlers with but that aren't gestures — they create a layer rather
+   * than reducing through the FSM. The hook owns the handler ordering (drafts
+   * sit after reorder/gap, before marquee); this keeps the draft domain logic
+   * (default sizes, layer creation, selection) in the component.
+   */
+  const drawTool = useMemo<CanvasDrawTool>(
+    () => ({
+      beginDraft: (canvas) => {
+        if (documentMode) {
+          documentDraftRef.current = {
+            startX: canvas.x,
+            startY: canvas.y,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          setDocumentDraft(documentDraftRef.current)
+        } else if (frameMode) {
+          frameDraftRef.current = {
+            startX: canvas.x,
+            startY: canvas.y,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          setFrameDraft(frameDraftRef.current)
+        }
+      },
+      updateDraft: (canvas) => {
+        if (documentDraftRef.current) {
+          const next = {
+            ...documentDraftRef.current,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          documentDraftRef.current = next
+          setDocumentDraft(next)
+          return true
+        }
+        if (frameDraftRef.current) {
+          const next = {
+            ...frameDraftRef.current,
+            currentX: canvas.x,
+            currentY: canvas.y,
+          }
+          frameDraftRef.current = next
+          setFrameDraft(next)
+          return true
+        }
+        return false
+      },
+      commitDraft: () => {
+        // Document-tool: release creates a new document layer. Click-without-drag
+        // uses a sensible default size; drag sets explicit bounds.
+        if (documentDraftRef.current) {
+          const d = documentDraftRef.current
+          documentDraftRef.current = null
+          setDocumentDraft(null)
+          const dx = d.currentX - d.startX
+          const dy = d.currentY - d.startY
+          const DEFAULT_W = 480
+          const DEFAULT_H = 640
+          let x: number
+          let y: number
+          let w: number
+          let h: number
+          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+            w = DEFAULT_W
+            h = DEFAULT_H
+            x = d.startX
+            y = d.startY
+          } else {
+            x = Math.min(d.startX, d.currentX)
+            y = Math.min(d.startY, d.currentY)
+            w = Math.max(200, Math.abs(dx))
+            h = Math.max(120, Math.abs(dy))
+          }
+          const id = addDocumentLayer(x, y, w, h)
+          setDocumentMode(false)
+          setSelectedIframeLayerIds(new Set())
+          setSelectedDocumentLayerIds(new Set([id]))
+          setEditingDocumentLayerId(id)
+          return true
+        }
+        // Frame-tool: release creates a new empty frame.
+        if (frameDraftRef.current) {
+          const d = frameDraftRef.current
+          frameDraftRef.current = null
+          setFrameDraft(null)
+          const dx = d.currentX - d.startX
+          const dy = d.currentY - d.startY
+          let x: number
+          let y: number
+          let w: number
+          let h: number
+          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
+            w = DEFAULT_IFRAME_LAYER_WIDTH
+            h = DEFAULT_IFRAME_LAYER_HEIGHT
+            x = d.startX - w / 2
+            y = d.startY - h / 2
+          } else {
+            x = Math.min(d.startX, d.currentX)
+            y = Math.min(d.startY, d.currentY)
+            w = Math.abs(dx)
+            h = Math.abs(dy)
+          }
+          const id = addFrame(x, y, w, h)
+          setFrameMode(false)
+          setSelectedDocumentLayerIds(new Set())
+          setSelectedIframeLayerIds(new Set([id]))
+          return true
+        }
+        return false
+      },
+    }),
+    [documentMode, frameMode, addDocumentLayer, addFrame]
+  )
+
+  // Repopulate the gesture seam's inputs every render so its pointer handlers
+  // read the latest geometry, mode flags, and Canvas Operations — the same
+  // commit-time ref mirroring the old geometry refs used, lifted to one place.
+  useEffect(() => {
+    gestureInputsRef.current = {
+      applyIntent: applyGestureIntent,
+      getTransform: () => transformRef.current?.state ?? null,
+      zoom,
+      spaceHeld,
+      focusedLayer: focusedIframeLayerId !== null,
+      commentMode,
+      documentMode,
+      frameMode,
+      reorderHandles,
+      gapHandles,
+      groups: routeGroups,
+      memberLayouts: iframeLayerLayouts,
+      marqueeLayouts: iframeLayerLayouts,
+      markdownLayerIds: markdownLayerIdSet,
+      baseIframeLayerIds: selectedIframeLayerIds,
+      baseDocumentLayerIds: selectedDocumentLayerIds,
+      drawTool,
+      onReorderReleaseHover: (hit) =>
+        setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null),
+    }
+  })
 
   // Click on iframeLayer to select. Clicking a child frame whose parent group is
   // currently selected pierces — the click moves selection to the child. To
@@ -5012,13 +4762,13 @@ export function Canvas({
                           ? "grab"
                           : undefined,
             }}
-            onPointerDownCapture={handleCanvasPointerDownCapture}
-            onPointerDown={handleCanvasPointerDown}
+            onPointerDownCapture={canvasGestureHandlers.onPointerDownCapture}
+            onPointerDown={canvasGestureHandlers.onPointerDown}
             onPointerMove={(e) => {
               handlePointerMove(e)
-              handleCanvasPointerMove(e)
+              canvasGestureHandlers.onPointerMove(e)
             }}
-            onPointerUp={handleCanvasPointerUp}
+            onPointerUp={canvasGestureHandlers.onPointerUp}
             onPointerLeave={handlePointerLeave}
             onClick={commentMode ? handleCanvasClick : undefined}
           >
