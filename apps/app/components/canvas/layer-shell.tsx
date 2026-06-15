@@ -1,14 +1,8 @@
 "use client"
 
 import { useCallback, useMemo, useRef } from "react"
-import {
-  useIframeLayerDrag,
-  type DragHandlers,
-} from "@/hooks/use-iframe-layer-drag"
-import {
-  useIframeLayerResize,
-  type ResizeEdge,
-} from "@/hooks/use-iframe-layer-resize"
+import { useLayerDrag, type LayerDragHandlers } from "@/hooks/use-layer-drag"
+import { useLayerResize, type ResizeEdge } from "@/hooks/use-layer-resize"
 import {
   shouldMoveSelection,
   shouldSelectOnPointerDown,
@@ -37,7 +31,7 @@ export interface LayerShellApi {
    * a press-drag moves the group/selection and a press-release falls through to
    * the deferred click-to-select.
    */
-  bodyDragHandlers: DragHandlers | undefined
+  bodyDragHandlers: LayerDragHandlers | undefined
   /**
    * Pointer-down-capture for the body overlay implementing the deferred
    * click-to-select decision (`shouldSelectOnPointerDown`).
@@ -195,7 +189,7 @@ export function LayerShell({
   // re-toggle it.
   const selectedOnPointerDown = useRef(false)
 
-  const dragHandlers = useIframeLayerDrag({
+  const dragHandlers = useLayerDrag({
     zoom,
     onDrag: handleDrag,
     onDragStart: onGroupDragStart,
@@ -213,7 +207,7 @@ export function LayerShell({
   // whole group (like the body) but a release without movement does NOT fall
   // through to `onSelect` (group selection was already applied on pointerdown).
   // Reuses `handleDrag` so the snap-merge routing still kicks in.
-  const groupLabelDragHandlers = useIframeLayerDrag({
+  const groupLabelDragHandlers = useLayerDrag({
     zoom,
     onDrag: handleDrag,
     onDragStart: onGroupDragStart,
@@ -238,7 +232,7 @@ export function LayerShell({
     onResizeEnd?.(layerId)
   }, [layerId, onResizeEnd])
 
-  const { makeHandleProps } = useIframeLayerResize({
+  const { makeHandleProps } = useLayerResize({
     zoom,
     onResize: handleResize,
     onResizeStart: handleResizeStart,

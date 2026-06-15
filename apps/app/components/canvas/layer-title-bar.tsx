@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 import { EditableText } from "@workspace/ui/components/editable-text"
-import type { DragHandlers } from "@/hooks/use-iframe-layer-drag"
+import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { GroupLabel } from "./group-label"
 
 interface LayerTitleBarProps {
@@ -17,7 +17,7 @@ interface LayerTitleBarProps {
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
-  dragHandlers?: DragHandlers
+  dragHandlers?: LayerDragHandlers
   /** Ask the canvas to start a reorder drag from this bar. Returns `true`
    *  for multi-member groups (canvas owns the gesture); single-member groups
    *  return `false` and fall through to the base move drag. */
@@ -35,7 +35,7 @@ interface LayerTitleBarProps {
   onRenameGroup?: (next: string) => void
   /** Drag handlers for the GroupLabel button — translate the whole group
    *  rather than reordering a single member. */
-  groupLabelDragHandlers?: DragHandlers
+  groupLabelDragHandlers?: LayerDragHandlers
   /** World-space translation applied to the parent layer container during a
    *  reorder drag. Passed here so the group label can apply the inverse and
    *  stay visually anchored to the source group's origin while the rest of
