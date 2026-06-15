@@ -84,7 +84,6 @@ import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
-import { openExternal } from "@/lib/open-external"
 import { CANVAS_SIZE } from "@/lib/constants"
 import {
   computeIframeLayerLayouts,
@@ -106,6 +105,7 @@ import {
 } from "./use-canvas-gesture"
 import { useDrawTool } from "./use-draw-tool"
 import { useGestureIntent } from "./use-gesture-intent"
+import { useFrameActions } from "./use-frame-actions"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
@@ -1096,118 +1096,26 @@ export function Canvas({
 
   // Zoom-to actions delegate the fit math to the Canvas Camera controller
   // (`zoomToElement` / `zoomToRect`, over the pure `lib/canvas/camera`).
-  const handleSelectIframeLayer = useCallback(
-    (iframeLayerId: string) => {
-      const el = document.getElementById(`iframe-layer-${iframeLayerId}`)
-      if (el) camera.zoomToElement(el)
-    },
-    [camera]
-  )
-
-  const handleZoomToDocument = useCallback(
-    (markdownLayerId: string) => {
-      const el = document.getElementById(`markdown-layer-${markdownLayerId}`)
-      if (el) camera.zoomToElement(el)
-    },
-    [camera]
-  )
-
-  const handleZoomToGroup = useCallback(
-    (groupId: string) => {
-      const group = iframeLayerGroups.find((g) => g.id === groupId)
-      if (!group) return
-      const members = getGroupMembers(group)
-      if (members.length === 0) return
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (const m of members) {
-        const layout = effectiveIframeLayerLayouts.get(m.id)
-        if (!layout) continue
-        if (layout.x < minX) minX = layout.x
-        if (layout.y < minY) minY = layout.y
-        if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
-        if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
-      }
-      if (!isFinite(minX) || !isFinite(minY)) return
-      camera.zoomToRect({
-        x: minX,
-        y: minY,
-        width: maxX - minX,
-        height: maxY - minY,
-      })
-    },
-    [camera, iframeLayerGroups, effectiveIframeLayerLayouts]
-  )
-
-  const handleAddIframeLayerForAgent = useCallback(
-    (agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent || agent.status !== "running") return
-      const existing = iframeLayers.filter((a) => a.branchId === agentId)
-      const newId = addIframeLayer(agentId, `Frame ${existing.length + 1}`)
-      if (newId) {
-        // Wait for DOM to render the new iframeLayer, then zoom to it
-        requestAnimationFrame(() => {
-          handleSelectIframeLayer(newId)
-        })
-      }
-    },
-    [agents, iframeLayers, addIframeLayer, handleSelectIframeLayer]
-  )
-
-  const handleShowRoutesForAgent = useCallback(
-    (agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent) return
-      const routes = agent.discoveredRoutes ?? []
-      if (routes.length === 0) {
-        alert("No routes have been discovered for this branch yet.")
-        return
-      }
-      const result = addRoutesGroupForAgent(agentId, routes)
-      if (result) {
-        requestAnimationFrame(() => {
-          handleSelectIframeLayer(result.firstIframeLayerId)
-        })
-      }
-    },
-    [agents, addRoutesGroupForAgent, handleSelectIframeLayer]
-  )
-
-  const handlePlayAgent = useCallback(
-    (branchId: string) => {
-      openExternal(`/play/${roomId}/${branchId}`)
-    },
-    [roomId]
-  )
-
-  const handlePlayIframeLayer = useCallback(
-    (iframeLayerId: string) => {
-      const iframeLayer = iframeLayers.find((a) => a.id === iframeLayerId)
-      if (!iframeLayer?.branchId) return
-      const params = new URLSearchParams()
-      params.set("iframe-layer", iframeLayerId)
-      if (iframeLayer.route) params.set("route", iframeLayer.route)
-      if (
-        iframeLayer.knobValues &&
-        Object.keys(iframeLayer.knobValues).length > 0
-      ) {
-        try {
-          const json = JSON.stringify(iframeLayer.knobValues)
-          const b64 =
-            typeof btoa === "function"
-              ? btoa(json)
-              : Buffer.from(json, "utf-8").toString("base64")
-          params.set("k", encodeURIComponent(b64))
-        } catch {}
-      }
-      const url = `/play/${roomId}/${iframeLayer.branchId}?${params.toString()}`
-      openExternal(url)
-    },
-    [iframeLayers, roomId]
-  )
+  // Frame actions — zoom-to / play / add-frame-for-agent — the sidebar and
+  // member layer call. Aliased to the existing handler names so call sites are
+  // unchanged. See `use-frame-actions`.
+  const frameActions = useFrameActions({
+    camera,
+    agents,
+    iframeLayers,
+    iframeLayerGroups,
+    effectiveIframeLayerLayouts,
+    addIframeLayer,
+    addRoutesGroupForAgent,
+    roomId,
+  })
+  const handleSelectIframeLayer = frameActions.selectIframeLayer
+  const handleZoomToDocument = frameActions.zoomToDocument
+  const handleZoomToGroup = frameActions.zoomToGroup
+  const handleAddIframeLayerForAgent = frameActions.addIframeLayerForAgent
+  const handleShowRoutesForAgent = frameActions.showRoutesForAgent
+  const handlePlayAgent = frameActions.playAgent
+  const handlePlayIframeLayer = frameActions.playIframeLayer
 
   const handleSelectAgent = chatTarget.selectAgent
 
