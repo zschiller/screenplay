@@ -82,9 +82,7 @@ import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { deleteRoom, renameRoom } from "@/lib/rooms-actions"
 import { IframeLayer } from "./iframe-layer"
-import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
-import { formatQuoteForChat } from "@/lib/document-comments"
-import type { SendToChatContext } from "./comments"
+import { MarkdownLayer } from "./markdown-layer"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
@@ -93,8 +91,6 @@ import { CursorChat } from "./cursor-chat"
 import { FollowingToolbar } from "./following-toolbar"
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
-import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
-import type { DomRect } from "@/lib/postmessage-protocol"
 import type { JsonObject, JsonValue } from "@/lib/postmessage-protocol"
 import { RoomSidebar } from "@/components/panels/room-sidebar"
 import { ChatPanel } from "@/components/agent/chat-panel"
@@ -132,6 +128,10 @@ import {
 } from "@/lib/branch/recovery"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { useChatTarget } from "@/components/canvas/use-chat-target"
+import {
+  useElementReference,
+  type ElementReferenceInputs,
+} from "@/components/canvas/use-element-reference"
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
@@ -342,67 +342,20 @@ export function Canvas({
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
   }>({ branchRename: () => {}, renameChat: () => {} })
-  // Per-iframeLayer iframe DOM accessor registry. IframeLayers register on mount and
-  // unregister on unmount; selector-anchored comments use it to query element
-  // rects in the right iframe.
-  const iframeLayerDomsRef = useRef(new Map<string, ScreenplayDom>())
-  const [, setIframeLayerDomsVersion] = useState(0)
-  const handleIframeLayerDomReady = useCallback(
-    (id: string, dom: ScreenplayDom | null) => {
-      const map = iframeLayerDomsRef.current
-      if (dom) map.set(id, dom)
-      else map.delete(id)
-      setIframeLayerDomsVersion((v) => v + 1)
-    },
-    []
-  )
-  const getIframeLayerDom = useCallback(
-    (id: string): ScreenplayDom | undefined =>
-      iframeLayerDomsRef.current.get(id),
-    []
-  )
-  // Same registry pattern as iframe DOMs, but for doc-layer TipTap editors.
-  // Inline-comment threads use this to push highlight ranges into the
-  // editor and to compute where to anchor each thread's canvas pin.
-  const documentEditorsRef = useRef(
-    new Map<string, import("@tiptap/core").Editor>()
-  )
-  const [documentEditorsVersion, setDocumentEditorsVersion] = useState(0)
-  const handleDocumentEditorReady = useCallback(
-    (id: string, editor: import("@tiptap/core").Editor | null) => {
-      const map = documentEditorsRef.current
-      if (editor) map.set(id, editor)
-      else map.delete(id)
-      setDocumentEditorsVersion((v) => v + 1)
-    },
-    []
-  )
-  const getDocumentEditor = useCallback(
-    (id: string): import("@tiptap/core").Editor | undefined =>
-      documentEditorsRef.current.get(id),
-    []
-  )
-  const [newCommentPos, setNewCommentPos] = useState<{
-    x: number
-    y: number
-    iframeLayerId?: string
-    selector?: string | null
-    offsetX?: number | null
-    offsetY?: number | null
-    documentId?: string | null
-    anchorStart?: string | null
-    anchorEnd?: string | null
-    quotedText?: string | null
-    lineFrom?: number | null
-    lineTo?: number | null
-  } | null>(null)
-  const [activeCommentThreadId, setActiveCommentThreadId] = useState<
-    string | null
-  >(null)
-  const [inspectHover, setInspectHover] = useState<{
-    iframeLayerId: string
-    rect: DomRect
-  } | null>(null)
+
+  // Element Reference controller (PRD #570): the single-user "anchor an element
+  // / text span and Send to agent" reference path the local build keeps. It
+  // owns the comment-mode placement state (`newCommentPos`, `activeThreadId`,
+  // `inspectHover`) and the two registries the flow reads — the per-Iframe-Layer
+  // DOM accessors and the per-Markdown-Layer TipTap editors — and exposes the
+  // placement verbs plus the single `sendReference` verb (over the pure
+  // `lib/canvas/chat-reference` decision). Its live inputs arrive through a ref
+  // the component repopulates every render (the effect below), breaking the
+  // ordering cycle: the placement state is read by the keyboard handler defined
+  // just below, while `sendReference` needs the Chat-Target controller and the
+  // canvas ops defined far down the component.
+  const referenceInputsRef = useRef<ElementReferenceInputs | null>(null)
+  const reference = useElementReference(referenceInputsRef)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<
     string | null
@@ -697,7 +650,7 @@ export function Canvas({
             cursorChatOpen: selfMessageRef.current !== null,
             editingDocumentLayerId: editingDocumentLayerIdRef.current,
             toolMode: toolMode.current(),
-            hasNewCommentPos: newCommentPos !== null,
+            hasNewCommentPos: reference.newCommentPos !== null,
             focusedIframeLayerId,
             createFlowIframeLayerId,
           })
@@ -716,8 +669,7 @@ export function Canvas({
             break
           case "exit-comment-mode":
             toolMode.set("select")
-            setNewCommentPos(null)
-            setInspectHover(null)
+            reference.clearMode()
             break
           case "exit-focus-mode":
             setFocusedIframeLayerId(null)
@@ -736,23 +688,19 @@ export function Canvas({
       // three" to do here. Resetting the comment-placement sub-state stays.
       if (e.key === "v" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         toolMode.set("select")
-        setNewCommentPos(null)
-        setInspectHover(null)
+        reference.clearMode()
       }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         toolMode.toggle("comment")
-        setNewCommentPos(null)
-        setInspectHover(null)
+        reference.clearMode()
       }
       if (e.key === "d" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         toolMode.toggle("document")
-        setNewCommentPos(null)
-        setInspectHover(null)
+        reference.clearMode()
       }
       if (e.key === "f" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
         toolMode.toggle("frame")
-        setNewCommentPos(null)
-        setInspectHover(null)
+        reference.clearMode()
       }
       // Figma-style cursor chat. Opens an inline input next to the cursor and
       // broadcasts each keystroke through awareness so peers see the message
@@ -861,7 +809,7 @@ export function Canvas({
   }, [
     toolMode,
     selection,
-    newCommentPos,
+    reference,
     focusedIframeLayerId,
     createFlowIframeLayerId,
     history,
@@ -1007,11 +955,7 @@ export function Canvas({
         case "selectMember":
           // Click-no-move from a Member's label falls through to plain
           // selection — the same selection interface the click path uses.
-          selection.selectMember(
-            intent.memberId,
-            intent.kind,
-            intent.additive
-          )
+          selection.selectMember(intent.memberId, intent.kind, intent.additive)
           break
         // Selection-only intent: applied to local selection state, never the
         // Y.Doc. A marquee never selects groups, so the interface clears them.
@@ -2020,155 +1964,28 @@ export function Canvas({
     [agents, roomId, setBranchPr]
   )
 
-  const handleInspectHover = useCallback(
-    (iframeLayerId: string, rect: DomRect | null) => {
-      if (!rect) {
-        setInspectHover((h) => (h?.iframeLayerId === iframeLayerId ? null : h))
-      } else {
-        setInspectHover({ iframeLayerId, rect })
-      }
-    },
-    []
-  )
-
-  // The user clicked the inline "Comment" button on a text selection inside
-  // a markdown layer. Open the new-thread composer at the right margin of
-  // the doc, anchored to the captured Y.RelativePosition pair. x/y are
-  // stored *layer-local* (matching the iframe-layer-thread convention) so
-  // the composer's resolvePos can land it correctly by adding the doc
-  // tile's canvas origin.
-  const handleStartInlineComment = useCallback(
-    (draft: InlineCommentDraft) => {
-      if (!iframeLayerLayouts.has(draft.documentId)) return
-      setNewCommentPos({
-        x: draft.canvasX,
-        y: draft.canvasY,
-        documentId: draft.documentId,
-        anchorStart: draft.anchorStart,
-        anchorEnd: draft.anchorEnd,
-        quotedText: draft.quotedText,
-        lineFrom: draft.lineFrom,
-        lineTo: draft.lineTo,
-      })
-    },
-    [iframeLayerLayouts]
-  )
-
-  // The user clicked an existing inline-comment highlight inside a doc.
-  // Open that thread's pin popover.
-  const handleSelectInlineThread = useCallback((threadId: string) => {
-    setActiveCommentThreadId(threadId)
-  }, [])
-
-  // Hand the comment composer's text off to the agent chat instead of
-  // creating a comment thread. Comment-mode hit-tests against
-  // `iframeLayerLayouts`, which includes both iframeLayers and document layers,
-  // so `ctx.iframeLayerId` may be either kind. For iframeLayers we tag the
-  // message with the picked route + element so the agent has context to
-  // act on; for docs we route to the doc's own chat target and send the
-  // note as-is (no route/element to attach).
-  const handleCommentSendToChat = useCallback(
-    (note: string, ctx: SendToChatContext) => {
-      // Document-layer comment: pivot the panel to that doc's chat (or
-      // create one if none exists / the remembered chat is busy) and send
-      // the note — prepended with the quoted span + line range when the
-      // user commented on a specific selection.
-      const docId = ctx.documentId ?? ctx.iframeLayerId ?? null
-      const docLayer = docId
-        ? markdownLayers.find((d) => d.id === docId)
-        : undefined
-      if (docLayer) {
-        const messageBody =
-          ctx.quotedText &&
-          ctx.lineFrom !== null &&
-          ctx.lineFrom !== undefined &&
-          ctx.lineTo !== null &&
-          ctx.lineTo !== undefined
-            ? `${formatQuoteForChat({
-                quotedText: ctx.quotedText,
-                lineFrom: ctx.lineFrom,
-                lineTo: ctx.lineTo,
-                documentTitle: docLayer.title || null,
-              })}\n\n${note}`
-            : note
-        // Always open a fresh chat bound to this doc — never reuse a
-        // remembered chat or a terminal.
-        const chatId = nanoid()
-        addChatSession(chatId, {
-          id: chatId,
-          markdownLayerId: docLayer.id,
-          label: "Untitled",
-          createdAt: Date.now(),
-        })
-        const isFirstChat = !chatSessions.some(
-          (c) => c.markdownLayerId === docLayer.id && c.id !== chatId
-        )
-        chatTarget.selectDocChat(docLayer.id, chatId)
-        chatStore.sendMessage({
-          roomId,
-          chatId,
-          markdownLayerId: docLayer.id,
-          message: messageBody,
-          isFirstChat,
-          onChatRename: (label) =>
-            inspectHandlersRef.current.renameChat(chatId, label),
-        })
-        chatTarget.expandPanel()
-        return
-      }
-
-      // Element/frame target: route to the agent that owns the frame the
-      // target happened on (the frame's branch) — not whatever chat is
-      // currently focused — and always in a brand-new chat.
-      const iframeLayer = ctx.iframeLayerId
-        ? iframeLayers.find((a) => a.id === ctx.iframeLayerId)
-        : undefined
-      const agent = iframeLayer?.branchId
-        ? agents.find((a) => a.id === iframeLayer.branchId)
-        : null
-      if (!agent?.sandboxName || !agent.ref) return
-      const route = iframeLayer?.route || "/"
-      const elementLine = ctx.selector ? `\nElement: \`${ctx.selector}\`` : ""
-      const text = `${note}\n\nRoute: \`${route}\`${elementLine}`
-      const chatId = nanoid()
-      addChatSession(chatId, {
-        id: chatId,
-        branchId: agent.id,
-        label: "Untitled",
-        createdAt: Date.now(),
-      })
-      const isFirstChat = !chatSessions.some(
-        (c) => c.branchId === agent.id && c.id !== chatId
-      )
-      chatTarget.selectAgentChat(agent.id, chatId, {
-        clearDocument: true,
-        remember: true,
-      })
-      chatStore.sendMessage({
-        roomId,
-        chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message: text,
-        isFirstChat,
-        autoNamedBranch: agent.autoNamedBranch,
-        onBranchRename: (branch) =>
-          inspectHandlersRef.current.branchRename(agent.id, branch),
-        onChatRename: (label) =>
-          inspectHandlersRef.current.renameChat(chatId, label),
-      })
-      chatTarget.expandPanel()
-    },
-    [
-      markdownLayers,
-      chatSessions,
+  // Repopulate the Element Reference controller's live inputs every render so
+  // its placement verbs and `sendReference` read the current snapshots, the
+  // Chat-Target controller, and the canvas ops seam — without re-binding the
+  // controller on each change (mirrors `iframeLayerLayoutsRef` /
+  // `gestureInputsRef`). The rename callbacks read `inspectHandlersRef` so they
+  // stay current as the Tab Pool / Branch Intake wiring lands later.
+  useEffect(() => {
+    referenceInputsRef.current = {
+      roomId,
       agents,
       iframeLayers,
-      roomId,
+      markdownLayers,
+      chatSessions,
+      iframeLayerLayouts,
       addChatSession,
       chatTarget,
-    ]
-  )
+      onChatRename: (chatId, label) =>
+        inspectHandlersRef.current.renameChat(chatId, label),
+      onBranchRename: (agentId, branch) =>
+        inspectHandlersRef.current.branchRename(agentId, branch),
+    }
+  })
 
   // Tab Pool controller (PRD #563): the chat/terminal/tab apply-side — create,
   // close, remove, select, rename, reopen, and the `seed` entry Branch Intake
@@ -2739,6 +2556,10 @@ export function Canvas({
     resetHandleHover()
   }, [setPresence, resetHandleHover])
 
+  // Comment-mode canvas click: convert the screen point to canvas (world)
+  // coordinates — the camera concern that stays in the component — and hand it
+  // to the Element Reference controller, which owns the hit-test + composer
+  // placement.
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
       if (!commentMode) return
@@ -2746,60 +2567,11 @@ export function Canvas({
       if (!ref) return
       const { positionX, positionY, scale } = ref.state
       const rect = e.currentTarget.getBoundingClientRect()
-      const relX = e.clientX - rect.left
-      const relY = e.clientY - rect.top
-      const canvasX = (relX - positionX) / scale
-      const canvasY = (relY - positionY) / scale
-
-      // Hit-test against iframeLayer bounds — store offset relative to iframeLayer.
-      // The iframe fills the iframeLayer div with no transform, so iframeLayer-local
-      // coordinates equal iframe-viewport coordinates and can be passed
-      // directly to the bridge's elementAtPoint.
-      for (const layout of iframeLayerLayouts.values()) {
-        if (
-          canvasX >= layout.x &&
-          canvasX <= layout.x + layout.width &&
-          canvasY >= layout.y &&
-          canvasY <= layout.y + layout.height
-        ) {
-          const localX = canvasX - layout.x
-          const localY = canvasY - layout.y
-          // Show the composer immediately at the click point; selector
-          // resolution races the user's typing and patches the state in.
-          setNewCommentPos({ x: localX, y: localY, iframeLayerId: layout.id })
-          const dom = getIframeLayerDom(layout.id)
-          if (dom) {
-            dom
-              .elementAtPoint(localX, localY)
-              .then((result) => {
-                if (!result) return
-                // Store offsets as fractions of the element's width/height so
-                // the pin tracks the same relative point as the element
-                // resizes with the iframeLayer / page reflow. Falls back to 0
-                // for zero-sized elements (no meaningful relative position).
-                const w = result.rect.width
-                const h = result.rect.height
-                const offsetX = w > 0 ? (localX - result.rect.x) / w : 0
-                const offsetY = h > 0 ? (localY - result.rect.y) / h : 0
-                setNewCommentPos((prev) => {
-                  if (!prev || prev.iframeLayerId !== layout.id) return prev
-                  return {
-                    ...prev,
-                    selector: result.selector || null,
-                    offsetX,
-                    offsetY,
-                  }
-                })
-              })
-              .catch(() => {})
-          }
-          return
-        }
-      }
-
-      setNewCommentPos({ x: canvasX, y: canvasY })
+      const canvasX = (e.clientX - rect.left - positionX) / scale
+      const canvasY = (e.clientY - rect.top - positionY) / scale
+      reference.place(canvasX, canvasY)
     },
-    [commentMode, iframeLayerLayouts, getIframeLayerDom]
+    [commentMode, reference]
   )
 
   // Broadcast selection to other users via presence. Doc IDs ride alongside
@@ -2950,7 +2722,9 @@ export function Canvas({
                   .map((a) => a.id)
               )
             }
-            chatPanelBranchId={chatCollapsed ? null : chatTarget.selectedAgentId}
+            chatPanelBranchId={
+              chatCollapsed ? null : chatTarget.selectedAgentId
+            }
             branchPrs={branchPrs}
           />
         </ResizablePanel>
@@ -3041,7 +2815,10 @@ export function Canvas({
               rects={placeholderRects}
             />
 
-            <TransformWrapper ref={transformRef} {...camera.transformWrapperProps}>
+            <TransformWrapper
+              ref={transformRef}
+              {...camera.transformWrapperProps}
+            >
               <TransformComponent
                 wrapperStyle={{
                   width: "100%",
@@ -3176,7 +2953,13 @@ export function Canvas({
                                 : undefined
                             }
                             onSelect={handleDocumentLayerSelect}
-                            onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                            onMoveGroup={(
+                              _dx,
+                              _dy,
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            ) =>
                               gestureLayerHandlers.onMove(
                                 totalDx,
                                 totalDy,
@@ -3208,9 +2991,9 @@ export function Canvas({
                             onRename={setDocumentLayerTitle}
                             onStartEdit={setEditingDocumentLayerId}
                             onStopEdit={() => setEditingDocumentLayerId(null)}
-                            onEditorReady={handleDocumentEditorReady}
-                            onStartInlineComment={handleStartInlineComment}
-                            onSelectInlineThread={handleSelectInlineThread}
+                            onEditorReady={reference.onDocumentEditorReady}
+                            onStartInlineComment={reference.startInlineComment}
+                            onSelectInlineThread={reference.setActiveThread}
                           />
                         )
                       }
@@ -3254,7 +3037,11 @@ export function Canvas({
                           }}
                           onSelect={handleIframeLayerSelect}
                           onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                            gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                            gestureLayerHandlers.onMove(
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            )
                           }
                           onMoveSelected={(
                             _dx,
@@ -3263,10 +3050,16 @@ export function Canvas({
                             totalDy,
                             metaKey
                           ) =>
-                            gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                            gestureLayerHandlers.onMove(
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            )
                           }
                           onGroupDragStart={() =>
-                            gestureLayerHandlers.onGroupDragStart(iframeLayer.id)
+                            gestureLayerHandlers.onGroupDragStart(
+                              iframeLayer.id
+                            )
                           }
                           onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
                           onRequestReorderDrag={
@@ -3297,9 +3090,9 @@ export function Canvas({
                           }
                           spaceHeld={spaceHeld}
                           commentMode={commentMode}
-                          onHover={handleInspectHover}
+                          onHover={reference.setInspectHover}
                           onWheel={camera.handleIframeWheel}
-                          onDomReady={handleIframeLayerDomReady}
+                          onDomReady={reference.onIframeLayerDomReady}
                           onCaptureReadyChange={handleCaptureReadyChange}
                           onCaptureDirty={handleCaptureDirty}
                           assignableBranches={agents}
@@ -3383,20 +3176,20 @@ export function Canvas({
               <Comments
                 roomId={roomId}
                 zoom={zoom}
-                newCommentPos={newCommentPos}
+                newCommentPos={reference.newCommentPos}
                 onNewCommentPlaced={() => {
-                  setNewCommentPos(null)
+                  reference.clearComposer()
                   toolMode.set("select")
                 }}
-                onCancelComment={() => setNewCommentPos(null)}
+                onCancelComment={reference.clearComposer}
                 iframeLayers={Array.from(iframeLayerLayouts.values())}
-                getIframeLayerDom={getIframeLayerDom}
-                getDocumentEditor={getDocumentEditor}
-                documentEditorsVersion={documentEditorsVersion}
+                getIframeLayerDom={reference.getIframeLayerDom}
+                getDocumentEditor={reference.getDocumentEditor}
+                documentEditorsVersion={reference.documentEditorsVersion}
                 initialThreads={initialThreads}
-                onSendToChat={handleCommentSendToChat}
-                activeThreadId={activeCommentThreadId}
-                onActivateThread={setActiveCommentThreadId}
+                onSendToChat={reference.sendReference}
+                activeThreadId={reference.activeThreadId}
+                onActivateThread={reference.setActiveThread}
               />
             </div>
 
@@ -3467,7 +3260,7 @@ export function Canvas({
               inspectRect={(() => {
                 // Show the live hover overlay while in commentMode so the
                 // user can see what element they're about to anchor to.
-                const source = commentMode ? inspectHover : null
+                const source = commentMode ? reference.inspectHover : null
                 if (!source) return null
                 const layout = iframeLayerLayouts.get(source.iframeLayerId)
                 if (!layout) return null
@@ -3657,8 +3450,7 @@ export function Canvas({
                         size="icon-xs"
                         onClick={() => {
                           toolMode.set("select")
-                          setNewCommentPos(null)
-                          setInspectHover(null)
+                          reference.clearMode()
                         }}
                       >
                         <MousePointer2 className="h-3.5 w-3.5" />
@@ -3675,8 +3467,7 @@ export function Canvas({
                         size="icon-xs"
                         onClick={() => {
                           toolMode.toggle("frame")
-                          setNewCommentPos(null)
-                          setInspectHover(null)
+                          reference.clearMode()
                         }}
                       >
                         <Frame className="h-3.5 w-3.5" />
@@ -3693,8 +3484,7 @@ export function Canvas({
                         size="icon-xs"
                         onClick={() => {
                           toolMode.toggle("document")
-                          setNewCommentPos(null)
-                          setInspectHover(null)
+                          reference.clearMode()
                         }}
                       >
                         <FileText className="h-3.5 w-3.5" />
@@ -3716,8 +3506,7 @@ export function Canvas({
                         size="icon-xs"
                         onClick={() => {
                           toolMode.toggle("comment")
-                          setNewCommentPos(null)
-                          setInspectHover(null)
+                          reference.clearMode()
                         }}
                       >
                         {isLocalBuild ? (
