@@ -13,19 +13,15 @@ import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
-import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
-import { useIframeLayerResize } from "@/hooks/use-iframe-layer-resize"
+import { type ResizeEdge } from "@/hooks/use-iframe-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { isLocalBuild } from "@/lib/local-mode"
-import {
-  LayerTitleBar,
-  LayerTitleText,
-} from "@/components/canvas/layer-title-bar"
-import { ResizeHandles } from "@/components/canvas/resize-handles"
+import { LayerTitleText } from "@/components/canvas/layer-title-bar"
+import { LayerShell } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import {
   encodeAnchor,
@@ -179,11 +175,15 @@ interface MarkdownLayerProps {
 }
 
 /**
- * A Notion-style document tile rendered as a flex child of its parent
- * IframeLayerGroup — exactly the same positioning model as IframeLayer, so docs
- * and frames mix seamlessly inside a group's row. Body content is a TipTap
- * editor bound to a Yjs XmlFragment (`markdown-layer-${id}`), so editing is
- * collaborative with live remote cursors.
+ * A Notion-style document tile — the Markdown Layer, refit as a content adapter
+ * plugged into the shared {@link LayerShell}. The Shell owns the world-space
+ * frame, selection, drag (group-move / merge routing plus deferred
+ * click-to-select), and resize; this adapter supplies the title row
+ * (`renderTitle`) and the body (`children`) and keeps all content-specific
+ * behavior: the TipTap editor bound to a Yjs XmlFragment (`markdown-layer-${id}`)
+ * for collaborative editing with live remote cursors, title sync, edit-mode
+ * focus, the inline-comment bubble, outside-click blur, and doc-scroll wheel
+ * handling.
  */
 export function MarkdownLayer({
   layer,
@@ -580,144 +580,79 @@ export function MarkdownLayer({
     return () => root.removeEventListener("wheel", onWheel)
   }, [wheelActive])
 
-  const handleDrag = useCallback(
-    (
-      dx: number,
-      dy: number,
-      totalDx: number,
-      totalDy: number,
-      metaKey: boolean
-    ) => {
-      // See IframeLayer.handleDrag: a selected group drags the whole selection.
-      if (selected || groupSelected)
-        onMoveSelected(dx, dy, totalDx, totalDy, metaKey)
-      else onMoveGroup(dx, dy, totalDx, totalDy, metaKey)
-    },
-    [selected, groupSelected, onMoveGroup, onMoveSelected]
-  )
-
-  const selectedOnPointerDown = useRef(false)
-
-  // Same as the body's drag, but a release without movement does NOT fall
-  // back to selecting this doc — the group label's pointerdown already
-  // applied the group selection.
-  const groupLabelDragHandlers = useIframeLayerDrag({
-    zoom,
-    onDrag: handleDrag,
-    onDragStart: onGroupDragStart,
-    onDragEnd: onGroupDragEnd,
-  })
-
-  const dragHandlers = useIframeLayerDrag({
-    zoom,
-    onDrag: handleDrag,
-    onDragStart: onGroupDragStart,
-    onDragEnd: onGroupDragEnd,
-    onClick: (e) => {
-      if (selectedOnPointerDown.current) {
-        selectedOnPointerDown.current = false
-        return
-      }
-      onSelect(layer.id, e.shiftKey)
-    },
-  })
-
-  // Each gesture's deltas need to operate on the doc's size at the start of
-  // the drag, not the live (already-shrunk) size — otherwise hitting the
-  // minimum makes subsequent moves act on the clamped value. Same pattern
-  // as IframeLayer's resize accumulator.
-  const resizeStartRef = useRef<{ w: number; h: number } | null>(null)
-
+  // The Shell drives resize with a (layerId, edge, …) signature shared with the
+  // Iframe Layer; a doc snaps on neither axis, so drop the edge and forward the
+  // deltas to the doc's own resize contract.
   const handleResize = useCallback(
     (
-      _edge: "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw",
+      id: string,
+      _edge: ResizeEdge,
       dx: number,
       dy: number,
       dw: number,
       dh: number
     ) => {
-      onResize(layer.id, dx, dy, dw, dh)
+      onResize(id, dx, dy, dw, dh)
     },
-    [layer.id, onResize]
+    [onResize]
   )
 
-  const { makeHandleProps } = useIframeLayerResize({
-    zoom,
-    onResize: handleResize,
-    onResizeStart: () => {
-      resizeStartRef.current = { w: layer.width, h: layer.height }
-    },
-    onResizeEnd: () => {
-      resizeStartRef.current = null
-    },
-  })
-
-  // Flat, absolutely-positioned in world space (see `worldX/worldY`). A
-  // non-popped reorder drag layers `dragTranslate{X,Y}` on as a transform so
-  // the lifted doc tracks the cursor; popped position is baked into worldX/Y.
-  const transform =
-    dragTranslateX || dragTranslateY
-      ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
-      : undefined
-
   return (
-    <div
-      id={`markdown-layer-${layer.id}`}
-      ref={rootRef}
-      data-markdown-layer
-      data-doc-id={layer.id}
+    <LayerShell
+      layerId={layer.id}
+      width={layer.width}
+      height={layer.height}
+      worldX={worldX}
+      worldY={worldY}
+      zIndex={zIndex}
+      dragTranslateX={dragTranslateX}
+      dragTranslateY={dragTranslateY}
+      dragPopped={dragPopped}
+      containerId={`markdown-layer-${layer.id}`}
       // No overflow-hidden on the root — the group label sits above the tile
-      // via `bottom-full` and would be clipped. Match IframeLayer, which keeps
-      // its outer root open and pushes overflow clipping to the inner body.
-      // Inner clipping happens on `data-markdown-layer-scroll` (overflow-y-auto)
-      // and the body padding constrains horizontal layout.
-      className="absolute flex flex-col rounded-md bg-background"
-      style={{
-        width: layer.width,
-        height: layer.height,
-        left: worldX,
-        top: worldY,
-        transform,
-        // Dragged/popped doc floats above siblings; otherwise paint order
-        // follows the group's sidebar position.
-        zIndex:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? 9999
-            : zIndex,
-        // The lifted doc is non-interactive so drop hit-testing falls through;
-        // otherwise the tile catches its own events.
-        pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? "none"
-            : "auto",
+      // via `bottom-full` and would be clipped. The outer root stays open and
+      // pushes overflow clipping to the inner body: `data-markdown-layer-scroll`
+      // (overflow-y-auto) clips vertically and the body padding constrains
+      // horizontal layout.
+      containerClassName="absolute flex flex-col rounded-md bg-background"
+      containerRef={rootRef}
+      containerProps={{
+        "data-markdown-layer": "",
+        "data-doc-id": layer.id,
+        onDoubleClick: (e) => {
+          e.stopPropagation()
+          pendingFocusCoordsRef.current = { left: e.clientX, top: e.clientY }
+          onStartEdit(layer.id)
+        },
       }}
-      onDoubleClick={(e) => {
-        e.stopPropagation()
-        pendingFocusCoordsRef.current = { left: e.clientX, top: e.clientY }
-        onStartEdit(layer.id)
-      }}
-    >
-      <LayerTitleBar
-        layerId={layer.id}
-        layerWidth={layer.width}
-        zoom={zoom}
-        dragHandlers={spaceHeld ? undefined : dragHandlers}
-        onRequestReorderDrag={spaceHeld ? undefined : onRequestReorderDrag}
-        groupLabel={groupLabel}
-        groupSelected={groupSelected}
-        groupSelectedColor={remoteGroupSelectedColor}
-        onSelectGroup={onSelectGroup}
-        onRenameGroup={onRenameGroup}
-        groupLabelDragHandlers={spaceHeld ? undefined : groupLabelDragHandlers}
-        reorderDragTranslateX={dragTranslateX}
-        reorderDragTranslateY={dragTranslateY}
-        reorderDragPopped={dragPopped}
-      >
-        {/* Flex-row wrapper with an explicit max-width so `truncate` on the
-         *  title span has something to clip against — without it, the
-         *  LayerTitleBar's `items-start` lets the child size to its (nowrap)
-         *  content and the title runs past the tile's right edge. Mirrors
-         *  the equivalent row in IframeLayerLabel. */}
+      zoom={zoom}
+      selected={selected}
+      groupSelected={groupSelected}
+      multiSelected={multiSelected}
+      spaceHeld={spaceHeld}
+      onSelect={onSelect}
+      onMoveGroup={onMoveGroup}
+      onMoveSelected={onMoveSelected}
+      onGroupDragStart={onGroupDragStart}
+      onGroupDragEnd={onGroupDragEnd}
+      onRequestReorderDrag={onRequestReorderDrag}
+      // Detach the title bar's drag while the user holds space to pan (the body
+      // overlay's own drag is gated on `spaceHeld` by the Shell).
+      titleDragDisabled={spaceHeld}
+      onResize={handleResize}
+      // Suppress the resize handles while editing so they don't fight the text
+      // caret / selection at the doc's edges.
+      resizable={!editing}
+      groupLabel={groupLabel}
+      remoteGroupSelectedColor={remoteGroupSelectedColor}
+      onSelectGroup={onSelectGroup}
+      onRenameGroup={onRenameGroup}
+      renderTitle={(api) => (
+        // Flex-row wrapper with an explicit max-width so `truncate` on the
+        // title span has something to clip against — without it, the
+        // LayerTitleBar's `items-start` lets the child size to its (nowrap)
+        // content and the title runs past the tile's right edge. Mirrors
+        // the equivalent row in IframeLayerLabel.
         <div
           className="flex min-h-[18px] max-w-full items-center"
           style={{ maxWidth: layer.width * zoom }}
@@ -733,112 +668,100 @@ export function MarkdownLayer({
               // IframeLayerLabel.onSelectFrame.
               if (selected && !shiftKey) return
               if (groupSelected && !shiftKey) return
-              selectedOnPointerDown.current = true
-              onSelect(layer.id, shiftKey)
+              api.deferSelect(shiftKey)
             }}
             onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
           />
         </div>
-      </LayerTitleBar>
-      {/* The title bar above is purely a display/drag affordance — the
-       *  source of truth is still the editor's first heading, which is the
-       *  cached `layer.title` field. The wrapper below holds the editor
-       *  itself (title heading + body) in a Notion-style stacked surface. */}
-      <div
-        data-markdown-layer-scroll
-        className="relative flex-1 overflow-y-auto"
-      >
-        <div
-          // `relative` + `z-10` lifts the editor above the layer-selection
-          // overlay below so comment-highlight spans (which set their own
-          // `pointer-events: auto`) sit on top and catch clicks even when
-          // the doc isn't being edited. Empty editor space stays
-          // `pointer-events: none`, falling through to the overlay so
-          // clicking blank prose still selects/drags the doc tile.
-          className="relative z-10 px-6 py-5"
-          style={{ pointerEvents: editing ? "auto" : "none" }}
-        >
-          <EditorContent editor={editor} />
-        </div>
-
-        {!editing && (
-          <div
-            className="absolute inset-0 touch-none"
-            style={{ cursor: "inherit" }}
-            onPointerDownCapture={(e) => {
-              if (e.button === 0 && !spaceHeld) {
-                selectedOnPointerDown.current = false
-                // While the parent group owns the selection, plain clicks on
-                // the doc are a no-op (matches IframeLayer). Shift still drills
-                // through so the user can additively pick this member.
-                if (groupSelected && !e.shiftKey) return
-                if (!selected || e.shiftKey) {
-                  selectedOnPointerDown.current = true
-                  onSelect(layer.id, e.shiftKey)
-                }
-              }
-            }}
-            {...(spaceHeld ? {} : dragHandlers)}
-          />
-        )}
-      </div>
-
-      {selected && !multiSelected && !editing && (
-        <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
-
-      {bubbleAnchor &&
-        editing &&
-        bubblePortalTarget &&
-        createPortal(
-          // Floating "Comment" button anchored above the start of the user's
-          // selection — Google-Docs style. Portaled out of the world transform
-          // so it sits above the SelectionOverlay (see canvas.tsx for the
-          // portal target). Positioned every frame by the rAF loop above
-          // (translate is set imperatively from the tile's client rect), so
-          // it tracks pan/zoom/drag without needing inverse-scale tricks.
-          // mousedown is preventDefaulted so clicking the button doesn't
-          // blur the editor (mousedown is what shifts focus in browsers;
-          // pointerdown alone isn't enough). The button also fires on
-          // mousedown rather than click so the gesture completes before any
-          // later focus/selection event has a chance to tear down the bubble.
+    >
+      {(api) => (
+        <>
+          {/* The Shell-owned title bar is purely a display/drag affordance —
+           *  the source of truth is still the editor's first heading, which is
+           *  the cached `layer.title` field. The wrapper below holds the editor
+           *  itself (title heading + body) in a Notion-style stacked surface. */}
           <div
-            ref={bubbleRef}
-            className="pointer-events-none absolute top-0 left-0"
+            data-markdown-layer-scroll
+            className="relative flex-1 overflow-y-auto"
           >
             <div
-              className="pointer-events-auto"
-              style={{
-                transform: "translate(-50%, -100%) translateY(-6px)",
-                transformOrigin: "bottom center",
-              }}
+              // `relative` + `z-10` lifts the editor above the layer-selection
+              // overlay below so comment-highlight spans (which set their own
+              // `pointer-events: auto`) sit on top and catch clicks even when
+              // the doc isn't being edited. Empty editor space stays
+              // `pointer-events: none`, falling through to the overlay so
+              // clicking blank prose still selects/drags the doc tile.
+              className="relative z-10 px-6 py-5"
+              style={{ pointerEvents: editing ? "auto" : "none" }}
             >
-              <button
-                type="button"
-                tabIndex={-1}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  handleStartInlineComment()
-                }}
-                className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
-              >
-                {isLocalBuild ? (
-                  <>
-                    <Crosshair className="size-3.5" />
-                    Send to agent
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare className="size-3.5" />
-                    Comment
-                  </>
-                )}
-              </button>
+              <EditorContent editor={editor} />
             </div>
-          </div>,
-          bubblePortalTarget
-        )}
-    </div>
+
+            {!editing && (
+              <div
+                className="absolute inset-0 touch-none"
+                style={{ cursor: "inherit" }}
+                {...api.bodyDragHandlers}
+                onPointerDownCapture={api.onBodyPointerDownCapture}
+              />
+            )}
+          </div>
+
+          {bubbleAnchor &&
+            editing &&
+            bubblePortalTarget &&
+            createPortal(
+              // Floating "Comment" button anchored above the start of the user's
+              // selection — Google-Docs style. Portaled out of the world transform
+              // so it sits above the SelectionOverlay (see canvas.tsx for the
+              // portal target). Positioned every frame by the rAF loop above
+              // (translate is set imperatively from the tile's client rect), so
+              // it tracks pan/zoom/drag without needing inverse-scale tricks.
+              // mousedown is preventDefaulted so clicking the button doesn't
+              // blur the editor (mousedown is what shifts focus in browsers;
+              // pointerdown alone isn't enough). The button also fires on
+              // mousedown rather than click so the gesture completes before any
+              // later focus/selection event has a chance to tear down the bubble.
+              <div
+                ref={bubbleRef}
+                className="pointer-events-none absolute top-0 left-0"
+              >
+                <div
+                  className="pointer-events-auto"
+                  style={{
+                    transform: "translate(-50%, -100%) translateY(-6px)",
+                    transformOrigin: "bottom center",
+                  }}
+                >
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleStartInlineComment()
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
+                  >
+                    {isLocalBuild ? (
+                      <>
+                        <Crosshair className="size-3.5" />
+                        Send to agent
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="size-3.5" />
+                        Comment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>,
+              bubblePortalTarget
+            )}
+        </>
+      )}
+    </LayerShell>
   )
 }
