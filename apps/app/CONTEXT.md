@@ -331,6 +331,24 @@ backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 app's own loop isn't one); calling the transport "ttyd" unqualified (it's ttyd on
 Vercel, node-pty on the desktop build).
 
+**Tab Pool**:
+The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
+Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
+pool. **Invariant: while the target lives, its pool is never empty.** Closing the
+last tab respawns the user's **preferred default tab kind** (chat or terminal for an
+agent target; always a chat for a doc target), so the panel is never left blank.
+Agent chats and doc chats are **separate pools** — filtered by `branchId` vs
+`markdownLayerId`, since every doc chat shares an undefined `agentId` and would
+otherwise collide — and a doc target has no terminals. The close decision is a
+**pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
+selection, and whether to respawn); the component applies the effects (server
+actions, killing the tmux/PTY session, the selection write). Mirrors the Gesture
+Intent shape: decide purely, apply at the call site.
+_Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
+it); mixing the agent and doc pools; treating an empty pool as a valid resting state
+for a live target; folding the respawn effects into the decision (it returns whether
+to respawn; the component performs it).
+
 **Tool**:
 A capability the model can call during a chat turn (read*file, run_command,
 read_document, …). Each Tool's availability is scoped by Chat Target.
