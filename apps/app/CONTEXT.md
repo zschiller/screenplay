@@ -287,6 +287,17 @@ A reference (`{ kind, id }`) from a Group to the Iframe Layer or Markdown Layer
 it contains.
 _Avoid_: child, item.
 
+**Layer**:
+The umbrella for the two kinds of content a Group's Member references — an **Iframe
+Layer** or a **Markdown Layer**. Both are positioned in world space, selectable,
+draggable (group-move + merge) and resizable on the canvas; they differ only in
+content. The shared frame around either is the **Layer Shell**, and the shared
+gesture machinery (`useLayerDrag`, `useLayerResize`) and the common
+selection/position/drag/resize props are named for the Layer, not for one of its
+kinds.
+_Avoid_: using "Iframe Layer" as the generic (it is one kind, not the umbrella);
+naming shared layer machinery `*IframeLayer*` (it serves both kinds).
+
 **Iframe Layer**:
 A live preview pane on the canvas rendering a sandbox dev-server URL (or a blank
 frame). Belongs to exactly one Group.
@@ -297,6 +308,21 @@ A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
 the layer's collection record.
 _Avoid_: note, text layer.
+
+**Layer Shell**:
+The canvas frame that wraps either Layer kind: it owns the world-space container,
+the selection wiring, the drag (group-move / merge routing plus the deferred
+click-to-select), the resize handles, and the LayerTitleBar. An Iframe Layer and a
+Markdown Layer plug in as **content adapters** — the shell renders the frame, the
+adapter renders what's inside (the live preview, or the TipTap document) and its
+content-specific toolbar. Two adapters make the seam real (one adapter is a
+hypothetical seam, two is a real one). The Shell absorbs what was copy-pasted across
+the two layer components: the `handleDrag` selection routing, the
+`selectedOnPointerDown` deferred select, the group-label drag handlers, and the
+resize wiring.
+_Avoid_: layer wrapper (casual); putting content-specific behaviour (dev-server
+probe, editor, route picker, inline-comment bubble) in the Shell — that stays in the
+adapter; standing up a third Shell per future kind (one Shell, N content adapters).
 
 **Chat Session**:
 The _identity_ of a chat tab (id, label, target). The conversation itself —
@@ -330,6 +356,24 @@ backend's in-sandbox multiplexer, "Terminal Tab" for the UI surface); harness
 (that's the tool the operator runs _inside_ the tab — see Engine for why the
 app's own loop isn't one); calling the transport "ttyd" unqualified (it's ttyd on
 Vercel, node-pty on the desktop build).
+
+**Tab Pool**:
+The per-Chat-Target set of open tabs in the agent panel — a target's open Chat
+Sessions plus, for an agent (Branch) target, its Terminal Tabs — treated as one
+pool. **Invariant: while the target lives, its pool is never empty.** Closing the
+last tab respawns the user's **preferred default tab kind** (chat or terminal for an
+agent target; always a chat for a doc target), so the panel is never left blank.
+Agent chats and doc chats are **separate pools** — filtered by `branchId` vs
+`markdownLayerId`, since every doc chat shares an undefined `agentId` and would
+otherwise collide — and a doc target has no terminals. The close decision is a
+**pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
+selection, and whether to respawn); the component applies the effects (server
+actions, killing the tmux/PTY session, the selection write). Mirrors the Gesture
+Intent shape: decide purely, apply at the call site.
+_Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
+it); mixing the agent and doc pools; treating an empty pool as a valid resting state
+for a live target; folding the respawn effects into the decision (it returns whether
+to respawn; the component performs it).
 
 **Tool**:
 A capability the model can call during a chat turn (read*file, run_command,
@@ -520,6 +564,39 @@ derive-side counterpart to the Canvas Operation write seam: derive layout →
 gesture → commit via a Canvas Operation.
 _Avoid_: positions, coordinates (too vague); computing this geometry inline in a
 component.
+
+**Canvas Gesture**:
+The in-flight interaction stage of the Canvas — the middle of the triad **derive
+→ gesture → commit** (Canvas Layout derives, Canvas Operation commits). A
+React-free, Yjs-free state machine (`lib/canvas/gesture.ts`) that reduces pointer
+and key events against a **context snapshotted at gesture start** into the next
+gesture state plus a **Gesture Preview** (snap guides, merge rects, pop-out flag,
+marquee rect), and on release a **Gesture Intent**. One discriminated-union state
+so **exactly one gesture is active at a time** by construction — covering reorder
+(in-flow and meta-key pop-out), group move with merge-snap, edge/center move-snap,
+gap-resize, marquee, and device-resize. Its Preview feeds `deriveCanvasLayout`
+(which already takes the in-flight slice); it never derives geometry itself, and it
+never touches the Y.Doc — it emits a Gesture Intent the component applies. The Snap
+math it calls already lives behind its own seam (see **Snap**); the Canvas Gesture
+module is the orchestration around it that previously had no home (~700 lines smeared
+across `canvas.tsx`).
+_Avoid_: handler, drag state (casual); a separate machine per gesture (one FSM
+enforces the single-active invariant); mutating the Y.Doc from the gesture (it emits
+a Gesture Intent, never calls a Canvas Operation itself); recomputing layout inside
+the gesture (it emits a Preview that `deriveCanvasLayout` consumes).
+
+**Gesture Intent**:
+The descriptive result a completed Canvas Gesture emits — a discriminated union
+(`moveBy`, `reorderMember`, `mergeGroups`, `popOutToNewGroup`, `resizeLayer`,
+`setGroupGap`, `marqueeSelect`, …) that **describes** the committed change without
+performing it. The component applies each Intent: canvas-mutating ones through a
+Canvas Operation, selection-only ones (`marqueeSelect`) through local selection
+state. Because the gesture stops at the Intent, the Intent **is** the gesture
+module's test assertion — feed a synthetic pointer/key sequence, assert the Intent
+and the Snap Guides against plain values.
+_Avoid_: command, mutation (casual); conflating it with a Canvas Operation (the
+Intent describes, the Operation performs); assuming every Intent is a Y.Doc write
+(`marqueeSelect` changes selection only).
 
 **Snap**:
 Gesture-time alignment on the Canvas, computed by a React-free module
