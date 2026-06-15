@@ -85,11 +85,7 @@ import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 import { openExternal } from "@/lib/open-external"
-import {
-  DEFAULT_IFRAME_LAYER_WIDTH,
-  DEFAULT_IFRAME_LAYER_HEIGHT,
-  CANVAS_SIZE,
-} from "@/lib/constants"
+import { CANVAS_SIZE } from "@/lib/constants"
 import {
   computeIframeLayerLayouts,
   deriveCanvasLayout,
@@ -100,16 +96,16 @@ import {
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
 import type {
-  GestureIntent,
   MoveAssemblyGroup,
   ReorderMemberSnapshot,
 } from "@/lib/canvas/gesture"
 import { type RouteGroup } from "@/lib/canvas/route"
 import {
   useCanvasGesture,
-  type CanvasDrawTool,
   type CanvasGestureInputs,
 } from "./use-canvas-gesture"
+import { useDrawTool } from "./use-draw-tool"
+import { useGestureIntent } from "./use-gesture-intent"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
@@ -253,30 +249,6 @@ export function Canvas({
   const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<
     string | null
   >(null)
-  const [documentDraft, setDocumentDraft] = useState<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
-  const documentDraftRef = useRef<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
-  const [frameDraft, setFrameDraft] = useState<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
-  const frameDraftRef = useRef<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   // Figma-style wheel pan/zoom listener attaches to this wrapper; declared up
@@ -296,65 +268,6 @@ export function Canvas({
   // generic single-field `patch`. Trivial single-field writes below go through
   // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
   const ops = useMemo(() => createCanvasOps(collections), [collections])
-
-  // Canvas Operation: set a group's inter-member gap. Applied by the Canvas
-  // Gesture's `setGroupGap` intent on gap-resize release. Defined up here so the
-  // gesture hook (which forwards intents to it) can reference it.
-  const setGroupGap = useCallback(
-    (groupId: string, gap: number) => {
-      ops.patch("iframeLayerGroups", groupId, { gap: Math.max(0, gap) })
-    },
-    [ops]
-  )
-
-  // Canvas Operation: translate every group referenced by `ids` by (dx, dy).
-  // Applied by the Canvas Gesture's `moveBy` intent on each move. Defined up
-  // here so the gesture hook (which forwards intents to it) can reference it.
-  const moveIframeLayersByDelta = useCallback(
-    (ids: readonly string[], dx: number, dy: number) => {
-      const idSet = new Set(ids)
-      ops.batch(() => {
-        for (const g of collections.iframeLayerGroups.toArray()) {
-          if (getGroupMembers(g).some((m) => idSet.has(m.id))) {
-            ops.patch("iframeLayerGroups", g.id, { x: g.x + dx, y: g.y + dy })
-          }
-        }
-      })
-    },
-    [collections, ops]
-  )
-
-  // Canvas Operation: apply one device-resize step. Resizes the layer to the
-  // gesture's snapped size and shifts the parent group so the un-dragged edge
-  // stays pinned (the shift is non-zero only for left/top edge drags). Applied
-  // from the Canvas Gesture's `resizeLayer` intent on every resize move — the
-  // frame resizes live, as it did before the FSM port. Defined up here so the
-  // gesture hook can reference it.
-  const resizeLayer = useCallback(
-    (
-      iframeLayerId: string,
-      width: number,
-      height: number,
-      shiftX: number,
-      shiftY: number
-    ) => {
-      ops.batch(() => {
-        if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.iframeLayerGroups.toArray()) {
-            if (getGroupMembers(g).some((m) => m.id === iframeLayerId)) {
-              ops.patch("iframeLayerGroups", g.id, {
-                x: g.x + shiftX,
-                y: g.y + shiftY,
-              })
-              break
-            }
-          }
-        }
-        ops.patch("iframeLayers", iframeLayerId, { width, height })
-      })
-    },
-    [collections, ops]
-  )
 
   // Synced canvas collections — read by the controllers below (selection needs
   // the live Groups; the camera reads the saved viewport).
@@ -619,98 +532,11 @@ export function Canvas({
     resetHandleHover,
   } = useCanvasGesture(gestureInputsRef)
 
-  // Apply an emitted Gesture Intent: canvas-mutating intents through the Canvas
-  // Operations, selection-only ones (`marqueeSelect` / `selectMember`) through
-  // local selection state. The gesture itself never touches the Y.Doc.
-  const applyGestureIntent = useCallback(
-    (intent: GestureIntent) => {
-      switch (intent.type) {
-        case "setGroupGap":
-          setGroupGap(intent.groupId, intent.gap)
-          break
-        case "moveBy":
-          moveIframeLayersByDelta(intent.memberIds, intent.dx, intent.dy)
-          break
-        case "mergeGroups": {
-          // The target absorbs the source — its world (x, y) stays put, so the
-          // merged row stays where the user dropped onto. Read the source's
-          // members before the merge so selection can follow the dragged layers.
-          const source = collections.iframeLayerGroups.get(intent.sourceId)
-          const target = collections.iframeLayerGroups.get(intent.targetId)
-          if (!source || !target || source.id === target.id) break
-          const sourceMembers = getGroupMembers(source)
-          if (sourceMembers.length === 0) break
-          ops.mergeGroups(source.id, target.id)
-          // Keep the dragged layers selected rather than the merged target group.
-          // The source group is gone, so map its former members to individual
-          // iframe/document selections.
-          const draggedIframeIds = new Set<string>()
-          const draggedDocumentIds = new Set<string>()
-          for (const m of sourceMembers) {
-            if (m.kind === "iframe-layer") draggedIframeIds.add(m.id)
-            else if (m.kind === "markdown-layer") draggedDocumentIds.add(m.id)
-          }
-          setSelectedGroupIds(new Set())
-          setSelectedIframeLayerIds(draggedIframeIds)
-          setSelectedDocumentLayerIds(draggedDocumentIds)
-          break
-        }
-        case "reorderMember":
-          // In-flow reorder commits live: each tick the cursor crosses a sibling
-          // center, the gesture emits the new ordering and we write it.
-          ops.patch("iframeLayerGroups", intent.groupId, {
-            members: intent.members,
-          })
-          break
-        case "popOutToNewGroup": {
-          // Meta held at release → split the popped Member into a fresh Group
-          // anchored where it was floating; select it like the old inline path.
-          // Skip if the underlying layer vanished mid-drag so we never select a
-          // group that `splitToNewGroup` declined to create.
-          const exists =
-            collections.iframeLayers.get(intent.memberId) != null ||
-            collections.markdownLayers.get(intent.memberId) != null
-          if (!exists) break
-          const newGroupId = ops.splitToNewGroup([intent.memberId], {
-            x: intent.x,
-            y: intent.y,
-          })
-          setSelectedGroupIds(new Set([newGroupId]))
-          break
-        }
-        case "selectMember":
-          // Click-no-move from a Member's label falls through to plain
-          // selection — the same selection interface the click path uses.
-          selection.selectMember(intent.memberId, intent.kind, intent.additive)
-          break
-        // Selection-only intent: applied to local selection state, never the
-        // Y.Doc. A marquee never selects groups, so the interface clears them.
-        case "marqueeSelect":
-          selection.applyMarquee(intent.iframeLayerIds, intent.documentLayerIds)
-          break
-        case "resizeLayer":
-          resizeLayer(
-            intent.iframeLayerId,
-            intent.width,
-            intent.height,
-            intent.shiftX,
-            intent.shiftY
-          )
-          break
-      }
-    },
-    [
-      collections,
-      ops,
-      selection,
-      setGroupGap,
-      moveIframeLayersByDelta,
-      resizeLayer,
-      setSelectedGroupIds,
-      setSelectedIframeLayerIds,
-      setSelectedDocumentLayerIds,
-    ]
-  )
+  // Apply an emitted Gesture Intent — the gesture seam's commit side, owned by
+  // `useGestureIntent`: canvas-mutating intents through Canvas Operations,
+  // selection-only ones through the Canvas Selection controller. The gesture
+  // itself never touches the Y.Doc.
+  const applyGestureIntent = useGestureIntent({ collections, ops, selection })
 
   /**
    * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
@@ -1602,131 +1428,19 @@ export function Canvas({
     }
   }, [])
 
-  /**
-   * The draw-tool drafts (document / frame mode) the gesture seam shares its
-   * pointer handlers with but that aren't gestures — they create a layer rather
-   * than reducing through the FSM. The hook owns the handler ordering (drafts
-   * sit after reorder/gap, before marquee); this keeps the draft domain logic
-   * (default sizes, layer creation, selection) in the component.
-   */
-  const drawTool = useMemo<CanvasDrawTool>(
-    () => ({
-      beginDraft: (canvas) => {
-        if (documentMode) {
-          documentDraftRef.current = {
-            startX: canvas.x,
-            startY: canvas.y,
-            currentX: canvas.x,
-            currentY: canvas.y,
-          }
-          setDocumentDraft(documentDraftRef.current)
-        } else if (frameMode) {
-          frameDraftRef.current = {
-            startX: canvas.x,
-            startY: canvas.y,
-            currentX: canvas.x,
-            currentY: canvas.y,
-          }
-          setFrameDraft(frameDraftRef.current)
-        }
-      },
-      updateDraft: (canvas) => {
-        if (documentDraftRef.current) {
-          const next = {
-            ...documentDraftRef.current,
-            currentX: canvas.x,
-            currentY: canvas.y,
-          }
-          documentDraftRef.current = next
-          setDocumentDraft(next)
-          return true
-        }
-        if (frameDraftRef.current) {
-          const next = {
-            ...frameDraftRef.current,
-            currentX: canvas.x,
-            currentY: canvas.y,
-          }
-          frameDraftRef.current = next
-          setFrameDraft(next)
-          return true
-        }
-        return false
-      },
-      commitDraft: () => {
-        // Document-tool: release creates a new document layer. Click-without-drag
-        // uses a sensible default size; drag sets explicit bounds.
-        if (documentDraftRef.current) {
-          const d = documentDraftRef.current
-          documentDraftRef.current = null
-          setDocumentDraft(null)
-          const dx = d.currentX - d.startX
-          const dy = d.currentY - d.startY
-          const DEFAULT_W = 480
-          const DEFAULT_H = 640
-          let x: number
-          let y: number
-          let w: number
-          let h: number
-          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-            w = DEFAULT_W
-            h = DEFAULT_H
-            x = d.startX
-            y = d.startY
-          } else {
-            x = Math.min(d.startX, d.currentX)
-            y = Math.min(d.startY, d.currentY)
-            w = Math.max(200, Math.abs(dx))
-            h = Math.max(120, Math.abs(dy))
-          }
-          const id = addDocumentLayer(x, y, w, h)
-          toolMode.set("select")
-          setSelectedIframeLayerIds(new Set())
-          setSelectedDocumentLayerIds(new Set([id]))
-          setEditingDocumentLayerId(id)
-          return true
-        }
-        // Frame-tool: release creates a new empty frame.
-        if (frameDraftRef.current) {
-          const d = frameDraftRef.current
-          frameDraftRef.current = null
-          setFrameDraft(null)
-          const dx = d.currentX - d.startX
-          const dy = d.currentY - d.startY
-          let x: number
-          let y: number
-          let w: number
-          let h: number
-          if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
-            w = DEFAULT_IFRAME_LAYER_WIDTH
-            h = DEFAULT_IFRAME_LAYER_HEIGHT
-            x = d.startX - w / 2
-            y = d.startY - h / 2
-          } else {
-            x = Math.min(d.startX, d.currentX)
-            y = Math.min(d.startY, d.currentY)
-            w = Math.abs(dx)
-            h = Math.abs(dy)
-          }
-          const id = addFrame(x, y, w, h)
-          toolMode.set("select")
-          setSelectedDocumentLayerIds(new Set())
-          setSelectedIframeLayerIds(new Set([id]))
-          return true
-        }
-        return false
-      },
-    }),
-    [
-      documentMode,
-      frameMode,
-      addDocumentLayer,
-      addFrame,
-      toolMode,
-      setSelectedIframeLayerIds,
-      setSelectedDocumentLayerIds,
-    ]
-  )
+  // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
+  // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
+  // draws; the gesture seam shares its pointer stream with `drawTool`.
+  const { drawTool, documentDraft, frameDraft } = useDrawTool({
+    documentMode,
+    frameMode,
+    addDocumentLayer,
+    addFrame,
+    toolMode,
+    setSelectedIframeLayerIds,
+    setSelectedDocumentLayerIds,
+    setEditingDocumentLayerId,
+  })
 
   // Repopulate the gesture seam's inputs every render so its pointer handlers
   // read the latest geometry, mode flags, and Canvas Operations — the same
