@@ -4,11 +4,12 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
  * Tab Pool — the pure decision behind closing a chat or terminal tab
  * (`apps/app/CONTEXT.md`, "Tab Pool"). Given a target's pool and the tab being
  * closed, it returns what survives, where selection should land, and whether
- * the panel must respawn a default tab. It performs no effects: the caller
- * applies the outcome (`deleteTerminalTabAction`, `killTerminalSession`,
- * `addChatSession` / `createDefaultTabForBranch`, and the selection write),
- * mirroring the Gesture Intent / Canvas Operations "decide purely, apply at the
- * call site" shape. React-free and tested against plain values.
+ * the panel must respawn a default tab. It performs no effects: the caller —
+ * the Tab Pool controller (`useTabPool`, PRD #563) — applies the outcome
+ * (`deleteTerminalTabAction`, `killTerminalSession`, the chat add / `seed`
+ * respawn, and the selection write), mirroring the Gesture Intent / Canvas
+ * Operations "decide purely, apply at the call site" shape. React-free and
+ * tested against plain values.
  *
  * Two invariants live here so the two close handlers cannot drift apart:
  *

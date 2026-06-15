@@ -367,13 +367,19 @@ Agent chats and doc chats are **separate pools** — filtered by `branchId` vs
 `markdownLayerId`, since every doc chat shares an undefined `agentId` and would
 otherwise collide — and a doc target has no terminals. The close decision is a
 **pure function** (`resolveTabClose`: pool + closing tab → what survives, the next
-selection, and whether to respawn); the component applies the effects (server
-actions, killing the tmux/PTY session, the selection write). Mirrors the Gesture
-Intent shape: decide purely, apply at the call site.
+selection, and whether to respawn); the **Tab Pool controller** (`useTabPool`,
+PRD #563) applies the effects (server actions, killing the tmux/PTY session, the
+selection write) and exposes the apply-side as plain verbs — `open`, `close`,
+`remove`, `select`, `rename`, `reopen`, and the `seed` entry Branch Intake calls.
+The controller owns the chat-store and Y.Doc tab writes and the never-empty
+invariant; the component renders the strip and calls intent. Mirrors the Gesture
+Intent shape: decide purely, apply at the call site (the call site is the
+controller, not the component).
 _Avoid_: tab bar / tab list (that's the rendered strip; the Pool is the model behind
 it); mixing the agent and doc pools; treating an empty pool as a valid resting state
 for a live target; folding the respawn effects into the decision (it returns whether
-to respawn; the component performs it).
+to respawn; the controller performs it); re-implementing tab creation outside the
+controller (Branch Intake's seed step calls `useTabPool().seed`).
 
 **Tool**:
 A capability the model can call during a chat turn (read*file, run_command,
