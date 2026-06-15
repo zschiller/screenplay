@@ -151,14 +151,18 @@ import {
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
-  restartSandbox,
   recreateSandbox,
-  restartDevServer,
   reconnectSandbox,
   keepAliveSandbox,
   stopDevServers,
   deleteSandboxes,
 } from "@/lib/sandbox/lifecycle"
+import {
+  type BranchRecoveryDeps,
+  recreate as recreateBranchRecovery,
+  restartDevServer as restartDevServerRecovery,
+  restartSandbox as restartSandboxRecovery,
+} from "@/lib/branch/recovery"
 import { deleteBranch } from "@/lib/github-actions"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
@@ -3571,132 +3575,41 @@ export function Canvas({
     [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
   )
 
+  // The injected seams the Branch recovery verbs run over: the agent + repo
+  // lookups, the agent-store patch, and a sonner toast adapter. Built once per
+  // render of the inputs so each verb sees the current Branch/Repo state.
+  const recoveryDeps = useMemo<BranchRecoveryDeps>(
+    () => ({
+      findAgent: (id) => agents.find((a) => a.id === id),
+      findRepo: (repoId) => repos.find((w) => w.id === repoId),
+      patchAgent: updateAgentInStorage,
+      toast: {
+        success: (message) => toast.success(message),
+        error: (message, description) =>
+          toast.error(message, description ? { description } : undefined),
+      },
+    }),
+    [agents, repos, updateAgentInStorage]
+  )
+
+  // The three named recovery verbs, each a thin binding of the shared module to
+  // the live seams. Dev Server Restart stays the thin mid-turn path; Sandbox
+  // Restart and Recreate share the status-flip runner (see lib/branch/recovery).
   const handleRestartDevServer = useCallback(
-    async (id: string) => {
-      const agent = agents.find((a) => a.id === id)
-      if (!agent?.sandboxName) return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) {
-        toast.error("Couldn't restart dev server", {
-          description: "Workspace not found",
-        })
-        return
-      }
-
-      // No VM cycle and no status flip: bouncing the dev server leaves the
-      // Sandbox (and any in-flight agent turn) running, and the preview points
-      // at the same proxy port as before, so there's nothing to persist — the
-      // only signal is a toast. This is the one restart that stays available
-      // while the agent is working.
-      const result = await restartDevServer(agent.sandboxName, repo)
-      if (result.success) {
-        toast.success("Dev server restarted")
-      } else {
-        toast.error("Couldn't restart dev server", {
-          description: result.error || undefined,
-        })
-      }
-    },
-    [agents, repos]
+    (id: string) => restartDevServerRecovery(id, recoveryDeps),
+    [recoveryDeps]
   )
 
-  // "Restart sandbox": snapshot-restore onto a fresh VM, preserving the working
-  // tree. On a snapshot miss this now fails loud (no silent reclone) — surfaced
-  // as a toast — and the user can fall back to "Recreate from scratch".
   const handleRefreshAgent = useCallback(
-    async (id: string) => {
-      const agent = agents.find((a) => a.id === id)
-      if (!agent?.sandboxName) return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) {
-        updateAgentInStorage(id, {
-          status: "error",
-          error: "Workspace not found",
-        })
-        toast.error("Couldn't restart sandbox", {
-          description: "Workspace not found",
-        })
-        return
-      }
-
-      updateAgentInStorage(id, {
-        status: "starting",
-        statusMessage: "Restarting sandbox…",
-      })
-
-      const result = await restartSandbox(agent.sandboxName, repo)
-      if (result.success) {
-        updateAgentInStorage(id, {
-          sandboxName: result.value.sandboxName,
-          previewDomain: result.value.previewDomain || agent.previewDomain,
-          status: "running",
-          statusMessage: "",
-          error: "",
-        })
-        toast.success("Sandbox restarted")
-      } else {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: "",
-          error: result.error || "",
-        })
-        toast.error("Couldn't restart sandbox", {
-          description: result.error || undefined,
-        })
-      }
-    },
-    [agents, repos, updateAgentInStorage]
+    (id: string) => restartSandboxRecovery(id, recoveryDeps),
+    [recoveryDeps]
   )
 
-  // "Recreate from scratch": the explicit, destructive reclone from git. Runs
-  // only after the AlertDialog confirm in the sidebar, and discards the in-VM
-  // working tree (uncommitted changes included).
+  // "Recreate from scratch": runs only after the AlertDialog confirm in the
+  // sidebar, and discards the in-VM working tree (uncommitted changes included).
   const handleRecreateAgent = useCallback(
-    async (id: string) => {
-      const agent = agents.find((a) => a.id === id)
-      if (!agent?.sandboxName) return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) {
-        updateAgentInStorage(id, {
-          status: "error",
-          error: "Workspace not found",
-        })
-        toast.error("Couldn't recreate sandbox", {
-          description: "Workspace not found",
-        })
-        return
-      }
-
-      updateAgentInStorage(id, {
-        status: "starting",
-        statusMessage: "Recreating sandbox…",
-      })
-
-      const result = await recreateSandbox(agent.sandboxName, repo, agent.ref)
-      if (result.success) {
-        updateAgentInStorage(id, {
-          sandboxName: result.value.sandboxName,
-          previewDomain: result.value.previewDomain || agent.previewDomain,
-          status: "running",
-          statusMessage: "",
-          error: "",
-        })
-        toast.success("Sandbox recreated")
-      } else {
-        updateAgentInStorage(id, {
-          status: "error",
-          statusMessage: "",
-          error: result.error || "",
-        })
-        toast.error("Couldn't recreate sandbox", {
-          description: result.error || undefined,
-        })
-      }
-    },
-    [agents, repos, updateAgentInStorage]
+    (id: string) => recreateBranchRecovery(id, recoveryDeps),
+    [recoveryDeps]
   )
 
   const handleBranchRename = useCallback(
