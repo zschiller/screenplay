@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useMemo, useRef, useState } from "react"
 import { nanoid } from "nanoid"
 import type { Editor } from "@tiptap/core"
 
-import { chatStore } from "@/lib/chat-store"
+import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import {
   type ReferenceContext,
   resolveReference,
@@ -295,28 +295,32 @@ export function useElementReference(
       })
       if (decision.kind === "none") return
 
+      // The apply half is the shared Agent-prompt dispatch: create the fresh
+      // Chat Session, select the resolved target through the Chat-Target
+      // controller, and send. The reference's routing rules (frame → branch, doc
+      // selection → document, always a fresh chat) stay in `resolveReference`.
       const { session, select, send } = decision
-      inputs.addChatSession(session.id, session)
-
-      if (select.kind === "document") {
-        inputs.chatTarget.selectDocChat(select.documentId, select.chatId)
-        chatStore.sendMessage({
-          ...send,
-          onChatRename: (label) => inputs.onChatRename(select.chatId, label),
-        })
-      } else {
-        inputs.chatTarget.selectAgentChat(select.agentId, select.chatId, {
-          clearDocument: true,
-          remember: true,
-        })
-        chatStore.sendMessage({
-          ...send,
-          onBranchRename: (branch) =>
-            inputs.onBranchRename(select.agentId, branch),
-          onChatRename: (label) => inputs.onChatRename(select.chatId, label),
-        })
-      }
-      inputs.chatTarget.expandPanel()
+      dispatchPrompt(
+        {
+          session,
+          target:
+            select.kind === "document"
+              ? { kind: "document", documentId: select.documentId }
+              : { kind: "agent", agentId: select.agentId },
+          select:
+            select.kind === "document"
+              ? {}
+              : { clearDocument: true, remember: true },
+          expandPanel: true,
+          send,
+        },
+        {
+          addChatSession: inputs.addChatSession,
+          chatTarget: inputs.chatTarget,
+          onChatRename: inputs.onChatRename,
+          onBranchRename: inputs.onBranchRename,
+        }
+      )
     },
     [inputsRef]
   )

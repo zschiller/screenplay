@@ -6,8 +6,6 @@ import {
   TransformComponent,
   type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch"
-import { nanoid } from "nanoid"
-import { toast } from "sonner"
 import {
   useBranches,
   useIframeLayerGroups,
@@ -85,12 +83,7 @@ import {
   keepAliveSandbox,
   stopDevServers,
 } from "@/lib/sandbox/lifecycle"
-import {
-  type BranchRecoveryDeps,
-  recreate as recreateBranchRecovery,
-  restartDevServer as restartDevServerRecovery,
-  restartSandbox as restartSandboxRecovery,
-} from "@/lib/branch/recovery"
+import { useBranchActions } from "@/components/canvas/use-branch-actions"
 import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { useChatTarget } from "@/components/canvas/use-chat-target"
 import {
@@ -101,7 +94,6 @@ import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
-import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import {
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -1828,110 +1820,6 @@ export function Canvas({
 
   const handleSelectAgent = chatTarget.selectAgent
 
-  const handleRebaseOnDefault = useCallback(
-    (agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName || !agent.ref) return
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) return
-
-      const message = `Rebase this branch onto the latest \`origin/${repo.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
-
-      const existingChats = chatSessions
-        .filter((c) => c.branchId === agentId && !c.closedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-      const remembered = chatTarget.rememberedAgentChatId(agentId)
-      const targetChat =
-        existingChats.find((c) => c.id === remembered) ?? existingChats[0]
-
-      let chatId: string
-      let planMode: boolean | undefined
-      let model: string | undefined
-      const targetBusy = targetChat
-        ? chatStore.getSnapshot(targetChat.id).isStreaming ||
-          targetChat.isStreaming === true
-        : false
-
-      if (!targetChat || targetBusy) {
-        chatId = nanoid()
-        addChatSession(chatId, {
-          id: chatId,
-          branchId: agentId,
-          label: "Untitled",
-          createdAt: Date.now(),
-        })
-      } else {
-        chatId = targetChat.id
-        planMode = targetChat.planMode
-        model = targetChat.model
-      }
-
-      const isFirstChat = !chatSessions.some(
-        (c) => c.branchId === agentId && c.id !== chatId
-      )
-
-      chatStore.sendMessage({
-        roomId,
-        chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message,
-        isFirstChat,
-        autoNamedBranch: agent.autoNamedBranch,
-        planMode,
-        model,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, {
-            ref: branch,
-            autoNamedBranch: false,
-          }),
-        onChatRename: (label) => updateChatSession(chatId, { label }),
-      })
-
-      chatTarget.selectAgentChat(agentId, chatId, { expandPanel: true })
-    },
-    [
-      agents,
-      repos,
-      chatSessions,
-      roomId,
-      addChatSession,
-      updateChatSession,
-      updateAgentInStorage,
-      chatTarget,
-    ]
-  )
-
-  // Open a GitHub PR for a branch directly — the deterministic server action
-  // (#355), no model turn. Shared by the Branch menu's "Create pull request"
-  // item and the chat panel's button (which calls the action itself); both
-  // surface the same toast. Disabled-while-busy is enforced at each trigger.
-  const handleCreatePullRequest = useCallback(
-    async (agentId: string) => {
-      const agent = agents.find((a) => a.id === agentId)
-      if (!agent?.sandboxName) return
-      const result = await createPullRequestAction(roomId, agent.sandboxName)
-      if (result.success) {
-        const { url, number } = result.value
-        // Write the source of truth immediately so the sidebar icon, branch
-        // menu, and chat button reflect the open PR now — not on the next poll.
-        setBranchPr(agentId, { number, url, state: "open" })
-        toast.success("Pull request created", {
-          description: `#${number}`,
-          action: {
-            label: "View on GitHub",
-            onClick: () => openExternal(url),
-          },
-        })
-      } else {
-        toast.error("Couldn't create pull request", {
-          description: result.error,
-        })
-      }
-    },
-    [agents, roomId, setBranchPr]
-  )
-
   // Repopulate the Element Reference controller's live inputs every render so
   // its placement verbs and `sendReference` read the current snapshots, the
   // Chat-Target controller, and the canvas ops seam — without re-binding the
@@ -2004,42 +1892,23 @@ export function Canvas({
     chatTarget,
   })
 
-  // The injected seams the Branch recovery verbs run over: the agent + repo
-  // lookups, the agent-store patch, and a sonner toast adapter. Built once per
-  // render of the inputs so each verb sees the current Branch/Repo state.
-  const recoveryDeps = useMemo<BranchRecoveryDeps>(
-    () => ({
-      findAgent: (id) => agents.find((a) => a.id === id),
-      findRepo: (repoId) => repos.find((w) => w.id === repoId),
-      patchAgent: updateAgentInStorage,
-      toast: {
-        success: (message) => toast.success(message),
-        error: (message, description) =>
-          toast.error(message, description ? { description } : undefined),
-      },
-    }),
-    [agents, repos, updateAgentInStorage]
-  )
-
-  // The three named recovery verbs, each a thin binding of the shared module to
-  // the live seams. Dev Server Restart stays the thin mid-turn path; Sandbox
-  // Restart and Recreate share the status-flip runner (see lib/branch/recovery).
-  const handleRestartDevServer = useCallback(
-    (id: string) => restartDevServerRecovery(id, recoveryDeps),
-    [recoveryDeps]
-  )
-
-  const handleRefreshAgent = useCallback(
-    (id: string) => restartSandboxRecovery(id, recoveryDeps),
-    [recoveryDeps]
-  )
-
-  // "Recreate from scratch": runs only after the AlertDialog confirm in the
-  // sidebar, and discards the in-VM working tree (uncommitted changes included).
-  const handleRecreateAgent = useCallback(
-    (id: string) => recreateBranchRecovery(id, recoveryDeps),
-    [recoveryDeps]
-  )
+  // Branch Actions controller (PRD #577, Module A): the Branch menu's
+  // git / sandbox-lifecycle family — rebase, create PR, restart dev server,
+  // restart sandbox, recreate — lifted into `useBranchActions`. The component's
+  // menu handlers shrink to thin calls into these verbs; the conflict-risk
+  // routing (ADR 0005) lives in the pure core (`lib/branch/actions`), and the
+  // engine route applies Module B's `dispatchPrompt`.
+  const branchActions = useBranchActions({
+    agents,
+    repos,
+    chatSessions,
+    roomId,
+    chatTarget,
+    addChatSession,
+    updateChatSession,
+    updateAgentInStorage,
+    setBranchPr,
+  })
 
   useEffect(() => {
     inspectHandlersRef.current = {
@@ -2661,11 +2530,11 @@ export function Canvas({
             onRemoveRepo={removeRepoIntake}
             onCreateBranchFromGitBranch={createBranchFromGitBranch}
             onCreateWorkspace={createBranch}
-            onRebaseOnDefault={handleRebaseOnDefault}
-            onRestartDevServer={handleRestartDevServer}
-            onCreatePr={handleCreatePullRequest}
-            onRefreshBranch={handleRefreshAgent}
-            onRecreateBranch={handleRecreateAgent}
+            onRebaseOnDefault={branchActions.rebaseOnDefault}
+            onRestartDevServer={branchActions.restartDevServer}
+            onCreatePr={branchActions.createPullRequest}
+            onRefreshBranch={branchActions.restartSandbox}
+            onRecreateBranch={branchActions.recreate}
             onRemoveBranch={removeBranchIntake}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}
