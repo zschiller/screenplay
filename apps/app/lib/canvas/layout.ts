@@ -452,6 +452,13 @@ export type DeriveCanvasLayoutInput = {
    * update the instant a member lifts, before the cursor has moved.
    */
   poppedMemberId: string | null
+  /**
+   * In-flight gap override from an active gap-resize gesture: one group's gap
+   * is replaced so the row reflows live while dragging, before the
+   * `setGroupGap` Canvas Operation commits on release. Part of the in-flight
+   * slice the Gesture Preview feeds — geometry stays in this module.
+   */
+  gapOverride?: { groupId: string; gap: number } | null
 }
 
 /**
@@ -464,13 +471,22 @@ export function deriveCanvasLayout(
   input: DeriveCanvasLayoutInput
 ): CanvasLayout {
   const {
-    groups,
+    groups: rawGroups,
     iframeLayers,
     markdownLayers,
     selection,
     activeReorderDrag,
     poppedMemberId,
+    gapOverride,
   } = input
+  // Apply the in-flight gap override up front so every downstream derivation
+  // (layouts, gap handles, placeholders) sees the previewed gap — the gesture
+  // doesn't recompute geometry, it just swaps one group's gap.
+  const groups = gapOverride
+    ? rawGroups.map((g) =>
+        g.id === gapOverride.groupId ? { ...g, gap: gapOverride.gap } : g
+      )
+    : rawGroups
   const base = computeIframeLayerLayouts(groups, iframeLayers, markdownLayers)
   const layouts = computeEffectiveLayouts(
     base,
