@@ -106,12 +106,8 @@ import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
 import {
-  anchorCornerForEdge,
-  computeDeviceSnap,
-  type AnchorCorner,
   type MergeSnapCandidate,
   type ResizeEdge,
-  type SnapCandidate,
   type Rect as MoveSnapRect,
 } from "@/lib/canvas/snap"
 import { Comments } from "./comments"
@@ -555,6 +551,38 @@ export function Canvas({
     },
     [collections, ops]
   )
+
+  // Canvas Operation: apply one device-resize step. Resizes the layer to the
+  // gesture's snapped size and shifts the parent group so the un-dragged edge
+  // stays pinned (the shift is non-zero only for left/top edge drags). Applied
+  // from the Canvas Gesture's `resizeLayer` intent on every resize move — the
+  // frame resizes live, as it did before the FSM port. Defined up here so the
+  // gesture hook can reference it.
+  const resizeLayer = useCallback(
+    (
+      iframeLayerId: string,
+      width: number,
+      height: number,
+      shiftX: number,
+      shiftY: number
+    ) => {
+      ops.batch(() => {
+        if (shiftX !== 0 || shiftY !== 0) {
+          for (const g of collections.iframeLayerGroups.toArray()) {
+            if (getGroupMembers(g).some((m) => m.id === iframeLayerId)) {
+              ops.patch("iframeLayerGroups", g.id, {
+                x: g.x + shiftX,
+                y: g.y + shiftY,
+              })
+              break
+            }
+          }
+        }
+        ops.patch("iframeLayers", iframeLayerId, { width, height })
+      })
+    },
+    [collections, ops]
+  )
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
   // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
@@ -949,8 +977,8 @@ export function Canvas({
     iframeLayerLayoutsRef.current = iframeLayerLayouts
   })
 
-  // Canvas Gesture FSM (gap-resize + reorder + group-move/merge so far;
-  // remaining gestures port in per #535). The hook holds the gesture state,
+  // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
+  // device-resize — the full #535 migration). The hook holds the gesture state,
   // exposes the Gesture Preview fed into `deriveCanvasLayout` and the overlays
   // below, and applies emitted Gesture Intents through the Canvas Operations —
   // the gesture itself never touches the Y.Doc.
@@ -1050,6 +1078,15 @@ export function Canvas({
         setSelectedGroupIds(new Set())
         setSelectedIframeLayerIds(new Set(intent.iframeLayerIds))
         setSelectedDocumentLayerIds(new Set(intent.documentLayerIds))
+        break
+      case "resizeLayer":
+        resizeLayer(
+          intent.iframeLayerId,
+          intent.width,
+          intent.height,
+          intent.shiftX,
+          intent.shiftY
+        )
         break
     }
   })
@@ -1732,27 +1769,11 @@ export function Canvas({
   )
 
   /**
-   * Per-gesture resize state. The hook emits raw screen-derived deltas every
-   * pointer move; we accumulate them against the iframeLayer's size at gesture
-   * start so the snap math sees the *un-snapped* proposed size, not the
-   * already-snapped value we wrote on the previous frame. Without that, once
-   * the iframeLayer locked onto a preset the cumulative delta would never reach
-   * the next preset.
-   */
-  const resizeRawRef = useRef<{
-    iframeLayerId: string
-    edge: ResizeEdge
-    initialWidth: number
-    initialHeight: number
-    rawDw: number
-    rawDh: number
-  } | null>(null)
-
-  /**
    * Holding cmd/meta (or ctrl on non-Mac) during a resize disables the
    * device-size snap so the user can fine-tune freely past a preset.
    * Tracked via window listeners so it stays accurate even between pointer
-   * moves (e.g. user presses cmd while idle on a preset width).
+   * moves (e.g. user presses cmd while idle on a preset width). Read when
+   * building each `resizeMove` event fed to the Canvas Gesture FSM.
    */
   const resizeMetaHeldRef = useRef(false)
   useEffect(() => {
@@ -1767,29 +1788,29 @@ export function Canvas({
     }
   }, [])
 
-  /** Snap underlay state — drives the device-size ghosts shown during a resize. */
-  const [resizeSnap, setResizeSnap] = useState<{
-    iframeLayerId: string
-    edge: ResizeEdge
-    anchor: AnchorCorner
-    candidates: SnapCandidate[]
-    snappedPresetId: string | null
-  } | null>(null)
-
+  // Device-resize runs through the Canvas Gesture FSM (#545): start snapshots
+  // the layer's size + edge, each move feeds the raw delta through
+  // `reduceGesture` (which orchestrates `computeDeviceSnap`), and the emitted
+  // `resizeLayer` intent commits the live resize via the `resizeLayer` Canvas
+  // Operation above. The device-size ghosts come from the Gesture Preview.
   const handleResizeStart = useCallback(
     (id: string, edge: ResizeEdge) => {
       const a = collections.iframeLayers.get(id)
       if (!a) return
-      resizeRawRef.current = {
-        iframeLayerId: id,
-        edge,
-        initialWidth: a.width,
-        initialHeight: a.height,
-        rawDw: 0,
-        rawDh: 0,
-      }
+      dispatchGesture({
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: id,
+            edge,
+            initialWidth: a.width,
+            initialHeight: a.height,
+          },
+        },
+      })
     },
-    [collections]
+    [collections, dispatchGesture]
   )
 
   const handleResizeEnd = useCallback(() => {
@@ -1797,118 +1818,45 @@ export function Canvas({
     // matches and the manifest discards it (see `buildThumbnailManifest`). Mark
     // the frame dirty so the heartbeat recaptures it at the new size — but only
     // when the size actually changed, so grabbing and releasing a handle without
-    // dragging doesn't trigger a needless recapture.
-    const raw = resizeRawRef.current
-    if (raw) {
-      const a = collections.iframeLayers.get(raw.iframeLayerId)
-      if (
-        a &&
-        (a.width !== raw.initialWidth || a.height !== raw.initialHeight)
-      ) {
-        captureTracker.markDirty(raw.iframeLayerId)
-      }
+    // dragging doesn't trigger a needless recapture. The FSM holds the start
+    // and current size, so read them before dispatching the release.
+    const st = getGestureState()
+    if (
+      st.kind === "resize" &&
+      (st.device.width !== st.ctx.initialWidth ||
+        st.device.height !== st.ctx.initialHeight)
+    ) {
+      captureTracker.markDirty(st.ctx.iframeLayerId)
     }
-    resizeRawRef.current = null
-    setResizeSnap(null)
-  }, [collections, captureTracker])
+    dispatchGesture({ type: "release" })
+  }, [getGestureState, dispatchGesture, captureTracker])
 
   /**
-   * Resize handler from a single iframeLayer's edge.
-   * - (dx, dy) shifts the iframeLayer's parent group by that delta — non-zero
-   *   only for top (`dy`) and left (`dx`) edges, so the group anchor follows
-   *   the dragged edge while the right/bottom stays put.
-   * - (dw, dh) is applied to this iframeLayer's own width/height (clamped to
-   *   the 320×200 minimum). Other iframeLayers in the group keep their size.
-   * - `edge` lets us snap to nearby device-size presets and emit the
-   *   underlay state used to render their ghosts.
+   * `onResize` callback from a single iframeLayer's edge. The hook emits raw
+   * screen-derived size deltas (`dw`, `dh`) every pointer move; we forward them
+   * (with the live meta-snap-bypass flag and zoom) to the gesture FSM, which
+   * accumulates them, runs the device snap, and emits the `resizeLayer` intent.
+   * The `dx`/`dy` the hook also sends are redundant — the FSM derives the
+   * group-anchor shift from the dragged edge — so they're ignored here.
    */
   const resizeIframeLayerEdge = useCallback(
     (
-      id: string,
-      edge: ResizeEdge,
-      dx: number,
-      dy: number,
+      _id: string,
+      _edge: ResizeEdge,
+      _dx: number,
+      _dy: number,
       dw: number,
       dh: number
     ) => {
-      ops.batch(() => {
-        const a = collections.iframeLayers.get(id)
-        if (!a) return
-
-        // Initialize raw state lazily if startResize didn't fire — defensive
-        // against any future call sites that bypass the gesture lifecycle.
-        if (
-          !resizeRawRef.current ||
-          resizeRawRef.current.iframeLayerId !== id
-        ) {
-          resizeRawRef.current = {
-            iframeLayerId: id,
-            edge,
-            initialWidth: a.width,
-            initialHeight: a.height,
-            rawDw: 0,
-            rawDh: 0,
-          }
-        }
-
-        const rs = resizeRawRef.current
-        rs.rawDw += dw
-        rs.rawDh += dh
-        const rawWidth = Math.max(
-          MIN_IFRAME_LAYER_WIDTH,
-          rs.initialWidth + rs.rawDw
-        )
-        const rawHeight = Math.max(
-          MIN_IFRAME_LAYER_HEIGHT,
-          rs.initialHeight + rs.rawDh
-        )
-
-        // Cmd/meta held → bypass snap entirely (no candidates, no lock).
-        const snap = resizeMetaHeldRef.current
-          ? {
-              candidates: [],
-              width: rawWidth,
-              height: rawHeight,
-              snappedPresetId: null,
-              snappedOrientation: null,
-            }
-          : computeDeviceSnap({ edge, rawWidth, rawHeight, zoom })
-        const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, snap.width)
-        const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, snap.height)
-        const actualDw = newWidth - a.width
-        const actualDh = newHeight - a.height
-        // The resize hook only sends a non-zero `dx`/`dy` for left/top edge
-        // drags (where `dx ≈ -dw` and `dy ≈ -dh`). Once the iframeLayer hits its
-        // minimum, `actualDw`/`actualDh` shrink toward 0 — mirror them with
-        // the opposite sign so the group anchor stays pinned to the
-        // un-dragged side instead of marching off with the cursor.
-        const shiftX = dx === 0 ? 0 : -actualDw
-        const shiftY = dy === 0 ? 0 : -actualDh
-        if (shiftX !== 0 || shiftY !== 0) {
-          for (const g of collections.iframeLayerGroups.toArray()) {
-            if (getGroupMembers(g).some((m) => m.id === id)) {
-              ops.patch("iframeLayerGroups", g.id, {
-                x: g.x + shiftX,
-                y: g.y + shiftY,
-              })
-              break
-            }
-          }
-        }
-        if (actualDw !== 0 || actualDh !== 0) {
-          ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
-        }
-
-        setResizeSnap({
-          iframeLayerId: id,
-          edge,
-          anchor: anchorCornerForEdge(edge),
-          candidates: snap.candidates,
-          snappedPresetId: snap.snappedPresetId,
-        })
+      dispatchGesture({
+        type: "resizeMove",
+        dw,
+        dh,
+        metaHeld: resizeMetaHeldRef.current,
+        zoom,
       })
     },
-    [collections, ops, zoom]
+    [dispatchGesture, zoom]
   )
 
   const renameIframeLayer = useCallback(
@@ -5083,6 +5031,7 @@ export function Canvas({
               zoom={zoom}
               viewportPos={viewportPos}
               iframeLayerRect={(() => {
+                const resizeSnap = gesturePreview.resizeSnap
                 if (!resizeSnap) return null
                 const layout = effectiveIframeLayerLayouts.get(
                   resizeSnap.iframeLayerId
@@ -5095,9 +5044,11 @@ export function Canvas({
                   height: layout.height,
                 }
               })()}
-              anchor={resizeSnap?.anchor ?? "tl"}
-              candidates={resizeSnap?.candidates ?? []}
-              snappedPresetId={resizeSnap?.snappedPresetId ?? null}
+              anchor={gesturePreview.resizeSnap?.anchor ?? "tl"}
+              candidates={gesturePreview.resizeSnap?.candidates ?? []}
+              snappedPresetId={
+                gesturePreview.resizeSnap?.snappedPresetId ?? null
+              }
             />
 
             <GroupMergeUnderlay
@@ -5598,7 +5549,9 @@ export function Canvas({
               documentDraft={documentDraft}
               othersSelections={othersSelections}
               snapGuides={gesturePreview.snapGuides}
-              isResizeSnapped={resizeSnap?.snappedPresetId != null}
+              isResizeSnapped={
+                gesturePreview.resizeSnap?.snappedPresetId != null
+              }
               inspectRect={(() => {
                 // Show the live hover overlay while in commentMode so the
                 // user can see what element they're about to anchor to.
