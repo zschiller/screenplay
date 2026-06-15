@@ -14,7 +14,7 @@ import {
 } from "unique-names-generator"
 
 import { withBasePath } from "@/lib/base-path"
-import { chatStore } from "@/lib/chat-store"
+import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
 import { renameAgentBranch } from "@/lib/sandbox/git"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
@@ -598,25 +598,42 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       if (agent.status !== "running" || !agent.sandboxName || !agent.ref)
         continue
       pendingPromptsRef.current.delete(agent.id)
-      chatStore.sendMessage({
-        roomId,
-        chatId: queued.chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message: queued.prompt,
-        isFirstChat: true,
-        autoNamedBranch: agent.autoNamedBranch,
-        model: queued.model,
-        planMode: queued.planMode,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agent.id, {
-            ref: branch,
-            autoNamedBranch: false,
-          }),
-        onChatRename: (label) => updateChatSession(queued.chatId, { label }),
-      })
+      // The seed fires through the shared Agent-prompt dispatch. Its Chat
+      // Session already exists (created in the same transaction as the Branch),
+      // so nothing is created; selection stays deferred to the pending-ready
+      // flow, so the dispatch must not select. Always the agent's first chat.
+      dispatchPrompt(
+        {
+          session: null,
+          target: { kind: "agent", agentId: agent.id },
+          select: false,
+          expandPanel: false,
+          send: {
+            roomId,
+            chatId: queued.chatId,
+            sandboxName: agent.sandboxName,
+            branch: agent.ref,
+            message: queued.prompt,
+            isFirstChat: true,
+            autoNamedBranch: agent.autoNamedBranch,
+            model: queued.model,
+            planMode: queued.planMode,
+          },
+        },
+        {
+          addChatSession: ops.addChatSession,
+          chatTarget,
+          onChatRename: (chatId, label) =>
+            updateChatSession(chatId, { label }),
+          onBranchRename: (agentId, branch) =>
+            updateAgentInStorage(agentId, {
+              ref: branch,
+              autoNamedBranch: false,
+            }),
+        }
+      )
     }
-  }, [agents, roomId, updateAgentInStorage, updateChatSession])
+  }, [agents, ops, roomId, chatTarget, updateAgentInStorage, updateChatSession])
 
   const renameBranch = useCallback(
     async (agentId: string, rawBranch: string) => {

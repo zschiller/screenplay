@@ -102,6 +102,7 @@ import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 import { createPullRequestAction } from "@/lib/create-pr-action"
+import { dispatchPrompt, resolveTargetChat } from "@/lib/chat/agent-prompt"
 import { openExternal } from "@/lib/open-external"
 import {
   DEFAULT_IFRAME_LAYER_WIDTH,
@@ -1837,58 +1838,40 @@ export function Canvas({
 
       const message = `Rebase this branch onto the latest \`origin/${repo.defaultBranch}\`. Fetch first, then rebase. If conflicts come up, walk me through them before resolving.`
 
-      const existingChats = chatSessions
-        .filter((c) => c.branchId === agentId && !c.closedAt)
-        .sort((a, b) => a.createdAt - b.createdAt)
-      const remembered = chatTarget.rememberedAgentChatId(agentId)
-      const targetChat =
-        existingChats.find((c) => c.id === remembered) ?? existingChats[0]
-
-      let chatId: string
-      let planMode: boolean | undefined
-      let model: string | undefined
-      const targetBusy = targetChat
-        ? chatStore.getSnapshot(targetChat.id).isStreaming ||
-          targetChat.isStreaming === true
-        : false
-
-      if (!targetChat || targetBusy) {
-        chatId = nanoid()
-        addChatSession(chatId, {
-          id: chatId,
-          branchId: agentId,
-          label: "Untitled",
-          createdAt: Date.now(),
-        })
-      } else {
-        chatId = targetChat.id
-        planMode = targetChat.planMode
-        model = targetChat.model
-      }
-
-      const isFirstChat = !chatSessions.some(
-        (c) => c.branchId === agentId && c.id !== chatId
-      )
-
-      chatStore.sendMessage({
+      // The create-or-reuse decision is the shared Agent-prompt rule: reuse the
+      // remembered chat if still open, else the first open one, bumping to a
+      // fresh chat when that target is mid-turn so the running turn isn't
+      // clobbered.
+      const decision = resolveTargetChat({
         roomId,
-        chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
+        freshChatId: nanoid(),
+        createdAt: Date.now(),
         message,
-        isFirstChat,
-        autoNamedBranch: agent.autoNamedBranch,
-        planMode,
-        model,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agentId, {
-            ref: branch,
-            autoNamedBranch: false,
-          }),
-        onChatRename: (label) => updateChatSession(chatId, { label }),
+        agent,
+        chatSessions,
+        rememberedChatId: chatTarget.rememberedAgentChatId(agentId),
+        isBusy: (chatId) =>
+          chatStore.getSnapshot(chatId).isStreaming ||
+          chatSessions.find((c) => c.id === chatId)?.isStreaming === true,
       })
+      if (decision.kind === "none") return
 
-      chatTarget.selectAgentChat(agentId, chatId, { expandPanel: true })
+      dispatchPrompt(
+        {
+          session: decision.session,
+          target: { kind: "agent", agentId },
+          select: {},
+          expandPanel: true,
+          send: decision.send,
+        },
+        {
+          addChatSession,
+          chatTarget,
+          onChatRename: (chatId, label) => updateChatSession(chatId, { label }),
+          onBranchRename: (id, branch) =>
+            updateAgentInStorage(id, { ref: branch, autoNamedBranch: false }),
+        }
+      )
     },
     [
       agents,
