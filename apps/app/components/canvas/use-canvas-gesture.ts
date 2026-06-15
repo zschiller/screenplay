@@ -1,19 +1,25 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type RefObject,
 } from "react"
 import {
+  assembleMoveStart,
   EMPTY_PREVIEW,
   reduceGesture,
   type GestureEvent,
   type GestureIntent,
   type GesturePreview,
   type GestureState,
+  type MoveAssemblyGroup,
+  type MoveAssemblyLayout,
 } from "@/lib/canvas/gesture"
 import type { GapHandle, ReorderHandle } from "@/lib/canvas/layout"
 import {
+  assembleReorderStart,
+  hitTestGapHandle,
   hitTestMarquee,
   hitTestReorderHandle,
   routePointerToGesture,
@@ -22,6 +28,11 @@ import {
   type MarqueeLayout,
   type RouteGroup,
 } from "@/lib/canvas/route"
+import type { ResizeEdge } from "@/lib/canvas/snap"
+
+/** The gap handle the cursor hovers/drags — drives the wrapper's col-resize
+ *  cursor. Owned by the controller; the render tree reads it for the cursor. */
+export type ActiveGapHandle = { groupId: string; gapIndex: number }
 
 /**
  * The draw-tool drafts (document / frame mode) that share the canvas root's
@@ -83,16 +94,33 @@ export type CanvasGestureInputs = {
   marqueeLayouts: ReadonlyMap<string, MarqueeLayout>
   /** Markdown-layer ids (so the marquee hit-test classifies document hits). */
   markdownLayerIds: ReadonlySet<string>
-  /** Selection frozen into a marquee start's base. */
+  /** Selection frozen into a marquee start's base. Equal to the live selection
+   *  at populate time — also read by the Layer-initiated group-move assembly. */
   baseIframeLayerIds: ReadonlySet<string>
   baseDocumentLayerIds: ReadonlySet<string>
+  /** Selected whole-group ids — the move assembly routes a selected-group drag. */
+  selectedGroupIds: ReadonlySet<string>
 
   /** Draw-tool drafts that share the pointer handlers (document / frame mode). */
   drawTool: CanvasDrawTool
 
-  /** Re-hit-test the reorder dot at the release point so it drops back to its
-   *  hollow state when the cursor isn't over it. */
-  onReorderReleaseHover: (hit: ReorderHandle | null) => void
+  /** The canvas wrapper element — a Layer-initiated reorder captures the pointer
+   *  here so subsequent moves route through the wrapper's gesture handlers. */
+  getWrapper: () => HTMLElement | null
+  /** Build the move-start snapshots (groups + layouts) from the live collections
+   *  at drag start — kept lazy so the projection runs once per drag, not per
+   *  render. The pure `assembleMoveStart` turns these into the move `start`. */
+  getMoveAssembly: () => {
+    groups: readonly MoveAssemblyGroup[]
+    layouts: Iterable<MoveAssemblyLayout>
+  }
+  /** A frame's committed size at resize start (or `null` if it vanished). */
+  getIframeLayerSize: (id: string) => { width: number; height: number } | null
+  /** Mark a frame dirty so the thumbnail heartbeat recaptures it after a resize. */
+  markFrameDirty: (id: string) => void
+  /** Clear the component's hover-highlight when a group drag begins (sweeping
+   *  over siblings during a drag shouldn't paint a hover rect on each). */
+  clearLayerHover: () => void
 }
 
 /** True while a mode suppresses all gesture routing. */
@@ -133,6 +161,26 @@ export function useCanvasGesture(
   const stateRef = useRef<GestureState>({ kind: "idle" })
   const [preview, setPreview] = useState<GesturePreview>(EMPTY_PREVIEW)
 
+  // Gesture phase book-keeping the controller owns (lifted out of `canvas.tsx`).
+  // `activeGapHandle` and `hoveredReorderIframeLayerId` surface in the returned
+  // state where the render tree needs them (the wrapper cursor, the reorder dot
+  // highlight); `layerDraggingRef` gates the component's hover outline; the two
+  // *Held / Active refs feed the window key listeners below.
+  const [activeGapHandle, setActiveGapHandle] = useState<ActiveGapHandle | null>(
+    null
+  )
+  const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] =
+    useState<string | null>(null)
+  /** True while any Layer (frame or group) is being drag-moved — used to
+   *  suppress the hover outline so sweeping over siblings doesn't paint one. */
+  const layerDraggingRef = useRef(false)
+  /** True while a group-move gesture is in flight — gates the merge meta-key
+   *  listener that flips the merge preview the instant cmd is pressed/released. */
+  const [moveGestureActive, setMoveGestureActive] = useState(false)
+  /** Live cmd/meta state during a device-resize — read when building each
+   *  `resizeMove` event so the snap bypass stays accurate between pointer moves. */
+  const resizeMetaHeldRef = useRef(false)
+
   const dispatch = useCallback(
     (event: GestureEvent) => {
       const result = reduceGesture(stateRef.current, event)
@@ -145,6 +193,52 @@ export function useCanvasGesture(
 
   /** Current FSM state — read by the handlers (and the component) to route. */
   const getState = useCallback(() => stateRef.current, [])
+
+  // While a reorder is in flight, track meta-key changes even when the pointer
+  // isn't moving so the pop-out preview flips the instant cmd is pressed or
+  // released. The Preview's reorder slice tells us a reorder is active.
+  const reorderActive = preview.reorder != null
+  useEffect(() => {
+    if (!reorderActive) return
+    const onKey = (ev: KeyboardEvent) =>
+      dispatch({ type: "metaChange", meta: ev.metaKey })
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [reorderActive, dispatch])
+
+  // Flip the merge-snap preview the instant cmd/meta is pressed or released
+  // between moves — meta held drops the group freely instead of merging. The
+  // move gesture's FSM recomputes the merge preview from the `metaChange` event.
+  useEffect(() => {
+    if (!moveGestureActive) return
+    const onKey = (ev: KeyboardEvent) =>
+      dispatch({ type: "metaChange", meta: ev.metaKey })
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [moveGestureActive, dispatch])
+
+  // Holding cmd/meta during a resize disables the device-size snap so the user
+  // can fine-tune past a preset. Tracked via window listeners so it stays
+  // accurate between pointer moves (e.g. cmd pressed while idle on a preset).
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      resizeMetaHeldRef.current = ev.metaKey
+    }
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+  }, [])
 
   /**
    * Capture-phase: the reorder dot and gap handle sit over a member, so they
@@ -262,6 +356,59 @@ export function useCanvasGesture(
       if (!i) return
       const state = stateRef.current
 
+      // Handle-hover tracking runs on every wrapper move (a move-drag captures on
+      // the Layer, so the wrapper doesn't fire then — only reorder/gap drags,
+      // which capture on the wrapper, reach here mid-gesture). Track which gap
+      // handle and reorder dot the cursor is over so the wrapper shows the right
+      // cursor and the dot fills in; while dragging, lock to the dragged handle
+      // even if the cursor strays off it.
+      const hoverCanvas = toCanvas(i, e)
+      if (hoverCanvas) {
+        const nextGap: ActiveGapHandle | null =
+          state.kind === "gap"
+            ? { groupId: state.ctx.groupId, gapIndex: state.ctx.gapIndex }
+            : (() => {
+                const hit = hitTestGapHandle(
+                  i.gapHandles,
+                  hoverCanvas.x,
+                  hoverCanvas.y,
+                  i.zoom
+                )
+                return hit
+                  ? { groupId: hit.groupId, gapIndex: hit.gapIndex }
+                  : null
+              })()
+        setActiveGapHandle((prev) => {
+          if (
+            prev === nextGap ||
+            (prev &&
+              nextGap &&
+              prev.groupId === nextGap.groupId &&
+              prev.gapIndex === nextGap.gapIndex)
+          )
+            return prev
+          return nextGap
+        })
+
+        if (state.kind === "reorder") {
+          const draggedId = state.ctx.memberId
+          setHoveredReorderIframeLayerId((prev) =>
+            prev === draggedId ? prev : draggedId
+          )
+        } else {
+          const hit = hitTestReorderHandle(
+            i.reorderHandles,
+            hoverCanvas.x,
+            hoverCanvas.y,
+            i.zoom
+          )
+          const nextId = hit?.iframeLayerId ?? null
+          setHoveredReorderIframeLayerId((prev) =>
+            prev === nextId ? prev : nextId
+          )
+        }
+      }
+
       // Reorder drag: feed the live cursor + meta state to the FSM.
       if (state.kind === "reorder") {
         const canvas = toCanvas(i, e)
@@ -324,7 +471,7 @@ export function useCanvasGesture(
           canvas.y,
           i.zoom
         )
-        i.onReorderReleaseHover(hit)
+        setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null)
         return
       }
 
@@ -347,15 +494,221 @@ export function useCanvasGesture(
     [inputsRef, dispatch]
   )
 
+  // ── Layer-initiated gestures ──────────────────────────────────────────────
+  // The drag/resize that begin *on a Layer* (group move with edge/merge snap,
+  // in-flow reorder, device-resize) enter the same Canvas Gesture seam as the
+  // pointer-root gestures above — the Layer's drag/resize hook calls these
+  // controller handlers, which assemble the `start` context from plain snapshots
+  // (the pure `assembleMoveStart` / `assembleReorderStart`) and dispatch.
+
+  /**
+   * Begin a group move. Reads the live selection + group/layout snapshots, lets
+   * the pure {@link assembleMoveStart} decide which Groups translate and snapshot
+   * the edge-snap union/candidates and merge candidates, marks the gesture
+   * active, and dispatches the `move` start. The FSM then drives the live
+   * `moveBy` and (on release) `mergeGroups` intents.
+   */
+  const onGroupDragStart = useCallback(
+    (layerId: string) => {
+      const i = inputsRef.current
+      if (!i) return
+      layerDraggingRef.current = true
+      i.clearLayerHover()
+      const { groups, layouts } = i.getMoveAssembly()
+      const start = assembleMoveStart({
+        layerId,
+        selectedIframeLayerIds: i.baseIframeLayerIds,
+        selectedDocumentLayerIds: i.baseDocumentLayerIds,
+        selectedGroupIds: i.selectedGroupIds,
+        groups,
+        layouts,
+        zoom: i.zoom,
+      })
+      setMoveGestureActive(true)
+      dispatch({ type: "start", start })
+    },
+    [inputsRef, dispatch]
+  )
+
+  /**
+   * Group drag end: release the move gesture. Any merge commit (and the
+   * follow-on selection update) lands through the FSM's `mergeGroups` intent —
+   * the live position was already committed by the per-move `moveBy` intents.
+   */
+  const onGroupDragEnd = useCallback(
+    (metaKey: boolean) => {
+      layerDraggingRef.current = false
+      setMoveGestureActive(false)
+      dispatch({ type: "release", meta: metaKey })
+    },
+    [dispatch]
+  )
+
+  /**
+   * A group-move heartbeat from a Layer's drag hook. The dragged members, snap
+   * union/candidates, and merge candidates were snapshotted at start, so the
+   * move carries only the cumulative cursor delta and live meta state. The
+   * selected-vs-single-layer routing the Layers do (`onMoveSelected` vs
+   * `onMoveGroup`) collapses here — both feed the same gesture.
+   */
+  const onMove = useCallback(
+    (totalDx: number, totalDy: number, metaKey: boolean) => {
+      dispatch({ type: "move", cursor: { x: totalDx, y: totalDy }, meta: metaKey })
+    },
+    [dispatch]
+  )
+
+  /**
+   * Begin an in-flow reorder from a Layer-owned affordance (a member's name
+   * label). Mirrors the canvas reorder-dot path through the pure
+   * {@link assembleReorderStart}, but with `selectOnNoMove` so a click that never
+   * moves still selects the member. Returns `true` when the reorder took over the
+   * pointer; `false` for single-member groups where reorder doesn't apply.
+   */
+  const onRequestReorderDrag = useCallback(
+    (iframeLayerId: string, e: React.PointerEvent): boolean => {
+      const i = inputsRef.current
+      if (!i) return false
+      const group = i.groups.find((g) =>
+        g.members.some((m) => m.id === iframeLayerId)
+      )
+      if (!group || group.members.length < 2) return false
+      const wrapper = i.getWrapper()
+      const transform = i.getTransform()
+      if (!wrapper || !transform) return false
+      const rect = wrapper.getBoundingClientRect()
+      const canvas = screenToCanvas(e.clientX, e.clientY, rect, transform)
+      const start = assembleReorderStart({
+        iframeLayerId,
+        canvas,
+        groups: i.groups,
+        memberLayouts: i.memberLayouts,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        selectOnNoMove: true,
+      })
+      if (!start) return false
+      dispatch({ type: "start", start })
+      wrapper.setPointerCapture(e.pointerId)
+      e.stopPropagation()
+      e.preventDefault()
+      return true
+    },
+    [inputsRef, dispatch]
+  )
+
+  /**
+   * Device-resize start: snapshot the frame's size + dragged edge and begin the
+   * resize gesture. Each subsequent {@link onResize} feeds the raw delta through
+   * the FSM (which orchestrates the device snap); the `resizeLayer` intent
+   * commits the live resize.
+   */
+  const onResizeStart = useCallback(
+    (id: string, edge: ResizeEdge) => {
+      const i = inputsRef.current
+      if (!i) return
+      const size = i.getIframeLayerSize(id)
+      if (!size) return
+      dispatch({
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: id,
+            edge,
+            initialWidth: size.width,
+            initialHeight: size.height,
+          },
+        },
+      })
+    },
+    [inputsRef, dispatch]
+  )
+
+  /**
+   * A resize heartbeat from a single frame's edge. The hook emits raw
+   * screen-derived size deltas (`dw`, `dh`); forward them (with the live
+   * meta-snap-bypass flag and zoom) to the FSM, which accumulates them, runs the
+   * device snap, and emits the `resizeLayer` intent. The `id`/`edge`/`dx`/`dy`
+   * the hook also sends are redundant — the FSM holds the edge and derives the
+   * group-anchor shift — so they're ignored here.
+   */
+  const onResize = useCallback(
+    (
+      _id: string,
+      _edge: ResizeEdge,
+      _dx: number,
+      _dy: number,
+      dw: number,
+      dh: number
+    ) => {
+      const i = inputsRef.current
+      if (!i) return
+      dispatch({
+        type: "resizeMove",
+        dw,
+        dh,
+        metaHeld: resizeMetaHeldRef.current,
+        zoom: i.zoom,
+      })
+    },
+    [inputsRef, dispatch]
+  )
+
+  /**
+   * Resize end: a resize changes the frame's rect, so its retained thumbnail no
+   * longer matches — mark it dirty so the heartbeat recaptures it, but only when
+   * the size actually changed (grabbing and releasing a handle without dragging
+   * shouldn't trigger a recapture). The FSM holds the start and current size.
+   */
+  const onResizeEnd = useCallback(() => {
+    const i = inputsRef.current
+    const st = stateRef.current
+    if (
+      i &&
+      st.kind === "resize" &&
+      (st.device.width !== st.ctx.initialWidth ||
+        st.device.height !== st.ctx.initialHeight)
+    ) {
+      i.markFrameDirty(st.ctx.iframeLayerId)
+    }
+    dispatch({ type: "release" })
+  }, [inputsRef, dispatch])
+
+  /** Clear the handle-hover state (the wrapper's pointer-leave). */
+  const resetHandleHover = useCallback(() => {
+    setActiveGapHandle(null)
+    setHoveredReorderIframeLayerId(null)
+  }, [])
+
+  /** True while a Layer drag-move is in flight — the component reads this to
+   *  suppress the hover outline. */
+  const isLayerDragging = useCallback(() => layerDraggingRef.current, [])
+
   return {
     preview,
     dispatch,
     getState,
+    /** Gesture phase state surfaced for the render tree (cursor + dot highlight). */
+    activeGapHandle,
+    hoveredReorderIframeLayerId,
+    isLayerDragging,
+    resetHandleHover,
     handlers: {
       onPointerDownCapture,
       onPointerDown,
       onPointerMove,
       onPointerUp,
+    },
+    /** Callbacks the Layer components dispatch their drag/resize through. */
+    layerHandlers: {
+      onGroupDragStart,
+      onGroupDragEnd,
+      onMove,
+      onRequestReorderDrag,
+      onResizeStart,
+      onResize,
+      onResizeEnd,
     },
   }
 }

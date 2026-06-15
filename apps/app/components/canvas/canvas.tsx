@@ -86,11 +86,6 @@ import { MarkdownLayer, type InlineCommentDraft } from "./markdown-layer"
 import { formatQuoteForChat } from "@/lib/document-comments"
 import type { SendToChatContext } from "./comments"
 import { SelectionOverlay } from "./selection-overlay"
-import {
-  type MergeSnapCandidate,
-  type ResizeEdge,
-  type Rect as MoveSnapRect,
-} from "@/lib/canvas/snap"
 import { Comments } from "./comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
@@ -161,14 +156,10 @@ import {
 } from "@/lib/canvas/layout"
 import type {
   GestureIntent,
-  MoveGestureContext,
+  MoveAssemblyGroup,
   ReorderMemberSnapshot,
 } from "@/lib/canvas/gesture"
-import {
-  hitTestGapHandle as hitTestGapHandlePure,
-  hitTestReorderHandle as hitTestReorderHandlePure,
-  type RouteGroup,
-} from "@/lib/canvas/route"
+import { type RouteGroup } from "@/lib/canvas/route"
 import {
   useCanvasGesture,
   type CanvasDrawTool,
@@ -459,21 +450,6 @@ export function Canvas({
     currentX: number
     currentY: number
   } | null>(null)
-  const [activeGapHandle, setActiveGapHandle] = useState<{
-    groupId: string
-    gapIndex: number
-  } | null>(null)
-  /** True while any layer (frame or group) is being dragged — used to
-   *  suppress the hover outline so sweeping over sibling frames during a
-   *  drag doesn't paint a hover rect on each one in turn. */
-  const layerDraggingRef = useRef(false)
-  /**
-   * True while a group-move gesture is in flight. Gates the window key listener
-   * that flips the merge preview the instant cmd/meta is pressed or released
-   * (the move's edge-snap / merge-snap state now lives in the Canvas Gesture
-   * FSM; the Gesture Preview supplies the Snap Guides and merge rects).
-   */
-  const [moveGestureActive, setMoveGestureActive] = useState(false)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   // Figma-style wheel pan/zoom listener attaches to this wrapper; declared up
@@ -975,10 +951,14 @@ export function Canvas({
   // ordering cycle, exactly as the old geometry refs did.
   const gestureInputsRef = useRef<CanvasGestureInputs | null>(null)
   const {
-    dispatch: dispatchGesture,
     getState: getGestureState,
     preview: gesturePreview,
     handlers: canvasGestureHandlers,
+    layerHandlers: gestureLayerHandlers,
+    activeGapHandle,
+    hoveredReorderIframeLayerId,
+    isLayerDragging,
+    resetHandleHover,
   } = useCanvasGesture(gestureInputsRef)
 
   // Apply an emitted Gesture Intent: canvas-mutating intents through the Canvas
@@ -1078,21 +1058,6 @@ export function Canvas({
     ]
   )
 
-  // While a reorder is in flight, track meta-key changes even when the pointer
-  // isn't moving so the pop-out preview flips the instant cmd is pressed or
-  // released. The Preview's reorder slice tells us a reorder is active.
-  const reorderActive = gesturePreview.reorder != null
-  useEffect(() => {
-    if (!reorderActive) return
-    const onKey = (ev: KeyboardEvent) =>
-      dispatchGesture({ type: "metaChange", meta: ev.metaKey })
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("keyup", onKey)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("keyup", onKey)
-    }
-  }, [reorderActive, dispatchGesture])
   /**
    * Whole-Canvas geometry for the current frame: the effective (mid-gesture)
    * layout plus the placeholder rects and gap/reorder handle positions derived
@@ -1183,53 +1148,7 @@ export function Canvas({
   // member layer, which project these world-space values to screen-space.
   const placeholderRects = canvasLayout.placeholderRects
   const gapHandles = canvasLayout.gapHandles
-
-  const gapHandlesRef = useRef(gapHandles)
-
   const reorderHandles = canvasLayout.reorderHandles
-
-  const reorderHandlesRef = useRef(reorderHandles)
-  // Mirror the latest hit-test geometry into refs after commit (not during
-  // render) so the pointer hit-testers can read it without re-binding.
-  useEffect(() => {
-    gapHandlesRef.current = gapHandles
-    reorderHandlesRef.current = reorderHandles
-  })
-  const [hoveredReorderIframeLayerId, setHoveredReorderIframeLayerId] =
-    useState<string | null>(null)
-
-  /**
-   * Hit-test the reorder dots in screen-space — the visual is 12px across at
-   * any zoom, and we add a small pad so it stays grabbable at the edges.
-   */
-  const hitTestReorderHandle = useCallback(
-    (canvasX: number, canvasY: number, currentZoom: number) =>
-      hitTestReorderHandlePure(
-        reorderHandlesRef.current,
-        canvasX,
-        canvasY,
-        currentZoom
-      ),
-    []
-  )
-
-  /**
-   * World-space hit test against the entire gap area between two iframeLayers —
-   * matches the symaphore behavior where hovering anywhere in the gap reveals
-   * the handle. The 6px screen-space pad keeps the handle grabbable when the
-   * gap has been collapsed to 0 (cursor is then over the touching edge of an
-   * iframeLayer, but the canvas wrapper still picks the gap drag).
-   */
-  const hitTestGapHandle = useCallback(
-    (canvasX: number, canvasY: number, currentZoom: number) =>
-      hitTestGapHandlePure(
-        gapHandlesRef.current,
-        canvasX,
-        canvasY,
-        currentZoom
-      ),
-    []
-  )
 
   // `groupSelectedIframeLayerIds` (every member of a selected group) and
   // `overlaySelectedIds` (the iframe ∪ markdown union the overlay reads) are
@@ -1466,338 +1385,39 @@ export function Canvas({
     [markdownLayers]
   )
 
-  const requestReorderDrag = useCallback(
-    (iframeLayerId: string, e: React.PointerEvent): boolean => {
-      const group = collections.iframeLayerGroups
-        .toArray()
-        .find((g) => getGroupMembers(g).some((m) => m.id === iframeLayerId))
-      if (!group) return false
-      const member = getGroupMembers(group).find((m) => m.id === iframeLayerId)
-      if (!member) return false
-      if (getGroupMembers(group).length < 2) return false
-      const wrapper = canvasWrapperRef.current
-      if (!wrapper) return false
-      const transform = transformRef.current
-      if (!transform) return false
-      const rect = wrapper.getBoundingClientRect()
-      const { positionX, positionY, scale } = transform.state
-      const canvas = {
-        x: (e.clientX - rect.left - positionX) / scale,
-        y: (e.clientY - rect.top - positionY) / scale,
+  // Project the live collections into the plain snapshots the Layer-initiated
+  // group-move assembly (`assembleMoveStart`, called inside the gesture
+  // controller) reads: each group's anchor, gap, members, content-bbox size, and
+  // member sizes, plus every layer's world rect. Built lazily at drag start (not
+  // per render) so the per-group content/member sizes are computed once per drag,
+  // matching the cost profile of the old inline `handleLayerGroupDragStart`.
+  const buildMoveAssembly = useCallback(() => {
+    const allGroups = collections.iframeLayerGroups.toArray()
+    const abArr = collections.iframeLayers.toArray()
+    const docArr = collections.markdownLayers.toArray()
+    const groups: MoveAssemblyGroup[] = allGroups.map((g) => {
+      const members = getGroupMembers(g)
+      const memberSizes: Array<{ width: number; height: number }> = []
+      for (const m of members) {
+        const size =
+          m.kind === "iframe-layer"
+            ? collections.iframeLayers.get(m.id)
+            : collections.markdownLayers.get(m.id)
+        if (size) memberSizes.push({ width: size.width, height: size.height })
       }
-      const layout = iframeLayerLayoutsRef.current.get(iframeLayerId)
-      const grabOffset = layout
-        ? { x: canvas.x - layout.x, y: canvas.y - layout.y }
-        : { x: 0, y: 0 }
-      dispatchGesture({
-        type: "start",
-        start: {
-          kind: "reorder",
-          ctx: {
-            groupId: group.id,
-            memberId: iframeLayerId,
-            memberKind: member.kind,
-            groupX: group.x,
-            gap: groupGap(group),
-            grabOffset,
-            startCanvas: canvas,
-            startShiftKey: e.shiftKey,
-            // The name label is also a selection affordance, so a click that
-            // never moves should still select the member.
-            selectOnNoMove: true,
-          },
-          order: reorderOrderSnapshot(group),
-          meta: e.metaKey,
-        },
-      })
-      wrapper.setPointerCapture(e.pointerId)
-      e.stopPropagation()
-      e.preventDefault()
-      return true
-    },
-    [collections, dispatchGesture, reorderOrderSnapshot]
-  )
-
-  // Flip the merge-snap preview the instant cmd/meta is pressed or released
-  // between moves — meta held drops the group freely instead of merging. The
-  // move gesture's FSM recomputes the merge preview from the `metaChange` event.
-  useEffect(() => {
-    if (!moveGestureActive) return
-    const onKey = (ev: KeyboardEvent) =>
-      dispatchGesture({ type: "metaChange", meta: ev.metaKey })
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("keyup", onKey)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("keyup", onKey)
-    }
-  }, [moveGestureActive, dispatchGesture])
-
-  /**
-   * Called from a layer's drag hook the moment a group drag begins. Snapshots
-   * the move gesture's context — which members translate, the source group, the
-   * edge-snap union/candidates, and the merge candidates — and starts the
-   * Canvas Gesture FSM, which then drives the live `moveBy` and (on release)
-   * `mergeGroups` intents. Edge-snap and merge only arm for a single moving
-   * group: a multi-group drag is ambiguous (which group merges into which?), so
-   * it gets a plain move with no snap/merge.
-   */
-  const handleLayerGroupDragStart = useCallback(
-    (layerId: string) => {
-      layerDraggingRef.current = true
-      setHoveredIframeLayerId(null)
-      const sel = selection.current()
-      const selectedAb = sel.iframeLayerIds
-      const selectedDoc = sel.markdownLayerIds
-      const selectedGroups = sel.groupIds
-      const allGroups = collections.iframeLayerGroups.toArray()
-      const layerSelected = selectedAb.has(layerId) || selectedDoc.has(layerId)
-      const layerGroupSelected = allGroups.some(
-        (g) =>
-          selectedGroups.has(g.id) &&
-          getGroupMembers(g).some((m) => m.id === layerId)
-      )
-      // Collect every group this drag will translate, mirroring the move
-      // routing (see IframeLayer.handleDrag): grabbing a selected layer or a
-      // member of a selected group drags the whole selection — all selected
-      // frames' groups plus all selected groups; anything else drags just the
-      // grabbed layer's group. `moveMemberIds` are the representative ids whose
-      // groups the `moveBy` intent translates (one per selected group, plus
-      // every loose selected frame/doc), captured here so the move events stay
-      // delta-only.
-      const groupIds = new Set<string>()
-      const moveMemberIds: string[] = []
-      if (layerSelected || layerGroupSelected) {
-        for (const g of allGroups) {
-          if (
-            getGroupMembers(g).some(
-              (m) => selectedAb.has(m.id) || selectedDoc.has(m.id)
-            )
-          )
-            groupIds.add(g.id)
-        }
-        for (const gid of selectedGroups) groupIds.add(gid)
-        for (const id of selectedAb) moveMemberIds.push(id)
-        for (const id of selectedDoc) moveMemberIds.push(id)
-        for (const g of allGroups) {
-          if (!selectedGroups.has(g.id)) continue
-          const firstMember = getGroupMembers(g)[0]
-          if (firstMember) moveMemberIds.push(firstMember.id)
-        }
-      } else {
-        for (const g of allGroups) {
-          if (getGroupMembers(g).some((m) => m.id === layerId))
-            groupIds.add(g.id)
-        }
-        moveMemberIds.push(layerId)
+      return {
+        id: g.id,
+        x: g.x,
+        y: g.y,
+        gap: groupGap(g),
+        members: members.map((m) => ({ kind: m.kind, id: m.id })),
+        contentWidth: groupContentWidth(g, abArr, docArr),
+        contentHeight: groupContentHeight(g, abArr, docArr),
+        memberSizes,
       }
-
-      const zoom = transformRef.current?.state.scale ?? 1
-      // Edge-snap and merge only arm for a single moving group.
-      const sourceGroupId =
-        groupIds.size === 1 ? (groupIds.values().next().value as string) : null
-
-      // Merge-snap setup. The merge targets are every *other* non-empty group's
-      // trailing "+ frame" slot; those don't move during this drag, so capture
-      // them — along with the dragged group's member sizes — once here. The
-      // source's live position is `sourceStart + appliedTranslation`, tracked
-      // inside the FSM.
-      let sourceStart: MoveGestureContext["sourceStart"] = null
-      let merge: MoveGestureContext["merge"] = null
-      if (sourceGroupId) {
-        const sourceGroup = collections.iframeLayerGroups.get(sourceGroupId)
-        if (sourceGroup) {
-          sourceStart = { x: sourceGroup.x, y: sourceGroup.y }
-          const abArr = collections.iframeLayers.toArray()
-          const docArr = collections.markdownLayers.toArray()
-          const memberSizes: Array<{ width: number; height: number }> = []
-          for (const m of getGroupMembers(sourceGroup)) {
-            const size =
-              m.kind === "iframe-layer"
-                ? collections.iframeLayers.get(m.id)
-                : collections.markdownLayers.get(m.id)
-            if (size)
-              memberSizes.push({ width: size.width, height: size.height })
-          }
-          const mergeCandidates: MergeSnapCandidate[] = []
-          for (const target of allGroups) {
-            if (target.id === sourceGroupId) continue
-            if (getGroupMembers(target).length === 0) continue
-            mergeCandidates.push({
-              id: target.id,
-              rect: {
-                x: target.x,
-                y: target.y,
-                width: groupContentWidth(target, abArr, docArr),
-                height: groupContentHeight(target, abArr, docArr),
-              },
-              gap: groupGap(target),
-            })
-          }
-          merge = {
-            sourceContentW: groupContentWidth(sourceGroup, abArr, docArr),
-            sourceContentH: groupContentHeight(sourceGroup, abArr, docArr),
-            memberSizes,
-            candidates: mergeCandidates,
-          }
-        }
-      }
-
-      // Edge-snap setup. Compute the union bbox of every layer that will move
-      // (all members of the affected groups) and collect the rects of every
-      // layer that *won't* move as snap candidates.
-      let snap: MoveGestureContext["snap"] = null
-      if (sourceGroupId) {
-        const layouts = iframeLayerLayoutsRef.current
-        let minX = Infinity
-        let minY = Infinity
-        let maxX = -Infinity
-        let maxY = -Infinity
-        const candidates: MoveSnapRect[] = []
-        for (const layout of layouts.values()) {
-          if (groupIds.has(layout.groupId)) {
-            if (layout.x < minX) minX = layout.x
-            if (layout.y < minY) minY = layout.y
-            if (layout.x + layout.width > maxX) maxX = layout.x + layout.width
-            if (layout.y + layout.height > maxY) maxY = layout.y + layout.height
-          } else {
-            candidates.push({
-              x: layout.x,
-              y: layout.y,
-              width: layout.width,
-              height: layout.height,
-            })
-          }
-        }
-        if (minX < Infinity && candidates.length > 0) {
-          snap = {
-            startUnion: {
-              x: minX,
-              y: minY,
-              width: maxX - minX,
-              height: maxY - minY,
-            },
-            candidates,
-          }
-        }
-      }
-
-      setMoveGestureActive(true)
-      dispatchGesture({
-        type: "start",
-        start: {
-          kind: "move",
-          ctx: { moveMemberIds, sourceGroupId, sourceStart, snap, merge, zoom },
-        },
-      })
-    },
-    [collections, dispatchGesture, selection]
-  )
-
-  /**
-   * Group drag end: release the move gesture. Any merge commit (and the
-   * follow-on selection update) lands through the FSM's `mergeGroups` intent —
-   * the live position was already committed by the per-move `moveBy` intents.
-   */
-  const handleLayerGroupDragEnd = useCallback(
-    (metaKey: boolean) => {
-      layerDraggingRef.current = false
-      setMoveGestureActive(false)
-      dispatchGesture({ type: "release", meta: metaKey })
-    },
-    [dispatchGesture]
-  )
-
-  /**
-   * Holding cmd/meta (or ctrl on non-Mac) during a resize disables the
-   * device-size snap so the user can fine-tune freely past a preset.
-   * Tracked via window listeners so it stays accurate even between pointer
-   * moves (e.g. user presses cmd while idle on a preset width). Read when
-   * building each `resizeMove` event fed to the Canvas Gesture FSM.
-   */
-  const resizeMetaHeldRef = useRef(false)
-  useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => {
-      resizeMetaHeldRef.current = ev.metaKey
-    }
-    window.addEventListener("keydown", onKey)
-    window.addEventListener("keyup", onKey)
-    return () => {
-      window.removeEventListener("keydown", onKey)
-      window.removeEventListener("keyup", onKey)
-    }
-  }, [])
-
-  // Device-resize runs through the Canvas Gesture FSM (#545): start snapshots
-  // the layer's size + edge, each move feeds the raw delta through
-  // `reduceGesture` (which orchestrates `computeDeviceSnap`), and the emitted
-  // `resizeLayer` intent commits the live resize via the `resizeLayer` Canvas
-  // Operation above. The device-size ghosts come from the Gesture Preview.
-  const handleResizeStart = useCallback(
-    (id: string, edge: ResizeEdge) => {
-      const a = collections.iframeLayers.get(id)
-      if (!a) return
-      dispatchGesture({
-        type: "start",
-        start: {
-          kind: "resize",
-          ctx: {
-            iframeLayerId: id,
-            edge,
-            initialWidth: a.width,
-            initialHeight: a.height,
-          },
-        },
-      })
-    },
-    [collections, dispatchGesture]
-  )
-
-  const handleResizeEnd = useCallback(() => {
-    // A resize changes the frame's rect, so its retained thumbnail no longer
-    // matches and the manifest discards it (see `buildThumbnailManifest`). Mark
-    // the frame dirty so the heartbeat recaptures it at the new size — but only
-    // when the size actually changed, so grabbing and releasing a handle without
-    // dragging doesn't trigger a needless recapture. The FSM holds the start
-    // and current size, so read them before dispatching the release.
-    const st = getGestureState()
-    if (
-      st.kind === "resize" &&
-      (st.device.width !== st.ctx.initialWidth ||
-        st.device.height !== st.ctx.initialHeight)
-    ) {
-      captureTracker.markDirty(st.ctx.iframeLayerId)
-    }
-    dispatchGesture({ type: "release" })
-  }, [getGestureState, dispatchGesture, captureTracker])
-
-  /**
-   * `onResize` callback from a single iframeLayer's edge. The hook emits raw
-   * screen-derived size deltas (`dw`, `dh`) every pointer move; we forward them
-   * (with the live meta-snap-bypass flag and zoom) to the gesture FSM, which
-   * accumulates them, runs the device snap, and emits the `resizeLayer` intent.
-   * The `dx`/`dy` the hook also sends are redundant — the FSM derives the
-   * group-anchor shift from the dragged edge — so they're ignored here.
-   */
-  const resizeIframeLayerEdge = useCallback(
-    (
-      _id: string,
-      _edge: ResizeEdge,
-      _dx: number,
-      _dy: number,
-      dw: number,
-      dh: number
-    ) => {
-      dispatchGesture({
-        type: "resizeMove",
-        dw,
-        dh,
-        metaHeld: resizeMetaHeldRef.current,
-        zoom,
-      })
-    },
-    [dispatchGesture, zoom]
-  )
+    })
+    return { groups, layouts: iframeLayerLayoutsRef.current.values() }
+  }, [collections])
 
   const renameIframeLayer = useCallback(
     (id: string, label: string) => {
@@ -3103,9 +2723,16 @@ export function Canvas({
       markdownLayerIds: markdownLayerIdSet,
       baseIframeLayerIds: selectedIframeLayerIds,
       baseDocumentLayerIds: selectedDocumentLayerIds,
+      selectedGroupIds,
       drawTool,
-      onReorderReleaseHover: (hit) =>
-        setHoveredReorderIframeLayerId(hit?.iframeLayerId ?? null),
+      getWrapper: () => canvasWrapperRef.current,
+      getMoveAssembly: buildMoveAssembly,
+      getIframeLayerSize: (id) => {
+        const a = collections.iframeLayers.get(id)
+        return a ? { width: a.width, height: a.height } : null
+      },
+      markFrameDirty: (id) => captureTracker.markDirty(id),
+      clearLayerHover: () => setHoveredIframeLayerId(null),
     }
   })
 
@@ -3128,56 +2755,6 @@ export function Canvas({
   const handleGroupSelect = selection.selectGroup
   const handleDocumentLayerSelect = selection.selectDocumentLayer
 
-  /**
-   * Forward a group-move heartbeat into the Canvas Gesture FSM. The dragged
-   * members, edge-snap union/candidates, and merge candidates were all
-   * snapshotted in `handleLayerGroupDragStart`, so the move event carries only
-   * the cumulative cursor delta and the live meta state; the reducer derives the
-   * incremental delta, applies the sticky edge/center snap, and emits the
-   * `moveBy` intent (and the Snap Guides / merge rects in its preview). The
-   * selected-vs-single-layer routing the children do (`onMoveSelected` vs
-   * `onMoveGroup`) collapses here — both feed the same gesture.
-   */
-  const handleMoveSelected = useCallback(
-    (
-      _dx: number,
-      _dy: number,
-      totalDx: number,
-      totalDy: number,
-      metaKey: boolean
-    ) => {
-      dispatchGesture({
-        type: "move",
-        cursor: { x: totalDx, y: totalDy },
-        meta: metaKey,
-      })
-    },
-    [dispatchGesture]
-  )
-
-  /**
-   * Per-layer drag (cursor on a non-selected frame). Same gesture path as
-   * `handleMoveSelected`; `layerId` is unused now that the moving members live
-   * in the gesture context.
-   */
-  const handleMoveGroupForLayer = useCallback(
-    (
-      _layerId: string,
-      _dx: number,
-      _dy: number,
-      totalDx: number,
-      totalDy: number,
-      metaKey: boolean
-    ) => {
-      dispatchGesture({
-        type: "move",
-        cursor: { x: totalDx, y: totalDy },
-        meta: metaKey,
-      })
-    },
-    [dispatchGesture]
-  )
-
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       const ref = transformRef.current
@@ -3194,9 +2771,11 @@ export function Canvas({
 
       // Hit-test for hover highlight. Suppressed while a reorder or layer
       // drag is active so the dragged iframeLayer sweeping over its siblings
-      // doesn't paint a hover outline on each one in turn.
+      // doesn't paint a hover outline on each one in turn. (The gap-handle and
+      // reorder-dot hover tracking lives in the gesture controller's
+      // `onPointerMove` alongside the state it drives.)
       let hovered: string | null = null
-      if (getGestureState().kind !== "reorder" && !layerDraggingRef.current) {
+      if (getGestureState().kind !== "reorder" && !isLayerDragging()) {
         for (const layout of iframeLayerLayouts.values()) {
           if (
             canvasX >= layout.x &&
@@ -3210,67 +2789,15 @@ export function Canvas({
         }
       }
       setHoveredIframeLayerId(hovered)
-
-      // Track which gap handle is hovered/dragged so the wrapper can show a
-      // col-resize cursor. While dragging, lock to the dragged handle even if
-      // the cursor briefly slips outside the gap rect.
-      const gestureState = getGestureState()
-      const next =
-        gestureState.kind === "gap"
-          ? {
-              groupId: gestureState.ctx.groupId,
-              gapIndex: gestureState.ctx.gapIndex,
-            }
-          : (() => {
-              const hit = hitTestGapHandle(canvasX, canvasY, scale)
-              return hit
-                ? { groupId: hit.groupId, gapIndex: hit.gapIndex }
-                : null
-            })()
-      setActiveGapHandle((prev) => {
-        if (prev === next) return prev
-        if (
-          prev &&
-          next &&
-          prev.groupId === next.groupId &&
-          prev.gapIndex === next.gapIndex
-        )
-          return prev
-        return next
-      })
-
-      // Track which reorder handle is hovered so the overlay can swap the dot
-      // from a hollow ring to a filled circle. While dragging, lock the
-      // highlight to the dragged dot so the cursor can stray off-center
-      // without the dot flipping back to its hollow state.
-      if (gestureState.kind === "reorder") {
-        const draggedId = gestureState.ctx.memberId
-        setHoveredReorderIframeLayerId((prev) =>
-          prev === draggedId ? prev : draggedId
-        )
-      } else {
-        const reorderHit = hitTestReorderHandle(canvasX, canvasY, scale)
-        setHoveredReorderIframeLayerId((prev) => {
-          const nextId = reorderHit?.iframeLayerId ?? null
-          return prev === nextId ? prev : nextId
-        })
-      }
     },
-    [
-      setPresence,
-      iframeLayerLayouts,
-      hitTestGapHandle,
-      hitTestReorderHandle,
-      getGestureState,
-    ]
+    [setPresence, iframeLayerLayouts, isLayerDragging, getGestureState]
   )
 
   const handlePointerLeave = useCallback(() => {
     setPresence({ pointer: null })
     setHoveredIframeLayerId(null)
-    setActiveGapHandle(null)
-    setHoveredReorderIframeLayerId(null)
-  }, [setPresence])
+    resetHandleHover()
+  }, [setPresence, resetHandleHover])
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
@@ -3739,29 +3266,33 @@ export function Canvas({
                                 : undefined
                             }
                             onSelect={handleDocumentLayerSelect}
-                            onMoveGroup={(
-                              dx,
-                              dy,
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            ) => {
-                              handleMoveGroupForLayer(
-                                doc.id,
-                                dx,
-                                dy,
+                            onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                              gestureLayerHandlers.onMove(
                                 totalDx,
                                 totalDy,
                                 metaKey
                               )
-                            }}
-                            onMoveSelected={handleMoveSelected}
-                            onGroupDragStart={() => {
-                              // eslint-disable-next-line react-hooks/refs
-                              handleLayerGroupDragStart(doc.id)
-                            }}
-                            onGroupDragEnd={handleLayerGroupDragEnd}
-                            onRequestReorderDrag={requestReorderDrag}
+                            }
+                            onMoveSelected={(
+                              _dx,
+                              _dy,
+                              totalDx,
+                              totalDy,
+                              metaKey
+                            ) =>
+                              gestureLayerHandlers.onMove(
+                                totalDx,
+                                totalDy,
+                                metaKey
+                              )
+                            }
+                            onGroupDragStart={() =>
+                              gestureLayerHandlers.onGroupDragStart(doc.id)
+                            }
+                            onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
+                            onRequestReorderDrag={
+                              gestureLayerHandlers.onRequestReorderDrag
+                            }
                             onResize={resizeDocumentLayer}
                             onTitleChange={setDocumentLayerTitleCache}
                             onRename={setDocumentLayerTitle}
@@ -3812,25 +3343,28 @@ export function Canvas({
                             if (id !== null) setFocusedIframeLayerId(null)
                           }}
                           onSelect={handleIframeLayerSelect}
-                          onMoveGroup={(dx, dy, totalDx, totalDy, metaKey) =>
-                            handleMoveGroupForLayer(
-                              iframeLayer.id,
-                              dx,
-                              dy,
-                              totalDx,
-                              totalDy,
-                              metaKey
-                            )
+                          onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
+                            gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
                           }
-                          onMoveSelected={handleMoveSelected}
+                          onMoveSelected={(
+                            _dx,
+                            _dy,
+                            totalDx,
+                            totalDy,
+                            metaKey
+                          ) =>
+                            gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+                          }
                           onGroupDragStart={() =>
-                            handleLayerGroupDragStart(iframeLayer.id)
+                            gestureLayerHandlers.onGroupDragStart(iframeLayer.id)
                           }
-                          onGroupDragEnd={handleLayerGroupDragEnd}
-                          onRequestReorderDrag={requestReorderDrag}
-                          onResize={resizeIframeLayerEdge}
-                          onResizeStart={handleResizeStart}
-                          onResizeEnd={handleResizeEnd}
+                          onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
+                          onRequestReorderDrag={
+                            gestureLayerHandlers.onRequestReorderDrag
+                          }
+                          onResize={gestureLayerHandlers.onResize}
+                          onResizeStart={gestureLayerHandlers.onResizeStart}
+                          onResizeEnd={gestureLayerHandlers.onResizeEnd}
                           onRemove={removeIframeLayer}
                           onRename={renameIframeLayer}
                           onStateChanged={updateIframeLayerState}
