@@ -6,6 +6,7 @@ import {
   type GestureEvent,
   type GestureResult,
   type GestureState,
+  type MarqueeGestureContext,
   type MoveGestureContext,
   type ReorderGestureContext,
   type ReorderMemberSnapshot,
@@ -47,6 +48,7 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -65,6 +67,7 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -174,6 +177,7 @@ describe("reduceGesture — gap-resize", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     })
   })
 })
@@ -492,6 +496,7 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -521,6 +526,7 @@ describe("reduceGesture — group-move (no snap, no merge)", () => {
       reorder: null,
       snapGuides: [],
       mergeRects: null,
+      marqueeRect: null,
     })
   })
 
@@ -712,5 +718,220 @@ describe("reduceGesture — group-move merge (commit on release)", () => {
     expect(hot.preview.mergeRects).toBeNull()
     if (hot.state.kind !== "move") throw new Error("expected move state")
     expect(hot.state.targetId).toBeNull()
+  })
+})
+
+// Marquee is the selection-only gesture: its Intent (`marqueeSelect`) is applied
+// to local selection state, never a Canvas Operation. The reducer owns the
+// selection algebra (replace vs shift-toggle) over the hit ids the component
+// passes in; the geometry hit-test that produces those ids stays in the
+// component, so the fixtures here are plain id sets — no layouts, no DOM.
+
+const marqueeCtx: MarqueeGestureContext = {
+  startX: 100,
+  startY: 100,
+  shiftKey: false,
+  baseIframeLayerIds: new Set(),
+  baseDocumentLayerIds: new Set(),
+}
+
+describe("reduceGesture — marquee selection", () => {
+  it("opens from idle: previews the degenerate rect and clears the selection", () => {
+    const result = reduceGesture(
+      { kind: "idle" },
+      { type: "start", start: { kind: "marquee", ctx: marqueeCtx } }
+    )
+
+    expect(result.state).toEqual({
+      kind: "marquee",
+      ctx: marqueeCtx,
+      cursor: { x: 100, y: 100 },
+    })
+    // The drag rect surfaces via the Preview (drawn by the SelectionOverlay) and
+    // pointedly leaves the geometry slices null — it does not feed
+    // `deriveCanvasLayout`.
+    expect(result.preview).toEqual({
+      gapOverride: null,
+      reorder: null,
+      snapGuides: [],
+      mergeRects: null,
+      marqueeRect: { startX: 100, startY: 100, currentX: 100, currentY: 100 },
+    })
+    // Opening a non-shift marquee clears the layer selection.
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(),
+      documentLayerIds: new Set(),
+    })
+  })
+
+  it("opens a shift-marquee against the base selection rather than clearing it", () => {
+    const ctx: MarqueeGestureContext = {
+      ...marqueeCtx,
+      shiftKey: true,
+      baseIframeLayerIds: new Set(["a"]),
+      baseDocumentLayerIds: new Set(["d"]),
+    }
+    const result = reduceGesture(
+      { kind: "idle" },
+      { type: "start", start: { kind: "marquee", ctx } }
+    )
+
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(["a"]),
+      documentLayerIds: new Set(["d"]),
+    })
+  })
+
+  it("replaces the selection with the live hits on move (no shift)", () => {
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx: marqueeCtx } },
+      {
+        type: "move",
+        cursor: { x: 200, y: 180 },
+        hits: {
+          iframeLayerIds: new Set(["a", "b"]),
+          documentLayerIds: new Set(["d"]),
+        },
+      },
+    ])
+
+    expect(result.preview.marqueeRect).toEqual({
+      startX: 100,
+      startY: 100,
+      currentX: 200,
+      currentY: 180,
+    })
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(["a", "b"]),
+      documentLayerIds: new Set(["d"]),
+    })
+  })
+
+  it("toggles hits against the frozen base under shift", () => {
+    const ctx: MarqueeGestureContext = {
+      ...marqueeCtx,
+      shiftKey: true,
+      baseIframeLayerIds: new Set(["a", "b"]),
+      baseDocumentLayerIds: new Set(["d"]),
+    }
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx } },
+      {
+        type: "move",
+        cursor: { x: 200, y: 180 },
+        // `b` is already in the base → removed; `c` is new → added; `d` toggled out.
+        hits: {
+          iframeLayerIds: new Set(["b", "c"]),
+          documentLayerIds: new Set(["d"]),
+        },
+      },
+    ])
+
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(["a", "c"]),
+      documentLayerIds: new Set(),
+    })
+  })
+
+  it("toggles against the base, not the prior move (stable baseline)", () => {
+    const ctx: MarqueeGestureContext = {
+      ...marqueeCtx,
+      shiftKey: true,
+      baseIframeLayerIds: new Set(["a"]),
+    }
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx } },
+      {
+        type: "move",
+        cursor: { x: 150, y: 150 },
+        hits: { iframeLayerIds: new Set(["b"]), documentLayerIds: new Set() },
+      },
+      {
+        type: "move",
+        cursor: { x: 160, y: 160 },
+        hits: { iframeLayerIds: new Set(["c"]), documentLayerIds: new Set() },
+      },
+    ])
+
+    // Second move toggles {c} against the base {a} — not against the {a,b} the
+    // first move produced. So `b` is gone, not retained.
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(["a", "c"]),
+      documentLayerIds: new Set(),
+    })
+  })
+
+  it("keeps the drag's selection on release of a real marquee (no intent)", () => {
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx: marqueeCtx } },
+      {
+        type: "move",
+        cursor: { x: 200, y: 200 },
+        hits: { iframeLayerIds: new Set(["a"]), documentLayerIds: new Set() },
+      },
+      { type: "release" },
+    ])
+
+    // The move already settled the selection; release just resets to rest.
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("treats a sub-threshold drag as a click and deselects on release", () => {
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx: marqueeCtx } },
+      {
+        type: "move",
+        cursor: { x: 101, y: 102 },
+        hits: { iframeLayerIds: new Set(["a"]), documentLayerIds: new Set() },
+      },
+      { type: "release" },
+    ])
+
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toEqual({
+      type: "marqueeSelect",
+      iframeLayerIds: new Set(),
+      documentLayerIds: new Set(),
+    })
+  })
+
+  it("does not deselect on a tiny shift-click (keeps the settled selection)", () => {
+    const ctx: MarqueeGestureContext = {
+      ...marqueeCtx,
+      shiftKey: true,
+      baseIframeLayerIds: new Set(["a"]),
+    }
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx } },
+      { type: "release" },
+    ])
+
+    // Tiny drag + shift → no deselect intent; the base selection stands.
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("cancels a marquee back to idle with no intent", () => {
+    const result = run([
+      { type: "start", start: { kind: "marquee", ctx: marqueeCtx } },
+      {
+        type: "move",
+        cursor: { x: 200, y: 200 },
+        hits: { iframeLayerIds: new Set(["a"]), documentLayerIds: new Set() },
+      },
+      { type: "cancel" },
+    ])
+
+    expect(result.state).toEqual({ kind: "idle" })
+    expect(result.preview).toEqual(EMPTY_PREVIEW)
+    expect(result.intent).toBeUndefined()
   })
 })
