@@ -807,3 +807,25 @@ _Avoid_: putting branch selection back in `canvas.tsx` (it goes through
 `resolveReconnect`); re-adding a silent reclone fallback to the resume failure
 path (ADR 0005); splitting the heartbeat or heal back out into their own
 composition-root effects.
+
+**Canvas Keyboard**:
+The global `keydown`/`keyup` shortcut dispatch for the canvas, lifted out of the
+composition root where it was the single largest effect (~190 lines) into one
+controller (`useCanvasKeyboard`, PRD #579). It owns the window listeners and the
+whole shortcut map — Escape exits, `v`/`c`/`d`/`f` draw tools, `/` cursor chat,
+⌘B / ⌘I / ⌘. panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, and the
+space-pan hold — and dispatches into the controllers the earlier cuts bundled
+(**Tool Mode**, **Canvas Selection**, **Element Reference**, the Yjs history),
+the panel refs, the cursor-chat verbs, and the focus / Create-Flow setters it is
+handed. Sequenced last so it consumes those bundled controllers rather than the
+loose setters they replaced. The Escape **precedence** stays in the React-free
+`resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by `escape.test.ts`); the
+controller only **applies** the chosen exit. The `isEditing` guard
+(input/textarea/contenteditable) still suppresses shortcuts while typing, and the
+live-but-rebind-averse reads (cursor-chat message, inline-edit id) arrive as refs
+the composition root mirrors.
+_Avoid_: putting the shortcut map or the window listeners back in `canvas.tsx`;
+duplicating the Escape precedence in the dispatch (it goes through
+`resolveEscapeAction`); reading selection / Tool Mode through a shadow copy
+instead of the controllers' `current()`; dropping the `isEditing` guard on a new
+shortcut.
