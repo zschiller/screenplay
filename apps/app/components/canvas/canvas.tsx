@@ -24,13 +24,7 @@ import {
 import { resolveEscapeAction } from "@/lib/canvas/escape"
 import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { createTerminalTab } from "@/lib/canvas/tab-kind"
-import {
-  deleteTerminalTabAction,
-  listTerminalTabsAction,
-} from "@/lib/terminal-tabs-actions"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
-import { partitionTerminalsByBranch } from "@/lib/terminal/orphan-tabs"
 import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
@@ -71,7 +65,6 @@ import type {
   GroupMember,
   ViewportData,
   RepoData,
-  TerminalTabData,
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
@@ -86,6 +79,7 @@ import {
   type ElementReferenceInputs,
 } from "@/components/canvas/use-element-reference"
 import { useTabPool } from "@/components/canvas/use-tab-pool"
+import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
@@ -230,67 +224,10 @@ export function Canvas({
   >(null)
   // Chat-Target selection — which target the panel shows, the per-target memory,
   // and the pending-agent readiness — is owned by the `useChatTarget` controller
-  // (#569), created once its dependencies are in scope below.
-  // Terminal tabs are deliberately kept out of the shared `chatSessions` Y.Doc
-  // collection: they're per-user, BYO-harness shells that must never appear in
-  // collaborators' tab strips or enter the conversation model. They live in
-  // this client's state, but their identity/metadata is persisted per
-  // user+room+branch in Postgres (#258, the `terminal_tab` table) — so a reload
-  // restores them and they follow the User across devices. Only the tab
-  // identity is stored, never scrollback. Co-view across clients is still a
-  // deliberate non-goal — see ADR 0002 / follow-up.
-  // Seed from the server-fetched tabs (page.tsx) so restored terminals are on
-  // the very first client paint — same as chats (which arrive in the synced
-  // Y.Doc). Without this seed they'd pop in a beat late, after the client-side
-  // `listTerminalTabsAction` round-trip below resolves.
-  const [localTerminals, setLocalTerminals] = useState<TerminalTabData[]>(() =>
-    (initialTerminalTabs ?? []).map((r) =>
-      createTerminalTab({
-        id: r.id,
-        branchId: r.branch,
-        createdAt: r.createdAt,
-        label: r.label,
-        harnessKey: r.harnessKey ?? undefined,
-      })
-    )
-  )
-  const isLocalTerminal = useCallback(
-    (id: string | null) => !!id && localTerminals.some((t) => t.id === id),
-    [localTerminals]
-  )
-  // Re-fetch this User's persisted terminal tabs for the room (#258): keeps the
-  // seeded set fresh on client-side Branch/room navigation (when the component
-  // doesn't remount, so the seed above is stale) and reconciles tabs opened on
-  // another device. Merge rather than replace, so a tab the user opened before
-  // this resolved isn't dropped.
-  useEffect(() => {
-    let cancelled = false
-    listTerminalTabsAction({ roomId })
-      .then((rows) => {
-        if (cancelled) return
-        const restored = rows.map((r) =>
-          createTerminalTab({
-            id: r.id,
-            branchId: r.branch,
-            createdAt: r.createdAt,
-            label: r.label,
-            harnessKey: r.harnessKey ?? undefined,
-          })
-        )
-        setLocalTerminals((prev) => {
-          const localOnly = prev.filter(
-            (t) => !restored.some((r) => r.id === t.id)
-          )
-          return [...restored, ...localOnly]
-        })
-      })
-      .catch((err) => {
-        console.error("Failed to restore terminal tabs", err)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [roomId])
+  // (#569), created once its dependencies are in scope below. The client's
+  // Terminal Tabs (`localTerminals`) and their seed / re-fetch-merge /
+  // orphan-prune lifecycle are owned by the `useTerminalTabs` controller (#582),
+  // created once `agents` is in scope below; the Tab Pool composes it.
   const inspectHandlersRef = useRef<{
     branchRename: (agentId: string, branch: string) => void
     renameChat: (chatId: string, label: string) => void
@@ -1051,31 +988,17 @@ export function Canvas({
     if (names.length > 0) void stopDevServers(names).catch(() => {})
   }, [agents])
 
-  // Lazily prune terminal tabs whose Branch no longer exists (branch deleted),
-  // so a dead terminal never lingers pointing at a gone sandbox (#260). We get
-  // here only post-sync (render is gated on the Yjs initial sync), so an absent
-  // branch is a genuinely deleted one — not an unhydrated collection — making it
-  // safe to also delete the persisted row, not just drop the tab from the strip.
-  // Depends on `localTerminals` too so a row restored from Postgres for an
-  // already-deleted branch is pruned on connect/load, with no background job.
-  // The state update here reconciles React state with externally-sourced data
-  // (Postgres-restored terminal rows vs. live branches), which is a legitimate
-  // effect sync rather than an avoidable render cascade.
-  useEffect(() => {
-    const branchIds = new Set(agents.map((a) => a.id))
-    const { orphaned } = partitionTerminalsByBranch(localTerminals, branchIds)
-    if (orphaned.length === 0) return
-    // Drop the orphans from the tab strip…
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalTerminals((prev) => prev.filter((t) => branchIds.has(t.branchId)))
-    // …and delete their `terminalTab` rows so they don't resurrect next load.
-    // Best-effort + idempotent: deleting an already-gone row is a no-op.
-    for (const orphan of orphaned) {
-      deleteTerminalTabAction({ roomId, id: orphan.id }).catch((err) => {
-        console.error("Failed to prune orphaned terminal tab", err)
-      })
-    }
-  }, [agents, localTerminals, roomId])
+  // Terminal Tab controller (PRD #579, cut 3/4): owns this client's
+  // `localTerminals` plus their first-paint seed, the `listTerminalTabsAction`
+  // re-fetch-and-merge, and the orphan prune (drop tab + delete persisted row
+  // when the Branch is gone). The Tab Pool composes it for the apply-side; the
+  // Chat-Target controller reads `localTerminals` to resolve a selected tab's
+  // target.
+  const terminalTabs = useTerminalTabs({
+    roomId,
+    agents,
+    initialTerminalTabs,
+  })
 
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
@@ -1114,7 +1037,7 @@ export function Canvas({
     agents,
     chatSessions,
     markdownLayers,
-    localTerminals,
+    localTerminals: terminalTabs.localTerminals,
     chatPanelRef,
   })
 
@@ -1663,9 +1586,7 @@ export function Canvas({
     userId,
     agents,
     chatSessions,
-    localTerminals,
-    setLocalTerminals,
-    isLocalTerminal,
+    terminalTabs,
     chatTarget,
   })
 
@@ -2616,7 +2537,7 @@ export function Canvas({
             agents={agents}
             markdownLayers={markdownLayers}
             chatSessions={chatSessions}
-            localTerminals={localTerminals}
+            localTerminals={terminalTabs.localTerminals}
             repos={repos}
             roomId={roomId}
             diffStats={diffStats}
