@@ -9,12 +9,6 @@ import {
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import {
-  uniqueNamesGenerator,
-  adjectives,
-  colors,
-  animals,
-} from "unique-names-generator"
-import {
   useBranches,
   useIframeLayerGroups,
   useIframeLayers,
@@ -142,19 +136,12 @@ import type {
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
-import type { RepoPickerSelection } from "@/components/repo-picker"
-import {
-  planBranchCreations,
-  type ComposerSpec,
-} from "@/lib/branch-create-planner"
 import { useDiffStats } from "@/hooks/use-diff-stats"
-import { renameAgentBranch } from "@/lib/sandbox/git"
 import {
   recreateSandbox,
   reconnectSandbox,
   keepAliveSandbox,
   stopDevServers,
-  deleteSandboxes,
 } from "@/lib/sandbox/lifecycle"
 import {
   type BranchRecoveryDeps,
@@ -162,7 +149,7 @@ import {
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
 } from "@/lib/branch/recovery"
-import { deleteBranch } from "@/lib/github-actions"
+import { useBranchIntake } from "@/components/canvas/use-branch-intake"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { openExternal } from "@/lib/open-external"
 import {
@@ -1007,116 +994,113 @@ export function Canvas({
   // Apply an emitted Gesture Intent: canvas-mutating intents through the Canvas
   // Operations, selection-only ones (`marqueeSelect` / `selectMember`) through
   // local selection state. The gesture itself never touches the Y.Doc.
-  const applyGestureIntent = useCallback((intent: GestureIntent) => {
-    switch (intent.type) {
-      case "setGroupGap":
-        setGroupGap(intent.groupId, intent.gap)
-        break
-      case "moveBy":
-        moveIframeLayersByDelta(intent.memberIds, intent.dx, intent.dy)
-        break
-      case "mergeGroups": {
-        // The target absorbs the source — its world (x, y) stays put, so the
-        // merged row stays where the user dropped onto. Read the source's
-        // members before the merge so selection can follow the dragged layers.
-        const source = collections.iframeLayerGroups.get(intent.sourceId)
-        const target = collections.iframeLayerGroups.get(intent.targetId)
-        if (!source || !target || source.id === target.id) break
-        const sourceMembers = getGroupMembers(source)
-        if (sourceMembers.length === 0) break
-        ops.mergeGroups(source.id, target.id)
-        // Keep the dragged layers selected rather than the merged target group.
-        // The source group is gone, so map its former members to individual
-        // iframe/document selections.
-        const draggedIframeIds = new Set<string>()
-        const draggedDocumentIds = new Set<string>()
-        for (const m of sourceMembers) {
-          if (m.kind === "iframe-layer") draggedIframeIds.add(m.id)
-          else if (m.kind === "markdown-layer") draggedDocumentIds.add(m.id)
-        }
-        setSelectedGroupIds(new Set())
-        setSelectedIframeLayerIds(draggedIframeIds)
-        setSelectedDocumentLayerIds(draggedDocumentIds)
-        break
-      }
-      case "reorderMember":
-        // In-flow reorder commits live: each tick the cursor crosses a sibling
-        // center, the gesture emits the new ordering and we write it.
-        ops.patch("iframeLayerGroups", intent.groupId, {
-          members: intent.members,
-        })
-        break
-      case "popOutToNewGroup": {
-        // Meta held at release → split the popped Member into a fresh Group
-        // anchored where it was floating; select it like the old inline path.
-        // Skip if the underlying layer vanished mid-drag so we never select a
-        // group that `splitToNewGroup` declined to create.
-        const exists =
-          collections.iframeLayers.get(intent.memberId) != null ||
-          collections.markdownLayers.get(intent.memberId) != null
-        if (!exists) break
-        const newGroupId = ops.splitToNewGroup([intent.memberId], {
-          x: intent.x,
-          y: intent.y,
-        })
-        setSelectedGroupIds(new Set([newGroupId]))
-        break
-      }
-      case "selectMember": {
-        // Click-no-move from a Member's label falls through to plain selection
-        // (mirrors `handleIframeLayerSelect` / `handleDocumentLayerSelect`).
-        setSelectedGroupIds(new Set())
-        if (intent.kind === "markdown-layer") {
-          if (intent.additive) {
-            setSelectedDocumentLayerIds((prev) => {
-              const next = new Set(prev)
-              if (next.has(intent.memberId)) next.delete(intent.memberId)
-              else next.add(intent.memberId)
-              return next
-            })
-          } else {
-            setSelectedDocumentLayerIds(new Set([intent.memberId]))
-            setSelectedIframeLayerIds(new Set())
+  const applyGestureIntent = useCallback(
+    (intent: GestureIntent) => {
+      switch (intent.type) {
+        case "setGroupGap":
+          setGroupGap(intent.groupId, intent.gap)
+          break
+        case "moveBy":
+          moveIframeLayersByDelta(intent.memberIds, intent.dx, intent.dy)
+          break
+        case "mergeGroups": {
+          // The target absorbs the source — its world (x, y) stays put, so the
+          // merged row stays where the user dropped onto. Read the source's
+          // members before the merge so selection can follow the dragged layers.
+          const source = collections.iframeLayerGroups.get(intent.sourceId)
+          const target = collections.iframeLayerGroups.get(intent.targetId)
+          if (!source || !target || source.id === target.id) break
+          const sourceMembers = getGroupMembers(source)
+          if (sourceMembers.length === 0) break
+          ops.mergeGroups(source.id, target.id)
+          // Keep the dragged layers selected rather than the merged target group.
+          // The source group is gone, so map its former members to individual
+          // iframe/document selections.
+          const draggedIframeIds = new Set<string>()
+          const draggedDocumentIds = new Set<string>()
+          for (const m of sourceMembers) {
+            if (m.kind === "iframe-layer") draggedIframeIds.add(m.id)
+            else if (m.kind === "markdown-layer") draggedDocumentIds.add(m.id)
           }
-        } else {
-          if (intent.additive) {
-            setSelectedIframeLayerIds((prev) => {
-              const next = new Set(prev)
-              if (next.has(intent.memberId)) next.delete(intent.memberId)
-              else next.add(intent.memberId)
-              return next
-            })
-          } else {
-            setSelectedIframeLayerIds(new Set([intent.memberId]))
-            setSelectedDocumentLayerIds(new Set())
-          }
+          setSelectedGroupIds(new Set())
+          setSelectedIframeLayerIds(draggedIframeIds)
+          setSelectedDocumentLayerIds(draggedDocumentIds)
+          break
         }
-        break
+        case "reorderMember":
+          // In-flow reorder commits live: each tick the cursor crosses a sibling
+          // center, the gesture emits the new ordering and we write it.
+          ops.patch("iframeLayerGroups", intent.groupId, {
+            members: intent.members,
+          })
+          break
+        case "popOutToNewGroup": {
+          // Meta held at release → split the popped Member into a fresh Group
+          // anchored where it was floating; select it like the old inline path.
+          // Skip if the underlying layer vanished mid-drag so we never select a
+          // group that `splitToNewGroup` declined to create.
+          const exists =
+            collections.iframeLayers.get(intent.memberId) != null ||
+            collections.markdownLayers.get(intent.memberId) != null
+          if (!exists) break
+          const newGroupId = ops.splitToNewGroup([intent.memberId], {
+            x: intent.x,
+            y: intent.y,
+          })
+          setSelectedGroupIds(new Set([newGroupId]))
+          break
+        }
+        case "selectMember": {
+          // Click-no-move from a Member's label falls through to plain selection
+          // (mirrors `handleIframeLayerSelect` / `handleDocumentLayerSelect`).
+          setSelectedGroupIds(new Set())
+          if (intent.kind === "markdown-layer") {
+            if (intent.additive) {
+              setSelectedDocumentLayerIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(intent.memberId)) next.delete(intent.memberId)
+                else next.add(intent.memberId)
+                return next
+              })
+            } else {
+              setSelectedDocumentLayerIds(new Set([intent.memberId]))
+              setSelectedIframeLayerIds(new Set())
+            }
+          } else {
+            if (intent.additive) {
+              setSelectedIframeLayerIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(intent.memberId)) next.delete(intent.memberId)
+                else next.add(intent.memberId)
+                return next
+              })
+            } else {
+              setSelectedIframeLayerIds(new Set([intent.memberId]))
+              setSelectedDocumentLayerIds(new Set())
+            }
+          }
+          break
+        }
+        // Selection-only intent: applied to local selection state, never the
+        // Y.Doc. A marquee never selects groups, so clear them alongside.
+        case "marqueeSelect":
+          setSelectedGroupIds(new Set())
+          setSelectedIframeLayerIds(new Set(intent.iframeLayerIds))
+          setSelectedDocumentLayerIds(new Set(intent.documentLayerIds))
+          break
+        case "resizeLayer":
+          resizeLayer(
+            intent.iframeLayerId,
+            intent.width,
+            intent.height,
+            intent.shiftX,
+            intent.shiftY
+          )
+          break
       }
-      // Selection-only intent: applied to local selection state, never the
-      // Y.Doc. A marquee never selects groups, so clear them alongside.
-      case "marqueeSelect":
-        setSelectedGroupIds(new Set())
-        setSelectedIframeLayerIds(new Set(intent.iframeLayerIds))
-        setSelectedDocumentLayerIds(new Set(intent.documentLayerIds))
-        break
-      case "resizeLayer":
-        resizeLayer(
-          intent.iframeLayerId,
-          intent.width,
-          intent.height,
-          intent.shiftX,
-          intent.shiftY
-        )
-        break
-    }
-  }, [
-    collections,
-    ops,
-    setGroupGap,
-    moveIframeLayersByDelta,
-    resizeLayer,
-  ])
+    },
+    [collections, ops, setGroupGap, moveIframeLayersByDelta, resizeLayer]
+  )
 
   // While a reorder is in flight, track meta-key changes even when the pointer
   // isn't moving so the pop-out preview flips the instant cmd is pressed or
@@ -2624,23 +2608,6 @@ export function Canvas({
     [roomId, addChatSession, userId]
   )
 
-  /**
-   * Seed a freshly-created branch's default tab to the user's pref. Both kinds
-   * (chat or terminal) are seeded client-side now — selection deferred until the
-   * sandbox is ready — so the tab shows up immediately rather than only after
-   * the provisioning pipeline finishes (the chat pref used to wait on the
-   * server's `ensureChatForBranch`, leaving the branch tab-less in the meantime).
-   * Since the client always pre-seeds, the server is told to skip its auto chat.
-   * Returns the `seedChat` flag to forward to the create API.
-   */
-  const seedDefaultTabForNewBranch = useCallback(
-    (branchId: string): boolean => {
-      createDefaultTabForBranch(branchId, readLastTabKind(), { select: false })
-      return false
-    },
-    [createDefaultTabForBranch]
-  )
-
   // Apply a Tab Pool close decision (the effect half of the pure
   // `resolveTabClose`). A respawn recreates the target's preferred default tab
   // so the panel is never left empty — for an agent that's whichever kind the
@@ -3141,420 +3108,38 @@ export function Canvas({
     [chatSessions, localTerminals]
   )
 
-  // Eagerly seed a single new Branch's canvas frame at creation time, rather
-  // than waiting on the deferred `running`-gated seeder: a single-member Group
-  // at the viewport center, selected and zoomed once its frame mounts. The op
-  // clears `pendingIframeLayerSeed`, so the reactive seeder skips this Branch.
-  // Bulk creates seed their own shared Group inline (see handleCreateWorkspace).
-  const seedEagerFrameForBranch = useCallback(
-    (branchId: string) => {
-      const { cx, cy } = getViewportCenter()
-      const frameGroup = ops.createFramesForAgents([{ agentId: branchId }], {
-        x: cx,
-        y: cy,
-      })
-      if (!frameGroup) return
-      setSelectedGroupIds(new Set([frameGroup.groupId]))
-      setSelectedIframeLayerIds(new Set())
-      const firstLayerId = frameGroup.layerIds[0]
-      if (firstLayerId)
-        requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
-    },
-    [ops, getViewportCenter, handleSelectIframeLayer]
-  )
-
-  const handleCreateRepo = useCallback(
-    (pick: RepoPickerSelection) => {
-      const id = nanoid()
-      const data: RepoData =
-        pick.kind === "config"
-          ? {
-              id,
-              name: pick.config.name,
-              repoFullName: pick.config.repoFullName,
-              repoOwner: pick.config.repoOwner,
-              repoName: pick.config.repoName,
-              defaultBranch: pick.config.defaultBranch,
-              cloneUrl: pick.config.cloneUrl,
-              setupScript: pick.config.setupScript,
-              devScript: pick.config.devScript,
-              devServerPort: pick.config.devServerPort,
-              envVars: pick.config.envVars,
-              copyPatterns: pick.config.copyPatterns,
-              defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
-              systemPrompt: pick.config.systemPrompt,
-              createdAt: Date.now(),
-            }
-          : pick.kind === "source"
-            ? {
-                // A Repo from the local build's URL / local-folder entry
-                // points (PRD #428). `localPath` is the acquisition source the
-                // provision path routes on; the GitHub identity fields may be
-                // empty (non-GitHub repo), which just leaves API features dark.
-                id,
-                name: "",
-                repoFullName: pick.source.repoFullName,
-                repoOwner: pick.source.repoOwner,
-                repoName: pick.source.repoName,
-                defaultBranch: pick.source.defaultBranch,
-                cloneUrl: pick.source.cloneUrl,
-                localPath: pick.source.localPath,
-                setupScript: "",
-                devScript: "",
-                devServerPort: 3000,
-                envVars: "",
-                // A local-folder Repo's worktrees get the checkout's env
-                // files carried over by default — the common gitignored
-                // config a dev server can't run without.
-                copyPatterns: pick.source.localPath ? ".env*" : undefined,
-                createdAt: Date.now(),
-              }
-            : {
-                id,
-                name: "",
-                repoFullName: pick.repo.fullName,
-                repoOwner: pick.repo.owner,
-                repoName: pick.repo.name,
-                defaultBranch: pick.repo.defaultBranch,
-                cloneUrl: pick.repo.cloneUrl,
-                setupScript: "",
-                devScript: "",
-                devServerPort: 3000,
-                envVars: "",
-                createdAt: Date.now(),
-              }
-      const sandboxName = `sp-${nanoid(10)}`
-      const branch = uniqueNamesGenerator({
-        dictionaries: [adjectives, colors, animals],
-        separator: "-",
-        length: 3,
-      })
-
-      // One transaction so the repo and its first agent land as a single
-      // undo step. `createAgent` owns the agent record + deferred-seed flag.
-      let agentId = ""
-      ops.batch(() => {
-        addRepoToStorage(id, data)
-        agentId = ops.createBranch({
-          branch: {
-            repoId: id,
-            sandboxName,
-            gitUrl: data.cloneUrl,
-            ref: branch,
-            previewDomain: "",
-            port: data.devServerPort ?? 3000,
-            status: "creating",
-            statusMessage: "Creating branch…",
-            createdAt: Date.now(),
-          },
-        }).branchId
-      })
-      setPendingAgentIds((prev) =>
-        prev.includes(agentId) ? prev : [...prev, agentId]
-      )
-      const seedChat = seedDefaultTabForNewBranch(agentId)
-      seedEagerFrameForBranch(agentId)
-
-      fetch(withBasePath("/api/branch/create"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "new",
-          roomId,
-          branchId: agentId,
-          sandboxName,
-          branch,
-          repoId: id,
-          seedChat,
-        }),
-      })
-    },
-    [
-      addRepoToStorage,
-      ops,
-      roomId,
-      seedDefaultTabForNewBranch,
-      seedEagerFrameForBranch,
-    ]
-  )
-
-  // Prompts queued by the prompt-first create handler (handleCreateWorkspace)
-  // that should fire as soon as the agent's sandbox transitions to `running`.
-  // Held in a ref because the dispatch effect already re-runs on every `agents`
-  // change.
-  const pendingPromptsRef = useRef<
-    Map<
-      string,
-      { chatId: string; prompt: string; model: string; planMode?: boolean }
-    >
-  >(new Map())
-
-  // Prompt-first "New Workspace" create (PRD #314). The pure planner owns the
-  // decision; this handler is thin orchestration over the existing
-  // `/api/branch/create` contract. It takes one {@link ComposerSpec} per dialog
-  // row — a single row is the common case; parallel mode (#327) hands several,
-  // each resolved independently and created as its own Branch.
-  //
-  // Empty prompt (#323) -> a bare scratch Branch (random name, no Chat Session,
-  // nothing queued). Non-empty prompt (#324) -> the full seeded path: a Branch
-  // name derived from the prompt, a Chat Session pre-seeded with the chosen
-  // model, and the prompt queued to fire as the first message exactly once the
-  // Sandbox reaches `running`. The fired body is the Composer's Message-Markers
-  // wire text, so model, plan-mode, `@`-Layer mentions, and `/`-Skills all ride
-  // through unchanged. A non-default base derives `flow:"duplicate-branch"`
-  // (#325); the chosen base rides along as the source the server forks from.
-  const handleCreateWorkspace = useCallback(
-    async (repoId: string, specs: ComposerSpec[]) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo || specs.length === 0) return
-
-      const plans = planBranchCreations(
-        { defaultBranch: repo.defaultBranch },
-        specs
-      )
-
-      // Mint deduped random `adjective-color-animal` names, never colliding with
-      // a name already assigned in this batch.
-      const taken = new Set<string>()
-      const randomName = () => {
-        let name = uniqueNamesGenerator({
-          dictionaries: [adjectives, colors, animals],
-          separator: "-",
-          length: 3,
-        })
-        while (taken.has(name)) {
-          name = uniqueNamesGenerator({
-            dictionaries: [adjectives, colors, animals],
-            separator: "-",
-            length: 3,
-          })
-        }
-        taken.add(name)
-        return name
-      }
-
-      // Generate prompt-derived names for every seeded row up front in one
-      // request, so identical prompts can't independently land on the same
-      // branch and clobber each other. Bare rows (and any seeded row the
-      // endpoint didn't name) fall back to a deduped random name.
-      const names = new Array<{ branch: string; label: string }>(specs.length)
-      const seededIdx = plans
-        .map((plan, i) => (plan.nameSource === "from-prompt" ? i : -1))
-        .filter((i) => i >= 0)
-
-      if (seededIdx.length > 0) {
-        let results: Array<{ branch: string; label: string }> = []
-        try {
-          const res = await fetch(withBasePath("/api/agent/generate-names"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              roomId,
-              prompts: seededIdx.map((i) => specs[i]!.prompt.trim()),
-            }),
-          })
-          if (res.ok) {
-            const data = (await res.json()) as {
-              results: Array<{ branch: string; label: string }>
-            }
-            results = data.results ?? []
-          }
-        } catch {
-          // Fall through to the per-row random fallback below.
-        }
-        seededIdx.forEach((specIndex, k) => {
-          const result = results[k]
-          const label = result?.label || "Untitled"
-          let branch: string
-          if (result?.branch && !taken.has(result.branch)) {
-            taken.add(result.branch)
-            branch = result.branch
-          } else {
-            branch = randomName()
-          }
-          names[specIndex] = { branch, label }
-        })
-      }
-
-      plans.forEach((_, i) => {
-        if (!names[i]) names[i] = { branch: randomName(), label: "Untitled" }
-      })
-
-      const dispatched: Array<{
-        id: string
-        sandboxName: string
-        branch: string
-        flow: "new" | "duplicate-branch"
-        sourceBranch: string | undefined
-        seedChat: boolean
-      }> = []
-
-      // Every created Branch gets its frame eagerly (#338's waiting preview):
-      // one Branch lands a single-member Group, a bulk create lands one Group
-      // holding every Branch's frame. Collected here, created in the same Yjs
-      // transaction below so branch + frame land as one undo step.
-      const frameSpecs: Array<{ agentId: string; label?: string }> = []
-      const { cx, cy } = getViewportCenter()
-      let frameGroup: { groupId: string; layerIds: string[] } | undefined
-
-      // Create all Branch records (and pre-seed each prompted row's Chat Session
-      // so its queued prompt has a stable chatId) in one Yjs transaction.
-      ops.batch(() => {
-        plans.forEach((plan, i) => {
-          const spec = specs[i]!
-          const { branch, label } = names[i]!
-          const sandboxName = `sp-${nanoid(10)}`
-          const model = plan.model ?? spec.model
-
-          const { branchId: id, chatId } = ops.createBranch({
-            branch: {
-              repoId,
-              sandboxName,
-              gitUrl: repo.cloneUrl,
-              ref: branch,
-              previewDomain: "",
-              port: repo.devServerPort ?? 3000,
-              status: "creating",
-              statusMessage: "Creating branch…",
-              createdAt: Date.now(),
-              autoNamedBranch: plan.autoNamedBranch,
-            },
-            // Seed a Chat Session only for prompted rows; bare rows get none.
-            ...(plan.seedChat ? { chat: { label, model } } : {}),
-          })
-
-          // Queue the seed prompt; the dispatch effect below fires it exactly
-          // once, when the Sandbox reaches `running` (and drops it on error).
-          if (plan.firePromptOnRunning && chatId) {
-            pendingPromptsRef.current.set(id, {
-              chatId,
-              prompt: spec.prompt.trim(),
-              model,
-              planMode: spec.planMode,
-            })
-          }
-
-          frameSpecs.push({ agentId: id, label })
-
-          dispatched.push({
-            id,
-            sandboxName,
-            branch,
-            flow: plan.flow,
-            sourceBranch:
-              plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
-            seedChat: plan.seedChat,
-          })
-        })
-
-        // Seed the frames inside the same transaction (clears each Branch's
-        // `pendingIframeLayerSeed`, so the deferred reactive seeder skips them).
-        frameGroup = ops.createFramesForAgents(frameSpecs, { x: cx, y: cy })
-      })
-
-      setPendingAgentIds((prev) => {
-        const additions = dispatched
-          .map((d) => d.id)
-          .filter((id) => !prev.includes(id))
-        return additions.length > 0 ? [...prev, ...additions] : prev
-      })
-
-      // Surface the just-created frames: select the new Group and bring it into
-      // view once its frames have mounted. Zooming to the first member's DOM
-      // node (rather than `handleZoomToGroup`, which reads not-yet-updated React
-      // state) mirrors the routes-group and deferred-seed flows.
-      if (frameGroup) {
-        const { groupId, layerIds } = frameGroup
-        setSelectedGroupIds(new Set([groupId]))
-        setSelectedIframeLayerIds(new Set())
-        if (layerIds[0]) {
-          const firstLayerId = layerIds[0]
-          requestAnimationFrame(() => handleSelectIframeLayer(firstLayerId))
-        }
-      }
-
-      // Every Branch needs a tab waiting on the dev server from the moment it's
-      // created. Prompted rows already got their seeded Chat Session above;
-      // bare rows (no Chat Session) get the operator's preferred default tab —
-      // chat or terminal — so a scratch Branch is never tab-less while it
-      // provisions. Selection is deferred until the Sandbox is running, like
-      // the other branch-create flows. The server still skips its auto chat for
-      // these rows (seedChat: false), since the client owns tab seeding here.
-      const defaultTabKind = readLastTabKind()
-      for (const d of dispatched) {
-        if (!d.seedChat) {
-          createDefaultTabForBranch(d.id, defaultTabKind, { select: false })
-        }
-      }
-
-      for (const d of dispatched) {
-        fetch(withBasePath("/api/branch/create"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            flow: d.flow,
-            roomId,
-            branchId: d.id,
-            sandboxName: d.sandboxName,
-            branch: d.branch,
-            repoId,
-            sourceBranch: d.sourceBranch,
-            seedChat: d.seedChat,
-          }),
-        })
-      }
-    },
-    [
-      repos,
-      ops,
-      roomId,
-      createDefaultTabForBranch,
-      getViewportCenter,
-      handleSelectIframeLayer,
-    ]
-  )
-
-  const handleCreateAgentFromBranch = useCallback(
-    (repoId: string, branch: string) => {
-      const repo = repos.find((w) => w.id === repoId)
-      if (!repo) return
-
-      const sandboxName = `sp-${nanoid(10)}`
-
-      const { branchId: id } = ops.createBranch({
-        branch: {
-          repoId,
-          sandboxName,
-          gitUrl: repo.cloneUrl,
-          ref: branch,
-          previewDomain: "",
-          port: repo.devServerPort ?? 3000,
-          status: "creating",
-          statusMessage: "Cloning repository…",
-          createdAt: Date.now(),
-          autoNamedBranch: false,
-        },
-      })
-      setPendingAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
-      const seedChat = seedDefaultTabForNewBranch(id)
-      seedEagerFrameForBranch(id)
-
-      fetch(withBasePath("/api/branch/create"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "from-branch",
-          roomId,
-          branchId: id,
-          sandboxName,
-          branch,
-          repoId,
-          seedChat,
-        }),
-      })
-    },
-    [repos, ops, roomId, seedDefaultTabForNewBranch, seedEagerFrameForBranch]
-  )
+  // Branch Intake controller (PRD #562): the Repo -> Branch -> Sandbox
+  // create/teardown orchestration, Branch rename, and the seed-tab / seed-frame
+  // handoff, lifted into `useBranchIntake`. The component calls the verbs; the
+  // controller owns the ordering invariants and the Sandbox Provider calls.
+  const {
+    createRepo,
+    createBranch,
+    createBranchFromGitBranch,
+    removeRepo: removeRepoIntake,
+    removeBranch: removeBranchIntake,
+    renameBranch,
+  } = useBranchIntake({
+    ops,
+    repos,
+    agents,
+    roomId,
+    addRepoToStorage,
+    removeRepoFromStorage,
+    removeAgentFromStorage,
+    updateAgentInStorage,
+    updateChatSession,
+    createDefaultTabForBranch,
+    getViewportCenter,
+    setSelectedGroupIds,
+    setSelectedIframeLayerIds,
+    handleSelectIframeLayer,
+    setPendingAgentIds,
+    selectedAgentId,
+    setSelectedAgentId,
+    setSelectedChatId,
+    chatPanelRef,
+  })
 
   // The injected seams the Branch recovery verbs run over: the agent + repo
   // lookups, the agent-store patch, and a sonner toast adapter. Built once per
@@ -3593,52 +3178,9 @@ export function Canvas({
     [recoveryDeps]
   )
 
-  const handleBranchRename = useCallback(
-    async (agentId: string, rawBranch: string) => {
-      const newBranch = rawBranch
-        .toLowerCase()
-        .replace(/[^a-z0-9/_-]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
-      const agent = agents.find((a) => a.id === agentId)
-      if (
-        !newBranch ||
-        !agent?.sandboxName ||
-        !agent.ref ||
-        agent.ref === newBranch
-      )
-        return
-
-      const repo = repos.find((w) => w.id === agent.repoId)
-      if (!repo) return
-
-      // Apply the rename locally before the sandbox roundtrip — the sandbox
-      // resume + `git branch -m` + GitHub call can take several seconds and
-      // the badge sitting on the old name in the meantime feels broken.
-      // Roll back if the sandbox rejects (e.g. branch already exists).
-      const previousBranch = agent.ref
-      const previousAutoNamed = agent.autoNamedBranch
-      updateAgentInStorage(agentId, { ref: newBranch, autoNamedBranch: false })
-
-      const result = await renameAgentBranch(
-        repo,
-        agent.sandboxName,
-        previousBranch,
-        newBranch
-      )
-      if (!result.success) {
-        updateAgentInStorage(agentId, {
-          ref: previousBranch,
-          autoNamedBranch: previousAutoNamed,
-        })
-      }
-    },
-    [agents, repos, updateAgentInStorage]
-  )
-
   useEffect(() => {
     inspectHandlersRef.current = {
-      branchRename: handleBranchRename,
+      branchRename: renameBranch,
       renameChat: handleRenameChat,
     }
   })
@@ -3652,43 +3194,6 @@ export function Canvas({
       chatStore.loadHistory(cs.id)
     }
   }, [chatSessions])
-
-  // Dispatch prompts queued by the prompt-first create handler
-  // (handleCreateWorkspace) once their agent's sandbox reaches `running`.
-  // Deleting the entry before sending means the prompt fires exactly once —
-  // never before `running`, and never re-sent on a later reconnect. Drop the
-  // queue entry if the agent errored out so failed builds don't leak forever.
-  useEffect(() => {
-    if (pendingPromptsRef.current.size === 0) return
-    for (const agent of agents) {
-      const queued = pendingPromptsRef.current.get(agent.id)
-      if (!queued) continue
-      if (agent.status === "error") {
-        pendingPromptsRef.current.delete(agent.id)
-        continue
-      }
-      if (agent.status !== "running" || !agent.sandboxName || !agent.ref)
-        continue
-      pendingPromptsRef.current.delete(agent.id)
-      chatStore.sendMessage({
-        roomId,
-        chatId: queued.chatId,
-        sandboxName: agent.sandboxName,
-        branch: agent.ref,
-        message: queued.prompt,
-        isFirstChat: true,
-        autoNamedBranch: agent.autoNamedBranch,
-        model: queued.model,
-        planMode: queued.planMode,
-        onBranchRename: (branch) =>
-          updateAgentInStorage(agent.id, {
-            ref: branch,
-            autoNamedBranch: false,
-          }),
-        onChatRename: (label) => updateChatSession(queued.chatId, { label }),
-      })
-    }
-  }, [agents, roomId, updateAgentInStorage, updateChatSession])
 
   // Seed iframeLayers for agents whose sandbox has finished provisioning. The
   // flag is set at create time and cleared here after the first seed, so
@@ -4625,88 +4130,22 @@ export function Canvas({
             onRenameDocument={setDocumentLayerTitle}
             onRemoveDocument={(id) => removeDocumentLayers([id])}
             onSelectBranch={handleSelectAgent}
-            onCreateRepo={handleCreateRepo}
+            onCreateRepo={createRepo}
             onUpdateRepo={updateRepoInStorage}
-            onRemoveRepo={async (id, { deleteBranchesOnRemote }) => {
-              if (deleteBranchesOnRemote) {
-                const repo = repos.find((w) => w.id === id)
-                if (repo) {
-                  const branches = agents
-                    .filter((a) => a.repoId === id && a.ref)
-                    .map((a) => a.ref)
-                  const results = await Promise.all(
-                    branches.map((branch) =>
-                      deleteBranch(repo.repoOwner, repo.repoName, branch)
-                    )
-                  )
-                  const failed = results.filter((r) => !r.success)
-                  if (failed.length > 0) {
-                    throw new Error(
-                      failed[0]?.error ??
-                        `Failed to delete ${failed.length} branch${failed.length === 1 ? "" : "es"} on remote`
-                    )
-                  }
-                }
-              }
-              // Removing a Repo removes its Branches, and a Sandbox never
-              // outlives its Branch — capture the names before the doc records
-              // go, then tear the Sandboxes down fire-and-forget.
-              const sandboxNames = agents
-                .filter((a) => a.repoId === id)
-                .map((a) => a.sandboxName)
-                .filter(Boolean)
-              removeRepoFromStorage(id)
-              if (sandboxNames.length > 0) {
-                void deleteSandboxes(sandboxNames).catch(() => {})
-              }
-            }}
-            onCreateBranchFromGitBranch={handleCreateAgentFromBranch}
-            onCreateWorkspace={handleCreateWorkspace}
+            onRemoveRepo={removeRepoIntake}
+            onCreateBranchFromGitBranch={createBranchFromGitBranch}
+            onCreateWorkspace={createBranch}
             onRebaseOnDefault={handleRebaseOnDefault}
             onRestartDevServer={handleRestartDevServer}
             onCreatePr={handleCreatePullRequest}
             onRefreshBranch={handleRefreshAgent}
             onRecreateBranch={handleRecreateAgent}
-            onRemoveBranch={async (id, { deleteOnRemote }) => {
-              const agent = agents.find((a) => a.id === id)
-              if (deleteOnRemote) {
-                const repo = agent
-                  ? repos.find((w) => w.id === agent.repoId)
-                  : undefined
-                if (agent?.ref && repo) {
-                  const result = await deleteBranch(
-                    repo.repoOwner,
-                    repo.repoName,
-                    agent.ref
-                  )
-                  if (!result.success) {
-                    throw new Error(
-                      result.error ?? "Failed to delete branch on remote"
-                    )
-                  }
-                }
-              }
-              if (selectedAgentId === id) {
-                setSelectedAgentId(null)
-                setSelectedChatId(null)
-                chatPanelRef.current?.collapse()
-              }
-              // removeAgentFromStorage clears the chat-store mirror for the Chat
-              // Sessions the verb deletes.
-              removeAgentFromStorage(id)
-              // A Sandbox never outlives its Branch: tear down the deleted
-              // Branch's worktree/VM (dev server included) so the leak doesn't
-              // keep its git ref checked out. Fire-and-forget — the Branch is
-              // already gone from the doc, so cleanup must not block the UI.
-              if (agent?.sandboxName) {
-                void deleteSandboxes([agent.sandboxName]).catch(() => {})
-              }
-            }}
+            onRemoveBranch={removeBranchIntake}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}
             onShowRoutes={handleShowRoutesForAgent}
             onUpdateBranch={updateAgentInStorage}
-            onRenameBranch={handleBranchRename}
+            onRenameBranch={renameBranch}
             onSelectIframeLayer={handleIframeLayerSelect}
             onZoomToIframeLayer={handleSelectIframeLayer}
             onRenameIframeLayer={renameIframeLayer}
@@ -5741,7 +5180,7 @@ export function Canvas({
                 onReopenChat={handleReopenChat}
                 onBranchRename={(branch) => {
                   if (target.kind === "agent")
-                    handleBranchRename(target.agent.id, branch)
+                    renameBranch(target.agent.id, branch)
                 }}
                 onPlanModeChange={(chatId, pm) =>
                   updateChatSession(chatId, { planMode: pm })
