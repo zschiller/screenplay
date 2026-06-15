@@ -6,6 +6,7 @@ import {
   type GestureEvent,
   type GestureResult,
   type GestureState,
+  type MoveGestureContext,
   type ReorderGestureContext,
   type ReorderMemberSnapshot,
 } from "@/lib/canvas/gesture"
@@ -44,6 +45,8 @@ describe("reduceGesture — gap-resize", () => {
     expect(result.preview).toEqual({
       gapOverride: { groupId: "g1", gap: 50 },
       reorder: null,
+      snapGuides: [],
+      mergeRects: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -60,6 +63,8 @@ describe("reduceGesture — gap-resize", () => {
     expect(result.preview).toEqual({
       gapOverride: { groupId: "g1", gap: 90 },
       reorder: null,
+      snapGuides: [],
+      mergeRects: null,
     })
     expect(result.intent).toBeUndefined()
   })
@@ -167,6 +172,8 @@ describe("reduceGesture — gap-resize", () => {
     expect(result.preview).toEqual({
       gapOverride: { groupId: "g2", gap: 30 },
       reorder: null,
+      snapGuides: [],
+      mergeRects: null,
     })
   })
 })
@@ -206,7 +213,10 @@ describe("reduceGesture — reorder", () => {
     const ctx = reorderCtx("a")
     const result = reduceGesture(
       { kind: "idle" },
-      { type: "start", start: { kind: "reorder", ctx, order: reorderOrder, meta: false } }
+      {
+        type: "start",
+        start: { kind: "reorder", ctx, order: reorderOrder, meta: false },
+      }
     )
 
     expect(result.state).toEqual({
@@ -231,7 +241,10 @@ describe("reduceGesture — reorder", () => {
     // lands it at index 1: [b, a, c].
     const ctx = reorderCtx("a")
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx, order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: { kind: "reorder", ctx, order: reorderOrder, meta: false },
+      },
       { type: "move", cursor: { x: 200, y: 50 }, meta: false },
     ])
 
@@ -255,7 +268,15 @@ describe("reduceGesture — reorder", () => {
   it("emits no intent when the drop index is unchanged", () => {
     // "a" stays left of b's center (170), so it remains at index 0.
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "move", cursor: { x: 60, y: 50 }, meta: false },
     ])
 
@@ -265,7 +286,10 @@ describe("reduceGesture — reorder", () => {
   it("previews the pop-out while meta is held and emits no reorder", () => {
     const ctx = reorderCtx("a")
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx, order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: { kind: "reorder", ctx, order: reorderOrder, meta: false },
+      },
       { type: "move", cursor: { x: 200, y: 50 }, meta: true },
     ])
 
@@ -277,7 +301,15 @@ describe("reduceGesture — reorder", () => {
 
   it("flips the pop-out preview on a meta press with no pointer move", () => {
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "metaChange", meta: true },
     ])
 
@@ -289,7 +321,15 @@ describe("reduceGesture — reorder", () => {
     // Pop "a" out and release at (200, 80); the new group anchors at
     // cursor - grabOffset = (190, 70).
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "move", cursor: { x: 200, y: 80 }, meta: true },
       { type: "release", cursor: { x: 200, y: 80 }, meta: true },
     ])
@@ -325,7 +365,15 @@ describe("reduceGesture — reorder", () => {
     })
 
     const fromDot = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "release", cursor: { x: 50, y: 50 } },
     ])
     expect(fromDot.intent).toBeUndefined()
@@ -352,7 +400,15 @@ describe("reduceGesture — reorder", () => {
   it("resumes in-flow reorder after meta is released mid-drag", () => {
     // Pop out, then drop meta and move past b's center: reindex resumes.
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "move", cursor: { x: 200, y: 80 }, meta: true },
       { type: "metaChange", meta: false },
       { type: "move", cursor: { x: 200, y: 50 }, meta: false },
@@ -372,7 +428,15 @@ describe("reduceGesture — reorder", () => {
 
   it("cancels a reorder back to idle with no intent", () => {
     const result = run([
-      { type: "start", start: { kind: "reorder", ctx: reorderCtx("a"), order: reorderOrder, meta: false } },
+      {
+        type: "start",
+        start: {
+          kind: "reorder",
+          ctx: reorderCtx("a"),
+          order: reorderOrder,
+          meta: false,
+        },
+      },
       { type: "move", cursor: { x: 200, y: 50 }, meta: false },
       { type: "cancel" },
     ])
@@ -380,5 +444,273 @@ describe("reduceGesture — reorder", () => {
     expect(result.state).toEqual({ kind: "idle" })
     expect(result.preview).toEqual(EMPTY_PREVIEW)
     expect(result.intent).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Group-move + move-snap + merge-snap (#543). The move arm orchestrates the
+// pure Snap functions, so the fixtures below pin observable behavior — the
+// `moveBy` deltas, the Snap Guides, and the merge commit — against plain
+// values, with no React, DOM, or Y.Doc. The Snap math itself is covered by
+// `snap.test.ts`; these assert the orchestration around it.
+
+/**
+ * Replay an event sequence from `idle`, returning the result *after each* event
+ * so a test can inspect the intermediate `moveBy` deltas and guides (the
+ * sticky-snap behavior only shows up move-by-move, not in the final state).
+ */
+function steps(events: GestureEvent[]): GestureResult[] {
+  let state: GestureState = { kind: "idle" }
+  const out: GestureResult[] = []
+  for (const event of events) {
+    const result = reduceGesture(state, event)
+    state = result.state
+    out.push(result)
+  }
+  return out
+}
+
+describe("reduceGesture — group-move (no snap, no merge)", () => {
+  const ctx: MoveGestureContext = {
+    moveMemberIds: ["a"],
+    sourceGroupId: null,
+    sourceStart: null,
+    snap: null,
+    merge: null,
+    zoom: 1,
+  }
+
+  it("seeds an idle preview on start: no guides, no merge, no intent", () => {
+    const result = reduceGesture(
+      { kind: "idle" },
+      { type: "start", start: { kind: "move", ctx } }
+    )
+
+    expect(result.state.kind).toBe("move")
+    expect(result.preview).toEqual({
+      gapOverride: null,
+      reorder: null,
+      snapGuides: [],
+      mergeRects: null,
+    })
+    expect(result.intent).toBeUndefined()
+  })
+
+  it("emits moveBy with the raw incremental delta on each move", () => {
+    const [, m1, m2] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 10, y: 5 } },
+      { type: "move", cursor: { x: 25, y: 5 } },
+    ])
+
+    // First move: full cumulative delta. Second: only the increment (15, 0).
+    expect(m1.intent).toEqual({
+      type: "moveBy",
+      memberIds: ["a"],
+      dx: 10,
+      dy: 5,
+    })
+    expect(m2.intent).toEqual({
+      type: "moveBy",
+      memberIds: ["a"],
+      dx: 15,
+      dy: 0,
+    })
+    expect(m2.preview).toEqual({
+      gapOverride: null,
+      reorder: null,
+      snapGuides: [],
+      mergeRects: null,
+    })
+  })
+
+  it("commits nothing on release when there is no merge target", () => {
+    const all = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 10, y: 5 } },
+      { type: "release" },
+    ])
+    const release = all[all.length - 1]
+
+    expect(release.intent).toBeUndefined()
+    expect(release.state).toEqual({ kind: "idle" })
+    expect(release.preview).toEqual(EMPTY_PREVIEW)
+  })
+
+  it("emits no moveBy when nothing moves (empty member set)", () => {
+    const [, m1] = steps([
+      {
+        type: "start",
+        start: { kind: "move", ctx: { ...ctx, moveMemberIds: [] } },
+      },
+      { type: "move", cursor: { x: 10, y: 0 } },
+    ])
+    expect(m1.intent).toBeUndefined()
+  })
+})
+
+describe("reduceGesture — group-move sticky edge-snap", () => {
+  // A 100×100 moving union with one stationary candidate to its right whose
+  // left edge sits at world x=120 (top-aligned so only the x-axis snaps). The
+  // dragged union's right edge snaps to that edge within 8 screen px (zoom 1).
+  const ctx: MoveGestureContext = {
+    moveMemberIds: ["a"],
+    sourceGroupId: null,
+    sourceStart: null,
+    snap: {
+      startUnion: { x: 0, y: 0, width: 100, height: 100 },
+      candidates: [{ x: 120, y: 200, width: 100, height: 100 }],
+    },
+    merge: null,
+    zoom: 1,
+  }
+
+  it("holds the guide while the cursor keeps moving, then unlocks past threshold", () => {
+    const [, before, lock, hold, unlock] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      // Right edge at 110, still 10px from the guide at 120 → no snap yet.
+      { type: "move", cursor: { x: 10, y: 0 } },
+      // Right edge at 115, 5px away → snaps: the union jumps the full 10px so
+      // its right edge lands on 120 (cursor moved 5, world moved 10).
+      { type: "move", cursor: { x: 15, y: 0 } },
+      // Cursor creeps to 118 (raw right 118, 2px from guide): the rect *sticks*
+      // — the snap absorbs the 3px of cursor travel, so the world doesn't move.
+      { type: "move", cursor: { x: 18, y: 0 } },
+      // Cursor jumps to 30 (raw right 130, 10px past the guide): lock releases
+      // and the rect pops back to follow the cursor.
+      { type: "move", cursor: { x: 30, y: 0 } },
+    ])
+
+    // Before the guide is reached: raw movement, no guides.
+    expect(before.intent).toMatchObject({ type: "moveBy", dx: 10 })
+    expect(before.preview.snapGuides).toHaveLength(0)
+
+    // Locking on: the world jumps 10px (5 cursor + 5 snap) and a guide appears.
+    expect(lock.intent).toMatchObject({ type: "moveBy", dx: 10 })
+    expect(lock.preview.snapGuides.length).toBeGreaterThan(0)
+
+    // Sticky hold: cursor moved 3px but the snap absorbs it → world delta 0.
+    expect(hold.intent).toMatchObject({ type: "moveBy", dx: 0 })
+    expect(hold.preview.snapGuides.length).toBeGreaterThan(0)
+
+    // Past threshold: the lock releases (snap was +2, so 12 cursor − 2 = 10).
+    expect(unlock.intent).toMatchObject({ type: "moveBy", dx: 10 })
+    expect(unlock.preview.snapGuides).toHaveLength(0)
+  })
+
+  it("bypasses the snap and releases the lock when meta is held", () => {
+    const [, lock, freed] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 15, y: 0 } },
+      // Same cursor position, now with cmd held: the lock releases (the +5 snap
+      // is undone) and no guides are drawn.
+      { type: "move", cursor: { x: 15, y: 0 }, meta: true },
+    ])
+
+    // Straight to cursor 15 from rest: 15 cursor travel + 5 snap = 20.
+    expect(lock.intent).toMatchObject({ type: "moveBy", dx: 20 })
+    expect(lock.preview.snapGuides.length).toBeGreaterThan(0)
+    // dx = 0 (cursor unchanged) − 5 (applied snap undone) = −5.
+    expect(freed.intent).toMatchObject({ type: "moveBy", dx: -5 })
+    expect(freed.preview.snapGuides).toHaveLength(0)
+  })
+})
+
+describe("reduceGesture — group-move merge (commit on release)", () => {
+  // Source group at the origin, 100×100, one 100×100 member. One merge target
+  // whose trailing "+ frame" slot sits at x = 200 + 100 + gap(20) = 320, y = 0.
+  // The source goes hot when its top-left lands within 16 screen px of (320, 0).
+  const ctx: MoveGestureContext = {
+    moveMemberIds: ["m"],
+    sourceGroupId: "s",
+    sourceStart: { x: 0, y: 0 },
+    snap: null,
+    merge: {
+      sourceContentW: 100,
+      sourceContentH: 100,
+      memberSizes: [{ width: 100, height: 100 }],
+      candidates: [
+        { id: "t", rect: { x: 200, y: 0, width: 100, height: 100 }, gap: 20 },
+      ],
+    },
+    zoom: 1,
+  }
+
+  it("previews the merged row while hot and commits mergeGroups only on release", () => {
+    const [start, cold, hot, release] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      // Drag partway — still 120px from the slot: not hot.
+      { type: "move", cursor: { x: 200, y: 0 } },
+      // Drag onto the slot: top-left at (320, 0), exactly on target → hot.
+      { type: "move", cursor: { x: 320, y: 0 } },
+      { type: "release" },
+    ])
+
+    expect(start.preview.mergeRects).toBeNull()
+    expect(cold.preview.mergeRects).toBeNull()
+
+    // Hot: the preview lays out one rect per source member at the merged slot,
+    // and no intent has merged yet — only the live moveBy.
+    expect(hot.preview.mergeRects).toEqual([
+      { x: 320, y: 0, width: 100, height: 100 },
+    ])
+    // The move is live: dx is the increment from the previous cursor (200→320).
+    expect(hot.intent).toMatchObject({ type: "moveBy", dx: 120 })
+    if (hot.state.kind !== "move") throw new Error("expected move state")
+    expect(hot.state.targetId).toBe("t")
+
+    // Release commits the merge and clears the preview.
+    expect(release.intent).toEqual({
+      type: "mergeGroups",
+      sourceId: "s",
+      targetId: "t",
+    })
+    expect(release.state).toEqual({ kind: "idle" })
+    expect(release.preview).toEqual(EMPTY_PREVIEW)
+  })
+
+  it("does not merge on release when meta is held (drop freely)", () => {
+    const all = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 320, y: 0 } },
+      { type: "release", meta: true },
+    ])
+    const release = all[all.length - 1]
+
+    expect(release.intent).toBeUndefined()
+    expect(release.state).toEqual({ kind: "idle" })
+  })
+
+  it("flips the merge preview the instant meta is pressed or released (no move)", () => {
+    const [, hot, suppressed, restored] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 320, y: 0 } },
+      // cmd pressed mid-hover: the merge preview drops without any pointer move.
+      { type: "metaChange", meta: true },
+      // cmd released: the preview comes back.
+      { type: "metaChange", meta: false },
+    ])
+
+    expect(hot.preview.mergeRects).not.toBeNull()
+    expect(suppressed.preview.mergeRects).toBeNull()
+    if (suppressed.state.kind !== "move") throw new Error("expected move state")
+    expect(suppressed.state.targetId).toBeNull()
+    // A `metaChange` event never moves anything.
+    expect(suppressed.intent).toBeUndefined()
+
+    expect(restored.preview.mergeRects).not.toBeNull()
+    if (restored.state.kind !== "move") throw new Error("expected move state")
+    expect(restored.state.targetId).toBe("t")
+  })
+
+  it("suppresses the hot target while meta is held during a move", () => {
+    const [, hot] = steps([
+      { type: "start", start: { kind: "move", ctx } },
+      { type: "move", cursor: { x: 320, y: 0 }, meta: true },
+    ])
+
+    expect(hot.preview.mergeRects).toBeNull()
+    if (hot.state.kind !== "move") throw new Error("expected move state")
+    expect(hot.state.targetId).toBeNull()
   })
 })
