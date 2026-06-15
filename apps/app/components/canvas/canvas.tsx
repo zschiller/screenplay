@@ -61,7 +61,6 @@ import type {
   BranchData,
   IframeLayerGroupData,
   ChatSessionData,
-  GroupMember,
   ViewportData,
   RepoData,
 } from "@/lib/types"
@@ -82,6 +81,7 @@ import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
+import { useGroupActions } from "@/components/canvas/use-group-actions"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
 import { CANVAS_SIZE } from "@/lib/constants"
@@ -92,7 +92,6 @@ import {
   groupContentHeight,
   groupContentWidth,
   groupGap,
-  placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
 import type {
   MoveAssemblyGroup,
@@ -730,51 +729,8 @@ export function Canvas({
     [ops]
   )
 
-  // --- IframeLayer mutations ---
-
-  /** Add an iframeLayer — used by the manual "add screen" button. Always creates a fresh group. */
-  const addIframeLayer = useCallback(
-    (agentId: string, label: string): string | undefined => {
-      const agent = collections.branches.get(agentId)
-      if (!agent || agent.status !== "running") return
-      const { cx, cy } = getViewportCenter()
-      return ops.createFrameForAgent(agentId, { x: cx, y: cy }, label).layerId
-    },
-    [collections, getViewportCenter, ops]
-  )
-
-  /** Add an empty frame not associated with any agent/branch/route. Creates a new single-iframeLayer group. */
-  const addFrame = useCallback(
-    (x: number, y: number, width: number, height: number): string => {
-      return ops.createBlankFrame({ x, y }, { width, height })
-    },
-    [ops]
-  )
-
-  /**
-   * Create a new group for an agent containing one iframeLayer per discovered
-   * route. The group is positioned to the right of all existing groups,
-   * top-aligned with the topmost. Returns the new group's id and the id of
-   * its first iframeLayer (handy for zooming after the DOM updates).
-   */
-  const addRoutesGroupForAgent = useCallback(
-    (
-      agentId: string,
-      routes: { route: string; label: string }[]
-    ): { groupId: string; firstIframeLayerId: string } | undefined => {
-      const { cx, cy } = getViewportCenter()
-      const result = ops.createFramesForRoutes(agentId, routes, {
-        x: cx,
-        y: cy,
-      })
-      if (!result) return
-      return {
-        groupId: result.groupId,
-        firstIframeLayerId: result.firstLayerId,
-      }
-    },
-    [getViewportCenter, ops]
-  )
+  // Frame / document creation and the structural group mutations live on the
+  // Group Operations controller (`useGroupActions`), constructed below.
 
   /**
    * Start a reorder drag programmatically from a layer-owned element (e.g. the
@@ -872,8 +828,8 @@ export function Canvas({
   // Layer Mutation controller (PRD #579, cut 1/4): the thin per-Layer Canvas
   // Operation wrappers — Iframe Layer field writers (rename / assignAgent /
   // updateState / updateScroll / updateKnobs / updateKnobValues /
-  // updateSharedState / updateRoute / fitToContent), Markdown Layer writers
-  // (resizeDocument / setTitle / setTitleCache), and addIframeLayerToGroup —
+  // updateSharedState / updateRoute / fitToContent) and Markdown Layer writers
+  // (resizeDocument / setTitle / setTitleCache) —
   // bundled into one `LayerMutations` object passed to `CanvasMemberLayer` as a
   // single prop, the way `selection` / `camera` / `reference` already are.
   // `updateRoute` reads `transformRef` (the Create-Flow pan) and the live
@@ -886,171 +842,39 @@ export function Canvas({
     createFlowIframeLayerIdRef,
   })
 
-  /** Reorder groups in the sidebar Frames list. */
-  const reorderIframeLayerGroups = useCallback(
-    (orderedIds: string[]) => {
-      ops.batch(() => {
-        orderedIds.forEach((id, index) => {
-          ops.patch("iframeLayerGroups", id, { sidebarOrder: index })
-        })
-      })
-    },
-    [ops]
-  )
+  // Group Operations controller (PRD #588): the structural sibling of
+  // `useLayerMutations`. Where the Layer Mutation bundle writes a field on one
+  // Layer, this owns "create / move / reorder / remove the groups and frames
+  // themselves" — frame creation (blank / for-agent / routes-group /
+  // append-to-group), document creation, cross-group `moveMember`, group
+  // reorder / rename / delete — bundled into one `GroupActions` object passed to
+  // the render tree. Every verb routes through `ops` (ADR 0001); the composed
+  // ones keep their bodies (the `moveMember` splice, `removeIframeLayerGroup`'s
+  // chat cleanup + selection follow, the viewport-centered creators). The thin
+  // multi-Layer remove wrappers (`removeIframeLayers` / `removeDocumentLayers`)
+  // stay up top because the Selection controller consumes them at construction,
+  // ahead of this controller.
+  const groupActions = useGroupActions({
+    ops,
+    collections,
+    getViewportCenter,
+    rememberDocChat: chatTarget.rememberDocChat,
+    selection,
+  })
+  // Alias the controller verbs to the local names the render tree / other
+  // controllers read, so the call sites stay a verbatim move.
+  const addFrame = groupActions.addFrame
+  const addIframeLayer = groupActions.addIframeLayer
+  const addRoutesGroupForAgent = groupActions.addRoutesGroupForAgent
+  const addDocumentLayer = groupActions.addDocumentLayer
+  const reorderIframeLayerGroups = groupActions.reorderIframeLayerGroups
+  const moveMember = groupActions.moveMember
+  const renameIframeLayerGroup = groupActions.renameIframeLayerGroup
+  const removeIframeLayerGroup = groupActions.removeIframeLayerGroup
 
-  /**
-   * Move a single member across groups (Figma-style sidebar drag). Handles
-   * three cases in one transaction so undo is atomic:
-   *  - drop into an existing group at a specific index
-   *  - drop into the gap between groups → spawn a new single-member group
-   *    placed near the viewport center, then renumber `sidebarOrder`
-   *  - either case may leave the source group empty → delete it
-   */
-  const moveMember = useCallback(
-    (
-      member: GroupMember,
-      target:
-        | { kind: "into-group"; groupId: string; index: number }
-        | { kind: "new-group"; sidebarIndex: number }
-    ) => {
-      const allGroups = collections.iframeLayerGroups.toArray()
-      const sourceGroup = allGroups.find((g) =>
-        getGroupMembers(g).some(
-          (m) => m.kind === member.kind && m.id === member.id
-        )
-      )
-      if (!sourceGroup) return
-
-      if (target.kind === "into-group") {
-        // Cross-group move or same-group reorder — the verb finds the source,
-        // splices the member into the target at `index`, and prunes the source
-        // if the move empties it.
-        ops.moveLayerToGroup(member.id, target.groupId, target.index)
-        return
-      }
-
-      // target.kind === "new-group" — split the member into a fresh group, then
-      // renumber sidebar order so it slots in at the requested index. Placement
-      // (canvas-space) is the caller's job; the verb owns the member move,
-      // group creation/naming, and source pruning.
-      const memberSize = (() => {
-        if (member.kind === "iframe-layer") {
-          const ab = collections.iframeLayers.get(member.id)
-          return ab ? { width: ab.width, height: ab.height } : null
-        }
-        if (member.kind === "markdown-layer") {
-          const d = collections.markdownLayers.get(member.id)
-          return d ? { width: d.width, height: d.height } : null
-        }
-        return null
-      })()
-      if (!memberSize) return
-
-      const sourceWillEmpty =
-        getGroupMembers(sourceGroup).filter(
-          (m) => !(m.kind === member.kind && m.id === member.id)
-        ).length === 0
-      const { cx, cy } = getViewportCenter()
-      const groupsForPlacement = allGroups.filter(
-        (g) => g.id !== sourceGroup.id || !sourceWillEmpty
-      )
-      const { x, y } = placeNewIframeLayerGroup(
-        groupsForPlacement,
-        collections.iframeLayers.toArray(),
-        { x: cx, y: cy },
-        memberSize.width,
-        memberSize.height
-      )
-
-      // One batch so the split + sidebar renumber land as a single undo step.
-      ops.batch(() => {
-        const newGroupId = ops.splitToNewGroup([member.id], { x, y })
-        // Renumber sidebarOrder over the post-mutation set so the new group
-        // lands at target.sidebarIndex. Use the freshly read snapshot, then
-        // splice in the new id; an `update` on a pruned source is a no-op.
-        const orderedIds = collections.iframeLayerGroups
-          .toArray()
-          .filter((g) => g.id !== newGroupId)
-          .sort((a, b) => (a.sidebarOrder ?? 0) - (b.sidebarOrder ?? 0))
-          .map((g) => g.id)
-        const clamped = Math.max(
-          0,
-          Math.min(target.sidebarIndex, orderedIds.length)
-        )
-        const finalOrder = [
-          ...orderedIds.slice(0, clamped),
-          newGroupId,
-          ...orderedIds.slice(clamped),
-        ]
-        finalOrder.forEach((id, index) => {
-          ops.patch("iframeLayerGroups", id, { sidebarOrder: index })
-        })
-      })
-    },
-    [collections, getViewportCenter, ops]
-  )
-
-  const renameIframeLayerGroup = useCallback(
-    (groupId: string, name: string) => {
-      ops.patch("iframeLayerGroups", groupId, { name })
-    },
-    [ops]
-  )
-
-  /** Delete an entire group + all its members (iframeLayers, markdownLayers). */
-  const removeIframeLayerGroup = useCallback(
-    (groupId: string) => {
-      const g = collections.iframeLayerGroups.get(groupId)
-      if (!g) return
-      const members = getGroupMembers(g)
-      const iframeLayerIds = members
-        .filter((m) => m.kind === "iframe-layer")
-        .map((m) => m.id)
-      const documentIds = members
-        .filter((m) => m.kind === "markdown-layer")
-        .map((m) => m.id)
-      // Compose both removal verbs under one batch so the group teardown is a
-      // single transaction (one undo step). Each verb prunes the group as its
-      // last member of that kind leaves.
-      let removedChatIds: string[] = []
-      ops.batch(() => {
-        if (iframeLayerIds.length > 0) ops.removeLayers(iframeLayerIds)
-        if (documentIds.length > 0) {
-          removedChatIds = ops.removeDocuments(documentIds).removedChatIds
-        }
-      })
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
-      selection.removeGroupFromSelection(groupId)
-    },
-    [collections, ops, selection]
-  )
-
-  // --- Document layer mutations ---
-
-  /**
-   * Wrap a new document in a fresh single-member group at the given canvas
-   * coords. Mirrors `addFrame` so docs and iframeLayers have parallel
-   * "create at canvas position" entry points.
-   */
-  const addDocumentLayer = useCallback(
-    (
-      canvasX: number,
-      canvasY: number,
-      width: number,
-      height: number
-    ): string => {
-      const { docId, chatId } = ops.createDocument(
-        { x: canvasX, y: canvasY },
-        { width, height }
-      )
-      chatTarget.rememberDocChat(docId, chatId)
-      return docId
-    },
-    [ops, chatTarget]
-  )
-
-  // `removeDocumentLayers` is defined up top (a Canvas Operation wrapper the
-  // controllers and the sidebar's remove-document action share).
+  // `removeIframeLayers` / `removeDocumentLayers` are defined up top (Canvas
+  // Operation wrappers the Selection controller and the sidebar's remove-frame /
+  // remove-document actions share).
 
   // --- Agent mutations ---
 
@@ -1752,12 +1576,12 @@ export function Canvas({
                     setFocusedIframeLayerId={setFocusedIframeLayerId}
                     createFlowIframeLayerId={createFlowIframeLayerId}
                     setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
-                    renameIframeLayerGroup={renameIframeLayerGroup}
                     removeIframeLayer={removeIframeLayer}
                     handlePlayIframeLayer={handlePlayIframeLayer}
                     handleCaptureReadyChange={handleCaptureReadyChange}
                     handleCaptureDirty={handleCaptureDirty}
                     layerMutations={layerMutations}
+                    groupActions={groupActions}
                   />
                 </div>
               </TransformComponent>

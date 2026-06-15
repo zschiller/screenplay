@@ -766,8 +766,8 @@ one-line `useCallback`s inlined in `canvas.tsx` and drilled into
 (`useLayerMutations`, PRD #579) groups them into one `LayerMutations` object —
 the Iframe Layer field writers (`rename`, `assignAgent`, `updateState`,
 `updateScroll`, `updateKnobs`, `updateKnobValues`, `updateSharedState`,
-`updateRoute`, `fitToContent`), the Markdown Layer writers (`resizeDocument`,
-`setTitle`, `setTitleCache`), and `addIframeLayerToGroup` — passed to
+`updateRoute`, `fitToContent`) and the Markdown Layer writers (`resizeDocument`,
+`setTitle`, `setTitleCache`) — passed to
 `CanvasMemberLayer` (and onward to the Iframe Layer / Markdown Layer adapters) as
 a **single prop**, exactly the way `selection` / `camera` / `reference` already
 are. It is the **React binding, not a new write path**: every write routes
@@ -776,13 +776,44 @@ directly. The two verbs that carry real composition keep their bodies — the
 controller is constructed from `ops`, `collections`, and the dirty-frame
 `captureTracker` so `updateRoute` can apply the Create-Flow trail pan (via the
 `transformRef` it reads through a ref) and `fitToContent` can mark a frame's
-thumbnail dirty only when its size actually changes.
+thumbnail dirty only when its size actually changes. Its **structural sibling**
+is the **Group Operations** controller (below): this bundle writes a field on one
+Layer; that one creates / moves / reorders / removes the groups and frames.
 _Avoid_: reintroducing per-mutator props on `CanvasMemberLayer` (add a field to
 `LayerMutations` instead); writing a Layer record outside `ops` (the bundle is a
 binding over the already-tested verbs); flattening `updateRoute`'s pan or
-`fitToContent`'s `markDirty` into a bare `patch`. Group teardown / cross-group
-moves (`removeIframeLayerGroup`, `moveMember`) carry chat-store cleanup and
-selection follow and stay on the composition root, not in this bundle.
+`fitToContent`'s `markDirty` into a bare `patch`. Frame/document creation, group
+teardown, and cross-group moves are **not** here — they live in Group Operations.
+
+**Group Operations** (Group Actions):
+The structural sibling of **Layer Mutation** — where that bundle writes a field
+on one Layer, the **Group Operations controller** (`useGroupActions`, PRD #588)
+**creates / moves / reorders / removes the groups and frames themselves**. It
+owns the ~structural canvas mutations that used to sit as loose `useCallback`s in
+`canvas.tsx`: frame creation (`addFrame` blank, `addIframeLayer` for-agent,
+`addRoutesGroupForAgent`, `addIframeLayerToGroup` append-to-group), document
+creation (`addDocumentLayer`), cross-group member move (`moveMember`), group
+reorder (`reorderIframeLayerGroups`), group rename (`renameIframeLayerGroup`),
+and group delete (`removeIframeLayerGroup`) — bundled into one `GroupActions`
+object the Canvas root threads into the render tree, the way `layerMutations` /
+`selection` / `camera` already are. Like Layer Mutation it is the **React
+binding, not a new write path**: **every mutation routes through the Canvas
+Operations seam (`ops`, ADR 0001), never the Y.Doc directly**, so the
+single-transaction entry point and the Group-invariant chokepoint are preserved.
+The composed verbs keep their full bodies rather than flattening to a bare
+`patch`: `moveMember` keeps its cross-group splice + new-group placement,
+`removeIframeLayerGroup` keeps its chat-store cleanup + selection follow, and the
+route/seed creators keep their viewport-centered placement. Constructed from
+`ops`, the live `collections`, the viewport-center reader (**Canvas Camera**),
+the **Chat-Target** memory (`rememberDocChat`), and the **Canvas Selection**
+controller (for the delete-follow on group teardown).
+_Avoid_: putting these structural mutations back as loose callbacks on the
+composition root (add a field to `GroupActions` instead); writing a Group / Layer
+record outside `ops`; flattening a composed verb (the `moveMember` splice,
+`removeIframeLayerGroup`'s cleanup, the creators' placement) into a bare `patch`;
+folding the thin multi-Layer remove wrappers (`removeIframeLayers` /
+`removeDocumentLayers`) in here — they stay on the composition root because the
+Selection controller consumes them at construction, ahead of this controller.
 
 **Sandbox Reconnect**:
 The Canvas's mount-time Sandbox-lifecycle orchestration, split the way the rest

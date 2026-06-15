@@ -4,7 +4,7 @@ import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
-import { getGroupMemberIds, getGroupMembers } from "@/lib/canvas/layout"
+import { getGroupMembers } from "@/lib/canvas/layout"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
@@ -88,10 +88,6 @@ export interface LayerMutations {
   setTitle: (id: string, title: string) => void
   /** Mirror the editor's first-heading text onto the cached title (cache-only). */
   setTitleCache: (id: string, title: string) => void
-
-  // --- Group membership ---
-  /** Append a new frame to an existing group, mirroring the last sibling. */
-  addIframeLayerToGroup: (groupId: string) => string | undefined
 }
 
 export function useLayerMutations({
@@ -249,48 +245,6 @@ export function useLayerMutations({
     [ops]
   )
 
-  const addIframeLayerToGroup = useCallback(
-    (groupId: string): string | undefined => {
-      const group = collections.iframeLayerGroups.get(groupId)
-      if (!group) return
-      const members = getGroupMembers(group)
-      if (members.length === 0) return
-      // Mirror the last *iframeLayer* sibling for size/agent/route when one
-      // exists. For doc-only groups, fall back to the last member's bounds
-      // so the new frame visually replaces the placeholder rect the user
-      // just clicked.
-      const iframeLayerIds = getGroupMemberIds(group, "iframe-layer")
-      const lastIframeLayerId = iframeLayerIds[iframeLayerIds.length - 1]
-      const lastIframeLayer = lastIframeLayerId
-        ? collections.iframeLayers.get(lastIframeLayerId)
-        : undefined
-      let width: number
-      let height: number
-      let branchId: string | undefined
-      let route: string | undefined
-      if (lastIframeLayer) {
-        width = lastIframeLayer.width
-        height = lastIframeLayer.height
-        branchId = lastIframeLayer.branchId
-        route = lastIframeLayer.route
-      } else {
-        const lastMember = members[members.length - 1]!
-        const lastDoc = collections.markdownLayers.get(lastMember.id)
-        if (!lastDoc) return
-        width = lastDoc.width
-        height = lastDoc.height
-      }
-      return ops.addFrameToGroup(groupId, {
-        width,
-        height,
-        label: branchId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
-        ...(branchId ? { branchId } : {}),
-        ...(route ? { route } : {}),
-      })
-    },
-    [collections, ops]
-  )
-
   // Memoized so the controller object stays stable across renders (every verb
   // is `useCallback`-stable over its stable inputs); consumers list
   // `layerMutations` whole in dep arrays — matching the other canvas
@@ -309,7 +263,6 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
-      addIframeLayerToGroup,
     }),
     [
       rename,
@@ -324,7 +277,6 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
-      addIframeLayerToGroup,
     ]
   )
 }
