@@ -12,6 +12,7 @@ import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
+import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
 import { useIframeLayerResize } from "@/hooks/use-iframe-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
@@ -482,33 +483,16 @@ export function MarkdownLayer({
     }
   }, [editor, zoom])
 
-  // Keep the portaled bubble anchored to the start of the selection. The doc
-  // tile lives inside the world transform (panning/zooming move it on
-  // screen), but the bubble lives in screen space, so we re-read the tile's
-  // client rect every frame and write the canvas-wrapper-relative offset
-  // directly to the bubble's style.
-  useEffect(() => {
-    if (!bubbleAnchor || !editing || !bubblePortalTarget) return
-    const canvasWrapper = document.querySelector<HTMLDivElement>(
-      "[data-canvas-wrapper]"
-    )
-    if (!canvasWrapper) return
-    let rafId = 0
-    const tick = () => {
-      const root = rootRef.current
-      const bubble = bubbleRef.current
-      if (root && bubble) {
-        const rr = root.getBoundingClientRect()
-        const cw = canvasWrapper.getBoundingClientRect()
-        const x = rr.left - cw.left + bubbleAnchor.left * zoom
-        const y = rr.top - cw.top + bubbleAnchor.top * zoom
-        bubble.style.transform = `translate(${x}px, ${y}px)`
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [bubbleAnchor, editing, bubblePortalTarget, zoom])
+  // Keep the portaled bubble anchored to the start of the selection.
+  useCanvasAnchoredPortal({
+    enabled: !!bubbleAnchor && editing && !!bubblePortalTarget,
+    anchorRef: rootRef,
+    targetRef: bubbleRef,
+    getOffset: (rr, cw) => ({
+      x: rr.left - cw.left + (bubbleAnchor?.left ?? 0) * zoom,
+      y: rr.top - cw.top + (bubbleAnchor?.top ?? 0) * zoom,
+    }),
+  })
 
   const handleStartInlineComment = useCallback(() => {
     if (!editor) return

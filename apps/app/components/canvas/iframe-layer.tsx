@@ -25,6 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useIframeLayerDrag } from "@/hooks/use-iframe-layer-drag"
 import {
@@ -467,31 +468,13 @@ export function IframeLayer({
       ? document.getElementById("frame-toolbar-portal")
       : null
 
-  // Keep the portaled toolbar anchored to the frame's right edge. The frame
-  // lives inside the world transform (panning/zooming change its screen
-  // position) but the toolbar lives outside it, so we re-read the frame's
-  // client rect every frame while the toolbar is mounted and write the
-  // canvas-wrapper-relative offset directly to the toolbar's style.
-  useEffect(() => {
-    if (!showToolbar || !toolbarPortalTarget) return
-    const canvasWrapper = document.querySelector<HTMLDivElement>(
-      "[data-canvas-wrapper]"
-    )
-    if (!canvasWrapper) return
-    let rafId = 0
-    const tick = () => {
-      const frame = frameRef.current
-      const toolbar = toolbarRef.current
-      if (frame && toolbar) {
-        const fr = frame.getBoundingClientRect()
-        const cw = canvasWrapper.getBoundingClientRect()
-        toolbar.style.transform = `translate(${fr.right - cw.left + 8}px, ${fr.top - cw.top}px)`
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
-  }, [showToolbar, toolbarPortalTarget])
+  // Keep the portaled toolbar anchored to the frame's right edge.
+  useCanvasAnchoredPortal({
+    enabled: showToolbar && !!toolbarPortalTarget,
+    anchorRef: frameRef,
+    targetRef: toolbarRef,
+    getOffset: (fr, cw) => ({ x: fr.right - cw.left + 8, y: fr.top - cw.top }),
+  })
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
   // Open the frame's live preview in a real browser tab, deep-linked to the
