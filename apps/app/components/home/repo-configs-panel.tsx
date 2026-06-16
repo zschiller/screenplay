@@ -15,7 +15,7 @@ type Mode =
   | { kind: "edit"; config: RepoConfig }
 
 /**
- * Manages saved per-repo configurations (setup/dev/port/env), grouped by repo.
+ * Manages saved Project presets (per-repo setup/dev/port/env), grouped by repo.
  * Lives on the Settings page; the form swaps in for new/edit and returns to the
  * list on save or cancel.
  */
@@ -82,7 +82,7 @@ export function RepoConfigsPanel() {
         </div>
       ) : configs.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          No saved configurations yet.
+          No project presets yet.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
@@ -150,7 +150,7 @@ export function RepoConfigsPanel() {
           disabled={loading}
         >
           <Plus className="size-3.5" />
-          New configuration
+          New preset
         </Button>
       </div>
     </div>

@@ -11,6 +11,7 @@ import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import { isLocalBuild } from "@/lib/local-mode"
 
 interface RepoConfigFormProps {
   initial?: RepoConfig
@@ -118,20 +119,39 @@ export function RepoConfigForm({
     return (
       <div className="flex min-w-0 flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          Choose a repository to configure.
+          Choose a repository for this preset.
         </p>
         <div className="rounded-lg border">
           <RepoPicker
+            // Same sources as the canvas add flow: a GitHub pick, or — on the
+            // local build — a pasted clone URL folded into the search box
+            // (#605). Folder presets (a `source` with a `localPath`) are the
+            // follow-up slice that adds the data-model change.
+            localSources={isLocalBuild}
             onSelect={(pick) => {
-              if (pick.kind !== "repo") return
-              setRepo({
-                repoFullName: pick.repo.fullName,
-                repoOwner: pick.repo.owner,
-                repoName: pick.repo.name,
-                defaultBranch: pick.repo.defaultBranch,
-                cloneUrl: pick.repo.cloneUrl,
-                private: pick.repo.private,
-              })
+              if (pick.kind === "repo") {
+                setRepo({
+                  repoFullName: pick.repo.fullName,
+                  repoOwner: pick.repo.owner,
+                  repoName: pick.repo.name,
+                  defaultBranch: pick.repo.defaultBranch,
+                  cloneUrl: pick.repo.cloneUrl,
+                  private: pick.repo.private,
+                })
+              } else if (pick.kind === "source") {
+                // A pasted clone URL: identity is derived from the URL. We
+                // can't know visibility, so default private to false (only the
+                // folder/lock icon reads it). The picker here lists no saved
+                // configs, so `kind: "config"` never occurs.
+                setRepo({
+                  repoFullName: pick.source.repoFullName,
+                  repoOwner: pick.source.repoOwner,
+                  repoName: pick.source.repoName,
+                  defaultBranch: pick.source.defaultBranch,
+                  cloneUrl: pick.source.cloneUrl,
+                  private: false,
+                })
+              }
             }}
           />
         </div>
@@ -167,7 +187,7 @@ export function RepoConfigForm({
         <div className="flex flex-col gap-3 pr-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="config-name">
-              Configuration name{" "}
+              Preset name{" "}
               <span className="font-normal text-muted-foreground/70">
                 (optional, e.g. “web” or “api”)
               </span>
@@ -180,8 +200,8 @@ export function RepoConfigForm({
             />
             {nameCollision && (
               <p className="text-xs text-destructive">
-                A configuration named “{trimmedName || "default"}” already
-                exists for this repo.
+                A preset named “{trimmedName || "default"}” already exists for
+                this repo.
               </p>
             )}
           </div>
@@ -213,11 +233,7 @@ export function RepoConfigForm({
           Cancel
         </Button>
         <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
-          {saving
-            ? "Saving…"
-            : initial
-              ? "Save changes"
-              : "Create configuration"}
+          {saving ? "Saving…" : initial ? "Save changes" : "Create preset"}
         </Button>
       </div>
     </div>
