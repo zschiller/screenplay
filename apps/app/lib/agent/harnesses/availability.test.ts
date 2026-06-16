@@ -183,9 +183,8 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         key: "claude-code",
         label: "Claude Code",
         models: [
-          { id: "harness:claude-code:default", label: "Default" },
-          { id: "harness:claude-code:fable", label: "Fable" },
           { id: "harness:claude-code:opus", label: "Opus" },
+          { id: "harness:claude-code:fable", label: "Fable" },
           { id: "harness:claude-code:sonnet", label: "Sonnet" },
           { id: "harness:claude-code:haiku", label: "Haiku" },
         ],
@@ -255,9 +254,8 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
 
     // Curated floor first (catalog order), the discovered alias appended last.
     expect(ids).toEqual([
-      "harness:claude-code:default",
-      "harness:claude-code:fable",
       "harness:claude-code:opus",
+      "harness:claude-code:fable",
       "harness:claude-code:sonnet",
       "harness:claude-code:haiku",
       "harness:claude-code:opus-4-1",
@@ -273,7 +271,7 @@ describe("harnessDefaultModelId (desktop default fold)", () => {
       probe: fakeProbe(["codex", "claude"]),
     }).list()
 
-    expect(harnessDefaultModelId(available)).toBe("harness:claude-code:default")
+    expect(harnessDefaultModelId(available)).toBe("harness:claude-code:opus")
   })
 
   it("ignores terminal-only harnesses — the default is the first chat-capable one", async () => {

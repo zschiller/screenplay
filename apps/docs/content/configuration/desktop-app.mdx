@@ -26,7 +26,8 @@ SCREENPLAY_DB=pglite            # embedded Postgres
 BLOB_STORE=local-fs             # thumbnails to local disk
 AGENT_ENGINE=external           # chat via the installed CLI's ACP adapter
 THUMBNAIL_CAPTURER=tauri-webview
-SCREENPLAY_ACP_HARNESS=claude   # which installed CLI backs agent chat
+# SCREENPLAY_ACP_HARNESS=codex        # optional: which installed CLI backs agent
+                                      # chat; unset → defaults to claude-code
 ```
 
 The `NEXT_PUBLIC_*` half is inlined at `next build`; the seam selectors are read

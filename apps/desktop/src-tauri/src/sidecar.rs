@@ -237,7 +237,12 @@ fn apply_desktop_env(
         .env("BLOB_STORE", "local-fs")
         .env("AGENT_ENGINE", "external")
         .env("THUMBNAIL_CAPTURER", "tauri-webview")
-        .env("SCREENPLAY_ACP_HARNESS", "claude")
+        // SCREENPLAY_ACP_HARNESS is deliberately left unset: the app already
+        // defaults to "claude-code" (DEFAULT_ACP_HARNESS). Unlike the seam vars
+        // above, the desktop value matched that default, so restating it here
+        // only risked drift (it once read "claude", which matches no adapter and
+        // broke chats with no stored model). Set it (e.g. "codex") only to back
+        // chat with a different installed CLI.
         .env("TAURI_CONTROL_URL", control_url)
         // Our PID, so the sidecar can self-exit if this shell dies without a
         // clean quit (Ctrl-C / hot-reload / crash) instead of orphaning.
