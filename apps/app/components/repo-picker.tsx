@@ -37,8 +37,8 @@ import {
   inspectLocalRepoPath,
   resolveRepoFromUrl,
   type GitHubLocalStatus,
-  type RepoSourceResult,
 } from "@/lib/github-local/actions"
+import { looksLikeCloneUrl } from "@/lib/github-local/parse-remote"
 import type { NewRepoSource } from "@/lib/github-local/types"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 
@@ -71,10 +71,36 @@ export function RepoPicker({
   const [repos, setRepos] = useState<GitHubRepo[]>(() => cachedRepos ?? [])
   const [loading, setLoading] = useState(cachedRepos === null)
   const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
-  // Which entry form is open in place of the list: a clone URL or a folder
-  // path (the latter only as the fallback when no native picker is reachable).
-  const [mode, setMode] = useState<"list" | "url" | "path">("list")
+  // The single search box doubles as a paste-a-URL field: `search` drives both
+  // the repo filter and the "Add <url>" row. There is no separate URL screen —
+  // only the folder-path fallback still swaps in place of the list (story 27).
+  const [search, setSearch] = useState("")
+  const [mode, setMode] = useState<"list" | "path">("list")
+  // Resolving the pasted URL is a server round-trip (it may hit the GitHub API
+  // for the default branch); track its progress and any failure on the row.
+  const [urlBusy, setUrlBusy] = useState(false)
+  const [urlError, setUrlError] = useState<string | null>(null)
   const [connectOpen, setConnectOpen] = useState(false)
+
+  // The URL entry is a local-build affordance (resolveRepoFromUrl no-ops on the
+  // hosted build) and only lights up once the text actually parses as a URL —
+  // a bare repo-name search must never read as one.
+  const cloneUrl =
+    localSources && looksLikeCloneUrl(search) ? search.trim() : null
+
+  const addUrl = useCallback(
+    async (url: string) => {
+      setUrlBusy(true)
+      setUrlError(null)
+      const result = await resolveRepoFromUrl(url)
+      if (result.ok) onSelect({ kind: "source", source: result.source })
+      else {
+        setUrlError(result.error)
+        setUrlBusy(false)
+      }
+    },
+    [onSelect]
+  )
 
   const loadRepos = useCallback(async () => {
     const data = await listUserRepos()
@@ -154,10 +180,9 @@ export function RepoPicker({
     }
   }, [onSelect])
 
-  if (mode !== "list") {
+  if (mode === "path") {
     return (
-      <RepoSourceForm
-        mode={mode}
+      <LocalFolderForm
         onBack={() => setMode("list")}
         onResolved={(source) => onSelect({ kind: "source", source })}
       />
@@ -167,8 +192,43 @@ export function RepoPicker({
   return (
     <div>
       <Command>
-        <CommandInput placeholder="Search repositories..." />
+        <CommandInput
+          value={search}
+          onValueChange={(value) => {
+            setSearch(value)
+            setUrlError(null)
+          }}
+          placeholder={
+            localSources
+              ? "Search or paste a repo URL…"
+              : "Search repositories…"
+          }
+        />
         <CommandList>
+          {cloneUrl && (
+            <CommandGroup>
+              <CommandItem
+                // Value mirrors the typed URL so cmdk keeps the row visible
+                // even as the URL filters every repo out of the list.
+                value={cloneUrl}
+                disabled={urlBusy}
+                onSelect={() => addUrl(cloneUrl)}
+              >
+                {urlBusy ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <Link2 className="text-muted-foreground" />
+                )}
+                <span className="truncate">
+                  Add <span className="font-medium">{cloneUrl}</span>
+                </span>
+              </CommandItem>
+              {urlError && (
+                <p className="px-2 py-1 text-sm text-destructive">{urlError}</p>
+              )}
+            </CommandGroup>
+          )}
+
           <CommandEmpty>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-4">
@@ -179,8 +239,8 @@ export function RepoPicker({
               </div>
             ) : showConnectHint ? (
               <span className="text-sm text-muted-foreground">
-                Connect GitHub to browse your repositories, or add one by URL or
-                local folder below.
+                Connect GitHub to browse your repositories, or paste a clone URL
+                above or add a local folder below.
               </span>
             ) : (
               "No repositories found."
@@ -239,15 +299,6 @@ export function RepoPicker({
             variant="ghost"
             size="sm"
             className="justify-start gap-2 font-normal"
-            onClick={() => setMode("url")}
-          >
-            <Link2 className="size-4 text-muted-foreground" />
-            Add by URL
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start gap-2 font-normal"
             onClick={chooseLocalFolder}
           >
             <FolderOpen className="size-4 text-muted-foreground" />
@@ -284,13 +335,15 @@ export function RepoPicker({
   )
 }
 
-/** The add-by-URL / folder-path form swapped in place of the repo list. */
-function RepoSourceForm({
-  mode,
+/**
+ * The folder-path form swapped in place of the repo list — only the fallback
+ * when no native directory picker is reachable (story 27). The clone-URL entry
+ * is no longer a mode: it lives folded into the search box (#603).
+ */
+function LocalFolderForm({
   onBack,
   onResolved,
 }: {
-  mode: "url" | "path"
   onBack: () => void
   onResolved: (source: NewRepoSource) => void
 }) {
@@ -301,10 +354,7 @@ function RepoSourceForm({
   const submit = async () => {
     setBusy(true)
     setError(null)
-    const result: RepoSourceResult =
-      mode === "url"
-        ? await resolveRepoFromUrl(value)
-        : await inspectLocalRepoPath(value)
+    const result = await inspectLocalRepoPath(value)
     if (result.ok) {
       onResolved(result.source)
     } else {
@@ -321,18 +371,12 @@ function RepoSourceForm({
         if (!busy) submit()
       }}
     >
-      <span className="text-sm font-medium">
-        {mode === "url" ? "Add by URL" : "Add a local folder"}
-      </span>
+      <span className="text-sm font-medium">Add a local folder</span>
       <Input
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder={
-          mode === "url"
-            ? "https://github.com/owner/repo.git"
-            : "/path/to/your/clone"
-        }
+        placeholder="/path/to/your/clone"
       />
       {error && <span className="text-sm text-destructive">{error}</span>}
       <div className="flex justify-end gap-2">
