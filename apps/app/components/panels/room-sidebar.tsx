@@ -125,7 +125,7 @@ import {
 import { listRepoBranches } from "@/lib/github-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRepoConfigs } from "@/lib/repo-configs-actions"
-import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
+import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
@@ -2475,108 +2475,23 @@ function RepoSettings({
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Setup script
-        </label>
-        <input
-          type="text"
-          value={setupScript}
-          onChange={(e) => setSetupScript(e.target.value)}
-          placeholder="npm install"
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Dev script
-        </label>
-        <input
-          type="text"
-          value={devScript}
-          onChange={(e) => setDevScript(e.target.value)}
-          placeholder="npm run dev"
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-        />
-      </div>
-
-      {/* On the desktop build the configured port is a logical key only —
-          portless assigns and delivers the real port (ADR 0010) — so there
-          is nothing for the user to set. Hosted keeps the field: there the
-          dev server must bind this exact port. */}
-      {!isLocalBuild && (
-        <div>
-          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-            Dev server port
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={65535}
-            value={devServerPort}
-            onChange={(e) => setDevServerPort(e.target.value)}
-            placeholder="3000"
-            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-          />
-        </div>
-      )}
-
-      {isLocalBuild ? (
-        // Desktop mode: instead of spelling env vars out, glob patterns of
-        // files (e.g. `.env*`) carried over from the original checkout into
-        // each workspace's worktree.
-        <div>
-          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-            Files to copy into workspaces (globs, one per line)
-          </label>
-          <textarea
-            value={copyPatterns}
-            onChange={(e) => setCopyPatterns(e.target.value)}
-            placeholder={".env*\napps/*/.env*"}
-            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-            rows={3}
-          />
-        </div>
-      ) : (
-        <div>
-          <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-            Environment variables
-          </label>
-          <textarea
-            value={envVars}
-            onChange={(e) => setEnvVars(e.target.value)}
-            placeholder={"KEY=value\nANOTHER_KEY=value"}
-            className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 font-mono text-[10px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-            rows={3}
-          />
-        </div>
-      )}
-
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Default iframeLayer size
-        </label>
-        <IframeLayerSizeSelect
-          value={defaultIframeLayerSizeId}
-          onChange={setDefaultIframeLayerSizeId}
-          size="sm"
-          className="text-[11px]"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          System prompt
-        </label>
-        <textarea
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          placeholder="Optional. Extra instructions for the branch (e.g. monorepo context)."
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
-          rows={3}
-        />
-      </div>
+      <RepoSettingsFields
+        idPrefix="repo-settings"
+        setupScript={setupScript}
+        onSetupScriptChange={setSetupScript}
+        devScript={devScript}
+        onDevScriptChange={setDevScript}
+        devServerPort={devServerPort}
+        onDevServerPortChange={setDevServerPort}
+        envVars={envVars}
+        onEnvVarsChange={setEnvVars}
+        copyPatterns={copyPatterns}
+        onCopyPatternsChange={setCopyPatterns}
+        defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+        onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+        systemPrompt={systemPrompt}
+        onSystemPromptChange={setSystemPrompt}
+      />
 
       <div className="flex items-center gap-2">
         <Button

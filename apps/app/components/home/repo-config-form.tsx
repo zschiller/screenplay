@@ -6,12 +6,10 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { Textarea } from "@workspace/ui/components/textarea"
 import { RepoPicker } from "@/components/repo-picker"
-import { isLocalBuild } from "@/lib/local-mode"
+import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 
 interface RepoConfigFormProps {
@@ -188,110 +186,23 @@ export function RepoConfigForm({
             )}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-setup">Setup script</Label>
-            <Input
-              id="config-setup"
-              value={setupScript}
-              onChange={(e) => setSetupScript(e.target.value)}
-              placeholder="npm install"
-              className="font-mono"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-dev">Dev script</Label>
-            <Input
-              id="config-dev"
-              value={devScript}
-              onChange={(e) => setDevScript(e.target.value)}
-              placeholder="npm run dev"
-              className="font-mono"
-            />
-          </div>
-
-          {/* On the desktop build the configured port is a logical key only —
-              portless assigns and delivers the real port (ADR 0010) — so there
-              is nothing for the user to set. Hosted keeps the field: there the
-              dev server must bind this exact port. */}
-          {!isLocalBuild && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="config-port">Dev server port</Label>
-              <Input
-                id="config-port"
-                type="number"
-                min={1}
-                max={65535}
-                value={devServerPort}
-                onChange={(e) => setDevServerPort(e.target.value)}
-                placeholder="3000"
-                className="font-mono"
-              />
-            </div>
-          )}
-
-          {isLocalBuild ? (
-            // Desktop mode: instead of spelling env vars out, glob patterns of
-            // files (e.g. `.env*`) carried over from the original checkout
-            // into each workspace's worktree.
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="config-copy-patterns">
-                Files to copy into workspaces{" "}
-                <span className="font-normal text-muted-foreground/70">
-                  (glob patterns from your checkout, one per line)
-                </span>
-              </Label>
-              <Textarea
-                id="config-copy-patterns"
-                value={copyPatterns}
-                onChange={(e) => setCopyPatterns(e.target.value)}
-                placeholder={".env*\napps/*/.env*"}
-                rows={3}
-                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="config-envvars">Environment variables</Label>
-              <Textarea
-                id="config-envvars"
-                value={envVars}
-                onChange={(e) => setEnvVars(e.target.value)}
-                placeholder={"KEY=value\nANOTHER_KEY=value"}
-                rows={4}
-                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-default-iframe-layer-size">
-              Default iframeLayer size
-            </Label>
-            <IframeLayerSizeSelect
-              id="config-default-iframe-layer-size"
-              value={defaultIframeLayerSizeId}
-              onChange={setDefaultIframeLayerSizeId}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-system-prompt">
-              System prompt{" "}
-              <span className="font-normal text-muted-foreground/70">
-                (optional, appended to the agent&apos;s instructions — useful
-                for monorepo context)
-              </span>
-            </Label>
-            <Textarea
-              id="config-system-prompt"
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
-              rows={4}
-              className="[field-sizing:fixed] max-w-full resize-y text-xs"
-            />
-          </div>
+          <RepoSettingsFields
+            idPrefix="config"
+            setupScript={setupScript}
+            onSetupScriptChange={setSetupScript}
+            devScript={devScript}
+            onDevScriptChange={setDevScript}
+            devServerPort={devServerPort}
+            onDevServerPortChange={setDevServerPort}
+            envVars={envVars}
+            onEnvVarsChange={setEnvVars}
+            copyPatterns={copyPatterns}
+            onCopyPatternsChange={setCopyPatterns}
+            defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+            onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+            systemPrompt={systemPrompt}
+            onSystemPromptChange={setSystemPrompt}
+          />
         </div>
       </ScrollArea>
 
