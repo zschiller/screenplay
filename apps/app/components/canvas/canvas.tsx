@@ -58,11 +58,9 @@ import {
 import { type PanelImperativeHandle } from "react-resizable-panels"
 import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
 import type {
-  BranchData,
   IframeLayerGroupData,
   ChatSessionData,
   ViewportData,
-  RepoData,
 } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
@@ -702,32 +700,9 @@ export function Canvas({
     chatPanelRef,
   })
 
-  // --- Repo mutations ---
-
-  const addRepoToStorage = useCallback(
-    (id: string, data: RepoData) => {
-      ops.createRepo(id, data)
-    },
-    [ops]
-  )
-
-  const updateRepoInStorage = useCallback(
-    (id: string, data: Partial<RepoData>) => {
-      ops.patch("repos", id, data)
-    },
-    [ops]
-  )
-
-  const removeRepoFromStorage = useCallback(
-    (id: string) => {
-      const { removedChatIds } = ops.removeRepo(id)
-      // Clear the client chat-store mirror for the Chat Sessions the verb
-      // deleted from the Y.Doc (their identity is gone; the conversation lives
-      // client-side).
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
-    },
-    [ops]
-  )
+  // Repo create/update/remove storage writes live on the Branch Intake
+  // controller now (#592) — the root no longer defines thin `ops` wrappers just
+  // to pass them back into intake.
 
   // Frame / document creation and the structural group mutations live on the
   // Group Operations controller (`useGroupActions`), constructed below.
@@ -876,22 +851,9 @@ export function Canvas({
   // Operation wrappers the Selection controller and the sidebar's remove-frame /
   // remove-document actions share).
 
-  // --- Agent mutations ---
-
-  const updateAgentInStorage = useCallback(
-    (id: string, data: Partial<BranchData>) => {
-      ops.patch("branches", id, data)
-    },
-    [ops]
-  )
-
-  const removeAgentFromStorage = useCallback(
-    (id: string) => {
-      const { removedChatIds } = ops.removeBranch(id)
-      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
-    },
-    [ops]
-  )
+  // Branch update/remove storage writes live on the Branch Intake controller
+  // now (#592); `updateAgentInStorage` is exposed off it for the consumers
+  // outside intake (Branch Actions, Sandbox Reconnect's heartbeat, sidebar).
 
   // --- Chat session mutations ---
 
@@ -995,15 +957,13 @@ export function Canvas({
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
     renameBranch,
+    updateRepoInStorage,
+    updateAgentInStorage,
   } = useBranchIntake({
     ops,
     repos,
     agents,
     roomId,
-    addRepoToStorage,
-    removeRepoFromStorage,
-    removeAgentFromStorage,
-    updateAgentInStorage,
     updateChatSession,
     createDefaultTabForBranch: tabPool.seed,
     getViewportCenter,
