@@ -37,8 +37,8 @@ export function SettingsView() {
           </Section>
 
           <Section
-            title="Configured repositories"
-            description="Saved per-repo setup, dev, port, and env-vars. Applied when you add a workspace inside a canvas."
+            title="Project presets"
+            description="Saved per-repo setup, dev, port, and env vars. Applied when you add a project to a canvas."
           >
             <RepoConfigsPanel />
           </Section>

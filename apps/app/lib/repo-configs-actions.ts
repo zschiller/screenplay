@@ -30,7 +30,7 @@ export async function upsertRepoConfig(
   )
   if (duplicate) {
     throw new Error(
-      `A configuration named "${config.name || "default"}" already exists for ${config.repoFullName}`
+      `A preset named "${config.name || "default"}" already exists for ${config.repoFullName}`
     )
   }
 
