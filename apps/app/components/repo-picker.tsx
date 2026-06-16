@@ -1,16 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import {
-  ExternalLink,
-  Folder,
-  FolderLock,
-  FolderOpen,
-  Link2,
-  Plug,
-} from "lucide-react"
+import { ExternalLink, Folder, FolderLock, Link2, Plug } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
   Dialog,
@@ -27,14 +19,12 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { withBasePath } from "@/lib/base-path"
 import { openExternal } from "@/lib/open-external"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 import {
   beginGitHubDeviceFlow,
   completeGitHubDeviceFlow,
   getGitHubLocalStatus,
-  inspectLocalRepoPath,
   resolveRepoFromUrl,
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
@@ -53,10 +43,11 @@ interface RepoPickerProps {
   configs?: RepoConfig[]
   onSelect: (pick: RepoPickerSelection) => void
   /**
-   * Show the local build's no-auth entry points (add by URL, choose a local
-   * folder) and the on-demand "Connect GitHub" device-flow action. Only the
+   * Show the local build's no-auth add-by-URL entry point (folded into the
+   * search box) and the on-demand "Connect GitHub" device-flow action. Only the
    * in-Room add-Repo surface on the local build sets this; the hosted build's
-   * account-backed picker is untouched.
+   * account-backed picker is untouched. The "Open a folder" entry point lives
+   * in the dropdown that opens this picker (#604), not in the picker itself.
    */
   localSources?: boolean
 }
@@ -72,10 +63,8 @@ export function RepoPicker({
   const [loading, setLoading] = useState(cachedRepos === null)
   const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
   // The single search box doubles as a paste-a-URL field: `search` drives both
-  // the repo filter and the "Add <url>" row. There is no separate URL screen —
-  // only the folder-path fallback still swaps in place of the list (story 27).
+  // the repo filter and the "Add <url>" row. There is no separate URL screen.
   const [search, setSearch] = useState("")
-  const [mode, setMode] = useState<"list" | "path">("list")
   // Resolving the pasted URL is a server round-trip (it may hit the GitHub API
   // for the default branch); track its progress and any failure on the row.
   const [urlBusy, setUrlBusy] = useState(false)
@@ -153,41 +142,6 @@ export function RepoPicker({
     !loading &&
     repos.length === 0 &&
     status?.tokenSource === null
-
-  const chooseLocalFolder = useCallback(async () => {
-    // Native directory dialog via the Tauri shell's control server; outside
-    // the shell (sidecar driven from a browser in development) it reports
-    // unavailable and we fall back to a plain path input (story 27).
-    try {
-      const res = await fetch(withBasePath("/api/local/pick-directory"), {
-        method: "POST",
-      })
-      const data = (await res.json()) as {
-        available: boolean
-        path?: string | null
-      }
-      if (!data.available) {
-        setMode("path")
-        return
-      }
-      if (data.path) {
-        const result = await inspectLocalRepoPath(data.path)
-        if (result.ok) onSelect({ kind: "source", source: result.source })
-        else setMode("path") // Surface the error through the form.
-      }
-    } catch {
-      setMode("path")
-    }
-  }, [onSelect])
-
-  if (mode === "path") {
-    return (
-      <LocalFolderForm
-        onBack={() => setMode("list")}
-        onResolved={(source) => onSelect({ kind: "source", source })}
-      />
-    )
-  }
 
   return (
     <div>
@@ -293,18 +247,10 @@ export function RepoPicker({
         </CommandList>
       </Command>
 
-      {localSources && (
-        <div className="flex flex-col gap-1 border-t p-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start gap-2 font-normal"
-            onClick={chooseLocalFolder}
-          >
-            <FolderOpen className="size-4 text-muted-foreground" />
-            Choose a local folder
-          </Button>
-          {status?.tokenSource === null && status.deviceFlowConfigured && (
+      {localSources &&
+        status?.tokenSource === null &&
+        status.deviceFlowConfigured && (
+          <div className="flex flex-col gap-1 border-t p-1">
             <Button
               variant="ghost"
               size="sm"
@@ -314,9 +260,8 @@ export function RepoPicker({
               <Plug className="size-4 text-muted-foreground" />
               Connect GitHub
             </Button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
       {connectOpen && (
         <ConnectGitHubDialog
@@ -332,62 +277,6 @@ export function RepoPicker({
         />
       )}
     </div>
-  )
-}
-
-/**
- * The folder-path form swapped in place of the repo list — only the fallback
- * when no native directory picker is reachable (story 27). The clone-URL entry
- * is no longer a mode: it lives folded into the search box (#603).
- */
-function LocalFolderForm({
-  onBack,
-  onResolved,
-}: {
-  onBack: () => void
-  onResolved: (source: NewRepoSource) => void
-}) {
-  const [value, setValue] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  const submit = async () => {
-    setBusy(true)
-    setError(null)
-    const result = await inspectLocalRepoPath(value)
-    if (result.ok) {
-      onResolved(result.source)
-    } else {
-      setError(result.error)
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form
-      className="flex flex-col gap-2 p-3"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!busy) submit()
-      }}
-    >
-      <span className="text-sm font-medium">Add a local folder</span>
-      <Input
-        autoFocus
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="/path/to/your/clone"
-      />
-      {error && <span className="text-sm text-destructive">{error}</span>}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-          Back
-        </Button>
-        <Button type="submit" size="sm" disabled={busy || !value.trim()}>
-          {busy ? <Spinner className="size-4" /> : "Add"}
-        </Button>
-      </div>
-    </form>
   )
 }
 

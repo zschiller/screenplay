@@ -44,6 +44,7 @@ import {
   GitPullRequestClosed,
   Plus,
   FolderOpen,
+  Link2,
   Trash2,
   MoreHorizontal,
   Pencil,
@@ -82,6 +83,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
@@ -101,6 +103,7 @@ import {
 import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
+import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -688,7 +691,22 @@ export function RoomSidebar({
   chatPanelBranchId,
   branchPrs,
 }: RoomSidebarProps) {
-  const [showPicker, setShowPicker] = useState(false)
+  // The add-project popover shows either the repo/URL picker or — when the
+  // native folder dialog is unreachable — the folder-path fallback form (#604).
+  const [pickerView, setPickerView] = useState<"repos" | "folder" | null>(null)
+  const showPicker = pickerView !== null
+
+  // "Open a folder" fires the native OS directory dialog directly; only when no
+  // native picker is reachable (sidecar driven from a browser) do we open the
+  // popover on the path-input fallback (#604).
+  const openLocalFolder = useCallback(async () => {
+    const result = await chooseLocalFolder()
+    if (result.kind === "source") {
+      onCreateRepo({ kind: "source", source: result.source })
+    } else if (result.kind === "fallback") {
+      setPickerView("folder")
+    }
+  }, [onCreateRepo])
   const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
@@ -1320,7 +1338,7 @@ export function RoomSidebar({
   )
 
   useEffect(() => {
-    if (!showPicker) return
+    if (pickerView !== "repos") return
     let cancelled = false
     listRepoConfigs().then((list) => {
       if (!cancelled) setSavedConfigs(list)
@@ -1328,7 +1346,7 @@ export function RoomSidebar({
     return () => {
       cancelled = true
     }
-  }, [showPicker])
+  }, [pickerView])
 
   // Auto-select branches when they finish creating. onSelectBranch is stored in
   // a ref so this effect only depends on `branches` — otherwise the caller's
@@ -1388,33 +1406,91 @@ export function RoomSidebar({
             <BranchesDropHintContext.Provider value={branchesDropHint}>
               <SidebarGroup className="pt-0">
                 <SidebarGroupLabel>Projects</SidebarGroupLabel>
-                <Popover open={showPicker} onOpenChange={setShowPicker}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <PopoverTrigger asChild>
-                        <SidebarGroupAction className="top-1.5">
-                          <FolderPlus />
-                        </SidebarGroupAction>
-                      </PopoverTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Add project</TooltipContent>
-                  </Tooltip>
+                <Popover
+                  open={showPicker}
+                  onOpenChange={(open) => {
+                    // Desktop opens the picker through the dropdown (no
+                    // PopoverTrigger fires `true`); web's trigger opens it
+                    // straight to the repo/URL view. Either way, dismissing
+                    // closes it.
+                    if (!open) setPickerView(null)
+                    else if (!isLocalBuild) setPickerView("repos")
+                  }}
+                >
+                  {isLocalBuild ? (
+                    // Desktop: the trigger opens a dropdown first — "GitHub /
+                    // URL" reveals the picker, "Open a folder" fires the native
+                    // directory dialog directly (#604). The PopoverAnchor keeps
+                    // the picker pinned to the trigger even though the dropdown
+                    // owns the click.
+                    <DropdownMenu>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <PopoverAnchor asChild>
+                            <DropdownMenuTrigger asChild>
+                              <SidebarGroupAction className="top-1.5">
+                                <FolderPlus />
+                              </SidebarGroupAction>
+                            </DropdownMenuTrigger>
+                          </PopoverAnchor>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          Add project
+                        </TooltipContent>
+                      </Tooltip>
+                      <DropdownMenuContent side="bottom" align="end">
+                        <DropdownMenuItem
+                          onSelect={() => setPickerView("repos")}
+                        >
+                          <Link2 />
+                          GitHub / URL
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={openLocalFolder}>
+                          <FolderOpen />
+                          Open a folder
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    // Web has no folder source: the trigger opens the picker
+                    // directly, no dropdown (#604).
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <SidebarGroupAction className="top-1.5">
+                            <FolderPlus />
+                          </SidebarGroupAction>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Add project</TooltipContent>
+                    </Tooltip>
+                  )}
                   <PopoverContent
                     className="w-72 p-0"
                     side="bottom"
                     align="end"
                   >
-                    <RepoPicker
-                      configs={savedConfigs}
-                      // The local build can add a Repo with no GitHub auth at
-                      // all — by clone URL or local folder — and offers the
-                      // on-demand device-flow connect (PRD #428).
-                      localSources={isLocalBuild}
-                      onSelect={(pick) => {
-                        onCreateRepo(pick)
-                        setShowPicker(false)
-                      }}
-                    />
+                    {pickerView === "folder" ? (
+                      <LocalFolderForm
+                        onBack={() => setPickerView(null)}
+                        onResolved={(source) => {
+                          onCreateRepo({ kind: "source", source })
+                          setPickerView(null)
+                        }}
+                      />
+                    ) : (
+                      <RepoPicker
+                        configs={savedConfigs}
+                        // The local build can add a Repo with no GitHub auth at
+                        // all — by clone URL — and offers the on-demand
+                        // device-flow connect (PRD #428).
+                        localSources={isLocalBuild}
+                        onSelect={(pick) => {
+                          onCreateRepo(pick)
+                          setPickerView(null)
+                        }}
+                      />
+                    )}
                   </PopoverContent>
                 </Popover>
                 <SidebarGroupContent>
