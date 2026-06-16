@@ -170,41 +170,31 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
 })
 
 describe("BranchOverflowMenuContent rendering", () => {
-  it("renders the five section labels in order", () => {
+  it("does not render section labels", () => {
     renderMenu()
-    const labels = screen
-      .getAllByText(/^(Identity|Preview|Branch & sandbox|Git|Danger)$/)
-      .map((el) => el.textContent)
-    expect(labels).toEqual([
-      "Identity",
-      "Preview",
-      "Branch & sandbox",
-      "Git",
-      "Danger",
-    ])
+    // The section skeleton still drives item grouping and separators, but the
+    // labels themselves are no longer surfaced in the menu.
+    expect(
+      screen.queryByText(/^(Identity|Preview|Branch & sandbox|Git|Danger)$/)
+    ).toBeNull()
   })
 
-  it("renders each action under its assigned section, in order", () => {
+  it("renders each action in section order", () => {
     renderMenu()
-    // The whole menu is one flat DOM order: section label, then its items,
-    // then the next label. Reading every label + item top-to-bottom should
-    // reproduce the skeleton exactly.
+    // The whole menu is one flat DOM order, sections rendered back-to-back
+    // (separators between them, no labels). Reading every item top-to-bottom
+    // should reproduce the skeleton's item order exactly.
     const expectedSequence = [
-      "Identity",
       "Rename",
       "Color",
-      "Preview",
       "Open prototype player",
       "Open in browser",
       "Show all routes",
-      "Branch & sandbox",
       "New branch from here…",
       "Restart",
-      "Git",
       "Create pull request",
       "Rebase on main",
       "Open branch on GitHub",
-      "Danger",
       "Delete",
     ]
     const menu = screen.getByRole("menu")

@@ -521,6 +521,10 @@ export function Canvas({
           gesturePreview.reorder && gesturePreview.reorder.popped
             ? gesturePreview.reorder.memberId
             : null,
+        // Placeholders are tool-gated, not selection-gated: armed Frame tool
+        // appends frames, armed Document tool appends documents, neither tool
+        // → no placeholders.
+        placeholderTool: frameMode ? "frame" : documentMode ? "document" : null,
         gapOverride: gesturePreview.gapOverride,
       }),
     [
@@ -532,6 +536,8 @@ export function Canvas({
       selectedGroupIds,
       gesturePreview.reorder,
       gesturePreview.gapOverride,
+      frameMode,
+      documentMode,
     ]
   )
   const effectiveIframeLayerLayouts = canvasLayout.layouts
@@ -1476,6 +1482,9 @@ export function Canvas({
                     groupZIndex={groupZIndex}
                     groupDisplayNames={groupDisplayNames}
                     placeholderRects={placeholderRects}
+                    placeholderTool={
+                      frameMode ? "frame" : documentMode ? "document" : null
+                    }
                     remoteSelectionColors={remoteSelectionColors}
                     remoteGroupSelectionColors={remoteGroupSelectionColors}
                     agentDomains={agentDomains}

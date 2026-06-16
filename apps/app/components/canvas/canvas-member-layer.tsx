@@ -1,7 +1,11 @@
 "use client"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
-import type { IframeLayerLayoutMap, PlaceholderRect } from "@/lib/canvas/layout"
+import type {
+  IframeLayerLayoutMap,
+  PlaceholderRect,
+  PlaceholderTool,
+} from "@/lib/canvas/layout"
 import type {
   BranchData,
   GroupMember,
@@ -37,7 +41,7 @@ type AgentDomains = Record<
 /**
  * The flat member layer (PRD #571) — every Iframe Layer and Markdown Layer
  * across all Groups rendered as a stable, id-sorted, absolutely-positioned
- * sibling, plus the trailing "+ frame" placeholder hit targets.
+ * sibling, plus the trailing add-member placeholder hit targets.
  *
  * THE FLAT-SIBLING + ID-SORT INVARIANT: a Member is NOT nested inside a
  * per-Group element. Flattening to `[member, group]` pairs and sorting by
@@ -67,6 +71,7 @@ export function CanvasMemberLayer({
   groupZIndex,
   groupDisplayNames,
   placeholderRects,
+  placeholderTool,
   remoteSelectionColors,
   remoteGroupSelectionColors,
   agentDomains,
@@ -101,6 +106,8 @@ export function CanvasMemberLayer({
   groupZIndex: Map<string, number>
   groupDisplayNames: Map<string, string>
   placeholderRects: PlaceholderRect[]
+  /** The armed tool whose kind a placeholder click appends; null hides them. */
+  placeholderTool: PlaceholderTool | null
   remoteSelectionColors: Map<string, string>
   remoteGroupSelectionColors: Map<string, string>
   agentDomains: AgentDomains
@@ -371,10 +378,11 @@ export function CanvasMemberLayer({
         })
       })()}
 
-      {/* Trailing "+ frame" placeholder click targets — one per group
-          with a selected member. The visible outline is painted by
-          PlaceholderRectsUnderlay; this is just the transparent hit
-          target, positioned absolutely in world space. */}
+      {/* Trailing add-member placeholder click targets — one per group while
+          the Frame or Document tool is armed. The visible outline is painted by
+          PlaceholderRectsUnderlay; this is just the transparent hit target,
+          positioned absolutely in world space. A click appends a member of the
+          armed tool's kind and selects it. */}
       {placeholderRects.map((rect) => (
         <button
           key={`placeholder-${rect.groupId}`}
@@ -391,6 +399,15 @@ export function CanvasMemberLayer({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
+            if (placeholderTool === "document") {
+              const newId = groupActions.addDocumentLayerToGroup(rect.groupId)
+              if (newId) {
+                setSelectedDocumentLayerIds(new Set([newId]))
+                setSelectedIframeLayerIds(new Set())
+                setSelectedGroupIds(new Set())
+              }
+              return
+            }
             const newId = groupActions.addIframeLayerToGroup(rect.groupId)
             if (newId) {
               setSelectedIframeLayerIds(new Set([newId]))
@@ -398,7 +415,11 @@ export function CanvasMemberLayer({
               setSelectedDocumentLayerIds(new Set())
             }
           }}
-          aria-label="Add frame to group"
+          aria-label={
+            placeholderTool === "document"
+              ? "Add document to group"
+              : "Add frame to group"
+          }
         />
       ))}
     </>

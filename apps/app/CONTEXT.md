@@ -74,6 +74,24 @@ _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
 package and the everyday meaning), project; "agent" (an agent is the AI, not a
 Repo).
 
+**Repo Config** (Project preset):
+A saved, reusable bundle of a GitHub repo's run settings — setup/dev scripts,
+Dev Server Port (hosted) or files-to-copy globs (desktop), env vars, default
+Iframe Layer size, and system prompt — keyed by `repoFullName` with an optional
+`name` so one repo can carry several (e.g. "web", "api" across a monorepo).
+User-private and stored encrypted in KV (`user-workspace-configs:{userId}`),
+**never** in a Room's Y.Doc. Its sole job is to **seed** a live Repo when that
+repo is added to a Room: the copy is **one-way** — afterwards the Repo
+(`RepoData`) and the preset diverge, and editing either never touches the other.
+Managed on the homescreen Settings surface; `RepoConfig` is the code identifier
+everywhere. The user-facing label tracks the Repo's own label, so a later
+"Project" → "Repository" UI pass renames this to "Repository preset" in lockstep.
+_Shown to users as_: "Project preset".
+_Avoid_: template (implies scaffolding or cloning the repo's source — a preset
+carries only run settings, not code); calling the live in-Room Repo settings a
+"preset" (the preset is the reusable seed, `RepoData` is the instance it seeds);
+bare "config" for the Repo entity itself (that entity is the Repo / `RepoData`).
+
 **Branch**:
 A single working git branch inside a Repo: its sandbox, git branch name (`ref`),
 and the Engine that drives it. Each Branch maps to exactly one git branch; how

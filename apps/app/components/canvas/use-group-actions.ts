@@ -69,6 +69,8 @@ export interface GroupActions {
   ) => { groupId: string; firstIframeLayerId: string } | undefined
   /** Append a new frame to an existing group, mirroring the last sibling. */
   addIframeLayerToGroup: (groupId: string) => string | undefined
+  /** Append a new document to an existing group, mirroring the last sibling's bounds. */
+  addDocumentLayerToGroup: (groupId: string) => string | undefined
 
   // --- Document creation ---
   /** Wrap a new document in a fresh single-member group at the given coords. */
@@ -190,6 +192,35 @@ export function useGroupActions({
       })
     },
     [collections, ops]
+  )
+
+  /**
+   * Append a new document to an existing group — the Document sibling of
+   * `addIframeLayerToGroup`. Mirrors the last member's bounds so the new doc
+   * visually replaces the placeholder rect the user just clicked, and remembers
+   * the seeded chat so the doc's chat tab is ready on open.
+   */
+  const addDocumentLayerToGroup = useCallback(
+    (groupId: string): string | undefined => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group) return
+      const members = getGroupMembers(group)
+      if (members.length === 0) return
+      const lastMember = members[members.length - 1]!
+      const lastSize =
+        lastMember.kind === "iframe-layer"
+          ? collections.iframeLayers.get(lastMember.id)
+          : collections.markdownLayers.get(lastMember.id)
+      if (!lastSize) return
+      const result = ops.addDocumentToGroup(groupId, {
+        width: lastSize.width,
+        height: lastSize.height,
+      })
+      if (!result) return
+      rememberDocChat(result.docId, result.chatId)
+      return result.docId
+    },
+    [collections, ops, rememberDocChat]
   )
 
   /**
@@ -363,6 +394,7 @@ export function useGroupActions({
       addIframeLayer,
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
+      addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,
       reorderIframeLayerGroups,
@@ -374,6 +406,7 @@ export function useGroupActions({
       addIframeLayer,
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
+      addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,
       reorderIframeLayerGroups,
