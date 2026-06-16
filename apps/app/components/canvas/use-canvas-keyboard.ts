@@ -1,7 +1,7 @@
 import { type RefObject, useEffect } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
-import { resolveEscapeAction } from "@/lib/canvas/escape"
+import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
 import type { ElementReference } from "@/components/canvas/use-element-reference"
 import type { ToolModeController } from "@/components/canvas/use-tool-mode"
@@ -17,8 +17,9 @@ import type { ToolModeController } from "@/components/canvas/use-tool-mode"
  * shortcut map; it dispatches into the controllers, panel refs, cursor-chat
  * verbs, and focus / Create-Flow setters it is handed.
  *
- * The Escape *precedence* stays in the React-free `resolveEscapeAction`
- * (`lib/canvas/escape.ts`, pinned by `escape.test.ts`); this controller only
+ * The Escape *precedence* stays in the React-free `resolveEscapeAction`, wrapped
+ * by the Canvas Interaction controller's `resolveEscape` (over
+ * `lib/canvas/escape.ts`, pinned by `escape.test.ts`); this controller only
  * applies the chosen exit. No shortcut semantics change from the lift — every
  * shortcut (Escape exits, `v`/`c`/`d`/`f` tools, `/` cursor chat, ⌘B / ⌘I / ⌘.
  * panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, space-pan) behaves
@@ -34,31 +35,16 @@ export interface CanvasKeyboardInputs {
   reference: ElementReference
   /** Yjs undo/redo, scoped to room storage. */
   history: { undo: () => void; redo: () => void }
-  /** The focused ("interactive") Iframe Layer, read by the Escape resolver. */
-  focusedIframeLayerId: string | null
-  setFocusedIframeLayerId: (id: string | null) => void
-  /** The Iframe Layer in Create Flow ("flow") mode, read by the resolver. */
-  createFlowIframeLayerId: string | null
-  setCreateFlowIframeLayerId: (id: string | null) => void
   /**
-   * Latest inline-edited Markdown Layer id, mirrored into a ref so the
-   * long-lived handler reads it without re-binding. Escape stops the edit.
+   * Canvas Interaction controller — owns the Focus / Create-Flow / editing /
+   * space-held / cursor-chat state. Escape dispatches on its `resolveEscape`
+   * and applies the mode/edit/cursor-chat exits through its verbs; `/` opens
+   * cursor chat and space toggles its pan flag.
    */
-  editingDocumentLayerIdRef: RefObject<string | null>
-  setEditingDocumentLayerId: (id: string | null) => void
-  /**
-   * Latest self cursor-chat message (null = closed), mirrored into a ref for
-   * the same reason — it changes on every keystroke broadcast through awareness.
-   */
-  cursorChatMessageRef: RefObject<string | null>
-  /** Cursor-chat verbs — `/` opens, Escape closes. */
-  openCursorChat: () => void
-  closeCursorChat: () => void
+  interaction: CanvasInteraction
   /** Side panels toggled by ⌘B (sidebar), ⌘I (chat), and ⌘. (both). */
   sidebarPanelRef: RefObject<PanelImperativeHandle | null>
   chatPanelRef: RefObject<PanelImperativeHandle | null>
-  /** Space-pan: held while the space bar is down. */
-  setSpaceHeld: (held: boolean) => void
 }
 
 export function useCanvasKeyboard({
@@ -66,18 +52,9 @@ export function useCanvasKeyboard({
   selection,
   reference,
   history,
-  focusedIframeLayerId,
-  setFocusedIframeLayerId,
-  createFlowIframeLayerId,
-  setCreateFlowIframeLayerId,
-  editingDocumentLayerIdRef,
-  setEditingDocumentLayerId,
-  cursorChatMessageRef,
-  openCursorChat,
-  closeCursorChat,
+  interaction,
   sidebarPanelRef,
   chatPanelRef,
-  setSpaceHeld,
 }: CanvasKeyboardInputs): void {
   useEffect(() => {
     const isEditing = (e: KeyboardEvent) => {
@@ -92,24 +69,22 @@ export function useCanvasKeyboard({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // Precedence (innermost/most-transient first) lives in the React-free
-        // `resolveEscapeAction`; this switch just applies the chosen exit. The
+        // `resolveEscapeAction`, wrapped by the Interaction controller's
+        // `resolveEscape` (it fills its own state, the caller passes the
+        // tool/comment bits); this switch just applies the chosen exit. The
         // focus / Create Flow steps are the two manual mode exits pinned by
         // lib/canvas/escape.test.ts.
         switch (
-          resolveEscapeAction({
-            cursorChatOpen: cursorChatMessageRef.current !== null,
-            editingDocumentLayerId: editingDocumentLayerIdRef.current,
+          interaction.resolveEscape({
             toolMode: toolMode.current(),
             hasNewCommentPos: reference.newCommentPos !== null,
-            focusedIframeLayerId,
-            createFlowIframeLayerId,
           })
         ) {
           case "close-cursor-chat":
-            closeCursorChat()
+            interaction.closeCursorChat()
             break
           case "stop-editing-document":
-            setEditingDocumentLayerId(null)
+            interaction.setEditingDocumentLayerId(null)
             break
           case "exit-document-mode":
             toolMode.set("select")
@@ -122,10 +97,10 @@ export function useCanvasKeyboard({
             reference.clearMode()
             break
           case "exit-focus-mode":
-            setFocusedIframeLayerId(null)
+            interaction.setFocusedIframeLayerId(null)
             break
           case "exit-create-flow-mode":
-            setCreateFlowIframeLayerId(null)
+            interaction.setCreateFlowIframeLayerId(null)
             break
           case "clear-selection":
             selection.clear()
@@ -161,10 +136,10 @@ export function useCanvasKeyboard({
         !e.ctrlKey &&
         !e.altKey &&
         !isEditing(e) &&
-        cursorChatMessageRef.current === null
+        !interaction.isCursorChatOpen()
       ) {
         e.preventDefault()
-        openCursorChat()
+        interaction.openCursorChat()
       }
       if (e.key === "b" && e.metaKey && !e.altKey) {
         e.preventDefault()
@@ -214,7 +189,7 @@ export function useCanvasKeyboard({
       if (e.key === " " && !e.repeat) {
         if (!isEditing(e)) {
           e.preventDefault()
-          setSpaceHeld(true)
+          interaction.setSpaceHeld(true)
         }
       }
       // Delete/Backspace removes the selection (cascading selected groups to
@@ -247,7 +222,7 @@ export function useCanvasKeyboard({
     }
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === " ") {
-        setSpaceHeld(false)
+        interaction.setSpaceHeld(false)
       }
     }
     window.addEventListener("keydown", handleKeyDown)
@@ -260,18 +235,9 @@ export function useCanvasKeyboard({
     toolMode,
     selection,
     reference,
-    focusedIframeLayerId,
-    createFlowIframeLayerId,
     history,
-    openCursorChat,
-    closeCursorChat,
-    editingDocumentLayerIdRef,
-    setEditingDocumentLayerId,
-    cursorChatMessageRef,
-    setFocusedIframeLayerId,
-    setCreateFlowIframeLayerId,
+    interaction,
     sidebarPanelRef,
     chatPanelRef,
-    setSpaceHeld,
   ])
 }
