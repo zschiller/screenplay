@@ -75,17 +75,27 @@ package and the everyday meaning), project; "agent" (an agent is the AI, not a
 Repo).
 
 **Repo Config** (Project preset):
-A saved, reusable bundle of a GitHub repo's run settings — setup/dev scripts,
-Dev Server Port (hosted) or files-to-copy globs (desktop), env vars, default
-Iframe Layer size, and system prompt — keyed by `repoFullName` with an optional
-`name` so one repo can carry several (e.g. "web", "api" across a monorepo).
-User-private and stored encrypted in KV (`user-workspace-configs:{userId}`),
-**never** in a Room's Y.Doc. Its sole job is to **seed** a live Repo when that
-repo is added to a Room: the copy is **one-way** — afterwards the Repo
-(`RepoData`) and the preset diverge, and editing either never touches the other.
-Managed on the homescreen Settings surface; `RepoConfig` is the code identifier
-everywhere. The user-facing label tracks the Repo's own label, so a later
-"Project" → "Repository" UI pass renames this to "Repository preset" in lockstep.
+A saved, reusable bundle of a repo's run settings — setup/dev scripts, Dev
+Server Port (hosted) or files-to-copy globs (desktop), env vars, default Iframe
+Layer size, and system prompt. Sourced three ways through one shared picker — a
+GitHub pick, a clone URL, or (desktop only) a **local folder** — and identified
+by its git **remote** whenever one is detectable (`repoFullName` / `cloneUrl`),
+falling back to the folder's path only when there is no remote; it carries an
+optional `localPath` acquisition hint (the remote names it, the path is what's
+opened — ADR 0013) and an optional `name` so one repo can carry several (e.g.
+"web", "api" across a monorepo). That `name` is **deliberately seeded into the
+live Repo's display name** (`RepoData.name`) at add time: one GitHub repo may be
+added to a single Room more than once as distinct Repos (each from a different
+preset), and the preset name is what tells those instances apart in the sidebar
+— not accidental coupling, the whole reason the field exists. User-private and
+stored encrypted in KV
+(`user-workspace-configs:{userId}`), **never** in a Room's Y.Doc. Its sole job
+is to **seed** a live Repo when that repo is added to a Room: the copy is
+**one-way** — afterwards the Repo (`RepoData`) and the preset diverge, and
+editing either never touches the other. Managed on the homescreen Settings
+surface; `RepoConfig` is the code identifier everywhere. The user-facing label
+tracks the Repo's own label, so a later "Project" → "Repository" UI pass renames
+this to "Repository preset" in lockstep.
 _Shown to users as_: "Project preset".
 _Avoid_: template (implies scaffolding or cloning the repo's source — a preset
 carries only run settings, not code); calling the live in-Room Repo settings a
