@@ -7,6 +7,27 @@ body {
   overscroll-behavior: none;
 }
 
+/* react-zoom-pan-pinch permanently promotes its wrapper with
+   `transform: translate3d(0, 0, 0)`. On WebKit that pins the whole zoomed
+   subtree to a GPU layer; since the zoomed content is 10000px square it blows
+   past WebKit's max layer size when scaled up and the layer gets downsampled —
+   blurry labels that get worse the more you zoom in. Drop the static promotion
+   (translate3d(0) is an identity translate, so nothing moves) so WebKit paints
+   only the visible region at native resolution and stays crisp. We don't
+   re-promote during zoom either — perf is handled by the deferred React sync in
+   use-canvas-camera.ts, not a GPU layer. */
+.react-transform-wrapper {
+  transform: none !important;
+}
+
+/* Hide frame labels while a zoom is in flight. They counter-scale with the
+   live `zoom`, which the camera defers during a zoom (perf), so they'd balloon
+   and snap on settle. `data-zooming` is toggled on the content wrapper by the
+   canvas; see use-canvas-camera.ts `isZooming`. */
+[data-zooming] .canvas-frame-label {
+  visibility: hidden;
+}
+
 /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
    cadence to signal a running agent. See components/grip-spinner.tsx. */
 @keyframes grip-dot-twinkle {

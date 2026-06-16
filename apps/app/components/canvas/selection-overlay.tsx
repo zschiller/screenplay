@@ -19,6 +19,9 @@ interface OtherSelection {
 }
 
 interface SelectionOverlayProps {
+  /** Hide the overlay (e.g. during an active zoom) without unmounting, so the
+   *  canvas keeps its parent-measured size and redraws instantly when shown. */
+  hidden?: boolean
   zoom: number
   viewportPos: { x: number; y: number }
   selectedIframeLayerIds: Set<string>
@@ -102,6 +105,7 @@ function resolveColor(
 }
 
 export function SelectionOverlay({
+  hidden,
   zoom,
   viewportPos,
   selectedIframeLayerIds,
@@ -612,6 +616,7 @@ export function SelectionOverlay({
     <canvas
       ref={canvasRef}
       className="pointer-events-none absolute inset-0 z-10"
+      style={hidden ? { visibility: "hidden" } : undefined}
     />
   )
 }
