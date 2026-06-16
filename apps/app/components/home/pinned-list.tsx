@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { FileText, Folder as FolderIcon, MoreHorizontal } from "lucide-react"
+import { Folder as FolderIcon, MoreHorizontal, Scan } from "lucide-react"
 import { Reorder } from "motion/react"
 import {
   SidebarGroup,
@@ -206,7 +206,7 @@ function PinnedRoomRow({
             prewarmRoom(room.id)
           }}
         >
-          <FileText />
+          <Scan />
           <span className="truncate">{room.name}</span>
         </Link>
       </SidebarMenuButton>

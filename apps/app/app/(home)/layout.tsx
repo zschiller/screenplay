@@ -7,6 +7,10 @@ import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
+import {
+  homeViewPrefsCookieName,
+  parseHomeViewPrefs,
+} from "@/lib/home-view-prefs"
 import { listRooms } from "@/lib/rooms-actions"
 import { listFolders, listRoomPlacements } from "@/lib/folders-actions"
 import { listPins } from "@/lib/pins-actions"
@@ -40,6 +44,14 @@ export default async function HomeLayout({
     cookieStore.get(panelLayoutCookieName("home-layout"))?.value
   )
 
+  // Seed the global grid/table view plus each surface's remembered sort so the
+  // right layout paints on first load. The active surface is derived
+  // client-side in the shell, so the whole per-folder sort map rides down
+  // rather than one route's slice.
+  const initialViewPrefs = parseHomeViewPrefs(
+    cookieStore.get(homeViewPrefsCookieName())?.value
+  )
+
   // Seed rooms, folders, placements, and pins server-side so the grid and the
   // sidebar's Pinned section are populated on first paint — loading them
   // client-side resolves in ~1 frame against the local sidecar, which strobes an
@@ -61,6 +73,7 @@ export default async function HomeLayout({
       initialFolders={initialFolders}
       initialPlacements={initialPlacements}
       initialPins={initialPins}
+      initialViewPrefs={initialViewPrefs}
     >
       {children}
     </HomeShell>

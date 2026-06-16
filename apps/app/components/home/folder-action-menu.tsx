@@ -39,7 +39,7 @@ export function FolderActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="start">
         <DropdownMenuItem onSelect={onRename}>
           <Pencil />
           Rename

@@ -56,7 +56,7 @@ export function RoomActionMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="start">
         {room.isOwner && (
           <DropdownMenuItem onSelect={onRename}>
             <Pencil />

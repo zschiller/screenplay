@@ -9,6 +9,7 @@ import {
 } from "@workspace/ui/components/resizable"
 import { writePanelLayout, type PanelLayout } from "@/lib/panel-layout"
 import { deriveHomeScope } from "@/lib/home-scope"
+import type { HomeViewPrefs } from "@/lib/home-view-prefs"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary, RoomPlacementSummary } from "@/lib/folders-actions"
 import type { PinSummary } from "@/lib/pins-actions"
@@ -35,6 +36,7 @@ export function HomeShell({
   initialFolders,
   initialPlacements,
   initialPins,
+  initialViewPrefs,
 }: {
   children: React.ReactNode
   initialLayout?: PanelLayout
@@ -42,6 +44,7 @@ export function HomeShell({
   initialFolders: FolderSummary[]
   initialPlacements: RoomPlacementSummary[]
   initialPins: PinSummary[]
+  initialViewPrefs?: HomeViewPrefs
 }) {
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
     writePanelLayout("home-layout", layout)
@@ -60,6 +63,7 @@ export function HomeShell({
       initialFolders={initialFolders}
       initialPlacements={initialPlacements}
       initialPins={initialPins}
+      initialViewPrefs={initialViewPrefs}
       folderView={folderView}
       currentFolderId={currentFolderId}
     >

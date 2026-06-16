@@ -10,25 +10,32 @@
 use std::error::Error;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 use tiny_http::{Header, Method, Response, Server};
 
-/// Label prefix for the off-screen window the preview URL loads into for
-/// screenshotting. Each capture builds its own uniquely-suffixed window rather
-/// than reusing one label: `destroy()` dispatched from the worker thread (the
-/// teardown in `capture`) completes asynchronously on the event loop, so the
-/// previous capture's window can still be registered under its label when the
-/// next request — the control server handles them serially — goes to build.
-/// Reusing a fixed label then fails with "a webview with label X already
-/// exists"; a fresh label per capture sidesteps that race entirely.
-const CAPTURE_LABEL_PREFIX: &str = "thumbnail-capture";
-/// Monotonic counter making each capture window's label unique.
-static CAPTURE_SEQ: AtomicU64 = AtomicU64::new(0);
+/// Label of the single off-screen window the preview URLs load into for
+/// screenshotting. Built once on the first capture and reused for every
+/// subsequent one via `navigate()` — see `capture` for why reuse matters.
+const CAPTURE_LABEL: &str = "thumbnail-capture";
+/// Monotonic id stamped on each capture. The persistent window's page-load
+/// handler carries it so a stale load (a late redirect from a prior capture)
+/// can be recognised and dropped rather than snapshotting into the wrong — or
+/// an already-dropped — receiver.
+static CAPTURE_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// The in-flight capture's result channel, keyed by its generation. The control
+/// server handles requests serially, so at most one capture is ever registered;
+/// the generation guards only against a stray page-load event outliving it.
+struct PendingCapture {
+    generation: u64,
+    tx: mpsc::Sender<Result<Vec<u8>, String>>,
+}
+static PENDING: Mutex<Option<PendingCapture>> = Mutex::new(None);
 /// Fallback viewport, used only when the sidecar sends no usable width/height
 /// (an older sidecar, or a degenerate frame). The real capture size is the
 /// frame's own width/height — sent per request by `TauriWebviewCapturer` and
@@ -161,80 +168,122 @@ fn serve(server: &Server, app: &AppHandle) {
     }
 }
 
-/// Render `render_url` in an off-screen webview and return a PNG screenshot.
+/// Render `render_url` in the off-screen capture webview and return a PNG.
 ///
 /// Tauri v2 has no portable screenshot API (the one piece spike #407 left open),
-/// so this drives the underlying WKWebView's `takeSnapshot` on macOS. The
-/// control server calls one capture at a time, so a single reused off-screen
-/// window is safe. On any failure the capturer surfaces it and
-/// `captureRoomThumbnail`'s caller swallows it — a Room just shows no thumbnail.
+/// so this drives the underlying WKWebView's `takeSnapshot` on macOS.
+///
+/// The window is built once and **reused** across captures via `navigate()`.
+/// That reuse is what keeps focus from flickering: `wry` calls
+/// `NSApplication.activate` when it *injects* a WKWebView, so building a fresh
+/// window per capture yanked our app to the foreground every time (the old
+/// record-frontmost / re-activate dance only restored it *after* an unavoidable
+/// activate→deactivate cycle — the visible title-bar flicker). Navigating an
+/// existing webview creates no new WKWebView, so it never activates anything.
+///
+/// On any failure the capturer surfaces it and `captureRoomThumbnail`'s caller
+/// swallows it — a Room just shows no thumbnail.
 fn capture(app: &AppHandle, render_url: &str, width: f64, height: f64) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
+    let generation = CAPTURE_GEN.fetch_add(1, Ordering::Relaxed);
 
-    // A fresh label per capture — see `CAPTURE_LABEL_PREFIX`.
-    let label = format!(
-        "{CAPTURE_LABEL_PREFIX}-{}",
-        CAPTURE_SEQ.fetch_add(1, Ordering::Relaxed)
-    );
+    // Register before navigating so the window's page-load handler can route
+    // the resulting snapshot back to us.
+    *PENDING.lock().unwrap() = Some(PendingCapture { generation, tx });
 
     // Window + webview work must run on the UI thread.
     let app_main = app.clone();
     let url = render_url.to_string();
-    let tx_build = tx.clone();
-    let label_build = label.clone();
-    app.run_on_main_thread(move || {
-        if let Err(e) =
-            open_capture_window(&app_main, &url, &label_build, width, height, tx_build.clone())
-        {
-            let _ = tx_build.send(Err(e));
+    if let Err(e) = app.run_on_main_thread(move || {
+        if let Err(e) = ensure_window_and_navigate(&app_main, &url, width, height) {
+            fail_capture(generation, e);
         }
-    })
-    .map_err(|e| e.to_string())?;
+    }) {
+        // Couldn't even reach the UI thread — drop our registration.
+        clear_pending(generation);
+        return Err(e.to_string());
+    }
 
     let result = rx
         .recv_timeout(Duration::from_secs(CAPTURE_TIMEOUT_S))
         .unwrap_or_else(|_| Err("thumbnail capture timed out".into()));
 
-    // Tear the off-screen window down regardless of outcome. Dispatched async
-    // from this worker thread; the unique label keeps the next capture from
-    // colliding with it before it lands.
-    if let Some(window) = app.get_webview_window(&label) {
-        let _ = window.destroy();
-    }
+    // Invalidate this generation so a late load event can't snapshot into the
+    // now-dropped receiver.
+    clear_pending(generation);
     result
 }
 
-/// Build the off-screen capture window; on page `load` (+ settle), snapshot it.
-fn open_capture_window(
+/// Drop the pending registration if it's still `generation` (a no-op once a
+/// snapshot or a newer capture has claimed it).
+fn clear_pending(generation: u64) {
+    let mut pending = PENDING.lock().unwrap();
+    if matches!(pending.as_ref(), Some(p) if p.generation == generation) {
+        *pending = None;
+    }
+}
+
+/// Fail the pending capture `generation` with `err`, if it's still current.
+fn fail_capture(generation: u64, err: String) {
+    let mut pending = PENDING.lock().unwrap();
+    if matches!(pending.as_ref(), Some(p) if p.generation == generation) {
+        if let Some(p) = pending.take() {
+            let _ = p.tx.send(Err(err));
+        }
+    }
+}
+
+/// Resize the persistent capture window to the frame's size and navigate it to
+/// `url`, building the window on first use. Runs on the UI thread.
+fn ensure_window_and_navigate(
     app: &AppHandle,
     url: &str,
-    label: &str,
     width: f64,
     height: f64,
-    tx: mpsc::Sender<Result<Vec<u8>, String>>,
 ) -> Result<(), String> {
-    let parsed = url.parse().map_err(|_| format!("bad render url: {url}"))?;
-    let app_for_load = app.clone();
-    let label_load = label.to_string();
+    let parsed: tauri::Url = url.parse().map_err(|_| format!("bad render url: {url}"))?;
 
-    // Record whoever is frontmost *before* we build the window. `wry` calls
-    // `NSApplication.activate` unconditionally when it injects the WKWebview
-    // (wkwebview/mod.rs: "make sure the window is always on top when we create
-    // a new webview") — neither `visible(false)` nor `focused(false)` suppress
-    // it, so every capture yanks our app to the foreground. We re-activate the
-    // previous app below to undo that.
+    if let Some(window) = app.get_webview_window(CAPTURE_LABEL) {
+        // Reuse the existing webview: resize to the frame's size, then navigate.
+        // No new WKWebView is created, so wry never re-activates our app — the
+        // user's focus and the main window's title bar are left untouched.
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())?;
+        window.navigate(parsed).map_err(|e| e.to_string())
+    } else {
+        build_capture_window(app, parsed, width, height)
+    }
+}
+
+/// Build the single off-screen capture window. Its page-load handler routes the
+/// snapshot of whichever capture is registered when `load` fires (+ settle).
+fn build_capture_window(
+    app: &AppHandle,
+    url: tauri::Url,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let app_for_load = app.clone();
+
+    // Record whoever is frontmost *before* we build. `wry` calls
+    // `NSApplication.activate` when it injects the WKWebview (wkwebview/mod.rs:
+    // "make sure the window is always on top when we create a new webview") —
+    // neither `visible(false)` nor `focused(false)` suppress it. We re-activate
+    // the previous app below to undo it. This happens at most *once* per app
+    // run, since every subsequent capture reuses this webview via `navigate()`.
     #[cfg(target_os = "macos")]
     let prev_app = unsafe { macos::frontmost_app() };
 
-    let window = WebviewWindowBuilder::new(app, label, WebviewUrl::External(parsed))
+    let window = WebviewWindowBuilder::new(app, CAPTURE_LABEL, WebviewUrl::External(url))
         .title("")
         .inner_size(width, height)
         // Off-screen but on a real display so the webview actually renders.
         .position(-8000.0, -8000.0)
         // Built hidden: a window made visible at build time gets
         // `makeKeyAndOrderFront` on macOS, which yanks the app to the
-        // foreground every capture. We order it on screen ourselves below
-        // without activating. `focused(false)` alone doesn't prevent this.
+        // foreground. We order it on screen ourselves below without activating.
+        // `focused(false)` alone doesn't prevent this.
         .visible(false)
         .focused(false)
         .skip_taskbar(true)
@@ -243,17 +292,20 @@ fn open_capture_window(
             if payload.event() != tauri::webview::PageLoadEvent::Finished {
                 return;
             }
+            // Whichever capture is registered now owns this load; carry its
+            // generation so a stale load (a prior capture's late redirect)
+            // can be dropped at snapshot time.
+            let generation = match PENDING.lock().unwrap().as_ref() {
+                Some(p) => p.generation,
+                None => return,
+            };
             let app = app_for_load.clone();
-            let tx = tx.clone();
-            let label = label_load.clone();
             // Let the canvas paint, then snapshot back on the UI thread.
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(SETTLE_MS));
                 let app_snap = app.clone();
-                let tx_snap = tx.clone();
-                let label_snap = label.clone();
-                let _ = app.clone().run_on_main_thread(move || {
-                    snapshot(&app_snap, &label_snap, tx_snap);
+                let _ = app.run_on_main_thread(move || {
+                    snapshot_if_current(&app_snap, generation);
                 });
             });
         })
@@ -282,10 +334,22 @@ fn open_capture_window(
     Ok(())
 }
 
-/// Snapshot the capture window's webview to PNG and send it. Runs on the UI
-/// thread; `takeSnapshot`'s completion handler fires later on the same run loop.
-fn snapshot(app: &AppHandle, label: &str, tx: mpsc::Sender<Result<Vec<u8>, String>>) {
-    let Some(window) = app.get_webview_window(label) else {
+/// Snapshot the capture window's webview to PNG and send it to the capture that
+/// owns `generation`. Claims the pending registration (taking its sender) so a
+/// duplicate load event can't snapshot twice; a generation mismatch means a
+/// newer capture superseded this one, so the stale load is dropped. Runs on the
+/// UI thread; `takeSnapshot`'s completion handler fires later on the same loop.
+fn snapshot_if_current(app: &AppHandle, generation: u64) {
+    let tx = {
+        let mut pending = PENDING.lock().unwrap();
+        match pending.as_ref() {
+            Some(p) if p.generation == generation => pending.take().map(|p| p.tx),
+            _ => None,
+        }
+    };
+    let Some(tx) = tx else { return };
+
+    let Some(window) = app.get_webview_window(CAPTURE_LABEL) else {
         let _ = tx.send(Err("capture window vanished before snapshot".into()));
         return;
     };

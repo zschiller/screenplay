@@ -35,7 +35,7 @@ function FolderTileFace({
         href={`/files/${folder.id}`}
         className="flex min-w-0 flex-1 items-center gap-2"
       >
-        <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+        <FolderIcon className="size-4 shrink-0 text-primary" />
         <span className="truncate text-sm font-medium">{folder.name}</span>
       </Link>
       {menu}
