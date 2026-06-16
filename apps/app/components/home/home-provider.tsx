@@ -9,6 +9,16 @@ import {
   useState,
 } from "react"
 import {
+  DEFAULT_SCOPE_SORT,
+  DEFAULT_VIEW_PREFS,
+  homeScopeKey,
+  withScopeSort,
+  withView,
+  writeHomeViewPrefs,
+  type HomeViewPrefs,
+  type View,
+} from "@/lib/home-view-prefs"
+import {
   createRoom as createRoomAction,
   deleteRoom as deleteRoomAction,
   listRooms,
@@ -50,7 +60,7 @@ import {
 } from "@/lib/folder-cascade"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
-export type View = "grid" | "table"
+export type { View }
 export type { SortKey, SortOrder }
 export type { PinKind, PinSummary }
 
@@ -171,6 +181,12 @@ export function HomeProvider({
   // on (`null` = the root "All files").
   folderView = false,
   currentFolderId = null,
+  // View prefs (the global grid/table view + each surface's sort) seeded from
+  // the cookie so the remembered layout paints on first load. The per-surface
+  // sort map rides down whole — the active surface is derived client-side below
+  // — so a hard load of any folder restores its own order without the server
+  // layout needing the folder id.
+  initialViewPrefs,
 }: {
   children: React.ReactNode
   initialRooms?: RoomSummary[]
@@ -179,6 +195,7 @@ export function HomeProvider({
   initialPins?: PinSummary[]
   folderView?: boolean
   currentFolderId?: string | null
+  initialViewPrefs?: HomeViewPrefs
 }) {
   const [rooms, setRooms] = useState<RoomSummary[]>(initialRooms ?? [])
   const [folders, setFolders] = useState<FolderSummary[]>(initialFolders ?? [])
@@ -189,16 +206,49 @@ export function HomeProvider({
   // With server-seeded rooms the grid is ready on first paint — no loading
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
-  const [view, setView] = useState<View>("grid")
-  const [sort, setSortKey] = useState<SortKey>("updated")
-  const [order, setOrder] = useState<SortOrder>(defaultOrder("updated"))
 
+  // The grid/table view is global — one layout shared by every surface — while
+  // the sort is remembered per surface (Recents / All files / each folder),
+  // keyed by the active scope. Switching folders (a client nav that keeps this
+  // provider mounted) reads the new scope's saved order straight out of the map;
+  // an unseen scope falls back to the defaults. Seeded from the cookie
+  // server-side so first paint already matches.
+  const scopeKey = homeScopeKey(folderView, currentFolderId)
+  const [viewPrefs, setViewPrefs] = useState<HomeViewPrefs>(
+    () => initialViewPrefs ?? DEFAULT_VIEW_PREFS
+  )
+  const view = viewPrefs.view
+  const { sort, order } = viewPrefs.scopes[scopeKey] ?? DEFAULT_SCOPE_SORT
+
+  // Persist whenever the prefs change — and once on mount, which refreshes the
+  // cookie's expiry. Writing the seeded prefs back is a no-op in value.
+  useEffect(() => {
+    writeHomeViewPrefs(viewPrefs)
+  }, [viewPrefs])
+
+  // The view is global, so this carries no scope — flipping it anywhere flips it
+  // everywhere.
+  const setView = useCallback(
+    (next: View) => setViewPrefs((prev) => withView(prev, next)),
+    []
+  )
+  const setOrder = useCallback(
+    (next: SortOrder) =>
+      setViewPrefs((prev) => withScopeSort(prev, scopeKey, { order: next })),
+    [scopeKey]
+  )
   // Switching the sort key resets direction to that key's natural default
   // (names A→Z, timestamps newest-first); the user can then flip it.
-  const setSort = useCallback((next: SortKey) => {
-    setSortKey(next)
-    setOrder(defaultOrder(next))
-  }, [])
+  const setSort = useCallback(
+    (next: SortKey) =>
+      setViewPrefs((prev) =>
+        withScopeSort(prev, scopeKey, {
+          sort: next,
+          order: defaultOrder(next),
+        })
+      ),
+    [scopeKey]
+  )
 
   useEffect(() => {
     // Already seeded server-side; skip the client fetch (and its flash).

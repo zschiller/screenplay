@@ -1636,13 +1636,14 @@ export function RoomSidebar({
                                     <DialogContent
                                       className="max-w-sm gap-0 p-0"
                                       // This Dialog is a React-tree child of the
-                                      // dnd-kit sortable row, so synthetic key
-                                      // events from its (portaled) inputs bubble to
-                                      // the row's {...listeners} — where the
-                                      // KeyboardSensor eats Space (its pick-up key)
-                                      // and you can't type a space. Keep the
-                                      // dialog's keys inside the dialog.
+                                      // dnd-kit sortable row, so synthetic events from
+                                      // its (portaled) content bubble to the row's
+                                      // {...listeners}. The KeyboardSensor eats Space
+                                      // (its pick-up key) so you can't type a space,
+                                      // and the PointerSensor turns a drag on the modal
+                                      // into a drag of the row. Keep both inside.
                                       onKeyDown={(e) => e.stopPropagation()}
+                                      onPointerDown={(e) => e.stopPropagation()}
                                     >
                                       <DialogHeader className="px-4 pt-4 pb-2">
                                         <DialogTitle>
@@ -1671,10 +1672,13 @@ export function RoomSidebar({
                                     <DialogContent
                                       className="max-w-sm"
                                       // Nested in the dnd-kit sortable row: stop key
-                                      // events from bubbling (React tree, through the
-                                      // portal) to the row's KeyboardSensor, which
-                                      // otherwise swallows Space in these fields.
+                                      // and pointer events from bubbling (React tree,
+                                      // through the portal) to the row's sensors. The
+                                      // KeyboardSensor otherwise swallows Space in these
+                                      // fields, and the PointerSensor otherwise treats a
+                                      // drag on the modal as a drag of the row.
                                       onKeyDown={(e) => e.stopPropagation()}
+                                      onPointerDown={(e) => e.stopPropagation()}
                                     >
                                       <DialogHeader className="sr-only">
                                         <DialogTitle>Settings</DialogTitle>

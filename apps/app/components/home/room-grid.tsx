@@ -31,12 +31,17 @@ import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
  * when there's nothing to place, so the card's gradient shows through (legacy
  * rows have a null manifest and never reach here).
  */
-function ThumbnailComposite({
+export function ThumbnailComposite({
   manifest,
   version,
+  // The breathing room between the frame composite and its container edge.
+  // The grid card wants a generous inset; the table's small row tile overrides
+  // it to a hairline so the preview reads at thumbnail size.
+  insetClassName = "p-3",
 }: {
   manifest: ThumbnailManifest
   version: number | null
+  insetClassName?: string
 }) {
   const { bounds, frames } = manifest
   if (bounds.width <= 0 || bounds.height <= 0 || frames.length === 0)
@@ -53,7 +58,12 @@ function ThumbnailComposite({
       : { height: "100%", aspectRatio: `${bounds.width} / ${bounds.height}` }
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-3">
+    <div
+      className={cn(
+        "absolute inset-0 flex items-center justify-center",
+        insetClassName
+      )}
+    >
       <div className="relative" style={sizeStyle}>
         {frames.map((frame) => {
           const style = {
@@ -133,7 +143,7 @@ function RoomTileFace({
     <>
       <Link
         href={`/${room.id}`}
-        className="relative block aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-muted to-muted/40"
+        className="relative block aspect-[4/3] w-full overflow-hidden bg-muted-foreground/15"
         aria-label={`Open ${room.name}`}
       >
         {room.thumbnailManifest && (
@@ -256,9 +266,9 @@ function RoomCard({ room }: { room: RoomSummary }) {
             onRename={() => setRenameOpen(true)}
             onDelete={() => setDeleteOpen(true)}
             onShare={() => setShareOpen(true)}
-            // Filing only makes sense where there's a folder tree to file into —
-            // the files page, not the flat Recents view.
-            onMove={folderView ? () => setMoveOpen(true) : undefined}
+            // Filing needs a folder tree to file into; offer it once the user has
+            // any folder, matching the sidebar's pinned-room menu exactly.
+            onMove={allFolders.length > 0 ? () => setMoveOpen(true) : undefined}
             pinned={pinned}
             onTogglePin={() =>
               pinned ? unpin("room", room.id) : pinRoom(room.id)

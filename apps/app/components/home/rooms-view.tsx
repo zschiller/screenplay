@@ -12,6 +12,14 @@ import {
   Plus,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import {
   DropdownMenu,
@@ -198,7 +206,7 @@ export function RoomsView({
           // A nested folder with nothing in it reads as "empty", not first-run.
           folderView && currentFolderId !== null ? (
             <EmptyState
-              icon={<FolderOpen className="size-5" />}
+              icon={<FolderOpen />}
               title="This folder is empty"
               description="Add a folder or a canvas to fill it."
               onCreate={() => setNewRoomOpen(true)}
@@ -222,7 +230,12 @@ export function RoomsView({
                 <RoomGrid rooms={rooms} />
               </div>
             ) : (
-              <RoomTable rooms={rooms} folders={showFolders ? folders : []} />
+              // The table cells carry their own `p-3` padding, indenting the
+              // Name column 12px past the header title above. Pull the table out
+              // by that padding so its leading text lines up with the title.
+              <div className="-mx-3">
+                <RoomTable rooms={rooms} folders={showFolders ? folders : []} />
+              </div>
             )}
           </div>
         )}
@@ -279,7 +292,7 @@ export function RoomsView({
 
 function EmptyState({
   onCreate,
-  icon = <LayoutGrid className="size-5" />,
+  icon = <LayoutGrid />,
   title = "Create your first canvas",
   description = "A canvas is your space to design with live previews.",
 }: {
@@ -289,18 +302,18 @@ function EmptyState({
   description?: string
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        {icon}
-      </div>
-      <div className="space-y-1">
-        <h2 className="text-sm font-medium">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      <Button size="sm" onClick={onCreate}>
-        <Plus />
-        New canvas
-      </Button>
-    </div>
+    <Empty className="h-full">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">{icon}</EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button size="sm" onClick={onCreate}>
+          <Plus />
+          New canvas
+        </Button>
+      </EmptyContent>
+    </Empty>
   )
 }

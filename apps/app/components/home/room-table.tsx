@@ -3,7 +3,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
-  File as FileIcon,
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
   Folder as FolderIcon,
   MoreHorizontal,
 } from "lucide-react"
@@ -17,6 +19,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
+import { isLocalBuild } from "@/lib/local-mode"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
@@ -26,7 +29,9 @@ import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
 import { useFileDraggable, useFolderDragDrop } from "./file-dnd"
+import { ThumbnailComposite } from "./room-grid"
 import { useHome } from "./home-provider"
+import type { SortKey } from "@/lib/room-sort"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -36,19 +41,38 @@ import type { FolderSummary } from "@/lib/folders-actions"
 function FolderRowName({ folder }: { folder: FolderSummary }) {
   return (
     <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
-      <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate font-medium hover:underline">{folder.name}</span>
+      <FolderIcon className="size-4 shrink-0 text-primary" />
+      <span className="truncate font-medium">{folder.name}</span>
     </Link>
   )
 }
 
-// The Name-column content of a canvas row — icon + name link. Shared by the live
-// row and its drag preview.
+// A canvas row's leading thumbnail — the grid card's preview shrunk to a 4:3
+// row tile, standing in for the old empty-doc icon. Renders the same frame
+// composite as the grid (`ThumbnailComposite`) over the gradient backdrop the
+// grid card uses, so a captured canvas shows its real layout and an uncaptured
+// one reads as a blank document. The composite never draws text.
+function RoomRowThumbnail({ room }: { room: RoomSummary }) {
+  return (
+    <div className="relative aspect-[4/3] h-20 shrink-0 overflow-hidden rounded-xs bg-muted-foreground/15">
+      {room.thumbnailManifest && (
+        <ThumbnailComposite
+          manifest={room.thumbnailManifest}
+          version={room.thumbnailUpdatedAt}
+          insetClassName="p-px"
+        />
+      )}
+    </div>
+  )
+}
+
+// The Name-column content of a canvas row — thumbnail + name link. Shared by the
+// live row and its drag preview.
 function RoomRowName({ room }: { room: RoomSummary }) {
   return (
     <Link href={`/${room.id}`} className="flex items-center gap-2">
-      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate font-medium hover:underline">{room.name}</span>
+      <RoomRowThumbnail room={room} />
+      <span className="truncate font-medium">{room.name}</span>
     </Link>
   )
 }
@@ -58,6 +82,14 @@ function RoomRowName({ room }: { room: RoomSummary }) {
 // by the overlay to the row's width.
 const ROW_PREVIEW_CHIP =
   "rounded-lg border border-border bg-background px-4 py-2 text-sm shadow-lg ring-1 ring-foreground/10"
+
+// A <tr> can't take a border-radius, so paint the hover highlight on the cells
+// instead — rounding the leading/trailing cells gives the row a rounded pill.
+// The base TableRow paints its own rect on hover; suppress it (`!`) so only the
+// rounded cell fill shows.
+const ROW_HOVER_PILL =
+  "hover:bg-transparent! [&>td]:transition-colors hover:[&>td]:bg-muted/50 " +
+  "[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
 
 export function FolderRowDragPreview({ folder }: { folder: FolderSummary }) {
   return (
@@ -75,10 +107,10 @@ export function RoomRowDragPreview({ room }: { room: RoomSummary }) {
   )
 }
 
-// Compact folder row (PRD #475): a folder icon + name in the Name column, with
-// the date/owner columns left empty so folders read as a distinct section above
-// the canvases. Clicking the name navigates into the folder (`/files/<id>`);
-// the ⋮ menu renames it in place (#484).
+// Folder row (PRD #475): a folder icon + name in the Name column, with the same
+// edited/created columns as canvases; only the owner column stays empty. Clicking
+// the name navigates into the folder (`/files/<id>`); the ⋮ menu renames it in
+// place (#484).
 function FolderRow({ folder }: { folder: FolderSummary }) {
   const {
     renameFolder,
@@ -109,14 +141,33 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       {...attributes}
       {...listeners}
       style={{ opacity: isDragging ? 0 : undefined }}
-      className={cn("group", isOver && "bg-accent")}
+      // Folder rows carry only an icon + name, so trim their vertical padding to
+      // sit shorter than the thumbnail-bearing canvas rows.
+      className={cn(
+        "group border-b-0 [&>td]:py-1.5",
+        ROW_HOVER_PILL,
+        isOver && "bg-accent"
+      )}
     >
-      <TableCell className="w-full">
+      <TableCell>
         <FolderRowName folder={folder} />
       </TableCell>
-      <TableCell />
-      <TableCell />
-      <TableCell />
+      {/* Relative times read Date.now(), which differs between the SSR pass
+          and hydration; keep the server value rather than regenerate. */}
+      <TableCell
+        suppressHydrationWarning
+        className="whitespace-nowrap text-muted-foreground"
+      >
+        {formatDistanceToNow(folder.updatedAt)}
+      </TableCell>
+      <TableCell
+        suppressHydrationWarning
+        className="whitespace-nowrap text-muted-foreground"
+      >
+        {formatDistanceToNow(folder.createdAt)}
+      </TableCell>
+      {/* Owner column is hidden in the single-user desktop build. */}
+      {!isLocalBuild && <TableCell />}
       <TableCell className="w-8 pr-2">
         <FolderActionMenu
           onRename={() => setRenameOpen(true)}
@@ -212,9 +263,9 @@ function RoomRow({ room }: { room: RoomSummary }) {
       onPointerEnter={() => prewarmRoom(room.id)}
       onFocus={() => prewarmRoom(room.id)}
       style={{ opacity: isDragging ? 0 : undefined }}
-      className="group"
+      className={cn("group border-b-0", ROW_HOVER_PILL)}
     >
-      <TableCell className="w-full">
+      <TableCell>
         <RoomRowName room={room} />
       </TableCell>
       {/* Relative times read Date.now(), which differs between the SSR pass
@@ -231,9 +282,12 @@ function RoomRow({ room }: { room: RoomSummary }) {
       >
         {formatDistanceToNow(room.createdAt)}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">
-        {room.isOwner ? "You" : "Shared"}
-      </TableCell>
+      {/* Owner column is hidden in the single-user desktop build. */}
+      {!isLocalBuild && (
+        <TableCell className="whitespace-nowrap text-muted-foreground">
+          {room.isOwner ? "You" : "Shared"}
+        </TableCell>
+      )}
       <TableCell className="w-8 pr-2">
         <RoomActionMenu
           room={room}
@@ -301,6 +355,62 @@ function RoomRow({ room }: { room: RoomSummary }) {
   )
 }
 
+// An interactive, sortable column header (shadcn's data-table pattern: a ghost
+// Button inside the <th>). Clicking the active column flips its direction;
+// clicking another switches the sort key to that column's natural default. The
+// arrow shows the live direction on the active column and a faded up/down hint
+// on the rest. `aria-sort` mirrors the state for assistive tech.
+function SortableHead({
+  label,
+  sortKey,
+  className,
+  style,
+}: {
+  label: string
+  sortKey: SortKey
+  className?: string
+  style?: React.CSSProperties
+}) {
+  const { sort, order, setSort, setOrder } = useHome()
+  const active = sort === sortKey
+
+  return (
+    <TableHead
+      className={className}
+      style={style}
+      aria-sort={
+        active ? (order === "asc" ? "ascending" : "descending") : "none"
+      }
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        // Pull the button left by its own padding so the label aligns with the
+        // body cells' text below it.
+        className={cn(
+          "-ml-2.5 data-[active=true]:text-foreground",
+          active ? "text-foreground" : "text-muted-foreground"
+        )}
+        data-active={active}
+        onClick={() =>
+          active ? setOrder(order === "asc" ? "desc" : "asc") : setSort(sortKey)
+        }
+      >
+        {label}
+        {active ? (
+          order === "asc" ? (
+            <ArrowUp />
+          ) : (
+            <ArrowDown />
+          )
+        ) : (
+          <ChevronsUpDown className="opacity-50" />
+        )}
+      </Button>
+    </TableHead>
+  )
+}
+
 export function RoomTable({
   rooms,
   folders = [],
@@ -309,14 +419,33 @@ export function RoomTable({
   folders?: FolderSummary[]
 }) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Last edited</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead>Owner</TableHead>
-          <TableHead />
+    <Table className="table-fixed">
+      <TableHeader className="[&_tr]:border-b-0">
+        <TableRow className="hover:bg-transparent!">
+          <SortableHead label="Name" sortKey="name" />
+          <SortableHead
+            label="Last edited"
+            sortKey="updated"
+            className="whitespace-nowrap"
+            style={{ width: "10rem" }}
+          />
+          <SortableHead
+            label="Created"
+            sortKey="created"
+            className="whitespace-nowrap"
+            style={{ width: "10rem" }}
+          />
+          {/* Owner column is hidden in the single-user desktop build. It carries
+              no sort key, so it stays a plain label. */}
+          {!isLocalBuild && (
+            <TableHead
+              className="whitespace-nowrap"
+              style={{ width: "6.5rem" }}
+            >
+              Owner
+            </TableHead>
+          )}
+          <TableHead style={{ width: "3rem" }} />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -324,6 +453,11 @@ export function RoomTable({
         {folders.map((folder) => (
           <FolderRow key={folder.id} folder={folder} />
         ))}
+        {/* A non-interactive spacer row sets the folder section apart from the
+            canvas section — a real gap that isn't part of either row's hover. */}
+        {folders.length > 0 && rooms.length > 0 && (
+          <tr aria-hidden className="h-3" />
+        )}
         {rooms.map((room) => (
           <RoomRow key={room.id} room={room} />
         ))}
