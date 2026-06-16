@@ -103,9 +103,15 @@ export function LayerTitleBar({
 
   return (
     <div
-      className="absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
+      className="canvas-frame-label absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
       style={{
-        transform: `scale(${1 / zoom})`,
+        // `translateZ(0)` lifts the label onto its own GPU layer so WebKit
+        // rasterizes this constant-size text at native resolution. Without it
+        // the label inherits the zoomed content layer's downsampled raster and
+        // turns unreadably blurry when zoomed in (WebKit only — Chrome
+        // re-rasterizes sharp). The label is tiny, so its own layer is cheap and
+        // hits no texture-size limit, unlike the 10000px content layer.
+        transform: `scale(${1 / zoom}) translateZ(0)`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
         marginBottom: 4 / zoom,

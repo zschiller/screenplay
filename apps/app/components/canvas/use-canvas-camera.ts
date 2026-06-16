@@ -73,6 +73,9 @@ export interface CanvasCamera {
   zoom: number
   viewportPos: { x: number; y: number }
   isPanning: boolean
+  /** True while a zoom (pinch / wheel+ctrl) is in flight — overlays hide and
+   *  the transform layer is GPU-promoted until it settles. */
+  isZooming: boolean
   followingConnectionId: number | null
   /** Follow a peer's viewport (or `null` to stop following). */
   follow(connectionId: number | null): void
@@ -121,6 +124,19 @@ export interface CameraTransformWrapperProps {
 
 const FIT_PADDING = 20
 
+/**
+ * Safari's non-standard pinch-zoom event. WebKit (desktop Safari and the Tauri
+ * app's WKWebView) reports trackpad pinches through `gesturestart` /
+ * `gesturechange` / `gestureend` instead of `wheel`+`ctrlKey`. `scale` is the
+ * magnification relative to the gesture start (1 at `gesturestart`). Only the
+ * fields we read are typed; the event also extends `MouseEvent` but its
+ * `clientX`/`clientY` are unreliable on the macOS trackpad, so we center on the
+ * last pointer position instead (mirrors Excalidraw's `lastViewportPosition`).
+ */
+interface SafariGestureEvent extends Event {
+  scale: number
+}
+
 export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const {
     transformRef,
@@ -168,6 +184,61 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     },
     [saveViewport]
   )
+
+  // --- Deferred camera sync during an active ZOOM ---
+  // A zoom (wheel+ctrl / pinch / gesture) fires rzpp's `onTransform` on every
+  // animation frame. Running the React state writes + presence broadcast there
+  // re-renders the whole canvas tree (overlays, every title bar's inverse-scale)
+  // and ships an awareness update ~60x/s — which on WebKit drops the zoom to
+  // ~40fps (confirmed: skipping this sync restores 60fps). So during a zoom we
+  // move only the cheap imperative transform rzpp already applies, and flush
+  // React + presence once motion settles (Excalidraw's "cache during zoom,
+  // redraw on settle"). Panning is left untouched — it's a cheap translate, so
+  // it keeps syncing per frame and its overlays track live.
+  //
+  // `isZooming` also drives hiding the lagging screen-space overlays and the
+  // during-zoom layer promotion that keeps WebKit from caching a blurry texture.
+  // The watchdog guarantees a flush even when no explicit stop fires (e.g. a
+  // wheel-zoom burst, which has no "end" event).
+  const zoomingRef = useRef(false)
+  const latestVpRef = useRef<ViewportData | null>(null)
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isZooming, setIsZooming] = useState(false)
+
+  const flushCameraSync = useCallback(
+    (vp: ViewportData) => {
+      setZoom(vp.zoom)
+      setViewportPos({ x: vp.x, y: vp.y })
+      setPresence({ viewport: vp })
+      saveViewportDebounced(vp)
+    },
+    [setPresence, saveViewportDebounced]
+  )
+
+  // NOTE on sharpness: we deliberately do NOT GPU-promote the transform layer
+  // (no `will-change`/3d transform). The zoomed content is CANVAS_SIZE (10000px)
+  // square; once composited and scaled past ~1.6x it exceeds WebKit's max layer
+  // size and the whole layer gets downsampled — blurry labels that get worse the
+  // more you zoom in. Left un-promoted, WebKit paints only the visible region at
+  // native resolution, so it stays crisp at any zoom. rzpp's own permanent
+  // `translate3d(0,0,0)` promotion is neutralized in globals.css for the same
+  // reason. Perf is covered by the deferred React sync, not a GPU layer.
+  const endZoom = useCallback(() => {
+    if (settleTimerRef.current) {
+      clearTimeout(settleTimerRef.current)
+      settleTimerRef.current = null
+    }
+    if (!zoomingRef.current) return
+    zoomingRef.current = false
+    setIsZooming(false)
+    if (latestVpRef.current) flushCameraSync(latestVpRef.current)
+  }, [flushCameraSync])
+
+  const beginZoom = useCallback(() => {
+    if (zoomingRef.current) return
+    zoomingRef.current = true
+    setIsZooming(true)
+  }, [])
 
   // Restore the saved viewport once it arrives (covers the case where the
   // synced viewport lands after TransformWrapper's onInit already fired).
@@ -358,6 +429,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       if (followingConnectionId !== null) setFollowingConnectionId(null)
       const rect = el.getBoundingClientRect()
       if (e.ctrlKey || e.metaKey) {
+        // Continuous wheel zoom: defer the React sync; the watchdog in
+        // onTransform flushes once the burst stops (no wheel "end" event).
+        beginZoom()
         const cursorX = e.clientX - rect.left
         const cursorY = e.clientY - rect.top
         const { positionX, positionY, scale } = ref.state
@@ -369,6 +443,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         const newPosY = cursorY - (cursorY - positionY) * ratio
         ref.setTransform(newPosX, newPosY, newScale, 0)
       } else {
+        // Plain wheel = pan; sync per frame so overlays track live.
         const { positionX, positionY, scale } = ref.state
         ref.setTransform(positionX - e.deltaX, positionY - e.deltaY, scale, 0)
       }
@@ -382,6 +457,89 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     followingConnectionId,
     focusedIframeLayerId,
     createFlowIframeLayerId,
+    beginZoom,
+  ])
+
+  // --- WebKit pinch zoom (Safari-only legacy GestureEvent) ---
+  // Chromium/Gecko surface a trackpad pinch as a `wheel` event with `ctrlKey`,
+  // which the Figma-style handler above zooms on. WebKit (desktop Safari and
+  // the Tauri app's WKWebView) does NOT — a pinch fires the non-standard
+  // `gesturestart`/`gesturechange`/`gestureend` events and, if we leave them
+  // alone, WebKit falls back to throttled synthesized wheel events / native
+  // page zoom. That fallback is the sluggish pinch on WebKit; the wheel handler
+  // never gets a clean signal to fix. So we drive the zoom straight off the
+  // gesture's cumulative `scale` like Excalidraw does. These events only fire on
+  // WebKit, so there's no double-handling with the wheel listener (Chromium/
+  // Gecko never dispatch them), and `preventDefault` suppresses the native page
+  // zoom. GestureEvent carries no usable cursor coords on the macOS trackpad, so
+  // center on the last pointer position.
+  useEffect(() => {
+    const el = canvasWrapperRef.current
+    if (!el) return
+
+    const lastPointer = {
+      x: typeof window !== "undefined" ? window.innerWidth / 2 : 0,
+      y: typeof window !== "undefined" ? window.innerHeight / 2 : 0,
+    }
+    let gestureInitialScale: number | null = null
+
+    const onPointerMove = (e: PointerEvent) => {
+      lastPointer.x = e.clientX
+      lastPointer.y = e.clientY
+    }
+
+    const onGestureStart = (e: Event) => {
+      e.preventDefault()
+      const ref = transformRef.current
+      if (!ref) return
+      if (followingConnectionId !== null) setFollowingConnectionId(null)
+      beginZoom()
+      gestureInitialScale = ref.state.scale
+    }
+
+    const onGestureChange = (e: Event) => {
+      e.preventDefault()
+      const ref = transformRef.current
+      if (!ref || gestureInitialScale === null) return
+      const { scale: gestureScale } = e as SafariGestureEvent
+      const rect = el.getBoundingClientRect()
+      const cursorX = lastPointer.x - rect.left
+      const cursorY = lastPointer.y - rect.top
+      const { positionX, positionY, scale } = ref.state
+      // `gestureScale` is the cumulative physical magnification since
+      // gesturestart; apply it 1:1 like Excalidraw / tldraw (zoomSpeed=1).
+      const newScale = Math.min(
+        ZOOM_MAX,
+        Math.max(ZOOM_MIN, gestureInitialScale * gestureScale)
+      )
+      const ratio = newScale / scale
+      const newPosX = cursorX - (cursorX - positionX) * ratio
+      const newPosY = cursorY - (cursorY - positionY) * ratio
+      ref.setTransform(newPosX, newPosY, newScale, 0)
+    }
+
+    const onGestureEnd = (e: Event) => {
+      e.preventDefault()
+      gestureInitialScale = null
+      endZoom()
+    }
+
+    el.addEventListener("pointermove", onPointerMove, { passive: true })
+    el.addEventListener("gesturestart", onGestureStart, { passive: false })
+    el.addEventListener("gesturechange", onGestureChange, { passive: false })
+    el.addEventListener("gestureend", onGestureEnd, { passive: false })
+    return () => {
+      el.removeEventListener("pointermove", onPointerMove)
+      el.removeEventListener("gesturestart", onGestureStart)
+      el.removeEventListener("gesturechange", onGestureChange)
+      el.removeEventListener("gestureend", onGestureEnd)
+    }
+  }, [
+    transformRef,
+    canvasWrapperRef,
+    followingConnectionId,
+    beginZoom,
+    endZoom,
   ])
 
   // Zoom gestures landing on an interactive iframe can't reach the wrapper-level
@@ -395,6 +553,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       const frameEl = document.getElementById(`iframe-layer-${iframeLayerId}`)
       if (!frameEl) return
       if (followingConnectionId !== null) setFollowingConnectionId(null)
+      beginZoom()
       const wrapperRect = wrapper.getBoundingClientRect()
       const frameRect = frameEl.getBoundingClientRect()
       const { positionX, positionY, scale } = ref.state
@@ -408,7 +567,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       const newPosY = cursorY - (cursorY - positionY) * ratio
       ref.setTransform(newPosX, newPosY, newScale, 0)
     },
-    [transformRef, canvasWrapperRef, followingConnectionId]
+    [transformRef, canvasWrapperRef, followingConnectionId, beginZoom]
   )
 
   // --- TransformWrapper props (init / transform / panning gates) ---
@@ -443,18 +602,29 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   }, [breakFollow])
   const onPanningStop = useCallback(() => setIsPanning(false), [])
 
+  const onPinchStart = useCallback(() => {
+    breakFollow()
+    beginZoom()
+  }, [breakFollow, beginZoom])
+
   const onTransform = useCallback(
     (
       _ref: ReactZoomPanPinchContentRef,
       state: { positionX: number; positionY: number; scale: number }
     ) => {
       const vp = { x: state.positionX, y: state.positionY, zoom: state.scale }
-      setZoom(state.scale)
-      setViewportPos({ x: state.positionX, y: state.positionY })
-      setPresence({ viewport: vp })
-      saveViewportDebounced(vp)
+      latestVpRef.current = vp
+      if (zoomingRef.current) {
+        // Mid-zoom: skip the expensive React/presence sync, keep the latest
+        // state, and (re)arm the settle watchdog so we flush when motion stops.
+        if (settleTimerRef.current) clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = setTimeout(endZoom, 140)
+        return
+      }
+      // Panning and one-shot animations sync per frame so overlays track live.
+      flushCameraSync(vp)
     },
-    [setPresence, saveViewportDebounced]
+    [flushCameraSync, endZoom]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(
@@ -486,7 +656,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       onPanningStart,
       onPanningStop,
       onWheelStart: breakFollow,
-      onPinchStart: breakFollow,
+      onPinchStart,
       onTransform,
     }),
     [
@@ -498,6 +668,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       onPanningStart,
       onPanningStop,
       breakFollow,
+      onPinchStart,
       onTransform,
     ]
   )
@@ -506,6 +677,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     zoom,
     viewportPos,
     isPanning,
+    isZooming,
     followingConnectionId,
     follow,
     breakFollow,

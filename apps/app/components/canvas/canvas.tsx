@@ -376,6 +376,11 @@ export function Canvas({
   const zoom = camera.zoom
   const viewportPos = camera.viewportPos
   const isPanning = camera.isPanning
+  // True only during an active zoom. The screen-space overlays/underlays read
+  // `zoom`/`viewportPos`, which the camera intentionally stops syncing mid-zoom
+  // (perf), so they'd lag the content and snap on settle — hide them instead.
+  // Panning still syncs per frame, so overlays stay live during a pan.
+  const isZooming = camera.isZooming
   const followingConnectionId = camera.followingConnectionId
 
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
@@ -1341,6 +1346,11 @@ export function Canvas({
                 <div
                   className="relative"
                   style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+                  // Hides frame labels mid-zoom (CSS in globals.css). They read
+                  // the deferred `zoom` for their counter-scale, so they'd
+                  // balloon/snap during a zoom — cheaper to hide than thread
+                  // `isZooming` down through every layer.
+                  data-zooming={isZooming || undefined}
                 >
                   <CanvasMemberLayer
                     iframeLayerGroups={iframeLayerGroups}
@@ -1396,6 +1406,9 @@ export function Canvas({
               style={{
                 transformOrigin: "0 0",
                 transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+                // Hidden mid-zoom: this transform reads the deferred zoom/
+                // viewportPos, so it would lag the canvas and snap on settle.
+                visibility: isZooming ? "hidden" : undefined,
               }}
             >
               <Comments
@@ -1439,7 +1452,11 @@ export function Canvas({
               className="pointer-events-none absolute inset-0 z-30"
             />
 
+            {/* `hidden` mid-zoom — it reads the deferred zoom/viewportPos, so
+                it would lag the canvas and snap on settle. Passed as a prop (not
+                a wrapper) because the canvas sizes itself from its parent. */}
             <SelectionOverlay
+              hidden={isZooming}
               zoom={zoom}
               viewportPos={viewportPos}
               selectedIframeLayerIds={overlaySelectedIds}
