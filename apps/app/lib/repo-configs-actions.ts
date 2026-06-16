@@ -42,7 +42,10 @@ export async function upsertRepoConfig(
 
   await saveConfigs(userId, next)
 
-  if (isNew) {
+  // Auto-seed a starter branch only when the preset has a GitHub identity. A
+  // remote-less local folder (ADR 0013) has no `owner/repo` to push to — its
+  // worktrees branch locally — so skip the API call entirely.
+  if (isNew && config.repoOwner && config.repoName) {
     const branchName = uniqueNamesGenerator({
       dictionaries: [adjectives, colors, animals],
       separator: "-",

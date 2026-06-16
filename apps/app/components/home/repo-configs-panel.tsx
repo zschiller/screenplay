@@ -1,7 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Folder, FolderLock, Plus, Pencil, Trash2 } from "lucide-react"
+import {
+  Folder,
+  FolderLock,
+  FolderOpen,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
@@ -63,15 +70,13 @@ export function RepoConfigsPanel() {
     )
   }
 
-  const grouped = new Map<string, RepoConfig[]>()
-  for (const c of configs) {
-    const list = grouped.get(c.repoFullName) ?? []
-    list.push(c)
-    grouped.set(c.repoFullName, list)
-  }
-  const sortedRepos = Array.from(grouped.keys()).sort((a, b) =>
-    a.localeCompare(b)
-  )
+  // Grouping has two cases in one list (ADR 0013). A preset with a detected
+  // git remote keeps *remote identity*: keyed/displayed by `repoFullName`, so a
+  // folder-added preset for `owner/repo` lands in the same group as a GitHub- or
+  // URL-added one and dedupes. A genuinely remote-less folder falls back to
+  // *path identity*: keyed by its `localPath`, headed by the folder basename
+  // with the full path as muted subtext and a distinct local-folder icon.
+  const sortedGroups = groupConfigs(configs)
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -86,21 +91,27 @@ export function RepoConfigsPanel() {
         </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {sortedRepos.map((repoFullName) => {
-            const items = grouped
-              .get(repoFullName)!
+          {sortedGroups.map((group) => {
+            const items = group.items
               .slice()
               .sort((a, b) => a.name.localeCompare(b.name))
             return (
-              <div key={repoFullName} className="flex min-w-0 flex-col gap-1">
+              <div key={group.key} className="flex min-w-0 flex-col gap-1">
                 <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                  {items[0].private ? (
+                  {group.kind === "path" ? (
+                    <FolderOpen className="size-3.5 shrink-0" />
+                  ) : group.private ? (
                     <FolderLock className="size-3.5 shrink-0" />
                   ) : (
                     <Folder className="size-3.5 shrink-0" />
                   )}
-                  <span className="truncate">{repoFullName}</span>
+                  <span className="truncate">{group.heading}</span>
                 </div>
+                {group.subtext && (
+                  <div className="truncate pl-5 font-mono text-[11px] text-muted-foreground/70">
+                    {group.subtext}
+                  </div>
+                )}
                 {items.map((config) => (
                   <div
                     key={config.id}
@@ -154,5 +165,67 @@ export function RepoConfigsPanel() {
         </Button>
       </div>
     </div>
+  )
+}
+
+type ConfigGroup = {
+  key: string
+  heading: string
+  /** Full folder path, shown muted under the heading for path-identity groups. */
+  subtext?: string
+  kind: "remote" | "path"
+  private: boolean
+  items: RepoConfig[]
+}
+
+/** A folder preset with no detected remote falls back to path identity. */
+function isPathIdentity(c: RepoConfig): boolean {
+  return Boolean(c.localPath) && !c.repoOwner
+}
+
+/** Trailing path segment, tolerant of POSIX and Windows separators. */
+function basename(p: string): string {
+  return (
+    p
+      .replace(/[/\\]+$/, "")
+      .split(/[/\\]/)
+      .pop() || p
+  )
+}
+
+/**
+ * Fold presets into display groups (ADR 0013): remote-identity groups keyed by
+ * `repoFullName`, path-identity groups keyed by `localPath`. Sorted by heading
+ * so the two cases interleave as one list.
+ */
+function groupConfigs(configs: RepoConfig[]): ConfigGroup[] {
+  const groups = new Map<string, ConfigGroup>()
+  for (const c of configs) {
+    const path = isPathIdentity(c)
+    const key = path ? `path:${c.localPath}` : `repo:${c.repoFullName}`
+    let group = groups.get(key)
+    if (!group) {
+      group = path
+        ? {
+            key,
+            heading: basename(c.localPath!),
+            subtext: c.localPath,
+            kind: "path",
+            private: false,
+            items: [],
+          }
+        : {
+            key,
+            heading: c.repoFullName,
+            kind: "remote",
+            private: c.private,
+            items: [],
+          }
+      groups.set(key, group)
+    }
+    group.items.push(c)
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    a.heading.localeCompare(b.heading)
   )
 }

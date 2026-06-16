@@ -2,14 +2,17 @@
 
 import { useState } from "react"
 import { nanoid } from "nanoid"
+import { FolderOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { RepoPicker } from "@/components/repo-picker"
+import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { upsertRepoConfig } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import type { NewRepoSource } from "@/lib/github-local/types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { isLocalBuild } from "@/lib/local-mode"
 
@@ -27,6 +30,7 @@ type RepoIdentity = Pick<
   | "repoName"
   | "defaultBranch"
   | "cloneUrl"
+  | "localPath"
   | "private"
 >
 
@@ -44,10 +48,14 @@ export function RepoConfigForm({
           repoName: initial.repoName,
           defaultBranch: initial.defaultBranch,
           cloneUrl: initial.cloneUrl,
+          localPath: initial.localPath,
           private: initial.private,
         }
       : null
   )
+  // Desktop folder-path fallback when the native directory dialog is
+  // unreachable (story 27) — mirrors the in-Room add flow (#604).
+  const [folderMode, setFolderMode] = useState(false)
   const [name, setName] = useState(initial?.name ?? "")
   const [setupScript, setSetupScript] = useState(initial?.setupScript ?? "")
   const [devScript, setDevScript] = useState(initial?.devScript ?? "")
@@ -95,6 +103,7 @@ export function RepoConfigForm({
       repoName: repo.repoName,
       defaultBranch: repo.defaultBranch,
       cloneUrl: repo.cloneUrl,
+      localPath: repo.localPath,
       private: repo.private,
       setupScript,
       devScript,
@@ -115,46 +124,87 @@ export function RepoConfigForm({
     }
   }
 
+  // Seed the preset's identity from a local-build source (a pasted clone URL or
+  // a folder). Identity prefers the detected remote — `inspectLocalRepoPath`
+  // already fills `repoFullName`/`cloneUrl` from a folder's `origin`, falling
+  // back to the basename when remote-less (ADR 0013). We can't know visibility,
+  // so `private` defaults to false (only the folder/lock icon reads it). The
+  // `localPath` rides along: the remote names the preset, the path opens it.
+  const applySource = (source: NewRepoSource) => {
+    setRepo({
+      repoFullName: source.repoFullName,
+      repoOwner: source.repoOwner,
+      repoName: source.repoName,
+      defaultBranch: source.defaultBranch,
+      cloneUrl: source.cloneUrl,
+      localPath: source.localPath,
+      private: false,
+    })
+    setFolderMode(false)
+  }
+
+  // "Open a folder" fires the native OS directory dialog directly; only when no
+  // native picker is reachable (sidecar driven from a browser) do we fall back
+  // to the path-input form (#604).
+  const openFolder = async () => {
+    const result = await chooseLocalFolder()
+    if (result.kind === "source") applySource(result.source)
+    else if (result.kind === "fallback") setFolderMode(true)
+  }
+
   if (!repo) {
     return (
       <div className="flex min-w-0 flex-col gap-3">
         <p className="text-sm text-muted-foreground">
           Choose a repository for this preset.
         </p>
-        <div className="rounded-lg border">
-          <RepoPicker
-            // Same sources as the canvas add flow: a GitHub pick, or — on the
-            // local build — a pasted clone URL folded into the search box
-            // (#605). Folder presets (a `source` with a `localPath`) are the
-            // follow-up slice that adds the data-model change.
-            localSources={isLocalBuild}
-            onSelect={(pick) => {
-              if (pick.kind === "repo") {
-                setRepo({
-                  repoFullName: pick.repo.fullName,
-                  repoOwner: pick.repo.owner,
-                  repoName: pick.repo.name,
-                  defaultBranch: pick.repo.defaultBranch,
-                  cloneUrl: pick.repo.cloneUrl,
-                  private: pick.repo.private,
-                })
-              } else if (pick.kind === "source") {
-                // A pasted clone URL: identity is derived from the URL. We
-                // can't know visibility, so default private to false (only the
-                // folder/lock icon reads it). The picker here lists no saved
-                // configs, so `kind: "config"` never occurs.
-                setRepo({
-                  repoFullName: pick.source.repoFullName,
-                  repoOwner: pick.source.repoOwner,
-                  repoName: pick.source.repoName,
-                  defaultBranch: pick.source.defaultBranch,
-                  cloneUrl: pick.source.cloneUrl,
-                  private: false,
-                })
-              }
-            }}
-          />
-        </div>
+        {folderMode ? (
+          <div className="rounded-lg border">
+            <LocalFolderForm
+              onBack={() => setFolderMode(false)}
+              onResolved={applySource}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="rounded-lg border">
+              <RepoPicker
+                // Same sources as the canvas add flow: a GitHub pick, or — on
+                // the local build — a pasted clone URL folded into the search
+                // box (#605). Folder sources come through the button below
+                // (#604/#606), not the picker itself.
+                localSources={isLocalBuild}
+                onSelect={(pick) => {
+                  if (pick.kind === "repo") {
+                    setRepo({
+                      repoFullName: pick.repo.fullName,
+                      repoOwner: pick.repo.owner,
+                      repoName: pick.repo.name,
+                      defaultBranch: pick.repo.defaultBranch,
+                      cloneUrl: pick.repo.cloneUrl,
+                      private: pick.repo.private,
+                    })
+                  } else if (pick.kind === "source") {
+                    // A pasted clone URL. The picker here lists no saved
+                    // configs, so `kind: "config"` never occurs.
+                    applySource(pick.source)
+                  }
+                }}
+              />
+            </div>
+            {isLocalBuild && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="justify-start gap-2 font-normal"
+                onClick={openFolder}
+              >
+                <FolderOpen className="size-4 text-muted-foreground" />
+                Open a folder
+              </Button>
+            )}
+          </>
+        )}
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel

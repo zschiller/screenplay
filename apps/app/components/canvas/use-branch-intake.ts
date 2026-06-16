@@ -260,6 +260,10 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               repoName: pick.config.repoName,
               defaultBranch: pick.config.defaultBranch,
               cloneUrl: pick.config.cloneUrl,
+              // A folder-sourced preset points the Repo at the existing
+              // checkout (ADR 0013) — the `localPath` rides along into
+              // RepoData and routes acquisition down the local-path arm.
+              localPath: pick.config.localPath,
               setupScript: pick.config.setupScript,
               devScript: pick.config.devScript,
               devServerPort: pick.config.devServerPort,
