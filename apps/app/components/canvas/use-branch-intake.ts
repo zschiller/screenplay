@@ -14,6 +14,7 @@ import {
 } from "unique-names-generator"
 
 import { withBasePath } from "@/lib/base-path"
+import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
 import { renameAgentBranch } from "@/lib/sandbox/git"
@@ -61,12 +62,6 @@ export interface BranchIntakeDeps {
   repos: RepoData[]
   agents: BranchData[]
   roomId: string
-  /** Repo-store writers (thin wrappers over the Canvas Operation verbs). */
-  addRepoToStorage: (id: string, data: RepoData) => void
-  removeRepoFromStorage: (id: string) => void
-  /** Branch-store writers. */
-  removeAgentFromStorage: (id: string) => void
-  updateAgentInStorage: (id: string, patch: Partial<BranchData>) => void
   updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
   /**
    * The Tab Pool's seed entry: seed a Branch's default tab (chat or terminal)
@@ -104,6 +99,14 @@ export interface BranchIntake {
     options: { deleteOnRemote: boolean }
   ) => Promise<void>
   renameBranch: (agentId: string, rawBranch: string) => Promise<void>
+  /**
+   * Repo/Branch storage writes that are *also* consumed outside intake, exposed
+   * off the controller rather than redefined in the Canvas root: the sidebar's
+   * "update repo" (`updateRepoInStorage`) and the heartbeat / Sandbox-reconnect
+   * "update branch" (`updateAgentInStorage`).
+   */
+  updateRepoInStorage: (id: string, patch: Partial<RepoData>) => void
+  updateAgentInStorage: (id: string, patch: Partial<BranchData>) => void
 }
 
 /** Mint a deduped random `adjective-color-animal` branch name. */
@@ -131,10 +134,6 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     repos,
     agents,
     roomId,
-    addRepoToStorage,
-    removeRepoFromStorage,
-    removeAgentFromStorage,
-    updateAgentInStorage,
     updateChatSession,
     createDefaultTabForBranch,
     getViewportCenter,
@@ -143,6 +142,54 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     handleSelectIframeLayer,
     chatTarget,
   } = deps
+
+  // --- Repo / Branch storage writes ---
+  // The thin wrappers over the Canvas Operation verbs (ADR 0001: collection
+  // writes go through `ops`, never the Y.Doc directly). These used to live in
+  // the Canvas root, which only defined them to pass straight back into this
+  // controller; the create/teardown verbs below apply them directly now, and
+  // the two consumed outside intake (`updateRepoInStorage`,
+  // `updateAgentInStorage`) are exposed off the returned interface.
+
+  const addRepoToStorage = useCallback(
+    (id: string, data: RepoData) => {
+      ops.createRepo(id, data)
+    },
+    [ops]
+  )
+
+  const updateRepoInStorage = useCallback(
+    (id: string, data: Partial<RepoData>) => {
+      ops.patch("repos", id, data)
+    },
+    [ops]
+  )
+
+  const removeRepoFromStorage = useCallback(
+    (id: string) => {
+      const { removedChatIds } = ops.removeRepo(id)
+      // Clear the client chat-store mirror for the Chat Sessions the verb
+      // deleted from the Y.Doc (their identity is gone; the conversation lives
+      // client-side).
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+    },
+    [ops]
+  )
+
+  const updateAgentInStorage = useCallback(
+    (id: string, data: Partial<BranchData>) => {
+      ops.patch("branches", id, data)
+    },
+    [ops]
+  )
+
+  const removeAgentFromStorage = useCallback(
+    (id: string) => {
+      const { removedChatIds } = ops.removeBranch(id)
+      for (const chatId of removedChatIds) chatStore.cleanup(chatId)
+    },
+    [ops]
+  )
 
   // Eagerly seed a single new Branch's canvas frame at creation time, rather
   // than waiting on the deferred `running`-gated seeder: a single-member Group
@@ -760,5 +807,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     removeRepo,
     removeBranch,
     renameBranch,
+    updateRepoInStorage,
+    updateAgentInStorage,
   }
 }
