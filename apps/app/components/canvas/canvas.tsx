@@ -11,7 +11,6 @@ import {
   useIframeLayerGroups,
   useIframeLayers,
   useChatSessions,
-  useChatStreamEvents,
   useMarkdownLayers,
   useOtherPresences,
   useRoomCollections,
@@ -56,11 +55,7 @@ import {
 } from "@workspace/ui/components/resizable"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
-import type {
-  IframeLayerGroupData,
-  ChatSessionData,
-  ViewportData,
-} from "@/lib/types"
+import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -82,6 +77,8 @@ import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useGroupActions } from "@/components/canvas/use-group-actions"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
 import { useCanvasCamera } from "@/components/canvas/use-canvas-camera"
+import { useChatSessionWrites } from "@/components/canvas/use-chat-session-writes"
+import { useChatSync } from "@/components/canvas/use-chat-sync"
 import { CANVAS_SIZE } from "@/lib/constants"
 import {
   computeIframeLayerLayouts,
@@ -251,6 +248,14 @@ export function Canvas({
   // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
   const ops = useMemo(() => createCanvasOps(collections), [collections])
 
+  // Chat Session Writes controller (PRD #588): the single small owner of the
+  // thin add / update / remove Chat Session Canvas Operation wrappers (ADR
+  // 0001), which used to be root-level pass-throughs. Tab Pool, Branch Intake,
+  // Branch Actions, the Chat Sync owner, and Element Reference all read these
+  // verbs from here rather than from a facade the root redefines.
+  const { addChatSession, updateChatSession, removeChatSession } =
+    useChatSessionWrites(ops)
+
   // Synced canvas collections — read by the controllers below (selection needs
   // the live Groups; the camera reads the saved viewport).
   const iframeLayers = useIframeLayers()
@@ -357,9 +362,12 @@ export function Canvas({
     transformRef,
     canvasWrapperRef,
     setPresence,
+    session,
     saveViewport,
     savedViewport,
     others,
+    overlaySelectedIds,
+    groupSelectedIframeLayerIds,
     focusedIframeLayerId,
     createFlowIframeLayerId,
     editingDocumentLayerId,
@@ -388,36 +396,9 @@ export function Canvas({
     [captureTracker]
   )
 
-  // Publish identity + a stable color into awareness on mount and whenever the
-  // session changes. Seed a placeholder viewport so `useSelfPresence` returns
-  // non-null before TransformWrapper's `onInit` fires (otherwise the self
-  // avatar is missing from the pile until the first transform state ticks in).
-  const colorRef = useRef<string>("")
-  useEffect(() => {
-    if (!session?.user) return
-    if (!colorRef.current) {
-      const palette = [
-        "#E57373",
-        "#64B5F6",
-        "#81C784",
-        "#FFB74D",
-        "#BA68C8",
-        "#4DD0E1",
-        "#FF8A65",
-        "#A1887F",
-      ]
-      colorRef.current = palette[Math.floor(Math.random() * palette.length)]
-    }
-    setPresence({
-      identity: {
-        id: session.user.id,
-        name: session.user.name || "Anonymous",
-        avatar: session.user.image ?? undefined,
-      },
-      color: colorRef.current,
-      viewport: { x: 0, y: 0, zoom: 1 },
-    })
-  }, [session, setPresence])
+  // The identity + stable-color publish (with the placeholder-viewport seed) and
+  // the selection → presence broadcast are presence effects, owned by the Canvas
+  // Camera controller now (PRD #588) — the canvas presence owner.
 
   // Canvas Keyboard controller (PRD #579, cut 4/4): owns the global
   // keydown/keyup listeners and the whole shortcut map, dispatching into the
@@ -803,28 +784,8 @@ export function Canvas({
   // now (#592); `updateAgentInStorage` is exposed off it for the consumers
   // outside intake (Branch Actions, Sandbox Reconnect's heartbeat, sidebar).
 
-  // --- Chat session mutations ---
-
-  const addChatSession = useCallback(
-    (id: string, data: ChatSessionData) => {
-      ops.addChatSession(id, data)
-    },
-    [ops]
-  )
-
-  const updateChatSession = useCallback(
-    (id: string, data: Partial<ChatSessionData>) => {
-      ops.patch("chatSessions", id, data)
-    },
-    [ops]
-  )
-
-  const removeChatSession = useCallback(
-    (id: string) => {
-      ops.removeChatSession(id)
-    },
-    [ops]
-  )
+  // The thin add / update / remove Chat Session writes live on the Chat Session
+  // Writes controller now (PRD #588), aliased from it up top.
 
   // --- Handlers ---
 
@@ -911,6 +872,7 @@ export function Canvas({
     ops,
     repos,
     agents,
+    iframeLayers,
     roomId,
     updateChatSession,
     createDefaultTabForBranch: tabPool.seed,
@@ -946,54 +908,13 @@ export function Canvas({
     }
   })
 
-  // Load history for all chat sessions so other clients can see past
-  // messages for chats they haven't opened yet. Terminal tabs can't reach this
-  // loop by construction — they're a distinct type in `localTerminals`, never
-  // in `chatSessions` — so terminal scrollback never enters the chat-store.
-  useEffect(() => {
-    for (const cs of chatSessions) {
-      chatStore.loadHistory(cs.id)
-    }
-  }, [chatSessions])
+  // Chat history load, the streaming-heal hydration, and the `useChatStreamEvents`
+  // broadcast handling are owned by the Chat Sync controller now (PRD #588),
+  // called below once its `updateChatSession` dependency is in scope.
 
-  // Seed iframeLayers for agents whose sandbox has finished provisioning. The
-  // flag is set at create time and cleared here after the first seed, so
-  // deleting the last frame for a branch later does not re-spawn one.
-  useEffect(() => {
-    const pending = agents.filter(
-      (a) =>
-        a.pendingIframeLayerSeed === true &&
-        a.status === "running" &&
-        a.previewDomain &&
-        !iframeLayers.some((ab) => ab.branchId === a.id)
-    )
-    if (pending.length === 0) return
-    const { cx, cy } = getViewportCenter()
-    const target = pending[0]!
-    // Seed one per tick — `seedFrameForAgent` reads the Yjs snapshot for
-    // layout, and the snapshot only refreshes after the previous mutation
-    // settles. Letting React re-render between seeds avoids stacking groups.
-    // The verb creates the frame and clears `pendingIframeLayerSeed` in one
-    // transaction, so this reactive trigger is the only seed logic left here.
-    const { layerId } = ops.seedFrameForAgent(target.id, { x: cx, y: cy })
-    // Selecting the just-seeded frame is the intended reaction to a Yjs
-    // mutation triggered by externally-driven agent state, not an avoidable
-    // render cascade. Goes through the Canvas Selection setters.
-    setSelectedIframeLayerIds(new Set([layerId]))
-    setSelectedGroupIds(new Set())
-    // Wait for the new iframeLayer DOM node to mount before zooming.
-    requestAnimationFrame(() => {
-      handleSelectIframeLayer(layerId)
-    })
-  }, [
-    agents,
-    iframeLayers,
-    ops,
-    getViewportCenter,
-    handleSelectIframeLayer,
-    setSelectedIframeLayerIds,
-    setSelectedGroupIds,
-  ])
+  // The frame-seed-on-provision effect (auto-seed + zoom-to once an agent's
+  // sandbox finishes provisioning) lives on the Branch Intake controller now
+  // (PRD #588), beside the eager seed it defers to.
 
   // Sandbox Reconnect controller (PRD #579, cut 2/4): the single home for all
   // mount-time Sandbox-lifecycle orchestration — the reconnect/recover-on-mount
@@ -1004,31 +925,19 @@ export function Canvas({
   useSandboxReconnect({
     agents,
     repos,
-    chatSessions,
     roomId,
     updateAgentInStorage,
   })
 
-  // Receive server-broadcast chat events via the room Y.Doc and feed into chat store.
-  useChatStreamEvents((e) => {
-    chatStore.handleBroadcastEvent(e)
-    // Mirror streaming state into the chat session so late joiners see it.
-    if (e.type === "chat-stream-start") {
-      updateChatSession(e.chatId, { isStreaming: true })
-    } else if (e.type === "chat-stream-end") {
-      updateChatSession(e.chatId, { isStreaming: false })
-    } else if (e.type === "chat-control" && e.control.kind === "chat_rename") {
-      // Apply the auto-generated label here, at the canvas level, rather than
-      // relying on the per-chat `onChatRename` callback: that callback is an
-      // inline arrow re-registered on every AgentChat render, so a rename
-      // broadcast landing during the clear/re-set window would be dropped.
-      // Writing the Y.Doc here is independent of which chat tab is mounted.
-      updateChatSession(e.chatId, { label: e.control.label })
-    }
-  })
+  // Chat Sync controller (PRD #588): the single owner of the chat-store ↔ Y.Doc
+  // sync effects — history load, the streaming-heal hydration (moved off Sandbox
+  // Reconnect), and the `useChatStreamEvents` broadcast handling that mirrors
+  // streaming / rename signals into the Chat Session for late joiners.
+  useChatSync({ chatSessions, roomId, updateChatSession })
 
-  // Mount-time Sandbox recovery (reconnect), the keep-alive heartbeat, and the
-  // streaming-heal hydration now all live in `useSandboxReconnect`, called above.
+  // Mount-time Sandbox recovery (reconnect) and the keep-alive heartbeat live in
+  // `useSandboxReconnect`, called above; the streaming-heal hydration that used
+  // to ride along there now lives on the Chat Sync owner.
 
   // Following another user's viewport, the manual follow-break, the Figma-style
   // wheel pan/zoom, and the forwarded-from-iframe wheel all live in the Canvas
@@ -1036,37 +945,9 @@ export function Canvas({
   // `camera.handleIframeWheel`, plus the wheel listener it attaches to
   // `canvasWrapperRef`).
 
-  // Cross-origin iframes inside an iframeLayer can cause the browser to walk up
-  // the ancestor chain calling `scrollIntoView` (e.g. when their content
-  // autofocuses an input). `overflow: hidden` does not block programmatic
-  // scrolling, so the canvas wrapper / transform wrapper silently drift from
-  // (0, 0) and the rendered canvas slides off-axis from the transform state.
-  // Pin both elements' scroll positions to 0 on every scroll event.
-  useEffect(() => {
-    const el = canvasWrapperRef.current
-    if (!el) return
-
-    const transformWrapper = el.querySelector<HTMLElement>(
-      ".react-transform-wrapper"
-    )
-
-    const pin = (e: Event) => {
-      const t = e.currentTarget as HTMLElement
-      if (t.scrollLeft !== 0) t.scrollLeft = 0
-      if (t.scrollTop !== 0) t.scrollTop = 0
-    }
-
-    const targets: HTMLElement[] = [el]
-    if (transformWrapper) targets.push(transformWrapper)
-    for (const t of targets) {
-      t.addEventListener("scroll", pin, { passive: true })
-    }
-    return () => {
-      for (const t of targets) {
-        t.removeEventListener("scroll", pin)
-      }
-    }
-  }, [])
+  // The scroll-pin effect that keeps the canvas wrapper / transform wrapper from
+  // drifting off-axis lives on the Canvas Camera controller now (PRD #588),
+  // beside the viewport transform it guards.
 
   // Draw tools (Document / Frame) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
@@ -1203,15 +1084,8 @@ export function Canvas({
     [commentMode, reference]
   )
 
-  // Broadcast selection to other users via presence. Doc IDs ride alongside
-  // iframeLayer IDs so remote selection rings render uniformly (the overlay
-  // looks both up against `iframeLayerLayouts`, which already includes docs).
-  useEffect(() => {
-    setPresence({
-      selectedIframeLayerIds: Array.from(overlaySelectedIds),
-      groupSelectedIframeLayerIds: Array.from(groupSelectedIframeLayerIds),
-    })
-  }, [overlaySelectedIds, groupSelectedIframeLayerIds, setPresence])
+  // The selection → presence broadcast lives on the Canvas Camera controller now
+  // (PRD #588) — the canvas presence owner.
 
   // Collect other users' selections for the overlay
   const othersSelections = others.map(({ presence }) => ({

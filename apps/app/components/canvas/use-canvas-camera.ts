@@ -8,6 +8,7 @@ import {
 } from "react"
 import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 
+import type { useAppSession } from "@/lib/auth-client"
 import { fitRectToViewport, fitScale, type Rect } from "@/lib/canvas/camera"
 import { CANVAS_SIZE, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "@/lib/constants"
 import type { CanvasPresence } from "@/lib/yjs/react"
@@ -32,6 +33,13 @@ import type { WheelForward } from "@/hooks/use-screenplay-dom"
  * transform ref, and the verbs `zoomToElement` / `zoomToRect` /
  * `getViewportCenter` / `follow` — and the `TransformWrapper` wiring shrinks to
  * the `transformWrapperProps` bundle this exposes.
+ *
+ * As the canvas **presence owner** (PRD #588) it also owns the two remaining
+ * awareness-publish effects beyond the viewport broadcast: the identity +
+ * stable-color publish (with the placeholder-viewport seed so `useSelfPresence`
+ * is non-null before `onInit`), and the selection → presence broadcast that
+ * remote selection rings read. The scroll-pin effect that keeps the viewport's
+ * wrapper from drifting off-axis lives here too, beside the transform it guards.
  */
 export interface CanvasCameraDeps {
   /** The react-zoom-pan-pinch transform ref the component owns and the camera
@@ -42,12 +50,17 @@ export interface CanvasCameraDeps {
   canvasWrapperRef: RefObject<HTMLDivElement | null>
   /** Awareness writer — viewport (and the follow self-broadcast) ride on it. */
   setPresence: (partial: Partial<CanvasPresence>) => void
+  /** The signed-in user — its identity is published into awareness on mount. */
+  session: ReturnType<typeof useAppSession>["data"]
   /** Persist the viewport (a thin wrapper over `ops.saveViewport`). */
   saveViewport: (vp: ViewportData) => void
   /** The viewport restored from the Y.Doc on first load, if any. */
   savedViewport: ViewportData | null
   /** Other peers' presence — the follow effect reads the followed viewport. */
   others: Array<{ clientId: number; presence: CanvasPresence }>
+  /** Local selection ids broadcast into awareness for remote selection rings. */
+  overlaySelectedIds: Set<string>
+  groupSelectedIframeLayerIds: Set<string>
   /** Interaction modes that disable canvas panning / change the wheel target. */
   focusedIframeLayerId: string | null
   createFlowIframeLayerId: string | null
@@ -113,9 +126,12 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     transformRef,
     canvasWrapperRef,
     setPresence,
+    session,
     saveViewport,
     savedViewport,
     others,
+    overlaySelectedIds,
+    groupSelectedIframeLayerIds,
     focusedIframeLayerId,
     createFlowIframeLayerId,
     editingDocumentLayerId,
@@ -167,6 +183,84 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     setPresence({ viewport: savedViewport })
   }, [transformRef, savedViewport, setPresence])
 
+  // --- Presence: identity publish + placeholder-viewport seed ---
+  // Publish identity + a stable color into awareness on mount and whenever the
+  // session changes. Seed a placeholder viewport so `useSelfPresence` returns
+  // non-null before TransformWrapper's `onInit` fires (otherwise the self
+  // avatar is missing from the pile until the first transform state ticks in).
+  // Ordered after the restore effect so a restored viewport isn't transiently
+  // re-seeded to the placeholder, matching the prior root-effect ordering.
+  const colorRef = useRef<string>("")
+  useEffect(() => {
+    if (!session?.user) return
+    if (!colorRef.current) {
+      const palette = [
+        "#E57373",
+        "#64B5F6",
+        "#81C784",
+        "#FFB74D",
+        "#BA68C8",
+        "#4DD0E1",
+        "#FF8A65",
+        "#A1887F",
+      ]
+      colorRef.current = palette[Math.floor(Math.random() * palette.length)]!
+    }
+    setPresence({
+      identity: {
+        id: session.user.id,
+        name: session.user.name || "Anonymous",
+        avatar: session.user.image ?? undefined,
+      },
+      color: colorRef.current,
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+  }, [session, setPresence])
+
+  // --- Presence: broadcast selection to other users ---
+  // Doc IDs ride alongside iframeLayer IDs so remote selection rings render
+  // uniformly (the overlay looks both up against `iframeLayerLayouts`, which
+  // already includes docs).
+  useEffect(() => {
+    setPresence({
+      selectedIframeLayerIds: Array.from(overlaySelectedIds),
+      groupSelectedIframeLayerIds: Array.from(groupSelectedIframeLayerIds),
+    })
+  }, [overlaySelectedIds, groupSelectedIframeLayerIds, setPresence])
+
+  // --- Scroll-pin: keep the viewport wrapper anchored at (0, 0) ---
+  // Cross-origin iframes inside an iframeLayer can cause the browser to walk up
+  // the ancestor chain calling `scrollIntoView` (e.g. when their content
+  // autofocuses an input). `overflow: hidden` does not block programmatic
+  // scrolling, so the canvas wrapper / transform wrapper silently drift from
+  // (0, 0) and the rendered canvas slides off-axis from the transform state.
+  // Pin both elements' scroll positions to 0 on every scroll event.
+  useEffect(() => {
+    const el = canvasWrapperRef.current
+    if (!el) return
+
+    const transformWrapper = el.querySelector<HTMLElement>(
+      ".react-transform-wrapper"
+    )
+
+    const pin = (e: Event) => {
+      const t = e.currentTarget as HTMLElement
+      if (t.scrollLeft !== 0) t.scrollLeft = 0
+      if (t.scrollTop !== 0) t.scrollTop = 0
+    }
+
+    const targets: HTMLElement[] = [el]
+    if (transformWrapper) targets.push(transformWrapper)
+    for (const t of targets) {
+      t.addEventListener("scroll", pin, { passive: true })
+    }
+    return () => {
+      for (const t of targets) {
+        t.removeEventListener("scroll", pin)
+      }
+    }
+  }, [canvasWrapperRef])
+
   // --- Camera verbs ---
   const getViewportCenter = useCallback(() => {
     const ref = transformRef.current
@@ -182,37 +276,43 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     return { cx, cy }
   }, [transformRef])
 
-  const zoomToElement = useCallback((el: HTMLElement) => {
-    const ref = transformRef.current
-    if (!ref) return
-    const wrapperW =
-      ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-    const wrapperH =
-      ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-    const scale = fitScale(
-      el.offsetWidth,
-      el.offsetHeight,
-      { width: wrapperW, height: wrapperH },
-      { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
-    )
-    ref.zoomToElement(el, scale, 300)
-  }, [transformRef])
+  const zoomToElement = useCallback(
+    (el: HTMLElement) => {
+      const ref = transformRef.current
+      if (!ref) return
+      const wrapperW =
+        ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH =
+        ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const scale = fitScale(
+        el.offsetWidth,
+        el.offsetHeight,
+        { width: wrapperW, height: wrapperH },
+        { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
+      )
+      ref.zoomToElement(el, scale, 300)
+    },
+    [transformRef]
+  )
 
-  const zoomToRect = useCallback((rect: Rect) => {
-    const ref = transformRef.current
-    if (!ref) return
-    if (rect.width <= 0 || rect.height <= 0) return
-    const wrapperW =
-      ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
-    const wrapperH =
-      ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
-    const t = fitRectToViewport(
-      rect,
-      { width: wrapperW, height: wrapperH },
-      { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
-    )
-    ref.setTransform(t.x, t.y, t.zoom, 300)
-  }, [transformRef])
+  const zoomToRect = useCallback(
+    (rect: Rect) => {
+      const ref = transformRef.current
+      if (!ref) return
+      if (rect.width <= 0 || rect.height <= 0) return
+      const wrapperW =
+        ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth
+      const wrapperH =
+        ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight
+      const t = fitRectToViewport(
+        rect,
+        { width: wrapperW, height: wrapperH },
+        { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
+      )
+      ref.setTransform(t.x, t.y, t.zoom, 300)
+    },
+    [transformRef]
+  )
 
   // --- Follow another user's viewport ---
   useEffect(() => {

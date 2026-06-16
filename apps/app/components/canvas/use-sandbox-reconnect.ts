@@ -1,14 +1,13 @@
 import { useEffect, useRef } from "react"
 
 import { withBasePath } from "@/lib/base-path"
-import { chatStore } from "@/lib/chat-store"
 import {
   keepAliveSandbox,
   reconnectSandbox,
   recreateSandbox,
 } from "@/lib/sandbox/lifecycle"
 import { resolveReconnect } from "@/lib/sandbox/reconnect"
-import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
+import type { BranchData, RepoData } from "@/lib/types"
 
 /**
  * Sandbox Reconnect controller (PRD #579, cut 2/4) — the single home for all of
@@ -17,7 +16,7 @@ import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
  * React-free, Yjs-free **decision** (`resolveReconnect`) plus this thin
  * controller that **applies** it.
  *
- * Three mount-tied effects share this one home because they're all
+ * Two mount-tied effects share this one home because they're both
  * Sandbox-lifecycle recovery:
  *
  *  1. **Reconnect** — once `agents` has synced, recover each Branch per
@@ -28,23 +27,21 @@ import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
  *  2. **Keep-alive heartbeat** — extend running sandboxes' timeouts every ~20
  *     minutes while the tab is visible, so they survive active use but still
  *     expire once the user leaves.
- *  3. **Streaming-heal hydration** — the first time `chatSessions` has entries,
- *     mirror each storage-`streaming` chat into the client store and ask the
- *     heal endpoint to verify the underlying run is still live (unsticking a
- *     spinner whose `chat-stream-end` was missed on a slow connection).
+ *
+ * The streaming-heal hydration that used to ride along here is chat-store
+ * hydration, not Sandbox lifecycle, so it moved to the **Chat Sync** owner
+ * (`useChatSync`, PRD #588) beside its history-load / broadcast siblings.
  *
  * The async apply (the resume POST, `reconnectSandbox` / `recreateSandbox`, the
- * heal POST, the `updateAgentInStorage` writes) lives here; only the per-Branch
- * branch selection is pure, in `resolveReconnect`.
+ * `updateAgentInStorage` writes) lives here; only the per-Branch branch
+ * selection is pure, in `resolveReconnect`.
  */
 export interface SandboxReconnectInputs {
   /** Live Branches from the synced Y.Doc — the reconnect + heartbeat read these. */
   agents: BranchData[]
   /** Live Repos — a Branch's source, looked up by `repoId` for reconnect. */
   repos: RepoData[]
-  /** Live Chat Sessions — the heal hydration reads their `isStreaming` flag. */
-  chatSessions: ChatSessionData[]
-  /** Room id, threaded into the resume and heal POST bodies. */
+  /** Room id, threaded into the resume POST body. */
   roomId: string
   /** Canvas Operation wrapper that patches a Branch record (ADR 0001). */
   updateAgentInStorage: (id: string, data: Partial<BranchData>) => void
@@ -53,7 +50,6 @@ export interface SandboxReconnectInputs {
 export function useSandboxReconnect({
   agents,
   repos,
-  chatSessions,
   roomId,
   updateAgentInStorage,
 }: SandboxReconnectInputs): void {
@@ -190,26 +186,4 @@ export function useSandboxReconnect({
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [agents])
-
-  // Hydrate chatStore streaming state from Yjs storage on mount/reconnect. For
-  // each chat that's marked streaming in storage, ask the server to verify the
-  // underlying agent run is still actually active. If it's ended, the heal
-  // endpoint broadcasts chat-stream-end to unstick the spinner. The previous
-  // empty-deps form ran before Yjs initial sync completed, so for slow
-  // connections the streaming flag from storage was missed; now we hydrate the
-  // first time `chatSessions` actually has entries, then never again.
-  const hydratedStreamingRef = useRef(false)
-  useEffect(() => {
-    if (hydratedStreamingRef.current || chatSessions.length === 0) return
-    hydratedStreamingRef.current = true
-    for (const cs of chatSessions) {
-      if (!cs.isStreaming) continue
-      chatStore.setStreaming(cs.id, true)
-      fetch(withBasePath("/api/branch/heal"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, chatId: cs.id }),
-      }).catch((e) => console.error("Heal request failed:", e))
-    }
-  }, [chatSessions, roomId])
 }

@@ -329,6 +329,43 @@ The _identity_ of a chat tab (id, label, target). The conversation itself —
 messages and streaming state — lives in the client chat-store, not the Y.Doc.
 _Avoid_: chat, conversation; "thread" means a comment thread.
 
+**Chat Session Writes**:
+The single small owner of the three thin **Canvas Operation** wrappers for Chat
+Session identity — `addChatSession`, `updateChatSession`, `removeChatSession`
+(`useChatSessionWrites`, PRD #588). They used to be root-level `useCallback`
+pass-throughs the composition root only defined to thread straight back into Tab
+Pool, Branch Intake, Branch Actions, the Chat Sync owner, and Element Reference;
+now those consumers read the verbs from this one owner. Like the rest of the
+canvas decomposition it is the **React binding, not a new write path**: every
+write routes through the Canvas Operation seam (`ops`, ADR 0001), never the Y.Doc
+directly (the field write is `ops.patch`; add / remove are the meaning-bearing
+`ops` verbs).
+_Avoid_: redefining these wrappers as facades on the composition root (the
+consumers read them from the owner); writing a Chat Session record outside `ops`.
+
+**Chat Sync**:
+The single owner of the Canvas's chat-store ↔ Y.Doc synchronization effects
+(`useChatSync`, PRD #588) — the three sync effects that used to sit among the
+orphan effects on the composition root, sharing one home because they all
+reconcile the client chat-store against the room's synced chat state: the
+**history load** (load past messages for every Chat Session so other clients see
+history for chats they haven't opened — Terminal Tabs can't reach it, they're
+never in `chatSessions`); the **streaming-heal hydration** (the first time
+`chatSessions` has entries, mirror each storage-`streaming` chat into the client
+store and ask the heal endpoint to verify the run is still live, unsticking a
+spinner whose `chat-stream-end` was missed — moved here from **Sandbox
+Reconnect**, since it is chat-store hydration, not Sandbox lifecycle); and the
+**broadcast handling** (`useChatStreamEvents` → `chatStore.handleBroadcastEvent`,
+mirroring the streaming / rename signals into the Chat Session so late joiners see
+them). It is the **React effects, not a new write path**: storage writes go
+through the injected `updateChatSession` (a Chat Session Writes wrapper, ADR
+0001), the chat-store calls are the existing `chatStore` API.
+_Avoid_: putting these sync effects back on the composition root (instantiate the
+owner); folding the streaming-heal back into Sandbox Reconnect (it is chat-store
+hydration); applying the rename via the per-chat `onChatRename` callback instead
+of writing the Y.Doc here (that callback re-registers per render and drops a
+rename landing in the clear/re-set window).
+
 **Chat Target**:
 What a Chat Session talks to — either a Branch's **sandbox** or a Markdown
 Layer (a document). The target decides the system prompt and which Tools the
@@ -753,11 +790,18 @@ broadcast, the follow-another-user effect, and the Figma-style wheel pan/zoom; i
 exposes the verbs (`zoomToElement` / `zoomToRect` / `getViewportCenter` /
 `follow`) and the `TransformWrapper` props the wiring shrinks to. Overlays, the
 comments transform, the gesture inputs, and the sidebar zoom-to actions all read
-this one interface.
+this one interface. As the canvas **presence owner** (PRD #588) it also holds the
+awareness-publish effects beyond the viewport broadcast: the **identity +
+stable-color publish** (with the placeholder-viewport seed so `useSelfPresence`
+is non-null before `onInit`) and the **selection → presence broadcast** remote
+selection rings read; the **scroll-pin** effect that keeps the wrapper / transform
+wrapper from drifting off-axis homes here too, beside the transform it guards.
 _Avoid_: scattering `transformRef.current.setTransform` math across the render
 tree (it goes through the camera verbs / the pure fit math); recomputing
 zoom-to-fit inline; writing the viewport to the Y.Doc directly (persistence goes
-through `ops.saveViewport`).
+through `ops.saveViewport`); putting the identity / selection presence-publish or
+the scroll-pin effects back on the composition root (they are the presence
+owner's, not orphan root effects).
 
 **Layer Mutation**:
 The bundle of thin per-Layer **Canvas Operation** writers that used to be ~13
@@ -825,19 +869,20 @@ returns a discriminated `ReconnectAction` over the recovery branches —
 pipeline), `unrecoverable` (creating, no `sandboxName`: the VM never existed,
 error it), `reconnect` (a sandbox + resolvable Repo: probe + reattach), and
 `repo-missing` (sandbox, no Repo: stop with a retry hint), plus `none` for a
-Branch with nothing to recover. The controller owns the **mount-once guard**, the
-visibility-gated **~20-minute keep-alive heartbeat**, and the **streaming-heal
-hydration** (verify each storage-`streaming` chat's run is still live), so all
-Sandbox-lifecycle orchestration shares one home. The `reconnect` action carries
-the Repo and ref precisely so a resume that fails on an **expired snapshot**
-routes to an explicit **Recreate** (ADR 0005) — never a silent reclone, never
-stranding the user at "stopped". The async apply (the resume / heal POSTs,
-`reconnectSandbox` / `recreateSandbox`, the `updateAgentInStorage` writes) lives
-in the controller; only the per-Branch branch selection is pure.
+Branch with nothing to recover. The controller owns the **mount-once guard** and
+the visibility-gated **~20-minute keep-alive heartbeat**, so the Sandbox-lifecycle
+recovery shares one home. (The streaming-heal hydration that used to ride along
+here is chat-store hydration, not Sandbox lifecycle — it moved to the **Chat
+Sync** owner, PRD #588.) The `reconnect` action carries the Repo and ref
+precisely so a resume that fails on an **expired snapshot** routes to an explicit
+**Recreate** (ADR 0005) — never a silent reclone, never stranding the user at
+"stopped". The async apply (the resume POST, `reconnectSandbox` /
+`recreateSandbox`, the `updateAgentInStorage` writes) lives in the controller;
+only the per-Branch branch selection is pure.
 _Avoid_: putting branch selection back in `canvas.tsx` (it goes through
 `resolveReconnect`); re-adding a silent reclone fallback to the resume failure
-path (ADR 0005); splitting the heartbeat or heal back out into their own
-composition-root effects.
+path (ADR 0005); splitting the heartbeat back out into its own composition-root
+effect; folding the chat heal hydration back in here (it is the Chat Sync owner's).
 
 **Canvas Interaction**:
 The single home for the cross-cutting interaction state no other controller

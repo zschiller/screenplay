@@ -35,6 +35,7 @@ import type { RepoPickerSelection } from "@/components/repo-picker"
 import type {
   BranchData,
   ChatSessionData,
+  IframeLayerData,
   RepoData,
   TabKind,
 } from "@/lib/types"
@@ -61,6 +62,9 @@ export interface BranchIntakeDeps {
   ops: CanvasOps
   repos: RepoData[]
   agents: BranchData[]
+  /** Live Iframe Layers — the frame-seed-on-provision effect reads these to
+   *  skip a Branch that already has a frame. */
+  iframeLayers: IframeLayerData[]
   roomId: string
   updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
   /**
@@ -133,6 +137,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     ops,
     repos,
     agents,
+    iframeLayers,
     roomId,
     updateChatSession,
     createDefaultTabForBranch,
@@ -670,8 +675,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         {
           addChatSession: ops.addChatSession,
           chatTarget,
-          onChatRename: (chatId, label) =>
-            updateChatSession(chatId, { label }),
+          onChatRename: (chatId, label) => updateChatSession(chatId, { label }),
           onBranchRename: (agentId, branch) =>
             updateAgentInStorage(agentId, {
               ref: branch,
@@ -681,6 +685,48 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       )
     }
   }, [agents, ops, roomId, chatTarget, updateAgentInStorage, updateChatSession])
+
+  // Seed iframeLayers for agents whose sandbox has finished provisioning. The
+  // flag is set at create time and cleared here after the first seed, so
+  // deleting the last frame for a branch later does not re-spawn one. This is
+  // the deferred sibling of `seedEagerFrameForBranch` (which seeds at create
+  // time): a Branch whose eager seed didn't land — e.g. a create that resumed
+  // after a reload — still gets its frame once it reaches `running`.
+  useEffect(() => {
+    const pending = agents.filter(
+      (a) =>
+        a.pendingIframeLayerSeed === true &&
+        a.status === "running" &&
+        a.previewDomain &&
+        !iframeLayers.some((ab) => ab.branchId === a.id)
+    )
+    if (pending.length === 0) return
+    const { cx, cy } = getViewportCenter()
+    const target = pending[0]!
+    // Seed one per tick — `seedFrameForAgent` reads the Yjs snapshot for
+    // layout, and the snapshot only refreshes after the previous mutation
+    // settles. Letting React re-render between seeds avoids stacking groups.
+    // The verb creates the frame and clears `pendingIframeLayerSeed` in one
+    // transaction, so this reactive trigger is the only seed logic left here.
+    const { layerId } = ops.seedFrameForAgent(target.id, { x: cx, y: cy })
+    // Selecting the just-seeded frame is the intended reaction to a Yjs
+    // mutation triggered by externally-driven agent state, not an avoidable
+    // render cascade. Goes through the Canvas Selection setters.
+    setSelectedIframeLayerIds(new Set([layerId]))
+    setSelectedGroupIds(new Set())
+    // Wait for the new iframeLayer DOM node to mount before zooming.
+    requestAnimationFrame(() => {
+      handleSelectIframeLayer(layerId)
+    })
+  }, [
+    agents,
+    iframeLayers,
+    ops,
+    getViewportCenter,
+    handleSelectIframeLayer,
+    setSelectedIframeLayerIds,
+    setSelectedGroupIds,
+  ])
 
   const renameBranch = useCallback(
     async (agentId: string, rawBranch: string) => {
