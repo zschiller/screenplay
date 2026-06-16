@@ -18,6 +18,7 @@ import type { CanvasCamera } from "./use-canvas-camera"
 import type { CanvasSelection } from "./use-canvas-selection"
 import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
+import type { GroupActions } from "./use-group-actions"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -80,12 +81,12 @@ export function CanvasMemberLayer({
   setFocusedIframeLayerId,
   createFlowIframeLayerId,
   setCreateFlowIframeLayerId,
-  renameIframeLayerGroup,
   removeIframeLayer,
   handlePlayIframeLayer,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
+  groupActions,
 }: {
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
@@ -116,7 +117,6 @@ export function CanvasMemberLayer({
   setCreateFlowIframeLayerId: React.Dispatch<
     React.SetStateAction<string | null>
   >
-  renameIframeLayerGroup: (groupId: string, name: string) => void
   removeIframeLayer: IframeLayerProps["onRemove"]
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
@@ -127,9 +127,16 @@ export function CanvasMemberLayer({
    * mutators from here instead of taking ~13 loose props.
    */
   layerMutations: LayerMutations
+  /**
+   * The structural group/frame Canvas Operations (PRD #588) — the placeholder
+   * "+ frame" hit target appends through `addIframeLayerToGroup`, and the group
+   * label renames through `renameIframeLayerGroup`.
+   */
+  groupActions: GroupActions
 }) {
   // Alias the controller state/verbs to the local names the JSX reads, so the
   // flat-member render below stays a verbatim move from `canvas.tsx`.
+  const renameIframeLayerGroup = groupActions.renameIframeLayerGroup
   const selectedIframeLayerIds = selection.iframeLayerIds
   const selectedGroupIds = selection.groupIds
   const selectedDocumentLayerIds = selection.documentLayerIds
@@ -384,7 +391,7 @@ export function CanvasMemberLayer({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
-            const newId = layerMutations.addIframeLayerToGroup(rect.groupId)
+            const newId = groupActions.addIframeLayerToGroup(rect.groupId)
             if (newId) {
               setSelectedIframeLayerIds(new Set([newId]))
               setSelectedGroupIds(new Set())
