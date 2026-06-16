@@ -21,7 +21,6 @@ import {
   useRepos,
   useYjsHistory,
 } from "@/lib/yjs/react"
-import { reconcileInteractionMode } from "@/lib/canvas/interaction-mode"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { useAppSession } from "@/lib/auth-client"
@@ -77,6 +76,7 @@ import {
 import { useTabPool } from "@/components/canvas/use-tab-pool"
 import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
+import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useGroupActions } from "@/components/canvas/use-group-actions"
@@ -207,14 +207,6 @@ export function Canvas({
     },
     [currentRoomName, roomId]
   )
-  const [focusedIframeLayerId, setFocusedIframeLayerId] = useState<
-    string | null
-  >(null)
-  // IframeLayer currently in Create Flow mode. Mutually exclusive with
-  // `focusedIframeLayerId` — toggling one clears the other.
-  const [createFlowIframeLayerId, setCreateFlowIframeLayerId] = useState<
-    string | null
-  >(null)
   // Chat-Target selection — which target the panel shows, the per-target memory,
   // and the pending-agent readiness — is owned by the `useChatTarget` controller
   // (#569), created once its dependencies are in scope below. The client's
@@ -239,13 +231,6 @@ export function Canvas({
   // canvas ops defined far down the component.
   const referenceInputsRef = useRef<ElementReferenceInputs | null>(null)
   const reference = useElementReference(referenceInputsRef)
-  const [spaceHeld, setSpaceHeld] = useState(false)
-  const [hoveredIframeLayerId, setHoveredIframeLayerId] = useState<
-    string | null
-  >(null)
-  const [editingDocumentLayerId, setEditingDocumentLayerId] = useState<
-    string | null
-  >(null)
   const sidebarPanelRef = useRef<PanelImperativeHandle>(null)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   // Figma-style wheel pan/zoom listener attaches to this wrapper; declared up
@@ -322,6 +307,47 @@ export function Canvas({
   const overlaySelectedIds = selection.overlaySelectedIds
   const groupSelectedIframeLayerIds = selection.groupSelectedIframeLayerIds
 
+  // Awareness mirrors the Interaction controller's cursor-chat verbs read: the
+  // latest self pointer (where '/' anchors the bubble) and message (null =
+  // closed). Mirrored from `self` after commit (the effect below) so the verbs
+  // and the Escape resolver read them without re-binding. Declared here, ahead
+  // of the controller that consumes them, so no ordering cycle is introduced.
+  const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const selfMessageRef = useRef<string | null>(null)
+  useEffect(() => {
+    selfPointerRef.current = self?.pointer ?? null
+    selfMessageRef.current = self?.message ?? null
+  })
+
+  // Canvas Interaction controller (PRD #588): the single home for the
+  // cross-cutting interaction state that no other controller owned — the focused
+  // ("interactive") Iframe Layer, the Create-Flow ("flow") Iframe Layer, the
+  // hovered Iframe Layer, the inline-edited Markdown Layer, the space-held pan
+  // flag, and the cursor-chat anchor. It wraps `reconcileInteractionMode` (drop
+  // a mode whose frame is deleted/deselected) and `resolveEscapeAction` (the
+  // Escape precedence) without modifying them, and reads the selection +
+  // awareness mirrors above. The locals below alias its state + verbs so the
+  // camera, gesture seam, draw tool, keyboard, and render tree read them as
+  // before.
+  const interaction = useCanvasInteraction({
+    iframeLayers,
+    selectedIframeLayerIds,
+    setPresence,
+    selfPointerRef,
+    selfMessageRef,
+  })
+  const focusedIframeLayerId = interaction.focusedIframeLayerId
+  const setFocusedIframeLayerId = interaction.setFocusedIframeLayerId
+  const createFlowIframeLayerId = interaction.createFlowIframeLayerId
+  const setCreateFlowIframeLayerId = interaction.setCreateFlowIframeLayerId
+  const hoveredIframeLayerId = interaction.hoveredIframeLayerId
+  const setHoveredIframeLayerId = interaction.setHoveredIframeLayerId
+  const editingDocumentLayerId = interaction.editingDocumentLayerId
+  const setEditingDocumentLayerId = interaction.setEditingDocumentLayerId
+  const spaceHeld = interaction.spaceHeld
+  const chatAnchor = interaction.chatAnchor
+  const closeCursorChat = interaction.closeCursorChat
+
   // Canvas Camera controller (PRD #567): owns the react-zoom-pan-pinch
   // transform, the zoom / viewport mirrors, persistence, presence broadcast,
   // follow, and the wheel pan/zoom. The locals below alias its values so the
@@ -393,64 +419,21 @@ export function Canvas({
     })
   }, [session, setPresence])
 
-  // Figma-style cursor chat. `chatAnchor` snapshots the canvas-space pointer
-  // position at the moment '/' is pressed so the bubble stays put while the
-  // user types instead of jittering with every micro-mouse-move. Live message
-  // text lives in awareness so peers see each keystroke (`presence.message`).
-  const [chatAnchor, setChatAnchor] = useState<{ x: number; y: number } | null>(
-    null
-  )
-  const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
-  const selfMessageRef = useRef<string | null>(null)
-  const closeCursorChat = useCallback(() => {
-    setChatAnchor(null)
-    setPresence({ message: null })
-  }, [setPresence])
-  const openCursorChat = useCallback(() => {
-    const ptr = selfPointerRef.current
-    if (!ptr) return
-    setChatAnchor(ptr)
-    setPresence({ message: "" })
-  }, [setPresence])
-
-  // Refs so keyboard handler stays current without re-binding. The selection
-  // and Tool Mode mirror refs now live inside their controllers (read via
-  // `selection.current()` / `toolMode.current()`); only the cursor-chat and
-  // inline-edit refs remain the component's own.
-  const editingDocumentLayerIdRef = useRef(editingDocumentLayerId)
-
-  // Keep the above "latest value" refs current — written after commit (not
-  // during render) so the long-lived keyboard/pointer handlers below can read
-  // them without re-binding on every render.
-  useEffect(() => {
-    selfPointerRef.current = self?.pointer ?? null
-    selfMessageRef.current = self?.message ?? null
-    editingDocumentLayerIdRef.current = editingDocumentLayerId
-  })
-
   // Canvas Keyboard controller (PRD #579, cut 4/4): owns the global
   // keydown/keyup listeners and the whole shortcut map, dispatching into the
-  // bundled controllers (Tool Mode, Selection, Element Reference, Yjs history),
-  // the panel refs, the cursor-chat verbs, and the focus / Create-Flow setters.
-  // The Escape precedence stays in the pure `resolveEscapeAction`; the
-  // controller only applies the chosen exit.
+  // bundled controllers (Tool Mode, Selection, Element Reference, Yjs history,
+  // Interaction), the panel refs, and the cursor-chat verbs. The Escape
+  // precedence stays in the pure `resolveEscapeAction`, wrapped by the
+  // Interaction controller's `resolveEscape`; the keyboard only applies the
+  // chosen exit.
   useCanvasKeyboard({
     toolMode,
     selection,
     reference,
     history,
-    focusedIframeLayerId,
-    setFocusedIframeLayerId,
-    createFlowIframeLayerId,
-    setCreateFlowIframeLayerId,
-    editingDocumentLayerIdRef,
-    setEditingDocumentLayerId,
-    cursorChatMessageRef: selfMessageRef,
-    openCursorChat,
-    closeCursorChat,
+    interaction,
     sidebarPanelRef,
     chatPanelRef,
-    setSpaceHeld,
   })
 
   // Prune capture bookkeeping for frames removed from the canvas so a deleted
@@ -458,38 +441,6 @@ export function Canvas({
   useEffect(() => {
     captureTracker.retain(new Set(iframeLayers.map((layer) => layer.id)))
   }, [captureTracker, iframeLayers])
-  // Drop out of Focus or Create Flow mode the instant the frame it targets is
-  // gone OR deselected, so the canvas pans/zooms/scrolls again with no Escape
-  // needed. We reconcile against the live layer set and the current selection
-  // rather than patching each delete/deselect call-site, so every exit path is
-  // covered at once — single-frame remove, keyboard Delete/Backspace,
-  // Group-cascade delete, a remote collaborator deleting the frame out from
-  // under us, and the user clicking away to deselect the frame. Writes back only
-  // when an id actually changed, so unrelated layer edits don't churn state or
-  // fight the Escape handler.
-  useEffect(() => {
-    const existingLayerIds = new Set(iframeLayers.map((layer) => layer.id))
-    const next = reconcileInteractionMode({
-      focusedId: focusedIframeLayerId,
-      createFlowId: createFlowIframeLayerId,
-      existingLayerIds,
-      selectedLayerIds: selectedIframeLayerIds,
-    })
-    if (next.focusedId !== focusedIframeLayerId) {
-      // Syncing mode state down from the external Y.Doc layer set; the guard
-      // above keeps this from looping.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFocusedIframeLayerId(next.focusedId)
-    }
-    if (next.createFlowId !== createFlowIframeLayerId) {
-      setCreateFlowIframeLayerId(next.createFlowId)
-    }
-  }, [
-    iframeLayers,
-    focusedIframeLayerId,
-    createFlowIframeLayerId,
-    selectedIframeLayerIds,
-  ])
   const iframeLayerLayouts = useMemo(
     () =>
       computeIframeLayerLayouts(
@@ -792,13 +743,10 @@ export function Canvas({
   // lives on the Canvas Selection controller as `removeIframeLayerAndReselect`.
   const removeIframeLayer = selection.removeIframeLayerAndReselect
 
-  // Use a ref so the route handler (passed as a stable callback to many
-  // places) sees the latest Create Flow selection without forcing every
-  // consumer to re-bind on toggle.
-  const createFlowIframeLayerIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    createFlowIframeLayerIdRef.current = createFlowIframeLayerId
-  })
+  // The route handler reads the latest Create Flow selection through the
+  // Interaction controller's mirror ref, so it stays a stable callback across
+  // toggles without every consumer re-binding.
+  const createFlowIframeLayerIdRef = interaction.createFlowIframeLayerIdRef
 
   // Layer Mutation controller (PRD #579, cut 1/4): the thin per-Layer Canvas
   // Operation wrappers — Iframe Layer field writers (rename / assignAgent /
@@ -1222,14 +1170,20 @@ export function Canvas({
       }
       setHoveredIframeLayerId(hovered)
     },
-    [setPresence, iframeLayerLayouts, isLayerDragging, getGestureState]
+    [
+      setPresence,
+      iframeLayerLayouts,
+      isLayerDragging,
+      getGestureState,
+      setHoveredIframeLayerId,
+    ]
   )
 
   const handlePointerLeave = useCallback(() => {
     setPresence({ pointer: null })
     setHoveredIframeLayerId(null)
     resetHandleHover()
-  }, [setPresence, resetHandleHover])
+  }, [setPresence, resetHandleHover, setHoveredIframeLayerId])
 
   // Comment-mode canvas click: convert the screen point to canvas (world)
   // coordinates — the camera concern that stays in the component — and hand it

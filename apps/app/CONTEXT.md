@@ -839,6 +839,38 @@ _Avoid_: putting branch selection back in `canvas.tsx` (it goes through
 path (ADR 0005); splitting the heartbeat or heal back out into their own
 composition-root effects.
 
+**Canvas Interaction**:
+The single home for the cross-cutting interaction state no other controller
+owned — the **focused** ("interactive") Iframe Layer, the **Create-Flow**
+("flow") Iframe Layer, the **hovered** Iframe Layer, the inline-edited
+**Markdown Layer**, the **space-held** (pan) flag, and the **cursor-chat
+anchor** — lifted out of the composition root, where it was smeared across half a
+dozen `useState`s and three effects, into one controller (`useCanvasInteraction`,
+PRD #588). It is the **React state + effects, not a new decision**: it **wraps**
+the two unchanged pure modules without touching them — `reconcileInteractionMode`
+(`lib/canvas/interaction-mode.ts`, pinned by `interaction-mode.test.ts`) drives
+the effect that drops Focus / Create-Flow mode the instant the frame backing it
+is deleted **or** deselected, and `resolveEscapeAction` (`lib/canvas/escape.ts`,
+pinned by `escape.test.ts`) backs the `resolveEscape` verb the keyboard
+dispatches on (the caller passes the Tool Mode / new-comment bits Escape also
+reads; the controller fills its own state from mirror refs). Focus, Create-Flow,
+hover, document-editing, space-pan, and Escape now behave identically to before
+but are described in one place. Cursor chat **spans** this state and awareness:
+the controller owns the anchor and the open/close verbs but reads the awareness
+mirrors (`selfPointerRef` / `selfMessageRef`) and broadcasts the live message
+through the injected `setPresence` — the same seam the root used. The mode/edit
+state is mirrored into refs (`createFlowIframeLayerIdRef` for the route writer,
+the Focus / editing ids for `resolveEscape`) so its verbs read the latest
+snapshot without re-binding; the cursor-chat awareness refs are declared **ahead
+of** the controller so no ordering cycle is reintroduced.
+_Avoid_: putting this interaction state back as loose `useState`s on the
+composition root (instantiate the controller and consume its interface);
+modifying `reconcileInteractionMode` / `resolveEscapeAction` to absorb React
+state (they stay React-free, pure-fixture-tested); folding the draw-tool **Tool
+Mode** selection into here (that stays in **Tool Mode** — this governs frame
+interaction, not the armed tool); re-deriving cursor-chat-open from the anchor
+instead of the awareness message.
+
 **Canvas Keyboard**:
 The global `keydown`/`keyup` shortcut dispatch for the canvas, lifted out of the
 composition root where it was the single largest effect (~190 lines) into one
@@ -846,15 +878,15 @@ controller (`useCanvasKeyboard`, PRD #579). It owns the window listeners and the
 whole shortcut map — Escape exits, `v`/`c`/`d`/`f` draw tools, `/` cursor chat,
 ⌘B / ⌘I / ⌘. panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, and the
 space-pan hold — and dispatches into the controllers the earlier cuts bundled
-(**Tool Mode**, **Canvas Selection**, **Element Reference**, the Yjs history),
-the panel refs, the cursor-chat verbs, and the focus / Create-Flow setters it is
-handed. Sequenced last so it consumes those bundled controllers rather than the
-loose setters they replaced. The Escape **precedence** stays in the React-free
-`resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by `escape.test.ts`); the
-controller only **applies** the chosen exit. The `isEditing` guard
-(input/textarea/contenteditable) still suppresses shortcuts while typing, and the
-live-but-rebind-averse reads (cursor-chat message, inline-edit id) arrive as refs
-the composition root mirrors.
+(**Tool Mode**, **Canvas Selection**, **Element Reference**, the Yjs history) and
+the **Canvas Interaction** controller (whose Focus / Create-Flow / editing /
+space-held / cursor-chat verbs it applies), plus the panel refs it is handed.
+Sequenced last so it consumes those bundled controllers rather than the loose
+setters they replaced. The Escape **precedence** stays in the React-free
+`resolveEscapeAction` (`lib/canvas/escape.ts`, pinned by `escape.test.ts`),
+wrapped by **Canvas Interaction**'s `resolveEscape`; the keyboard only
+**applies** the chosen exit. The `isEditing` guard
+(input/textarea/contenteditable) still suppresses shortcuts while typing.
 _Avoid_: putting the shortcut map or the window listeners back in `canvas.tsx`;
 duplicating the Escape precedence in the dispatch (it goes through
 `resolveEscapeAction`); reading selection / Tool Mode through a shadow copy
