@@ -55,7 +55,7 @@ export function DeviceSizeSubMenu({
                     key={preset.id}
                     onSelect={() => onSelect(preset.width, preset.height)}
                   >
-                    <Icon className="text-muted-foreground" />
+                    <Icon />
                     <span>{preset.label}</span>
                     <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                       {preset.width}×{preset.height}
