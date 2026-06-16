@@ -18,7 +18,6 @@ import {
 import {
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -356,7 +355,6 @@ export function BranchOverflowMenuContent({
       {BRANCH_MENU_SECTIONS.map((section, i) => (
         <Fragment key={section.id}>
           {i > 0 ? <DropdownMenuSeparator /> : null}
-          <DropdownMenuLabel>{section.label}</DropdownMenuLabel>
           {section.itemKeys.map((key) => (
             <Fragment key={key}>{nodes[key]}</Fragment>
           ))}

@@ -32,6 +32,11 @@ fn main() {
         // webview itself can't honor `window.open`/`target="_blank"`, so the
         // page routes those clicks through `plugin:opener|open_url`.
         .plugin(tauri_plugin_opener::init())
+        // Remember the main window's size + position across launches. The plugin
+        // restores saved geometry when the config-defined window is created and
+        // writes it back on close/exit, falling back to the tauri.conf.json
+        // defaults on first run.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             let handle = app.handle().clone();
 

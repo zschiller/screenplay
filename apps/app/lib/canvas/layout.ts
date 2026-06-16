@@ -206,7 +206,7 @@ export function placeNewIframeLayerGroup(
 // can call them every frame and `layout.test.ts` can exercise them with plain
 // fixtures.
 
-/** World-space rect for a group's trailing "+ frame" placeholder slot. */
+/** World-space rect for a group's trailing add-member placeholder slot. */
 export type PlaceholderRect = {
   groupId: string
   x: number
@@ -214,6 +214,12 @@ export type PlaceholderRect = {
   width: number
   height: number
 }
+
+/**
+ * Which toolbar tool surfaces the trailing add-member placeholders. The Frame
+ * tool appends an Iframe Layer on click; the Document tool a Markdown Layer.
+ */
+export type PlaceholderTool = "frame" | "document"
 
 /**
  * World-space geometry for one inter-member gap in a selected group.
@@ -317,30 +323,25 @@ export function computeEffectiveLayouts(
 }
 
 /**
- * Trailing "+ frame" placeholder rect for every group that contains a selected
- * member (selecting the whole group hides it). When a member is popped out for
- * reorder, the placeholder anchors on the new last remaining member so its
- * outline tracks the reflowed row instead of staying at the original edge.
+ * Trailing add-member placeholder rect for every group, surfaced whenever the
+ * Frame or Document tool is active in the toolbar — `placeholderTool` gates the
+ * whole set, replacing the old per-member selection gate so the affordance is
+ * "the tool is armed, drop another member here" rather than "this frame is
+ * selected." Returns nothing when neither tool is active. When a member is
+ * popped out for reorder, the placeholder anchors on the new last remaining
+ * member so its outline tracks the reflowed row instead of the original edge.
  */
 export function computePlaceholderRects(
   groups: readonly IframeLayerGroupData[],
   layouts: IframeLayerLayoutMap,
-  selection: CanvasSelection,
+  placeholderTool: PlaceholderTool | null,
   poppedMemberId: string | null
 ): PlaceholderRect[] {
+  if (!placeholderTool) return []
   const rects: PlaceholderRect[] = []
   for (const g of groups) {
     const allMembers = getGroupMembers(g)
     if (allMembers.length === 0) continue
-    if (selection.groupIds.has(g.id)) continue
-    // The affordance is "add another frame next to this one" — shown when any
-    // member (iframe or markdown layer) in the group is individually selected.
-    const hasSelected = allMembers.some((m) =>
-      m.kind === "iframe-layer"
-        ? selection.iframeLayerIds.has(m.id)
-        : selection.documentLayerIds.has(m.id)
-    )
-    if (!hasSelected) continue
     const members =
       poppedMemberId && allMembers.some((m) => m.id === poppedMemberId)
         ? allMembers.filter((m) => m.id !== poppedMemberId)
@@ -453,6 +454,13 @@ export type DeriveCanvasLayoutInput = {
    */
   poppedMemberId: string | null
   /**
+   * The toolbar tool that surfaces the trailing add-member placeholders, or
+   * `null` when neither the Frame nor Document tool is active. Tool-gated, not
+   * selection-gated: the placeholders appear for every group while the tool is
+   * armed, and a click appends a member of that kind.
+   */
+  placeholderTool: PlaceholderTool | null
+  /**
    * In-flight gap override from an active gap-resize gesture: one group's gap
    * is replaced so the row reflows live while dragging, before the
    * `setGroupGap` Canvas Operation commits on release. Part of the in-flight
@@ -477,6 +485,7 @@ export function deriveCanvasLayout(
     selection,
     activeReorderDrag,
     poppedMemberId,
+    placeholderTool,
     gapOverride,
   } = input
   // Apply the in-flight gap override up front so every downstream derivation
@@ -500,7 +509,7 @@ export function deriveCanvasLayout(
     placeholderRects: computePlaceholderRects(
       groups,
       layouts,
-      selection,
+      placeholderTool,
       poppedMemberId
     ),
     gapHandles: computeGapHandles(

@@ -905,6 +905,56 @@ describe("addFrameToGroup", () => {
   })
 })
 
+describe("addDocumentToGroup", () => {
+  it("creates the document, seeds its fragment + chat, and appends it to the Group", () => {
+    const { ops, collections, doc } = makeHarness()
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+
+    const result = ops.addDocumentToGroup("group-1", {
+      width: 360,
+      height: 280,
+    })
+
+    expect(result).toBeDefined()
+    const { docId, chatId } = result!
+    const document = collections.markdownLayers.get(docId)
+    expect(document?.width).toBe(360)
+    expect(document?.height).toBe(280)
+    // Appended after the existing sibling, preserving row order.
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
+      { kind: "iframe-layer", id: "layer-1" },
+      { kind: "markdown-layer", id: docId },
+    ])
+    // Same fragment + chat seeding as createDocument.
+    const fragment = documentFragment(doc, docId)
+    expect(fragment.length).toBe(1)
+    expect(getFragmentTitle(fragment)).toBe("")
+    expect(collections.chatSessions.get(chatId)?.markdownLayerId).toBe(docId)
+  })
+
+  it("clamps a below-minimum size up to the document floor", () => {
+    const { ops, collections } = makeHarness()
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+
+    const result = ops.addDocumentToGroup("group-1", { width: 10, height: 10 })
+
+    const document = collections.markdownLayers.get(result!.docId)
+    expect(document?.width).toBe(200)
+    expect(document?.height).toBe(120)
+  })
+
+  it("is a no-op returning undefined when the Group is missing", () => {
+    const { ops, collections } = makeHarness()
+
+    const result = ops.addDocumentToGroup("missing", { width: 400, height: 300 })
+
+    expect(result).toBeUndefined()
+    expect(collections.markdownLayers.toArray()).toEqual([])
+  })
+})
+
 describe("renameDocument", () => {
   it("writes the new title into both the body fragment heading and the record", () => {
     const { ops, collections, doc } = makeHarness()

@@ -238,6 +238,19 @@ export type CanvasOps = {
     }
   ): string | undefined
   /**
+   * Append a new Document (Markdown Layer) to an existing Group — the Document
+   * sibling of {@link addFrameToGroup}, sized from the resolved `size` (the
+   * caller mirrors the Group's last sibling) and spliced onto the end of the
+   * member row. Like {@link createDocument} it seeds the body fragment's title
+   * heading and pre-creates a Chat Session targeting the Document; the
+   * multi-collection write is why this earns a verb. Returns the new document
+   * and chat ids, or `undefined` when the Group is missing.
+   */
+  addDocumentToGroup(
+    groupId: string,
+    size: { width: number; height: number }
+  ): { docId: string; chatId: string } | undefined
+  /**
    * Rename a Document (Markdown Layer) from outside the editor (sidebar, agent
    * tool): write `title` into the body fragment's first heading — the source
    * of truth every peer's editor renders — and mirror it onto the record's
@@ -743,6 +756,44 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     return created ? layerId : undefined
   }
 
+  function addDocumentToGroup(
+    groupId: string,
+    size: { width: number; height: number }
+  ): { docId: string; chatId: string } | undefined {
+    const docId = nanoid()
+    const chatId = nanoid()
+    let created = false
+    batch(() => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group) return
+      collections.markdownLayers.set(docId, {
+        id: docId,
+        // Documents have their own minimum dimensions, distinct from frames.
+        width: Math.max(200, size.width),
+        height: Math.max(120, size.height),
+        title: "",
+      })
+      collections.iframeLayerGroups.update(groupId, {
+        members: [
+          ...getGroupMembers(group),
+          { kind: "markdown-layer", id: docId },
+        ],
+      })
+      // Seed the title heading + pre-create the chat exactly as createDocument
+      // does, so a Group-appended Document is indistinguishable from a freshly
+      // created one (same fragment shape, same ready chat tab).
+      seedDocumentFragment(documentFragment(doc, docId))
+      collections.chatSessions.set(chatId, {
+        id: chatId,
+        markdownLayerId: docId,
+        label: "Untitled",
+        createdAt: Date.now(),
+      })
+      created = true
+    })
+    return created ? { docId, chatId } : undefined
+  }
+
   function renameDocument(docId: string, title: string): void {
     batch(() => {
       if (!collections.markdownLayers.has(docId)) return
@@ -974,6 +1025,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     seedFrameForAgent,
     navigateRoute,
     addFrameToGroup,
+    addDocumentToGroup,
     renameDocument,
     removeLayers,
     removeDocuments,

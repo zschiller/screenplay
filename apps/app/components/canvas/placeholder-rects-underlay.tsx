@@ -21,16 +21,16 @@ interface PlaceholderRectsUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
   /**
-   * World-space rects for the trailing "+ frame" placeholder of every group
-   * with a selected member. Rendered before the TransformWrapper in DOM order
-   * so iframe contents and selection chrome paint on top — the placeholder is
-   * a backdrop hint, not a foreground element.
+   * World-space rects for the trailing add-member placeholder of every group,
+   * surfaced while the Frame or Document tool is armed. Rendered before the
+   * TransformWrapper in DOM order so iframe contents and selection chrome paint
+   * on top — the placeholder is a backdrop hint, not a foreground element.
    */
   rects: Array<{ x: number; y: number; width: number; height: number }>
 }
 
 /**
- * Screen-space underlay for the trailing "+ frame" placeholder outlines. Same
+ * Screen-space underlay for the trailing add-member placeholder outlines. Same
  * crisp 1px --border stroke as before; lives behind world content now so it
  * reads as a slot waiting to be filled rather than an overlay drawn on top.
  */

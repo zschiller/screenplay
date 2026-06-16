@@ -294,6 +294,7 @@ describe("deriveCanvasLayout", () => {
       selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: null,
       poppedMemberId: null,
+      placeholderTool: null,
     })
 
     expect(gapHandles).toHaveLength(2)
@@ -325,6 +326,7 @@ describe("deriveCanvasLayout", () => {
       selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: null,
       poppedMemberId: null,
+      placeholderTool: null,
     })
 
     expect(reorderHandles).toEqual([
@@ -338,14 +340,16 @@ describe("deriveCanvasLayout", () => {
     ])
   })
 
-  it("anchors a trailing placeholder rect on the last member when a member is selected", () => {
+  it("anchors a trailing placeholder rect on the last member when a tool is armed", () => {
     const { placeholderRects } = deriveCanvasLayout({
       groups,
       iframeLayers,
       markdownLayers: [],
-      selection: selection({ iframeLayerIds: new Set(["a"]) }),
+      // No selection — the placeholder is tool-gated now, not selection-gated.
+      selection: selection(),
       activeReorderDrag: null,
       poppedMemberId: null,
+      placeholderTool: "frame",
     })
 
     const cX = 400 + G + 150 + G // c's x
@@ -360,23 +364,21 @@ describe("deriveCanvasLayout", () => {
     ])
   })
 
-  it("hides the placeholder and gap handles when the whole group is selected", () => {
+  it("shows no placeholder when neither the frame nor document tool is armed", () => {
     const { placeholderRects, reorderHandles } = deriveCanvasLayout({
       groups,
       iframeLayers,
       markdownLayers: [],
-      // Group is selected, plus an individual member — placeholder still hidden.
-      selection: selection({
-        iframeLayerIds: new Set(["a"]),
-        groupIds: new Set(["g1"]),
-      }),
+      // A member is selected, but no tool is armed — placeholders stay hidden.
+      selection: selection({ iframeLayerIds: new Set(["a"]) }),
       activeReorderDrag: null,
       poppedMemberId: null,
+      placeholderTool: null,
     })
 
     expect(placeholderRects).toEqual([])
-    // Reorder handles still show for the selected group.
-    expect(reorderHandles).toHaveLength(3)
+    // Reorder handles are independent of the placeholder tool.
+    expect(reorderHandles).toHaveLength(0)
   })
 
   it("reflects the effective reflow in handle and placeholder geometry mid-reorder", () => {
@@ -384,16 +386,15 @@ describe("deriveCanvasLayout", () => {
       groups,
       iframeLayers,
       markdownLayers: [],
-      selection: selection({
-        iframeLayerIds: new Set(["a"]),
-        groupIds: new Set(["g1"]),
-      }),
+      selection: selection({ groupIds: new Set(["g1"]) }),
       activeReorderDrag: {
         memberId: "b",
         cursor: { x: 2000, y: 2000 },
         grabOffset: { x: 0, y: 0 },
       },
       poppedMemberId: "b",
+      // Frame tool armed, so the placeholder tracks the reflowed last member.
+      placeholderTool: "frame",
     })
 
     // b floats at the cursor; a and c reflow as a two-member row.
@@ -402,7 +403,17 @@ describe("deriveCanvasLayout", () => {
     // The popped member is excluded, so only the a–c gap remains.
     expect(gapHandles).toHaveLength(1)
     expect(gapHandles[0]).toMatchObject({ left: 400, right: 400 + G })
-    // Whole group is selected, so no placeholder regardless of the reflow.
-    expect(placeholderRects).toEqual([])
+    // The placeholder anchors on c's reflowed position (last remaining member),
+    // not b — the popped member is excluded from the placeholder anchor too.
+    const reflowedCX = 100 + 300 + G // c after a–c reflow
+    expect(placeholderRects).toEqual([
+      {
+        groupId: "g1",
+        x: reflowedCX + 100 + G, // one width + one gap past c
+        y: 200,
+        width: 100,
+        height: 100,
+      },
+    ])
   })
 })

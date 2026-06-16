@@ -1530,6 +1530,16 @@ export function RoomSidebar({
                                         <Settings />
                                         Settings
                                       </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={() =>
+                                          setPendingDeleteRepoId(repo.id)
+                                        }
+                                      >
+                                        <Trash2 />
+                                        Remove
+                                      </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                   {/* "Open existing branch" reattaches to a
@@ -1596,10 +1606,6 @@ export function RoomSidebar({
                                       <RepoSettings
                                         repo={repo}
                                         onUpdate={onUpdateRepo}
-                                        onRemove={() => {
-                                          setSettingsRepoId(null)
-                                          setPendingDeleteRepoId(repo.id)
-                                        }}
                                         onClose={() => setSettingsRepoId(null)}
                                       />
                                     </DialogContent>
@@ -2386,12 +2392,10 @@ function BranchDropdownSlot({
 function RepoSettings({
   repo,
   onUpdate,
-  onRemove,
   onClose,
 }: {
   repo: RepoData
   onUpdate: (id: string, data: Partial<RepoData>) => void
-  onRemove: () => void
   onClose: () => void
 }) {
   const [name, setName] = useState(repo.name ?? "")
@@ -2582,14 +2586,6 @@ function RepoSettings({
           disabled={!hasChanges || !portIsValid}
         >
           Save
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-sidebar-foreground/70 hover:text-destructive"
-          onClick={onRemove}
-        >
-          Remove
         </Button>
       </div>
     </div>
