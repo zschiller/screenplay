@@ -87,15 +87,25 @@ export interface AcpConsumerPorts {
  * and gain persistence in later slices.
  *
  * Feed every {@link EngineUpdate} to {@link handle} in order. Streamed text and
- * thought chunks are broadcast live *and* accumulated, so the ACP-native
- * records persisted at `done` reflect the whole turn — the reasoning record
- * first, then the agent reply, the order they're rendered.
+ * thought chunks are broadcast live *and* accumulated into the *current* block,
+ * which is flushed to a durable record at every boundary — a switch between the
+ * reply and reasoning streams, or a tool call — and once more at turn close. So
+ * a turn that narrates, runs a tool, then narrates again persists three records
+ * in arrival order (narration, tool call, narration), and a reload rebuilds the
+ * same interleaving the live stream showed. Accumulating the whole turn into one
+ * record instead would collapse those segments into a single block, drop their
+ * order relative to the tool calls (which persist when first seen), and
+ * concatenate the segments with no separator — exactly the reload corruption
+ * this flush-on-boundary model avoids (issue: reload duplicated/mangled turns).
  */
 export class AcpUpdateConsumer {
-  /** Streamed `agent_message_chunk` text, accumulated for the durable record. */
-  private agentText: string[] = []
-  /** Streamed `agent_thought_chunk` text (reasoning), accumulated likewise. */
-  private thoughtText: string[] = []
+  /**
+   * The narration/reasoning block currently streaming, accumulated until a
+   * boundary flushes it to a durable record (see {@link flushPending}). Only one
+   * block is ever pending: switching streams flushes the previous one first, so
+   * `role` is unambiguous. `null` between blocks.
+   */
+  private pending: { role: "agent" | "thought"; texts: string[] } | null = null
   /**
    * In-flight tool calls, keyed by `toolCallId`, so a `tool_call_update` merges
    * onto the record we already hold rather than starting a new one — the same
@@ -125,27 +135,62 @@ export class AcpUpdateConsumer {
   }
 
   private async onSessionUpdate(update: SessionUpdate): Promise<void> {
-    // Accumulate streamed agent / reasoning text for the durable ACP-native
-    // records. We still broadcast every chunk so clients render both the reply
-    // and the reasoning as they stream.
+    // Accumulate streamed agent / reasoning text into the current block. We
+    // still broadcast every chunk so clients render both the reply and the
+    // reasoning as they stream; the durable record is written at the next
+    // boundary (see flushPending).
     if (isUpdate(update, "agent_message_chunk")) {
-      this.agentText.push(blockText(update.content))
+      await this.pushText("agent", blockText(update.content))
     } else if (isUpdate(update, "agent_thought_chunk")) {
-      this.thoughtText.push(blockText(update.content))
+      await this.pushText("thought", blockText(update.content))
     } else if (
       isUpdate(update, "tool_call") ||
       isUpdate(update, "tool_call_update")
     ) {
-      // Update the one durable tool-call record in place by id, then persist
-      // it immediately (an upsert) so each status transition is on disk before
-      // the next arrives. The broadcast below carries the ACP update verbatim,
-      // so clients update their own record in place too.
+      // A tool call ends the current narration/reasoning block. Flush that block
+      // FIRST so its record lands ahead of the call on reload (preserving the
+      // order the live stream showed), then update the one durable tool-call
+      // record in place by id and persist it immediately (an upsert) so each
+      // status transition is on disk before the next arrives. The broadcast
+      // below carries the ACP update verbatim, so clients update in place too.
+      await this.flushPending()
       const id = update.toolCallId
       const merged = applyToolCallUpdate(this.toolCalls.get(id), update)
       this.toolCalls.set(id, merged)
       await this.ports.upsertToolCall(merged)
     }
     await this.ports.broadcastUpdate(update)
+  }
+
+  /**
+   * Append one streamed text delta to the current block, flushing the previous
+   * block first when the stream switches (reply ⇄ reasoning) — the same boundary
+   * the renderer breaks blocks on, so each contiguous run becomes its own record
+   * in arrival order rather than being merged across the switch.
+   */
+  private async pushText(
+    role: "agent" | "thought",
+    text: string
+  ): Promise<void> {
+    if (this.pending && this.pending.role !== role) await this.flushPending()
+    if (!this.pending) this.pending = { role, texts: [] }
+    this.pending.texts.push(text)
+  }
+
+  /**
+   * Persist the pending narration/reasoning block as one ACP-native record, in
+   * arrival order, then clear it. An empty block (no text) writes nothing — no
+   * spurious record. Cleared before the await so a re-entrant flush is a no-op.
+   */
+  private async flushPending(): Promise<void> {
+    const pending = this.pending
+    if (!pending) return
+    this.pending = null
+    const record =
+      pending.role === "agent"
+        ? agentChunksToRecord(pending.texts)
+        : thoughtChunksToRecord(pending.texts)
+    if (record.content.length > 0) await this.ports.appendRecord(record)
   }
 
   /**
@@ -163,16 +208,9 @@ export class AcpUpdateConsumer {
     if (this.closed) return
     this.closed = true
 
-    // Flush any reasoning/narration streamed before the plan, in render order
-    // (reasoning precedes the reply) — same as a normal turn close.
-    const thought = thoughtChunksToRecord(this.thoughtText)
-    if (thought.content.length > 0) {
-      await this.ports.appendRecord(thought)
-    }
-    const record = agentChunksToRecord(this.agentText)
-    if (record.content.length > 0) {
-      await this.ports.appendRecord(record)
-    }
+    // Flush the trailing narration/reasoning block streamed before the plan;
+    // earlier blocks were already flushed at their boundaries, in arrival order.
+    await this.flushPending()
 
     await this.ports.broadcastPermissionRequest(request)
 
@@ -204,17 +242,11 @@ export class AcpUpdateConsumer {
       return
     }
 
-    // Persist the whole turn's reasoning and reply as ACP-native records, in
-    // render order (reasoning precedes the answer). An empty record (no text of
-    // that kind) yields an empty content list, which we skip — nothing to keep.
-    const thought = thoughtChunksToRecord(this.thoughtText)
-    if (thought.content.length > 0) {
-      await this.ports.appendRecord(thought)
-    }
-    const record = agentChunksToRecord(this.agentText)
-    if (record.content.length > 0) {
-      await this.ports.appendRecord(record)
-    }
+    // Persist the trailing narration/reasoning block (everything since the last
+    // boundary) as its own ACP-native record; earlier blocks were already
+    // flushed at their boundaries, in arrival order. An empty block writes
+    // nothing — nothing to keep.
+    await this.flushPending()
     await this.ports.transition("completed")
     await this.ports.broadcastEnd()
   }

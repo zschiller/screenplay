@@ -6,6 +6,19 @@ import type * as Y from "yjs"
 import { documentFragment } from "@/lib/yjs/fragment-text"
 
 /**
+ * The set of client ids touched by an awareness `update`. Both
+ * `y-protocols/awareness` and `@liveblocks/yjs` pass this as the first handler
+ * argument; consumers use it to ignore updates that can't affect them (e.g. our
+ * own per-frame viewport broadcast while panning). It's optional on the handler
+ * so backends that don't supply it degrade to "every update is relevant".
+ */
+export type AwarenessChange = {
+  added: number[]
+  updated: number[]
+  removed: number[]
+}
+
+/**
  * Structural shape that any Yjs awareness implementation must satisfy.
  * Both `y-protocols/awareness.Awareness` and `@liveblocks/yjs`'s built-in
  * Awareness wrapper match it without explicit conformance.
@@ -14,8 +27,14 @@ export type AwarenessLike = {
   getLocalState(): unknown
   setLocalState(state: unknown): void
   getStates(): Map<number, unknown>
-  on(event: "change" | "update", handler: () => void): void
-  off(event: "change" | "update", handler: () => void): void
+  on(
+    event: "change" | "update",
+    handler: (changes?: AwarenessChange) => void
+  ): void
+  off(
+    event: "change" | "update",
+    handler: (changes?: AwarenessChange) => void
+  ): void
   doc: Y.Doc
 }
 

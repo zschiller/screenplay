@@ -1,5 +1,7 @@
 "use client"
 
+import { memo } from "react"
+
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type {
   IframeLayerLayoutMap,
@@ -13,7 +15,6 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
 } from "@/lib/types"
-import { useSelfPresence } from "@/lib/yjs/react"
 
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
@@ -57,12 +58,12 @@ type AgentDomains = Record<
  * controller (#570), the derived layout maps, and the thin per-Layer mutation
  * handlers (which run through Canvas Operations at their definition sites).
  */
-export function CanvasMemberLayer({
+function CanvasMemberLayerImpl({
   iframeLayerGroups,
   iframeLayers,
   markdownLayers,
   selection,
-  camera,
+  onIframeWheel,
   reference,
   gesturePreview,
   gestureLayerHandlers,
@@ -79,7 +80,8 @@ export function CanvasMemberLayer({
   zoom,
   spaceHeld,
   commentMode,
-  self,
+  selfName,
+  selfColor,
   editingDocumentLayerId,
   setEditingDocumentLayerId,
   focusedIframeLayerId,
@@ -97,7 +99,11 @@ export function CanvasMemberLayer({
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
   selection: CanvasSelection
-  camera: CanvasCamera
+  /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom).
+   *  Just `camera.handleIframeWheel` — passed as the bare callback rather than
+   *  the whole camera object so this memoized layer doesn't re-render every pan
+   *  frame (the camera object is recreated each render). */
+  onIframeWheel: CanvasCamera["handleIframeWheel"]
   reference: ElementReference
   gesturePreview: GesturePreview
   gestureLayerHandlers: GestureLayerHandlers
@@ -115,7 +121,11 @@ export function CanvasMemberLayer({
   zoom: number
   spaceHeld: boolean
   commentMode: boolean
-  self: ReturnType<typeof useSelfPresence>
+  /** Local user's display name + presence color, used to tint our own selection.
+   *  Passed as primitives rather than the whole `self` presence object, which
+   *  changes identity on every viewport rebroadcast during a pan. */
+  selfName: string
+  selfColor: string
   editingDocumentLayerId: string | null
   setEditingDocumentLayerId: React.Dispatch<React.SetStateAction<string | null>>
   focusedIframeLayerId: string | null
@@ -234,8 +244,8 @@ export function CanvasMemberLayer({
                 }
                 editing={editingDocumentLayerId === doc.id}
                 spaceHeld={spaceHeld}
-                userName={self?.identity.name || "Anonymous"}
-                userColor={self?.color || "#888888"}
+                userName={selfName}
+                userColor={selfColor}
                 worldX={layout.x}
                 worldY={layout.y}
                 zIndex={zIndex}
@@ -345,7 +355,7 @@ export function CanvasMemberLayer({
               spaceHeld={spaceHeld}
               commentMode={commentMode}
               onHover={reference.setInspectHover}
-              onWheel={camera.handleIframeWheel}
+              onWheel={onIframeWheel}
               onDomReady={reference.onIframeLayerDomReady}
               onCaptureReadyChange={handleCaptureReadyChange}
               onCaptureDirty={handleCaptureDirty}
@@ -425,3 +435,14 @@ export function CanvasMemberLayer({
     </>
   )
 }
+
+/**
+ * Memoized so a canvas pan/zoom — which re-renders the parent every frame to
+ * move the screen-space overlays — does NOT re-render the (heavy) iframe/markdown
+ * layer tree. The layers are world-positioned and slide for free via the parent
+ * transform; nothing here depends on the live viewport, and `zoom` (the one
+ * camera value the title bars read) is constant during a pan. All props are kept
+ * reference-stable upstream so this memo actually bails. See the prop comments
+ * on `onIframeWheel` / `selfName` for the two that used to churn per frame.
+ */
+export const CanvasMemberLayer = memo(CanvasMemberLayerImpl)

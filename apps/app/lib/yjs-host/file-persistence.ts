@@ -31,6 +31,19 @@ export class FileYjsPersistence implements Persistence {
   /** Pending debounced flushes, so rapid edits coalesce into one write. */
   private readonly flushTimers = new Map<string, NodeJS.Timeout>()
 
+  /**
+   * Per-doc serialization for `flush`. `flush` is driven from three independent
+   * paths for the same doc — the debounced timer, `mutateDoc`, and `writeState`
+   * on disconnect — which can overlap. Two concurrent flushes would otherwise
+   * race on the temp-file + rename dance (identical temp names collide so one
+   * rename hits ENOENT, and an older flush could clobber newer state). Chaining
+   * each doc's flushes makes them run one at a time, last write last.
+   */
+  private readonly flushChains = new Map<string, Promise<void>>()
+
+  /** Monotonic counter to keep temp filenames unique even within one ms. */
+  private flushSeq = 0
+
   private static readonly FLUSH_DELAY_MS = 200
 
   /**
@@ -91,15 +104,32 @@ export class FileYjsPersistence implements Persistence {
   }
 
   /** Write a room's full current state to disk now. */
-  async flush(docName: string, ydoc: WSSharedDoc): Promise<void> {
+  flush(docName: string, ydoc: WSSharedDoc): Promise<void> {
     const pending = this.flushTimers.get(docName)
     if (pending) {
       clearTimeout(pending)
       this.flushTimers.delete(docName)
     }
+    // Serialize per doc: chain onto any in-flight flush so two writers never
+    // race on the same temp file. The chain link swallows the prior flush's
+    // rejection (callers handle their own) so one failure can't poison the next.
+    const prior = this.flushChains.get(docName) ?? Promise.resolve()
+    const next = prior
+      .catch(() => {})
+      .then(() => this.writeNow(docName, ydoc))
+    this.flushChains.set(docName, next)
+    // Drop the chain entry once it settles and nothing newer has replaced it.
+    void next.finally(() => {
+      if (this.flushChains.get(docName) === next)
+        this.flushChains.delete(docName)
+    })
+    return next
+  }
+
+  private async writeNow(docName: string, ydoc: WSSharedDoc): Promise<void> {
     await mkdir(this.dir, { recursive: true })
     const file = this.fileFor(docName)
-    const tmp = `${file}.${process.pid}.${Date.now()}.tmp`
+    const tmp = `${file}.${process.pid}.${Date.now()}.${this.flushSeq++}.tmp`
     const update = Y.encodeStateAsUpdate(ydoc)
     await writeFile(tmp, update)
     await rename(tmp, file)

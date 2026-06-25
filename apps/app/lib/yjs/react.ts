@@ -11,7 +11,11 @@ import {
 import * as Y from "yjs"
 import { UndoManager } from "yjs"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
-import { useYjs, type AwarenessLike } from "@/lib/yjs/context"
+import {
+  useYjs,
+  type AwarenessChange,
+  type AwarenessLike,
+} from "@/lib/yjs/context"
 import {
   COLLECTION_KEYS,
   getRoomCollections,
@@ -203,7 +207,16 @@ export function useSetPresence() {
  * joined. `update` fires on every local set as well, so the self avatar
  * appears immediately.
  */
-function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
+function useAwarenessSnapshot<T>(
+  select: (a: AwarenessLike) => T,
+  /**
+   * Optional gate on which client ids must change for this snapshot to rebuild.
+   * `useOtherPresences` passes one so our own awareness writes — notably the
+   * per-frame viewport broadcast during a pan — don't churn the peer snapshot
+   * (and everything memoized on it) ~60x/s. Must be a stable reference.
+   */
+  isRelevant?: (changed: number[], selfId: number) => boolean
+): T {
   const awareness = useAwareness()
   const cacheRef = useRef<T | typeof EMPTY>(EMPTY)
   const versionRef = useRef(0)
@@ -214,14 +227,25 @@ function useAwarenessSnapshot<T>(select: (a: AwarenessLike) => T): T {
 
   const subscribe = useCallback(
     (cb: () => void) => {
-      const handler = () => {
+      const handler = (changes?: AwarenessChange) => {
+        // Skip updates that can't affect this selector. When the backend
+        // doesn't supply a change-set we fall back to bumping on every update
+        // (the prior behavior), so correctness never depends on it.
+        if (isRelevant && changes) {
+          const ids = [
+            ...changes.added,
+            ...changes.updated,
+            ...changes.removed,
+          ]
+          if (!isRelevant(ids, awareness.doc.clientID)) return
+        }
         versionRef.current += 1
         cb()
       }
       awareness.on("update", handler)
       return () => awareness.off("update", handler)
     },
-    [awareness]
+    [awareness, isRelevant]
   )
 
   const getSnapshot = useCallback(() => {
@@ -258,12 +282,18 @@ const SELECT_SELF = (a: AwarenessLike): CanvasPresence | null => {
   return state as CanvasPresence
 }
 
+/** Bump only when a non-self client changed. Our own awareness writes (e.g. the
+ *  per-frame viewport broadcast during a pan) leave the peer set untouched, so
+ *  ignoring them keeps `useOtherPresences` reference-stable across a pan. */
+const OTHERS_RELEVANT = (changed: number[], selfId: number): boolean =>
+  changed.some((id) => id !== selfId)
+
 /** Other peers' awareness states. Stable reference between awareness changes. */
 export function useOtherPresences(): Array<{
   clientId: number
   presence: CanvasPresence
 }> {
-  return useAwarenessSnapshot(SELECT_OTHERS)
+  return useAwarenessSnapshot(SELECT_OTHERS, OTHERS_RELEVANT)
 }
 
 export function useSelfPresence(): CanvasPresence | null {

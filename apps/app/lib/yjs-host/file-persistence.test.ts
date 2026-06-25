@@ -52,6 +52,30 @@ describe("FileYjsPersistence", () => {
     expect(doc.getMap("canvas").size).toBe(0)
   })
 
+  it("serializes concurrent flushes of the same doc without racing on temp files", async () => {
+    // Regression: flush is driven from the debounce timer, mutateDoc, and
+    // writeState concurrently. Two flushes in the same millisecond used to
+    // generate identical temp filenames, so one rename hit ENOENT and crashed
+    // the sidecar. Firing many flushes at once must all resolve cleanly.
+    const writer = new FileYjsPersistence(dir)
+    const doc = newDoc()
+    writer.bindState("room-race", doc)
+    await writer.whenLoaded("room-race")
+
+    doc.getMap("canvas").set("n", 42)
+    await expect(
+      Promise.all(
+        Array.from({ length: 20 }, () => writer.flush("room-race", doc))
+      )
+    ).resolves.toBeDefined()
+
+    const reader = new FileYjsPersistence(dir)
+    const reloaded = newDoc()
+    reader.bindState("room-race", reloaded)
+    await reader.whenLoaded("room-race")
+    expect(reloaded.getMap("canvas").get("n")).toBe(42)
+  })
+
   it("deleteRoom removes persisted state", async () => {
     const p = new FileYjsPersistence(dir)
     const doc = newDoc()

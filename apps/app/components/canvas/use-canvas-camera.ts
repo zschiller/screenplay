@@ -124,6 +124,9 @@ export interface CameraTransformWrapperProps {
 
 const FIT_PADDING = 20
 
+/** Pan sync cap: one overlay/presence flush per ~16ms (~60Hz). */
+const PAN_SYNC_MS = 1000 / 60
+
 /**
  * Safari's non-standard pinch-zoom event. WebKit (desktop Safari and the Tauri
  * app's WKWebView) reports trackpad pinches through `gesturestart` /
@@ -213,6 +216,52 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       saveViewportDebounced(vp)
     },
     [setPresence, saveViewportDebounced]
+  )
+
+  // --- Throttled PAN sync (~60Hz) ---
+  // rzpp moves the layers imperatively on every wheel event — up to ~120Hz on a
+  // trackpad — and that motion is cheap (it's why ZOOM stays smooth with no React
+  // sync at all). The expensive part is `flushCameraSync`: it re-renders the
+  // screen-space overlays AND broadcasts an awareness update. At 120Hz that's the
+  // pan jank. Unlike zoom we can't defer it entirely (the overlays stay visible
+  // and must track), but it doesn't need the full event rate — cap it to one
+  // flush per ~16ms. The layers still glide at 120Hz; the overlays/presence ride
+  // a steady 60Hz behind them.
+  //
+  // Time-based and called SYNCHRONOUSLY from `onTransform` (never from a rAF):
+  // a nested rAF gets starved by rzpp's own frame loop during a sustained pan and
+  // freezes the overlays until the gesture stops. The trailing timer guarantees a
+  // final flush so the overlays land exactly on the resting position.
+  const lastPanSyncRef = useRef(0)
+  const panTrailingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushCameraSyncThrottled = useCallback(
+    (vp: ViewportData) => {
+      const now = performance.now()
+      const wait = PAN_SYNC_MS - (now - lastPanSyncRef.current)
+      if (wait <= 0) {
+        if (panTrailingRef.current) {
+          clearTimeout(panTrailingRef.current)
+          panTrailingRef.current = null
+        }
+        lastPanSyncRef.current = now
+        flushCameraSync(vp)
+      } else if (panTrailingRef.current === null) {
+        panTrailingRef.current = setTimeout(() => {
+          panTrailingRef.current = null
+          lastPanSyncRef.current = performance.now()
+          if (!zoomingRef.current && latestVpRef.current)
+            flushCameraSync(latestVpRef.current)
+        }, wait)
+      }
+    },
+    [flushCameraSync]
+  )
+
+  useEffect(
+    () => () => {
+      if (panTrailingRef.current) clearTimeout(panTrailingRef.current)
+    },
+    []
   )
 
   // NOTE on sharpness: we deliberately do NOT GPU-promote the transform layer
@@ -621,10 +670,14 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         settleTimerRef.current = setTimeout(endZoom, 140)
         return
       }
-      // Panning and one-shot animations sync per frame so overlays track live.
-      flushCameraSync(vp)
+      // Pan (and one-shot animations): sync the screen-space overlays to the
+      // moving layers, throttled to ~60Hz so a 120Hz trackpad doesn't re-render
+      // + rebroadcast presence twice per painted frame. The heavy content tree
+      // doesn't re-render here — `CanvasMemberLayer` is memoized and its props
+      // are stable during a pan — so the per-flush cost is just the overlays.
+      flushCameraSyncThrottled(vp)
     },
-    [flushCameraSync, endZoom]
+    [flushCameraSyncThrottled, endZoom]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(

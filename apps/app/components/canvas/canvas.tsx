@@ -1098,31 +1098,44 @@ export function Canvas({
   // The selection → presence broadcast lives on the Canvas Camera controller now
   // (PRD #588) — the canvas presence owner.
 
-  // Collect other users' selections for the overlay
-  const othersSelections = others.map(({ presence }) => ({
-    selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
-    groupSelectedIframeLayerIds: presence.groupSelectedIframeLayerIds ?? [],
-    color: presence.color,
-    name: presence.identity.name || "Anonymous",
-  }))
-
-  // Per-layer color of the remote user who has it selected, used to tint that
-  // frame/doc name and group label to match the remote selection rect.
+  // Collect other users' selections for the overlay, plus the per-layer color
+  // of the remote user who has each id selected (used to tint that frame/doc
+  // name and group label to match the remote selection rect).
   // `remoteSelectionColors` covers directly-selected *and* group-member ids
   // (both get a tinted name); `remoteGroupSelectionColors` covers only group
   // members (drives the group label). First writer wins if two users overlap.
-  const remoteSelectionColors = new Map<string, string>()
-  const remoteGroupSelectionColors = new Map<string, string>()
-  for (const o of othersSelections) {
-    for (const id of o.selectedIframeLayerIds) {
-      if (!remoteSelectionColors.has(id)) remoteSelectionColors.set(id, o.color)
-    }
-    for (const id of o.groupSelectedIframeLayerIds) {
-      if (!remoteSelectionColors.has(id)) remoteSelectionColors.set(id, o.color)
-      if (!remoteGroupSelectionColors.has(id))
-        remoteGroupSelectionColors.set(id, o.color)
-    }
-  }
+  //
+  // Memoized on `others` so a pan — which rebroadcasts our own viewport ~60x/s
+  // but leaves the peer set untouched (see `useOtherPresences`) — doesn't
+  // rebuild these and re-render the memoized member layer every frame.
+  const { othersSelections, remoteSelectionColors, remoteGroupSelectionColors } =
+    useMemo(() => {
+      const othersSelections = others.map(({ presence }) => ({
+        selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
+        groupSelectedIframeLayerIds: presence.groupSelectedIframeLayerIds ?? [],
+        color: presence.color,
+        name: presence.identity.name || "Anonymous",
+      }))
+      const remoteSelectionColors = new Map<string, string>()
+      const remoteGroupSelectionColors = new Map<string, string>()
+      for (const o of othersSelections) {
+        for (const id of o.selectedIframeLayerIds) {
+          if (!remoteSelectionColors.has(id))
+            remoteSelectionColors.set(id, o.color)
+        }
+        for (const id of o.groupSelectedIframeLayerIds) {
+          if (!remoteSelectionColors.has(id))
+            remoteSelectionColors.set(id, o.color)
+          if (!remoteGroupSelectionColors.has(id))
+            remoteGroupSelectionColors.set(id, o.color)
+        }
+      }
+      return {
+        othersSelections,
+        remoteSelectionColors,
+        remoteGroupSelectionColors,
+      }
+    }, [others])
 
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -1357,7 +1370,7 @@ export function Canvas({
                     iframeLayers={iframeLayers}
                     markdownLayers={markdownLayers}
                     selection={selection}
-                    camera={camera}
+                    onIframeWheel={camera.handleIframeWheel}
                     reference={reference}
                     gesturePreview={gesturePreview}
                     gestureLayerHandlers={gestureLayerHandlers}
@@ -1376,7 +1389,8 @@ export function Canvas({
                     zoom={zoom}
                     spaceHeld={spaceHeld}
                     commentMode={commentMode}
-                    self={self}
+                    selfName={self?.identity.name || "Anonymous"}
+                    selfColor={self?.color || "#888888"}
                     editingDocumentLayerId={editingDocumentLayerId}
                     setEditingDocumentLayerId={setEditingDocumentLayerId}
                     focusedIframeLayerId={focusedIframeLayerId}
