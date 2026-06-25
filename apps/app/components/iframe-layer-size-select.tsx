@@ -44,7 +44,7 @@ export function IframeLayerSizeSelect({
           </span>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent position="item-aligned">
         {GROUPED_IFRAME_LAYER_SIZE_PRESETS.map((group, index) => {
           const Icon = IFRAME_LAYER_SIZE_CATEGORY_ICONS[group.category]
           return (

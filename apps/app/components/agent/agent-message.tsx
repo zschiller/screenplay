@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import Markdown from "react-markdown"
 import {
   ChevronDown,
@@ -87,24 +87,100 @@ const kindIcons: Record<string, typeof FileText> = {
   think: Sparkles,
 }
 
+/**
+ * Render an ACP tool-call title as plain text with inline `code` spans only.
+ *
+ * A generic ACP adapter (claude-code-acp) hands us an already human-readable
+ * title that may wrap a path or command in backticks (`Read `src/a.ts``). We
+ * deliberately DON'T run it through a full markdown parser: CommonMark silently
+ * mangles other text the title legitimately carries — `src/__init__.py` renders
+ * as bold "init" (losing the underscores), `[a](b)` becomes a link that drops
+ * its URL, and nested/unbalanced backticks from a shell command leak through as
+ * literal backticks. Instead we honor only balanced single-backtick code spans
+ * and emit everything else verbatim, so the title can never lose characters.
+ */
+function renderTitleWithCode(title: string): ReactNode[] {
+  const parts: ReactNode[] = []
+  const codeSpan = /`([^`]+)`/g
+  let last = 0
+  let match: RegExpExecArray | null
+  let key = 0
+  while ((match = codeSpan.exec(title)) !== null) {
+    if (match.index > last) parts.push(title.slice(last, match.index))
+    parts.push(
+      <code key={key++} className="align-baseline font-mono text-[11px]">
+        {match[1]}
+      </code>
+    )
+    last = match.index + match[0].length
+  }
+  if (last < title.length) parts.push(title.slice(last))
+  return parts
+}
+
 /** A short, human-readable detail for a tool call, derived from its raw input. */
 function toolDetail(title: string, raw: unknown): string | null {
   // `rawInput` is arbitrary JSON (ACP). Only object inputs carry a detail; an
   // array/scalar input has none to show.
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
   const rawInput = raw as Record<string, unknown>
-  if (title === "run_command") {
-    const cmd = [
-      rawInput.command,
-      ...((rawInput.args as string[] | undefined) ?? []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-    return cmd || null
-  }
+  if (title === "run_command") return toolCommand(raw)
   if (title === "read_skill") return (rawInput.name as string) ?? null
   if (title === "set_document_title") return (rawInput.title as string) ?? null
-  return rawInput.path ? String(rawInput.path) : null
+  return toolPath(raw)
+}
+
+/**
+ * The file path a tool call targets, normalized across engines: our in-process
+ * tools name it `path`; a generic ACP adapter (claude-code-acp) may instead use
+ * `file_path`/`abs_path`. Returns null when no path-like key is present.
+ */
+function toolPath(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  for (const key of ["path", "file_path", "filePath", "abs_path", "absPath"]) {
+    const v = r[key]
+    if (typeof v === "string" && v) return v
+  }
+  return null
+}
+
+/** A `run_command`-style call's full command line (`command` + `args`), or null. */
+function toolCommand(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  const cmd = [r.command, ...((r.args as string[] | undefined) ?? [])]
+    .filter(Boolean)
+    .join(" ")
+  return cmd || null
+}
+
+/**
+ * How many file lines a read returned, counted from the gutter-numbered result
+ * text — the in-process engine numbers lines `<n>\t…`, claude-code-acp `<n>→…`.
+ * Returns null when there are no numbered lines (still running, an empty file,
+ * or a non-file read), so the caller falls back to a plain "Read".
+ */
+function readLineCount(content: ToolCallContent[]): number | null {
+  const text = content
+    .map((b) =>
+      b.type === "content" && b.content.type === "text" ? b.content.text : ""
+    )
+    .join("\n")
+  const matches = text.match(/^[ \t]*\d+(?:\t|→)/gm)
+  return matches ? matches.length : null
+}
+
+/**
+ * The verb a structured tool call leads with, keyed by ACP `kind` so a generic
+ * adapter's prose title ("Read File") renders with the same word our own tools
+ * do. Only the kinds we can also reconstruct a detail for are listed; an unlisted
+ * kind (fetch/think/other) keeps the adapter's prose title verbatim instead.
+ */
+const KIND_VERB: Record<string, string> = {
+  read: "Read",
+  edit: "Edit",
+  execute: "Run command",
 }
 
 function CreatePrIndicator({
@@ -352,15 +428,38 @@ function ToolCallIndicator({
     toolIcons[message.title] ??
     (message.kind ? kindIcons[message.kind] : undefined) ??
     Terminal
-  // Screenplay's own tools report a raw snake_case name we humanize + decorate
-  // with a derived `detail`. A generic ACP adapter sends an already
-  // human-readable title (often containing markdown `code`), which we render
-  // as inline markdown rather than re-casing or appending a detail.
+  // Render every engine's tool call the same way: derive the verb + detail from
+  // the tool identity (`kind` / raw name) and `rawInput`, not from whatever prose
+  // title an adapter happens to send — so an in-process `read_file` and a
+  // claude-code-acp "Read File" both show "Read N lines `path`". Our own tools
+  // report a raw snake_case name (humanized + given a derived detail); a generic
+  // adapter's prose title is normalized via its ACP `kind`. A call we can't
+  // structure (an unknown kind with no recognizable input) keeps the adapter's
+  // prose title verbatim, rendered with inline `code` only.
   const isRawToolName = RAW_TOOL_NAME.test(message.title)
-  const label = isRawToolName ? formatToolName(message.title) : message.title
+  const path = toolPath(message.rawInput)
   const detail = isRawToolName
     ? toolDetail(message.title, message.rawInput)
-    : null
+    : message.kind === "execute"
+      ? toolCommand(message.rawInput)
+      : path
+  const verb = isRawToolName
+    ? formatToolName(message.title)
+    : message.kind
+      ? (KIND_VERB[message.kind] ?? null)
+      : null
+  // A read leads with the line count it returned ("Read 42 lines"); other tools
+  // just show their verb. Gated on a path so a `read_skill`/`list_files` (also
+  // `kind: "read"`) never sprouts a spurious line count.
+  const lineCount =
+    message.kind === "read" && path ? readLineCount(message.content) : null
+  const label =
+    lineCount != null
+      ? `${verb} ${lineCount} ${lineCount === 1 ? "line" : "lines"}`
+      : verb
+  // Structure it when we have a real verb (our own raw tool, or a known kind we
+  // could attach a detail to); otherwise fall back to the adapter's prose title.
+  const structured = isRawToolName || (verb != null && detail != null)
   const hasContent = message.content.length > 0
 
   return (
@@ -391,7 +490,7 @@ function ToolCallIndicator({
           <Icon className="h-3 w-3 shrink-0" />
         )}
         <span className="flex-1 truncate">
-          {isRawToolName ? (
+          {structured ? (
             <>
               {label}
               {detail ? (
@@ -404,20 +503,7 @@ function ToolCallIndicator({
               ) : null}
             </>
           ) : (
-            <Markdown
-              components={{
-                // Render the title inline: unwrap the default block <p> and
-                // style inline `code` to match the derived-detail chip.
-                p: ({ children }) => <>{children}</>,
-                code: ({ children }) => (
-                  <code className="align-baseline font-mono text-[11px]">
-                    {children}
-                  </code>
-                ),
-              }}
-            >
-              {label}
-            </Markdown>
+            renderTitleWithCode(message.title)
           )}
         </span>
         {hasContent && (
@@ -635,8 +721,8 @@ export function AgentMessageItem({
 
     case "error":
       return (
-        <div className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[10px] text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+        <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+          <AlertCircle className="h-3 w-3 shrink-0" />
           {message.content}
         </div>
       )

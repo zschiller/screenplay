@@ -44,7 +44,7 @@ import {
   GitPullRequestClosed,
   Plus,
   FolderOpen,
-  Link2,
+  Globe,
   Trash2,
   MoreHorizontal,
   Pencil,
@@ -82,17 +82,20 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from "@workspace/ui/components/popover"
-import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@workspace/ui/components/dialog"
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+} from "@workspace/ui/components/field"
+import { Input } from "@workspace/ui/components/input"
 import { Kbd } from "@workspace/ui/components/kbd"
 import {
   Tooltip,
@@ -1406,70 +1409,75 @@ export function RoomSidebar({
             <BranchesDropHintContext.Provider value={branchesDropHint}>
               <SidebarGroup className="pt-0">
                 <SidebarGroupLabel>Projects</SidebarGroupLabel>
-                <Popover
+                <Dialog
                   open={showPicker}
                   onOpenChange={(open) => {
-                    // Desktop opens the picker through the dropdown (no
-                    // PopoverTrigger fires `true`); web's trigger opens it
-                    // straight to the repo/URL view. Either way, dismissing
-                    // closes it.
+                    // Desktop opens the picker through the menu (the GitHub item
+                    // sets `pickerView`); web's trigger opens the GitHub modal
+                    // straight away. Either way, dismissing closes it.
                     if (!open) setPickerView(null)
                     else if (!isLocalBuild) setPickerView("repos")
                   }}
                 >
                   {isLocalBuild ? (
-                    // Desktop: the trigger opens a dropdown first — "GitHub /
-                    // URL" reveals the picker, "Open a folder" fires the native
-                    // directory dialog directly (#604). The PopoverAnchor keeps
-                    // the picker pinned to the trigger even though the dropdown
-                    // owns the click.
+                    // Desktop: the trigger opens a menu first — "Open project"
+                    // fires the native directory dialog directly, "Open GitHub
+                    // project" opens the GitHub picker modal (#604).
                     <DropdownMenu>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <PopoverAnchor asChild>
-                            <DropdownMenuTrigger asChild>
-                              <SidebarGroupAction className="top-1.5">
-                                <FolderPlus />
-                              </SidebarGroupAction>
-                            </DropdownMenuTrigger>
-                          </PopoverAnchor>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarGroupAction className="top-1.5">
+                              <FolderPlus />
+                            </SidebarGroupAction>
+                          </DropdownMenuTrigger>
                         </TooltipTrigger>
                         <TooltipContent side="right">
                           Add project
                         </TooltipContent>
                       </Tooltip>
-                      <DropdownMenuContent side="bottom" align="end">
+                      <DropdownMenuContent
+                        side="bottom"
+                        align="end"
+                        // The menu closes as the GitHub item opens the modal.
+                        // Letting it restore focus to the trigger fights the
+                        // dialog's own focus trap, so suppress the focus-return.
+                        onCloseAutoFocus={(event) => event.preventDefault()}
+                      >
+                        <DropdownMenuItem onSelect={openLocalFolder}>
+                          <FolderOpen />
+                          Open project
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() => setPickerView("repos")}
                         >
-                          <Link2 />
-                          GitHub / URL
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={openLocalFolder}>
-                          <FolderOpen />
-                          Open a folder
+                          <Globe />
+                          Open GitHub project
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
-                    // Web has no folder source: the trigger opens the picker
-                    // directly, no dropdown (#604).
+                    // Web has no folder source: the trigger opens the GitHub
+                    // picker modal directly, no menu (#604).
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <PopoverTrigger asChild>
+                        <DialogTrigger asChild>
                           <SidebarGroupAction className="top-1.5">
                             <FolderPlus />
                           </SidebarGroupAction>
-                        </PopoverTrigger>
+                        </DialogTrigger>
                       </TooltipTrigger>
                       <TooltipContent side="right">Add project</TooltipContent>
                     </Tooltip>
                   )}
-                  <PopoverContent
-                    className="w-72 p-0"
-                    side="bottom"
-                    align="end"
-                  >
+                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0">
+                    <DialogHeader className="px-4 pt-4 pb-2">
+                      <DialogTitle>
+                        {pickerView === "folder"
+                          ? "Open project"
+                          : "Open GitHub project"}
+                      </DialogTitle>
+                    </DialogHeader>
                     {pickerView === "folder" ? (
                       <LocalFolderForm
                         onBack={() => setPickerView(null)}
@@ -1491,8 +1499,8 @@ export function RoomSidebar({
                         }}
                       />
                     )}
-                  </PopoverContent>
-                </Popover>
+                  </DialogContent>
+                </Dialog>
                 <SidebarGroupContent>
                   {/* gap-0 + RepoGap strips (not flex `gap`) so repos reorder by
                   dropping between whole repos, exactly like the canvas list. */}
@@ -1670,7 +1678,7 @@ export function RoomSidebar({
                                     }
                                   >
                                     <DialogContent
-                                      className="max-w-sm"
+                                      className="sm:max-w-lg"
                                       // Nested in the dnd-kit sortable row: stop key
                                       // and pointer events from bubbling (React tree,
                                       // through the portal) to the row's sensors. The
@@ -1680,9 +1688,6 @@ export function RoomSidebar({
                                       onKeyDown={(e) => e.stopPropagation()}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      <DialogHeader className="sr-only">
-                                        <DialogTitle>Settings</DialogTitle>
-                                      </DialogHeader>
                                       <RepoSettings
                                         repo={repo}
                                         onUpdate={onUpdateRepo}
@@ -2537,52 +2542,58 @@ function RepoSettings({
     trimmedSystemPrompt !== (repo.systemPrompt ?? "")
 
   return (
-    <div className="space-y-3">
-      <span className="text-[10px] font-medium tracking-wide text-sidebar-foreground/70 uppercase">
-        Settings
-      </span>
+    <>
+      <DialogHeader>
+        <DialogTitle>Project settings</DialogTitle>
+        <DialogDescription>
+          Defaults applied when new workspaces for {repo.repoFullName} are
+          created.
+        </DialogDescription>
+      </DialogHeader>
 
-      <div>
-        <label className="mb-1 block text-[10px] text-sidebar-foreground/70">
-          Name
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={repo.repoFullName}
-          className="w-full rounded-md border border-sidebar-border bg-sidebar px-2.5 py-1.5 text-[11px] placeholder:text-sidebar-foreground/50 focus:ring-1 focus:ring-sidebar-ring focus:outline-none"
+      <div className="-mx-4 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-4">
+        <Field>
+          <FieldLabel htmlFor="repo-settings-name">Label</FieldLabel>
+          <Input
+            id="repo-settings-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={repo.repoFullName}
+          />
+          <FieldDescription>Optional workspace label.</FieldDescription>
+        </Field>
+
+        <RepoSettingsFields
+          idPrefix="repo-settings"
+          setupScript={setupScript}
+          onSetupScriptChange={setSetupScript}
+          devScript={devScript}
+          onDevScriptChange={setDevScript}
+          devServerPort={devServerPort}
+          onDevServerPortChange={setDevServerPort}
+          envVars={envVars}
+          onEnvVarsChange={setEnvVars}
+          copyPatterns={copyPatterns}
+          onCopyPatternsChange={setCopyPatterns}
+          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
         />
       </div>
 
-      <RepoSettingsFields
-        idPrefix="repo-settings"
-        setupScript={setupScript}
-        onSetupScriptChange={setSetupScript}
-        devScript={devScript}
-        onDevScriptChange={setDevScript}
-        devServerPort={devServerPort}
-        onDevServerPortChange={setDevServerPort}
-        envVars={envVars}
-        onEnvVarsChange={setEnvVars}
-        copyPatterns={copyPatterns}
-        onCopyPatternsChange={setCopyPatterns}
-        defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-        onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-        systemPrompt={systemPrompt}
-        onSystemPromptChange={setSystemPrompt}
-      />
-
-      <div className="flex items-center gap-2">
+      <DialogFooter>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
         <Button
           size="sm"
-          className="flex-1 text-xs"
           onClick={handleSave}
           disabled={!hasChanges || !portIsValid}
         >
           Save
         </Button>
-      </div>
-    </div>
+      </DialogFooter>
+    </>
   )
 }

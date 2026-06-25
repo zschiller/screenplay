@@ -289,24 +289,50 @@ export function useCanvasSelection(
     [iframeLayerIds, groupIds, documentLayerIds, groupSnapshots]
   )
 
-  return {
-    iframeLayerIds,
-    groupIds,
-    documentLayerIds,
-    overlaySelectedIds,
-    groupSelectedIframeLayerIds,
-    current,
-    selectIframeLayer,
-    selectGroup,
-    selectDocumentLayer,
-    selectMember,
-    applyMarquee,
-    clear,
-    deleteSelected,
-    removeIframeLayerAndReselect,
-    removeGroupFromSelection,
-    setIframeLayerIds,
-    setGroupIds,
-    setDocumentLayerIds,
-  }
+  // Memoized so the controller keeps a stable reference between renders: it's
+  // passed whole to the (memoized) flat member layer, and every field below is
+  // already individually stable (state values + `useCallback`s), so a fresh
+  // object each render would needlessly re-render every Layer on a pan.
+  return useMemo(
+    () => ({
+      iframeLayerIds,
+      groupIds,
+      documentLayerIds,
+      overlaySelectedIds,
+      groupSelectedIframeLayerIds,
+      current,
+      selectIframeLayer,
+      selectGroup,
+      selectDocumentLayer,
+      selectMember,
+      applyMarquee,
+      clear,
+      deleteSelected,
+      removeIframeLayerAndReselect,
+      removeGroupFromSelection,
+      setIframeLayerIds,
+      setGroupIds,
+      setDocumentLayerIds,
+    }),
+    [
+      iframeLayerIds,
+      groupIds,
+      documentLayerIds,
+      overlaySelectedIds,
+      groupSelectedIframeLayerIds,
+      current,
+      selectIframeLayer,
+      selectGroup,
+      selectDocumentLayer,
+      selectMember,
+      applyMarquee,
+      clear,
+      deleteSelected,
+      removeIframeLayerAndReselect,
+      removeGroupFromSelection,
+      setIframeLayerIds,
+      setGroupIds,
+      setDocumentLayerIds,
+    ]
+  )
 }

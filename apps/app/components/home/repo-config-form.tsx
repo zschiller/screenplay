@@ -4,8 +4,13 @@ import { useState } from "react"
 import { nanoid } from "nanoid"
 import { FolderOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { RepoPicker } from "@/components/repo-picker"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
@@ -234,27 +239,23 @@ export function RepoConfigForm({
       </div>
 
       <ScrollArea className="max-h-[60vh]">
-        <div className="flex flex-col gap-3 pr-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="config-name">
-              Preset name{" "}
-              <span className="font-normal text-muted-foreground/70">
-                (optional, e.g. “web” or “api”)
-              </span>
-            </Label>
+        <div className="flex flex-col gap-5 pr-3">
+          <Field>
+            <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
             <Input
               id="config-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="default"
             />
+            <FieldDescription>Optional, e.g. “web” or “api”.</FieldDescription>
             {nameCollision && (
-              <p className="text-xs text-destructive">
+              <FieldError>
                 A preset named “{trimmedName || "default"}” already exists for
                 this repo.
-              </p>
+              </FieldError>
             )}
-          </div>
+          </Field>
 
           <RepoSettingsFields
             idPrefix="config"

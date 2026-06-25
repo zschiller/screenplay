@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -685,6 +686,31 @@ export function useCanvasGesture(
    *  suppress the hover outline. */
   const isLayerDragging = useCallback(() => layerDraggingRef.current, [])
 
+  // Stable reference for the Layer drag/resize callbacks: these handlers are
+  // passed whole to the (memoized) flat member layer, so a fresh object each
+  // render would re-render every Layer on every canvas state change (e.g. a
+  // pan). The callbacks themselves are already `useCallback`-stable.
+  const layerHandlers = useMemo(
+    () => ({
+      onGroupDragStart,
+      onGroupDragEnd,
+      onMove,
+      onRequestReorderDrag,
+      onResizeStart,
+      onResize,
+      onResizeEnd,
+    }),
+    [
+      onGroupDragStart,
+      onGroupDragEnd,
+      onMove,
+      onRequestReorderDrag,
+      onResizeStart,
+      onResize,
+      onResizeEnd,
+    ]
+  )
+
   return {
     preview,
     dispatch,
@@ -701,14 +727,6 @@ export function useCanvasGesture(
       onPointerUp,
     },
     /** Callbacks the Layer components dispatch their drag/resize through. */
-    layerHandlers: {
-      onGroupDragStart,
-      onGroupDragEnd,
-      onMove,
-      onRequestReorderDrag,
-      onResizeStart,
-      onResize,
-      onResizeEnd,
-    },
+    layerHandlers,
   }
 }

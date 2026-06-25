@@ -45,6 +45,13 @@ function harness(seedStatus: RunStatus = "running") {
   // Tool calls persist *in place* by id, so the harness mirrors the live
   // upsert with a Map — its final values are the durable records.
   const toolCalls = new Map<string, AcpToolCallRecord>()
+  // The durable writes in the order they happened, across both ports, so a test
+  // can assert that narration lands *between* tool calls (the reload ordering)
+  // rather than batched at turn end. Tool entries carry the call id (an upsert
+  // appears once per status transition); record entries carry the record.
+  const writeLog: Array<
+    { kind: "record"; record: AcpMessageRecord } | { kind: "tool"; id: string }
+  > = []
   let ends = 0
 
   const rows = new Map<string, RunStatus>([["run_1", seedStatus]])
@@ -81,9 +88,11 @@ function harness(seedStatus: RunStatus = "running") {
     },
     async appendRecord(record) {
       records.push(record)
+      writeLog.push({ kind: "record", record })
     },
     async upsertToolCall(record) {
       toolCalls.set(record.toolCallId, record)
+      writeLog.push({ kind: "tool", id: record.toolCallId })
     },
     async transition(to) {
       await runState.transition("run_1", to)
@@ -105,6 +114,7 @@ function harness(seedStatus: RunStatus = "running") {
     records,
     pausedCalls,
     toolCalls,
+    writeLog,
     statusOf: () => rows.get("run_1"),
     endCount: () => ends,
   }
@@ -307,6 +317,110 @@ describe("AcpUpdateConsumer — text path", () => {
     expect(h.errors).toEqual(["boom"])
     expect(h.statusOf()).toBe("failed")
     expect(h.endCount()).toBe(1)
+  })
+})
+
+// The reload bug this guards: narration used to be accumulated across the whole
+// turn and flushed once at the end, so on reload it sorted *after* every tool
+// call (which persist when first seen) and all its segments collapsed into one
+// concatenated, separator-less block. These pin that each contiguous run is
+// flushed at its boundary, in arrival order — the interleaving the live stream
+// showed and the durable log must reproduce.
+describe("AcpUpdateConsumer — reload ordering (flush on boundary)", () => {
+  it("flushes narration around a tool call so it persists in arrival order, not batched at turn end", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("Reading the file.") },
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "c1", title: "read_file" }),
+      },
+      {
+        kind: "session_update",
+        update: toolCallUpdate({ toolCallId: "c1", status: "completed" }),
+      },
+      { kind: "session_update", update: agentMessageChunk("Found it.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    // Two distinct agent records — the narration is split at the tool boundary,
+    // never merged into one "Reading the file.Found it." block.
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      { role: "agent", content: [{ type: "text", text: "Reading the file." }] },
+      { role: "agent", content: [{ type: "text", text: "Found it." }] },
+    ])
+    // …and the durable writes interleave: pre-call narration, the call's
+    // updates, then post-call narration — the exact reload order.
+    expect(h.writeLog).toEqual([
+      {
+        kind: "record",
+        record: {
+          role: "agent",
+          content: [{ type: "text", text: "Reading the file." }],
+        },
+      },
+      { kind: "tool", id: "c1" },
+      { kind: "tool", id: "c1" },
+      {
+        kind: "record",
+        record: { role: "agent", content: [{ type: "text", text: "Found it." }] },
+      },
+    ])
+    expect(h.statusOf()).toBe("completed")
+  })
+
+  it("flushes reasoning then reply at the stream switch, both ahead of the tool call", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentThoughtChunk("Let me check.") },
+      { kind: "session_update", update: agentMessageChunk("I'll read it.") },
+      {
+        kind: "session_update",
+        update: toolCallStart({ toolCallId: "c1", title: "read_file" }),
+      },
+      { kind: "session_update", update: agentMessageChunk("Done.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    expect(h.writeLog).toEqual([
+      {
+        kind: "record",
+        record: {
+          role: "thought",
+          content: [{ type: "text", text: "Let me check." }],
+        },
+      },
+      {
+        kind: "record",
+        record: {
+          role: "agent",
+          content: [{ type: "text", text: "I'll read it." }],
+        },
+      },
+      { kind: "tool", id: "c1" },
+      {
+        kind: "record",
+        record: { role: "agent", content: [{ type: "text", text: "Done." }] },
+      },
+    ])
+  })
+
+  it("splits reply→reasoning→reply into three records even with no tool between", async () => {
+    const h = harness()
+    await feed(h.consumer, [
+      { kind: "session_update", update: agentMessageChunk("First.") },
+      { kind: "session_update", update: agentThoughtChunk("Reconsidering.") },
+      { kind: "session_update", update: agentMessageChunk("Second.") },
+      { kind: "done", stopReason: "end_turn" },
+    ])
+
+    // The reasoning breaks the reply stream, so the two replies stay separate
+    // records rather than concatenating into "First.Second.".
+    expect(h.records).toEqual<AcpMessageRecord[]>([
+      { role: "agent", content: [{ type: "text", text: "First." }] },
+      { role: "thought", content: [{ type: "text", text: "Reconsidering." }] },
+      { role: "agent", content: [{ type: "text", text: "Second." }] },
+    ])
   })
 })
 
