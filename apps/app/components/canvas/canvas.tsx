@@ -375,11 +375,14 @@ export function Canvas({
   })
   const zoom = camera.zoom
   const viewportPos = camera.viewportPos
-  const isPanning = camera.isPanning
-  // True only during an active zoom. The screen-space overlays/underlays read
-  // `zoom`/`viewportPos`, which the camera intentionally stops syncing mid-zoom
-  // (perf), so they'd lag the content and snap on settle — hide them instead.
-  // Panning still syncs per frame, so overlays stay live during a pan.
+  // Drives the `grabbing` cursor — drag pans only, so a trackpad pan doesn't
+  // flip the cursor to a grabbing hand.
+  const isDragPanning = camera.isDragPanning
+  // The screen-space overlays/underlays read `zoom`/`viewportPos`, which the
+  // camera intentionally stops syncing mid-zoom AND mid-pan (perf — the layers
+  // glide imperatively). Frozen, the overlays would lag the content and snap on
+  // settle, so hide them for the duration of either gesture.
+  const isCameraMoving = camera.isZooming || camera.isPanning
   const isZooming = camera.isZooming
   const followingConnectionId = camera.followingConnectionId
 
@@ -1274,7 +1277,7 @@ export function Canvas({
             ref={canvasWrapperRef}
             style={{
               clipPath: "inset(0)",
-              cursor: isPanning
+              cursor: isDragPanning
                 ? "grabbing"
                 : spaceHeld
                   ? "grab"
@@ -1420,9 +1423,9 @@ export function Canvas({
               style={{
                 transformOrigin: "0 0",
                 transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
-                // Hidden mid-zoom: this transform reads the deferred zoom/
-                // viewportPos, so it would lag the canvas and snap on settle.
-                visibility: isZooming ? "hidden" : undefined,
+                // Hidden mid-zoom AND mid-pan: this transform reads the deferred
+                // zoom/viewportPos, so it would lag the canvas and snap on settle.
+                visibility: isCameraMoving ? "hidden" : undefined,
               }}
             >
               <Comments
@@ -1466,11 +1469,12 @@ export function Canvas({
               className="pointer-events-none absolute inset-0 z-30"
             />
 
-            {/* `hidden` mid-zoom — it reads the deferred zoom/viewportPos, so
-                it would lag the canvas and snap on settle. Passed as a prop (not
-                a wrapper) because the canvas sizes itself from its parent. */}
+            {/* `hidden` mid-zoom and mid-pan — it reads the deferred zoom/
+                viewportPos, so it would lag the canvas and snap on settle.
+                Passed as a prop (not a wrapper) because the canvas sizes itself
+                from its parent. */}
             <SelectionOverlay
-              hidden={isZooming}
+              hidden={isCameraMoving}
               zoom={zoom}
               viewportPos={viewportPos}
               selectedIframeLayerIds={overlaySelectedIds}

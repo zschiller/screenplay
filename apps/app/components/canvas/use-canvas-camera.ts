@@ -72,7 +72,15 @@ export interface CanvasCameraDeps {
 export interface CanvasCamera {
   zoom: number
   viewportPos: { x: number; y: number }
+  /** True while the camera is panning (trackpad/wheel OR drag) — the per-frame
+   *  React/presence sync is deferred and the screen-space overlays hide, exactly
+   *  like {@link isZooming}. The layers still glide imperatively; the overlays
+   *  (which read the frozen `viewportPos`) would otherwise lag and snap. */
   isPanning: boolean
+  /** True only during an rzpp *drag* pan (space+drag / middle-click). Drives the
+   *  `grabbing` cursor — kept separate from {@link isPanning} so a plain
+   *  two-finger trackpad pan doesn't flip the cursor to a grabbing hand. */
+  isDragPanning: boolean
   /** True while a zoom (pinch / wheel+ctrl) is in flight — overlays hide and
    *  the transform layer is GPU-promoted until it settles. */
   isZooming: boolean
@@ -160,6 +168,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const [zoom, setZoom] = useState(1)
   const [viewportPos, setViewportPos] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
+  const [isDragPanning, setIsDragPanning] = useState(false)
   const [followingConnectionId, setFollowingConnectionId] = useState<
     number | null
   >(null)
@@ -288,6 +297,50 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     zoomingRef.current = true
     setIsZooming(true)
   }, [])
+
+  // --- Pan defer (mirror of the zoom defer above) ---
+  // A pan keeps `scale` constant, so the layers just glide imperatively under
+  // rzpp's transform — the same free ride zoom gets. The cost is the screen-
+  // space overlays (selection rings, comment pins, snap guides): they bake
+  // `viewportPos` into each child's coords, so the old code re-rendered the
+  // whole stack on every flushed frame to keep them tracking. That per-frame
+  // overlay render — NOT iframe paint — is the pan jank (proof: a zoom keeps
+  // the same iframes on screen yet stays smooth precisely because it hides the
+  // overlays and stops syncing). So pan now does exactly what zoom does: raise
+  // `isPanning` to hide the overlays, skip the per-frame React/presence sync,
+  // and flush once on settle. Wheel pans have no "end" event, so a watchdog
+  // (re-armed each frame in `onTransform`) lands the final flush; drag pans end
+  // explicitly via rzpp's `onPanningStop`.
+  const panningRef = useRef(false)
+  const dragPanningRef = useRef(false)
+  const panSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const endPan = useCallback(() => {
+    if (panSettleTimerRef.current) {
+      clearTimeout(panSettleTimerRef.current)
+      panSettleTimerRef.current = null
+    }
+    if (!panningRef.current) return
+    panningRef.current = false
+    setIsPanning(false)
+    // A zoom may have started before the pan watchdog fired — leave the flush to
+    // the zoom's own settle so we don't sync a stale mid-zoom viewport.
+    if (!zoomingRef.current && latestVpRef.current)
+      flushCameraSync(latestVpRef.current)
+  }, [flushCameraSync])
+
+  const beginPan = useCallback(() => {
+    if (panningRef.current) return
+    panningRef.current = true
+    setIsPanning(true)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (panSettleTimerRef.current) clearTimeout(panSettleTimerRef.current)
+    },
+    []
+  )
 
   // Restore the saved viewport once it arrives (covers the case where the
   // synced viewport lands after TransformWrapper's onInit already fired).
@@ -492,7 +545,10 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         const newPosY = cursorY - (cursorY - positionY) * ratio
         ref.setTransform(newPosX, newPosY, newScale, 0)
       } else {
-        // Plain wheel = pan; sync per frame so overlays track live.
+        // Plain wheel = pan. Defer the overlay/presence sync (the watchdog in
+        // onTransform flushes once the burst stops — wheel has no "end" event)
+        // and hide the screen-space overlays; the layers glide imperatively.
+        beginPan()
         const { positionX, positionY, scale } = ref.state
         ref.setTransform(positionX - e.deltaX, positionY - e.deltaY, scale, 0)
       }
@@ -507,6 +563,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     focusedIframeLayerId,
     createFlowIframeLayerId,
     beginZoom,
+    beginPan,
   ])
 
   // --- WebKit pinch zoom (Safari-only legacy GestureEvent) ---
@@ -647,9 +704,15 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
 
   const onPanningStart = useCallback(() => {
     breakFollow()
-    setIsPanning(true)
-  }, [breakFollow])
-  const onPanningStop = useCallback(() => setIsPanning(false), [])
+    dragPanningRef.current = true
+    setIsDragPanning(true)
+    beginPan()
+  }, [breakFollow, beginPan])
+  const onPanningStop = useCallback(() => {
+    dragPanningRef.current = false
+    setIsDragPanning(false)
+    endPan()
+  }, [endPan])
 
   const onPinchStart = useCallback(() => {
     breakFollow()
@@ -670,14 +733,23 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         settleTimerRef.current = setTimeout(endZoom, 140)
         return
       }
-      // Pan (and one-shot animations): sync the screen-space overlays to the
-      // moving layers, throttled to ~60Hz so a 120Hz trackpad doesn't re-render
-      // + rebroadcast presence twice per painted frame. The heavy content tree
-      // doesn't re-render here — `CanvasMemberLayer` is memoized and its props
-      // are stable during a pan — so the per-flush cost is just the overlays.
+      if (panningRef.current) {
+        // Mid-pan: same deal as zoom — the overlays are hidden, so skip the
+        // per-frame sync entirely. A wheel pan has no "end" event, so re-arm the
+        // settle watchdog each frame; a drag pan ends via `onPanningStop`, which
+        // flushes explicitly, so it needs no watchdog here.
+        if (!dragPanningRef.current) {
+          if (panSettleTimerRef.current) clearTimeout(panSettleTimerRef.current)
+          panSettleTimerRef.current = setTimeout(endPan, 140)
+        }
+        return
+      }
+      // One-shot / animated programmatic moves (zoomToElement, follow, restore):
+      // not flagged as an interactive pan, so keep the overlays visible and sync
+      // them to the moving layers, throttled to ~60Hz.
       flushCameraSyncThrottled(vp)
     },
-    [flushCameraSyncThrottled, endZoom]
+    [flushCameraSyncThrottled, endZoom, endPan]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(
@@ -730,6 +802,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     zoom,
     viewportPos,
     isPanning,
+    isDragPanning,
     isZooming,
     followingConnectionId,
     follow,
