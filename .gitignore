@@ -53,3 +53,7 @@ apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/resources/sidecar.tar.gz
 apps/desktop/.build-pglite/
+
+# desktop release credentials — issue #631 (never commit signing secrets)
+apps/desktop/.env.release
+apps/desktop/*.p8
