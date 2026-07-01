@@ -1,19 +1,20 @@
-// Regenerate `src-tauri/icons/icon.car` from the Icon Composer source
+// Compile `src-tauri/icons/icon.car` from the Icon Composer source
 // `src-tauri/icons/icon.icon` (macOS 26 Liquid Glass app icon).
 //
 //   node apps/desktop/scripts/build-icon.mjs
 //
-// Why a committed, pre-compiled `.car` instead of letting Tauri run actool at
-// build time: Tauri 2.11 will compile a `.icon` in `bundle.icon` via `actool`,
-// but that path is fragile — actool ships only with full Xcode (not the Command
-// Line Tools), and its `ibtoold` daemon intermittently wedges into a crash loop
-// ("attempt to insert nil object"). Tauri's bundler has an escape hatch: if
-// `bundle.icon` contains an already-compiled `.car`, it copies it and skips
-// actool entirely (and still reads CFBundleIconName from it via assetutil). So
-// we compile once here, commit the result, and point `bundle.icon` at it —
-// making the release build deterministic and Xcode-optional.
+// Runs as a build step — release.mjs invokes it before `tauri build`, and the
+// generated `.car` is gitignored, never committed. Why we compile it ourselves
+// instead of letting Tauri run actool on the `.icon`: Tauri 2.11 can, but its
+// invocation is fragile and swallows actool's output — actool ships only with
+// full Xcode (not the Command Line Tools), and its `ibtoold` daemon
+// intermittently wedges into a crash loop ("attempt to insert nil object").
+// Tauri's bundler has an escape hatch: if `bundle.icon` contains an
+// already-compiled `.car`, it copies it and skips actool entirely (and still
+// reads CFBundleIconName from it via assetutil). So `bundle.icon` points at
+// the `.car` this script produces.
 //
-// Requires full Xcode (for actool). Run whenever icon.icon changes.
+// Requires full Xcode (for actool) — fails loudly if it's missing.
 //
 // The two things that make actool actually emit a .car (both learned the hard
 // way): a healthy ibtoold (we kill it first to clear a wedged state) and the

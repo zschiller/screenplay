@@ -175,6 +175,14 @@ if (releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID) {
   buildEnv.SCREENPLAY_GITHUB_CLIENT_ID = releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID
 }
 
+// Compile the Liquid Glass icon catalog (Assets.car) from icons/icon.icon.
+// The generated .car is gitignored; bundle.icon points at it, which makes
+// Tauri copy it verbatim instead of running its own (fragile) actool path.
+// Runs first: it's seconds, and needs full Xcode — fail here, not after the
+// 20-minute build.
+log("compiling Liquid Glass icon…")
+run(process.execPath, [join(here, "build-icon.mjs")], { cwd: desktopDir })
+
 // buildEnv carries APPLE_SIGNING_IDENTITY so build-sidecar signs the nested
 // native binaries (node-pty, sharp, keyring, leveldown …) before packing them
 // into the tarball — the notary service validates every Mach-O inside it, and
@@ -201,6 +209,27 @@ const dmgPath = join(
 )
 if (!existsSync(appPath)) fail(`Expected bundle missing: ${appPath}`)
 if (!existsSync(dmgPath)) fail(`Expected disk image missing: ${dmgPath}`)
+
+// Tauri notarizes only the .app; the dmg needs its own ticket or Gatekeeper
+// rejects it as "Unnotarized Developer ID" (and the offline fresh-Mac install
+// depends on the *dmg's* staple — that's the artifact users download).
+// notarytool's exit code isn't a reliable Invalid signal, but the staple and
+// the spctl assessment below both hard-fail without an accepted ticket.
+log("notarizing the dmg…")
+run("xcrun", [
+  "notarytool",
+  "submit",
+  dmgPath,
+  "--key",
+  apiKeyPath,
+  "--key-id",
+  releaseEnv.APPLE_API_KEY,
+  "--issuer",
+  releaseEnv.APPLE_API_ISSUER,
+  "--wait",
+])
+log("stapling the notarization ticket onto the dmg…")
+run("xcrun", ["stapler", "staple", dmgPath])
 
 log("verifying code signature…")
 run("codesign", ["--verify", "--strict", "--verbose=2", appPath])
