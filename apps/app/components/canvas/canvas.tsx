@@ -114,6 +114,10 @@ import { CanvasToolbar } from "./canvas-toolbar"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
 
+// Stable empty set for the "no pick armed → nothing dimmed" case, so the
+// memoized member layer isn't handed a fresh Set identity every render.
+const EMPTY_DIMMED_IDS: ReadonlySet<string> = new Set()
+
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
 // streaming logs — otherwise flipping selection now shows an empty chat panel.
@@ -1119,6 +1123,41 @@ export function Canvas({
     setTargetPick(req)
   }, [])
 
+  // Publish which branches currently have an eligible (open) frame so each
+  // branch's Composer can disable its target affordance when picking would have
+  // nothing to hit (#619). A branch is targetable exactly when some frame on the
+  // canvas is assigned to it — the same `branchId` match `eligibleTargetFrames`
+  // makes. Cleared on unmount so a stale set doesn't outlive the Room.
+  const eligibleTargetBranchIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const layer of iframeLayers) {
+      if (layer.branchId) ids.add(layer.branchId)
+    }
+    return ids
+  }, [iframeLayers])
+  useEffect(() => {
+    targetingStore.publishEligibleBranches(eligibleTargetBranchIds)
+  }, [eligibleTargetBranchIds])
+  useEffect(() => {
+    return () => targetingStore.publishEligibleBranches(new Set())
+  }, [])
+
+  // During a pick, dim every frame that isn't eligible for the requesting branch
+  // so it's visually clear what can be targeted; the eligible frames stay at full
+  // opacity and are the only ones the hit-test (below) resolves against. Empty
+  // (no dimming) whenever no pick is armed.
+  const dimmedIframeLayerIds = useMemo(() => {
+    if (!targetPick) return EMPTY_DIMMED_IDS
+    const eligible = new Set(
+      eligibleTargetFrames(targetPick.branchId, iframeLayers).map((l) => l.id)
+    )
+    const dimmed = new Set<string>()
+    for (const layer of iframeLayers) {
+      if (!eligible.has(layer.id)) dimmed.add(layer.id)
+    }
+    return dimmed
+  }, [targetPick, iframeLayers])
+
   useEffect(() => {
     const unregister = targetingStore.register((request) => {
       // A second request supersedes an unfinished one — cancel the stale pick.
@@ -1535,6 +1574,7 @@ export function Canvas({
                     zoom={zoom}
                     spaceHeld={spaceHeld}
                     commentMode={commentMode}
+                    dimmedIframeLayerIds={dimmedIframeLayerIds}
                     selfName={self?.identity.name || "Anonymous"}
                     selfColor={self?.color || "#888888"}
                     editingDocumentLayerId={editingDocumentLayerId}

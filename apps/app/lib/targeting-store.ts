@@ -41,6 +41,13 @@ type Fulfiller = (request: PickRequest) => void
 class TargetingStore {
   private fulfiller: Fulfiller | null = null
 
+  // Which branch ids currently have at least one eligible (open) frame, as
+  // published by the Canvas. A Composer reads this (via `subscribeEligibility`
+  // + `hasEligibleFrames`) to disable its target affordance when picking its
+  // own branch would have nothing to hit — the #619 disabled/tooltip UX.
+  private eligibleBranchIds = new Set<string>()
+  private eligibilityListeners = new Set<() => void>()
+
   /**
    * The Canvas registers itself as the sole pick fulfiller. Returns an
    * unsubscribe that only clears the registration if it's still the current one
@@ -50,6 +57,37 @@ class TargetingStore {
     this.fulfiller = fulfiller
     return () => {
       if (this.fulfiller === fulfiller) this.fulfiller = null
+    }
+  }
+
+  /**
+   * The Canvas publishes the set of branch ids that currently have at least one
+   * eligible frame open. Replaces the prior set and notifies subscribers only
+   * when the membership actually changes, so the ~per-render calls the Canvas
+   * makes don't churn every Composer.
+   */
+  publishEligibleBranches(branchIds: Set<string>): void {
+    const prev = this.eligibleBranchIds
+    if (
+      prev.size === branchIds.size &&
+      [...branchIds].every((id) => prev.has(id))
+    ) {
+      return
+    }
+    this.eligibleBranchIds = new Set(branchIds)
+    for (const listener of this.eligibilityListeners) listener()
+  }
+
+  /** Whether the given branch has at least one eligible frame open right now. */
+  hasEligibleFrames(branchId: string): boolean {
+    return this.eligibleBranchIds.has(branchId)
+  }
+
+  /** Subscribe to eligibility changes (any branch). Returns an unsubscribe. */
+  subscribeEligibility(listener: () => void): () => void {
+    this.eligibilityListeners.add(listener)
+    return () => {
+      this.eligibilityListeners.delete(listener)
     }
   }
 
