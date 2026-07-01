@@ -1,6 +1,8 @@
 import { type RefObject, useEffect } from "react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
+import { isLocalBuild } from "@/lib/local-mode"
+
 import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
 import type { ElementReference } from "@/components/canvas/use-element-reference"
@@ -115,7 +117,16 @@ export function useCanvasKeyboard({
         toolMode.set("select")
         reference.clearMode()
       }
-      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isEditing(e)) {
+      // Comment mode is web-only; the local build has no comment surface
+      // (persisted threads excluded #417, element→agent targeting moved to the
+      // composer token path #618), so `c` is inert there.
+      if (
+        e.key === "c" &&
+        !isLocalBuild &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !isEditing(e)
+      ) {
         toolMode.toggle("comment")
         reference.clearMode()
       }

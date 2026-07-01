@@ -848,8 +848,6 @@ export function Canvas({
   useEffect(() => {
     referenceInputsRef.current = {
       roomId,
-      agents,
-      iframeLayers,
       markdownLayers,
       chatSessions,
       iframeLayerLayouts,

@@ -517,8 +517,16 @@ export function Comments({
                   onSubmitted={onNewCommentPlaced}
                   onCancel={onCancelComment}
                   onSendToChat={
+                    // Send-to-agent survives only for document targets — a text
+                    // selection (`documentId`) or a whole doc placed via
+                    // comment mode (`iframeLayerId` naming a registered doc
+                    // editor). The frame-element → owning-agent path is retired
+                    // in favour of the composer token flow (#618), so a frame
+                    // pin gets no send-to-agent action.
                     onSendToChat &&
-                    (newCommentPos.iframeLayerId || newCommentPos.documentId)
+                    (newCommentPos.documentId ||
+                      (newCommentPos.iframeLayerId &&
+                        getDocumentEditor?.(newCommentPos.iframeLayerId)))
                       ? (text) =>
                           onSendToChat(text, {
                             iframeLayerId: newCommentPos.iframeLayerId ?? null,
