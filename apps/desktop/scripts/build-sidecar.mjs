@@ -127,12 +127,73 @@ log("+ node runtime")
 copyFileSync(process.execPath, join(standalone, "node"))
 chmodSync(join(standalone, "node"), 0o755)
 
+// 2b. Sign the nested native binaries so Apple's notary service accepts the
+// sidecar (issue #632). The notary unpacks sidecar.tar.gz and validates every
+// Mach-O inside it; the prebuilt `.node`/`.dylib`/spawn-helper ship only an
+// ad-hoc, linker signature — no Developer ID, no secure timestamp, no hardened
+// runtime — so notarization fails on them. Tauri signs the outer `.app` but
+// never reaches into a tarball resource, so we sign them here, before packing.
+// The bundled `node` is deliberately left alone: it already carries a valid
+// Developer ID signature with the hardened runtime and its JIT +
+// disable-library-validation entitlements (re-signing would strip them, and its
+// disable-library-validation is what lets it load these addons at runtime).
+// Skipped when no identity is configured — a local `pnpm build:sidecar` still
+// produces a runnable (ad-hoc) sidecar, it just can't be notarized.
+const signingIdentity = process.env.APPLE_SIGNING_IDENTITY
+if (signingIdentity) {
+  signNestedBinaries(standalone, signingIdentity)
+} else {
+  log("⚠ APPLE_SIGNING_IDENTITY unset — leaving sidecar binaries ad-hoc signed (won't notarize)")
+}
+
 // 3. Pack the tree as a gzipped tar (preserves symlinks + exec bits).
 mkdirSync(resourcesDir, { recursive: true })
 rmSync(tarball, { force: true })
 log("packing sidecar.tar.gz…")
 execFileSync("tar", ["-czf", tarball, "-C", standalone, "."], { stdio: "inherit" })
 log(`done → ${tarball}`)
+
+// Codesign every Mach-O binary in the sidecar tree with the Developer ID
+// identity, a secure timestamp (--timestamp), and the hardened runtime
+// (--options runtime) — the three things Apple's notary service demands and the
+// ad-hoc linker signatures lack. --force replaces the existing ad-hoc seal.
+// Non-Mach-O prebuilds (node-pty's Windows PE `.node` files) are skipped:
+// codesign can't sign them and the notary ignores them. The addons need no
+// entitlements of their own — they're loaded by the bundled `node`, whose
+// disable-library-validation covers cross-team loading.
+function signNestedBinaries(root, identity) {
+  const candidates = execFileSync(
+    "find",
+    [
+      root,
+      "-type", "f",
+      "(",
+      "-name", "*.node",
+      "-o", "-name", "*.dylib",
+      "-o", "-name", "*.so",
+      "-o", "-name", "spawn-helper",
+      ")",
+    ],
+    { encoding: "utf8" }
+  )
+    .split("\n")
+    .filter(Boolean)
+
+  let signed = 0
+  for (const file of candidates) {
+    // `file -b` reports the Mach-O nature regardless of extension; skip Windows
+    // PE and anything else codesign would choke on.
+    const kind = execFileSync("file", ["-b", file], { encoding: "utf8" })
+    if (!kind.includes("Mach-O")) continue
+    execFileSync(
+      "codesign",
+      ["--force", "--timestamp", "--options", "runtime", "--sign", identity, file],
+      { stdio: "inherit" }
+    )
+    signed++
+  }
+  log(`signed ${signed} nested Mach-O binaries with "${identity}"`)
+}
 
 // Locate the prebuilds dir inside the standalone tree's hoisted node-pty
 // package (under node_modules/.pnpm/node-pty@<version>/node_modules/node-pty).

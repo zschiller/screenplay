@@ -175,8 +175,12 @@ if (releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID) {
   buildEnv.SCREENPLAY_GITHUB_CLIENT_ID = releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID
 }
 
+// buildEnv carries APPLE_SIGNING_IDENTITY so build-sidecar signs the nested
+// native binaries (node-pty, sharp, keyring, leveldown …) before packing them
+// into the tarball — the notary service validates every Mach-O inside it, and
+// Tauri's outer signing never reaches into a resource archive (issue #632).
 log("building sidecar…")
-run(process.execPath, [join(here, "build-sidecar.mjs")], { cwd: desktopDir })
+run(process.execPath, [join(here, "build-sidecar.mjs")], { cwd: desktopDir, env: buildEnv })
 
 log("building + signing + notarizing (tauri build)…")
 run(
