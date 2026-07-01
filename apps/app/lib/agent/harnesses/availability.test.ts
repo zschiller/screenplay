@@ -183,10 +183,10 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
         key: "claude-code",
         label: "Claude Code",
         models: [
-          { id: "harness:claude-code:opus", label: "Opus" },
-          { id: "harness:claude-code:fable", label: "Fable" },
-          { id: "harness:claude-code:sonnet", label: "Sonnet" },
-          { id: "harness:claude-code:haiku", label: "Haiku" },
+          { id: "harness:claude-code:fable", label: "Fable 5" },
+          { id: "harness:claude-code:opus", label: "Opus 4.8" },
+          { id: "harness:claude-code:sonnet", label: "Sonnet 5" },
+          { id: "harness:claude-code:haiku", label: "Haiku 4.5" },
         ],
       },
       {
@@ -254,8 +254,8 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
 
     // Curated floor first (catalog order), the discovered alias appended last.
     expect(ids).toEqual([
-      "harness:claude-code:opus",
       "harness:claude-code:fable",
+      "harness:claude-code:opus",
       "harness:claude-code:sonnet",
       "harness:claude-code:haiku",
       "harness:claude-code:opus-4-1",

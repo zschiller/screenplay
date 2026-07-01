@@ -100,10 +100,10 @@ export const claudeCodeHarness: Harness = {
   // is omitted too: it's the interactive CLI's plan/execute hybrid, with no
   // analogue over the ACP adapter.
   models: [
-    { id: "opus", label: "Opus" },
-    { id: "fable", label: "Fable" },
-    { id: "sonnet", label: "Sonnet" },
-    { id: "haiku", label: "Haiku" },
+    { id: "fable", label: "Fable 5" },
+    { id: "opus", label: "Opus 4.8" },
+    { id: "sonnet", label: "Sonnet 5" },
+    { id: "haiku", label: "Haiku 4.5" },
   ],
   defaultModelId: "opus",
   seed: seedClaudeCode,

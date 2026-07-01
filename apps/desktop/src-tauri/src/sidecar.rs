@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fs::{self, File};
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use flate2::read::GzDecoder;
@@ -278,16 +278,72 @@ fn apply_desktop_env(
     Ok(())
 }
 
-/// Prepend common node-install bin dirs (+ the bundled node's dir) to PATH so a
-/// GUI-launched app can still resolve `npx`/`node` for the ACP adapter spawn.
+/// Recover the user's interactive login-shell PATH.
+///
+/// A `.app` launched from Finder/Dock only inherits launchd's minimal PATH
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`), so anything installed by a version manager
+/// (nvm/asdf/pnpm) or a per-user installer — notably Claude Code's native
+/// installer, which lands `claude` in `~/.local/bin` — is invisible to the
+/// packaged sidecar. `tauri dev` doesn't hit this because its sidecar inherits
+/// the full PATH of the terminal that launched it (which is why detection "works
+/// in dev"). Spawning the login shell recovers that same PATH.
+///
+/// `-i` matters: on zsh/bash, PATH edits usually live in the interactive rc
+/// (`.zshrc`), not the login profile. stdin is nulled and the read is capped at
+/// 3s so a slow or input-hungry rc file can't stall app launch — we just fall
+/// back to the hard-coded prefixes below.
+fn login_shell_path() -> Option<String> {
+    let shell = std::env::var("SHELL").ok().filter(|s| !s.trim().is_empty())?;
+    let mut child = Command::new(&shell)
+        .args(["-ilc", "printf %s \"$PATH\""])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+
+    let mut stdout = child.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::Read;
+        let mut buf = String::new();
+        let _ = stdout.read_to_string(&mut buf);
+        let _ = tx.send(buf);
+    });
+
+    let result = rx.recv_timeout(Duration::from_secs(3)).ok();
+    // Reap the shell (or terminate a hung one) so the probe is never orphaned.
+    let _ = child.kill();
+    let _ = child.wait();
+
+    result.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+/// Build the PATH the sidecar runs under. A GUI-launched app must still resolve
+/// `claude`/`node`/`npx` (for host-binary detection and the ACP adapter spawn),
+/// so prepend the bundled node's dir and common per-user install locations, then
+/// splice in the recovered login-shell PATH and finally the inherited PATH.
 fn augmented_path(dir: &std::path::Path) -> String {
     let existing = std::env::var("PATH").unwrap_or_default();
-    let prefixes = [
-        dir.to_string_lossy().to_string(),
-        "/opt/homebrew/bin".to_string(),
-        "/usr/local/bin".to_string(),
-    ];
-    format!("{}:{}", prefixes.join(":"), existing)
+    let shell_path = login_shell_path().unwrap_or_default();
+
+    let mut parts = vec![dir.to_string_lossy().to_string()];
+    if let Ok(home) = std::env::var("HOME") {
+        if !home.is_empty() {
+            // Claude Code's native-installer default and its legacy local dir.
+            parts.push(format!("{home}/.local/bin"));
+            parts.push(format!("{home}/.claude/local"));
+        }
+    }
+    parts.push("/opt/homebrew/bin".to_string());
+    parts.push("/usr/local/bin".to_string());
+    if !shell_path.is_empty() {
+        parts.push(shell_path);
+    }
+    if !existing.is_empty() {
+        parts.push(existing);
+    }
+    parts.join(":")
 }
 
 /// Poll `/api/health` until it 200s (or give up after ~30s). The first success
