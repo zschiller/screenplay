@@ -24,6 +24,7 @@ import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import {
+  elementMarkersToPills,
   parseUserMessage,
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
@@ -320,7 +321,9 @@ function ToolIndicator({
         />
       </button>
       {expanded && result && (
-        <pre className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}>
+        <pre
+          className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}
+        >
           {result.output}
         </pre>
       )}
@@ -333,7 +336,8 @@ function ToolIndicator({
 // unbounded while another collapses to a tiny scroller. `whitespace-pre-wrap
 // break-words` wraps long lines (no horizontal scrollbar); `overflow-y-auto`
 // scrolls only once the content exceeds the cap.
-const TOOL_OUTPUT_CAP = "max-h-64 overflow-y-auto whitespace-pre-wrap break-words"
+const TOOL_OUTPUT_CAP =
+  "max-h-64 overflow-y-auto whitespace-pre-wrap break-words"
 
 /**
  * Strip the wrapper noise Claude Code bakes into file-read results that a
@@ -374,11 +378,11 @@ function ToolContentBlock({ block }: { block: ToolCallContent }) {
           {block.path}
         </div>
         {block.oldText != null && (
-          <pre className="whitespace-pre-wrap break-words bg-red-50 px-2 py-1 font-mono text-[10px] text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          <pre className="bg-red-50 px-2 py-1 font-mono text-[10px] break-words whitespace-pre-wrap text-red-700 dark:bg-red-950/40 dark:text-red-300">
             {block.oldText}
           </pre>
         )}
-        <pre className="whitespace-pre-wrap break-words bg-green-50 px-2 py-1 font-mono text-[10px] text-green-700 dark:bg-green-950/40 dark:text-green-300">
+        <pre className="bg-green-50 px-2 py-1 font-mono text-[10px] break-words whitespace-pre-wrap text-green-700 dark:bg-green-950/40 dark:text-green-300">
           {block.newText}
         </pre>
       </div>
@@ -652,12 +656,14 @@ export function AgentMessageItem({
 }) {
   switch (message.role) {
     case "user": {
-      // Strip the server turn prefixes and the referenced-documents footer
-      // via the Message Markers codec, then recover the `/`-skill chip through
-      // the codec's `skillMarkersToPills` — the same `[skill: <name>]` marker
-      // the composer's `serializeSkill` emits, rendered back as a pill.
-      const displayContent = skillMarkersToPills(
-        parseUserMessage(message.content).body
+      // Strip the server turn prefixes and the referenced-documents / targeted-
+      // elements footers via the Message Markers codec, then recover the inline
+      // chips: `skillMarkersToPills` for the `/`-skill marker and
+      // `elementMarkersToPills` for each `[element: …]` element token — the same
+      // markers the composer's `serializeSkill` / `serializeElement` emit,
+      // rendered back as inline references below.
+      const displayContent = elementMarkersToPills(
+        skillMarkersToPills(parseUserMessage(message.content).body)
       )
       return (
         <div className="flex justify-end">
@@ -676,6 +682,19 @@ export function AgentMessageItem({
                   ) {
                     return (
                       <span className={MENTION_TEXT_CLASS_INVERTED}>
+                        {children}
+                      </span>
+                    )
+                  }
+                  // `⌖`-element tokens: a clean crosshair + `font-mono` tag name,
+                  // matching the composer token. The raw selector/route stay
+                  // hidden in the stripped footer — only the terse label shows.
+                  if (typeof href === "string" && href.startsWith("element:")) {
+                    return (
+                      <span
+                        className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}
+                      >
+                        {"⌖ "}
                         {children}
                       </span>
                     )

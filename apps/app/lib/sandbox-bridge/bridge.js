@@ -1,4 +1,4 @@
-(() => {
+;(() => {
   if (window.__screenplayBridge) return
   window.__screenplayBridge = true
 
@@ -27,7 +27,10 @@
     const onGone = () => {
       postHmrStatus("reconnecting")
       if (disconnectTimer) clearTimeout(disconnectTimer)
-      disconnectTimer = setTimeout(() => postHmrStatus("disconnected"), RECONNECTING_GRACE_MS)
+      disconnectTimer = setTimeout(
+        () => postHmrStatus("disconnected"),
+        RECONNECTING_GRACE_MS
+      )
     }
     conn.addEventListener("close", onGone)
     conn.addEventListener("error", onGone)
@@ -95,7 +98,7 @@
       const parent = cur.parentElement
       if (parent) {
         const sameTag = Array.from(parent.children).filter(
-          (c) => c.nodeName === cur.nodeName,
+          (c) => c.nodeName === cur.nodeName
         )
         if (sameTag.length > 1) {
           const idx = sameTag.indexOf(cur) + 1
@@ -106,6 +109,17 @@
       cur = cur.parentElement
     }
     return parts.join(" > ")
+  }
+
+  // The element's lowercase tag name and its `id` attribute (when present). The
+  // composer derives an element token's label from these — the real tag/id —
+  // rather than regexing the CSS selector.
+  function tagInfo(el) {
+    if (!(el instanceof Element)) return { tagName: undefined, id: undefined }
+    return {
+      tagName: el.nodeName.toLowerCase(),
+      id: el.id ? el.id : undefined,
+    }
   }
 
   function reply(id, ok, payload) {
@@ -145,11 +159,9 @@
     if (!document.body) {
       // Bridge runs from <head>, before <body> exists for some HTML shapes.
       // Defer until the document is parsed so the puck has somewhere to live.
-      document.addEventListener(
-        "DOMContentLoaded",
-        () => enableTouchCursor(),
-        { once: true },
-      )
+      document.addEventListener("DOMContentLoaded", () => enableTouchCursor(), {
+        once: true,
+      })
       return
     }
 
@@ -190,7 +202,8 @@
       background: "rgba(15,23,42,0.18)",
       border: "2px solid rgba(255,255,255,0.95)",
       boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
-      transition: "opacity 120ms ease, background 120ms ease, transform 80ms ease",
+      transition:
+        "opacity 120ms ease, background 120ms ease, transform 80ms ease",
       opacity: "0",
       transform: "scale(1)",
       willChange: "transform",
@@ -261,7 +274,10 @@
   }
 
   function removePickUi() {
-    if (pickOverlay) { pickOverlay.remove(); pickOverlay = null }
+    if (pickOverlay) {
+      pickOverlay.remove()
+      pickOverlay = null
+    }
   }
 
   function elementUnderPointer(x, y) {
@@ -294,13 +310,19 @@
       const el = elementUnderPointer(e.clientX, e.clientY)
       if (!el) return
       const handle = mint(el)
-      parent.postMessage({
-        type: "screenplay:picked",
-        handle,
-        selector: cssPath(el),
-        rect: rectOf(el),
-        outerHTML: el.outerHTML,
-      }, "*")
+      const tags = tagInfo(el)
+      parent.postMessage(
+        {
+          type: "screenplay:picked",
+          handle,
+          selector: cssPath(el),
+          rect: rectOf(el),
+          outerHTML: el.outerHTML,
+          tagName: tags.tagName,
+          id: tags.id,
+        },
+        "*"
+      )
       // Leave picker active so the parent can let the user re-target; parent
       // controls when to stop via screenplay:pick-stop.
     }
@@ -311,9 +333,12 @@
 
   function stopPick() {
     if (pickOverlay) {
-      if (pickMoveHandler) pickOverlay.removeEventListener("mousemove", pickMoveHandler)
-      if (pickLeaveHandler) pickOverlay.removeEventListener("mouseleave", pickLeaveHandler)
-      if (pickClickHandler) pickOverlay.removeEventListener("click", pickClickHandler, true)
+      if (pickMoveHandler)
+        pickOverlay.removeEventListener("mousemove", pickMoveHandler)
+      if (pickLeaveHandler)
+        pickOverlay.removeEventListener("mouseleave", pickLeaveHandler)
+      if (pickClickHandler)
+        pickOverlay.removeEventListener("click", pickClickHandler, true)
     }
     pickMoveHandler = null
     pickLeaveHandler = null
@@ -325,7 +350,8 @@
 
   window.addEventListener("message", (e) => {
     const d = e.data
-    if (!d || typeof d.type !== "string" || !d.type.startsWith("screenplay:")) return
+    if (!d || typeof d.type !== "string" || !d.type.startsWith("screenplay:"))
+      return
     if (e.source !== parent) return
 
     try {
@@ -392,11 +418,14 @@
           if (!el || !(el instanceof Element)) {
             reply(d.id, true, null)
           } else {
+            const tags = tagInfo(el)
             reply(d.id, true, {
               handle: mint(el),
               selector: cssPath(el),
               rect: rectOf(el),
               outerHTML: el.outerHTML,
+              tagName: tags.tagName,
+              id: tags.id,
             })
           }
         } else {
@@ -426,7 +455,9 @@
   })
 
   function currentPath() {
-    return window.location.pathname + window.location.search + window.location.hash
+    return (
+      window.location.pathname + window.location.search + window.location.hash
+    )
   }
 
   let lastPath = currentPath()
@@ -474,10 +505,16 @@
     if (sx === lastScrollX && sy === lastScrollY) return
     lastScrollX = sx
     lastScrollY = sy
-    parent.postMessage({ type: "screenplay:scroll", scrollX: sx, scrollY: sy }, "*")
+    parent.postMessage(
+      { type: "screenplay:scroll", scrollX: sx, scrollY: sy },
+      "*"
+    )
   }
   function onScroll() {
-    if (scrollTimer) { scrollPending = true; return }
+    if (scrollTimer) {
+      scrollPending = true
+      return
+    }
     emitScroll()
     scrollTimer = setTimeout(function flush() {
       scrollTimer = null
@@ -518,10 +555,13 @@
     { passive: false }
   )
 
-  parent.postMessage({
-    type: "screenplay:ready",
-    version: window.__screenplayBridgeVersion || "",
-  }, "*")
+  parent.postMessage(
+    {
+      type: "screenplay:ready",
+      version: window.__screenplayBridgeVersion || "",
+    },
+    "*"
+  )
   parent.postMessage(
     { type: "screenplay:navigation", path: lastPath, replace: true },
     "*"

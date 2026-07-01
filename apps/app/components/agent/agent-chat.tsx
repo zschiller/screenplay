@@ -15,6 +15,7 @@ import {
 import type { AgentMessage } from "@/lib/agent/types"
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
+import { targetingStore } from "@/lib/targeting-store"
 import {
   getDefaultModelId,
   getModels,
@@ -67,6 +68,7 @@ interface AgentChatProps {
 export function AgentChat({
   chatId,
   roomId,
+  sandboxId,
   sandboxName,
   sandboxStatus,
   branch,
@@ -290,6 +292,18 @@ export function AgentChat({
     [sendMessage]
   )
 
+  // Element targeting (PRD #616): agent chats in a room can target this branch's
+  // own preview frames. The Composer's target icon / ⌘E calls this, which asks
+  // the Canvas (through the targeting store) to run a one-shot crosshair pick
+  // over the eligible frames and resolves with the picked element — or null when
+  // cancelled or when no Canvas is mounted (doc chats, the seed composer). Keyed
+  // by the branch id (the sandbox-backed agent's id), which the frame
+  // eligibility predicate matches against each frame's `branchId`.
+  const handlePickElement = useCallback(() => {
+    if (!sandboxId) return Promise.resolve(null)
+    return targetingStore.requestPick(sandboxId)
+  }, [sandboxId])
+
   // Allow other parts of the app (e.g. the inspect tool) to append text
   // snippets to this chat's draft.
   useEffect(() => {
@@ -398,6 +412,7 @@ export function AgentChat({
         isStreaming={isStreaming}
         onStop={stopMessage}
         placeholder={composerPlaceholder}
+        onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
       />
     </div>
   )

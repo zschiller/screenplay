@@ -58,6 +58,12 @@ import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
 import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
+import { eligibleTargetFrames } from "@/lib/canvas/element-targeting"
+import {
+  targetingStore,
+  type PickedElement,
+  type PickRequest,
+} from "@/lib/targeting-store"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -1098,6 +1104,133 @@ export function Canvas({
     [commentMode, reference]
   )
 
+  // Element targeting (PRD #616, slice #618): the Canvas is the sole fulfiller
+  // of composer pick requests. A request arms a one-shot crosshair pick
+  // restricted to the requesting branch's own frames (via `eligibleTargetFrames`)
+  // and reuses the same `elementAtPoint` hit-test the comment path does; the
+  // next canvas click resolves it with the picked element, and Esc / a miss
+  // cancels it with `null`. State drives the cursor + click routing; the ref
+  // lets the async resolver and the Esc listener read the live request without
+  // re-binding.
+  const [targetPick, setTargetPick] = useState<PickRequest | null>(null)
+  const targetPickRef = useRef<PickRequest | null>(null)
+  const setTargetPickBoth = useCallback((req: PickRequest | null) => {
+    targetPickRef.current = req
+    setTargetPick(req)
+  }, [])
+
+  useEffect(() => {
+    const unregister = targetingStore.register((request) => {
+      // A second request supersedes an unfinished one — cancel the stale pick.
+      const prev = targetPickRef.current
+      if (prev) prev.resolve(null)
+      setTargetPickBoth(request)
+    })
+    return () => {
+      unregister()
+      // Resolve any in-flight pick on unmount so its promise never dangles.
+      const prev = targetPickRef.current
+      if (prev) prev.resolve(null)
+      targetPickRef.current = null
+    }
+  }, [setTargetPickBoth])
+
+  const resolveTargetPick = useCallback(
+    (picked: PickedElement | null) => {
+      const active = targetPickRef.current
+      if (!active) return
+      active.resolve(picked)
+      setTargetPickBoth(null)
+    },
+    [setTargetPickBoth]
+  )
+
+  // Esc cancels an armed pick with no token. Capture-phase so it wins over the
+  // canvas keyboard controller's own Escape precedence while a pick is open.
+  useEffect(() => {
+    if (!targetPick) return undefined
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.preventDefault()
+      e.stopPropagation()
+      resolveTargetPick(null)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [targetPick, resolveTargetPick])
+
+  // Targeting-mode canvas click: convert to world coords (same camera math as
+  // the comment path), hit-test only the requesting branch's eligible frames,
+  // then resolve the pick with the deepest element at that point. A click that
+  // lands outside every eligible frame cancels.
+  const handleTargetClick = useCallback(
+    (e: React.MouseEvent) => {
+      const active = targetPickRef.current
+      if (!active) return
+      const tref = transformRef.current
+      if (!tref) {
+        resolveTargetPick(null)
+        return
+      }
+      const { positionX, positionY, scale } = tref.state
+      const rect = e.currentTarget.getBoundingClientRect()
+      const canvasX = (e.clientX - rect.left - positionX) / scale
+      const canvasY = (e.clientY - rect.top - positionY) / scale
+
+      const eligible = eligibleTargetFrames(active.branchId, iframeLayers)
+      const eligibleIds = new Set(eligible.map((l) => l.id))
+
+      for (const layout of iframeLayerLayouts.values()) {
+        if (!eligibleIds.has(layout.id)) continue
+        if (
+          canvasX >= layout.x &&
+          canvasX <= layout.x + layout.width &&
+          canvasY >= layout.y &&
+          canvasY <= layout.y + layout.height
+        ) {
+          const localX = canvasX - layout.x
+          const localY = canvasY - layout.y
+          const dom = reference.getIframeLayerDom(layout.id)
+          const layer = eligible.find((l) => l.id === layout.id)
+          if (!dom || !layer) {
+            resolveTargetPick(null)
+            return
+          }
+          // End pick mode immediately; the elementAtPoint round-trip is async and
+          // resolves the (already-captured) request directly below.
+          setTargetPickBoth(null)
+          dom
+            .elementAtPoint(localX, localY)
+            .then((result) => {
+              if (!result || !result.tagName) {
+                active.resolve(null)
+                return
+              }
+              active.resolve({
+                tagName: result.tagName,
+                id: result.id,
+                selector: result.selector,
+                route: layer.route ?? "/",
+                iframeLayerId: layout.id,
+                frameLabel: layer.label,
+              })
+            })
+            .catch(() => active.resolve(null))
+          return
+        }
+      }
+      // Miss — clicked outside every eligible frame.
+      resolveTargetPick(null)
+    },
+    [
+      iframeLayers,
+      iframeLayerLayouts,
+      reference,
+      resolveTargetPick,
+      setTargetPickBoth,
+    ]
+  )
+
   // The selection → presence broadcast lives on the Canvas Camera controller now
   // (PRD #588) — the canvas presence owner.
 
@@ -1111,34 +1244,37 @@ export function Canvas({
   // Memoized on `others` so a pan — which rebroadcasts our own viewport ~60x/s
   // but leaves the peer set untouched (see `useOtherPresences`) — doesn't
   // rebuild these and re-render the memoized member layer every frame.
-  const { othersSelections, remoteSelectionColors, remoteGroupSelectionColors } =
-    useMemo(() => {
-      const othersSelections = others.map(({ presence }) => ({
-        selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
-        groupSelectedIframeLayerIds: presence.groupSelectedIframeLayerIds ?? [],
-        color: presence.color,
-        name: presence.identity.name || "Anonymous",
-      }))
-      const remoteSelectionColors = new Map<string, string>()
-      const remoteGroupSelectionColors = new Map<string, string>()
-      for (const o of othersSelections) {
-        for (const id of o.selectedIframeLayerIds) {
-          if (!remoteSelectionColors.has(id))
-            remoteSelectionColors.set(id, o.color)
-        }
-        for (const id of o.groupSelectedIframeLayerIds) {
-          if (!remoteSelectionColors.has(id))
-            remoteSelectionColors.set(id, o.color)
-          if (!remoteGroupSelectionColors.has(id))
-            remoteGroupSelectionColors.set(id, o.color)
-        }
+  const {
+    othersSelections,
+    remoteSelectionColors,
+    remoteGroupSelectionColors,
+  } = useMemo(() => {
+    const othersSelections = others.map(({ presence }) => ({
+      selectedIframeLayerIds: presence.selectedIframeLayerIds ?? [],
+      groupSelectedIframeLayerIds: presence.groupSelectedIframeLayerIds ?? [],
+      color: presence.color,
+      name: presence.identity.name || "Anonymous",
+    }))
+    const remoteSelectionColors = new Map<string, string>()
+    const remoteGroupSelectionColors = new Map<string, string>()
+    for (const o of othersSelections) {
+      for (const id of o.selectedIframeLayerIds) {
+        if (!remoteSelectionColors.has(id))
+          remoteSelectionColors.set(id, o.color)
       }
-      return {
-        othersSelections,
-        remoteSelectionColors,
-        remoteGroupSelectionColors,
+      for (const id of o.groupSelectedIframeLayerIds) {
+        if (!remoteSelectionColors.has(id))
+          remoteSelectionColors.set(id, o.color)
+        if (!remoteGroupSelectionColors.has(id))
+          remoteGroupSelectionColors.set(id, o.color)
       }
-    }, [others])
+    }
+    return {
+      othersSelections,
+      remoteSelectionColors,
+      remoteGroupSelectionColors,
+    }
+  }, [others])
 
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -1281,7 +1417,7 @@ export function Canvas({
                 ? "grabbing"
                 : spaceHeld
                   ? "grab"
-                  : documentMode || frameMode || commentMode
+                  : documentMode || frameMode || commentMode || targetPick
                     ? "crosshair"
                     : activeGapHandle
                       ? "col-resize"
@@ -1299,7 +1435,13 @@ export function Canvas({
             }}
             onPointerUp={canvasGestureHandlers.onPointerUp}
             onPointerLeave={handlePointerLeave}
-            onClick={commentMode ? handleCanvasClick : undefined}
+            onClick={
+              commentMode
+                ? handleCanvasClick
+                : targetPick
+                  ? handleTargetClick
+                  : undefined
+            }
           >
             {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
                 so the iframeLayer iframes paint on top — the parts of each ghost
