@@ -87,23 +87,6 @@ function capture(cmd, cmdArgs, opts = {}) {
   }).trim()
 }
 
-/** Resolve a Developer directory that actually contains actool (i.e. full Xcode,
- * not the Command Line Tools). Honors an explicit DEVELOPER_DIR, then the active
- * `xcode-select -p`, then the standard Xcode.app location. Returns null if none
- * has actool. */
-function resolveDeveloperDir() {
-  const hasActool = (dir) => dir && existsSync(join(dir, "usr", "bin", "actool"))
-  if (hasActool(process.env.DEVELOPER_DIR)) return process.env.DEVELOPER_DIR
-  try {
-    const active = capture("xcode-select", ["-p"])
-    if (hasActool(active)) return active
-  } catch {
-    // xcode-select absent or errored — fall through to the standard location.
-  }
-  const standard = "/Applications/Xcode.app/Contents/Developer"
-  return hasActool(standard) ? standard : null
-}
-
 /** Parse `.env.release` into a key→value map (KEY=VALUE, # comments, quotes stripped). */
 function loadReleaseEnv() {
   const path = join(desktopDir, ".env.release")
@@ -190,24 +173,6 @@ const buildEnv = {
 // (not empty) when unconfigured.
 if (releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID) {
   buildEnv.SCREENPLAY_GITHUB_CLIENT_ID = releaseEnv.SCREENPLAY_GITHUB_CLIENT_ID
-}
-
-// `actool` compiles the macOS 26 Icon Composer file (icons/icon.icon) into the
-// Liquid Glass `Assets.car` — but it ships only with full Xcode, not the
-// Command Line Tools. Point the build at Xcode via DEVELOPER_DIR so the icon
-// compiles regardless of the global `xcode-select` selection; without a working
-// actool Tauri silently *skips* Assets.car and the app ships with only the
-// legacy .icns. Fail loudly rather than quietly degrade the icon.
-const developerDir = resolveDeveloperDir()
-if (developerDir) {
-  buildEnv.DEVELOPER_DIR = developerDir
-  log(`using Xcode at ${developerDir} (actool → Liquid Glass Assets.car)`)
-} else {
-  fail(
-    "No full Xcode found (only Command Line Tools). actool can't compile the " +
-      "icons/icon.icon Liquid Glass catalog, so the build would ship a legacy " +
-      "icon. Install Xcode (or set DEVELOPER_DIR to its Contents/Developer) and retry."
-  )
 }
 
 // buildEnv carries APPLE_SIGNING_IDENTITY so build-sidecar signs the nested

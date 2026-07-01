@@ -30,7 +30,7 @@
     "targets": ["app"],
     "icon": [
       "icons/icon.icns",
-      "icons/icon.icon"
+      "icons/icon.car"
     ]
   }
 }
