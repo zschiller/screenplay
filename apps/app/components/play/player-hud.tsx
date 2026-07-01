@@ -232,23 +232,26 @@ export function PlayerHud({
           >
             <GripVertical className="h-3.5 w-3.5" />
           </span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="ghost"
-                size="icon-xs"
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <Link href={`/${roomId}`}>
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side={tooltipSide}>
-              Back to {roomName}
-            </TooltipContent>
-          </Tooltip>
+          {/* The desktop (local) build has no room route to go back to. */}
+          {!isLocalBuild && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon-xs"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <Link href={`/${roomId}`}>
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={tooltipSide}>
+                Back to {roomName}
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Select value={deviceSizeId} onValueChange={onDeviceSizeChange}>
             <Tooltip>
               <TooltipTrigger asChild>

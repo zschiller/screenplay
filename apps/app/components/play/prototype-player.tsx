@@ -356,7 +356,7 @@ export function PrototypePlayer({
         </div>
       </ResizablePanel>
       <ResizableHandle
-        className={`${chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"}${isTouchDevice ? "dark" : ""}`}
+        className={`${chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"} ${isTouchDevice ? "dark" : ""}`}
         disabled={chatCollapsed}
       />
       <ResizablePanel
