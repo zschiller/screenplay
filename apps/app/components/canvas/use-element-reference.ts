@@ -10,12 +10,7 @@ import {
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
-import type {
-  BranchData,
-  ChatSessionData,
-  IframeLayerData,
-  MarkdownLayerData,
-} from "@/lib/types"
+import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { InlineCommentDraft } from "./markdown-layer"
 
@@ -45,8 +40,6 @@ import type { InlineCommentDraft } from "./markdown-layer"
  */
 export interface ElementReferenceInputs {
   roomId: string
-  agents: BranchData[]
-  iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
   chatSessions: ChatSessionData[]
   /**
@@ -110,10 +103,10 @@ export interface ElementReference {
   /** Reset comment-mode sub-state on a tool-mode switch (composer + hover). */
   clearMode: () => void
   /**
-   * Hand the composer's note off to the agent chat: resolve the pure decision,
-   * create a fresh Chat Session, select the target via the Chat-Target
-   * controller, and send. A frame element routes to the frame's branch; a doc
-   * selection to that document; an unresolvable target is a no-op.
+   * Hand the composer's note off to the document chat: resolve the pure
+   * decision, create a fresh Chat Session, select the document via the
+   * Chat-Target controller, and send. A doc selection routes to that document;
+   * a context that names no document is a no-op.
    */
   sendReference: (note: string, ctx: ReferenceContext) => void
 
@@ -288,29 +281,21 @@ export function useElementReference(
         roomId: inputs.roomId,
         chatId: nanoid(),
         createdAt: Date.now(),
-        agents: inputs.agents,
-        iframeLayers: inputs.iframeLayers,
         markdownLayers: inputs.markdownLayers,
         chatSessions: inputs.chatSessions,
       })
       if (decision.kind === "none") return
 
       // The apply half is the shared Agent-prompt dispatch: create the fresh
-      // Chat Session, select the resolved target through the Chat-Target
-      // controller, and send. The reference's routing rules (frame → branch, doc
-      // selection → document, always a fresh chat) stay in `resolveReference`.
+      // Chat Session, select the resolved document target through the
+      // Chat-Target controller, and send. The reference's routing rule (doc
+      // selection → document, always a fresh chat) stays in `resolveReference`.
       const { session, select, send } = decision
       dispatchPrompt(
         {
           session,
-          target:
-            select.kind === "document"
-              ? { kind: "document", documentId: select.documentId }
-              : { kind: "agent", agentId: select.agentId },
-          select:
-            select.kind === "document"
-              ? {}
-              : { clearDocument: true, remember: true },
+          target: { kind: "document", documentId: select.documentId },
+          select: {},
           expandPanel: true,
           send,
         },

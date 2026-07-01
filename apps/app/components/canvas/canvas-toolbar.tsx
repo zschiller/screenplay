@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  Crosshair,
-  FileText,
-  Frame,
-  MessageSquare,
-  MousePointer2,
-} from "lucide-react"
+import { FileText, Frame, MessageSquare, MousePointer2 } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -98,32 +92,29 @@ export function CanvasToolbar({
               Document <Kbd>D</Kbd>
             </TooltipContent>
           </Tooltip>
-          {/* Comment mode is kept in the local build: it's how you
-              anchor an element/selection to reference it to the agent
-              ("Send to agent"). Only the *persisted* comment thread is
-              excluded there (#417) — so on desktop this is a "target"
-              affordance (crosshair), not a comment one. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={commentMode ? "default" : "ghost"}
-                size="icon-xs"
-                onClick={() => {
-                  toolMode.toggle("comment")
-                  onClearMode()
-                }}
-              >
-                {isLocalBuild ? (
-                  <Crosshair className="h-3.5 w-3.5" />
-                ) : (
+          {/* Comment mode is web-only: it places multi-user comment
+              threads. The local build has no persisted threads (#417) and
+              its element→agent targeting now lives in the composer token
+              path (#618), so there's no comment tool on desktop. */}
+          {!isLocalBuild && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={commentMode ? "default" : "ghost"}
+                  size="icon-xs"
+                  onClick={() => {
+                    toolMode.toggle("comment")
+                    onClearMode()
+                  }}
+                >
                   <MessageSquare className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {isLocalBuild ? "Send to agent" : "Comment"} <Kbd>C</Kbd>
-            </TooltipContent>
-          </Tooltip>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Comment <Kbd>C</Kbd>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </TooltipProvider>
       </div>
     </div>
