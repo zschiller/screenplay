@@ -21,6 +21,13 @@
  * `buildReferencedDocsFooter` and stripped by `parseUserMessage`, which sets
  * `hadReferencedDocs` and recovers the original body exactly.
  *
+ * Targeted preview elements ride the same pattern: `serializeElement` encodes
+ * an inline `[element: <label>](element:<ref>)` marker (its visible label
+ * derived purely by `deriveElementLabel`), `elementMarkersToPills` recovers it
+ * into the renderer's styled token, and the actionable route + selector detail
+ * rides a `Targeted elements:` footer built by `buildTargetedElementsFooter`
+ * and stripped by `parseUserMessage` (which sets `hadTargetedElements`).
+ *
  * The codec owns **format, not policy**: callers still decide *when* a
  * marker applies (e.g. branch only on the first message of a chat). This
  * module only knows how to render and parse the tokens.
@@ -98,6 +105,63 @@ export function serializeMention(label: string, id: string): string {
   return `[@${label}](mention:${id})`
 }
 
+/** Label used by the inline element marker: `[element: <label>](element:<ref>)`. */
+export const ELEMENT_MARKER_LABEL = "element"
+
+/**
+ * The element marker's prose template, `[element: <label>](element:<ref>)`, as
+ * a companion to `MENTION_MARKER_TOKEN`. The `<label>` and `<ref>` placeholders
+ * are literal — this is the wire shape, not a marker rendered for a concrete
+ * element (use `serializeElement` for that). The `<ref>` correlates the inline
+ * marker to its `Targeted elements:` footer entry.
+ */
+export const ELEMENT_MARKER_TOKEN = `[${ELEMENT_MARKER_LABEL}: <label>](${ELEMENT_MARKER_LABEL}:<ref>)`
+
+/**
+ * Derive an element token's visible label purely from its pick result. The
+ * label is the element's `tagName` (e.g. `button`), plus `#<id>` only when the
+ * element carries an id (e.g. `button#submit`). Class names are deliberately
+ * never included — Tailwind classes are noise. `tagName` is supplied
+ * explicitly by the picker, not regex'd out of the CSS selector; an absent or
+ * empty `id` yields the bare tag name.
+ */
+export function deriveElementLabel(tagName: string, id?: string): string {
+  return id ? `${tagName}#${id}` : tagName
+}
+
+/**
+ * Serialize a targeted preview element into its inline
+ * `[element: <label>](element:<ref>)` markdown-link marker (mirroring
+ * `serializeMention`). The composer emits this in the wire body; the actionable
+ * route + selector detail rides the `Targeted elements:` footer keyed by the
+ * same `ref`, and `elementMarkersToPills` recovers the marker as a styled token
+ * in chat history. `label` should come from `deriveElementLabel`.
+ */
+export function serializeElement(label: string, ref: string): string {
+  return `[${ELEMENT_MARKER_LABEL}: ${label}](${ELEMENT_MARKER_LABEL}:${ref})`
+}
+
+// Inline element markers can appear anywhere in the body, so this matches
+// globally. The label capture stops at the first `]` and the ref at the first
+// `)` to keep each marker self-contained.
+const ELEMENT_MARKER_RE = /\[element:\s*([^\]]+)\]\(element:([^)]+)\)/g
+
+/**
+ * Renderer-only transform: rewrite each inline
+ * `[element: <label>](element:<ref>)` marker into the token markdown-link form
+ * `[<label>](element:<ref>)` the message renderer draws as a crosshair chip
+ * (mirroring `skillMarkersToPills`). The `element:` scheme is preserved so the
+ * renderer keys off it; only the redundant `element: ` prefix is dropped from
+ * the visible link text, leaving just the derived label. All other text is
+ * left untouched.
+ */
+export function elementMarkersToPills(body: string): string {
+  return body.replace(
+    ELEMENT_MARKER_RE,
+    (_m, label, ref) => `[${label}](element:${ref})`
+  )
+}
+
 /**
  * The canonical token that opens the referenced-documents footer. It is the
  * single source of truth for both the build side (`buildReferencedDocsFooter`)
@@ -141,6 +205,57 @@ export function buildReferencedDocsFooter(docs: ReferencedDoc[]): string {
 }
 
 /**
+ * The canonical token that opens the targeted-elements footer, shared by the
+ * build side (`buildTargetedElementsFooter`) and the strip side
+ * (`parseUserMessage`) so they can never drift apart.
+ */
+export const TARGETED_ELEMENTS_FOOTER_TOKEN = "Targeted elements:"
+
+/**
+ * A preview element referenced by an inline `[element: …](element:<ref>)`
+ * marker, paired with the actionable detail the agent needs to act on it. The
+ * `ref` correlates this entry to its inline marker; `route` is the page the
+ * element lives on, `selector` its full CSS selector, and `frameLabel` the
+ * display name of the frame it belongs to.
+ */
+export interface TargetedElement {
+  ref: string
+  route: string
+  selector: string
+  frameLabel: string
+}
+
+/**
+ * Build the targeted-elements footer for a set of picked preview elements,
+ * returned as a suffix to append to the user message body. This is the
+ * actionable counterpart to the inline `[element: <label>](element:<ref>)`
+ * markers: the visible label stays terse in the message bubble, while the full
+ * route + CSS selector (+ frame label) rides here, keyed by `ref`, so the agent
+ * can locate each element precisely.
+ *
+ * Returns an empty string when there are no elements, so callers can append
+ * unconditionally. The footer opens with `TARGETED_ELEMENTS_FOOTER_TOKEN`,
+ * which `parseUserMessage` keys off to strip it back out — `body + footer` then
+ * round-trips through `parseUserMessage` to the original `body` exactly.
+ */
+export function buildTargetedElementsFooter(
+  elements: TargetedElement[]
+): string {
+  if (elements.length === 0) return ""
+  const lines = elements.map(
+    (e) => `- ${e.ref}: ${e.route} — ${e.selector} (frame: ${e.frameLabel})`
+  )
+  return [
+    "",
+    "",
+    "---",
+    "",
+    `${TARGETED_ELEMENTS_FOOTER_TOKEN} (each [element: …](element:<ref>) above targets one entry here, matched by ref)`,
+    ...lines,
+  ].join("\n")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body, plan before
  * branch. Each prefix is emitted only when its input is present, so a turn
  * with neither marker returns `body` unchanged.
@@ -160,10 +275,11 @@ export interface ParsedUserMessage {
   /** The branch ref from the `[branch: <ref>]` prefix, if present. */
   branch?: string
   /**
-   * The message with the server prefixes stripped. Inline `[skill: <name>]`
-   * and `[@…](mention:…)` tokens are retained so the renderer can recover
-   * their pills (skill via `skillMarkersToPills`; mentions straight from the
-   * inline markdown-link form).
+   * The message with the server prefixes stripped. Inline `[skill: <name>]`,
+   * `[@…](mention:…)`, and `[element: …](element:…)` tokens are retained so the
+   * renderer can recover their pills (skill via `skillMarkersToPills`; elements
+   * via `elementMarkersToPills`; mentions straight from the inline markdown-link
+   * form).
    */
   body: string
   /**
@@ -171,6 +287,11 @@ export interface ParsedUserMessage {
    * `body`. The footer is the suffix `buildReferencedDocsFooter` appends.
    */
   hadReferencedDocs: boolean
+  /**
+   * Whether a targeted-elements footer was detected and stripped from `body`.
+   * The footer is the suffix `buildTargetedElementsFooter` appends.
+   */
+  hadTargetedElements: boolean
 }
 
 // The branch prefix terminates at the first `] ` (bracket immediately
@@ -184,6 +305,13 @@ const BRANCH_PREFIX_RE = /^\[branch: (.*?)\] /
 // strip recovers the original body exactly.
 const REFERENCED_DOCS_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${REFERENCED_DOCS_FOOTER_TOKEN}[\\s\\S]*$`
+)
+// Same `\n\n---\n\n`-anchored, run-to-end shape as the referenced-docs footer.
+// Both footers run to end-of-message, so when a turn carries both, each regex
+// detects its own token and the strip below removes whichever begins first,
+// regardless of their relative order.
+const TARGETED_ELEMENTS_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${TARGETED_ELEMENTS_FOOTER_TOKEN}[\\s\\S]*$`
 )
 
 /**
@@ -207,9 +335,18 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
     body = body.replace(BRANCH_PREFIX_RE, "")
   }
 
+  // Detect both footers before stripping either — each footer runs to
+  // end-of-message, so stripping the earlier one first would swallow the later
+  // one and hide its flag. The strips themselves are order-independent: each
+  // regex anchors on its own token, so removing one leaves the other intact
+  // until its own strip runs.
   const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
+  const hadTargetedElements = TARGETED_ELEMENTS_FOOTER_RE.test(body)
   if (hadReferencedDocs) {
     body = body.replace(REFERENCED_DOCS_FOOTER_RE, "")
+  }
+  if (hadTargetedElements) {
+    body = body.replace(TARGETED_ELEMENTS_FOOTER_RE, "")
   }
 
   return {
@@ -217,5 +354,6 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
     branch,
     body,
     hadReferencedDocs,
+    hadTargetedElements,
   }
 }
