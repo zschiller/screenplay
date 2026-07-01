@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ELEMENT_MARKER_TOKEN,
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
+  TARGETED_ELEMENTS_FOOTER_TOKEN,
   buildReferencedDocsFooter,
+  buildTargetedElementsFooter,
+  deriveElementLabel,
+  elementMarkersToPills,
   parseUserMessage,
   prependTurnMarkers,
+  serializeElement,
   serializeMention,
   serializeSkill,
   skillMarkersToPills,
@@ -60,6 +66,7 @@ describe("parseUserMessage", () => {
       branch: "feat/x",
       body: "ship it",
       hadReferencedDocs: false,
+      hadTargetedElements: false,
     })
   })
 
@@ -85,6 +92,7 @@ describe("parseUserMessage", () => {
       branch: undefined,
       body: "just a normal message",
       hadReferencedDocs: false,
+      hadTargetedElements: false,
     })
   })
 
@@ -256,5 +264,237 @@ describe("serializeMention", () => {
     expect(parsed.planMode).toBe(true)
     expect(parsed.branch).toBe("feat/x")
     expect(parsed.body).toBe("[@Spec](mention:doc-7)")
+  })
+})
+
+describe("deriveElementLabel", () => {
+  it("is the bare tag name when the element has no id", () => {
+    expect(deriveElementLabel("button")).toBe("button")
+  })
+
+  it("appends #id when the element has an id", () => {
+    expect(deriveElementLabel("button", "submit")).toBe("button#submit")
+  })
+
+  it("treats an empty id like an absent one", () => {
+    expect(deriveElementLabel("button", "")).toBe("button")
+  })
+
+  it("never emits class names — only the tag and optional id are inputs", () => {
+    // The picker supplies tagName/id explicitly; classes are not an input, so
+    // there is no path by which a class name (e.g. a Tailwind `.px-4`) can
+    // reach the label.
+    expect(deriveElementLabel("div", "hero")).toBe("div#hero")
+    expect(deriveElementLabel("div")).toBe("div")
+  })
+})
+
+describe("serializeElement", () => {
+  it("renders the inline element marker as a markdown link", () => {
+    expect(serializeElement("button#submit", "el-1")).toBe(
+      "[element: button#submit](element:el-1)"
+    )
+  })
+
+  it("renders the bare-tag label form", () => {
+    expect(serializeElement("button", "el-1")).toBe(
+      "[element: button](element:el-1)"
+    )
+  })
+
+  it("matches the exported token's shape", () => {
+    expect(serializeElement("<label>", "<ref>")).toBe(ELEMENT_MARKER_TOKEN)
+  })
+})
+
+describe("elementMarkersToPills", () => {
+  it("rewrites an inline element marker to its token link, dropping the prefix", () => {
+    expect(elementMarkersToPills("[element: button](element:el-1)")).toBe(
+      "[button](element:el-1)"
+    )
+  })
+
+  it("preserves an id-bearing label", () => {
+    expect(
+      elementMarkersToPills("[element: button#submit](element:el-9)")
+    ).toBe("[button#submit](element:el-9)")
+  })
+
+  it("tolerates a missing space after the colon", () => {
+    expect(elementMarkersToPills("[element:input](element:el-2)")).toBe(
+      "[input](element:el-2)"
+    )
+  })
+
+  it("rewrites every marker in a body, leaving other text intact", () => {
+    expect(
+      elementMarkersToPills(
+        "make [element: button](element:el-1) match [element: input](element:el-2)"
+      )
+    ).toBe("make [button](element:el-1) match [input](element:el-2)")
+  })
+
+  it("is a no-op on a body with no element markers", () => {
+    expect(elementMarkersToPills("just a normal message")).toBe(
+      "just a normal message"
+    )
+  })
+
+  it("round-trips serializeElement through parseUserMessage back to the token", () => {
+    const wire = serializeElement("button#submit", "el-1")
+
+    const pill = elementMarkersToPills(parseUserMessage(wire).body)
+
+    expect(pill).toBe("[button#submit](element:el-1)")
+  })
+
+  it("recovers the token even alongside server turn prefixes", () => {
+    const wire = prependTurnMarkers(serializeElement("button", "el-1"), {
+      planMode: true,
+      branch: "feat/x",
+    })
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.planMode).toBe(true)
+    expect(parsed.branch).toBe("feat/x")
+    expect(elementMarkersToPills(parsed.body)).toBe("[button](element:el-1)")
+  })
+})
+
+describe("buildTargetedElementsFooter", () => {
+  it("returns an empty string when there are no elements", () => {
+    expect(buildTargetedElementsFooter([])).toBe("")
+  })
+
+  it("opens with the canonical footer token and lists a single element with route, selector, and frame", () => {
+    const footer = buildTargetedElementsFooter([
+      {
+        ref: "el-1",
+        route: "/dashboard",
+        selector: "main > button.primary",
+        frameLabel: "Home preview",
+      },
+    ])
+
+    expect(footer).toContain(TARGETED_ELEMENTS_FOOTER_TOKEN)
+    expect(footer).toContain(
+      "- el-1: /dashboard — main > button.primary (frame: Home preview)"
+    )
+  })
+
+  it("lists each element on its own line for many elements", () => {
+    const footer = buildTargetedElementsFooter([
+      {
+        ref: "el-1",
+        route: "/",
+        selector: "button#submit",
+        frameLabel: "Frame A",
+      },
+      {
+        ref: "el-2",
+        route: "/settings",
+        selector: "form > input",
+        frameLabel: "Frame B",
+      },
+    ])
+
+    expect(footer).toContain("- el-1: / — button#submit (frame: Frame A)")
+    expect(footer).toContain(
+      "- el-2: /settings — form > input (frame: Frame B)"
+    )
+  })
+
+  it("round-trips: build → parse strips the footer and recovers the body exactly", () => {
+    const body = "make these match"
+    const wire =
+      body +
+      buildTargetedElementsFooter([
+        {
+          ref: "el-1",
+          route: "/",
+          selector: "button",
+          frameLabel: "Frame A",
+        },
+      ])
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.body).toBe(body)
+    expect(parsed.hadTargetedElements).toBe(true)
+  })
+
+  it("reports hadTargetedElements false when no footer was appended", () => {
+    const wire = "just a message" + buildTargetedElementsFooter([])
+
+    expect(parseUserMessage(wire).hadTargetedElements).toBe(false)
+  })
+
+  it("strips the footer even alongside server turn prefixes", () => {
+    const wire = prependTurnMarkers(
+      "ship it" +
+        buildTargetedElementsFooter([
+          {
+            ref: "el-1",
+            route: "/",
+            selector: "button",
+            frameLabel: "Frame A",
+          },
+        ]),
+      { planMode: true, branch: "feat/x" }
+    )
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.planMode).toBe(true)
+    expect(parsed.branch).toBe("feat/x")
+    expect(parsed.body).toBe("ship it")
+    expect(parsed.hadTargetedElements).toBe(true)
+  })
+
+  it("coexists with the referenced-docs footer: both flags set, body recovered exactly (docs first)", () => {
+    const body = "review the spec and fix this button"
+    const wire =
+      body +
+      buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]) +
+      buildTargetedElementsFooter([
+        { ref: "el-1", route: "/", selector: "button", frameLabel: "Frame A" },
+      ])
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.body).toBe(body)
+    expect(parsed.hadReferencedDocs).toBe(true)
+    expect(parsed.hadTargetedElements).toBe(true)
+  })
+
+  it("coexists with the referenced-docs footer regardless of order (elements first)", () => {
+    const body = "fix this button per the spec"
+    const wire =
+      body +
+      buildTargetedElementsFooter([
+        { ref: "el-1", route: "/", selector: "button", frameLabel: "Frame A" },
+      ]) +
+      buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }])
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.body).toBe(body)
+    expect(parsed.hadReferencedDocs).toBe(true)
+    expect(parsed.hadTargetedElements).toBe(true)
+  })
+
+  it("leaves inline element markers in the body while stripping only the footer", () => {
+    const body = serializeElement("button", "el-1")
+    const wire =
+      body +
+      buildTargetedElementsFooter([
+        { ref: "el-1", route: "/", selector: "button", frameLabel: "Frame A" },
+      ])
+
+    const parsed = parseUserMessage(wire)
+
+    expect(parsed.body).toBe("[element: button](element:el-1)")
+    expect(parsed.hadTargetedElements).toBe(true)
   })
 })
