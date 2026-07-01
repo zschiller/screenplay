@@ -14,7 +14,9 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
+  RepoData,
 } from "@/lib/types"
+import { openPreviewInBrowser } from "@/lib/open-preview"
 
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
@@ -77,6 +79,7 @@ function CanvasMemberLayerImpl({
   remoteGroupSelectionColors,
   agentDomains,
   agents,
+  repos,
   zoom,
   spaceHeld,
   commentMode,
@@ -118,6 +121,7 @@ function CanvasMemberLayerImpl({
   remoteGroupSelectionColors: Map<string, string>
   agentDomains: AgentDomains
   agents: BranchData[]
+  repos: RepoData[]
   zoom: number
   spaceHeld: boolean
   commentMode: boolean
@@ -303,6 +307,23 @@ function CanvasMemberLayerImpl({
           const assignedAgent = iframeLayer.branchId
             ? agents.find((a) => a.id === iframeLayer.branchId)
             : undefined
+          const assignedRepo = assignedAgent
+            ? repos.find((r) => r.id === assignedAgent.repoId)
+            : undefined
+          const previewDomain = agentInfo?.previewDomain
+          // "Open in browser" resolves the portless named URL from the Branch's
+          // sandbox + Repo, falling back to the port-based preview. Bound only
+          // when the frame actually has a live preview to open.
+          const openInBrowser =
+            assignedAgent && assignedRepo && previewDomain
+              ? () =>
+                  openPreviewInBrowser({
+                    sandboxName: assignedAgent.sandboxName,
+                    repo: assignedRepo,
+                    fallbackBase: previewDomain,
+                    route: iframeLayer.route ?? "",
+                  })
+              : undefined
           return (
             <IframeLayer
               key={iframeLayer.id}
@@ -347,6 +368,7 @@ function CanvasMemberLayerImpl({
               onKnobValuesChange={layerMutations.updateKnobValues}
               onSharedStateChanged={layerMutations.updateSharedState}
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
+              onOpenInBrowser={openInBrowser}
               onFitToContent={layerMutations.fitToContent}
               onSetSize={layerMutations.fitToContent}
               multiSelected={

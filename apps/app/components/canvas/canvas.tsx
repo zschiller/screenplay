@@ -1389,6 +1389,7 @@ export function Canvas({
                     remoteGroupSelectionColors={remoteGroupSelectionColors}
                     agentDomains={agentDomains}
                     agents={agents}
+                    repos={repos}
                     zoom={zoom}
                     spaceHeld={spaceHeld}
                     commentMode={commentMode}
