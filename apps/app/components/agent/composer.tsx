@@ -14,12 +14,14 @@ import {
   ClipboardList,
   ChevronDown,
   Check,
+  Crosshair,
   Square,
 } from "lucide-react"
+import { nanoid } from "nanoid"
 import { EditorContent, useEditor, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
-import { mergeAttributes, type JSONContent } from "@tiptap/core"
+import { mergeAttributes, Node, type JSONContent } from "@tiptap/core"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { buildSkillMentionSuggestion } from "@/lib/skill-mention-suggestion"
 import type { SkillMenuItem } from "@/lib/skills-store"
@@ -38,13 +40,75 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import {
   buildReferencedDocsFooter,
+  buildTargetedElementsFooter,
+  deriveElementLabel,
+  serializeElement,
   serializeMention,
   serializeSkill,
+  type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { ModelInfo } from "@/lib/models-store"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
+import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+
+/** Leading glyph on an element token — a crosshair, standing in for the `@`/`/`
+ *  of mentions/skills to signal "a targeted preview element". */
+const ELEMENT_TOKEN_GLYPH = "⌖"
+
+/**
+ * The composer's atomic inline element-token node (PRD #616, slice #618).
+ * Inserted programmatically when a canvas element pick resolves — never via a
+ * typed trigger char, unlike the `@`/`/` Mention pickers. Atomic: a single
+ * Backspace deletes it whole and there's no caret inside. It renders like the
+ * `@`/`/` references (sky-blue inline text, no pill) but with a `font-mono`
+ * label and a leading crosshair glyph. Its attrs carry both the visible label
+ * and the wire detail: `serializeElement` emits the inline `[element: …]` marker
+ * from `label`/`ref`, and `buildTargetedElementsFooter` reads `ref`/`route`/
+ * `selector`/`frameLabel` for the agent-facing footer (see
+ * `extractTextAndMentions`).
+ */
+const ElementToken = Node.create({
+  name: "elementToken",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      label: { default: "" },
+      // Correlates the inline marker to its footer entry.
+      ref: { default: "" },
+      selector: { default: "" },
+      iframeLayerId: { default: "" },
+      route: { default: "" },
+      tagName: { default: "" },
+      id: { default: null },
+      frameLabel: { default: "" },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: "span[data-element-token]" }]
+  },
+
+  renderHTML({ HTMLAttributes, node }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, {
+        "data-element-token": "",
+        class: `${MENTION_TEXT_CLASS} font-mono`,
+      }),
+      `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`,
+    ]
+  },
+
+  renderText({ node }) {
+    return `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`
+  },
+})
 
 /**
  * Walk a TipTap JSON document and return:
@@ -54,16 +118,21 @@ import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
  *    agent loop can act on the explicit invocation.
  *  - `mentions`: deduplicated `{ id }` list (layer mentions only).
  *  - `skill`: the picked Skill name, if any (at most one per message).
+ *  - `elements`: the targeted preview elements, in document order, each
+ *    serialized inline via `serializeElement` and carried here for the
+ *    `Targeted elements:` footer.
  * Block boundaries (paragraphs, headings, list items) become newlines.
  */
 export function extractTextAndMentions(json: JSONContent | undefined): {
   text: string
   mentions: Array<{ id: string }>
   skill?: string
+  elements: TargetedElement[]
 } {
-  if (!json) return { text: "", mentions: [] }
+  if (!json) return { text: "", mentions: [], elements: [] }
   const out: string[] = []
   const mentions: Array<{ id: string }> = []
+  const elements: TargetedElement[] = []
   const seen = new Set<string>()
   let skill: string | undefined
 
@@ -89,6 +158,21 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
         seen.add(id)
         mentions.push({ id })
       }
+      return
+    }
+    if (node.type === "elementToken") {
+      // Atomic element token: emit its inline `[element: <label>](element:<ref>)`
+      // marker into the body and record the actionable route + selector (+ frame
+      // label) for the footer, keyed by the same `ref`.
+      const label = (node.attrs?.label as string | undefined) ?? ""
+      const ref = (node.attrs?.ref as string | undefined) ?? ""
+      out.push(serializeElement(label, ref))
+      elements.push({
+        ref,
+        route: (node.attrs?.route as string | undefined) ?? "/",
+        selector: (node.attrs?.selector as string | undefined) ?? "",
+        frameLabel: (node.attrs?.frameLabel as string | undefined) ?? "",
+      })
       return
     }
     if (node.type === "hardBreak") {
@@ -119,6 +203,7 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
       .trim(),
     mentions,
     skill,
+    elements,
   }
 }
 
@@ -127,21 +212,30 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
  * extracted turn text with each `@`-Layer mention and the optional `/`-Skill
  * serialized inline, plus the referenced-documents footer for any mentioned
  * Layers. Bodies are never inlined — the agent loop fetches live state via
- * `read_document(id)` on demand. An empty draft serializes to `""`. Shared by
+ * `read_document(id)` on demand. Targeted preview elements ride the same
+ * decorated body: their inline `[element: …]` markers are already in `text`
+ * (from `extractTextAndMentions`), and the actionable route + selector detail
+ * follows in the `Targeted elements:` footer. A tokens-only draft still
+ * serializes — the markers make `text` non-empty — so a message that references
+ * elements with no prose sends. An empty draft serializes to `""`. Shared by
  * the submit path and the live `onChange` mirror so both see identical text.
  */
 function serializeDraft(
   editor: Editor,
   markdownLayers: MarkdownLayerData[]
 ): string {
-  const { text, mentions } = extractTextAndMentions(editor.getJSON())
+  const { text, mentions, elements } = extractTextAndMentions(editor.getJSON())
   const trimmed = text.trim()
   if (!trimmed) return ""
   const docs = mentions.map((m) => ({
     id: m.id,
     title: markdownLayers.find((d) => d.id === m.id)?.title,
   }))
-  return trimmed + buildReferencedDocsFooter(docs)
+  return (
+    trimmed +
+    buildReferencedDocsFooter(docs) +
+    buildTargetedElementsFooter(elements)
+  )
 }
 
 /** What a submit hands back: the decorated wire body and the chosen model. */
@@ -262,6 +356,15 @@ export interface ComposerProps {
   placeholder?: string
   /** Outer container className. Defaults to the chat input frame. */
   className?: string
+  /**
+   * Enables composer-driven element targeting (PRD #616): when provided, a
+   * target (crosshair) icon appears in the composer and ⌘/Ctrl+E enters a
+   * one-shot canvas pick. The caller returns the picked element (or `null` when
+   * the pick is cancelled); the Composer inserts an atomic element token at the
+   * stashed caret, followed by a trailing space. Omit it (the seed composer, doc
+   * chats, the New-Workspace dialog) and there's no target affordance.
+   */
+  onPickElement?: () => Promise<PickedElement | null>
 }
 
 /**
@@ -301,6 +404,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       hideSend = false,
       placeholder = "Ask the agent...",
       className = "relative border-t border-border p-3",
+      onPickElement,
     },
     ref
   ) {
@@ -455,6 +559,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               : []),
           ],
         }),
+        // Atomic inline element token, inserted programmatically by the target
+        // affordance below — not through a suggestion trigger like `@`/`/`.
+        ElementToken,
       ],
       immediatelyRender: false,
       editorProps: {
@@ -470,6 +577,20 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           // instead of us acting on it.
           if (mentionOpenRef.current || skillMentionOpenRef.current)
             return false
+          // ⌘/Ctrl+E starts a one-shot element pick — the keyboard equivalent of
+          // the target icon. Only claims the key where targeting is enabled, so
+          // it stays inert in composers without a canvas.
+          if (
+            canPickRef.current &&
+            (event.metaKey || event.ctrlKey) &&
+            !event.shiftKey &&
+            !event.altKey &&
+            (event.key === "e" || event.key === "E")
+          ) {
+            event.preventDefault()
+            pickRef.current()
+            return true
+          }
           // Backspace/Delete on an already-empty draft pops the row (the New
           // Workspace dialog), so a cleared row is one keystroke from gone.
           if (
@@ -541,6 +662,74 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     useEffect(() => {
       submitRef.current = handleSubmit
     }, [handleSubmit])
+
+    // Element targeting (PRD #616). The caret is stashed when a pick starts so
+    // the token lands where the user was writing even though clicking the target
+    // icon (or picking on the canvas) blurs the editor. A one-in-flight guard
+    // keeps a second trigger (double-click, ⌘E while a pick is open) from
+    // stacking picks.
+    const pendingCaretRef = useRef<number | null>(null)
+    const pickInProgressRef = useRef(false)
+
+    const insertElementToken = useCallback(
+      (picked: PickedElement) => {
+        if (!editor) return
+        const label = deriveElementLabel(picked.tagName, picked.id)
+        // A short, per-token ref correlates the inline marker to its footer
+        // entry; uniqueness within a message is all that's required.
+        const ref = `el-${nanoid(6)}`
+        const at = pendingCaretRef.current
+        pendingCaretRef.current = null
+        const content = [
+          {
+            type: "elementToken",
+            attrs: {
+              label,
+              ref,
+              selector: picked.selector,
+              iframeLayerId: picked.iframeLayerId,
+              route: picked.route,
+              tagName: picked.tagName,
+              id: picked.id ?? null,
+              frameLabel: picked.frameLabel,
+            },
+          },
+          // Trailing space so the caret leaves the atom and the next keystroke
+          // is prose, not another attempt to type inside the token.
+          { type: "text", text: " " },
+        ]
+        const chain = editor.chain().focus()
+        if (at != null) chain.insertContentAt(at, content)
+        else chain.insertContent(content)
+        chain.run()
+      },
+      [editor]
+    )
+
+    const triggerPick = useCallback(async () => {
+      if (!editor || !onPickElement || pickInProgressRef.current) return
+      pickInProgressRef.current = true
+      // Stash the caret before the async pick — clicking the icon / canvas blurs
+      // the editor, but the position is where the token should land.
+      pendingCaretRef.current = editor.state.selection.from
+      try {
+        const picked = await onPickElement()
+        if (picked) insertElementToken(picked)
+      } finally {
+        pickInProgressRef.current = false
+      }
+    }, [editor, onPickElement, insertElementToken])
+
+    // Reach the construction-time keydown handler (⌘/Ctrl+E) through refs, same
+    // as the submit / bare-Enter handlers.
+    const pickRef = useRef(triggerPick)
+    useEffect(() => {
+      pickRef.current = triggerPick
+    }, [triggerPick])
+    const canPickRef = useRef(!!onPickElement)
+    useEffect(() => {
+      canPickRef.current = !!onPickElement
+    })
 
     useImperativeHandle(
       ref,
@@ -614,6 +803,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {onPickElement && (
+              <InputGroupButton
+                size="icon-xs"
+                variant="ghost"
+                onClick={triggerPick}
+                disabled={noAgents}
+                title="Target an element (⌘E)"
+              >
+                <Crosshair />
+              </InputGroupButton>
             )}
             {onPlanModeChange && (
               <InputGroupButton

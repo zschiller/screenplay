@@ -55,6 +55,12 @@ export type IframeToCanvasMessage =
       selector: string
       rect: DomRect
       outerHTML: string
+      // The picked element's tag name (lowercase, e.g. `button`) and its `id`
+      // attribute when present. Supplied explicitly so the composer's element
+      // token derives its label from the real tag/id rather than regexing the
+      // CSS selector. Optional so an older in-iframe bridge still parses.
+      tagName?: string
+      id?: string
     }
   | { type: "screenplay:hover"; rect: DomRect | null }
   | {

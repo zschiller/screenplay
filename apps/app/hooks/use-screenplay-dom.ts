@@ -12,6 +12,11 @@ export type PickResult = {
   selector: string
   rect: DomRect
   outerHTML: string
+  /** The picked element's lowercase tag name (e.g. `button`), when the bridge
+   *  reports it. Undefined against an older in-iframe bridge. */
+  tagName?: string
+  /** The picked element's `id` attribute, when it has one. */
+  id?: string
 }
 
 type Pending = {
@@ -142,6 +147,8 @@ export function useScreenplayDom(
           selector: d.selector,
           rect: d.rect,
           outerHTML: d.outerHTML,
+          tagName: d.tagName,
+          id: d.id,
         })
       } else if (d.type === "screenplay:hover") {
         onHoverRef.current?.(d.rect)
