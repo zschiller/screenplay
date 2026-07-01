@@ -1,6 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import { Loader2 } from "lucide-react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -25,6 +31,11 @@ import { resolveDefaultModel } from "@/lib/model-selection"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 
 const LAST_MODEL_STORAGE_KEY = "agent-last-model"
+
+// Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
+// render would make React re-subscribe every render.
+const subscribeTargetEligibility = (onChange: () => void) =>
+  targetingStore.subscribeEligibility(onChange)
 
 function readStoredModel(): string | null {
   if (typeof window === "undefined") return null
@@ -304,6 +315,16 @@ export function AgentChat({
     return targetingStore.requestPick(sandboxId)
   }, [sandboxId])
 
+  // Whether this branch has an eligible frame open right now — the Canvas
+  // publishes it, and it drives the composer target icon's disabled/tooltip
+  // state (#619). Subscribed here (not in the leaf Composer) so the Composer
+  // stays a generic input with no store dependency.
+  const targetEligible = useSyncExternalStore(
+    subscribeTargetEligibility,
+    () => (sandboxId ? targetingStore.hasEligibleFrames(sandboxId) : false),
+    () => false
+  )
+
   // Allow other parts of the app (e.g. the inspect tool) to append text
   // snippets to this chat's draft.
   useEffect(() => {
@@ -413,6 +434,7 @@ export function AgentChat({
         onStop={stopMessage}
         placeholder={composerPlaceholder}
         onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
+        targetEligible={targetEligible}
       />
     </div>
   )

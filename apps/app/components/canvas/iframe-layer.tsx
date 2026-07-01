@@ -178,6 +178,12 @@ interface IframeLayerProps {
    * element they're about to anchor a comment to. The click falls through
    * to the canvas-level handler that opens the composer. */
   commentMode?: boolean
+  /**
+   * True while an element pick is armed for a *different* branch, so this frame
+   * can't be targeted (#619). Dims the frame body to make the eligible frames
+   * stand out; purely visual — the canvas-level hit-test already ignores it.
+   */
+  dimmed?: boolean
   onHover: (iframeLayerId: string, rect: DomRect | null) => void
   /**
    * A zoom gesture (pinch / ctrl|cmd-wheel) that landed on the interactive
@@ -279,6 +285,7 @@ export function IframeLayer({
   multiSelected,
   spaceHeld,
   commentMode,
+  dimmed,
   onHover,
   onWheel,
   onDomReady,
@@ -888,6 +895,14 @@ export function IframeLayer({
                   )}
                 </div>
               )}
+
+            {/* Dim scrim for an armed pick on another branch (#619): a subtle
+            wash over the frame body so the eligible (undimmed) frames stand out.
+            Pointer-transparent — a click still falls through to the canvas-level
+            target handler, which treats a non-eligible frame as a cancel. */}
+            {dimmed && (
+              <div className="pointer-events-none absolute inset-0 z-10 bg-background/60 transition-opacity" />
+            )}
 
             {/* Overlay sits above the iframe (which is pointer-events:none unless
             focused). Handles drag-to-move / click; in comment mode it also

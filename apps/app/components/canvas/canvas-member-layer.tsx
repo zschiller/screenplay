@@ -83,6 +83,7 @@ function CanvasMemberLayerImpl({
   zoom,
   spaceHeld,
   commentMode,
+  dimmedIframeLayerIds,
   selfName,
   selfColor,
   editingDocumentLayerId,
@@ -125,6 +126,12 @@ function CanvasMemberLayerImpl({
   zoom: number
   spaceHeld: boolean
   commentMode: boolean
+  /**
+   * Iframe Layers to dim during an armed element pick (#619): every frame *not*
+   * eligible for the requesting branch, so it's visually clear which frames can
+   * be targeted. Empty whenever no pick is armed.
+   */
+  dimmedIframeLayerIds: ReadonlySet<string>
   /** Local user's display name + presence color, used to tint our own selection.
    *  Passed as primitives rather than the whole `self` presence object, which
    *  changes identity on every viewport rebroadcast during a pan. */
@@ -376,6 +383,7 @@ function CanvasMemberLayerImpl({
               }
               spaceHeld={spaceHeld}
               commentMode={commentMode}
+              dimmed={dimmedIframeLayerIds.has(iframeLayer.id)}
               onHover={reference.setInspectHover}
               onWheel={onIframeWheel}
               onDomReady={reference.onIframeLayerDomReady}

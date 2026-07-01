@@ -39,6 +39,12 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
+import {
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   deriveElementLabel,
@@ -365,6 +371,13 @@ export interface ComposerProps {
    * chats, the New-Workspace dialog) and there's no target affordance.
    */
   onPickElement?: () => Promise<PickedElement | null>
+  /**
+   * Whether the bound branch currently has an eligible (open) frame to target
+   * (#619). Only meaningful alongside `onPickElement`: when `false`, the target
+   * icon is disabled with a tooltip explaining that the branch's preview must be
+   * opened first, and ⌘/Ctrl+E is a no-op. Defaults to `true`.
+   */
+  targetEligible?: boolean
 }
 
 /**
@@ -405,6 +418,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       placeholder = "Ask the agent...",
       className = "relative border-t border-border p-3",
       onPickElement,
+      targetEligible = true,
     },
     ref
   ) {
@@ -708,6 +722,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
 
     const triggerPick = useCallback(async () => {
       if (!editor || !onPickElement || pickInProgressRef.current) return
+      // No eligible frame open → the pick would find nothing to hit, so match
+      // the disabled icon and no-op the ⌘E shortcut too (#619).
+      if (!targetEligible) return
       pickInProgressRef.current = true
       // Stash the caret before the async pick — clicking the icon / canvas blurs
       // the editor, but the position is where the token should land.
@@ -718,7 +735,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       } finally {
         pickInProgressRef.current = false
       }
-    }, [editor, onPickElement, insertElementToken])
+    }, [editor, onPickElement, targetEligible, insertElementToken])
 
     // Reach the construction-time keydown handler (⌘/Ctrl+E) through refs, same
     // as the submit / bare-Enter handlers.
@@ -805,15 +822,30 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               </DropdownMenu>
             )}
             {onPickElement && (
-              <InputGroupButton
-                size="icon-xs"
-                variant="ghost"
-                onClick={triggerPick}
-                disabled={noAgents}
-                title="Target an element (⌘E)"
-              >
-                <Crosshair />
-              </InputGroupButton>
+              <TooltipProvider>
+                <Tooltip>
+                  {/* Wrap the trigger in a span: a disabled button emits no
+                      pointer events, so Radix couldn't surface the "open the
+                      preview first" explanation without a live element to hover. */}
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <InputGroupButton
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={triggerPick}
+                        disabled={noAgents || !targetEligible}
+                      >
+                        <Crosshair />
+                      </InputGroupButton>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {targetEligible
+                      ? "Target an element (⌘E)"
+                      : "Open this branch's preview first to target an element"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {onPlanModeChange && (
               <InputGroupButton
