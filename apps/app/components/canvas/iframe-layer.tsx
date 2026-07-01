@@ -161,6 +161,13 @@ interface IframeLayerProps {
   onSharedStateChanged?: (id: string, state: JsonObject) => void
   /** Open the prototype player route for this iframeLayer's branch in a new tab. */
   onPlay?: (id: string) => void
+  /**
+   * Open this frame's live preview in the system browser, deep-linked to the
+   * route it's currently showing — preferring portless's stable named URL over
+   * the port-based proxy URL. Bound by the canvas (which has the frame's Branch
+   * and Repo); absent until the frame has a live preview to open.
+   */
+  onOpenInBrowser?: () => void
   /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
   onFitToContent?: (id: string, width: number, height: number) => void
   /** Set the frame to an explicit width/height (used by the device-preset menu). */
@@ -266,6 +273,7 @@ export function IframeLayer({
   onKnobValuesChange,
   onSharedStateChanged,
   onPlay,
+  onOpenInBrowser,
   onFitToContent,
   onSetSize,
   multiSelected,
@@ -401,12 +409,11 @@ export function IframeLayer({
   const showFit = !!onFitToContent && !!iframeLayer.branchId
   const showPlay = !!onPlay
   // Open the frame's live preview in a real browser tab, deep-linked to the
-  // route it's currently showing (`previewDomain + route`) — the same URL the
-  // iframe itself loads, minus the prototype-player wrapper.
-  const openInBrowserUrl = iframeLayer.iframeUrl
-    ? iframeLayer.iframeUrl + (iframeLayer.route ?? "")
-    : undefined
-  const showOpenInBrowser = !!openInBrowserUrl
+  // route it's currently showing — the same page the iframe loads, minus the
+  // prototype-player wrapper. The canvas binds `onOpenInBrowser` only when the
+  // frame has a live preview (and a Branch/Repo to resolve the portless URL),
+  // so its presence is the gate.
+  const showOpenInBrowser = !!onOpenInBrowser
   const showReload = hmrStatus === "disconnected"
   // The `…` drawer holds low-frequency frame config (Device Size, Fit) and
   // Branch-scoped "open" actions (prototype player, open in browser). Hidden
@@ -808,8 +815,8 @@ export function IframeLayer({
                             Open prototype player
                           </DropdownMenuItem>
                         )}
-                        {showOpenInBrowser && (
-                          <OpenInBrowserItem url={openInBrowserUrl} />
+                        {onOpenInBrowser && (
+                          <OpenInBrowserItem onOpen={onOpenInBrowser} />
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

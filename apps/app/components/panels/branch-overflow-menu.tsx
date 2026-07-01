@@ -28,6 +28,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { BRANCH_COLORS } from "@/lib/branch-colors"
 import { openExternal } from "@/lib/open-external"
+import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
 import { OpenInBrowserItem } from "@/components/open-in-browser-item"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -217,7 +218,18 @@ export function BranchOverflowMenuContent({
     // Pop the branch's live preview into a real browser tab, outside the
     // prototype-player wrapper. Opens the preview root (the frame toolbar's
     // copy of this same item deep-links the route it's showing instead).
-    "open-in-browser": <OpenInBrowserItem url={branch.previewDomain} />,
+    "open-in-browser": (
+      <OpenInBrowserItem
+        disabled={!branch.previewDomain}
+        onOpen={() =>
+          openPreviewInBrowser({
+            sandboxName: branch.sandboxName,
+            repo,
+            fallbackBase: branch.previewDomain,
+          })
+        }
+      />
+    ),
     routes: (
       <DropdownMenuItem
         disabled={
