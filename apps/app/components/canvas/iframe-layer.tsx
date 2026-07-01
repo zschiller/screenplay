@@ -179,6 +179,13 @@ interface IframeLayerProps {
    * to the canvas-level handler that opens the composer. */
   commentMode?: boolean
   /**
+   * True while an element pick is armed for a branch this frame is eligible for.
+   * Like comment mode, it shows the element hover overlay so the user can see
+   * what they're about to target; the click falls through to the canvas-level
+   * pick handler. Ineligible frames get `dimmed` instead and don't hover-track.
+   */
+  pickActive?: boolean
+  /**
    * True while an element pick is armed for a *different* branch, so this frame
    * can't be targeted (#619). Dims the frame body to make the eligible frames
    * stand out; purely visual — the canvas-level hit-test already ignores it.
@@ -285,6 +292,7 @@ export function IframeLayer({
   multiSelected,
   spaceHeld,
   commentMode,
+  pickActive,
   dimmed,
   onHover,
   onWheel,
@@ -913,12 +921,13 @@ export function IframeLayer({
                 className="absolute inset-0 touch-none"
                 style={{ cursor: "inherit" }}
                 {...api.bodyDragHandlers}
-                {...(commentMode && !spaceHeld
+                {...((commentMode || pickActive) && !spaceHeld && !dimmed
                   ? {
                       // Hover-only: show the inspect overlay so the user can see
-                      // what element they're about to comment on. The click is
-                      // handled by the canvas-level handleCanvasClick (which
-                      // also re-runs elementAtPoint to capture the selector).
+                      // what element they're about to comment on / target. The
+                      // click is handled by the canvas-level handler (comment or
+                      // pick), which re-runs elementAtPoint to capture the
+                      // selector. Dimmed (pick-ineligible) frames don't track.
                       onPointerMove: async (e: React.PointerEvent) => {
                         const result = await queryElementAtPoint(
                           e.clientX,

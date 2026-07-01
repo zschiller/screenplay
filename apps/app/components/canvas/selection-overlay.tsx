@@ -52,6 +52,13 @@ interface SelectionOverlayProps {
   hideResizeHandles?: boolean
   inspectRect?: { x: number; y: number; width: number; height: number } | null
   /**
+   * Sky-blue outline for the element a hovered composer / message element token
+   * references (PRD #616). Drawn on this overlay canvas — not as a box inside the
+   * iframe — so its stroke stays a constant 1px at any zoom, matching the
+   * inspect / selection rects.
+   */
+  highlightRect?: { x: number; y: number; width: number; height: number } | null
+  /**
    * One handle per inter-iframeLayer gap in selected groups, as produced by the
    * `lib/canvas/layout` module. World-space `centerX` is the gap's midpoint;
    * `top`/`bottom` clamp the handle to the shared height of the two adjacent
@@ -119,6 +126,7 @@ export function SelectionOverlay({
   othersSelections,
   hideResizeHandles,
   inspectRect,
+  highlightRect,
   gapHandles,
   reorderHandles,
   hoveredReorderIframeLayerId,
@@ -359,6 +367,28 @@ export function SelectionOverlay({
       ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
     }
 
+    // Draw the token-hover highlight rect. Same screen-space projection and
+    // constant-1px inside stroke as the inspect rect, tinted sky-blue to match
+    // the composer token.
+    if (highlightRect) {
+      const tl = toScreen(highlightRect.x, highlightRect.y)
+      const br = toScreen(
+        highlightRect.x + highlightRect.width,
+        highlightRect.y + highlightRect.height
+      )
+      const l = snap(tl.x)
+      const t = snap(tl.y)
+      const r = snap(br.x)
+      const b = snap(br.y)
+      ctx.globalAlpha = 0.1
+      ctx.fillStyle = "#0ea5e9"
+      ctx.fillRect(l, t, r - l, b - t)
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = "#0ea5e9"
+      ctx.lineWidth = 1
+      ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
+    }
+
     // Draw marquee rectangle
     if (marquee) {
       // Convert both corners to screen space, then snap edges independently
@@ -583,6 +613,7 @@ export function SelectionOverlay({
     othersSelections,
     hideResizeHandles,
     inspectRect,
+    highlightRect,
     gapHandles,
     reorderHandles,
     hoveredReorderIframeLayerId,
