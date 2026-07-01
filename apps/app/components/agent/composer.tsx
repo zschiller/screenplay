@@ -18,7 +18,12 @@ import {
   Square,
 } from "lucide-react"
 import { nanoid } from "nanoid"
-import { EditorContent, useEditor, type Editor } from "@tiptap/react"
+import {
+  EditorContent,
+  ReactNodeViewRenderer,
+  useEditor,
+  type Editor,
+} from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core"
@@ -52,6 +57,7 @@ import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+import { ElementTokenNodeView } from "./element-token-node"
 
 /** Leading glyph on an element token — a crosshair, standing in for the `@`/`/`
  *  of mentions/skills to signal "a targeted preview element". */
@@ -107,6 +113,15 @@ const ElementToken = Node.create({
 
   renderText({ node }) {
     return `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`
+  },
+
+  // A React node view (PRD #616, slice #620) wraps the same inline label in a
+  // HoverCard — hovering reveals the full selector / route / frame and
+  // highlights the element on the canvas. `renderHTML`/`renderText` above stay
+  // as the plain fallbacks used for clipboard/serialization and any non-view
+  // render path.
+  addNodeView() {
+    return ReactNodeViewRenderer(ElementTokenNodeView)
   },
 })
 
