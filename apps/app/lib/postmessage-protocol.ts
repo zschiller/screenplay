@@ -16,6 +16,12 @@ export type DomOp =
   | "elementAtPoint"
   | "getRectsForSelectors"
   | "getDocumentSize"
+  // Highlight-by-selector (PRD #616, slice #620). `highlightSelector` draws a
+  // transient outline over the element matching `selector` inside the frame;
+  // `clearHighlight` removes it. Both no-op quietly when nothing matches, so a
+  // stale composer token never errors or flashes. Composer-side only.
+  | "highlightSelector"
+  | "clearHighlight"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
 

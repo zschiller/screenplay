@@ -64,6 +64,7 @@ import {
   type PickedElement,
   type PickRequest,
 } from "@/lib/targeting-store"
+import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -1197,6 +1198,37 @@ export function Canvas({
     window.addEventListener("keydown", onKey, true)
     return () => window.removeEventListener("keydown", onKey, true)
   }, [targetPick, resolveTargetPick])
+
+  // Element highlight (PRD #616, slice #620): the Canvas is the sole fulfiller
+  // of a hovered composer token's highlight request. No layout math here — the
+  // referenced frame's bridge draws the outline in-iframe from the selector, so
+  // this just routes the request to that frame's DOM channel. A frame that's
+  // been closed has no `dom`, so the hover is a quiet no-op (no error, no
+  // flash); moving between tokens clears the previously-outlined frame first.
+  const lastHighlightDomRef = useRef<ScreenplayDom | null>(null)
+  useEffect(() => {
+    const clearPrev = () => {
+      lastHighlightDomRef.current?.clearHighlight().catch(() => {})
+      lastHighlightDomRef.current = null
+    }
+    const unregister = targetingStore.registerHighlight((target) => {
+      const prevDom = lastHighlightDomRef.current
+      const dom = target
+        ? reference.getIframeLayerDom(target.iframeLayerId)
+        : undefined
+      if (!target || !dom) {
+        clearPrev()
+        return
+      }
+      if (prevDom && prevDom !== dom) prevDom.clearHighlight().catch(() => {})
+      lastHighlightDomRef.current = dom
+      dom.highlightSelector(target.selector).catch(() => {})
+    })
+    return () => {
+      unregister()
+      clearPrev()
+    }
+  }, [reference])
 
   // Targeting-mode canvas click: convert to world coords (same camera math as
   // the comment path), hit-test only the requesting branch's eligible frames,

@@ -135,6 +135,57 @@
   let pickClickHandler = null
   let lastHoverKey = ""
 
+  // --- Highlight-by-selector (PRD #616, slice #620) ---
+  // A composer element token asks (via the parent) to outline the element it
+  // references while hovered. We draw a fixed-position sky-blue box over the
+  // element's client rect. `highlightSelector` no-ops quietly when the selector
+  // matches nothing (the token is stale — the frame's content changed) so a
+  // hover never errors or flashes; `clearHighlight` hides the box.
+  let highlightEl = null
+
+  function ensureHighlightUi() {
+    if (highlightEl) return
+    highlightEl = document.createElement("div")
+    Object.assign(highlightEl.style, {
+      position: "fixed",
+      pointerEvents: "none",
+      zIndex: "2147483645",
+      boxSizing: "border-box",
+      border: "2px solid #0ea5e9",
+      borderRadius: "2px",
+      background: "rgba(14,165,233,0.10)",
+      boxShadow: "0 0 0 1px rgba(14,165,233,0.35)",
+      display: "none",
+    })
+    document.documentElement.appendChild(highlightEl)
+  }
+
+  function highlightSelector(selector) {
+    let el = null
+    try {
+      el = selector ? document.querySelector(selector) : null
+    } catch {
+      el = null
+    }
+    if (!el || !(el instanceof Element)) {
+      clearHighlight()
+      return
+    }
+    ensureHighlightUi()
+    const r = el.getBoundingClientRect()
+    Object.assign(highlightEl.style, {
+      display: "block",
+      left: r.x + "px",
+      top: r.y + "px",
+      width: r.width + "px",
+      height: r.height + "px",
+    })
+  }
+
+  function clearHighlight() {
+    if (highlightEl) highlightEl.style.display = "none"
+  }
+
   // --- Touch-cursor puck (mobile/tablet device preview) ---
   // The parent toggles this with a `screenplay:cursor-mode` message. We hide
   // the system cursor with a !important rule that wins over in-app
@@ -428,6 +479,12 @@
               id: tags.id,
             })
           }
+        } else if (d.op === "highlightSelector") {
+          highlightSelector(d.selector)
+          reply(d.id, true, null)
+        } else if (d.op === "clearHighlight") {
+          clearHighlight()
+          reply(d.id, true, null)
         } else {
           reply(d.id, false, "unknown op: " + d.op)
         }

@@ -220,6 +220,22 @@ export function useScreenplayDom(
           type: "screenplay:dom-query",
           op: "getDocumentSize",
         }),
+      // Highlight-by-selector (PRD #616, slice #620): outline the element a
+      // composer element token references while it's hovered. No-ops quietly in
+      // the bridge when the selector matches nothing (a stale token), and the
+      // request rejects harmlessly if the frame's iframe is already gone — the
+      // caller swallows both so a hover never errors or flashes.
+      highlightSelector: (selector: string) =>
+        request<null>({
+          type: "screenplay:dom-query",
+          op: "highlightSelector",
+          selector,
+        }),
+      clearHighlight: () =>
+        request<null>({
+          type: "screenplay:dom-query",
+          op: "clearHighlight",
+        }),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),
       stopPick: () => request<null>({ type: "screenplay:pick-stop" }),
       setForwardInput: (enabled: boolean) =>

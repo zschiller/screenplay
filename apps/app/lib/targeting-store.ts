@@ -38,8 +38,25 @@ export interface PickRequest {
 
 type Fulfiller = (request: PickRequest) => void
 
+/**
+ * The element a hovered composer token wants highlighted on the Canvas (PRD
+ * #616, slice #620). Carries the frame and full selector to locate it, plus the
+ * token's own `ref` so a leave only clears the highlight it set — moving the
+ * pointer straight from one token to another (enter-before-leave) doesn't wipe
+ * the newer token's highlight.
+ */
+export interface HighlightTarget {
+  iframeLayerId: string
+  selector: string
+  ref: string
+}
+
+type HighlightHandler = (target: HighlightTarget | null) => void
+
 class TargetingStore {
   private fulfiller: Fulfiller | null = null
+  private highlightHandler: HighlightHandler | null = null
+  private currentHighlight: HighlightTarget | null = null
 
   // Which branch ids currently have at least one eligible (open) frame, as
   // published by the Canvas. A Composer reads this (via `subscribeEligibility`
@@ -101,6 +118,41 @@ class TargetingStore {
     return new Promise((resolve) => {
       fulfiller({ branchId, resolve })
     })
+  }
+
+  /**
+   * The Canvas registers the sole highlight fulfiller (the frame that draws the
+   * outline). Symmetric with `register`. Clears any live highlight on unregister
+   * so a canvas unmount doesn't leave state pointing at a gone frame.
+   */
+  registerHighlight(handler: HighlightHandler): () => void {
+    this.highlightHandler = handler
+    return () => {
+      if (this.highlightHandler === handler) {
+        this.highlightHandler = null
+        this.currentHighlight = null
+      }
+    }
+  }
+
+  /**
+   * A hovered composer token asks the Canvas to highlight its element. No-op
+   * when no Canvas is mounted (the token is just inert prose then).
+   */
+  setHighlight(target: HighlightTarget): void {
+    this.currentHighlight = target
+    this.highlightHandler?.(target)
+  }
+
+  /**
+   * A token clears its highlight on leave. Guarded by `ref` so it only clears
+   * the highlight it owns — if the pointer already moved to another token whose
+   * enter set a fresh highlight, this stale leave is ignored.
+   */
+  clearHighlight(ref: string): void {
+    if (this.currentHighlight?.ref !== ref) return
+    this.currentHighlight = null
+    this.highlightHandler?.(null)
   }
 }
 
