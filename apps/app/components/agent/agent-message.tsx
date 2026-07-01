@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
-import Markdown from "react-markdown"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import Markdown, { type Components } from "react-markdown"
 import {
   ChevronDown,
   FileText,
@@ -19,16 +19,25 @@ import {
   PencilLine,
   SquarePen,
   Brain,
+  Crosshair,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import {
   elementMarkersToPills,
+  parseTargetedElementsFooter,
   parseUserMessage,
   skillMarkersToPills,
+  type TargetedElement,
 } from "@/lib/agent/message-markers"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@workspace/ui/components/hover-card"
 import { chatStore } from "@/lib/chat-store"
+import { targetingStore } from "@/lib/targeting-store"
 import { openExternal } from "@/lib/open-external"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 
@@ -643,6 +652,160 @@ function ReasoningMessage({
   )
 }
 
+/**
+ * A single element token in the sent-message bubble, hung off a HoverCard that
+ * reveals the detail (selector / route / frame) the terse label hides — mirror
+ * of the composer's node view. While the card is open it also outlines the
+ * referenced element on the canvas via the targeting store, guarded by `refId`
+ * so leaving clears only our own highlight (and an unmount clears it too, in
+ * case the card closes by teardown rather than a pointer-out). The canvas
+ * highlight needs the frame's layer id, carried in the footer on turns sent
+ * after that was added; a legacy token without one still shows the detail card,
+ * just no outline.
+ *
+ * Module-scoped (not an inline closure inside the markdown `components`) so its
+ * identity is stable: the highlight re-renders the Canvas subtree that hosts the
+ * chat, and a fresh component type each render would remount this token — which
+ * resets the HoverCard mid-hover and flickers it open/closed in a loop.
+ */
+function ElementHistoryToken({
+  refId,
+  detail,
+  children,
+}: {
+  refId: string
+  detail: TargetedElement
+  children: ReactNode
+}) {
+  useEffect(() => {
+    return () => targetingStore.clearHighlight(refId)
+  }, [refId])
+
+  const handleOpenChange = (open: boolean) => {
+    if (open && detail.iframeLayerId && detail.selector) {
+      targetingStore.setHighlight({
+        iframeLayerId: detail.iframeLayerId,
+        selector: detail.selector,
+        ref: refId,
+      })
+    } else {
+      targetingStore.clearHighlight(refId)
+    }
+  }
+
+  return (
+    <HoverCard onOpenChange={handleOpenChange}>
+      <HoverCardTrigger asChild>
+        <span className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}>
+          <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+          {children}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="gap-2">
+        <div className="font-mono text-xs break-all text-foreground">
+          {detail.selector || "(no selector)"}
+        </div>
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          <div className="flex gap-1.5">
+            <span className="shrink-0 text-foreground/60">Route</span>
+            <span className="font-mono break-all">{detail.route}</span>
+          </div>
+          {detail.frameLabel ? (
+            <div className="flex gap-1.5">
+              <span className="shrink-0 text-foreground/60">Frame</span>
+              <span className="break-all">{detail.frameLabel}</span>
+            </div>
+          ) : null}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
+/**
+ * The sent user-message bubble. Split into its own component so it can memoize
+ * the markdown `components` map and the parsed footer detail against
+ * `message.content`: the element-token highlight re-renders the Canvas subtree
+ * this lives in, and a fresh `components` object each render would remount every
+ * token (see `ElementHistoryToken`). Memoizing keeps the token instances stable
+ * so an open HoverCard survives those re-renders.
+ */
+function UserMessage({ message }: { message: AgentMessage & { role: "user" } }) {
+  // Strip the server turn prefixes and the referenced-documents / targeted-
+  // elements footers via the Message Markers codec, then recover the inline
+  // chips: `skillMarkersToPills` for the `/`-skill marker and
+  // `elementMarkersToPills` for each `[element: …]` element token — the same
+  // markers the composer's `serializeSkill` / `serializeElement` emit, rendered
+  // back as inline references below.
+  const displayContent = useMemo(
+    () =>
+      elementMarkersToPills(
+        skillMarkersToPills(parseUserMessage(message.content).body)
+      ),
+    [message.content]
+  )
+  // The terse inline label hides the messy detail; recover it from the
+  // `Targeted elements:` footer, keyed by the same `ref` the inline `element:`
+  // link carries, so each history token can hang a hover card off it.
+  const targetedElements = useMemo(
+    () =>
+      new Map(parseTargetedElementsFooter(message.content).map((e) => [e.ref, e])),
+    [message.content]
+  )
+  const components = useMemo<Components>(
+    () => ({
+      a: ({ href, children, ...props }) => {
+        // `/`-skill and `@`-doc references render as plain inline, sky-colored
+        // text — matching the composer chips. The serialized children already
+        // carry the leading `/` or `@` marker; no pill, icon, or background.
+        if (
+          typeof href === "string" &&
+          (href.startsWith("skill:") || href.startsWith("mention:"))
+        ) {
+          return <span className={MENTION_TEXT_CLASS_INVERTED}>{children}</span>
+        }
+        // element tokens: a clean lucide crosshair + `font-mono` tag name,
+        // matching the composer token. Detail rides the footer, keyed by the
+        // link's `element:<ref>`; missing (a footer-less legacy turn) → plain
+        // token, no card.
+        if (typeof href === "string" && href.startsWith("element:")) {
+          const refId = href.slice("element:".length)
+          const detail = targetedElements.get(refId)
+          if (!detail) {
+            return (
+              <span className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}>
+                <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+                {children}
+              </span>
+            )
+          }
+          return (
+            <ElementHistoryToken refId={refId} detail={detail}>
+              {children}
+            </ElementHistoryToken>
+          )
+        }
+        return (
+          <a href={href} {...props}>
+            {children}
+          </a>
+        )
+      },
+    }),
+    [targetedElements]
+  )
+
+  return (
+    <div className="flex justify-end">
+      <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
+        <Markdown urlTransform={(url) => url} components={components}>
+          {displayContent}
+        </Markdown>
+      </div>
+    </div>
+  )
+}
+
 export function AgentMessageItem({
   message,
   toolResult,
@@ -655,64 +818,8 @@ export function AgentMessageItem({
   chatId?: string
 }) {
   switch (message.role) {
-    case "user": {
-      // Strip the server turn prefixes and the referenced-documents / targeted-
-      // elements footers via the Message Markers codec, then recover the inline
-      // chips: `skillMarkersToPills` for the `/`-skill marker and
-      // `elementMarkersToPills` for each `[element: …]` element token — the same
-      // markers the composer's `serializeSkill` / `serializeElement` emit,
-      // rendered back as inline references below.
-      const displayContent = elementMarkersToPills(
-        skillMarkersToPills(parseUserMessage(message.content).body)
-      )
-      return (
-        <div className="flex justify-end">
-          <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
-            <Markdown
-              urlTransform={(url) => url}
-              components={{
-                a: ({ href, children, ...props }) => {
-                  // `/`-skill and `@`-doc references render as plain inline,
-                  // sky-colored text — matching the composer chips. The
-                  // serialized children already carry the leading `/` or `@`
-                  // marker; no pill, icon, or background.
-                  if (
-                    typeof href === "string" &&
-                    (href.startsWith("skill:") || href.startsWith("mention:"))
-                  ) {
-                    return (
-                      <span className={MENTION_TEXT_CLASS_INVERTED}>
-                        {children}
-                      </span>
-                    )
-                  }
-                  // `⌖`-element tokens: a clean crosshair + `font-mono` tag name,
-                  // matching the composer token. The raw selector/route stay
-                  // hidden in the stripped footer — only the terse label shows.
-                  if (typeof href === "string" && href.startsWith("element:")) {
-                    return (
-                      <span
-                        className={`${MENTION_TEXT_CLASS_INVERTED} font-mono`}
-                      >
-                        {"⌖ "}
-                        {children}
-                      </span>
-                    )
-                  }
-                  return (
-                    <a href={href} {...props}>
-                      {children}
-                    </a>
-                  )
-                },
-              }}
-            >
-              {displayContent}
-            </Markdown>
-          </div>
-        </div>
-      )
-    }
+    case "user":
+      return <UserMessage message={message} />
 
     case "assistant":
       return (

@@ -64,7 +64,7 @@ import {
   type PickedElement,
   type PickRequest,
 } from "@/lib/targeting-store"
-import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
+import type { DomRect } from "@/lib/postmessage-protocol"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -1197,34 +1197,47 @@ export function Canvas({
     return () => window.removeEventListener("keydown", onKey, true)
   }, [targetPick, resolveTargetPick])
 
-  // Element highlight (PRD #616, slice #620): the Canvas is the sole fulfiller
-  // of a hovered composer token's highlight request. No layout math here — the
-  // referenced frame's bridge draws the outline in-iframe from the selector, so
-  // this just routes the request to that frame's DOM channel. A frame that's
-  // been closed has no `dom`, so the hover is a quiet no-op (no error, no
-  // flash); moving between tokens clears the previously-outlined frame first.
-  const lastHighlightDomRef = useRef<ScreenplayDom | null>(null)
+  // Element highlight (PRD #616, slice #620): outline the element a hovered
+  // composer / message token references. We resolve the selector to a rect via
+  // the referenced frame's bridge and draw it on the SelectionOverlay — the same
+  // canvas that draws the pick/inspect rect — so the outline keeps a constant
+  // 1px stroke at any zoom. (The earlier in-iframe box scaled with the frame, so
+  // its border thickened/thinned as you zoomed.) A closed frame or a stale
+  // selector resolves to nothing and the highlight simply clears; a newer hover
+  // supersedes any in-flight resolve via the seq guard.
+  const [highlightRect, setHighlightRect] = useState<{
+    iframeLayerId: string
+    rect: DomRect
+  } | null>(null)
+  const highlightSeqRef = useRef(0)
   useEffect(() => {
-    const clearPrev = () => {
-      lastHighlightDomRef.current?.clearHighlight().catch(() => {})
-      lastHighlightDomRef.current = null
-    }
+    let active = true
     const unregister = targetingStore.registerHighlight((target) => {
-      const prevDom = lastHighlightDomRef.current
+      const seq = ++highlightSeqRef.current
       const dom = target
         ? reference.getIframeLayerDom(target.iframeLayerId)
         : undefined
       if (!target || !dom) {
-        clearPrev()
+        setHighlightRect(null)
         return
       }
-      if (prevDom && prevDom !== dom) prevDom.clearHighlight().catch(() => {})
-      lastHighlightDomRef.current = dom
-      dom.highlightSelector(target.selector).catch(() => {})
+      dom
+        .getRectsForSelectors([target.selector])
+        .then(([rect]) => {
+          // Drop a resolve superseded by a newer hover or a torn-down effect.
+          if (!active || seq !== highlightSeqRef.current) return
+          setHighlightRect(
+            rect ? { iframeLayerId: target.iframeLayerId, rect } : null
+          )
+        })
+        .catch(() => {
+          if (active && seq === highlightSeqRef.current) setHighlightRect(null)
+        })
     })
     return () => {
+      active = false
       unregister()
-      clearPrev()
+      setHighlightRect(null)
     }
   }, [reference])
 
@@ -1604,6 +1617,7 @@ export function Canvas({
                     zoom={zoom}
                     spaceHeld={spaceHeld}
                     commentMode={commentMode}
+                    pickActive={!!targetPick}
                     dimmedIframeLayerIds={dimmedIframeLayerIds}
                     selfName={self?.identity.name || "Anonymous"}
                     selfColor={self?.color || "#888888"}
@@ -1731,9 +1745,11 @@ export function Canvas({
                 gesturePreview.resizeSnap?.snappedPresetId != null
               }
               inspectRect={(() => {
-                // Show the live hover overlay while in commentMode so the
-                // user can see what element they're about to anchor to.
-                const source = commentMode ? reference.inspectHover : null
+                // Show the live hover overlay while in commentMode or during an
+                // armed element pick, so the user can see what element they're
+                // about to anchor a comment to / target.
+                const source =
+                  commentMode || targetPick ? reference.inspectHover : null
                 if (!source) return null
                 const layout = iframeLayerLayouts.get(source.iframeLayerId)
                 if (!layout) return null
@@ -1742,6 +1758,21 @@ export function Canvas({
                   y: layout.y + source.rect.y,
                   width: source.rect.width,
                   height: source.rect.height,
+                }
+              })()}
+              highlightRect={(() => {
+                // Token-hover outline, projected the same way as inspectRect so
+                // it draws on the overlay canvas with a zoom-independent stroke.
+                if (!highlightRect) return null
+                const layout = iframeLayerLayouts.get(
+                  highlightRect.iframeLayerId
+                )
+                if (!layout) return null
+                return {
+                  x: layout.x + highlightRect.rect.x,
+                  y: layout.y + highlightRect.rect.y,
+                  width: highlightRect.rect.width,
+                  height: highlightRect.rect.height,
                 }
               })()}
             />

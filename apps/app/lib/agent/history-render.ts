@@ -2,7 +2,11 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { blockText } from "@/lib/agent/acp/schema"
 import { contentBlocksToWire } from "@/lib/agent/acp/markers"
-import { parseUserMessage } from "@/lib/agent/message-markers"
+import {
+  buildTargetedElementsFooter,
+  parseTargetedElementsFooter,
+  parseUserMessage,
+} from "@/lib/agent/message-markers"
 
 /**
  * One entry in a chat's reload timeline (ADR 0006). Either an ACP-native
@@ -55,8 +59,15 @@ function renderRecord(record: AcpMessageRecord, out: AgentMessage[]): void {
       // server prefixes so the UI shows the human's text — the one decoder for
       // this format. Inline `[@…](mention:…)` / `[skill: …]` tokens are retained
       // for the renderer's pills.
-      const { body } = parseUserMessage(contentBlocksToWire(record.content))
-      if (body) out.push({ role: "user", content: body })
+      const wire = contentBlocksToWire(record.content)
+      const { body } = parseUserMessage(wire)
+      if (!body) break
+      // Re-attach the `Targeted elements:` footer (canonical + round-trippable)
+      // so the renderer can recover per-token hover detail on reload; the server
+      // prefixes and the referenced-docs footer stay stripped. `build([])` is
+      // "", so a turn with no targeted elements is unchanged.
+      const content = body + buildTargetedElementsFooter(parseTargetedElementsFooter(wire))
+      out.push({ role: "user", content })
       break
     }
     case "agent": {

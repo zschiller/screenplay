@@ -86,7 +86,15 @@ const ElementToken = Node.create({
   group: "inline",
   inline: true,
   atom: true,
-  selectable: true,
+  // `selectable: false` (matching the `@`/`/` Mention node) is what makes the
+  // caret glide past the token like the other chips. With `selectable: true`,
+  // arrowing the caret onto the atom creates an intermediate NodeSelection —
+  // the text caret vanishes for one keypress (the node view draws no visible
+  // selected state, so it just looks like the caret disappeared) before the
+  // next keypress lands a text cursor on the far side. Non-selectable atoms
+  // skip that step, so a single arrow moves cleanly from one side to the other.
+  // The atom is still deleted whole by Backspace regardless. See PRD #616.
+  selectable: false,
 
   addAttributes() {
     return {
@@ -193,6 +201,9 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
         route: (node.attrs?.route as string | undefined) ?? "/",
         selector: (node.attrs?.selector as string | undefined) ?? "",
         frameLabel: (node.attrs?.frameLabel as string | undefined) ?? "",
+        // Carried so a hovered *history* token can re-highlight the element on
+        // the canvas (the composer's live token reads this from the same attr).
+        iframeLayerId: node.attrs?.iframeLayerId as string | undefined,
       })
       return
     }
@@ -836,6 +847,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {onPlanModeChange && (
+              <InputGroupButton
+                size="xs"
+                variant={planMode ? "default" : "ghost"}
+                onClick={() => onPlanModeChange(!planMode)}
+                title={planMode ? "Plan mode enabled" : "Enable plan mode"}
+                className="text-xs"
+              >
+                <ClipboardList />
+                Plan
+              </InputGroupButton>
+            )}
             {onPickElement && (
               <TooltipProvider>
                 <Tooltip>
@@ -861,18 +884,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
-            {onPlanModeChange && (
-              <InputGroupButton
-                size="xs"
-                variant={planMode ? "default" : "ghost"}
-                onClick={() => onPlanModeChange(!planMode)}
-                title={planMode ? "Plan mode enabled" : "Enable plan mode"}
-                className="text-xs"
-              >
-                <ClipboardList />
-                Plan
-              </InputGroupButton>
             )}
             {hideSend ? null : isStreaming && onStop ? (
               <InputGroupButton

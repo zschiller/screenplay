@@ -83,6 +83,7 @@ function CanvasMemberLayerImpl({
   zoom,
   spaceHeld,
   commentMode,
+  pickActive,
   dimmedIframeLayerIds,
   selfName,
   selfColor,
@@ -126,6 +127,9 @@ function CanvasMemberLayerImpl({
   zoom: number
   spaceHeld: boolean
   commentMode: boolean
+  /** True while an element pick is armed; eligible (non-dimmed) frames show the
+   *  element hover overlay so the user can see what they're about to target. */
+  pickActive: boolean
   /**
    * Iframe Layers to dim during an armed element pick (#619): every frame *not*
    * eligible for the requesting branch, so it's visually clear which frames can
@@ -383,6 +387,7 @@ function CanvasMemberLayerImpl({
               }
               spaceHeld={spaceHeld}
               commentMode={commentMode}
+              pickActive={pickActive}
               dimmed={dimmedIframeLayerIds.has(iframeLayer.id)}
               onHover={reference.setInspectHover}
               onWheel={onIframeWheel}

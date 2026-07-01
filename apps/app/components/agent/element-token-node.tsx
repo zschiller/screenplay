@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
+import { Crosshair } from "lucide-react"
 import {
   HoverCard,
   HoverCardContent,
@@ -10,10 +11,6 @@ import {
 } from "@workspace/ui/components/hover-card"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
 import { targetingStore } from "@/lib/targeting-store"
-
-/** Leading glyph on an element token — kept in sync with the composer's
- *  `ELEMENT_TOKEN_GLYPH` and the sent-bubble renderer. */
-const ELEMENT_TOKEN_GLYPH = "⌖"
 
 /**
  * React node view for the composer's atomic element token (PRD #616, slice
@@ -59,7 +56,22 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
             className={`${MENTION_TEXT_CLASS} cursor-default font-mono`}
             contentEditable={false}
           >
-            {ELEMENT_TOKEN_GLYPH} {label}
+            {/*
+              Leading zero-width space. When this token is the FIRST child of
+              the editor (no editable text before it), Chrome anchors the
+              collapsed caret at the earliest *text* position inside this
+              non-editable span. The crosshair is an <svg> — not a text position
+              — so without this the caret skips it and lands between the icon and
+              the label. The `@`/`/` mentions never show this because their first
+              child is a text node (`@…`); the ZWSP gives us the same left-edge
+              text anchor so the caret sits to the left of the icon. This is the
+              documented ProseMirror/contenteditable workaround — see
+              https://github.com/ProseMirror/prosemirror/issues/991. Invisible
+              (zero width) and composer-only; the sent bubble uses renderHTML.
+            */}
+            {"\u200B"}
+            <Crosshair className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+            {label}
           </span>
         </HoverCardTrigger>
         <HoverCardContent align="start" className="gap-2">

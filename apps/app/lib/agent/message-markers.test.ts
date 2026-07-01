@@ -11,6 +11,7 @@ import {
   buildTargetedElementsFooter,
   deriveElementLabel,
   elementMarkersToPills,
+  parseTargetedElementsFooter,
   parseUserMessage,
   prependTurnMarkers,
   serializeElement,
@@ -496,5 +497,104 @@ describe("buildTargetedElementsFooter", () => {
 
     expect(parsed.body).toBe("[element: button](element:el-1)")
     expect(parsed.hadTargetedElements).toBe(true)
+  })
+})
+
+describe("parseTargetedElementsFooter", () => {
+  it("returns an empty array when there is no footer", () => {
+    expect(parseTargetedElementsFooter("just a normal message")).toEqual([])
+  })
+
+  it("recovers every element the footer builder emitted, keyed data intact", () => {
+    const elements = [
+      {
+        ref: "el-1",
+        route: "/",
+        selector: "button#submit",
+        frameLabel: "Home",
+      },
+      {
+        ref: "el-2",
+        route: "/dashboard",
+        selector: "div.card > span",
+        frameLabel: "Dash",
+      },
+    ]
+    const wire = "make these match" + buildTargetedElementsFooter(elements)
+
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("round-trips a frame label that itself contains parentheses", () => {
+    const elements = [
+      { ref: "el-1", route: "/x", selector: "a.link", frameLabel: "Home (v2)" },
+    ]
+    const wire = "hi" + buildTargetedElementsFooter(elements)
+
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("round-trips an empty frame label", () => {
+    const elements = [
+      { ref: "el-1", route: "/x", selector: "a.link", frameLabel: "" },
+    ]
+    const wire = "hi" + buildTargetedElementsFooter(elements)
+
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("parses the footer even alongside the referenced-docs footer and turn prefixes", () => {
+    const elements = [
+      { ref: "el-1", route: "/", selector: "button", frameLabel: "Frame A" },
+    ]
+    const wire = prependTurnMarkers(
+      "ship it" +
+        buildReferencedDocsFooter([{ id: "doc-1", title: "Spec" }]) +
+        buildTargetedElementsFooter(elements),
+      { planMode: true, branch: "feat/x" }
+    )
+
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("carries and recovers the iframeLayerId when present", () => {
+    const elements = [
+      {
+        ref: "el-1",
+        route: "/",
+        selector: "button#go",
+        frameLabel: "Home",
+        iframeLayerId: "layer-abc",
+      },
+    ]
+    const wire = "hi" + buildTargetedElementsFooter(elements)
+
+    expect(wire).toContain(
+      "- el-1: / — button#go (frame: Home) [layer: layer-abc]"
+    )
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("keeps the layer trailer unambiguous even when the frame label has parens", () => {
+    const elements = [
+      {
+        ref: "el-1",
+        route: "/x",
+        selector: "a.link",
+        frameLabel: "Home (v2)",
+        iframeLayerId: "layer-xyz",
+      },
+    ]
+    const wire = "hi" + buildTargetedElementsFooter(elements)
+
+    expect(parseTargetedElementsFooter(wire)).toEqual(elements)
+  })
+
+  it("omits the layer trailer when no iframeLayerId is set", () => {
+    const footer = buildTargetedElementsFooter([
+      { ref: "el-1", route: "/", selector: "button", frameLabel: "Home" },
+    ])
+
+    expect(footer).not.toContain("[layer:")
   })
 })

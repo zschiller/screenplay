@@ -223,6 +223,15 @@ export interface TargetedElement {
   route: string
   selector: string
   frameLabel: string
+  /**
+   * The id of the Iframe Layer the element lives in. Not agent-facing detail —
+   * it rides an optional `[layer: <id>]` suffix purely so the message renderer
+   * can re-highlight the element on the canvas when a history token is hovered
+   * (the composer reads the same id from its live node attrs). Absent on legacy
+   * turns saved before this was carried; the renderer then just skips the
+   * highlight.
+   */
+  iframeLayerId?: string
 }
 
 /**
@@ -243,7 +252,11 @@ export function buildTargetedElementsFooter(
 ): string {
   if (elements.length === 0) return ""
   const lines = elements.map(
-    (e) => `- ${e.ref}: ${e.route} — ${e.selector} (frame: ${e.frameLabel})`
+    (e) =>
+      `- ${e.ref}: ${e.route} — ${e.selector} (frame: ${e.frameLabel})` +
+      // App-only trailer (see `TargetedElement.iframeLayerId`); omitted when
+      // absent so agent-facing lines stay clean and legacy turns round-trip.
+      (e.iframeLayerId ? ` [layer: ${e.iframeLayerId}]` : "")
   )
   return [
     "",
@@ -313,6 +326,14 @@ const REFERENCED_DOCS_FOOTER_RE = new RegExp(
 const TARGETED_ELEMENTS_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${TARGETED_ELEMENTS_FOOTER_TOKEN}[\\s\\S]*$`
 )
+// One targeted-element detail line, exactly as `buildTargetedElementsFooter`
+// emits it: `- <ref>: <route> — <selector> (frame: <frameLabel>)` with an
+// optional ` [layer: <id>]` app-only trailer. `ref` holds no `:` (it's a
+// nanoid); `route` stops at the first ` — `; `selector` runs greedily up to the
+// trailing ` (frame: …)`, whose label may itself contain parens; `<id>` (also a
+// nanoid) holds no `]`, so the trailer is unambiguous even then.
+const TARGETED_ELEMENTS_LINE_RE =
+  /^- ([^:]+): (.+?) — (.+) \(frame: (.*)\)(?: \[layer: ([^\]]+)\])?$/
 
 /**
  * Parse a wire user message back into its turn metadata and clean body.
@@ -356,4 +377,33 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
     hadReferencedDocs,
     hadTargetedElements,
   }
+}
+
+/**
+ * Recover the `Targeted elements:` footer's entries from a wire user message —
+ * the actionable detail (`route`, `selector`, `frameLabel`) `parseUserMessage`
+ * strips out, keyed by the same `ref` its inline `[element: …](element:<ref>)`
+ * markers carry. The renderer uses this to hang a hover card off each history
+ * token (the composer reads the equivalent detail from its node attrs). Returns
+ * an empty array when no footer is present, and silently skips any line that
+ * doesn't match the canonical shape.
+ */
+export function parseTargetedElementsFooter(wire: string): TargetedElement[] {
+  const match = wire.match(TARGETED_ELEMENTS_FOOTER_RE)
+  if (!match) return []
+  const out: TargetedElement[] = []
+  for (const line of match[0].split("\n")) {
+    const m = line.match(TARGETED_ELEMENTS_LINE_RE)
+    if (m) {
+      out.push({
+        ref: m[1],
+        route: m[2],
+        selector: m[3],
+        frameLabel: m[4],
+        // `undefined` on a legacy line with no `[layer: …]` trailer.
+        iframeLayerId: m[5],
+      })
+    }
+  }
+  return out
 }

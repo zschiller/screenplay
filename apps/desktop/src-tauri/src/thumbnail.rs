@@ -250,6 +250,16 @@ fn ensure_window_and_navigate(
         window
             .set_size(LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;
+        // Re-assert the off-screen origin every capture: `set_size` (and the
+        // window server) can nudge the frame back on-screen, and the reuse path
+        // never re-runs the build-time hide. Without this, the window creeps
+        // into view after the first thumbnail.
+        #[cfg(target_os = "macos")]
+        {
+            let _ = window.with_webview(|webview| unsafe {
+                macos::hide_offscreen(webview.inner() as *mut objc2::runtime::AnyObject);
+            });
+        }
         window.navigate(parsed).map_err(|e| e.to_string())
     } else {
         build_capture_window(app, parsed, width, height)
@@ -383,6 +393,42 @@ mod macos {
     // NSBitmapImageFileType::PNG.
     const NS_PNG_FILE_TYPE: u64 = 4;
 
+    /// Matches `CGPoint` / `NSPoint` layout for `setFrameOrigin:`.
+    #[repr(C)]
+    struct CGPoint {
+        x: f64,
+        y: f64,
+    }
+
+    unsafe impl objc2::Encode for CGPoint {
+        const ENCODING: objc2::Encoding =
+            objc2::Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]);
+    }
+
+    /// Matches `CGSize` / `NSSize` layout.
+    #[repr(C)]
+    struct CGSize {
+        width: f64,
+        height: f64,
+    }
+
+    unsafe impl objc2::Encode for CGSize {
+        const ENCODING: objc2::Encoding =
+            objc2::Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]);
+    }
+
+    /// Matches `CGRect` / `NSRect` layout, returned by `-[NSWindow frame]`.
+    #[repr(C)]
+    struct CGRect {
+        origin: CGPoint,
+        size: CGSize,
+    }
+
+    unsafe impl objc2::Encode for CGRect {
+        const ENCODING: objc2::Encoding =
+            objc2::Encoding::Struct("CGRect", &[CGPoint::ENCODING, CGSize::ENCODING]);
+    }
+
     /// The app that is currently frontmost, retained so it stays valid across
     /// the capture-window build. Returns null if there is none. Pair every
     /// non-null return with a `reactivate_app` call, which releases it.
@@ -413,14 +459,56 @@ mod macos {
         let _: () = msg_send![app, release];
     }
 
-    /// Order the webview's `NSWindow` on screen behind everything in its level
-    /// without making it key or activating the app. Used instead of building
-    /// the capture window `visible(true)`, which would `makeKeyAndOrderFront`
-    /// and steal the user's focus on every thumbnail.
+    /// Make the webview's `NSWindow` invisible to the user while keeping it
+    /// rendering, so `takeSnapshot` captures a fully painted page.
+    ///
+    /// Position alone is not enough: `decorations(false)` still yields a
+    /// constrained window on recent macOS, so `constrainFrameRect:toScreen:`
+    /// clamps a far-off-screen origin back near a display edge — the window
+    /// reappears. `alphaValue = 0` sidesteps the window server entirely: the
+    /// frame stays geometrically on-screen and un-occluded (so the WKWebView
+    /// keeps rendering and snapshots fine), but nothing composites to the
+    /// display. We still push the origin off-screen as a best-effort second
+    /// line of defence for when the platform *does* honour it.
+    pub unsafe fn hide_offscreen(wk: *mut AnyObject) {
+        if wk.is_null() {
+            return;
+        }
+        let window: *mut AnyObject = msg_send![wk, window];
+        if window.is_null() {
+            return;
+        }
+        // Primary hide: fully transparent, so it's invisible wherever macOS
+        // parks the frame.
+        let _: () = msg_send![window, setAlphaValue: 0.0f64];
+        // Secondary hide: Cocoa screen coords are bottom-left origin, Y up; a
+        // large negative origin puts the window off every display when honoured.
+        let origin = CGPoint {
+            x: -10_000.0,
+            y: -10_000.0,
+        };
+        let _: () = msg_send![window, setFrameOrigin: origin];
+        // Ground-truth log: shows where the frame actually landed (deeply
+        // negative = off-screen honoured; near 0 = constrained back on-screen,
+        // in which case the alpha is what's keeping it invisible).
+        let frame: CGRect = msg_send![window, frame];
+        let alpha: f64 = msg_send![window, alphaValue];
+        eprintln!(
+            "[thumbnail] capture window after hide: x={} y={} w={} h={} alpha={}",
+            frame.origin.x, frame.origin.y, frame.size.width, frame.size.height, alpha
+        );
+    }
+
+    /// Order the capture window on screen behind everything in its level without
+    /// making it key or activating the app. Used instead of building the window
+    /// `visible(true)`, which would `makeKeyAndOrderFront` and steal the user's
+    /// focus on every thumbnail. Repositions off-screen first so back-ordering
+    /// it is invisible to the user.
     pub unsafe fn show_without_activating(wk: *mut AnyObject) {
         if wk.is_null() {
             return;
         }
+        hide_offscreen(wk);
         let window: *mut AnyObject = msg_send![wk, window];
         if window.is_null() {
             return;
