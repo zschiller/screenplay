@@ -24,3 +24,21 @@
 .xterm .xterm-viewport::-webkit-scrollbar {
   display: none; /* WebKit / Chromium (Electron, Safari) */
 }
+
+/*
+ * Let the terminal's padding show the app background. The base stylesheet
+ * hardcodes `background-color: #000` on the viewport ("required on OS X in
+ * order for the scroll bar to appear fully opaque") — but the viewport is
+ * absolutely positioned over `.xterm`'s PADDING box, so with the terminal
+ * inset living on `term.element` (see terminal-tab.tsx; FitAddon only
+ * subtracts padding it finds there) that black paints the whole padding band.
+ * The theme background lives on `.xterm-scrollable-element`, which covers only
+ * the content area, so it can't help. The hardcoded black exists solely for
+ * the native scrollbar's benefit — and the rules above remove that scrollbar
+ * entirely — so drop the paint: content shows the scrollable-element's theme
+ * background, the padding band shows the host's `bg-background` (the same
+ * resolved color the theme derives from).
+ */
+.xterm .xterm-viewport {
+  background-color: transparent;
+}

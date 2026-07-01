@@ -214,6 +214,10 @@ export function TerminalTab({
         .filter(Boolean)
         .join(", ")
       const fontSize = 13
+      // The concrete primary face we wait on and later re-measure against —
+      // Geist Mono when the theme resolved `--font-mono`, else the first
+      // monospace fallback.
+      const primaryFamily = fontFamily.split(",")[0]?.trim()
 
       // Geist Mono is loaded asynchronously (`next/font`, `font-display: swap`).
       // xterm measures the character cell exactly once, at `open()`, and never
@@ -223,7 +227,6 @@ export function TerminalTab({
       // their cell, and `fit()` derives the wrong rows so the viewport spuriously
       // scrolls. Wait for the actual font before opening so we measure for real.
       try {
-        const primaryFamily = fontFamily.split(",")[0]?.trim()
         if (primaryFamily)
           await document.fonts.load(`${fontSize}px ${primaryFamily}`)
         await document.fonts.ready
@@ -256,6 +259,36 @@ export function TerminalTab({
       })
       const fit = new FitAddon()
       term.loadAddon(fit)
+      // Reclaim FitAddon's horizontal scrollbar reserve. Its width budget is
+      // `parentWidth − element padding − (overviewRuler?.width || 14)` — 14px
+      // held for a native scrollbar this terminal doesn't show (terminal-tab.css
+      // hides it; xterm v6's own slider is an overlay that reserves nothing).
+      // Before the padding moved onto `term.element`, that phantom reserve was
+      // coincidentally cancelled by FitAddon over-reading the host's border-box
+      // width; with the padding now visible to it, the reserve became a real
+      // ~2-column dead gutter on the right. Recompute cols against the actual
+      // content width: host width minus the 16px horizontal padding below.
+      // (Same private `_core` dimensions FitAddon itself reads; verified in
+      // Chromium + WebKit to restore the pre-padding column fill exactly.)
+      const proposeDimensions = fit.proposeDimensions.bind(fit)
+      fit.proposeDimensions = () => {
+        const d = proposeDimensions()
+        if (!d) return d
+        const cell = (
+          term as unknown as {
+            _core?: {
+              _renderService?: {
+                dimensions?: { css?: { cell?: { width?: number } } }
+              }
+            }
+          }
+        )._core?._renderService?.dimensions?.css?.cell
+        const w = parseInt(getComputedStyle(host).width)
+        if (cell?.width && cell.width > 0 && !isNaN(w)) {
+          d.cols = Math.max(2, Math.floor((w - 16) / cell.width))
+        }
+        return d
+      }
       term.open(host)
 
       // Disable font shaping. Geist Mono ships programming ligatures (`liga`/
@@ -272,6 +305,16 @@ export function TerminalTab({
       if (el) {
         el.style.fontVariantLigatures = "none"
         el.style.fontFeatureSettings = '"liga" 0, "calt" 0, "dlig" 0'
+        // The terminal's inset. This must live on `term.element`, NOT the host:
+        // FitAddon sizes against `getComputedStyle(parent).height` — which both
+        // engines report as the BORDER-box height for the absolutely-positioned
+        // host — and subtracts only `term.element`'s own padding. Padding on the
+        // host is therefore invisible to fit(): whether the bottom row clears it
+        // becomes a pixel-remainder lottery on the pane height, and losing it
+        // clips the terminal's last line (where a TUI paints its input box).
+        // Here FitAddon subtracts it explicitly, so the geometry is correct at
+        // every pane height. (4px 8px = the py-1/px-2 this replaces.)
+        el.style.padding = "4px 8px"
       }
 
       // Fit the terminal to the pane — but only when it's actually visible AND
@@ -320,19 +363,86 @@ export function TerminalTab({
       const safeFit = () => fitWhenReady()
       safeFit()
 
-      // Belt-and-braces: if the mono font only finishes loading after we opened
-      // (the `await` above can resolve before a same-tick `@font-face` settles),
-      // drop xterm's cached glyph atlas and re-measure so a late arrival can't
-      // leave the first frame skewed.
-      void document.fonts.ready.then(() => {
-        if (cancelled) return
+      // WebKit-only glyph-width poison (the "first terminal has wrong character
+      // widths forever" bug — reproduced and verified against a live `claude`
+      // TUI in Playwright WebKit; Chromium is unaffected).
+      //
+      // Mechanism: xterm's DOM renderer measures each glyph once (WidthCache)
+      // and pads it with `letter-spacing = cellWidth − measuredWidth`. In
+      // WebKit, a freshly created measure container can resolve the font list
+      // to an *interim* font for its first layout passes — even when
+      // `document.fonts` reports the webfont loaded — so glyphs measured during
+      // the terminal's very first frames (Claude Code's TUI draws its `─` box
+      // rules in the first PTY chunk) get a stale width. The cache never
+      // invalidates, so those glyphs render squeezed/widened for the terminal's
+      // entire life. Later terminals measure after WebKit's cascade settled, so
+      // only the first one is wrong. Nothing font-loading-API-based can see
+      // this (`fonts.check/load/ready` all report loaded the whole time).
+      //
+      // Detection reads ground truth from the rendered rows instead: for every
+      // span, `rect.width / textLength` must equal the cell width — xterm's
+      // letter-spacing correction guarantees that when the cached measurement
+      // matches the rendered glyph, even for genuine fallback-font glyphs. A
+      // span deviating >2% from the median means its cached width is stale.
+      // The cure: set `fontFamily` to an equivalent-but-distinct string (the
+      // option setter no-ops on `===`), which clears the WidthCache and
+      // re-measures the cell. Budgeted so a pathological page can't nudge-loop.
+      let fontNudged = false
+      let nudgeBudget = 4
+      const scanForStaleGlyphWidths = () => {
+        if (cancelled || nudgeBudget <= 0) return
+        // Hidden pane: no painted rows to scan (and a nudge would measure a
+        // 0-width cell). The ResizeObserver re-scans on reveal.
+        if (
+          !host.offsetParent ||
+          host.clientWidth === 0 ||
+          host.clientHeight === 0
+        )
+          return
+        const rowsEl = host.querySelector(".xterm-rows")
+        if (!rowsEl) return
+        const perChar: number[] = []
+        for (const row of rowsEl.children) {
+          for (const s of row.querySelectorAll("span")) {
+            const len = (s.textContent ?? "").length
+            if (len < 2) continue
+            const w = s.getBoundingClientRect().width
+            if (w > 0) perChar.push(w / len)
+          }
+        }
+        if (perChar.length < 3) return
+        perChar.sort((a, b) => a - b)
+        const cell = perChar[Math.floor(perChar.length / 2)]!
+        const stale = perChar.some((w) => Math.abs(w - cell) > cell * 0.02)
+        if (!stale) return
+        nudgeBudget--
         try {
-          term.clearTextureAtlas()
+          fontNudged = !fontNudged
+          term.options.fontFamily = fontNudged
+            ? `${fontFamily}, monospace`
+            : fontFamily
           safeFit()
         } catch {
           // Terminal may already be disposed; ignore.
         }
-      })
+      }
+      // The poison forms while the renderer is young (first paints after
+      // open()); scan through that window, then stand down.
+      const glyphScanPoll = setInterval(scanForStaleGlyphWidths, 600)
+      const glyphScanStop = setTimeout(
+        () => clearInterval(glyphScanPoll),
+        60_000
+      )
+      // Reveal-after-hidden paints fresh rows through the same young-renderer
+      // path; scan shortly after each reveal too (post-render).
+      let revealScan1 = 0
+      let revealScan2 = 0
+      const scheduleRevealScans = () => {
+        clearTimeout(revealScan1)
+        clearTimeout(revealScan2)
+        revealScan1 = window.setTimeout(scanForStaleGlyphWidths, 600)
+        revealScan2 = window.setTimeout(scanForStaleGlyphWidths, 1800)
+      }
 
       // Native copy: with a selection, Cmd/Ctrl+C copies to the clipboard rather
       // than sending an interrupt; paste rides xterm's own textarea handling.
@@ -409,6 +519,7 @@ export function TerminalTab({
       const observer = new ResizeObserver(() => {
         try {
           safeFit()
+          scheduleRevealScans()
         } catch {
           // The pane can be momentarily zero-sized (tab switch); ignore.
         }
@@ -417,6 +528,10 @@ export function TerminalTab({
 
       cleanup = () => {
         cancelAnimationFrame(fitFrame)
+        clearInterval(glyphScanPoll)
+        clearTimeout(glyphScanStop)
+        clearTimeout(revealScan1)
+        clearTimeout(revealScan2)
         observer.disconnect()
         dataSub.dispose()
         resizeSub.dispose()
@@ -437,7 +552,7 @@ export function TerminalTab({
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={hostRef}
-          className="absolute inset-0 h-full w-full bg-background px-2 py-1 text-foreground"
+          className="absolute inset-0 h-full w-full bg-background text-foreground"
         />
         {state.status !== "ready" && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
