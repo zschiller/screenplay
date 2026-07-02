@@ -54,6 +54,29 @@ export interface AcpToolCallRecord {
   // update and spin the chip forever. Keep them `unknown` and narrow at use.
   rawInput?: unknown
   rawOutput?: unknown
+  // The subagent parent linkage (issue #636/#639). A tool call spawned *inside*
+  // a `Task` subagent carries its spawning call's id, which the Claude adapter
+  // merges onto the frame as `_meta.claudeCode.parentToolUseId` (schema.test.ts).
+  // Present only when a provider emits it — codex and the main agent's own tool
+  // calls leave it undefined, which renders flat (the live common case). This is
+  // the additive data plane; the visible grouping lands in a follow-up.
+  parentToolCallId?: string
+}
+
+/**
+ * Recover the subagent parent id an ACP `tool_call(_update)` carries, if any.
+ * The Claude adapter merges it onto the frame as
+ * `_meta.claudeCode.parentToolUseId`; `_meta` is a passthrough record the SDK
+ * types loosely, so narrow the whole path defensively and return `undefined`
+ * for any shape that isn't the expected nested string (no field → flat).
+ */
+function parentToolCallIdFrom(update: SessionUpdate): string | undefined {
+  const meta = (update as { _meta?: unknown })._meta
+  if (meta == null || typeof meta !== "object") return undefined
+  const claudeCode = (meta as { claudeCode?: unknown }).claudeCode
+  if (claudeCode == null || typeof claudeCode !== "object") return undefined
+  const parent = (claudeCode as { parentToolUseId?: unknown }).parentToolUseId
+  return typeof parent === "string" ? parent : undefined
 }
 
 /**
@@ -65,6 +88,7 @@ export function toolCallRecord(update: SessionUpdate): AcpToolCallRecord {
   if (!isUpdate(update, "tool_call")) {
     throw new Error(`expected a tool_call update, got ${update.sessionUpdate}`)
   }
+  const parentToolCallId = parentToolCallIdFrom(update)
   return {
     role: "tool_call",
     toolCallId: update.toolCallId,
@@ -74,6 +98,8 @@ export function toolCallRecord(update: SessionUpdate): AcpToolCallRecord {
     content: update.content ?? [],
     rawInput: update.rawInput,
     rawOutput: update.rawOutput,
+    // Omit the key entirely when absent so a re-seed can't clear a prior parent.
+    ...(parentToolCallId != null ? { parentToolCallId } : {}),
   }
 }
 
@@ -106,6 +132,10 @@ export function applyToolCallUpdate(
     status: "pending",
     content: [],
   }
+  // ACP replaces updates in place: an update that omits `_meta` must NOT clear
+  // an already-set parent, so only overwrite when this frame actually carries
+  // one. `base` (the prior record) keeps its parent otherwise.
+  const parentToolCallId = parentToolCallIdFrom(update)
   return {
     ...base,
     ...(update.title != null ? { title: update.title } : {}),
@@ -114,6 +144,7 @@ export function applyToolCallUpdate(
     ...(update.content != null ? { content: update.content } : {}),
     ...(update.rawInput != null ? { rawInput: update.rawInput } : {}),
     ...(update.rawOutput != null ? { rawOutput: update.rawOutput } : {}),
+    ...(parentToolCallId != null ? { parentToolCallId } : {}),
   }
 }
 

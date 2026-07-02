@@ -66,7 +66,8 @@ function renderRecord(record: AcpMessageRecord, out: AgentMessage[]): void {
       // so the renderer can recover per-token hover detail on reload; the server
       // prefixes and the referenced-docs footer stay stripped. `build([])` is
       // "", so a turn with no targeted elements is unchanged.
-      const content = body + buildTargetedElementsFooter(parseTargetedElementsFooter(wire))
+      const content =
+        body + buildTargetedElementsFooter(parseTargetedElementsFooter(wire))
       out.push({ role: "user", content })
       break
     }
@@ -89,6 +90,7 @@ function renderRecord(record: AcpMessageRecord, out: AgentMessage[]): void {
         status: record.status,
         content: record.content,
         rawInput: record.rawInput,
+        parentToolCallId: record.parentToolCallId,
       })
       break
   }

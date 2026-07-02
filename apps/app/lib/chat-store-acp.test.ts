@@ -5,8 +5,21 @@ import {
   agentThoughtChunk,
   toolCallStart,
   toolCallUpdate,
+  type SessionUpdate,
   type ToolCallContent,
 } from "./agent/acp/schema"
+import { applyToolCallUpdate } from "./agent/acp/record"
+import { renderHistory } from "./agent/history-render"
+
+/** Attach a subagent parent id to a `tool_call(_update)` (issue #639). */
+const withParent = (
+  update: SessionUpdate,
+  parentToolUseId: string
+): SessionUpdate =>
+  ({
+    ...update,
+    _meta: { claudeCode: { toolName: "Read", parentToolUseId } },
+  }) as SessionUpdate
 
 let seq = 0
 const nextId = () => `evt_${++seq}`
@@ -266,6 +279,50 @@ describe("chat-store — ACP tool-call lifecycle (in place, keyed by id)", () =>
       "completed",
       "pending",
     ])
+    chatStore.cleanup(chatId)
+  })
+
+  it("lands a subagent tool call with parentToolCallId, and reload == live", () => {
+    const chatId = `chat_${++seq}`
+    // A subagent (`Task`) child call: the creation frame carries the parent id
+    // in `_meta`; the completing update omits it and must not clear it.
+    const startUpdate = withParent(
+      toolCallStart({
+        toolCallId: "child_read",
+        title: "Read config.ts",
+        kind: "read",
+        status: "pending",
+      }),
+      "parent_task"
+    )
+    const doneUpdate = toolCallUpdate({
+      toolCallId: "child_read",
+      status: "completed",
+    })
+
+    play(chatId, [
+      { type: "chat-stream-start", chatId, id: nextId() },
+      { type: "chat-acp-update", chatId, id: nextId(), update: startUpdate },
+      { type: "chat-acp-update", chatId, id: nextId(), update: doneUpdate },
+    ])
+
+    const [live] = chatStore.getSnapshot(chatId).messages
+    expect(live).toMatchObject({
+      role: "tool_call",
+      toolCallId: "child_read",
+      status: "completed",
+      parentToolCallId: "parent_task",
+    })
+
+    // Reload path: the consumer persists via the same `applyToolCallUpdate`
+    // seam, so fold the frames into a durable record and render it. Post-change
+    // reload reproduces the live shape — parent linkage and all.
+    const record = applyToolCallUpdate(
+      applyToolCallUpdate(undefined, startUpdate),
+      doneUpdate
+    )
+    const [reloaded] = renderHistory([{ kind: "record", record }])
+    expect(reloaded).toEqual(live)
     chatStore.cleanup(chatId)
   })
 })
