@@ -292,6 +292,12 @@ export function PrototypePlayer({
     else panel.collapse()
   }, [])
 
+  // Stable so the memoized PlayerChatHost isn't re-rendered by the per-frame
+  // `stageSize` updates during a panel resize (see PlayerChatHost's memo note).
+  const handleCollapseChat = useCallback(() => {
+    chatPanelRef.current?.collapse()
+  }, [])
+
   const iframeStyle: React.CSSProperties = {
     pointerEvents: hudDragging ? "none" : "auto",
   }
@@ -380,7 +386,7 @@ export function PrototypePlayer({
           <PlayerChatHost
             roomId={roomId}
             agentId={agentId}
-            onCollapse={() => chatPanelRef.current?.collapse()}
+            onCollapse={handleCollapseChat}
           />
         </div>
       </ResizablePanel>

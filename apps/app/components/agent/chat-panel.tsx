@@ -741,36 +741,6 @@ export function ChatPanel({
     []
   )
 
-  // True while the strip's own width is actively changing — i.e. the operator is
-  // dragging the chat panel's resize handle. react-resizable-panels re-renders
-  // panel children on every drag frame, so each frame re-measures the strip's
-  // shifting on-screen position and, via the tabs' `layout="position"`, springs
-  // them toward it — they visibly trail the handle. We use this flag to make the
-  // layout transition instant for the duration of the drag (see the Reorder.Item
-  // `transition` below) so the tabs stay glued instead. Watching the viewport's
-  // `clientWidth` catches container resizes but not tab adds (those grow
-  // `scrollWidth`). The proto player is where this bites — there the resized
-  // panel *is* the tab strip; on the canvas the resized sidebar isn't.
-  const [resizing, setResizing] = useState(false)
-  const resizeEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    const vp = getViewport()
-    if (!vp) return
-    let lastWidth = vp.clientWidth
-    const ro = new ResizeObserver(() => {
-      if (vp.clientWidth === lastWidth) return
-      lastWidth = vp.clientWidth
-      setResizing(true)
-      if (resizeEndTimerRef.current) clearTimeout(resizeEndTimerRef.current)
-      resizeEndTimerRef.current = setTimeout(() => setResizing(false), 120)
-    })
-    ro.observe(vp)
-    return () => {
-      ro.disconnect()
-      if (resizeEndTimerRef.current) clearTimeout(resizeEndTimerRef.current)
-    }
-  }, [getViewport])
-
   // Keep `pinnedRightRef` current as the operator scrolls, and re-pin to the
   // right edge whenever the strip's content grows while they're parked there
   // (e.g. a tab added by another client in the room). The ResizeObserver
@@ -1042,16 +1012,8 @@ export function ChatPanel({
                     // a full `layout` animation here would also project the
                     // size change and fight that width tween, jittering the
                     // tab. `layout="position"` reorders by sliding neighbours
-                    // aside while leaving width to the wrapper alone. While the
-                    // chat panel is being resized (see `resizing`) we keep the
-                    // layout node mounted but make its transition instant, so each
-                    // tab snaps to its true position every frame instead of
-                    // springing to catch up — which otherwise reads as the tabs
-                    // "trailing" the drag handle. (Switching `layout` off during
-                    // the resize instead *freezes* motion's last catch-up
-                    // transform and drifts with the moving panel — worse.)
+                    // aside while leaving width to the wrapper alone.
                     layout="position"
-                    transition={resizing ? { layout: { duration: 0 } } : undefined}
                     data-tab-id={tab.id}
                     className="flex shrink-0 items-stretch"
                   >

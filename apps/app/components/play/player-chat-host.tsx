@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { nanoid } from "nanoid"
 import { ChatPanel } from "@/components/agent/chat-panel"
 import { renameAgentBranch } from "@/lib/sandbox/git"
@@ -28,7 +28,7 @@ interface PlayerChatHostProps {
  * `chatStore` for streaming, and the same handler set — but scoped to the
  * one agent the player is showing.
  */
-export function PlayerChatHost({
+function PlayerChatHostImpl({
   roomId,
   agentId,
   onCollapse,
@@ -252,3 +252,15 @@ export function PlayerChatHost({
     />
   )
 }
+
+/**
+ * Memoized so the prototype player's per-frame `stageSize` re-renders don't
+ * reach the chat subtree. `PrototypePlayer` runs a ResizeObserver on the preview
+ * stage that `setStageSize`s on every resize frame; while dragging the chat
+ * panel's handle the stage shrinks each frame, so without this every frame
+ * re-renders the tab strip and its `layout="position"` tabs re-measure and
+ * trail the handle. The canvas host doesn't hit this — its zoom lib resizes the
+ * stage imperatively, with no React state update. Requires `onCollapse` to be a
+ * stable reference (the parent wraps it in `useCallback`).
+ */
+export const PlayerChatHost = memo(PlayerChatHostImpl)
