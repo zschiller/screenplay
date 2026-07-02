@@ -269,6 +269,22 @@ export async function launchDevAndProxy(
   env?: Record<string, string> | null
 ): Promise<string> {
   await stopDevAndProxy(sandbox)
+
+  // Reset the log on a full restart. `stopDevAndProxy` above group-kills the
+  // previous dev/proxy supervisors, so everything already in the log belongs to
+  // now-dead processes — carrying it forward just makes the Logs panel look
+  // like an unbroken stream across an exit+relaunch. Truncate here, before any
+  // of this launch's output (proxy-start diagnostics, the dev header) is
+  // written, so a fresh launch starts from a clean slate. The supervisor's
+  // in-launch crash-restart loop still appends (`>>`), preserving crash history
+  // within a single launch.
+  const stateDir = sandboxStateDir(sandbox.name)
+  const logPath = sandboxLogPath(sandbox.name)
+  await sandbox.runCommand({
+    cmd: "sh",
+    args: ["-c", `mkdir -p ${stateDir}; : > ${logPath} 2>/dev/null; true`],
+  })
+
   await writeBridgeFiles(sandbox)
 
   if (isLocalSandboxBackend()) {
@@ -298,8 +314,6 @@ export async function launchDevAndProxy(
 
   const devPort = sandbox.hostPort(port)
   const proxyPort = sandbox.hostPort(port + PROXY_PORT_OFFSET)
-  const stateDir = sandboxStateDir(sandbox.name)
-  const logPath = sandboxLogPath(sandbox.name)
   const devPid = devPidPath(sandbox.name)
   const proxyPid = proxyPidPath(sandbox.name)
   const dev = devScript?.trim() || "npm run dev"

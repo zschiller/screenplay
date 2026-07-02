@@ -201,6 +201,23 @@ export function LogsPanel({
     }
   }, [tokens])
 
+  // Keep pinned to the bottom when the container's size changes — most
+  // importantly when the tab transitions from hidden (display:none, where
+  // scrollHeight is 0 so the effect above is a no-op) to visible. Without
+  // this, opening the Logs tab after output has already streamed in leaves
+  // the panel scrolled to the top instead of the bottom.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(() => {
+      if (stickToBottomRef.current) {
+        el.scrollTop = el.scrollHeight
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const handleScroll = () => {
     const el = scrollRef.current
     if (!el) return
