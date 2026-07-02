@@ -627,6 +627,7 @@ class ChatStore {
       status: merged.status,
       content: merged.content,
       rawInput: merged.rawInput,
+      parentToolCallId: merged.parentToolCallId,
     }
 
     if (idx >= 0) {

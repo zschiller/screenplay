@@ -63,4 +63,9 @@ export type AgentMessage =
       content: ToolCallContent[]
       // Arbitrary JSON mirroring ACP (see AcpToolCallRecord) — narrow at use.
       rawInput?: unknown
+      // Subagent parent linkage (issue #636/#639): the id of the `Task` call that
+      // spawned this one, when the provider emits it. Present here so live and
+      // reload carry the same shape; undefined for codex/main-agent calls, which
+      // render flat. The visible grouping lands in a follow-up slice.
+      parentToolCallId?: string
     }
