@@ -12,7 +12,8 @@ import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
-import { AgentMessageItem } from "./agent-message"
+import { AgentMessageItem, TaskGroup } from "./agent-message"
+import { groupToolCalls } from "@/lib/agent/group-tool-calls"
 import {
   Composer,
   type ComposerHandle,
@@ -376,7 +377,18 @@ export function AgentChat({
             </p>
           ) : (
             <div className="space-y-3">
-              {messages.map((msg, i) => {
+              {groupToolCalls(messages).map(({ message: msg, index: i, children }) => {
+                // A subagent's calls fold under the Task that spawned them
+                // (#640); `children` is non-empty only for such a Task.
+                if (children.length > 0 && msg.role === "tool_call") {
+                  return (
+                    <TaskGroup
+                      key={i}
+                      task={msg}
+                      childCalls={children.map((c) => c.message)}
+                    />
+                  )
+                }
                 if (msg.role === "tool_use") {
                   const result = messages
                     .slice(i + 1)
