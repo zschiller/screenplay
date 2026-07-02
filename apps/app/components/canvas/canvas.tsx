@@ -1882,7 +1882,8 @@ export function Canvas({
         <ResizablePanel
           id="chat"
           defaultSize="0px"
-          minSize="360px"
+          minSize="420px"
+          maxSize="900px"
           collapsible
           collapsedSize="0px"
           groupResizeBehavior="preserve-pixel-size"
