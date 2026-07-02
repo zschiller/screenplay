@@ -9,14 +9,14 @@ import { acpChildEnv, resolveAcpLaunch } from "./acp-launch"
  * otherwise make the Claude adapter refuse to launch.
  */
 describe("resolveAcpLaunch", () => {
-  it("maps the claude-code catalog key to the claude-code-acp adapter spawn argv", () => {
+  it("maps the claude-code catalog key to the claude-agent-acp adapter spawn argv", () => {
     const launch = resolveAcpLaunch("claude-code", {
       cwd: "/work/tree",
       env: {},
     })
     expect(launch).toEqual({
       command: "npx",
-      args: ["-y", "@zed-industries/claude-code-acp"],
+      args: ["-y", "@agentclientprotocol/claude-agent-acp@0.54.1"],
       cwd: "/work/tree",
       env: {},
     })
@@ -28,9 +28,9 @@ describe("resolveAcpLaunch", () => {
     expect(launch?.args).toEqual(["-y", "@zed-industries/codex-acp"])
   })
 
-  // Codex advertises no `availableModels` (spike #523), so a per-chat model
+  // Codex advertises no model config option (spike #523), so a per-chat model
   // choice rides the spawn argv as `--model <id>` rather than ACP's in-session
-  // `setSessionModel`.
+  // `session/set_config_option`.
   it("appends codex's `--model <id>` when a model is chosen", () => {
     const launch = resolveAcpLaunch("codex", {
       cwd: "/work/tree",
@@ -51,14 +51,17 @@ describe("resolveAcpLaunch", () => {
   })
 
   // claude-code is ACP-native (no `modelArgs`): a chosen model is applied
-  // in-session via `setSessionModel`, never on the spawn argv (spike #523).
+  // in-session via `session/set_config_option`, never on the spawn argv (spike #523).
   it("does not fold a model into claude-code's argv (it is ACP-native)", () => {
     const launch = resolveAcpLaunch("claude-code", {
       cwd: "/work/tree",
       env: {},
       modelId: "sonnet",
     })
-    expect(launch?.args).toEqual(["-y", "@zed-industries/claude-code-acp"])
+    expect(launch?.args).toEqual([
+      "-y",
+      "@agentclientprotocol/claude-agent-acp@0.54.1",
+    ])
   })
 
   it("uses the worktree as the child cwd", () => {

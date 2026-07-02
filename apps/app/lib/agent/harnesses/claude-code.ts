@@ -75,11 +75,16 @@ export const claudeCodeHarness: Harness = {
   launchArgv: ["claude"],
   // The desktop detector probes `claude` on PATH (the global install exposes it).
   hostBinary: "claude",
-  // Backs agent chat via the Zed claude-code ACP adapter — rides the CLI's own
-  // login (no model key), per spikes #405/#408.
+  // Backs agent chat via the actively-developed claude-agent ACP adapter —
+  // rides the CLI's own login (no model key), per spikes #405/#408. Pinned to a
+  // specific version: the adapter and the vendored `@agentclientprotocol/sdk`
+  // (1.x) are a matched pair, so an unpinned `latest` could drift the wire out
+  // from under the vendored schema. The predecessor `@zed-industries/claude-code-acp`
+  // (frozen at 0.16.2) was renamed to `@agentclientprotocol/claude-agent-acp`
+  // (#638); the zed-scoped package is deprecated.
   acpAdapter: {
     command: "npx",
-    args: ["-y", "@zed-industries/claude-code-acp"],
+    args: ["-y", "@agentclientprotocol/claude-agent-acp@0.54.1"],
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.
@@ -91,7 +96,7 @@ export const claudeCodeHarness: Harness = {
   // already means "ride the CLI's own default" and stays backward-compatible.
   //
   // This list is the desktop fold (`harnessModels` runs only on the local
-  // backend), where claude-code-acp rides the *user's own Claude login*
+  // backend), where the claude-agent adapter rides the *user's own Claude login*
   // (subscription) — not the hosted backend's brokered API key. No `[1m]` context
   // variants: the ACP adapter exposes context window as a derived property
   // (`DEFAULT_CONTEXT_WINDOW`, refreshed from usage), not a selectable model, so a

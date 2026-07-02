@@ -54,7 +54,7 @@ describe("ExternalEngine — graceful capability degradation", () => {
 
 /**
  * Permission-request routing — the bug that broke desktop ACP chat. A real ACP
- * adapter (`claude-code-acp`) raises a permission request for *every* tool
+ * adapter (`claude-agent-acp`) raises a permission request for *every* tool
  * operation it wants to run — file edits, command execution — not just the
  * plan-mode approval gate. Only a plan-mode turn raises the gate (the agent's
  * ExitPlanMode request, surfaced only after `session/set_mode(plan)` — spike

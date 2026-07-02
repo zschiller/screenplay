@@ -22,10 +22,24 @@
  * transport — plus the {@link AgentSideConnection} the in-memory test fake runs
  * on, so even the agent-side binding stays in this one place.
  *
- * Bound version: `@agentclientprotocol/sdk@0.14.x` — the renamed successor of
- * `@zed-industries/agent-client-protocol` (frozen at 0.4.5), and the generation
- * the real `claude-code-acp` adapter speaks. Migrated from 0.4.5 to fix dropped
- * `tool_call_update`s whose `rawOutput` the older schema rejected.
+ * Bound version: `@agentclientprotocol/sdk@1.1.0` — the generation the pinned
+ * `@agentclientprotocol/claude-agent-acp@0.54.1` adapter speaks (#638). This is
+ * a `0.x → 1.x` major jump from the previously vendored `0.14.x` (itself the
+ * renamed successor of `@zed-industries/agent-client-protocol@0.4.5`). Two
+ * wire-shape properties this seam leans on were re-validated against 1.x:
+ *
+ *  - `rawInput`/`rawOutput` on a `tool_call_update` are `z.unknown()` (arbitrary
+ *    JSON), so a terminal update whose `rawOutput` is an *array* of content
+ *    blocks still parses — the fix that migrating off 0.4.5 originally bought
+ *    (schema.test.ts) survives the major.
+ *  - `_meta` is a passthrough `z.record(z.string(), z.unknown())`, so a subagent
+ *    tool-call frame's `_meta.claudeCode.parentToolUseId` rides through the parse
+ *    untouched with no schema change here (schema.test.ts).
+ *
+ * The 1.x major *did* retire the experimental model-selection surface
+ * (`unstable_setSessionModel` / `SessionModelState`); it is superseded by the
+ * generic config-option mechanism ({@link SetSessionConfigOptionRequest},
+ * {@link SessionConfigOption}) the session module now drives — see `session.ts`.
  */
 import {
   AgentSideConnection,
@@ -45,10 +59,10 @@ import {
   type PromptResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  type SessionModelState,
+  type SessionConfigOption,
   type SessionNotification,
-  type SetSessionModelRequest,
-  type SetSessionModelResponse,
+  type SetSessionConfigOptionRequest,
+  type SetSessionConfigOptionResponse,
   type Stream,
   type ToolCallContent,
   type ToolCallStatus,
@@ -85,14 +99,17 @@ export {
   type PromptResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-  // The model-selection capability shapes (ACP `unstable_`/`@experimental`):
-  // the advertised model state on new/load session, and the `set_model` request/
-  // response. Bound here so the in-session model application reads ACP's own
-  // types, not a hand-rolled shape.
-  type SessionModelState,
+  // The generic session config-option shapes (SDK 1.x). A `SessionConfigOption`
+  // is one advertised selector (model, mode, effort, …) carrying its current
+  // value and the values it offers; `SetSessionConfigOption*` is the
+  // request/response to change one. Model selection rides the option whose
+  // `category` is `"model"` — bound here so the in-session model application
+  // reads ACP's own types, not a hand-rolled shape. Supersedes the retired
+  // `unstable_setSessionModel` / `SessionModelState` (#638).
+  type SessionConfigOption,
   type SessionNotification,
-  type SetSessionModelRequest,
-  type SetSessionModelResponse,
+  type SetSessionConfigOptionRequest,
+  type SetSessionConfigOptionResponse,
   type Stream,
   type ToolCallUpdate,
   // Tool-call vocabulary (ADR 0006, issue #377). `ToolCallContent` is the

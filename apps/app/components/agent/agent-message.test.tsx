@@ -113,7 +113,7 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     )
   })
 
-  // claude-code-acp forwards Claude Code's file-read decorations verbatim —
+  // claude-agent-acp forwards Claude Code's file-read decorations verbatim —
   // a <system-reminder> block, a ``` fence, and a `   N→` line-number gutter.
   // The expanded preview must strip all three and show just the file text.
   it("strips Claude Code read decorations from text content", () => {
@@ -154,7 +154,7 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     expect(text).not.toContain("Search Files")
   })
 
-  // A generic ACP adapter (e.g. claude-code-acp) sends an already
+  // A generic ACP adapter (e.g. claude-agent-acp) sends an already
   // human-readable, markdown-formatted title — not a raw snake_case name.
   // We must render it verbatim (no per-word re-casing) and honor its markdown.
   it("renders a human-readable ACP title verbatim, without re-casing", () => {

@@ -93,7 +93,7 @@ export const codexHarness: Harness = {
   // Backs agent chat via the Zed codex ACP adapter — rides `codex login` /
   // `CODEX_API_KEY`, per spike #405. The adapter advertises no `availableModels`
   // (spike #523), so a per-chat model choice can't ride ACP's in-session
-  // `setSessionModel`; it's applied at spawn as `--model <id>` instead. Omitted
+  // `set_config_option`; it's applied at spawn as `--model <id>` instead. Omitted
   // when no model is stored (bare `harness:codex`), so codex spawns unchanged.
   acpAdapter: {
     command: "npx",

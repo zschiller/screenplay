@@ -45,7 +45,7 @@
     "@tiptap/y-tiptap": "^3.0.3",
     "@vercel/blob": "^2.3.3",
     "@vercel/sandbox": "^2.0.0-beta.13",
-    "@agentclientprotocol/sdk": "^0.14.1",
+    "@agentclientprotocol/sdk": "1.1.0",
     "@workspace/ui": "workspace:*",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
