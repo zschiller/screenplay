@@ -541,9 +541,11 @@ function ToolCallIndicator({
  * thin render shell over its result.
  *
  * The header carries the subagent's live state — a spinner while any child (or
- * the Task itself) is still running, a red flag if any failed, and a `done/total`
- * count — so a long-running subagent reads as visible progress rather than an
- * opaque spinner. Expanded, it lists the child calls (each a normal
+ * the Task itself) is still running, a red flag if any failed, and a count of the
+ * tool calls it has made — so a long-running subagent reads as visible progress
+ * rather than an opaque spinner. (There is no meaningful denominator: a subagent's
+ * eventual tool-call total is unknown while it runs.) Expanded, it lists the child
+ * calls (each a normal
  * {@link ToolCallIndicator}) advancing through their own status lifecycle.
  *
  * Default open while the subagent works, closed once it has settled (a reload of
@@ -562,9 +564,6 @@ export function TaskGroup({
   const anyRunning = isRunning(task) || childCalls.some(isRunning)
   const anyFailed =
     task.status === "failed" || childCalls.some((c) => c.status === "failed")
-  const done = childCalls.filter(
-    (c) => c.status === "completed" || c.status === "failed"
-  ).length
   const [expanded, setExpanded] = useState(anyRunning)
 
   return (
@@ -578,7 +577,7 @@ export function TaskGroup({
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
       >
         {anyRunning ? (
-          <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+          <Loader2 className="h-3 w-3 shrink-0 animate-spin [transform-origin:center] will-change-transform" />
         ) : anyFailed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
         ) : (
@@ -586,7 +585,7 @@ export function TaskGroup({
         )}
         <span className="flex-1 truncate">{renderTitleWithCode(task.title)}</span>
         <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground/70">
-          {done}/{childCalls.length}
+          {childCalls.length}
         </span>
         <ChevronDown
           className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
