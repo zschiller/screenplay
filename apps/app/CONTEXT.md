@@ -585,9 +585,9 @@ decodes as a Harness (`harnesses/model-id.ts`). The dropdown list is the
 descriptor's **curated floor** plus a discover-once-and-cached live augment (the
 **Harness model catalog**, below; #527). _How_ the chosen model is applied is the
 adapter's call: an ACP-native adapter (claude-code) sets it in-session via ACP's
-`unstable_setSessionModel`; a spawn-env adapter (codex, which advertises no
-models) takes it at launch as `--model <id>`. See ADR 0011 for the capability
-binding and the `harness:<key>:<modelId>` wire format.
+`session/set_config_option` on the `"model"`-category option; a spawn-env adapter
+(codex, which advertises no models) takes it at launch as `--model <id>`. See ADR
+0011 for the capability binding and the `harness:<key>:<modelId>` wire format.
 _Which Harnesses are offered is resolved per backend by the **Harness
 Availability** seam_ (below) — never a single hardcoded list. On the hosted
 backend a Harness is offered only when its broker model provider is configured

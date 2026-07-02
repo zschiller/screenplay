@@ -65,7 +65,7 @@ export function acpHarnessFromEnv(
  * adapter the (already build-selected) external engine spawns; the optional
  * `:<modelId>` half refines *which model* that adapter runs, threaded to both
  * the spawn (codex's `--model`) and the session (claude-code's
- * `setSessionModel`). Any other id — a `provider:` model, or none — falls back
+ * `set_config_option`). Any other id — a `provider:` model, or none — falls back
  * to {@link acpHarnessFromEnv} with no model. The id only ever selects the
  * adapter and refines its model, never the engine (ADR 0006): it can't flip a
  * deployment between in-process and external. A harness the user picked but

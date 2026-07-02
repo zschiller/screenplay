@@ -40,7 +40,7 @@ export interface ExternalEngineConfig {
    * The chat's chosen model *within* the Harness (the `modelId` half of its
    * stored `harness:<key>:<modelId>` id — ADR 0006: it refines which model the
    * already-build-selected external engine runs, never the engine itself). At
-   * session open the ACP-native adapter applies it via `setSessionModel`; an
+   * session open the ACP-native adapter applies it via `set_config_option`; an
    * adapter that takes its model at spawn (codex) already has it on the argv, so
    * this is inert there. Absent ⇒ the Harness runs its own default.
    */
@@ -119,7 +119,7 @@ export class ExternalEngine implements Engine {
     const ports: AcpSessionPorts = {
       onUpdate: (update) => sink({ kind: "session_update", update }),
       requestPlanApproval: async (request) => {
-        // A real ACP adapter (`claude-code-acp`) raises a permission request for
+        // A real ACP adapter (`claude-agent-acp`) raises a permission request for
         // *every* tool operation it wants to run — file edits, command
         // execution — not just the plan-mode gate. The approval gate surfaces
         // only on a plan-mode turn (the agent's ExitPlanMode request, reachable

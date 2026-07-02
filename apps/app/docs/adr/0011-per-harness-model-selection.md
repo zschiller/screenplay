@@ -24,32 +24,42 @@ that shipped is not the one the plan assumed.
 
 ## Decision
 
-### (a) Bind model _application_ to ACP's `unstable_` capability — but make the curated list the source of truth
+### (a) Bind model _application_ to ACP's config-option channel — but make the curated list the source of truth
 
-ACP carries model selection as an `unstable_`/`@experimental` capability: a
-`session/new` (or `session/load`) advertises `availableModels` + `currentModelId`
-(`SessionModelState`), and `unstable_setSessionModel` switches the active model.
-We bind to it (`AcpSession.maybeSetModel` →
-`conn.unstable_setSessionModel`, `lib/agent/acp/session.ts`) rather than to a
-stable, hardcoded list — accepting an experimental surface because it is the
-adapter's only in-session model lever, and it **degrades cleanly**: an adapter
-that advertises no model state takes the no-op branch and the Harness runs its
-own default (no picker forced, no error).
+ACP carries model selection as one entry in a session's generic **config
+options**: a `session/new` (or `session/load`) advertises a `configOptions`
+selector whose `category` is `"model"` (carrying its `currentValue` and the
+model values it offers), and `session/set_config_option` switches the active
+model. We bind to it (`AcpSession.maybeSetModel` →
+`conn.setSessionConfigOption`, `lib/agent/acp/session.ts`) rather than to a
+stable, hardcoded list — because it is the adapter's only in-session model lever,
+and it **degrades cleanly**: an adapter that advertises no model option takes the
+no-op branch and the Harness runs its own default (no picker forced, no error).
+
+> **History (#638).** Through vendored SDK `0.14.x` this rode the experimental
+> `unstable_setSessionModel` capability (`SessionModelState` with
+> `availableModels`/`currentModelId`). The SDK `1.x` major retired that surface in
+> favor of the generic config-option channel above; the binding moved to
+> `setSessionConfigOption` on the `"model"`-category option, but every property
+> below (curated list is the source of truth, lazy validation, prompt-time
+> reconcile) carries over unchanged.
 
 Two spike findings make this binding load-bearing, and both push the same way —
 **the curated descriptor list is the source of truth; the ACP capability is only
 the _application mechanism_**:
 
-- **`availableModels` is a recommended _subset_, not the accepted id space.**
-  `setSessionModel` honors aliases and full slugs the advertised list omits
+- **The advertised model list is a recommended _subset_, not the accepted id space.**
+  The selector honors aliases and full slugs the advertised list omits
   (claude-code advertises three buckets but accepts `opus`/`opusplan`/full slugs
-  too). So gating the choice on `availableModels` would silently suppress valid
+  too). So gating the choice on the advertised list would silently suppress valid
   curated models. The curated floor on each `Harness.models` descriptor is
   therefore a deliberate **product choice** of what to offer, not a limit forced
   by the adapter — and `maybeSetModel` forwards the chosen id **without gating on
-  `availableModels`**.
+  the advertised list**. (The advertised list is still surfaced structurally, via
+  `AcpSession.availableModels`, for callers that want to see what the current
+  build's adapter offers — #638.)
 
-- **`unstable_setSessionModel` validates lazily.** It accepts any id on the call
+- **`session/set_config_option` validates lazily.** It accepts any id on the call
   and only rejects an unrunnable one on the _next prompt_, as JSON-RPC internal
   error `-32603` (`isStaleModelError`). So "clean degradation to harness default"
   cannot be "the set call rejects an unknown model" — it must be _reconcile at
@@ -98,10 +108,10 @@ guessed adapter.
 The two real adapters land on opposite sides of the capability, and the one
 descriptor + codec absorbs both with no per-Harness branch above the adapter:
 
-- **claude-code → ACP-native.** `session/new` advertises `availableModels`;
-  `unstable_setSessionModel` is honored in-session. Its `acpAdapter` carries **no**
-  `modelArgs`, so the model is applied via `setSessionModel` after the session
-  opens. The curated floor (`default`/`fable`/`opus`/`sonnet`/`haiku`) is richer
+- **claude-code → ACP-native.** `session/new` advertises a `"model"` config
+  option; `session/set_config_option` is honored in-session. Its `acpAdapter`
+  carries **no** `modelArgs`, so the model is applied via `set_config_option`
+  after the session opens. The curated floor (`default`/`fable`/`opus`/`sonnet`/`haiku`) is richer
   than what the adapter advertises — by design, per finding (a). `default` is the
   pre-selected per-Harness default and is backward-compatible with the bare
   `harness:claude-code` rows. (No `[1m]` variants or `opusplan`: the ACP adapter
@@ -148,11 +158,13 @@ session, and the adapter's own shape decides which one actually applies it.
 
 ## Consequences
 
-- Binding to an `unstable_` capability accepts a spec surface that can shift under
+- Binding to an evolving capability accepts a spec surface that can shift under
   us; we hold the blast radius to one module (`AcpSession`) and one bound version
-  (`@agentclientprotocol/sdk@0.14.x`, `acp/schema.ts`), and the clean-degradation
+  (`@agentclientprotocol/sdk@1.1.0`, `acp/schema.ts`), and the clean-degradation
   branches mean a capability that disappears falls back to "harness default"
-  rather than breaking turns.
+  rather than breaking turns. This already paid off once: the SDK `1.x` major
+  swapped `unstable_setSessionModel` for the config-option channel, and the change
+  stayed inside `AcpSession` (#638).
 - A stored model id can outlive the model it names (retired alias, downgraded
   subscription). That is _expected_, not an error: the first prompt reconciles the
   chat's stored id to the Harness default and the chat keeps running — at the cost

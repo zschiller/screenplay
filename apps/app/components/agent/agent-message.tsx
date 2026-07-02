@@ -72,7 +72,7 @@ const toolLabels: Record<string, string> = {
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
 // screenplay's own in-process engine. A generic ACP adapter (e.g.
-// claude-code-acp) instead sends an already human-readable, possibly
+// claude-agent-acp) instead sends an already human-readable, possibly
 // markdown-formatted title like "Read `file.ts`" — which we must leave
 // untouched rather than re-casing word by word.
 const RAW_TOOL_NAME = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
@@ -100,7 +100,7 @@ const kindIcons: Record<string, typeof FileText> = {
 /**
  * Render an ACP tool-call title as plain text with inline `code` spans only.
  *
- * A generic ACP adapter (claude-code-acp) hands us an already human-readable
+ * A generic ACP adapter (claude-agent-acp) hands us an already human-readable
  * title that may wrap a path or command in backticks (`Read `src/a.ts``). We
  * deliberately DON'T run it through a full markdown parser: CommonMark silently
  * mangles other text the title legitimately carries — `src/__init__.py` renders
@@ -142,7 +142,7 @@ function toolDetail(title: string, raw: unknown): string | null {
 
 /**
  * The file path a tool call targets, normalized across engines: our in-process
- * tools name it `path`; a generic ACP adapter (claude-code-acp) may instead use
+ * tools name it `path`; a generic ACP adapter (claude-agent-acp) may instead use
  * `file_path`/`abs_path`. Returns null when no path-like key is present.
  */
 function toolPath(raw: unknown): string | null {
@@ -167,7 +167,7 @@ function toolCommand(raw: unknown): string | null {
 
 /**
  * How many file lines a read returned, counted from the gutter-numbered result
- * text — the in-process engine numbers lines `<n>\t…`, claude-code-acp `<n>→…`.
+ * text — the in-process engine numbers lines `<n>\t…`, claude-agent-acp `<n>→…`.
  * Returns null when there are no numbered lines (still running, an empty file,
  * or a non-file read), so the caller falls back to a plain "Read".
  */
@@ -350,7 +350,7 @@ const TOOL_OUTPUT_CAP =
 
 /**
  * Strip the wrapper noise Claude Code bakes into file-read results that a
- * generic ACP adapter (claude-code-acp) forwards verbatim, so the compact
+ * generic ACP adapter (claude-agent-acp) forwards verbatim, so the compact
  * tool-output preview shows just the file's text:
  *  - `<system-reminder>…</system-reminder>` guidance blocks,
  *  - a single enclosing ``` fence the read is wrapped in,
@@ -444,7 +444,7 @@ function ToolCallIndicator({
   // Render every engine's tool call the same way: derive the verb + detail from
   // the tool identity (`kind` / raw name) and `rawInput`, not from whatever prose
   // title an adapter happens to send — so an in-process `read_file` and a
-  // claude-code-acp "Read File" both show "Read N lines `path`". Our own tools
+  // claude-agent-acp "Read File" both show "Read N lines `path`". Our own tools
   // report a raw snake_case name (humanized + given a derived detail); a generic
   // adapter's prose title is normalized via its ACP `kind`. A call we can't
   // structure (an unknown kind with no recognizable input) keeps the adapter's

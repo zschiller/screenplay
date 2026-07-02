@@ -14,8 +14,8 @@
  * (`claude-code`, `codex`) names its ACP adapter. The adapters and their spawn
  * quirks are the verified findings of spikes #405 / #408:
  *
- *  - `claude-code` → `npx -y @zed-industries/claude-code-acp` — rides the
- *    existing Claude Code login (no model key).
+ *  - `claude-code` → `npx -y @agentclientprotocol/claude-agent-acp@<pinned>` —
+ *    rides the existing Claude Code login (no model key).
  *  - `codex`       → `npx -y @zed-industries/codex-acp` — rides `codex login` /
  *    `CODEX_API_KEY`.
  *  - A terminal-only harness (no `acpAdapter`, e.g. the opencode slots) and
@@ -81,7 +81,7 @@ export function acpChildEnv(
  * applies the model at spawn ({@link AcpAdapter.modelArgs} — codex's `--model`,
  * spike #523) its args are appended here; for an ACP-native adapter (no
  * `modelArgs` — claude-code) it is ignored, since that path applies the model
- * in-session via `setSessionModel`. With no `modelId` the argv is unchanged, so
+ * in-session via `session/set_config_option`. With no `modelId` the argv is unchanged, so
  * a Harness with no stored model spawns exactly as before.
  */
 export function resolveAcpLaunch(

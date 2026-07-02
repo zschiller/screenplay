@@ -301,6 +301,18 @@ the legacy machinery is **deleted**, not parallel.
   and was silently dropped — the tool chip spun forever. The new SDK types those
   as arbitrary JSON, matching the wire. `AcpToolCallRecord`/`AgentMessage` carry
   them as `unknown` accordingly; the real adapter now renders live tool calls.
+- **Done (the adapter rename + SDK 1.x major, #638):** the Claude harness was
+  repointed from the frozen `@zed-industries/claude-code-acp@0.16.2` to the
+  actively-developed `@agentclientprotocol/claude-agent-acp` (pinned at 0.54.1),
+  and the vendored SDK bumped `0.14.x → 1.1.0` — the generation that adapter
+  speaks. The `0.x → 1.x` major was mostly wire-compatible for this seam
+  (`rawInput`/`rawOutput` stay `z.unknown()`; `_meta` stays a passthrough record,
+  so a subagent tool call's `_meta.claudeCode.parentToolUseId` rides through
+  untouched — schema.test.ts pins both). Two follow-through costs: (1) 1.x's
+  `exports` map no longer publishes the generated Zod schema subpath, so a tiny
+  pnpm patch re-exposes `./dist/schema/zod.gen.js` for the single import surface;
+  (2) 1.x retired the experimental `unstable_setSessionModel`/`SessionModelState`
+  in favor of the generic config-option channel — see ADR 0011.
 - `lib/agent/acp/` is the home of the seam; `CONTEXT.md`'s **Engine** entry is
   updated to "a seam speaking ACP, with a default in-process implementation and
   an external implementation," keeping the **Harness** distinction intact.

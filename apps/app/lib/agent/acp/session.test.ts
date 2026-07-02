@@ -13,7 +13,9 @@ import {
   type LoadSessionRequest,
   type PromptRequest,
   type PromptResponse,
+  type SessionConfigOption,
   type SessionUpdate,
+  type SetSessionConfigOptionRequest,
   type StopReason,
   type Stream,
 } from "./schema"
@@ -56,7 +58,7 @@ interface FakeModes {
 }
 
 interface FakeModels {
-  availableModels: { modelId: string; name: string }[]
+  availableModels: { modelId: string; name: string; description?: string }[]
   currentModelId: string
 }
 
@@ -64,6 +66,33 @@ type FakeAgentOpts = {
   loadSession?: boolean
   modes?: FakeModes
   models?: FakeModels
+}
+
+/**
+ * Build the `configOptions` a real SDK-1.x agent advertises for its model
+ * selector out of the test's convenience {@link FakeModels} shape: one
+ * single-value `select` in the reserved `"model"` category (mirroring the Claude
+ * adapter's `buildConfigOptions`). Undefined when the test wired no models, so
+ * the agent advertises no model option at all (codex — spike #523).
+ */
+function modelConfigOptions(
+  models: FakeModels | undefined
+): SessionConfigOption[] | undefined {
+  if (!models) return undefined
+  return [
+    {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: models.currentModelId,
+      options: models.availableModels.map((m) => ({
+        value: m.modelId,
+        name: m.name,
+        ...(m.description ? { description: m.description } : {}),
+      })),
+    },
+  ]
 }
 
 class FakeAcpAgent implements Agent {
@@ -93,13 +122,13 @@ class FakeAcpAgent implements Agent {
   async newSession(): Promise<{
     sessionId: string
     modes?: FakeModes
-    models?: FakeModels
+    configOptions?: SessionConfigOption[]
   }> {
     this.newSessionCalls++
     return {
       sessionId: SESSION_ID,
       modes: this.opts.modes,
-      models: this.opts.models,
+      configOptions: modelConfigOptions(this.opts.models),
     }
   }
 
@@ -109,17 +138,28 @@ class FakeAcpAgent implements Agent {
 
   async loadSession(
     params: LoadSessionRequest
-  ): Promise<{ modes?: FakeModes; models?: FakeModels }> {
+  ): Promise<{ modes?: FakeModes; configOptions?: SessionConfigOption[] }> {
     this.loadedSessionId = params.sessionId
-    return { modes: this.opts.modes, models: this.opts.models }
+    return {
+      modes: this.opts.modes,
+      configOptions: modelConfigOptions(this.opts.models),
+    }
   }
 
   async setSessionMode(params: { modeId: string }): Promise<void> {
     this.setSessionModeCalls.push(params.modeId)
   }
 
-  async unstable_setSessionModel(params: { modelId: string }): Promise<void> {
-    this.setSessionModelCalls.push(params.modelId)
+  // SDK 1.x drives model selection through the generic config-option channel
+  // (#638). We record only the model selector's values so the existing
+  // `setSessionModelCalls` assertions read unchanged.
+  async setSessionConfigOption(
+    params: SetSessionConfigOptionRequest
+  ): Promise<{ configOptions: SessionConfigOption[] }> {
+    if (params.configId === "model" && typeof params.value === "string") {
+      this.setSessionModelCalls.push(params.value)
+    }
+    return { configOptions: modelConfigOptions(this.opts.models) ?? [] }
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
@@ -433,9 +473,10 @@ describe("AcpSession — plan mode (session/set_mode)", () => {
   })
 })
 
-describe("AcpSession — model selection (unstable_setSessionModel)", () => {
-  // Mirrors the claude-code adapter from spike #523: it advertises a model list
-  // and honors `setSessionModel`. `default` is itself a real, current model.
+describe("AcpSession — model selection (session/set_config_option)", () => {
+  // Mirrors the claude-agent adapter from spike #523 / #638: it advertises a
+  // model selector in `configOptions` and honors `session/set_config_option`.
+  // `default` is itself a real, current model.
   const models: FakeModels = {
     availableModels: [
       { modelId: "default", name: "Default" },
@@ -444,6 +485,30 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
     ],
     currentModelId: "default",
   }
+
+  it("exposes the agent's advertised models via availableModels (#638)", async () => {
+    const { transport } = connectFakeAgent(async () => "end_turn", { models })
+    const { ports } = collectingPorts()
+
+    const session = await AcpSession.open(transport, ports, { cwd: "/work" })
+
+    // The list reflects the spawned adapter's own selector, captured at open —
+    // regardless of whether a model was applied.
+    expect(session.availableModels).toEqual([
+      { id: "default", name: "Default" },
+      { id: "sonnet", name: "Sonnet" },
+      { id: "haiku", name: "Haiku" },
+    ])
+  })
+
+  it("reports no models when the agent advertises none (e.g. codex)", async () => {
+    const { transport } = connectFakeAgent(async () => "end_turn")
+    const { ports } = collectingPorts()
+
+    const session = await AcpSession.open(transport, ports, { cwd: "/work" })
+
+    expect(session.availableModels).toEqual([])
+  })
 
   it("applies the chat's model at open when the agent advertises it", async () => {
     const { transport, agent } = connectFakeAgent(async () => "end_turn", {
@@ -557,7 +622,7 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
   })
 
   it("makes no model call when the agent advertises no models (e.g. codex)", async () => {
-    // codex advertises no `SessionModelState` (spike #523): the ACP path is a
+    // codex advertises no model config option (spike #523): the ACP path is a
     // no-op (its model rode the spawn argv), and there is nothing to reconcile.
     const { transport, agent } = connectFakeAgent(async () => "end_turn")
     const reconciled: string[] = []
@@ -574,9 +639,9 @@ describe("AcpSession — model selection (unstable_setSessionModel)", () => {
   })
 
   it("recovers when an advertised model fails the first prompt with -32603", async () => {
-    // `setSessionModel` validates lazily (spike #523): an advertised-but-
-    // unentitled model is accepted on the call and only rejected on the first
-    // prompt (`-32603`). The session falls back to the Harness default,
+    // The model selector validates lazily (spike #523): an advertised-but-
+    // unentitled model is accepted on the `set_config_option` call and only
+    // rejected on the first prompt (`-32603`). The session falls back to the Harness default,
     // reconciles, and retries once, so the turn succeeds rather than erroring.
     let prompts = 0
     const behavior: PromptBehavior = async () => {

@@ -1,0 +1,14 @@
+diff --git a/package.json b/package.json
+index e7f478c869d8e87020d8585312740310b4fdf5b7..d49babf0bc4c9786b4cef47e062bd75bc05528af 100644
+--- a/package.json
++++ b/package.json
+@@ -50,7 +50,8 @@
+       "import": "./dist/node-adapter.js",
+       "default": "./dist/node-adapter.js"
+     },
+-    "./schema/schema.json": "./schema/schema.json"
++    "./schema/schema.json": "./schema/schema.json",
++    "./dist/schema/zod.gen.js": "./dist/schema/zod.gen.js"
+   },
+   "directories": {
+     "example": "examples"
