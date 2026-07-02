@@ -20,6 +20,7 @@ import {
   SquarePen,
   Brain,
   Crosshair,
+  Bot,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -529,6 +530,75 @@ function ToolCallIndicator({
         message.content.map((block, i) => (
           <ToolContentBlock key={i} block={block} />
         ))}
+    </div>
+  )
+}
+
+/**
+ * A subagent's tool calls, grouped and collapsible under the `Task` row that
+ * spawned them (issue #640). The grouping decision is a pure function
+ * ({@link import("@/lib/agent/group-tool-calls").groupToolCalls}); this is the
+ * thin render shell over its result.
+ *
+ * The header carries the subagent's live state — a spinner while any child (or
+ * the Task itself) is still running, a red flag if any failed, and a `done/total`
+ * count — so a long-running subagent reads as visible progress rather than an
+ * opaque spinner. Expanded, it lists the child calls (each a normal
+ * {@link ToolCallIndicator}) advancing through their own status lifecycle.
+ *
+ * Default open while the subagent works, closed once it has settled (a reload of
+ * a finished run starts collapsed). Per-Task expand/collapse *persistence* is
+ * out of scope (#636).
+ */
+export function TaskGroup({
+  task,
+  childCalls,
+}: {
+  task: AgentMessage & { role: "tool_call" }
+  childCalls: (AgentMessage & { role: "tool_call" })[]
+}) {
+  const isRunning = (s: AgentMessage & { role: "tool_call" }) =>
+    s.status === "pending" || s.status === "in_progress"
+  const anyRunning = isRunning(task) || childCalls.some(isRunning)
+  const anyFailed =
+    task.status === "failed" || childCalls.some((c) => c.status === "failed")
+  const done = childCalls.filter(
+    (c) => c.status === "completed" || c.status === "failed"
+  ).length
+  const [expanded, setExpanded] = useState(anyRunning)
+
+  return (
+    <div
+      data-testid="task-group"
+      className="rounded-md border border-border bg-muted/30"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        data-testid="task-group-header"
+        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
+      >
+        {anyRunning ? (
+          <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+        ) : anyFailed ? (
+          <AlertCircle className="h-3 w-3 shrink-0" />
+        ) : (
+          <Bot className="h-3 w-3 shrink-0" />
+        )}
+        <span className="flex-1 truncate">{renderTitleWithCode(task.title)}</span>
+        <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground/70">
+          {done}/{childCalls.length}
+        </span>
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
+        />
+      </button>
+      {expanded && (
+        <div className="space-y-2 border-t border-border py-2 pr-2 pl-3">
+          {childCalls.map((child) => (
+            <ToolCallIndicator key={child.toolCallId} message={child} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

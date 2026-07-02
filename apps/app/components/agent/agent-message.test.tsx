@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
-import { AgentMessageItem } from "./agent-message"
+import { AgentMessageItem, TaskGroup } from "./agent-message"
 
 afterEach(cleanup)
 
@@ -333,5 +333,48 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
     expect(row.textContent).toContain("Read skill")
     expect(row.textContent).not.toContain("lines")
     expect(container.querySelector("code")?.textContent).toBe("diagnose")
+  })
+})
+
+// A thin smoke test over the render shell (issue #640): the grouping *logic*
+// lives in `groupToolCalls` and is unit-tested there without a DOM; here we only
+// confirm the container renders, its children live inside it, and it collapses.
+describe("TaskGroup — subagent grouping render (issue #640)", () => {
+  const task = toolCall({
+    toolCallId: "task_1",
+    title: "Task",
+    status: "in_progress",
+  }) as Extract<AgentMessage, { role: "tool_call" }>
+  const child = toolCall({
+    toolCallId: "child_1",
+    title: "read_file",
+    kind: "read",
+    status: "in_progress",
+    rawInput: { path: "src/foo.ts" },
+    parentToolCallId: "task_1",
+  }) as Extract<AgentMessage, { role: "tool_call" }>
+
+  it("renders a collapsible container with its child calls nested inside", () => {
+    render(<TaskGroup task={task} childCalls={[child]} />)
+
+    const group = screen.getByTestId("task-group")
+    expect(group).toBeTruthy()
+    // A running subagent defaults open, so the child call renders inside it.
+    const childRow = screen.getByTestId("tool-call")
+    expect(group.contains(childRow)).toBe(true)
+    expect(childRow.textContent).toContain("src/foo.ts")
+  })
+
+  it("collapses and re-expands the group from its header", () => {
+    render(<TaskGroup task={task} childCalls={[child]} />)
+
+    // Open by default (subagent still running) → child visible.
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId("task-group-header"))
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+
+    fireEvent.click(screen.getByTestId("task-group-header"))
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
   })
 })
