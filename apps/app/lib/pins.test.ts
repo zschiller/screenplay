@@ -1,5 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { eq } from "drizzle-orm"
+
+import { setupSharedPgliteDb, type SharedPgliteDb } from "../test/pglite"
 
 // Persistence tests for `lib/pins`, driven against an in-memory PGlite — the
 // same plain Postgres the desktop build runs — in the style of `lib/folders`.
@@ -7,27 +9,16 @@ import { eq } from "drizzle-orm"
 // a pinned Room round-trips, re-pinning is idempotent, pins are private per
 // user, and deleting a Room cascades its pin away.
 describe("lib/pins persistence", () => {
-  // Re-importing the db seam runs the PGlite migration boot; give the file
-  // headroom so it stays reliable under full-suite CPU contention.
-  vi.setConfig({ testTimeout: 30000 })
-
-  beforeEach(() => {
-    vi.resetModules()
-    // The db handle is pinned to `globalThis` (one open per process), which
-    // `resetModules` does not clear — so drop it to give each test a fresh
-    // in-memory PGlite rather than a shared one carrying the prior test's rows.
-    delete (globalThis as { __screenplayDbHandle?: unknown })
-      .__screenplayDbHandle
-    // Route the db seam to an ephemeral PGlite so importing `@/lib/db` doesn't
-    // demand a Neon `DATABASE_URL`, and so the local migration set (which now
-    // carries `pin`) runs.
-    vi.stubEnv("SCREENPLAY_DB", "pglite")
-    vi.stubEnv("PGLITE_DATA_DIR", "memory://")
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
+  // Boot one in-memory PGlite for the whole file (migrations run once) and
+  // route the `@/lib/db` seam at it; each test starts from a truncated clean
+  // slate rather than paying a fresh ~2s WASM boot. `beforeAll` gets headroom
+  // so the one-time boot stays reliable under full-suite CPU contention.
+  let harness: SharedPgliteDb
+  beforeAll(async () => {
+    harness = await setupSharedPgliteDb()
+  }, 30000)
+  afterAll(() => harness.close())
+  beforeEach(() => harness.reset())
 
   // A pin row's user + target FKs both have to resolve, so seed two users, a
   // couple of Rooms (one shared, owned by Alice), and a couple of Folders.
