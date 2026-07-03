@@ -12,7 +12,9 @@ import {
   opencodeCompatHarness,
   opencodeConfigJson,
   opencodeGatewayHarness,
+  probeOpencodeAuth,
 } from "./opencode"
+import type { HarnessProcessRunner } from "./types"
 
 /**
  * Stub provider mirroring the one in `selection.test.ts`: only `egress()`
@@ -240,6 +242,135 @@ describe("seedOpencode", () => {
     const wrote = calls.map((c) => c.args.join(" ")).join("\n")
     expect(wrote).toContain("/home/agent/.config/opencode/AGENTS.md")
     expect(wrote).not.toContain("/workspace/repo/AGENTS.md")
+  })
+})
+
+/**
+ * opencode's per-descriptor auth probe (ADR 0015) reads the CLI's own credential
+ * store through an **injected process runner**, so a fake runner drives it without
+ * a real opencode install or a real `auth.json`. Honest degradation: every
+ * uncertainty — a spawn failure, an empty listing, an empty/unparseable store —
+ * resolves to *not authed* (offer sign-in), never a false "connected".
+ */
+function router(replies: {
+  authList?: { exitCode: number; stdout: string } | "enoent"
+  authJson?: { exitCode: number; stdout: string } | "enoent"
+}): HarnessProcessRunner {
+  const absent = { exitCode: 1, stdout: "" }
+  const resolve = (
+    reply: { exitCode: number; stdout: string } | "enoent" | undefined
+  ) => {
+    if (reply === "enoent") {
+      throw Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" })
+    }
+    return reply ?? absent
+  }
+  return async (cmd, args) => {
+    if (cmd === "opencode" && args[0] === "auth" && args[1] === "list") {
+      return resolve(replies.authList)
+    }
+    if (cmd === "sh") {
+      const script = args[1] ?? ""
+      if (script.includes("auth.json")) return resolve(replies.authJson)
+    }
+    throw new Error(`unexpected probe: ${cmd} ${args.join(" ")}`)
+  }
+}
+
+describe("probeOpencodeAuth", () => {
+  it("is authed when `opencode auth list` names a configured provider", async () => {
+    const run = router({
+      authList: {
+        exitCode: 0,
+        stdout: "Credentials ~/.local/share/opencode/auth.json\nanthropic\n",
+      },
+    })
+    expect(await probeOpencodeAuth(run)).toBe(true)
+  })
+
+  it("falls back to the data-dir auth.json when the list is empty", async () => {
+    const run = router({
+      authList: { exitCode: 0, stdout: "" },
+      authJson: { exitCode: 0, stdout: JSON.stringify({ anthropic: {} }) },
+    })
+    expect(await probeOpencodeAuth(run)).toBe(true)
+  })
+
+  it("reads the auth.json under the XDG-overridable opencode data dir", async () => {
+    // Assert the probe actually points at the data-dir auth.json path.
+    let catScript = ""
+    const run: HarnessProcessRunner = async (cmd, args) => {
+      if (cmd === "opencode") return { exitCode: 0, stdout: "" }
+      if (cmd === "sh") {
+        catScript = args[1] ?? ""
+        return { exitCode: 0, stdout: JSON.stringify({ openai: {} }) }
+      }
+      throw new Error("unexpected")
+    }
+    expect(await probeOpencodeAuth(run)).toBe(true)
+    expect(catScript).toContain(
+      "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
+    )
+  })
+
+  it("is not authed when neither the list nor the store holds a provider", async () => {
+    // auth list empty, auth.json absent (default reply).
+    const run = router({ authList: { exitCode: 0, stdout: "" } })
+    expect(await probeOpencodeAuth(run)).toBe(false)
+  })
+
+  it("treats an empty-state 'no credentials' listing as not authed", async () => {
+    const run = router({
+      authList: { exitCode: 0, stdout: "No credentials found\n" },
+    })
+    expect(await probeOpencodeAuth(run)).toBe(false)
+  })
+
+  it("degrades an empty ({}) or unparseable auth.json to not authed", async () => {
+    const emptyObject = router({
+      authList: { exitCode: 0, stdout: "" },
+      authJson: { exitCode: 0, stdout: "{}" },
+    })
+    expect(await probeOpencodeAuth(emptyObject)).toBe(false)
+
+    const garbage = router({
+      authList: { exitCode: 0, stdout: "" },
+      authJson: { exitCode: 0, stdout: "not json {{{" },
+    })
+    expect(await probeOpencodeAuth(garbage)).toBe(false)
+  })
+
+  it("is not authed when the opencode binary can't be spawned and no store exists", async () => {
+    const run = router({ authList: "enoent", authJson: "enoent" })
+    expect(await probeOpencodeAuth(run)).toBe(false)
+  })
+
+  it("ignores the header path line alone as evidence of a provider", async () => {
+    // Only the "Credentials <path>" header, no provider entry, and no store.
+    const run = router({
+      authList: {
+        exitCode: 0,
+        stdout: "Credentials /home/agent/.local/share/opencode/auth.json\n",
+      },
+    })
+    expect(await probeOpencodeAuth(run)).toBe(false)
+  })
+})
+
+describe("opencode setup descriptor fields (ADR 0015)", () => {
+  it("both slots carry the same probeAuth / buildInstallCommand / authCommand", () => {
+    for (const harness of [opencodeGatewayHarness, opencodeCompatHarness]) {
+      expect(harness.probeAuth).toBe(probeOpencodeAuth)
+      expect(harness.authCommand).toEqual(["opencode", "auth", "login"])
+      // The install builder maps host facts → the CLI's install command.
+      expect(
+        harness.buildInstallCommand?.({
+          npmPresent: true,
+          brewPresent: false,
+          arch: "arm64",
+        })
+      ).toBe("npm install -g opencode-ai")
+    }
   })
 })
 

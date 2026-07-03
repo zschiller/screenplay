@@ -11,6 +11,7 @@ import {
   type Harness,
   type HarnessProcessRunner,
 } from "./types"
+import { probeOk } from "./process-runner"
 
 /**
  * The macOS login-keychain item Claude Code stores its OAuth credential under.
@@ -18,29 +19,6 @@ import {
  * when the item exists, so its presence is the strongest "signed in" signal.
  */
 const CLAUDE_KEYCHAIN_SERVICE = "Claude Code-credentials"
-
-/**
- * Run one credential probe through the injected runner, collapsing every
- * uncertainty to a boolean: a process that ran and satisfied `ok` → `true`;
- * anything else — non-zero exit, empty output, or a spawn failure (the binary
- * isn't there / the file is absent) — → `false`. This is the honest-degradation
- * rule (ADR 0015): a probe that can't confirm a login reports *not authed*, so
- * the worst case is offering a sign-in the user didn't strictly need, never a
- * false "connected".
- */
-async function probeOk(
-  run: HarnessProcessRunner,
-  cmd: string,
-  args: string[],
-  ok: (result: { exitCode: number; stdout: string }) => boolean
-): Promise<boolean> {
-  try {
-    const result = await run(cmd, args)
-    return result.exitCode === 0 && ok(result)
-  } catch {
-    return false
-  }
-}
 
 /**
  * Whether a stored Claude credential exists on the desktop host — Claude Code's

@@ -30,6 +30,12 @@ const signedOutRunner: HarnessProcessRunner = async () => ({
   stdout: "",
 })
 
+/** A runner reporting opencode's `auth list` naming a provider (→ authed). */
+const opencodeAuthedRunner: HarnessProcessRunner = async (cmd, args) =>
+  cmd === "opencode" && args[0] === "auth" && args[1] === "list"
+    ? { exitCode: 0, stdout: "anthropic\n" }
+    : { exitCode: 1, stdout: "" }
+
 describe("resolveHarnessSetupStatuses (live setup-status fold)", () => {
   it("collapses the catalog to one row per distinct hostBinary, in catalog order", async () => {
     const rows = await resolveHarnessSetupStatuses(
@@ -50,6 +56,26 @@ describe("resolveHarnessSetupStatuses (live setup-status fold)", () => {
       "codex",
       "opencode-gateway",
     ])
+  })
+
+  it("collapses the two opencode slots to one opencode row driven by opencode's own auth probe", async () => {
+    // Both opencode-gateway and opencode-compat share hostBinary "opencode", so
+    // the fold must emit a single row (the #658 panel's observable collapse),
+    // keyed on the binary, with opencode's own probeAuth deciding its auth fact.
+    const rows = await resolveHarnessSetupStatuses(
+      HARNESSES,
+      fakeProbe(["opencode"]),
+      opencodeAuthedRunner
+    )
+
+    const opencodeRows = rows.filter((r) => r.hostBinary === "opencode")
+    expect(opencodeRows).toHaveLength(1)
+    expect(opencodeRows[0]).toMatchObject({
+      key: "opencode-gateway",
+      hostBinary: "opencode",
+      installed: true,
+      authenticated: true,
+    })
   })
 
   it("probes a descriptor's own login only when its binary is installed", async () => {

@@ -1,7 +1,17 @@
 import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
-import { commitAndPushRuleMarkdown, type Harness } from "./types"
+import {
+  buildOpencodeAuthArgv,
+  buildOpencodeInstallCommand,
+  OPENCODE_INSTALL_PACKAGE,
+} from "@/lib/host-tool/opencode-install-command"
+import {
+  commitAndPushRuleMarkdown,
+  type Harness,
+  type HarnessProcessRunner,
+} from "./types"
+import { probeOk } from "./process-runner"
 
 /**
  * opencode is the provider/model-agnostic harness for the two OpenAI-protocol
@@ -10,7 +20,110 @@ import { commitAndPushRuleMarkdown, type Harness } from "./types"
  * (`opencode-ai` on npm, `opencode` on PATH) and differ only in the endpoint
  * they point at and the provider that brokers their auth.
  */
-const OPENCODE_PACKAGE = "opencode-ai"
+const OPENCODE_PACKAGE = OPENCODE_INSTALL_PACKAGE
+
+/**
+ * opencode stores every configured provider's credential in a single JSON object
+ * under its data dir, defaulting to `~/.local/share/opencode/auth.json`
+ * (XDG-overridable via `XDG_DATA_HOME`). The shell expands `$XDG_DATA_HOME`/`$HOME`,
+ * so the probe needs no home-dir lookup of its own.
+ */
+const OPENCODE_AUTH_JSON_PATH =
+  '"${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"'
+
+/**
+ * Whether `opencode auth list`'s output names at least one **configured
+ * provider**. opencode prints one entry per stored credential; when nothing is
+ * configured it prints an empty list or a "no credentials" notice. Honest
+ * degradation (never a false "connected"): the header path line (`Credentials
+ * <…/auth.json>`) and any "no …" empty-state message are *not* evidence, so the
+ * probe reads authed only when some other content line — an actual provider entry
+ * — is present.
+ */
+function listsConfiguredProvider(stdout: string): boolean {
+  return stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .some((line) => {
+      // An empty-state notice ("No credentials found", "no providers", …).
+      if (/\bno\b.*\b(credential|provider|account|auth)/i.test(line)) {
+        return false
+      }
+      // The "Credentials <path>" header, which names the auth.json file itself.
+      if (/auth\.json/i.test(line)) return false
+      return true
+    })
+}
+
+/**
+ * Whether opencode's `auth.json` holds a configured provider. The file is a JSON
+ * object keyed by provider id; a non-empty object means at least one provider is
+ * signed in. An empty object (`{}`) or unparseable content degrades to *not
+ * authed* — the honest-degradation rule, so a stale/empty store never reads as
+ * connected.
+ */
+function authJsonHasProvider(stdout: string): boolean {
+  try {
+    const parsed = JSON.parse(stdout) as unknown
+    return (
+      parsed != null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      Object.keys(parsed as Record<string, unknown>).length > 0
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether opencode carries a configured provider on the desktop host — the two
+ * opencode slots' shared per-descriptor {@link Harness.probeAuth} (ADR 0015),
+ * driven through the injected process runner so a fake runner tests it. Two
+ * independent signals, short-circuiting on the first hit:
+ *
+ *  1. `opencode auth list` names a configured provider ({@link
+ *     listsConfiguredProvider});
+ *  2. the credential store under the opencode data dir
+ *     (`~/.local/share/opencode/auth.json`) holds one ({@link
+ *     authJsonHasProvider}) — the fallback for when the CLI can't enumerate but
+ *     the file is readable.
+ *
+ * Any indeterminate result degrades to *not authed* (see {@link probeOk}); the
+ * probe resolves `true` only when one signal positively holds a provider.
+ */
+export async function probeOpencodeAuth(
+  run: HarnessProcessRunner
+): Promise<boolean> {
+  // 1. The CLI's own view of its credential store.
+  if (
+    await probeOk(run, "opencode", ["auth", "list"], (r) =>
+      listsConfiguredProvider(r.stdout)
+    )
+  ) {
+    return true
+  }
+
+  // 2. The credential store on disk, read directly (a present, non-empty object).
+  return probeOk(run, "sh", ["-c", `cat ${OPENCODE_AUTH_JSON_PATH}`], (r) =>
+    authJsonHasProvider(r.stdout)
+  )
+}
+
+/**
+ * The desktop "Coding agents" setup trio shared by **both** opencode slots (ADR
+ * 0015): one binary, one install, one login. The setup surface already collapses
+ * the two slots to a single `opencode` row keyed on `hostBinary`
+ * (`resolveHarnessSetupStatuses`), so whichever slot is the row's representative
+ * carries the same probe/install/sign-in — spread into each descriptor so they
+ * stay identical by construction.
+ */
+const opencodeSetup = {
+  probeAuth: probeOpencodeAuth,
+  buildInstallCommand: buildOpencodeInstallCommand,
+  authCommand: buildOpencodeAuthArgv(),
+} satisfies Pick<Harness, "probeAuth" | "buildInstallCommand" | "authCommand">
 
 /** opencode's global config + agents file live under `~/.config/opencode`. */
 const opencodeConfigDir = (homeDir: string) => `${homeDir}/.config/opencode`
@@ -127,6 +240,7 @@ export const opencodeGatewayHarness: Harness = {
       defaultModel: "gateway/anthropic/claude-sonnet-4-6",
     })
   ),
+  ...opencodeSetup,
 }
 
 /**
@@ -168,4 +282,5 @@ export const opencodeCompatHarness: Harness = {
       apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY",
     })
   ),
+  ...opencodeSetup,
 }
