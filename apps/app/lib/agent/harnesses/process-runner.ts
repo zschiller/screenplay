@@ -30,3 +30,27 @@ export const defaultHarnessProcessRunner: HarnessProcessRunner = async (
     throw err
   }
 }
+
+/**
+ * Run one credential probe through the injected runner, collapsing every
+ * uncertainty to a boolean: a process that ran and satisfied `ok` → `true`;
+ * anything else — a non-zero exit, output `ok` rejects, or a spawn failure (the
+ * binary isn't there / the file is absent) — → `false`. This is the
+ * honest-degradation rule shared by every harness's {@link
+ * import("./types").Harness.probeAuth} (ADR 0015): a probe that can't confirm a
+ * login reports *not authed*, so the worst case is offering a sign-in the user
+ * didn't strictly need, never a false "connected".
+ */
+export async function probeOk(
+  run: HarnessProcessRunner,
+  cmd: string,
+  args: string[],
+  ok: (result: { exitCode: number; stdout: string }) => boolean
+): Promise<boolean> {
+  try {
+    const result = await run(cmd, args)
+    return result.exitCode === 0 && ok(result)
+  } catch {
+    return false
+  }
+}
