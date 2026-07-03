@@ -8,6 +8,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { isLocalBuild } from "@/lib/local-mode"
 import { HomeScrollBody } from "./home-scroll-body"
 import { GitHubConnectionPanel } from "./github-connection-panel"
+import { HarnessSetupPanel } from "./harness-setup-panel"
 import { RepoConfigsPanel } from "./repo-configs-panel"
 
 const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
@@ -44,6 +45,15 @@ export function SettingsView() {
               description="How Screenplay reaches the GitHub API on this device."
             >
               <GitHubConnectionPanel />
+            </Section>
+          )}
+
+          {isLocalBuild && (
+            <Section
+              title="Coding agents"
+              description="Install and sign in to coding CLIs on this device, so Screenplay can back agent chat and terminal tabs with them."
+            >
+              <HarnessSetupPanel />
             </Section>
           )}
 

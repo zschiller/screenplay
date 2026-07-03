@@ -196,8 +196,8 @@ export function unconfiguredBannerArgv(
   const banner =
     backend === "desktop"
       ? "No coding harness was detected. " +
-        "Install a coding CLI (e.g. claude, codex, or opencode) on your PATH and " +
-        "restart Screenplay to launch it in this terminal — manage harnesses from Settings."
+        "Open Settings → Coding agents to install and sign in to a coding CLI " +
+        "(e.g. Claude Code), then launch it in this terminal."
       : "No coding harness is configured. " +
         "Set SANDBOX_HARNESSES (e.g. SANDBOX_HARNESSES=claude-code) and reprovision " +
         "to launch a CLI in this terminal."

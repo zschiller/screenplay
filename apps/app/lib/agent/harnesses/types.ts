@@ -97,6 +97,37 @@ export interface HarnessModel {
 }
 
 /**
+ * The host-process boundary a harness's {@link Harness.probeAuth} shells
+ * through, injected so the auth probe is unit-testable without a real CLI
+ * install or a real credential store — the exact mockable-seam shape as the
+ * `gh` adapter's `GhProcessRunner` (ADR 0015). Resolves with the exit code +
+ * output for a process that ran; **rejects** when the binary can't be spawned at
+ * all (ENOENT), which an honest probe maps to *not authed* rather than a false
+ * "connected".
+ */
+export type HarnessProcessRunner = (
+  cmd: string,
+  args: string[]
+) => Promise<{ exitCode: number; stdout: string }>
+
+/**
+ * The host facts a harness's {@link Harness.buildInstallCommand} maps to the
+ * shell command the inline setup terminal runs (ADR 0015) — the sibling of the
+ * `{ brewPresent }` input `gh-install-command.ts` takes, widened for harnesses
+ * that may install off `npm` or a per-arch release binary. Probed live on the
+ * desktop host just before an install (`npm`/`brew` via the same `command -v`
+ * prober host-binary detection uses; `arch` from the Node runtime).
+ */
+export interface HostFacts {
+  /** Whether `npm` is on the host `PATH` (the `npm install -g` path is viable). */
+  npmPresent: boolean
+  /** Whether Homebrew is on the host `PATH` (a `brew install` path is viable). */
+  brewPresent: boolean
+  /** The host CPU architecture (`process.arch`, e.g. `arm64`) for a release-binary URL. */
+  arch: string
+}
+
+/**
  * A coding-harness descriptor. The flat catalog in `index.ts` is an array of
  * these keyed by `key`, mirroring the model-provider registry
  * (`lib/agent/providers`): teach the system a new harness by dropping a
@@ -213,6 +244,43 @@ export interface Harness {
    * it writes under `sandbox.homeDir` / `sandbox.worktreePath`.
    */
   seed(sandbox: SandboxInstance): Promise<void>
+
+  /**
+   * Probe whether this harness's **own login** is present on the desktop host
+   * (ADR 0015) — the auth fact the "Coding agents" Settings surface surfaces
+   * per row, additively on top of presence. There is no shared `auth token`
+   * command across harnesses (each stores its credential differently), so the
+   * probe is per-descriptor, modeled on `GhCli.getStatus` with an **injected
+   * process runner** so it is unit-testable with a fake. Honest degradation: an
+   * indeterminate probe resolves `false` (offer sign-in), never a false "authed".
+   *
+   * Omitted for a harness whose login this slice doesn't yet probe — the setup
+   * surface then reports `authenticated: null` ("can't tell") and still lists it
+   * on presence (the Harness Availability invariant: presence lists, auth is
+   * surfaced, never a pre-filter).
+   */
+  probeAuth?(run: HarnessProcessRunner): Promise<boolean>
+
+  /**
+   * Build the shell command the inline setup terminal runs to **install** this
+   * CLI, from the live {@link HostFacts} (ADR 0015) — an optional pure builder,
+   * the sibling of `gh-install-command.ts`. It prefers the vendor's own no-`npm`
+   * installer so a host without `npm` never dead-ends, falling back to
+   * `npm install -g <installPackage>` only when `npm` is present. Chained ahead
+   * of {@link authCommand} in one terminal session, so a failed install stops
+   * before sign-in with its error on screen and the row re-detects to
+   * "Not installed". Omitted for a harness with no in-app install path.
+   */
+  buildInstallCommand?(facts: HostFacts): string
+
+  /**
+   * The CLI's own interactive login argv, run verbatim in the setup terminal's
+   * PTY (ADR 0015) — Claude Code's login, `codex login`, `opencode auth login`.
+   * The visible-terminal UX (a browser flow / device code shown in the terminal)
+   * is the CLI's; PTY exit is the completion signal to re-detect. Omitted for a
+   * harness with no in-app sign-in path.
+   */
+  authCommand?: string[]
 }
 
 /** A harness named in `SANDBOX_HARNESSES` that won't be installed, with why. */
