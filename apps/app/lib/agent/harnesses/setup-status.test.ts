@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
 import { HARNESSES } from "@/lib/agent/harnesses/index"
 import { resolveHarnessSetupStatuses } from "@/lib/agent/harnesses/setup-status"
-import type { HarnessProcessRunner } from "@/lib/agent/harnesses/types"
+import type { Harness, HarnessProcessRunner } from "@/lib/agent/harnesses/types"
 
 /**
  * The live setup-status fold (ADR 0015) reads host presence + each descriptor's
@@ -106,10 +106,15 @@ describe("resolveHarnessSetupStatuses (live setup-status fold)", () => {
   })
 
   it("reports authenticated: null for an installed harness with no probeAuth", async () => {
-    // opencode is installed but carries no probeAuth → 'can't tell' (codex now
-    // probes its own login, so the no-probe case is opencode's).
+    // Every catalog harness now carries its own probeAuth (#660 gave opencode
+    // one), so exercise the probe-less path with a descriptor whose probeAuth is
+    // stripped: on presence alone the fold must report `null` ("can't tell"),
+    // never a false "connected".
+    const opencode = HARNESSES.find((h) => h.hostBinary === "opencode")!
+    const probeless: Harness = { ...opencode, probeAuth: undefined }
+
     const rows = await resolveHarnessSetupStatuses(
-      HARNESSES,
+      [probeless],
       fakeProbe(["opencode"]),
       authedRunner
     )
