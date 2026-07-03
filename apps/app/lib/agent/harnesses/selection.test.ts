@@ -242,6 +242,9 @@ describe("unconfiguredBannerArgv", () => {
     // installing one (managed from Settings), never at SANDBOX_HARNESSES.
     expect(script).not.toContain("SANDBOX_HARNESSES")
     expect(script).toContain("Settings")
+    // Live re-probe retired the "restart Screenplay" requirement (ADR 0015): the
+    // banner points at the now-built setup surface, not a restart.
+    expect(script).not.toMatch(/restart/i)
     expect(script).toMatch(/exec \$SHELL$/)
   })
 })

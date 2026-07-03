@@ -33,13 +33,19 @@ import { type Harness } from "./types"
  */
 
 /**
- * Per-harness availability status. `installed` is the only fact this slice
- * surfaces (and is `true` for every *listed* harness, since listing is gated on
- * presence); the object is kept open so an auth-aware pass can add
- * `authenticated` without reshaping every consumer.
+ * Per-harness availability status. `installed` is the listing fact (and is
+ * `true` for every *listed* harness, since listing is gated on presence, never
+ * auth). `authenticated` was added additively (ADR 0015): `boolean` when a
+ * harness's own login was probed, `null` = "not probed / can't tell". Only the
+ * "Coding agents" Settings surface reads `authenticated`, and only to label a
+ * row — the dropdown / terminal folds ignore it, preserving the
+ * presence-lists-auth-surfaced invariant. The launch-memoized resolvers here
+ * never probe auth (that is the hot path), so they always report `null`; the
+ * live setup status (`listHarnessSetupStatus`) is what fills the boolean.
  */
 export interface HarnessStatus {
   installed: boolean
+  authenticated: boolean | null
 }
 
 /** A harness the deployment can offer, paired with its availability status. */
@@ -51,6 +57,15 @@ export interface AvailableHarness {
 /** The seam: a backend-aware fold over the catalog → the available harnesses. */
 export interface HarnessResolver {
   list(): Promise<AvailableHarness[]>
+  /**
+   * Drop any cached detection so the next {@link list} re-probes the host
+   * (ADR 0015). The desktop resolver memoizes its host-`PATH` probe once per app
+   * launch (the hot path); the "Coding agents" setup surface calls this after a
+   * successful connect so a freshly installed CLI reaches the model dropdown and
+   * new-tab picker without a restart. A no-op on resolvers that already read live
+   * every call (the hosted fold reads env + provider config each time).
+   */
+  invalidate(): void
 }
 
 /**
@@ -206,9 +221,15 @@ export function createHostedResolver(
         opts.providers ??
         (await import("@/lib/agent/providers")).getModelProviders()
       return selectHarnesses(sandboxHarnesses, providers).installable.map(
-        (harness) => ({ harness, status: { installed: true } })
+        (harness) => ({
+          harness,
+          status: { installed: true, authenticated: null },
+        })
       )
     },
+    // The hosted fold reads env + provider config live on every list(), so there
+    // is no memo to bust — invalidate is a no-op that keeps the seam uniform.
+    invalidate() {},
   }
 }
 
@@ -219,6 +240,13 @@ export function createHostedResolver(
  * shows up after a restart, by design (live re-probe is out of scope) — so two
  * `list()` calls share one detection. `probe` defaults to the production
  * `command -v` prober; tests pass a fake.
+ *
+ * The memo is the default for the hot path, but not permanent: {@link
+ * HarnessResolver.invalidate} clears it (ADR 0015), so the "Coding agents" setup
+ * surface can force a re-probe after installing a CLI and have it show up in the
+ * dropdown / new-tab picker without a restart. Listing still surfaces
+ * `authenticated: null` — this fast path never probes a harness's own login (the
+ * live setup status does).
  */
 export function createDesktopResolver(
   opts: { harnesses?: Harness[]; probe?: HostBinaryProber } = {}
@@ -232,7 +260,13 @@ export function createDesktopResolver(
       const present = await detected
       return harnesses
         .filter((harness) => present.has(harness.key))
-        .map((harness) => ({ harness, status: { installed: true } }))
+        .map((harness) => ({
+          harness,
+          status: { installed: true, authenticated: null },
+        }))
+    },
+    invalidate() {
+      detected = undefined
     },
   }
 }

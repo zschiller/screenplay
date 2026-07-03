@@ -63,7 +63,12 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
     const available = await resolver.list()
 
     expect(available.map(({ harness }) => harness.key)).toEqual(["claude-code"])
-    expect(available[0]!.status).toEqual({ installed: true })
+    // The launch-memoized fold surfaces presence only; auth is `null` (the live
+    // setup status probes it, not this hot path).
+    expect(available[0]!.status).toEqual({
+      installed: true,
+      authenticated: null,
+    })
   })
 
   it("drops every harness when no binary is present", async () => {
@@ -115,6 +120,23 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
       "codex",
       "opencode",
     ])
+  })
+
+  it("invalidate() busts the memo — the next list() re-runs the injected prober", async () => {
+    const probe = fakeProbe(["claude"])
+    const resolver = createDesktopResolver({ probe })
+
+    await resolver.list()
+    await resolver.list()
+    // Two list()s so far share one probe of `claude` (the memo).
+    expect(probedBinaries(probe).filter((b) => b === "claude")).toHaveLength(1)
+
+    resolver.invalidate()
+    await resolver.list()
+
+    // After invalidate the next list() re-probes — the connect path's re-probe
+    // (a freshly installed CLI shows up without a restart).
+    expect(probedBinaries(probe).filter((b) => b === "claude")).toHaveLength(2)
   })
 })
 
@@ -207,7 +229,7 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
   it("degrades a Harness advertising no models to a single bare harness:<key> 'harness default' entry", async () => {
     const available: AvailableHarness[] = [
       chatHarness({ key: "modelless", label: "Modelless" }),
-    ].map((h) => ({ ...h, status: { installed: true } }))
+    ].map((h) => ({ ...h, status: { installed: true, authenticated: null } }))
 
     expect(await harnessModels(available)).toEqual([
       {
@@ -287,7 +309,7 @@ describe("harnessDefaultModelId (desktop default fold)", () => {
   it("falls back to a bare harness:<key> when the first Harness advertises no models", () => {
     const available: AvailableHarness[] = [
       chatHarness({ key: "modelless" }),
-    ].map((h) => ({ ...h, status: { installed: true } }))
+    ].map((h) => ({ ...h, status: { installed: true, authenticated: null } }))
 
     expect(harnessDefaultModelId(available)).toBe("harness:modelless")
   })
@@ -301,7 +323,7 @@ describe("harnessDefaultModelId (desktop default fold)", () => {
           { id: "b", label: "B" },
         ],
       }),
-    ].map((h) => ({ ...h, status: { installed: true } }))
+    ].map((h) => ({ ...h, status: { installed: true, authenticated: null } }))
 
     expect(harnessDefaultModelId(available)).toBe("harness:nodefault:a")
   })
