@@ -14,8 +14,9 @@ import {
 import { parseGitHubRemote } from "@/lib/github-local/parse-remote"
 import { getLocalTokenStore } from "@/lib/github-local/token-store"
 import {
-  getLocalGitHubTokenSource,
+  readLocalGitHubConnection,
   resolveLocalGitHubToken,
+  type GhConnectionState,
 } from "@/lib/github-local/token-resolver"
 import type { NewRepoSource } from "@/lib/github-local/types"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -34,14 +35,34 @@ const NOT_LOCAL = "Only available on the local desktop build"
 export interface GitHubLocalStatus {
   /** Where the resolver is currently getting a token (`null` = no API access). */
   tokenSource: "gh" | "device" | null
+  /** The host `gh` CLI's install/auth state, so the UI can say "install"
+   *  vs. "sign in" rather than only "connected / not". */
+  gh: GhConnectionState
+  /** The connected GitHub handle when `tokenSource === "gh"`, else `null`. */
+  ghHandle: string | null
+  /**
+   * Whether a device-flow token exists at all — reported separately from
+   * `tokenSource` because the resolver prefers `gh`, so a dormant device token
+   * can sit under a `gh` connection (ADR 0014).
+   */
+  hasDeviceToken: boolean
   /** Whether the GitHub App client id for the device flow is configured. */
   deviceFlowConfigured: boolean
 }
 
 export async function getGitHubLocalStatus(): Promise<GitHubLocalStatus> {
-  if (!isLocalBuild) return { tokenSource: null, deviceFlowConfigured: false }
+  if (!isLocalBuild) {
+    return {
+      tokenSource: null,
+      gh: "not-installed",
+      ghHandle: null,
+      hasDeviceToken: false,
+      deviceFlowConfigured: false,
+    }
+  }
+  const connection = await readLocalGitHubConnection()
   return {
-    tokenSource: await getLocalGitHubTokenSource(),
+    ...connection,
     deviceFlowConfigured: Boolean(process.env.SCREENPLAY_GITHUB_CLIENT_ID),
   }
 }

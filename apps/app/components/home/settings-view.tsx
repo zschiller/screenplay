@@ -5,7 +5,9 @@ import { useTheme } from "next-themes"
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
+import { isLocalBuild } from "@/lib/local-mode"
 import { HomeScrollBody } from "./home-scroll-body"
+import { GitHubConnectionPanel } from "./github-connection-panel"
 import { RepoConfigsPanel } from "./repo-configs-panel"
 
 const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
@@ -35,6 +37,15 @@ export function SettingsView() {
           >
             <ThemeToggle />
           </Section>
+
+          {isLocalBuild && (
+            <Section
+              title="GitHub"
+              description="How Screenplay reaches the GitHub API on this device."
+            >
+              <GitHubConnectionPanel />
+            </Section>
+          )}
 
           <Section
             title="Project presets"
