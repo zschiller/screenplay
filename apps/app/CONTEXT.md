@@ -613,9 +613,14 @@ read the same answer instead of three divergent lists. Two resolvers behind it,
 selected by the build-time backend the way `SandboxProvider` is (ADR 0003): the
 hosted resolver returns `SANDBOX_HARNESSES ∩ broker-egress`; the desktop resolver
 **detects** installed CLIs by probing each descriptor's `hostBinary` in the host
-sidecar. Returns a per-Harness **status**, not a bare `{key,label}` — installed
-today, with room for `authenticated` later (the auth-aware pass surfaced in a
-homescreen Settings surface, deferred). The desktop model fold (`harnessModels`)
+sidecar. Returns a per-Harness **status**, not a bare `{key,label}`:
+`{ installed, authenticated }`, where `authenticated` (a per-descriptor auth
+probe, ADR 0015) is read only by the **Harness Setup** Settings surface to label a
+row — the dropdown / terminal folds ignore it, so listing stays gated on
+**presence**, never auth. The desktop probe is memoized once per launch for the
+hot path, but a connect through Harness Setup **invalidates** that memo (live
+re-probe), so a freshly installed/authenticated CLI shows up app-wide without a
+restart. The desktop model fold (`harnessModels`)
 gives **each** detected chat-capable Harness its own dropdown heading with its
 curated models nested as `harness:<key>:<modelId>` entries (and the first
 Harness's `defaultModelId` as the overall desktop default), replacing the single
@@ -632,6 +637,31 @@ it lists, and reconciles to the Harness default only if the turn rejects it
 _Avoid_: detector/registry (casual); a separate availability path per consumer
 (the whole point is one fold, many consumers); gating the list on auth state
 (presence lists; auth is surfaced, not pre-filtered).
+
+**Harness Setup** (desktop):
+The `isLocalBuild`-gated Settings surface that actively **installs and signs in**
+a Harness's host CLI (ADR 0015) — the sibling of the **GitHub Connection**'s guided
+`gh` setup (ADR 0014), built on the same reusable **host-tool setup step**
+(`lib/host-tool/setup-step.ts`) and inline **host-session terminal**
+(`HostSessionTerminal` + `/api/terminal/host`). One setup step per distinct
+installable CLI — **deduped by `hostBinary`**, so the two opencode slots collapse
+to one row — each mapping a live `{ installed, authenticated }` status (the
+descriptor's `hostBinary` probe plus its per-descriptor **auth probe**) to the
+reducer's `DetectionResult`. From not-installed, one action installs (via the
+descriptor's npm-free-preferring **install-command builder**, the sibling of
+`gh-install-command.ts`) then chains straight into the CLI's own sign-in argv in a
+visible PTY; a signed-out CLI just signs in; an authed one offers only a re-run.
+On PTY exit it re-detects **live** and invalidates the shared Harness Availability
+memo, so the connect lands app-wide with no restart. The help is
+**one-directional**, exactly as the GitHub Connection's is toward the `gh` CLI: the
+app installs and launches sign-in but never signs you **out**, uninstalls, or
+manages the CLI's credentials beyond launching its own login.
+_Avoid_: treating it as a second setup machine (it is a sibling *instance* of the
+ADR 0014 step, reducer reused verbatim); gating the availability list on the auth
+fact it surfaces (auth is a Settings label, presence still lists); a per-slot
+opencode row (dedupe by `hostBinary`); picking a Harness's model here (that's the
+model dropdown / **Harness model catalog**, ADR 0011); signing a harness *out* or
+uninstalling it (one-directional — help in, never out).
 
 **Harness model catalog**:
 The source the desktop model fold (`harnessModels`) reads each Harness's dropdown
