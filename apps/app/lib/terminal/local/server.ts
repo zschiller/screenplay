@@ -2,6 +2,7 @@ import "server-only"
 
 import http from "node:http"
 import type { AddressInfo } from "node:net"
+import os from "node:os"
 
 import { WebSocketServer, type WebSocket, type RawData } from "ws"
 
@@ -28,10 +29,12 @@ import {
  * (`ttyd-protocol.ts`), so swapping the transport touches nothing on the client.
  * Per connection:
  *
- *  1. The URL carries `?sandbox=<name>` (which worktree to run in) and the
- *     client's `?arg=` list — the first arg is the session key
- *     (`screenplay-<tabId>`), any rest are a launch command (a bare shell when
- *     empty, this slice's case).
+ *  1. The URL names a target and carries the client's `?arg=` list — the first
+ *     arg is the session key (`screenplay-<tabId>`), any rest are a launch
+ *     command (a bare shell when empty). The target is either `?sandbox=<name>`
+ *     (run in that Branch's worktree) or `?host=1` (a **host session**: cwd =
+ *     `$HOME`, no room / sandbox / membership gate — the desktop-local surface
+ *     Settings uses to run `gh auth login` against the host `gh`, ADR 0014).
  *  2. The first frame is the handshake (geometry); it triggers attach to the
  *     session registry, spawning the PTY on first connect or re-attaching to the
  *     live one on a reload.
@@ -50,6 +53,9 @@ export interface StartOptions {
   port?: number
   /** Resolve a sandbox name → its worktree dir. Defaults to the sandbox seam. */
   resolveCwd?: (sandboxName: string) => Promise<string>
+  /** The cwd for a host session. Defaults to the host `$HOME` (`os.homedir()`);
+   *  tests pin it for determinism. */
+  resolveHomeDir?: () => string
   /** Registry to attach against. Defaults to the process singleton. */
   sessions?: TerminalSessions
   /** Override the spawned shell (tests pin this; prod uses `$SHELL`). */
@@ -61,6 +67,44 @@ async function resolveWorktreeCwd(sandboxName: string): Promise<string> {
   const { sandboxProvider } = await import("@/lib/sandbox")
   const instance = await sandboxProvider.get({ name: sandboxName })
   return instance.worktreePath
+}
+
+/** Which kind of session a connection's URL requests, parsed off its query. */
+export interface ConnectionTarget {
+  /** A host session (cwd `$HOME`, no sandbox); `?host=1`. */
+  hostSession: boolean
+  /** The sandbox name to run in, when it isn't a host session; `?sandbox=<name>`. */
+  sandboxName: string | null
+}
+
+/** Read the target off a connection's URL search params. */
+export function parseConnectionTarget(
+  searchParams: URLSearchParams
+): ConnectionTarget {
+  return {
+    hostSession: searchParams.get("host") === "1",
+    sandboxName: searchParams.get("sandbox"),
+  }
+}
+
+/**
+ * The cwd a connection's PTY spawns in. A **host session** runs in `$HOME` with
+ * no sandbox — deliberately outside the room/membership gate, safe under the
+ * same `127.0.0.1` desktop-local trust boundary the transport already relies on
+ * (ADR 0014). A **sandbox session** resolves its worktree through the seam,
+ * exactly as before. Pure but for the injected resolvers, so it's unit-testable
+ * without a real sandbox or a real socket.
+ */
+export function resolveConnectionCwd(
+  target: ConnectionTarget,
+  deps: {
+    resolveCwd: (sandboxName: string) => Promise<string>
+    homeDir: () => string
+  }
+): Promise<string> {
+  if (target.hostSession) return Promise.resolve(deps.homeDir())
+  if (!target.sandboxName) return Promise.reject(new Error("missing sandbox"))
+  return deps.resolveCwd(target.sandboxName)
 }
 
 /** Normalize a `ws` message (Buffer | Buffer[] | ArrayBuffer) to one Uint8Array. */
@@ -79,6 +123,7 @@ export function startLocalTerminalServer(
   opts: StartOptions = {}
 ): Promise<LocalTerminalServer> {
   const resolveCwd = opts.resolveCwd ?? resolveWorktreeCwd
+  const homeDir = opts.resolveHomeDir ?? (() => os.homedir())
   const sessions = opts.sessions ?? getTerminalSessions()
 
   const httpServer = http.createServer((_req, res) => {
@@ -97,7 +142,12 @@ export function startLocalTerminalServer(
   })
 
   wss.on("connection", (ws, req) => {
-    handleConnection(ws, req.url ?? "/", { resolveCwd, sessions, shell: opts.shell })
+    handleConnection(ws, req.url ?? "/", {
+      resolveCwd,
+      homeDir,
+      sessions,
+      shell: opts.shell,
+    })
   })
 
   return new Promise((resolve) => {
@@ -119,18 +169,22 @@ function handleConnection(
   reqUrl: string,
   ctx: {
     resolveCwd: (sandboxName: string) => Promise<string>
+    homeDir: () => string
     sessions: TerminalSessions
     shell?: string
   }
 ): void {
   const url = new URL(reqUrl, "http://localhost")
-  const sandboxName = url.searchParams.get("sandbox")
+  const target = parseConnectionTarget(url.searchParams)
   const args = url.searchParams.getAll("arg")
   const key = args[0]
   const command = args.slice(1)
 
-  if (!sandboxName || !key) {
-    ws.close(1008, "missing sandbox or session")
+  // A connection must name a session key and a target: a sandbox to run in, or
+  // an explicit host session. (A host session needs no sandbox — that's the
+  // point: its cwd is `$HOME`.)
+  if (!key || (!target.hostSession && !target.sandboxName)) {
+    ws.close(1008, "missing target or session")
     return
   }
 
@@ -180,7 +234,10 @@ function handleConnection(
   async function attach(columns: number, rows: number): Promise<void> {
     let cwd: string
     try {
-      cwd = await ctx.resolveCwd(sandboxName!)
+      cwd = await resolveConnectionCwd(target, {
+        resolveCwd: ctx.resolveCwd,
+        homeDir: ctx.homeDir,
+      })
     } catch {
       ws.close(1011, "unknown sandbox")
       return

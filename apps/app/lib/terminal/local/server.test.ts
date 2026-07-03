@@ -4,6 +4,8 @@ import os from "node:os"
 import { WebSocket } from "ws"
 
 import {
+  parseConnectionTarget,
+  resolveConnectionCwd,
   startLocalTerminalServer,
   type LocalTerminalServer,
 } from "@/lib/terminal/local/server"
@@ -33,8 +35,12 @@ interface Client {
   closed: Promise<void>
 }
 
-function connect(server: LocalTerminalServer, sessionKey: string): Promise<Client> {
-  const url = `ws://127.0.0.1:${server.port}/ws?sandbox=test&arg=${sessionKey}`
+function connect(
+  server: LocalTerminalServer,
+  sessionKey: string,
+  query = "sandbox=test"
+): Promise<Client> {
+  const url = `ws://127.0.0.1:${server.port}/ws?${query}&arg=${sessionKey}`
   const ws = new WebSocket(url, [TTYD_SUBPROTOCOL])
   let text = ""
   ws.binaryType = "arraybuffer"
@@ -142,5 +148,69 @@ describe("startLocalTerminalServer", () => {
       ws.on("error", reject)
     })
     expect(code).toBe(1008)
+  })
+
+  it("rejects a connection that names neither a sandbox nor a host session", async () => {
+    await start()
+    const url = `ws://127.0.0.1:${server.port}/ws?arg=screenplay-tab`
+    const ws = new WebSocket(url, [TTYD_SUBPROTOCOL])
+    const code = await new Promise<number>((resolve, reject) => {
+      ws.on("close", (c) => resolve(c))
+      ws.on("error", reject)
+    })
+    expect(code).toBe(1008)
+  })
+
+  it("runs a host session in $HOME with no sandbox required", async () => {
+    // A host session names no sandbox; its cwd is the pinned home dir, and the
+    // sandbox resolver is never consulted (a host session bypasses it entirely).
+    sessions = new TerminalSessions()
+    const home = os.tmpdir()
+    server = await startLocalTerminalServer({
+      sessions,
+      shell: SHELL,
+      resolveHomeDir: () => home,
+      resolveCwd: async () => {
+        throw new Error("host session must not resolve a sandbox")
+      },
+    })
+    const client = await connect(server, "screenplay-tab", "host=1")
+    client.send(encodeHandshake({ authToken: "", columns: 80, rows: 24 }))
+    client.send(encodeInput("pwd\r"))
+    await waitFor(() => client.text().includes(home))
+    expect(client.text()).toContain(home)
+  })
+})
+
+describe("resolveConnectionCwd", () => {
+  const deps = {
+    resolveCwd: async (name: string) => `/worktrees/${name}`,
+    homeDir: () => "/home/user",
+  }
+
+  it("resolves a host session to the home dir, ignoring the sandbox resolver", async () => {
+    const target = parseConnectionTarget(new URLSearchParams("host=1"))
+    await expect(
+      resolveConnectionCwd(target, {
+        ...deps,
+        resolveCwd: async () => {
+          throw new Error("must not be called")
+        },
+      })
+    ).resolves.toBe("/home/user")
+  })
+
+  it("resolves a sandbox session through the seam, unchanged", async () => {
+    const target = parseConnectionTarget(
+      new URLSearchParams("sandbox=branch-1")
+    )
+    await expect(resolveConnectionCwd(target, deps)).resolves.toBe(
+      "/worktrees/branch-1"
+    )
+  })
+
+  it("rejects a sandbox session with no sandbox name", async () => {
+    const target = parseConnectionTarget(new URLSearchParams(""))
+    await expect(resolveConnectionCwd(target, deps)).rejects.toThrow()
   })
 })
