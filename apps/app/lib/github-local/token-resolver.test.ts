@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import type { GhCli } from "@/lib/github-local/gh-cli"
-import { makeGitHubTokenResolver } from "@/lib/github-local/token-resolver"
+import type { GhCli, GhStatus } from "@/lib/github-local/gh-cli"
+import {
+  makeGitHubTokenResolver,
+  makeLocalGitHubConnectionReader,
+} from "@/lib/github-local/token-resolver"
 import {
   makeKeychainTokenStore,
   makeLayeredTokenStore,
@@ -9,7 +12,7 @@ import {
   type TokenStore,
 } from "@/lib/github-local/token-store"
 
-function fakeGh(token: string | null): GhCli {
+function fakeGh(token: string | null): Pick<GhCli, "getToken"> {
   return { getToken: async () => token }
 }
 
@@ -66,6 +69,63 @@ describe("local GitHub token resolver", () => {
       store: async () => memoryStore(),
     })
     expect(await resolve()).toBeNull()
+  })
+})
+
+describe("local GitHub connection reader", () => {
+  const read = (status: GhStatus, store = memoryStore()) =>
+    makeLocalGitHubConnectionReader({
+      gh: { getStatus: async () => status },
+      store: async () => store,
+    })()
+
+  it("reports tokenSource gh with the handle when gh is authenticated", async () => {
+    expect(
+      await read({ kind: "authenticated", token: "t", handle: "octocat" })
+    ).toEqual({
+      tokenSource: "gh",
+      gh: "authenticated",
+      ghHandle: "octocat",
+      hasDeviceToken: false,
+    })
+  })
+
+  it("surfaces a dormant device token additively under a gh connection", async () => {
+    // gh wins tokenSource, but hasDeviceToken still reports the store's token.
+    expect(
+      await read(
+        { kind: "authenticated", token: "t", handle: "octocat" },
+        memoryStore("device-tok")
+      )
+    ).toEqual({
+      tokenSource: "gh",
+      gh: "authenticated",
+      ghHandle: "octocat",
+      hasDeviceToken: true,
+    })
+  })
+
+  it("falls to tokenSource device when gh is signed out but a token is stored", async () => {
+    expect(
+      await read(
+        { kind: "installed-not-authenticated" },
+        memoryStore("device-tok")
+      )
+    ).toEqual({
+      tokenSource: "device",
+      gh: "installed-not-authenticated",
+      ghHandle: null,
+      hasDeviceToken: true,
+    })
+  })
+
+  it("reports not-installed with a dark tokenSource when nothing resolves", async () => {
+    expect(await read({ kind: "not-installed" })).toEqual({
+      tokenSource: null,
+      gh: "not-installed",
+      ghHandle: null,
+      hasDeviceToken: false,
+    })
   })
 })
 

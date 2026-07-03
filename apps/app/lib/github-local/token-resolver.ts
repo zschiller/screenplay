@@ -1,6 +1,7 @@
 import "server-only"
 
 import { makeGhCli, type GhCli } from "@/lib/github-local/gh-cli"
+import type { GhStatus } from "@/lib/github-local/gh-cli"
 import {
   getLocalTokenStore,
   type TokenStore,
@@ -17,7 +18,7 @@ import {
  * which the UI already handles as the no-token state.
  */
 export function makeGitHubTokenResolver(deps: {
-  gh: GhCli
+  gh: Pick<GhCli, "getToken">
   store: () => Promise<TokenStore>
 }): () => Promise<string | null> {
   return async () => {
@@ -37,15 +38,59 @@ export function resolveLocalGitHubToken(): Promise<string | null> {
   return productionResolver()
 }
 
+/** Which of the three states the host `gh` CLI is in — the connection UI's
+ *  install-vs-sign-in distinction, mirroring {@link GhStatus} without the
+ *  token payload. */
+export type GhConnectionState = GhStatus["kind"]
+
 /**
- * Which source is currently supplying the token, for the connect/disconnect
- * affordances: `"gh"` outranks a stored device-flow token (mirroring the
- * resolver), `null` means no GitHub API access.
+ * The full picture the local-build connection UI reads (ADR 0014). Reports the
+ * resolver's real {@link tokenSource} — `"gh"` outranks a stored device-flow
+ * token exactly as {@link makeGitHubTokenResolver} does — alongside the finer
+ * `gh` install/auth state and its handle. `hasDeviceToken` is reported
+ * **additively**: because the resolver prefers `gh`, a dormant device token can
+ * sit under a `gh` connection, so "a device token exists" is a separate fact
+ * from what `tokenSource` currently is.
  */
-export async function getLocalGitHubTokenSource(): Promise<
-  "gh" | "device" | null
-> {
-  if (await makeGhCli().getToken()) return "gh"
-  const store = await getLocalTokenStore()
-  return (await store.get()) ? "device" : null
+export interface LocalGitHubConnection {
+  tokenSource: "gh" | "device" | null
+  gh: GhConnectionState
+  /** The connected GitHub handle, only ever set when `tokenSource === "gh"`. */
+  ghHandle: string | null
+  hasDeviceToken: boolean
+}
+
+export function makeLocalGitHubConnectionReader(deps: {
+  gh: Pick<GhCli, "getStatus">
+  store: () => Promise<TokenStore>
+}): () => Promise<LocalGitHubConnection> {
+  return async () => {
+    const status = await deps.gh.getStatus()
+    const store = await deps.store()
+    const hasDeviceToken = Boolean(await store.get())
+
+    if (status.kind === "authenticated") {
+      return {
+        tokenSource: "gh",
+        gh: "authenticated",
+        ghHandle: status.handle,
+        hasDeviceToken,
+      }
+    }
+    return {
+      tokenSource: hasDeviceToken ? "device" : null,
+      gh: status.kind,
+      ghHandle: null,
+      hasDeviceToken,
+    }
+  }
+}
+
+const productionConnectionReader = makeLocalGitHubConnectionReader({
+  gh: makeGhCli(),
+  store: getLocalTokenStore,
+})
+
+export function readLocalGitHubConnection(): Promise<LocalGitHubConnection> {
+  return productionConnectionReader()
 }

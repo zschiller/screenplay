@@ -18,6 +18,18 @@ export type GhProcessRunner = (
 ) => Promise<{ exitCode: number; stdout: string }>
 
 /**
+ * The three states the host `gh` CLI can be in, kept distinct instead of
+ * collapsing the first two to `null` the way {@link GhCli.getToken} does
+ * (ADR 0014). The Settings GitHub section needs the difference to tell a user
+ * to *install* `gh` versus to *sign in* — the resolver only ever cared about
+ * whether a token fell out.
+ */
+export type GhStatus =
+  | { kind: "not-installed" }
+  | { kind: "installed-not-authenticated" }
+  | { kind: "authenticated"; token: string; handle: string | null }
+
+/**
  * Thin adapter over the host's GitHub CLI (PRD #428). One question, two
  * answers: is `gh` installed *and* authenticated, and if so what token is it
  * holding? Backed by `gh auth token`, which prints the active account's token
@@ -32,6 +44,13 @@ export interface GhCli {
    * (the resolver just falls through to the token store), not an error.
    */
   getToken(): Promise<string | null>
+  /**
+   * The finer three-state view the connection UI reads: *not installed* (can't
+   * spawn / non-zero `gh --version`), *installed but signed out* (no token),
+   * or *authenticated* with the token and, best-effort, the connected handle.
+   * Never throws — every failure resolves to the nearest honest state.
+   */
+  getStatus(): Promise<GhStatus>
 }
 
 const defaultRunner: GhProcessRunner = async (cmd, args) => {
@@ -51,16 +70,52 @@ const defaultRunner: GhProcessRunner = async (cmd, args) => {
 }
 
 export function makeGhCli(run: GhProcessRunner = defaultRunner): GhCli {
-  return {
-    async getToken() {
-      try {
-        const result = await run("gh", ["auth", "token"])
-        if (result.exitCode !== 0) return null
-        const token = result.stdout.trim()
-        return token === "" ? null : token
-      } catch {
-        return null
-      }
-    },
+  async function getToken(): Promise<string | null> {
+    try {
+      const result = await run("gh", ["auth", "token"])
+      if (result.exitCode !== 0) return null
+      const token = result.stdout.trim()
+      return token === "" ? null : token
+    } catch {
+      return null
+    }
   }
+
+  /**
+   * Whether `gh` can be run at all. `gh --version` exits 0 on any install and
+   * needs no auth, so it isolates "is the binary here" from "is it signed in".
+   */
+  async function isInstalled(): Promise<boolean> {
+    try {
+      const result = await run("gh", ["--version"])
+      return result.exitCode === 0
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * The connected account's login, read once we know a token exists. Purely to
+   * label the authed state — a failure here (offline, an old `gh`) degrades to
+   * `null` and never demotes the connection.
+   */
+  async function getHandle(): Promise<string | null> {
+    try {
+      const result = await run("gh", ["api", "user", "--jq", ".login"])
+      if (result.exitCode !== 0) return null
+      const handle = result.stdout.trim()
+      return handle === "" ? null : handle
+    } catch {
+      return null
+    }
+  }
+
+  async function getStatus(): Promise<GhStatus> {
+    if (!(await isInstalled())) return { kind: "not-installed" }
+    const token = await getToken()
+    if (!token) return { kind: "installed-not-authenticated" }
+    return { kind: "authenticated", token, handle: await getHandle() }
+  }
+
+  return { getToken, getStatus }
 }
