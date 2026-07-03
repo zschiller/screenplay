@@ -1,33 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+
+import { setupSharedPgliteDb, type SharedPgliteDb } from "../test/pglite"
 
 // Persistence tests for `lib/folders`, driven against an in-memory PGlite — the
 // same plain Postgres the desktop build runs — in the style of the local-build
 // db tests. They pin the two load-bearing guarantees: a created folder
 // round-trips, and listing is scoped to its owner so one user's tree can never
 // surface in another's.
+
+// Boot one in-memory PGlite for the whole file (migrations run once) and route
+// the `@/lib/db` seam at it; every test across the describe blocks below starts
+// from a truncated clean slate rather than paying a fresh ~2s WASM boot.
+// `beforeAll` gets headroom so the one-time boot stays reliable under
+// full-suite CPU contention.
+let harness: SharedPgliteDb
+beforeAll(async () => {
+  harness = await setupSharedPgliteDb()
+}, 30000)
+afterAll(() => harness.close())
+beforeEach(() => harness.reset())
+
 describe("lib/folders persistence", () => {
-  // Re-importing the db seam runs the PGlite migration boot; give the file
-  // headroom so it stays reliable under full-suite CPU contention.
-  vi.setConfig({ testTimeout: 30000 })
-
-  beforeEach(() => {
-    vi.resetModules()
-    // The db handle is pinned to `globalThis` (one open per process), which
-    // `resetModules` does not clear — so drop it to give each test a fresh
-    // in-memory PGlite rather than a shared one carrying the prior test's rows.
-    delete (globalThis as { __screenplayDbHandle?: unknown })
-      .__screenplayDbHandle
-    // Route the db seam to an ephemeral PGlite so importing `@/lib/db` doesn't
-    // demand a Neon `DATABASE_URL`, and so the local migration set (which now
-    // carries `folder`) runs.
-    vi.stubEnv("SCREENPLAY_DB", "pglite")
-    vi.stubEnv("PGLITE_DATA_DIR", "memory://")
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   async function seedUsers() {
     const { db, dbReady, schema } = await import("@/lib/db")
     await dbReady
@@ -130,20 +123,6 @@ describe("lib/folders persistence", () => {
 // keyed `(userId, roomId)`, so it upserts to one row per user+Room and stays
 // private — filing a shared Room never moves it in another user's view.
 describe("lib/folders room placement", () => {
-  vi.setConfig({ testTimeout: 30000 })
-
-  beforeEach(() => {
-    vi.resetModules()
-    delete (globalThis as { __screenplayDbHandle?: unknown })
-      .__screenplayDbHandle
-    vi.stubEnv("SCREENPLAY_DB", "pglite")
-    vi.stubEnv("PGLITE_DATA_DIR", "memory://")
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   // A placement row's three FKs (user, room, folder) all have to resolve, so
   // seed the whole graph: two users, a shared Room they both own one of, and a
   // folder per user.
@@ -256,20 +235,6 @@ describe("lib/folders room placement", () => {
 // gone in a single delete. (Tearing down the owned Rooms themselves is the
 // server action's job; here we pin the folder + placement cascade the FK gives.)
 describe("lib/folders cascade delete", () => {
-  vi.setConfig({ testTimeout: 30000 })
-
-  beforeEach(() => {
-    vi.resetModules()
-    delete (globalThis as { __screenplayDbHandle?: unknown })
-      .__screenplayDbHandle
-    vi.stubEnv("SCREENPLAY_DB", "pglite")
-    vi.stubEnv("PGLITE_DATA_DIR", "memory://")
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   // A nested tree with Rooms filed at two depths, plus an unrelated sibling
   // branch the delete must leave alone.
   //   parent ── child            other
