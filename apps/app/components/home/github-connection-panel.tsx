@@ -10,6 +10,8 @@ import {
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
 import { buildGhAuthLoginArgv } from "@/lib/host-tool/gh-auth-command"
+import { buildGhInstallAndAuthArgv } from "@/lib/host-tool/gh-install-command"
+import { probeHomebrewPresent } from "@/lib/host-tool/install-actions"
 import {
   initialSetupState,
   setupReducer,
@@ -20,27 +22,49 @@ import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 /** Stable PTY key for the sign-in terminal — reaped on exit, so each run is fresh. */
 const GH_SETUP_SESSION_KEY = "screenplay-gh-setup"
 
+/** What the working terminal is running — an install-then-sign-in, or a bare
+ *  sign-in — so the section can label it and mount the matching command. */
+interface RunPlan {
+  command: string[]
+  message: string
+}
+
 /**
  * The GitHub connection surface in desktop Settings (ADR 0014, PRD #645). It
  * reflects the resolver's *actual* `tokenSource` so it never claims "connected"
- * while the API is dark, and — for a `gh` that's installed but signed out —
- * drives a guided **sign-in** through the reusable host-tool setup step: a
- * visible inline host-session terminal runs `gh auth login --web`, and on PTY
- * exit the section re-detects and flips to Connected with no reload.
+ * while the API is dark, and drives a guided setup through the reusable
+ * host-tool step in a visible inline host-session terminal: from the
+ * not-installed state, one button installs `gh` and chains straight into
+ * `gh auth login` (issue #649); a signed-out `gh` just signs in. On PTY exit the
+ * section re-detects and flips to Connected with no reload.
  */
 export function GitHubConnectionPanel() {
   const [state, dispatch] = useReducer(setupReducer, initialSetupState)
   const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
+  // Whether Homebrew is on the host PATH, probed up front when `gh` is absent so
+  // the install button can pick `brew install gh` vs. the binary fallback
+  // synchronously. Irrelevant (and left false) in every other state.
+  const [brewPresent, setBrewPresent] = useState(false)
+  // The command the working terminal runs, captured at click time (the pre-run
+  // phase is gone once we're `working`, so we can't re-derive it there).
+  const [run, setRun] = useState<RunPlan | null>(null)
 
-  // Detect whenever the step is `unknown`: on mount, and again after the sign-in
+  // Detect whenever the step is `unknown`: on mount, and again after the setup
   // terminal exits (its `terminal-exited` event returns the step to `unknown`).
-  // The fresh result decides the phase, so a finished login lands in `authed`.
+  // The fresh result decides the phase, so a finished install+login lands in
+  // `authed`. When `gh` is absent we also probe Homebrew, so the Install button's
+  // command is ready the moment it's clicked.
   useEffect(() => {
     if (state.phase !== "unknown") return
     let cancelled = false
-    getGitHubLocalStatus().then((s) => {
+    getGitHubLocalStatus().then(async (s) => {
       if (cancelled) return
       setStatus(s)
+      if (s.tokenSource === null && s.gh === "not-installed") {
+        const brew = await probeHomebrewPresent()
+        if (cancelled) return
+        setBrewPresent(brew)
+      }
       dispatch({ type: "detected", result: detectionResult(s) })
     })
     return () => {
@@ -48,18 +72,21 @@ export function GitHubConnectionPanel() {
     }
   }, [state.phase])
 
-  // The sign-in terminal is live — show it in place of the status row until the
+  // Start a terminal action: remember its command/label, then flip to `working`.
+  function start(plan: RunPlan) {
+    setRun(plan)
+    dispatch({ type: "run-started" })
+  }
+
+  // The setup terminal is live — show it in place of the status row until the
   // PTY exits and we re-detect.
-  if (state.phase === "working") {
+  if (state.phase === "working" && run) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Signing in to GitHub — follow the prompts below. Once the browser flow
-          finishes, this closes and the connection updates automatically.
-        </p>
+        <p className="text-sm text-muted-foreground">{run.message}</p>
         <HostSessionTerminal
           sessionKey={GH_SETUP_SESSION_KEY}
-          command={buildGhAuthLoginArgv()}
+          command={run.command}
           onExit={() => dispatch({ type: "terminal-exited" })}
         />
       </div>
@@ -76,7 +103,7 @@ export function GitHubConnectionPanel() {
   }
 
   const view = describeConnection(status)
-  const action = signInAction(status)
+  const action = setupAction(status)
 
   return (
     <div className="flex items-center gap-3 rounded-lg border p-4">
@@ -99,13 +126,37 @@ export function GitHubConnectionPanel() {
           type="button"
           size="sm"
           variant={action.primary ? "default" : "outline"}
-          onClick={() => dispatch({ type: "run-started" })}
+          onClick={() => start(runPlan(action.kind, brewPresent))}
         >
           {action.label}
         </Button>
       )}
     </div>
   )
+}
+
+/** A setup terminal action: install `gh` (then chain into sign-in), or just
+ *  sign in an already-installed `gh`. */
+type SetupActionKind = "install" | "auth"
+
+/** The command + status message for a {@link SetupActionKind}. `install` needs
+ *  the brew-presence bit to choose `brew install gh` vs. the binary fallback. */
+function runPlan(kind: SetupActionKind, brewPresent: boolean): RunPlan {
+  if (kind === "install") {
+    return {
+      command: buildGhInstallAndAuthArgv(brewPresent),
+      message:
+        "Installing the GitHub CLI, then signing you in — follow the prompts " +
+        "below. Once the browser flow finishes, this closes and the connection " +
+        "updates automatically.",
+    }
+  }
+  return {
+    command: buildGhAuthLoginArgv(),
+    message:
+      "Signing in to GitHub — follow the prompts below. Once the browser flow " +
+      "finishes, this closes and the connection updates automatically.",
+  }
 }
 
 /**
@@ -120,22 +171,26 @@ function detectionResult(status: GitHubLocalStatus): DetectionResult {
 }
 
 /**
- * The sign-in affordance, if any. A signed-out-but-installed `gh` gets a primary
- * **Sign in**; a `gh` connection gets only a secondary **Re-run sign-in** to
- * refresh a lapsed login (no other clutter — no logout, ADR 0014). Every other
- * state (device-connected, not installed) offers nothing here.
+ * The setup affordance, if any. From the disconnected not-installed state, one
+ * primary **Install & connect** installs `gh` and chains straight into sign-in
+ * (issue #649); a signed-out-but-installed `gh` gets a primary **Sign in**; a
+ * `gh` connection gets only a secondary **Re-run sign-in** to refresh a lapsed
+ * login (no other clutter — no logout, ADR 0014). A device connection (with or
+ * without `gh`) already has API access, so it offers nothing here.
  */
-function signInAction(
+function setupAction(
   status: GitHubLocalStatus
-): { label: string; primary: boolean } | null {
+): { kind: SetupActionKind; label: string; primary: boolean } | null {
   if (status.tokenSource === "gh") {
-    return { label: "Re-run sign-in", primary: false }
+    return { kind: "auth", label: "Re-run sign-in", primary: false }
   }
-  if (
-    status.tokenSource === null &&
-    status.gh === "installed-not-authenticated"
-  ) {
-    return { label: "Sign in", primary: true }
+  if (status.tokenSource === null) {
+    if (status.gh === "installed-not-authenticated") {
+      return { kind: "auth", label: "Sign in", primary: true }
+    }
+    if (status.gh === "not-installed") {
+      return { kind: "install", label: "Install & connect", primary: true }
+    }
   }
   return null
 }
