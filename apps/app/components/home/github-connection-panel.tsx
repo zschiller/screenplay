@@ -1,11 +1,22 @@
 "use client"
 
-import { useEffect, useReducer, useState } from "react"
-import { Plug } from "lucide-react"
+import { useCallback, useEffect, useReducer, useState } from "react"
+import { ExternalLink, Plug } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import { cn } from "@workspace/ui/lib/utils"
+import { openExternal } from "@/lib/open-external"
+import {
+  beginGitHubDeviceFlow,
+  completeGitHubDeviceFlow,
+  disconnectGitHub,
   getGitHubLocalStatus,
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
@@ -36,7 +47,10 @@ interface RunPlan {
  * host-tool step in a visible inline host-session terminal: from the
  * not-installed state, one button installs `gh` and chains straight into
  * `gh auth login` (issue #649); a signed-out `gh` just signs in. On PTY exit the
- * section re-detects and flips to Connected with no reload.
+ * section re-detects and flips to Connected with no reload. The device flow
+ * (issue #650) is the relocated fallback — offered here when configured, for a
+ * user who'd rather not use `gh` — alongside a Disconnect that clears only the
+ * app's own device-flow token.
  */
 export function GitHubConnectionPanel() {
   const [state, dispatch] = useReducer(setupReducer, initialSetupState)
@@ -48,6 +62,22 @@ export function GitHubConnectionPanel() {
   // The command the working terminal runs, captured at click time (the pre-run
   // phase is gone once we're `working`, so we can't re-derive it there).
   const [run, setRun] = useState<RunPlan | null>(null)
+  const [deviceOpen, setDeviceOpen] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  // Re-probe the resolver and re-fold the setup machine. Used by actions that
+  // change the connection outside the terminal — a device-flow success or a
+  // Disconnect — so the section reflects them at once. Mirrors the mount effect's
+  // Homebrew probe so a state that lands on "not installed" still picks the right
+  // install command.
+  const redetect = useCallback(async () => {
+    const s = await getGitHubLocalStatus()
+    setStatus(s)
+    if (s.tokenSource === null && s.gh === "not-installed") {
+      setBrewPresent(await probeHomebrewPresent())
+    }
+    dispatch({ type: "detected", result: detectionResult(s) })
+  }, [])
 
   // Detect whenever the step is `unknown`: on mount, and again after the setup
   // terminal exits (its `terminal-exited` event returns the step to `unknown`).
@@ -105,31 +135,92 @@ export function GitHubConnectionPanel() {
   const view = describeConnection(status)
   const action = setupAction(status)
 
+  const disconnect = async () => {
+    setDisconnecting(true)
+    try {
+      await disconnectGitHub()
+      await redetect()
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  // The device flow is the fallback (ADR 0014): offered only when it's
+  // configured and no token has resolved — for a user who'd rather not use `gh`,
+  // or whose install failed / is offline.
+  const showDeviceFallback =
+    status.tokenSource === null && status.deviceFlowConfigured
+
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-4">
-      <Plug className="size-5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "size-2 shrink-0 rounded-full",
-              view.connected ? "bg-emerald-500" : "bg-muted-foreground/40"
-            )}
-            aria-hidden
-          />
-          <span className="text-sm font-medium">{view.title}</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 rounded-lg border p-4">
+        <Plug className="size-5 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                view.connected ? "bg-emerald-500" : "bg-muted-foreground/40"
+              )}
+              aria-hidden
+            />
+            <span className="text-sm font-medium">{view.title}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">{view.detail}</p>
         </div>
-        <p className="text-sm text-muted-foreground">{view.detail}</p>
+        {action && (
+          <Button
+            type="button"
+            size="sm"
+            variant={action.primary ? "default" : "outline"}
+            onClick={() => start(runPlan(action.kind, brewPresent))}
+          >
+            {action.label}
+          </Button>
+        )}
       </div>
-      {action && (
-        <Button
-          type="button"
-          size="sm"
-          variant={action.primary ? "default" : "outline"}
-          onClick={() => start(runPlan(action.kind, brewPresent))}
-        >
-          {action.label}
-        </Button>
+
+      {/* Fallback connect + Disconnect. "Disconnect" keys on `hasDeviceToken`,
+          not `tokenSource` — a dormant device token can sit *under* a `gh`
+          connection (the resolver prefers `gh`), and it clears only the
+          app-stored device token, never the `gh` login the user relies on
+          outside the app (ADR 0014: one-directional help, no `gh auth logout`). */}
+      {(showDeviceFallback || status.hasDeviceToken) && (
+        <div className="flex items-center gap-2 px-1">
+          {showDeviceFallback && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="font-normal text-muted-foreground"
+              onClick={() => setDeviceOpen(true)}
+            >
+              Connect with a device code instead
+            </Button>
+          )}
+          {status.hasDeviceToken && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disconnecting}
+              className="font-normal text-muted-foreground"
+              onClick={disconnect}
+            >
+              {disconnecting && <Spinner className="size-4" />}
+              Disconnect
+            </Button>
+          )}
+        </div>
+      )}
+
+      {deviceOpen && (
+        <ConnectGitHubDialog
+          onDone={(connected) => {
+            setDeviceOpen(false)
+            if (connected) redetect()
+          }}
+        />
       )}
     </div>
   )
@@ -157,6 +248,115 @@ function runPlan(kind: SetupActionKind, brewPresent: boolean): RunPlan {
       "Signing in to GitHub — follow the prompts below. Once the browser flow " +
       "finishes, this closes and the connection updates automatically.",
   }
+}
+
+type ConnectState =
+  | { step: "starting" }
+  | { step: "authorize"; userCode: string; verificationUri: string }
+  | { step: "failed"; message: string }
+
+/**
+ * The device-flow connect dialog (ADR 0014's fallback path, relocated from the
+ * repo picker): show the short user code, send the user to github.com to
+ * authorize, and wait for the poll loop (held open server-side) to land on a
+ * terminal outcome. Optional and on-demand — closing it just means no
+ * device-flow token, never a blocked app or a touched `gh` login.
+ */
+function ConnectGitHubDialog({
+  onDone,
+}: {
+  onDone: (connected: boolean) => void
+}) {
+  const [state, setState] = useState<ConnectState>({ step: "starting" })
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const begun = await beginGitHubDeviceFlow()
+      if (cancelled) return
+      if (!begun.ok) {
+        setState({ step: "failed", message: begun.error })
+        return
+      }
+      setState({
+        step: "authorize",
+        userCode: begun.grant.userCode,
+        verificationUri: begun.grant.verificationUri,
+      })
+      const outcome = await completeGitHubDeviceFlow(begun.grant)
+      if (cancelled) return
+      if (outcome.status === "authorized") {
+        onDone(true)
+      } else {
+        setState({
+          step: "failed",
+          message:
+            outcome.status === "denied"
+              ? "Authorization was denied."
+              : outcome.status === "expired"
+                ? "The code expired — try connecting again."
+                : outcome.message,
+        })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Deliberately mount-once: the flow must not restart on re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onDone(false)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Connect GitHub</DialogTitle>
+          <DialogDescription>
+            Authorize Screenplay in your browser to browse your repositories and
+            open pull requests. This is API access only — there is still no
+            login.
+          </DialogDescription>
+        </DialogHeader>
+        {state.step === "starting" && (
+          <div className="flex items-center gap-2 py-2">
+            <Spinner className="size-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              Requesting a device code…
+            </span>
+          </div>
+        )}
+        {state.step === "authorize" && (
+          <div className="flex flex-col items-center gap-3 py-2">
+            <span className="font-mono text-2xl tracking-widest">
+              {state.userCode}
+            </span>
+            <a
+              href={state.verificationUri}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => {
+                // Desktop webview can't honor target="_blank"; route the
+                // GitHub device-flow link through the opener plugin.
+                e.preventDefault()
+                openExternal(state.verificationUri)
+              }}
+              className="inline-flex items-center gap-1 text-sm underline"
+            >
+              Enter this code at {state.verificationUri}
+              <ExternalLink className="size-3.5" />
+            </a>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner className="size-4" />
+              Waiting for authorization…
+            </div>
+          </div>
+        )}
+        {state.step === "failed" && (
+          <span className="py-2 text-sm text-destructive">{state.message}</span>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 /**
