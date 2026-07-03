@@ -80,14 +80,15 @@ describe("resolveHarnessSetupStatuses (live setup-status fold)", () => {
   })
 
   it("reports authenticated: null for an installed harness with no probeAuth", async () => {
-    // codex is installed but carries no probeAuth in this slice → 'can't tell'.
+    // opencode is installed but carries no probeAuth → 'can't tell' (codex now
+    // probes its own login, so the no-probe case is opencode's).
     const rows = await resolveHarnessSetupStatuses(
       HARNESSES,
-      fakeProbe(["codex"]),
+      fakeProbe(["opencode"]),
       authedRunner
     )
 
-    expect(rows.find((r) => r.hostBinary === "codex")).toMatchObject({
+    expect(rows.find((r) => r.hostBinary === "opencode")).toMatchObject({
       installed: true,
       authenticated: null,
     })

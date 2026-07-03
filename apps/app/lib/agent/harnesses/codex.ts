@@ -1,7 +1,15 @@
 import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
-import { commitAndPushRuleMarkdown, type Harness } from "./types"
+import {
+  buildCodexInstallCommand,
+  buildCodexAuthArgv,
+} from "@/lib/host-tool/codex-install-command"
+import {
+  commitAndPushRuleMarkdown,
+  type Harness,
+  type HarnessProcessRunner,
+} from "./types"
 
 /**
  * The custom model-provider key written into `~/.codex/config.toml` and selected
@@ -11,6 +19,59 @@ import { commitAndPushRuleMarkdown, type Harness } from "./types"
  * login wizard.
  */
 const CODEX_PROVIDER_KEY = "screenplay-openai"
+
+/**
+ * Run one credential probe through the injected runner, collapsing every
+ * uncertainty to a boolean: a process that ran and satisfied `ok` → `true`;
+ * anything else — non-zero exit, empty output, or a spawn failure (the binary
+ * isn't there / the file is absent) — → `false`. This is the honest-degradation
+ * rule (ADR 0015), the same shape as Claude Code's `probeOk`: a probe that can't
+ * confirm a login reports *not authed*, so the worst case is offering a sign-in
+ * the user didn't strictly need, never a false "connected".
+ */
+async function probeOk(
+  run: HarnessProcessRunner,
+  cmd: string,
+  args: string[],
+  ok: (result: { exitCode: number; stdout: string }) => boolean
+): Promise<boolean> {
+  try {
+    const result = await run(cmd, args)
+    return result.exitCode === 0 && ok(result)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether Codex's own login is present on the desktop host — Codex's
+ * per-descriptor {@link Harness.probeAuth} (ADR 0015). Checked through the
+ * injected process runner (so a fake runner drives it in tests),
+ * short-circuiting on the first hit:
+ *
+ *  1. `~/.codex/auth.json` holds a credential — written by `codex login`;
+ *  2. `CODEX_API_KEY` is set in the environment — the API-key path.
+ *
+ * Any indeterminate result degrades to *not authed* (see {@link probeOk}); the
+ * whole probe resolves `true` only when one signal positively holds.
+ */
+export async function probeCodexAuth(
+  run: HarnessProcessRunner
+): Promise<boolean> {
+  const nonEmpty = (r: { stdout: string }) => r.stdout.trim() !== ""
+
+  // 1. The credential file `codex login` writes (`$HOME` expanded by the shell,
+  //    so the probe needs no home-dir lookup of its own).
+  if (
+    await probeOk(run, "sh", ["-c", 'cat "$HOME/.codex/auth.json"'], nonEmpty)
+  ) {
+    return true
+  }
+
+  // 2. CODEX_API_KEY in the environment — `printf` the var and treat a non-empty
+  //    value as authed (an unset var expands to empty → not authed).
+  return probeOk(run, "sh", ["-c", 'printf %s "$CODEX_API_KEY"'], nonEmpty)
+}
 
 /**
  * Body of `~/.codex/config.toml`. Points Codex at a custom OpenAI provider whose
@@ -113,4 +174,11 @@ export const codexHarness: Harness = {
   ],
   defaultModelId: "gpt-5.5",
   seed: seedCodex,
+  // Desktop "Coding agents" setup (ADR 0015): probe `codex login`'s own stored
+  // credential, build its install command from the host facts (brew / release
+  // binary / npm — the full install-branch variety), and run `codex login`
+  // verbatim in the setup terminal's PTY.
+  probeAuth: probeCodexAuth,
+  buildInstallCommand: buildCodexInstallCommand,
+  authCommand: buildCodexAuthArgv(),
 }

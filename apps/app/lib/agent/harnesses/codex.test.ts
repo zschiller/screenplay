@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
+import type { HarnessProcessRunner } from "@/lib/agent/harnesses/types"
 import { harnessLaunchArgv } from "@/lib/agent/harnesses"
 import { codexConfigToml } from "./codex"
-import { codexHarness } from "./codex"
+import { codexHarness, probeCodexAuth } from "./codex"
 
 /** A `runCommand` invocation captured by the fake sandbox below. */
 type RecordedCall = {
@@ -103,6 +104,82 @@ describe("seedCodex", () => {
     const wrote = calls.map((c) => c.args.join(" ")).join("\n")
     expect(wrote).toContain("/home/agent/.codex/AGENTS.md")
     expect(wrote).not.toContain("/workspace/repo/AGENTS.md")
+  })
+})
+
+/**
+ * Route each credential probe to a canned reply, so one test can stage the
+ * `~/.codex/auth.json` cat and the `CODEX_API_KEY` read independently. Any
+ * unspecified probe defaults to a clean "absent" (exit 1, empty stdout); a reply
+ * of `"enoent"` makes that spawn reject like a missing binary.
+ */
+function router(replies: {
+  authJson?: { exitCode: number; stdout: string } | "enoent"
+  apiKey?: { exitCode: number; stdout: string } | "enoent"
+}): HarnessProcessRunner {
+  const absent = { exitCode: 1, stdout: "" }
+  const resolve = (
+    reply: { exitCode: number; stdout: string } | "enoent" | undefined
+  ) => {
+    if (reply === "enoent") {
+      throw Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" })
+    }
+    return reply ?? absent
+  }
+  return async (cmd, args) => {
+    if (cmd === "sh") {
+      const script = args[1] ?? ""
+      if (script.includes(".codex/auth.json")) return resolve(replies.authJson)
+      if (script.includes("CODEX_API_KEY")) return resolve(replies.apiKey)
+    }
+    throw new Error(`unexpected probe: ${cmd} ${args.join(" ")}`)
+  }
+}
+
+describe("probeCodexAuth", () => {
+  it("is authed when ~/.codex/auth.json holds a credential", async () => {
+    const run = router({
+      authJson: { exitCode: 0, stdout: '{"OPENAI_API_KEY":"sk-..."}\n' },
+    })
+    expect(await probeCodexAuth(run)).toBe(true)
+  })
+
+  it("falls back to CODEX_API_KEY when auth.json is absent", async () => {
+    const run = router({
+      authJson: { exitCode: 1, stdout: "" },
+      apiKey: { exitCode: 0, stdout: "sk-live-key" },
+    })
+    expect(await probeCodexAuth(run)).toBe(true)
+  })
+
+  it("is not authed when neither auth.json nor CODEX_API_KEY is present", async () => {
+    // Both probes default to absent (auth.json missing, CODEX_API_KEY unset →
+    // printf emits an empty string).
+    expect(await probeCodexAuth(router({}))).toBe(false)
+  })
+
+  it("is not authed when the probe binary can't be spawned", async () => {
+    const run = router({ authJson: "enoent", apiKey: "enoent" })
+    expect(await probeCodexAuth(run)).toBe(false)
+  })
+
+  it("degrades an indeterminate probe (present-but-empty) to not authed", async () => {
+    const run = router({
+      // auth.json exists but is empty / whitespace…
+      authJson: { exitCode: 0, stdout: "  \n" },
+      // …and CODEX_API_KEY is set to whitespace only.
+      apiKey: { exitCode: 0, stdout: "   " },
+    })
+    expect(await probeCodexAuth(run)).toBe(false)
+  })
+})
+
+describe("codexHarness setup descriptor", () => {
+  it("carries the three setup fields the spine reads", () => {
+    // The row rides the already-built surface entirely off the descriptor.
+    expect(codexHarness.probeAuth).toBe(probeCodexAuth)
+    expect(typeof codexHarness.buildInstallCommand).toBe("function")
+    expect(codexHarness.authCommand).toEqual(["codex", "login"])
   })
 })
 
