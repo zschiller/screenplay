@@ -252,9 +252,12 @@ keychain with a `kv_store` fallback behind one `TokenStore` interface; (3)
 listing, Branch-via-API, PRs, and Branch naming at their unchanged call sites;
 no token never blocks adding a Repo — the **no-auth floor** (add by clone URL
 or local folder) rides host git auth (#416). See ADR 0008.
-_Avoid_: "login"/"auth" for this (it is API access only); conflating
-disconnect (clears the stored device-flow token) with logging out of `gh` (the
-app never touches the CLI's own auth).
+_Avoid_: "login"/"auth" for the _Connection itself_ (it is API access only —
+the token layer, not a user session). Keep that distinct from the **`gh` CLI's
+own auth**, a lower layer the app may help you _set up_ (install `gh`, run its
+sign-in) but never tears down: disconnect clears only the app's stored
+device-flow token, and the app never runs `gh auth logout` — a `gh` login is
+yours, used outside the app too, so the help is one-directional (in, never out).
 
 **Dev Server Restart**:
 Bouncing the `devScript` process (and its bridge proxy) inside the _existing_
