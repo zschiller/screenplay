@@ -1,16 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { ExternalLink, Folder, FolderLock, Link2, Plug } from "lucide-react"
+import Link from "next/link"
+import { Folder, FolderLock, Link2, Plug } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@workspace/ui/components/dialog"
 import {
   Command,
   CommandEmpty,
@@ -20,11 +14,8 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { cn } from "@workspace/ui/lib/utils"
-import { openExternal } from "@/lib/open-external"
 import { listUserRepos, type GitHubRepo } from "@/lib/github-actions"
 import {
-  beginGitHubDeviceFlow,
-  completeGitHubDeviceFlow,
   getGitHubLocalStatus,
   resolveRepoFromUrl,
   type GitHubLocalStatus,
@@ -45,10 +36,12 @@ interface RepoPickerProps {
   onSelect: (pick: RepoPickerSelection) => void
   /**
    * Show the local build's no-auth add-by-URL entry point (folded into the
-   * search box) and the on-demand "Connect GitHub" device-flow action. Only the
-   * in-Room add-Repo surface on the local build sets this; the hosted build's
-   * account-backed picker is untouched. The "Open a folder" entry point lives
-   * in the dropdown that opens this picker (#604), not in the picker itself.
+   * search box) and, when no token has resolved, a "Connect GitHub in Settings"
+   * pointer. Connecting itself lives in Settings now (ADR 0014) — the picker no
+   * longer hosts its own connect dialog. Only the in-Room add-Repo surface on
+   * the local build sets this; the hosted build's account-backed picker is
+   * untouched. The "Open a folder" entry point lives in the dropdown that opens
+   * this picker (#604), not in the picker itself.
    */
   localSources?: boolean
 }
@@ -70,7 +63,6 @@ export function RepoPicker({
   // for the default branch); track its progress and any failure on the row.
   const [urlBusy, setUrlBusy] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
-  const [connectOpen, setConnectOpen] = useState(false)
   // Reveal a hairline under the search box (the picker's fixed header) once the
   // list is scrolled off its top, matching the create-branches dialog.
   const [listScrolled, setListScrolled] = useState(false)
@@ -94,13 +86,6 @@ export function RepoPicker({
     },
     [onSelect]
   )
-
-  const loadRepos = useCallback(async () => {
-    const data = await listUserRepos()
-    cachedRepos = data
-    setRepos(data)
-    setLoading(false)
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -176,236 +161,118 @@ export function RepoPicker({
             )}
           />
           <CommandList
-            onScroll={(e) =>
-              setListScrolled(e.currentTarget.scrollTop > 0)
-            }
+            onScroll={(e) => setListScrolled(e.currentTarget.scrollTop > 0)}
           >
             {cloneUrl && (
-            <CommandGroup>
-              <CommandItem
-                // Value mirrors the typed URL so cmdk keeps the row visible
-                // even as the URL filters every repo out of the list.
-                value={cloneUrl}
-                disabled={urlBusy}
-                onSelect={() => addUrl(cloneUrl)}
-              >
-                {urlBusy ? (
-                  <Spinner className="size-4" />
-                ) : (
-                  <Link2 className="text-muted-foreground" />
-                )}
-                <span className="truncate">
-                  Add <span className="font-medium">{cloneUrl}</span>
-                </span>
-              </CommandItem>
-              {urlError && (
-                <p className="px-2 py-1 text-sm text-destructive">{urlError}</p>
-              )}
-            </CommandGroup>
-          )}
-
-          <CommandEmpty>
-            {loading ? (
-              <div className="flex items-center justify-center gap-2 py-4">
-                <Spinner className="size-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Loading repositories…
-                </span>
-              </div>
-            ) : showConnectHint ? (
-              <span className="text-sm text-muted-foreground">
-                Connect GitHub to browse your repositories, or paste a clone URL
-                above or add a local folder below.
-              </span>
-            ) : (
-              "No repositories found."
-            )}
-          </CommandEmpty>
-
-          {!loading && showGroups && (
-            <CommandGroup heading="Configured repositories">
-              {sortedConfigs.map((config) => {
-                const repo = reposByFullName.get(config.repoFullName)
-                const isPrivate = repo?.private ?? config.private
-                return (
-                  <CommandItem
-                    key={config.id}
-                    value={`${config.repoFullName} ${config.name}`}
-                    onSelect={() => onSelect({ kind: "config", config })}
-                  >
-                    {isPrivate ? <FolderLock /> : <Folder />}
-                    <span className="truncate">
-                      {config.repoFullName}
-                      {config.name ? (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {config.name}
-                        </span>
-                      ) : null}
-                    </span>
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
-          )}
-
-          {!loading && (
-            <CommandGroup
-              heading={showGroups ? "Other repositories" : undefined}
-            >
-              {(showGroups ? otherRepos : repos).map((repo) => (
+              <CommandGroup>
                 <CommandItem
-                  key={repo.id}
-                  value={repo.fullName}
-                  onSelect={() => onSelect({ kind: "repo", repo })}
+                  // Value mirrors the typed URL so cmdk keeps the row visible
+                  // even as the URL filters every repo out of the list.
+                  value={cloneUrl}
+                  disabled={urlBusy}
+                  onSelect={() => addUrl(cloneUrl)}
                 >
-                  {repo.private ? <FolderLock /> : <Folder />}
-                  <span className="truncate">{repo.fullName}</span>
+                  {urlBusy ? (
+                    <Spinner className="size-4" />
+                  ) : (
+                    <Link2 className="text-muted-foreground" />
+                  )}
+                  <span className="truncate">
+                    Add <span className="font-medium">{cloneUrl}</span>
+                  </span>
                 </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
+                {urlError && (
+                  <p className="px-2 py-1 text-sm text-destructive">
+                    {urlError}
+                  </p>
+                )}
+              </CommandGroup>
+            )}
+
+            <CommandEmpty>
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <Spinner className="size-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Loading repositories…
+                  </span>
+                </div>
+              ) : showConnectHint ? (
+                <span className="text-sm text-muted-foreground">
+                  Connect GitHub to browse your repositories, or paste a clone
+                  URL above or add a local folder below.
+                </span>
+              ) : (
+                "No repositories found."
+              )}
+            </CommandEmpty>
+
+            {!loading && showGroups && (
+              <CommandGroup heading="Configured repositories">
+                {sortedConfigs.map((config) => {
+                  const repo = reposByFullName.get(config.repoFullName)
+                  const isPrivate = repo?.private ?? config.private
+                  return (
+                    <CommandItem
+                      key={config.id}
+                      value={`${config.repoFullName} ${config.name}`}
+                      onSelect={() => onSelect({ kind: "config", config })}
+                    >
+                      {isPrivate ? <FolderLock /> : <Folder />}
+                      <span className="truncate">
+                        {config.repoFullName}
+                        {config.name ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {config.name}
+                          </span>
+                        ) : null}
+                      </span>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            )}
+
+            {!loading && (
+              <CommandGroup
+                heading={showGroups ? "Other repositories" : undefined}
+              >
+                {(showGroups ? otherRepos : repos).map((repo) => (
+                  <CommandItem
+                    key={repo.id}
+                    value={repo.fullName}
+                    onSelect={() => onSelect({ kind: "repo", repo })}
+                  >
+                    {repo.private ? <FolderLock /> : <Folder />}
+                    <span className="truncate">{repo.fullName}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </div>
       </Command>
 
-      {localSources &&
-        status?.tokenSource === null &&
-        status.deviceFlowConfigured && (
-          <div className="flex flex-col gap-1 border-t p-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start gap-2 font-normal"
-              onClick={() => setConnectOpen(true)}
-            >
+      {/* No token on the local build: point at Settings, the one canonical
+          connection home (ADR 0014). Shown on `tokenSource === null` alone —
+          deliberately not gated on `deviceFlowConfigured`, since the primary
+          `gh` path in Settings needs no client id. */}
+      {localSources && status?.tokenSource === null && (
+        <div className="flex flex-col gap-1 border-t p-1">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-2 font-normal"
+          >
+            <Link href="/settings">
               <Plug className="size-4 text-muted-foreground" />
-              Connect GitHub
-            </Button>
-          </div>
-        )}
-
-      {connectOpen && (
-        <ConnectGitHubDialog
-          onDone={(connected) => {
-            setConnectOpen(false)
-            if (connected) {
-              cachedRepos = null
-              setLoading(true)
-              loadRepos()
-              getGitHubLocalStatus().then(setStatus)
-            }
-          }}
-        />
+              Connect GitHub in Settings →
+            </Link>
+          </Button>
+        </div>
       )}
     </div>
-  )
-}
-
-type ConnectState =
-  | { step: "starting" }
-  | { step: "authorize"; userCode: string; verificationUri: string }
-  | { step: "failed"; message: string }
-
-/**
- * The device-flow connect dialog: show the short user code, send the user to
- * github.com to authorize, and wait for the poll loop (held open server-side)
- * to land on a terminal outcome. Optional and on-demand — closing it just
- * means no GitHub API access, never a blocked app.
- */
-function ConnectGitHubDialog({
-  onDone,
-}: {
-  onDone: (connected: boolean) => void
-}) {
-  const [state, setState] = useState<ConnectState>({ step: "starting" })
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const begun = await beginGitHubDeviceFlow()
-      if (cancelled) return
-      if (!begun.ok) {
-        setState({ step: "failed", message: begun.error })
-        return
-      }
-      setState({
-        step: "authorize",
-        userCode: begun.grant.userCode,
-        verificationUri: begun.grant.verificationUri,
-      })
-      const outcome = await completeGitHubDeviceFlow(begun.grant)
-      if (cancelled) return
-      if (outcome.status === "authorized") {
-        onDone(true)
-      } else {
-        setState({
-          step: "failed",
-          message:
-            outcome.status === "denied"
-              ? "Authorization was denied."
-              : outcome.status === "expired"
-                ? "The code expired — try connecting again."
-                : outcome.message,
-        })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // Deliberately mount-once: the flow must not restart on re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onDone(false)}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Connect GitHub</DialogTitle>
-          <DialogDescription>
-            Authorize Screenplay in your browser to browse your repositories and
-            open pull requests. This is API access only — there is still no
-            login.
-          </DialogDescription>
-        </DialogHeader>
-        {state.step === "starting" && (
-          <div className="flex items-center gap-2 py-2">
-            <Spinner className="size-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              Requesting a device code…
-            </span>
-          </div>
-        )}
-        {state.step === "authorize" && (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <span className="font-mono text-2xl tracking-widest">
-              {state.userCode}
-            </span>
-            <a
-              href={state.verificationUri}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => {
-                // Desktop webview can't honor target="_blank"; route the
-                // GitHub device-flow link through the opener plugin.
-                e.preventDefault()
-                openExternal(state.verificationUri)
-              }}
-              className="inline-flex items-center gap-1 text-sm underline"
-            >
-              Enter this code at {state.verificationUri}
-              <ExternalLink className="size-3.5" />
-            </a>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner className="size-4" />
-              Waiting for authorization…
-            </div>
-          </div>
-        )}
-        {state.step === "failed" && (
-          <span className="py-2 text-sm text-destructive">{state.message}</span>
-        )}
-      </DialogContent>
-    </Dialog>
   )
 }
