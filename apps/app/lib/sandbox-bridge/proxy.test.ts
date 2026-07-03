@@ -3,7 +3,7 @@ import http from "node:http"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 const PROXY_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
