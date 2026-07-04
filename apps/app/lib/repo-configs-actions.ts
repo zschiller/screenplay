@@ -15,23 +15,25 @@ export async function upsertRepoConfig(
   const userId = await requireUserId()
   const list = await getConfigs(userId)
 
-  const duplicate = list.find(
-    (c) =>
-      c.id !== config.id &&
-      c.repoFullName === config.repoFullName &&
-      c.name === config.name
-  )
-  if (duplicate) {
-    throw new Error(
-      `A preset named "${config.name || "default"}" already exists for ${config.repoFullName}`
+  // Idempotent upsert (PRD #673, save-as-preset slice #680): re-saving a preset
+  // for a `(repoFullName + name)` that already exists updates it in place rather
+  // than throwing on the duplicate, so the add modal's best-effort "save these
+  // settings" can stay checked without ever failing a re-add. An explicit id
+  // match (editing a specific preset) wins; otherwise fall back to the identity
+  // key. The matched preset's own id and createdAt are preserved.
+  const target =
+    list.find((c) => c.id === config.id) ??
+    list.find(
+      (c) => c.repoFullName === config.repoFullName && c.name === config.name
     )
-  }
 
-  const idx = list.findIndex((c) => c.id === config.id)
-  const next: RepoConfig[] =
-    idx === -1
-      ? [...list, config]
-      : list.map((c) => (c.id === config.id ? config : c))
+  const next: RepoConfig[] = target
+    ? list.map((c) =>
+        c.id === target.id
+          ? { ...config, id: target.id, createdAt: target.createdAt }
+          : c
+      )
+    : [...list, config]
 
   await saveConfigs(userId, next)
 

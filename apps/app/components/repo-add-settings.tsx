@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
+import { Label } from "@workspace/ui/components/label"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 
@@ -13,15 +15,19 @@ import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
  * It shows the *essential* run settings (setup script, run script, and — on
  * hosted — dev server port), pre-filled with today's plain defaults (empty
  * scripts, port 3000) and fully editable. Confirm hands the resolved settings
- * back so the caller creates the Repo + first Branch and kicks off
- * provisioning; Cancel adds nothing. Auto-detection and the advanced-fields
- * expander land in later slices.
+ * back — along with whether to remember them as this repo's preset (PRD #680) —
+ * so the caller creates the Repo + first Branch and kicks off provisioning;
+ * Cancel adds nothing. Auto-detection and the advanced-fields expander land in
+ * later slices.
  */
 export function RepoAddSettings({
   onConfirm,
   onCancel,
 }: {
-  onConfirm: (settings: ResolvedRepoSettings) => void
+  onConfirm: (
+    settings: ResolvedRepoSettings,
+    options: { savePreset: boolean }
+  ) => void
   onCancel: () => void
 }) {
   const [setupScript, setSetupScript] = useState("")
@@ -29,6 +35,9 @@ export function RepoAddSettings({
   const [devServerPort, setDevServerPort] = useState("3000")
   const [envVars, setEnvVars] = useState("")
   const [copyPatterns, setCopyPatterns] = useState("")
+  // Remember these settings as the repo's default preset so re-adding it later
+  // is one click. Default on; the save is best-effort and never blocks the add.
+  const [savePreset, setSavePreset] = useState(true)
 
   const parsedPort = Number.parseInt(devServerPort, 10)
   const portIsValid =
@@ -36,13 +45,16 @@ export function RepoAddSettings({
 
   const handleConfirm = useCallback(() => {
     if (!portIsValid) return
-    onConfirm({
-      setupScript,
-      devScript,
-      devServerPort: parsedPort,
-      envVars,
-      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
-    })
+    onConfirm(
+      {
+        setupScript,
+        devScript,
+        devServerPort: parsedPort,
+        envVars,
+        copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
+      },
+      { savePreset }
+    )
   }, [
     portIsValid,
     parsedPort,
@@ -50,6 +62,7 @@ export function RepoAddSettings({
     devScript,
     envVars,
     copyPatterns,
+    savePreset,
     onConfirm,
   ])
 
@@ -77,13 +90,23 @@ export function RepoAddSettings({
           onSystemPromptChange={() => {}}
         />
       </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
-          Add project
-        </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="repo-add-save-preset" className="font-normal">
+          <Checkbox
+            id="repo-add-save-preset"
+            checked={savePreset}
+            onCheckedChange={(checked) => setSavePreset(checked === true)}
+          />
+          Save these settings for next time
+        </Label>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleConfirm} disabled={!portIsValid}>
+            Add project
+          </Button>
+        </div>
       </div>
     </div>
   )
