@@ -9,6 +9,7 @@ import {
   BROKERED_VALUE,
   commitAndPushRuleMarkdown,
   type Harness,
+  type HarnessPrintModel,
   type HarnessProcessRunner,
 } from "./types"
 import { probeOk } from "./process-runner"
@@ -129,6 +130,23 @@ async function seedClaudeCode(sandbox: SandboxInstance): Promise<void> {
 }
 
 /**
+ * Claude Code's non-interactive print-mode call for the desktop
+ * {@link import("../host-model").runHostModel} seam (#674). `claude -p
+ * "<prompt>"` runs the prompt through the CLI's own signed-in model and prints
+ * the reply to stdout (text output is the `-p` default), so the parse is a
+ * trim: a non-empty reply is the model's text, an empty one is `null` — which
+ * `runHostModel` collapses, with every other uncertainty, to a `null` result
+ * the naming fallback degrades to. Exported for the descriptor test.
+ */
+export const claudeCodePrintModel: HarnessPrintModel = {
+  buildArgv: (prompt) => ["claude", "-p", prompt],
+  parseOutput: (stdout) => {
+    const text = stdout.trim()
+    return text.length > 0 ? text : null
+  },
+}
+
+/**
  * The Claude Code harness — v1 tracer-bullet catalog entry. Brokered through
  * the Anthropic provider (`api.anthropic.com ← ANTHROPIC_API_KEY`); it targets
  * that host by default, so no base-url override is needed.
@@ -187,4 +205,7 @@ export const claudeCodeHarness: Harness = {
   probeAuth: probeClaudeCodeAuth,
   buildInstallCommand: buildClaudeCodeInstallCommand,
   authCommand: buildClaudeCodeAuthArgv(),
+  // One-shot non-interactive model call for desktop naming (rides the user's
+  // own Claude login, no hosted key) — see `runHostModel` (#674).
+  printModel: claudeCodePrintModel,
 }

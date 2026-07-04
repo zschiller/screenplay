@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { probeClaudeCodeAuth } from "@/lib/agent/harnesses/claude-code"
+import {
+  claudeCodePrintModel,
+  probeClaudeCodeAuth,
+} from "@/lib/agent/harnesses/claude-code"
 import type { HarnessProcessRunner } from "@/lib/agent/harnesses/types"
 
 /**
@@ -99,5 +102,41 @@ describe("probeClaudeCodeAuth", () => {
       claudeJson: { exitCode: 0, stdout: JSON.stringify({ theme: "auto" }) },
     })
     expect(await probeClaudeCodeAuth(run)).toBe(false)
+  })
+})
+
+/**
+ * Claude Code's per-descriptor print-mode builder (Seam D, #674): a pure
+ * function asserted against the expected non-interactive argv and its light
+ * output parse. Prior art: the per-harness install-command / auth-command
+ * descriptor tests.
+ */
+describe("claudeCodePrintModel", () => {
+  it("builds the `claude -p <prompt>` argv with the prompt as a single arg", () => {
+    expect(claudeCodePrintModel.buildArgv("please fix the login")).toEqual([
+      "claude",
+      "-p",
+      "please fix the login",
+    ])
+  })
+
+  it("passes the prompt verbatim — no shell interpolation of quotes/newlines", () => {
+    const prompt = 'add a "dark mode" toggle\nand a setting'
+    expect(claudeCodePrintModel.buildArgv(prompt)).toEqual([
+      "claude",
+      "-p",
+      prompt,
+    ])
+  })
+
+  it("parses stdout to the model's text, trimmed", () => {
+    expect(claudeCodePrintModel.parseOutput("  fix-login\nFix Login\n")).toBe(
+      "fix-login\nFix Login"
+    )
+  })
+
+  it("returns null for empty / whitespace-only output", () => {
+    expect(claudeCodePrintModel.parseOutput("")).toBeNull()
+    expect(claudeCodePrintModel.parseOutput("   \n\t")).toBeNull()
   })
 })
