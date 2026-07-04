@@ -8,6 +8,7 @@ import {
 import {
   commitAndPushRuleMarkdown,
   type Harness,
+  type HarnessPrintModel,
   type HarnessProcessRunner,
 } from "./types"
 
@@ -133,6 +134,27 @@ async function seedCodex(sandbox: SandboxInstance): Promise<void> {
 }
 
 /**
+ * Codex's non-interactive print-mode call for the desktop
+ * {@link import("../host-model").runHostModel} seam (#674/#679). Codex's headless
+ * form is `codex exec "<prompt>"` (not a `-p` flag like Claude Code) — the per-
+ * harness print-argv field exists precisely because each CLI's non-interactive
+ * invocation differs. By default `codex exec` streams its activity (progress,
+ * token usage) to **stderr** and writes only the model's final message to
+ * **stdout**, so — like `claude -p` — the parse is a trim: a non-empty reply is
+ * the model's text, an empty one is `null`, which `runHostModel` collapses (with
+ * every other uncertainty) to the `null` the naming fallback degrades to. The
+ * prompt is a single positional argv element, never shell-interpolated. Exported
+ * for the descriptor test.
+ */
+export const codexPrintModel: HarnessPrintModel = {
+  buildArgv: (prompt) => ["codex", "exec", prompt],
+  parseOutput: (stdout) => {
+    const text = stdout.trim()
+    return text.length > 0 ? text : null
+  },
+}
+
+/**
  * The Codex harness — OpenAI's native vendor CLI for the native OpenAI slot.
  * Brokered through the OpenAI provider (`api.openai.com ← OPENAI_API_KEY`):
  * naming `codex` in `SANDBOX_HARNESSES` installs it only when OpenAI is
@@ -181,4 +203,10 @@ export const codexHarness: Harness = {
   probeAuth: probeCodexAuth,
   buildInstallCommand: buildCodexInstallCommand,
   authCommand: buildCodexAuthArgv(),
+  // One-shot non-interactive model call for desktop naming (rides `codex login` /
+  // the brokered key, no separate hosted key) — see `runHostModel` (#674). Codex
+  // is chat-capable (non-null `acpAdapter`), so a desktop user whose first
+  // detected chat-capable harness is Codex now gets model-backed naming through
+  // the same seam (#679).
+  printModel: codexPrintModel,
 }
