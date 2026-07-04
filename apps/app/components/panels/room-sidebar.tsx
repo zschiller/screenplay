@@ -1535,6 +1535,15 @@ export function RoomSidebar({
                                 })
                             : undefined
                         }
+                        // Env-field presence follows the source (#681): hosted
+                        // has env vars, a desktop local-folder has files-to-copy,
+                        // but a desktop GitHub-clone has no injection path — so
+                        // hide the field there.
+                        showEnvField={
+                          !isLocalBuild ||
+                          (pendingPick.kind === "source" &&
+                            Boolean(pendingPick.source.localPath))
+                        }
                         onConfirm={(settings, { savePreset }) => {
                           onCreateRepo(pendingPick, settings)
                           if (savePreset) {

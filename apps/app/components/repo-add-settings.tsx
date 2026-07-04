@@ -1,9 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { RotateCw } from "lucide-react"
+import { ChevronRight, RotateCw } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@workspace/ui/components/collapsible"
 import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
@@ -14,6 +19,7 @@ import {
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
 import type { DetectRepoSettingsResult } from "@/lib/add-repo/actions"
+import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 
 /** Beyond this the modal gives up on detection and falls back to defaults. */
 const DETECTION_TIMEOUT_MS = 8000
@@ -25,19 +31,25 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  * picker dialog's `settings` stage — same dialog shell, no second dialog.
  *
  * It shows the *essential* run settings (setup script, run script, and — on
- * hosted — dev server port). The modal opens instantly with those fields
- * editable and pre-filled with today's plain defaults; if a `detect` seam is
- * supplied (a GitHub-repo pick), deterministic auto-detection (#678) kicks off
- * as it opens and, when it returns, fills only the fields the user hasn't
- * touched. Add is enabled throughout — detection is an assist, never a gate.
+ * hosted — dev server port) always, plus an **Advanced** expander (#681) that
+ * reveals the rest inline: default frame size, system prompt, and an optional
+ * preset name. The env field sits in the essential group where a mechanism
+ * exists; its presence is source-dependent (`showEnvField`) — a desktop
+ * GitHub-clone has no injection path, so it hides the field entirely.
+ *
+ * The modal opens instantly with the essential fields editable and pre-filled
+ * with today's plain defaults; if a `detect` seam is supplied (a GitHub-repo
+ * pick), deterministic auto-detection (#678) kicks off as it opens and, when it
+ * returns, fills only the fields the user hasn't touched. Add is enabled
+ * throughout — detection is an assist, never a gate.
  *
  * Confirm hands the resolved settings back — along with whether to remember them
- * as this repo's preset (PRD #680) — so the caller creates the Repo + first
- * Branch and kicks off provisioning; Cancel adds nothing. The advanced-fields
- * expander lands in a later slice.
+ * as a preset (PRD #680) — so the caller creates the Repo + first Branch and
+ * kicks off provisioning; Cancel adds nothing.
  */
 export function RepoAddSettings({
   detect,
+  showEnvField,
   onConfirm,
   onCancel,
 }: {
@@ -47,6 +59,8 @@ export function RepoAddSettings({
    * and the per-field merge; the caller only wires the source.
    */
   detect?: () => Promise<DetectRepoSettingsResult>
+  /** Whether the source has an env-injection path — see `RepoSettingsFields`. */
+  showEnvField: boolean
   onConfirm: (
     settings: ResolvedRepoSettings,
     options: { savePreset: boolean }
@@ -63,8 +77,15 @@ export function RepoAddSettings({
   })
   const [envVars, setEnvVars] = useState("")
   const [copyPatterns, setCopyPatterns] = useState("")
-  // Remember these settings as the repo's default preset so re-adding it later
-  // is one click. Default on; the save is best-effort and never blocks the add.
+  // Advanced-section fields, revealed by the expander (#681).
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
+    DEFAULT_IFRAME_LAYER_SIZE_ID
+  )
+  const [systemPrompt, setSystemPrompt] = useState("")
+  const [presetName, setPresetName] = useState("")
+  // Remember these settings as a preset so re-adding the repo later is one
+  // click. Default on; the save is best-effort and never blocks the add.
   const [savePreset, setSavePreset] = useState(true)
   // Start in "detecting" when there's a source to detect against, so the effect
   // never has to set that synchronously (and the indicator is up on first paint).
@@ -151,6 +172,15 @@ export function RepoAddSettings({
         devServerPort: parsedPort,
         envVars,
         copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
+        // Only forward advanced values the user actually set: the default frame
+        // size and an empty system prompt map to `undefined`, so a preset upsert
+        // preserves whatever the matched preset already carried (#681).
+        defaultIframeLayerSizeId:
+          defaultIframeLayerSizeId === DEFAULT_IFRAME_LAYER_SIZE_ID
+            ? undefined
+            : defaultIframeLayerSizeId,
+        systemPrompt: systemPrompt.trim() || undefined,
+        presetName: presetName.trim() || undefined,
       },
       { savePreset }
     )
@@ -160,6 +190,9 @@ export function RepoAddSettings({
     fields,
     envVars,
     copyPatterns,
+    defaultIframeLayerSizeId,
+    systemPrompt,
+    presetName,
     savePreset,
     onConfirm,
   ])
@@ -189,10 +222,11 @@ export function RepoAddSettings({
           )}
         </div>
       )}
-      <div className="-mx-4 max-h-[60vh] overflow-y-auto px-4">
+      <div className="-mx-4 flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-4">
         <RepoSettingsFields
           idPrefix="repo-add"
           section="essential"
+          showEnvField={showEnvField}
           setupScript={fields.setupScript}
           onSetupScriptChange={(v) => setField("setupScript", v)}
           devScript={fields.devScript}
@@ -203,13 +237,46 @@ export function RepoAddSettings({
           onEnvVarsChange={setEnvVars}
           copyPatterns={copyPatterns}
           onCopyPatternsChange={setCopyPatterns}
-          // The advanced fields aren't rendered in the essential section, so
-          // these are inert placeholders satisfying the shared component's API.
-          defaultIframeLayerSizeId=""
-          onDefaultIframeLayerSizeIdChange={() => {}}
-          systemPrompt=""
-          onSystemPromptChange={() => {}}
+          // Advanced-only fields aren't rendered here; the shared component still
+          // requires them, so hand it the real state (harmless when hidden).
+          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+          systemPrompt={systemPrompt}
+          onSystemPromptChange={setSystemPrompt}
         />
+
+        <Collapsible
+          open={advancedOpen}
+          onOpenChange={setAdvancedOpen}
+          className="group/advanced flex flex-col gap-4"
+        >
+          <CollapsibleTrigger className="flex items-center gap-1 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+            <ChevronRight className="size-4 transition-transform group-data-[state=open]/advanced:rotate-90" />
+            Advanced
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col">
+            <RepoSettingsFields
+              idPrefix="repo-add"
+              section="advanced"
+              setupScript={fields.setupScript}
+              onSetupScriptChange={(v) => setField("setupScript", v)}
+              devScript={fields.devScript}
+              onDevScriptChange={(v) => setField("devScript", v)}
+              devServerPort={fields.devServerPort}
+              onDevServerPortChange={(v) => setField("devServerPort", v)}
+              envVars={envVars}
+              onEnvVarsChange={setEnvVars}
+              copyPatterns={copyPatterns}
+              onCopyPatternsChange={setCopyPatterns}
+              defaultIframeLayerSizeId={defaultIframeLayerSizeId}
+              onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
+              systemPrompt={systemPrompt}
+              onSystemPromptChange={setSystemPrompt}
+              presetName={presetName}
+              onPresetNameChange={setPresetName}
+            />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="repo-add-save-preset" className="font-normal">

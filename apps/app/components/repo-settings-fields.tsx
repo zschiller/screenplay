@@ -13,14 +13,17 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 /**
  * Which half of the field set to render. The definitions stay a single source
- * of truth (PRD #673): the add-repo modal renders only `essential`, while the
- * in-room Project settings modal and the homescreen preset form render `all`
- * (the default), unchanged.
+ * of truth (PRD #673): the add-repo modal renders `essential` always plus
+ * `advanced` behind its expander (#681), while the in-room Project settings
+ * modal and the homescreen preset form render `all` (the default), unchanged.
  *
- * - `essential` — setup script, run script, and (hosted only) dev server port.
- * - `advanced` — environment variables / files-to-copy, default frame size,
- *   and system prompt.
- * - `all` — every field, in the order below.
+ * - `essential` — setup script, run script, (hosted only) dev server port, and
+ *   the env field (environment variables / files-to-copy) where one applies.
+ * - `advanced` — default frame size, system prompt, and (add-modal only) the
+ *   optional preset name.
+ * - `all` — every field, in the order below. Since the env field is the last
+ *   `essential` field and the first thing `advanced` used to render, the `all`
+ *   order is unchanged by the split.
  */
 export type RepoSettingsSection = "essential" | "advanced" | "all"
 
@@ -32,6 +35,14 @@ interface RepoSettingsFieldsProps {
   idPrefix: string
   /** Which half of the fields to render. Defaults to `all`. */
   section?: RepoSettingsSection
+  /**
+   * Whether to render the env field at all (#681). Env-field presence is
+   * *source-dependent*, not just build-dependent: hosted and desktop
+   * local-folder each have an injection path (env vars / files-to-copy), but a
+   * desktop GitHub-clone has none, so its add modal passes `false`. Defaults to
+   * `true` — the two `all`-rendering modals keep showing it, as before.
+   */
+  showEnvField?: boolean
   setupScript: string
   onSetupScriptChange: (value: string) => void
   devScript: string
@@ -46,6 +57,14 @@ interface RepoSettingsFieldsProps {
   onDefaultIframeLayerSizeIdChange: (value: string) => void
   systemPrompt: string
   onSystemPromptChange: (value: string) => void
+  /**
+   * Optional preset name, rendered last in `advanced` (#681). Present only when
+   * `onPresetNameChange` is supplied — the add modal's advanced section — so the
+   * two `all`-rendering modals (which own their own name/label field) never grow
+   * a duplicate one.
+   */
+  presetName?: string
+  onPresetNameChange?: (value: string) => void
 }
 
 /**
@@ -63,6 +82,7 @@ interface RepoSettingsFieldsProps {
 export function RepoSettingsFields({
   idPrefix,
   section = "all",
+  showEnvField = true,
   setupScript,
   onSetupScriptChange,
   devScript,
@@ -77,6 +97,8 @@ export function RepoSettingsFields({
   onDefaultIframeLayerSizeIdChange,
   systemPrompt,
   onSystemPromptChange,
+  presetName,
+  onPresetNameChange,
 }: RepoSettingsFieldsProps) {
   const showEssential = section === "essential" || section === "all"
   const showAdvanced = section === "advanced" || section === "all"
@@ -136,50 +158,55 @@ export function RepoSettingsFields({
               </FieldDescription>
             </Field>
           )}
+
+          {/* The env field is source-dependent (#681): a desktop GitHub-clone
+          has no injection path and passes `showEnvField={false}`; hosted shows
+          env vars, desktop local-folder shows files-to-copy. It's the last
+          essential field, so the `all` order is unchanged by the move. */}
+          {showEnvField &&
+            (isLocalBuild ? (
+              // Desktop mode: instead of spelling env vars out, glob patterns of
+              // files (e.g. `.env*`) carried over from the original checkout
+              // into each workspace's worktree.
+              <Field>
+                <FieldLabel htmlFor={`${idPrefix}-copy-patterns`}>
+                  Files to copy
+                </FieldLabel>
+                <Textarea
+                  id={`${idPrefix}-copy-patterns`}
+                  value={copyPatterns}
+                  onChange={(e) => onCopyPatternsChange(e.target.value)}
+                  placeholder={".env*\napps/*/.env*"}
+                  rows={3}
+                  className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+                />
+                <FieldDescription>
+                  Glob patterns from your checkout, one per line
+                </FieldDescription>
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor={`${idPrefix}-envvars`}>
+                  Environment variables
+                </FieldLabel>
+                <Textarea
+                  id={`${idPrefix}-envvars`}
+                  value={envVars}
+                  onChange={(e) => onEnvVarsChange(e.target.value)}
+                  placeholder={"KEY=value\nANOTHER_KEY=value"}
+                  rows={4}
+                  className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+                />
+                <FieldDescription>
+                  One KEY=value per line, injected into each workspace
+                </FieldDescription>
+              </Field>
+            ))}
         </>
       )}
 
       {showAdvanced && (
         <>
-          {isLocalBuild ? (
-            // Desktop mode: instead of spelling env vars out, glob patterns of
-            // files (e.g. `.env*`) carried over from the original checkout into
-            // each workspace's worktree.
-            <Field>
-              <FieldLabel htmlFor={`${idPrefix}-copy-patterns`}>
-                Files to copy
-              </FieldLabel>
-              <Textarea
-                id={`${idPrefix}-copy-patterns`}
-                value={copyPatterns}
-                onChange={(e) => onCopyPatternsChange(e.target.value)}
-                placeholder={".env*\napps/*/.env*"}
-                rows={3}
-                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-              />
-              <FieldDescription>
-                Glob patterns from your checkout, one per line
-              </FieldDescription>
-            </Field>
-          ) : (
-            <Field>
-              <FieldLabel htmlFor={`${idPrefix}-envvars`}>
-                Environment variables
-              </FieldLabel>
-              <Textarea
-                id={`${idPrefix}-envvars`}
-                value={envVars}
-                onChange={(e) => onEnvVarsChange(e.target.value)}
-                placeholder={"KEY=value\nANOTHER_KEY=value"}
-                rows={4}
-                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-              />
-              <FieldDescription>
-                One KEY=value per line, injected into each workspace
-              </FieldDescription>
-            </Field>
-          )}
-
           <Field>
             <FieldLabel htmlFor={`${idPrefix}-default-frame-size`}>
               Default frame size
@@ -209,6 +236,27 @@ export function RepoSettingsFields({
               context
             </FieldDescription>
           </Field>
+
+          {/* Add-modal only (#681): keys the preset upsert and seeds the
+          Project's display name. Empty → the repo's "default" preset. Absent
+          on the two `all`-rendering modals, which own their own name field. */}
+          {onPresetNameChange && (
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}-preset-name`}>
+                Preset name
+              </FieldLabel>
+              <Input
+                id={`${idPrefix}-preset-name`}
+                value={presetName ?? ""}
+                onChange={(e) => onPresetNameChange(e.target.value)}
+                placeholder="default"
+              />
+              <FieldDescription>
+                Optional, e.g. “web” or “api” — tells apart Projects for the same
+                repo
+              </FieldDescription>
+            </Field>
+          )}
         </>
       )}
     </FieldGroup>

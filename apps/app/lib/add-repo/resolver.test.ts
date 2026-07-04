@@ -67,6 +67,35 @@ describe("resolveRepoData — confirm decision", () => {
       })
       expect(data.copyPatterns).toBeUndefined()
     })
+
+    it("seeds the live Project's display name from the advanced preset name", () => {
+      const data = resolveRepoData(
+        pick,
+        { ...SETTINGS, presetName: "  web  " },
+        META
+      )
+      // Trimmed, mirroring how a saved-preset pick seeds `name` from config.name.
+      expect(data.name).toBe("web")
+    })
+
+    it("leaves the name blank when no preset name is given", () => {
+      expect(resolveRepoData(pick, SETTINGS, META).name).toBe("")
+      expect(
+        resolveRepoData(pick, { ...SETTINGS, presetName: "   " }, META).name
+      ).toBe("")
+    })
+
+    it("carries the advanced frame size and system prompt into the RepoData", () => {
+      const data = resolveRepoData(
+        pick,
+        { ...SETTINGS, defaultIframeLayerSizeId: "desktop", systemPrompt: "hi" },
+        META
+      )
+      expect(data).toMatchObject({
+        defaultIframeLayerSizeId: "desktop",
+        systemPrompt: "hi",
+      })
+    })
   })
 
   describe("clone-URL / local-folder source pick", () => {
@@ -248,6 +277,96 @@ describe("resolvePresetUpsert — confirm's save-as-preset decision", () => {
       systemPrompt: "Keep me.",
       createdAt: 111,
       updatedAt: UPSERT_META.updatedAt,
+    })
+  })
+
+  it("keys the upsert on the given name — updates the matching named preset", () => {
+    const existingWeb: RepoConfig = {
+      id: "cfg-web",
+      name: "web",
+      repoFullName: "acme/widget",
+      repoOwner: "acme",
+      repoName: "widget",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/acme/widget.git",
+      private: false,
+      setupScript: "old install",
+      devScript: "old dev",
+      devServerPort: 3000,
+      envVars: "OLD=1",
+      createdAt: 111,
+      updatedAt: 222,
+    }
+    const existingDefault: RepoConfig = {
+      ...existingWeb,
+      id: "cfg-default",
+      name: "",
+    }
+    const plan = resolvePresetUpsert(
+      repoPick,
+      { ...SETTINGS, presetName: "web" },
+      [existingDefault, existingWeb],
+      UPSERT_META,
+      true
+    )
+    // The "web" preset is updated in place; the same-repo default is untouched.
+    expect(plan?.id).toBe("cfg-web")
+    expect(plan?.name).toBe("web")
+    expect(plan?.setupScript).toBe("pnpm install")
+    expect(plan?.createdAt).toBe(111)
+  })
+
+  it("mints a new preset when the given name matches no existing one", () => {
+    const existingDefault: RepoConfig = {
+      id: "cfg-default",
+      name: "",
+      repoFullName: "acme/widget",
+      repoOwner: "acme",
+      repoName: "widget",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/acme/widget.git",
+      private: false,
+      setupScript: "old install",
+      devScript: "old dev",
+      devServerPort: 3000,
+      envVars: "OLD=1",
+      createdAt: 111,
+      updatedAt: 222,
+    }
+    const plan = resolvePresetUpsert(
+      repoPick,
+      { ...SETTINGS, presetName: "api" },
+      [existingDefault],
+      UPSERT_META,
+      true
+    )
+    // A different name never collides with the default — a fresh preset is minted.
+    expect(plan?.id).toBe("preset-9")
+    expect(plan?.name).toBe("api")
+  })
+
+  it("trims the preset name before keying the upsert", () => {
+    const plan = resolvePresetUpsert(
+      repoPick,
+      { ...SETTINGS, presetName: "  api  " },
+      [],
+      UPSERT_META,
+      true
+    )
+    expect(plan?.name).toBe("api")
+  })
+
+  it("saves the advanced frame size and system prompt the modal set", () => {
+    const plan = resolvePresetUpsert(
+      repoPick,
+      { ...SETTINGS, defaultIframeLayerSizeId: "desktop", systemPrompt: "hi" },
+      [],
+      UPSERT_META,
+      true
+    )
+    expect(plan).toMatchObject({
+      defaultIframeLayerSizeId: "desktop",
+      systemPrompt: "hi",
     })
   })
 
