@@ -3,11 +3,11 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { RepoData } from "@/lib/types"
 
 /**
- * The essential run settings the confirm-and-configure add modal resolves
- * before anything is provisioned (PRD #673, spine slice #676): the fields a
- * Sandbox needs to boot correctly on the first preview. Detection and the
- * advanced fields land in later slices; here they arrive already resolved
- * from the modal's form state.
+ * The run settings the confirm-and-configure add modal resolves before anything
+ * is provisioned (PRD #673, spine slice #676): the essential fields a Sandbox
+ * needs to boot correctly on the first preview, plus the advanced-section fields
+ * the expander reveals (#681). They arrive already resolved from the modal's
+ * form state.
  */
 export interface ResolvedRepoSettings {
   setupScript: string
@@ -16,6 +16,19 @@ export interface ResolvedRepoSettings {
   envVars: string
   /** Desktop-only glob patterns; only meaningful for a `localPath` Repo. */
   copyPatterns?: string
+  /** Advanced-section default frame size; `undefined` leaves the render-time
+   *  default in place. */
+  defaultIframeLayerSizeId?: string
+  /** Advanced-section system prompt; `undefined`/empty means none. */
+  systemPrompt?: string
+  /**
+   * The optional preset name from the advanced section (#681). Empty/undefined
+   * targets the repo's "default" preset. A given name both keys the idempotent
+   * preset upsert (`repoFullName` + name) and seeds the live Project's display
+   * name — the same way a saved-preset pick already seeds it — so one repo can
+   * be added more than once as distinct, tellable-apart Projects.
+   */
+  presetName?: string
 }
 
 /** The impure bits the caller mints per create — kept out so the resolver stays
@@ -126,7 +139,10 @@ export function resolveRepoData(
     // API features dark.
     return {
       id,
-      name: "",
+      // The advanced-section preset name (if any) seeds the live Project's
+      // display name, consistent with how a saved-preset pick seeds it from
+      // `config.name`. Empty leaves it blank, as before (#681).
+      name: settings?.presetName?.trim() || "",
       repoFullName: pick.source.repoFullName,
       repoOwner: pick.source.repoOwner,
       repoName: pick.source.repoName,
@@ -142,6 +158,8 @@ export function resolveRepoData(
       // without. The modal may override with its own resolved patterns.
       copyPatterns:
         settings?.copyPatterns ?? (pick.source.localPath ? ".env*" : undefined),
+      defaultIframeLayerSizeId: settings?.defaultIframeLayerSizeId,
+      systemPrompt: settings?.systemPrompt,
       createdAt,
     }
   }
@@ -149,7 +167,7 @@ export function resolveRepoData(
   // An unconfigured GitHub-repo pick.
   return {
     id,
-    name: "",
+    name: settings?.presetName?.trim() || "",
     repoFullName: pick.repo.fullName,
     repoOwner: pick.repo.owner,
     repoName: pick.repo.name,
@@ -159,6 +177,8 @@ export function resolveRepoData(
     devScript: settings?.devScript ?? "",
     devServerPort: settings?.devServerPort ?? 3000,
     envVars: settings?.envVars ?? "",
+    defaultIframeLayerSizeId: settings?.defaultIframeLayerSizeId,
+    systemPrompt: settings?.systemPrompt,
     createdAt,
   }
 }
@@ -218,9 +238,9 @@ export interface PresetUpsertMeta {
  * existing presets, produce the preset to upsert when the "save these settings"
  * checkbox is on — or `null` when it's off (or the pick can't own a preset).
  *
- * This slice targets the repo's **default** preset (empty name). Matching an
- * existing default preset by `repoFullName` + name **updates** it in place —
- * its `id`, `createdAt`, and any advanced fields (system prompt, layer size)
+ * The preset name (empty → the repo's **default** preset) keys the upsert with
+ * `repoFullName` (#681). Matching an existing preset by that pair **updates** it
+ * in place — its `id`, `createdAt`, and any advanced fields the modal didn't set
  * are preserved, only the resolved run settings and `updatedAt` change — so
  * re-adding a repo you already saved never duplicates or errors. No match mints
  * a fresh preset from {@link PresetUpsertMeta}.
@@ -240,14 +260,23 @@ export function resolvePresetUpsert(
   const identity = presetIdentity(pick)
   if (!identity) return null
 
-  // The default preset for this repo carries the empty name.
-  const name = ""
+  // The name keys the upsert alongside `repoFullName` (#681): empty targets the
+  // repo's "default" preset, a given name its own — so "web" and "api" across a
+  // monorepo never collide.
+  const name = settings.presetName?.trim() ?? ""
   const resolvedSettings = {
     setupScript: settings.setupScript,
     devScript: settings.devScript,
     devServerPort: settings.devServerPort,
     envVars: settings.envVars,
     copyPatterns: settings.copyPatterns,
+    // Only overwrite the advanced fields the modal actually set — an untouched
+    // field is left `undefined` by the modal and preserved from the match below
+    // rather than clobbered to empty.
+    ...(settings.defaultIframeLayerSizeId
+      ? { defaultIframeLayerSizeId: settings.defaultIframeLayerSizeId }
+      : {}),
+    ...(settings.systemPrompt ? { systemPrompt: settings.systemPrompt } : {}),
   }
 
   const existing = existingPresets.find(
