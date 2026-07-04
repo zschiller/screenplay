@@ -1,7 +1,6 @@
-import { generateText } from "ai"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
-import { DEFAULT_MODEL, resolveLanguageModel } from "@/lib/agent/providers"
+import { runNamingModel } from "@/lib/agent/naming-transport"
 import { readRoomDoc } from "@/lib/yjs/server"
 
 export const runtime = "nodejs"
@@ -33,38 +32,41 @@ function sanitizeBranch(raw: string): string {
     .replace(/^-|-$/g, "")
 }
 
-async function generateOne(prompt: string): Promise<NameResult> {
+/**
+ * Name one prompt: try the model through {@link runNamingModel} (hosted API-key
+ * provider, or desktop `claude -p` via the host-model seam — #674), then parse
+ * its two-line output. On no model / a failed call the transport returns `null`
+ * and we fall back to the improved deterministic slug (#675). `deps` is injected
+ * for tests; production uses the real per-backend transport.
+ */
+export async function generateOne(
+  prompt: string,
+  deps: { runModel?: typeof runNamingModel } = {}
+): Promise<NameResult> {
+  const runModel = deps.runModel ?? runNamingModel
   const fallback = deriveFallbackName(prompt)
-  try {
-    const res = await generateText({
-      model: resolveLanguageModel(DEFAULT_MODEL),
-      system: NAMING_SYSTEM_PROMPT,
-      prompt,
-    })
-    const lines = res.text
-      .trim()
-      .split("\n")
-      .map((l: string) =>
-        l
-          .trim()
-          .replace(/^["'`]+|["'`]+$/g, "")
-          .replace(/^[-*\d.)\s]+/, "")
-          .trim()
-      )
-      .filter(Boolean)
-    const branchRaw = sanitizeBranch(lines[0] ?? "")
-    const labelRaw = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
-    const branch =
-      branchRaw.length >= 3 && branchRaw.length <= 50
-        ? branchRaw
-        : fallback.branch
-    const label =
-      labelRaw.length >= 2 && labelRaw.length <= 60 ? labelRaw : fallback.label
-    return { branch, label }
-  } catch (e) {
-    console.error("Branch/chat name generation failed:", e)
-    return { branch: fallback.branch, label: fallback.label }
-  }
+  const raw = await runModel({ system: NAMING_SYSTEM_PROMPT, prompt })
+  if (raw === null) return { branch: fallback.branch, label: fallback.label }
+
+  const lines = raw
+    .split("\n")
+    .map((l: string) =>
+      l
+        .trim()
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .replace(/^[-*\d.)\s]+/, "")
+        .trim()
+    )
+    .filter(Boolean)
+  const branchRaw = sanitizeBranch(lines[0] ?? "")
+  const labelRaw = (lines[1] ?? "").replace(/^["'`]+|["'`]+$/g, "").trim()
+  const branch =
+    branchRaw.length >= 3 && branchRaw.length <= 50
+      ? branchRaw
+      : fallback.branch
+  const label =
+    labelRaw.length >= 2 && labelRaw.length <= 60 ? labelRaw : fallback.label
+  return { branch, label }
 }
 
 async function branchExistsOnGitHub(

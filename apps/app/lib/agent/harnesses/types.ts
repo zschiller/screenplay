@@ -97,6 +97,38 @@ export interface HarnessModel {
 }
 
 /**
+ * A harness's **non-interactive print-mode** invocation — the seam the desktop
+ * {@link import("../host-model").runHostModel} primitive uses to run a one-shot
+ * prompt through the user's own installed, already-signed-in CLI (`claude -p
+ * "<prompt>"`) with no hosted API key (#674). It lives on the descriptor as a
+ * sibling of {@link Harness.authCommand} / {@link Harness.buildInstallCommand},
+ * so teaching a new harness to name things is a catalog change, not a naming
+ * change.
+ *
+ * Two pure steps: {@link buildArgv} produces the print-mode argv for a prompt,
+ * and {@link parseOutput} maps the CLI's stdout back to the model's text.
+ * Best-effort by contract — {@link parseOutput} returns `null` for empty or
+ * unusable output, which `runHostModel` collapses (with a spawn failure /
+ * non-zero exit / timeout) to a single `null` result the naming fallback
+ * degrades to.
+ */
+export interface HarnessPrintModel {
+  /**
+   * Build the non-interactive print-mode argv that runs `prompt` through the
+   * CLI (e.g. `["claude", "-p", prompt]`). The first element is the executable
+   * (`hostBinary`); the prompt is passed as a single argv element, never
+   * shell-interpolated.
+   */
+  buildArgv(prompt: string): string[]
+  /**
+   * Parse the CLI's stdout into the model's reply text, or `null` when the
+   * output is empty / unusable. Honest degradation: an unparseable reply is a
+   * `null`, never a fabricated name.
+   */
+  parseOutput(stdout: string): string | null
+}
+
+/**
  * The host-process boundary a harness's {@link Harness.probeAuth} shells
  * through, injected so the auth probe is unit-testable without a real CLI
  * install or a real credential store — the exact mockable-seam shape as the
@@ -281,6 +313,16 @@ export interface Harness {
    * harness with no in-app sign-in path.
    */
   authCommand?: string[]
+
+  /**
+   * The CLI's **non-interactive print-mode** call (`claude -p "<prompt>"`),
+   * used by the desktop {@link import("../host-model").runHostModel} seam to
+   * reach a model on the host for one-shot work (tab/branch naming today) with
+   * no hosted API key (#674). Omitted for a harness with no print mode — the
+   * seam skips such a harness and the caller falls back to the deterministic
+   * slug. See {@link HarnessPrintModel}.
+   */
+  printModel?: HarnessPrintModel
 }
 
 /** A harness named in `SANDBOX_HARNESSES` that won't be installed, with why. */

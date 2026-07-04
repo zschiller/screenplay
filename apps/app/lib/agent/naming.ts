@@ -1,39 +1,43 @@
 import "server-only"
 
-import { generateText } from "ai"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { deriveFallbackName } from "./fallback-name"
-import { resolveLanguageModel, DEFAULT_MODEL } from "./providers"
+import { runNamingModel } from "./naming-transport"
 
 /**
  * Generate a git branch name and a chat label from the user's first message.
- * Mirrors the v1 stream route's behavior (one cheap LLM call, two-line
- * output) but routes through the AI SDK so it works against whichever
- * provider the deployment has configured.
+ * Mirrors the v1 stream route's behavior (one cheap LLM call, two-line output),
+ * routed through {@link runNamingModel}: hosted shells the configured API-key
+ * provider unchanged, desktop shells the user's own installed harness CLI in
+ * print mode (`claude -p`, #674). On no model / a failed call the transport
+ * returns `null` and we fall back to the improved deterministic slug (#675) —
+ * naming never blocks Workspace creation.
  *
  * Returns `{ branch: "" }` if naming is skipped (`shouldNameBranch=false`).
  */
-export async function generateChatNames(opts: {
-  message: string
-  shouldNameBranch: boolean
-  /** Provider:model id used for the naming call. Defaults to DEFAULT_MODEL. */
-  model?: string
-}): Promise<{ branch: string; chatLabel: string }> {
+export async function generateChatNames(
+  opts: {
+    message: string
+    shouldNameBranch: boolean
+    /** Provider:model id used for the hosted naming call. Defaults to DEFAULT_MODEL. */
+    model?: string
+  },
+  /** Injected for tests; defaults to the real per-backend transport. */
+  deps: { runModel?: typeof runNamingModel } = {}
+): Promise<{ branch: string; chatLabel: string }> {
+  const runModel = deps.runModel ?? runNamingModel
   const system = opts.shouldNameBranch
     ? "Generate two things for the user's request:\n1. A short, lowercase, hyphenated git branch name (2-4 words)\n2. A short chat label (2-5 words, title case)\n\nOutput ONLY as two lines, no explanation, backticks, or quotes.\nLine 1: branch name\nLine 2: chat label\n\nExamples:\nfix-login-button\nFix Login Button\n\nadd-dark-mode\nAdd Dark Mode"
     : "Generate a short chat label for the user's request (2-5 words, title case). Output ONLY the label — no explanation, backticks, or quotes.\n\nExamples:\nFix Login Button\nAdd Dark Mode"
 
-  let rawText = ""
-  try {
-    const result = await generateText({
-      model: resolveLanguageModel(opts.model ?? DEFAULT_MODEL),
-      system,
-      prompt: opts.message,
-    })
-    rawText = result.text.trim()
-  } catch (e) {
-    console.error("v2 chat-naming generation failed:", e)
+  const rawText = await runModel({
+    system,
+    prompt: opts.message,
+    model: opts.model,
+  })
+
+  if (rawText === null) {
     // No-model fallback: derive a tidy deterministic branch/label from the
     // prompt. The branch is only offered when a branch name was wanted;
     // otherwise we leave it blank so the caller keeps the existing branch.
