@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
 } from "react"
+import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import {
   DndContext,
   DragOverlay,
@@ -107,7 +109,10 @@ import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
-import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
+import {
+  resolvePresetUpsert,
+  type ResolvedRepoSettings,
+} from "@/lib/add-repo/resolver"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -132,7 +137,7 @@ import {
 } from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches } from "@/lib/github-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { listRepoConfigs } from "@/lib/repo-configs-actions"
+import { listRepoConfigs, upsertRepoConfig } from "@/lib/repo-configs-actions"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
@@ -1516,8 +1521,33 @@ export function RoomSidebar({
                     </DialogHeader>
                     {pickerView === "settings" && pendingPick ? (
                       <RepoAddSettings
-                        onConfirm={(settings) => {
+                        onConfirm={(settings, { savePreset }) => {
                           onCreateRepo(pendingPick, settings)
+                          if (savePreset) {
+                            // Best-effort (#680): remember the resolved settings
+                            // as this repo's default preset so re-adding it is
+                            // one click. The resolver upserts by key — a repo
+                            // already saved updates in place. A failed save
+                            // never blocks or undoes the add above; at most a
+                            // toast.
+                            const now = Date.now()
+                            const plan = resolvePresetUpsert(
+                              pendingPick,
+                              settings,
+                              savedConfigs,
+                              { id: nanoid(), createdAt: now, updatedAt: now },
+                              true
+                            )
+                            if (plan) {
+                              upsertRepoConfig(plan)
+                                .then(setSavedConfigs)
+                                .catch(() =>
+                                  toast.error(
+                                    "Couldn't save these settings as a preset."
+                                  )
+                                )
+                            }
+                          }
                           setPendingPick(null)
                           setPickerView(null)
                         }}
