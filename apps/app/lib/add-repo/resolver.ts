@@ -26,6 +26,56 @@ export interface RepoCreateMeta {
 }
 
 /**
+ * The run settings deterministic detection fills (PRD #673, slice #678): the
+ * essential trio a Sandbox needs to boot. Env vars, frame size, and the system
+ * prompt are never detected. The port rides as a number here (detection's
+ * native shape); the modal's text field mirrors it as a string.
+ */
+export interface DetectedSettings {
+  setupScript: string
+  devScript: string
+  devServerPort: number
+}
+
+/**
+ * The subset of the add-modal's form that detection can seed. All strings — the
+ * port is a text input — so this is the shape the merge reads and writes; the
+ * component holds these three in one state object and feeds them straight in.
+ */
+export interface DetectableFields {
+  setupScript: string
+  devScript: string
+  devServerPort: string
+}
+
+export type DetectableField = keyof DetectableFields
+
+/**
+ * The seed/merge half of the add-repo resolver (PRD #673, slice #678): given the
+ * form's current detectable values, a detection result, and which of those the
+ * user has already touched, produce the next values.
+ *
+ * The rule is per-field dirty gating and nothing more — detection fills a field
+ * the user hasn't touched and never clobbers one they have, regardless of what
+ * the untouched field currently holds (it's still a plain default at that
+ * point). Keeping it pure lets the component apply it inside a `setState`
+ * updater against the live values, so a fill can't race a keystroke.
+ */
+export function mergeDetectedSettings(
+  current: DetectableFields,
+  detected: DetectedSettings,
+  dirty: Partial<Record<DetectableField, boolean>>
+): DetectableFields {
+  return {
+    setupScript: dirty.setupScript ? current.setupScript : detected.setupScript,
+    devScript: dirty.devScript ? current.devScript : detected.devScript,
+    devServerPort: dirty.devServerPort
+      ? current.devServerPort
+      : String(detected.devServerPort),
+  }
+}
+
+/**
  * The React-free add-repo resolver — this slice implements its **confirm**
  * decision only: given the picker pick identity plus (optionally) the run
  * settings the modal resolved, produce the {@link RepoData} to create.

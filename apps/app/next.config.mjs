@@ -53,6 +53,10 @@ const nextConfig = {
     // The local GitHub token store's OS-keychain backend (PRD #428): a native
     // addon, loaded dynamically and only on the local build.
     "@napi-rs/keyring",
+    // Deterministic settings detection (PRD #673) runs server-only behind the
+    // `detectSettings` seam. Keep build-info external so its dynamic requires
+    // (and `@bugsnag/js`) resolve from node_modules rather than being inlined.
+    "@netlify/build-info",
   ],
   images: {
     remotePatterns: [
