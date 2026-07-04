@@ -11,12 +11,27 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
 import { isLocalBuild } from "@/lib/local-mode"
 
+/**
+ * Which half of the field set to render. The definitions stay a single source
+ * of truth (PRD #673): the add-repo modal renders only `essential`, while the
+ * in-room Project settings modal and the homescreen preset form render `all`
+ * (the default), unchanged.
+ *
+ * - `essential` — setup script, run script, and (hosted only) dev server port.
+ * - `advanced` — environment variables / files-to-copy, default frame size,
+ *   and system prompt.
+ * - `all` — every field, in the order below.
+ */
+export type RepoSettingsSection = "essential" | "advanced" | "all"
+
 interface RepoSettingsFieldsProps {
   /**
    * Namespaces the field `id`/`htmlFor` pairs so the same component can render
    * twice on a page (e.g. two open dialogs) without colliding label targets.
    */
   idPrefix: string
+  /** Which half of the fields to render. Defaults to `all`. */
+  section?: RepoSettingsSection
   setupScript: string
   onSetupScriptChange: (value: string) => void
   devScript: string
@@ -47,6 +62,7 @@ interface RepoSettingsFieldsProps {
  */
 export function RepoSettingsFields({
   idPrefix,
+  section = "all",
   setupScript,
   onSetupScriptChange,
   devScript,
@@ -62,123 +78,139 @@ export function RepoSettingsFields({
   systemPrompt,
   onSystemPromptChange,
 }: RepoSettingsFieldsProps) {
+  const showEssential = section === "essential" || section === "all"
+  const showAdvanced = section === "advanced" || section === "all"
   return (
     <FieldGroup>
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-setup`}>Setup script</FieldLabel>
-        <Input
-          id={`${idPrefix}-setup`}
-          value={setupScript}
-          onChange={(e) => onSetupScriptChange(e.target.value)}
-          placeholder="npm install"
-          className="font-mono"
-        />
-        <FieldDescription>Runs once when a workspace is created</FieldDescription>
-      </Field>
+      {showEssential && (
+        <>
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-setup`}>Setup script</FieldLabel>
+            <Input
+              id={`${idPrefix}-setup`}
+              value={setupScript}
+              onChange={(e) => onSetupScriptChange(e.target.value)}
+              placeholder="npm install"
+              className="font-mono"
+            />
+            <FieldDescription>
+              Runs once when a workspace is created
+            </FieldDescription>
+          </Field>
 
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-dev`}>Run script</FieldLabel>
-        <Input
-          id={`${idPrefix}-dev`}
-          value={devScript}
-          onChange={(e) => onDevScriptChange(e.target.value)}
-          placeholder="npm run dev"
-          className="font-mono"
-        />
-        <FieldDescription>Starts the dev server for each frame</FieldDescription>
-      </Field>
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-dev`}>Run script</FieldLabel>
+            <Input
+              id={`${idPrefix}-dev`}
+              value={devScript}
+              onChange={(e) => onDevScriptChange(e.target.value)}
+              placeholder="npm run dev"
+              className="font-mono"
+            />
+            <FieldDescription>
+              Starts the dev server for each frame
+            </FieldDescription>
+          </Field>
 
-      {/* On the desktop build the configured port is a logical key only —
+          {/* On the desktop build the configured port is a logical key only —
           portless assigns and delivers the real port (ADR 0010) — so there
           is nothing for the user to set. Hosted keeps the field: there the
           dev server must bind this exact port. */}
-      {!isLocalBuild && (
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-port`}>Dev server port</FieldLabel>
-          <Input
-            id={`${idPrefix}-port`}
-            type="number"
-            min={1}
-            max={65535}
-            value={devServerPort}
-            onChange={(e) => onDevServerPortChange(e.target.value)}
-            placeholder="3000"
-            className="font-mono"
-          />
-          <FieldDescription>
-            Port your dev server binds to (1–65535)
-          </FieldDescription>
-        </Field>
+          {!isLocalBuild && (
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}-port`}>
+                Dev server port
+              </FieldLabel>
+              <Input
+                id={`${idPrefix}-port`}
+                type="number"
+                min={1}
+                max={65535}
+                value={devServerPort}
+                onChange={(e) => onDevServerPortChange(e.target.value)}
+                placeholder="3000"
+                className="font-mono"
+              />
+              <FieldDescription>
+                Port your dev server binds to (1–65535)
+              </FieldDescription>
+            </Field>
+          )}
+        </>
       )}
 
-      {isLocalBuild ? (
-        // Desktop mode: instead of spelling env vars out, glob patterns of
-        // files (e.g. `.env*`) carried over from the original checkout into
-        // each workspace's worktree.
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-copy-patterns`}>
-            Files to copy
-          </FieldLabel>
-          <Textarea
-            id={`${idPrefix}-copy-patterns`}
-            value={copyPatterns}
-            onChange={(e) => onCopyPatternsChange(e.target.value)}
-            placeholder={".env*\napps/*/.env*"}
-            rows={3}
-            className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-          />
-          <FieldDescription>
-            Glob patterns from your checkout, one per line
-          </FieldDescription>
-        </Field>
-      ) : (
-        <Field>
-          <FieldLabel htmlFor={`${idPrefix}-envvars`}>
-            Environment variables
-          </FieldLabel>
-          <Textarea
-            id={`${idPrefix}-envvars`}
-            value={envVars}
-            onChange={(e) => onEnvVarsChange(e.target.value)}
-            placeholder={"KEY=value\nANOTHER_KEY=value"}
-            rows={4}
-            className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
-          />
-          <FieldDescription>
-            One KEY=value per line, injected into each workspace
-          </FieldDescription>
-        </Field>
+      {showAdvanced && (
+        <>
+          {isLocalBuild ? (
+            // Desktop mode: instead of spelling env vars out, glob patterns of
+            // files (e.g. `.env*`) carried over from the original checkout into
+            // each workspace's worktree.
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}-copy-patterns`}>
+                Files to copy
+              </FieldLabel>
+              <Textarea
+                id={`${idPrefix}-copy-patterns`}
+                value={copyPatterns}
+                onChange={(e) => onCopyPatternsChange(e.target.value)}
+                placeholder={".env*\napps/*/.env*"}
+                rows={3}
+                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+              />
+              <FieldDescription>
+                Glob patterns from your checkout, one per line
+              </FieldDescription>
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}-envvars`}>
+                Environment variables
+              </FieldLabel>
+              <Textarea
+                id={`${idPrefix}-envvars`}
+                value={envVars}
+                onChange={(e) => onEnvVarsChange(e.target.value)}
+                placeholder={"KEY=value\nANOTHER_KEY=value"}
+                rows={4}
+                className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
+              />
+              <FieldDescription>
+                One KEY=value per line, injected into each workspace
+              </FieldDescription>
+            </Field>
+          )}
+
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-default-frame-size`}>
+              Default frame size
+            </FieldLabel>
+            <IframeLayerSizeSelect
+              id={`${idPrefix}-default-frame-size`}
+              value={defaultIframeLayerSizeId}
+              onChange={onDefaultIframeLayerSizeIdChange}
+            />
+            <FieldDescription>Size new frames open at</FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-system-prompt`}>
+              System prompt
+            </FieldLabel>
+            <Textarea
+              id={`${idPrefix}-system-prompt`}
+              value={systemPrompt}
+              onChange={(e) => onSystemPromptChange(e.target.value)}
+              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
+              rows={4}
+              className="[field-sizing:fixed] max-w-full resize-y text-xs"
+            />
+            <FieldDescription>
+              Appended to the agent&apos;s instructions — handy for monorepo
+              context
+            </FieldDescription>
+          </Field>
+        </>
       )}
-
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-default-frame-size`}>
-          Default frame size
-        </FieldLabel>
-        <IframeLayerSizeSelect
-          id={`${idPrefix}-default-frame-size`}
-          value={defaultIframeLayerSizeId}
-          onChange={onDefaultIframeLayerSizeIdChange}
-        />
-        <FieldDescription>Size new frames open at</FieldDescription>
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-system-prompt`}>
-          System prompt
-        </FieldLabel>
-        <Textarea
-          id={`${idPrefix}-system-prompt`}
-          value={systemPrompt}
-          onChange={(e) => onSystemPromptChange(e.target.value)}
-          placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the project root."
-          rows={4}
-          className="[field-sizing:fixed] max-w-full resize-y text-xs"
-        />
-        <FieldDescription>
-          Appended to the agent&apos;s instructions — handy for monorepo
-          context
-        </FieldDescription>
-      </Field>
     </FieldGroup>
   )
 }

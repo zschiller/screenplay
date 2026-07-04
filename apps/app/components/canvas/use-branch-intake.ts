@@ -29,6 +29,10 @@ import {
   planRepoTeardown,
 } from "@/lib/branch/intake"
 import { readLastTabKind } from "@/lib/canvas/tab-kind"
+import {
+  resolveRepoData,
+  type ResolvedRepoSettings,
+} from "@/lib/add-repo/resolver"
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { RepoPickerSelection } from "@/components/repo-picker"
@@ -91,7 +95,16 @@ export interface BranchIntakeDeps {
 }
 
 export interface BranchIntake {
-  createRepo: (pick: RepoPickerSelection) => void
+  /**
+   * Create a Repo + its first Branch and kick off Sandbox provisioning. The
+   * confirm-and-configure add modal (PRD #673) passes the run settings it
+   * resolved as the optional second arg; when absent — a saved-preset pick or
+   * any programmatic caller — provisioning uses today's exact defaults.
+   */
+  createRepo: (
+    pick: RepoPickerSelection,
+    settings?: ResolvedRepoSettings
+  ) => void
   createBranch: (repoId: string, specs: ComposerSpec[]) => Promise<void>
   createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
@@ -248,69 +261,16 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   )
 
   const createRepo = useCallback(
-    (pick: RepoPickerSelection) => {
+    (pick: RepoPickerSelection, settings?: ResolvedRepoSettings) => {
       const id = nanoid()
-      const data: RepoData =
-        pick.kind === "config"
-          ? {
-              id,
-              name: pick.config.name,
-              repoFullName: pick.config.repoFullName,
-              repoOwner: pick.config.repoOwner,
-              repoName: pick.config.repoName,
-              defaultBranch: pick.config.defaultBranch,
-              cloneUrl: pick.config.cloneUrl,
-              // A folder-sourced preset points the Repo at the existing
-              // checkout (ADR 0013) — the `localPath` rides along into
-              // RepoData and routes acquisition down the local-path arm.
-              localPath: pick.config.localPath,
-              setupScript: pick.config.setupScript,
-              devScript: pick.config.devScript,
-              devServerPort: pick.config.devServerPort,
-              envVars: pick.config.envVars,
-              copyPatterns: pick.config.copyPatterns,
-              defaultIframeLayerSizeId: pick.config.defaultIframeLayerSizeId,
-              systemPrompt: pick.config.systemPrompt,
-              createdAt: Date.now(),
-            }
-          : pick.kind === "source"
-            ? {
-                // A Repo from the local build's URL / local-folder entry
-                // points (PRD #428). `localPath` is the acquisition source the
-                // provision path routes on; the GitHub identity fields may be
-                // empty (non-GitHub repo), which just leaves API features dark.
-                id,
-                name: "",
-                repoFullName: pick.source.repoFullName,
-                repoOwner: pick.source.repoOwner,
-                repoName: pick.source.repoName,
-                defaultBranch: pick.source.defaultBranch,
-                cloneUrl: pick.source.cloneUrl,
-                localPath: pick.source.localPath,
-                setupScript: "",
-                devScript: "",
-                devServerPort: 3000,
-                envVars: "",
-                // A local-folder Repo's worktrees get the checkout's env
-                // files carried over by default — the common gitignored
-                // config a dev server can't run without.
-                copyPatterns: pick.source.localPath ? ".env*" : undefined,
-                createdAt: Date.now(),
-              }
-            : {
-                id,
-                name: "",
-                repoFullName: pick.repo.fullName,
-                repoOwner: pick.repo.owner,
-                repoName: pick.repo.name,
-                defaultBranch: pick.repo.defaultBranch,
-                cloneUrl: pick.repo.cloneUrl,
-                setupScript: "",
-                devScript: "",
-                devServerPort: 3000,
-                envVars: "",
-                createdAt: Date.now(),
-              }
+      // The pure resolver owns the pick-kind branching and the settings
+      // fallback; when `settings` is absent the produced RepoData is exactly
+      // today's (empty scripts, port 3000). Provisioning below runs only here,
+      // on confirm — the modal path never provisions on select.
+      const data: RepoData = resolveRepoData(pick, settings, {
+        id,
+        createdAt: Date.now(),
+      })
       const sandboxName = `sp-${nanoid(10)}`
       const branch = randomBranchName()
 
