@@ -1,5 +1,6 @@
 import { generateText } from "ai"
 import { getGitHubTokenForUser, getUserId } from "@/lib/auth-helpers"
+import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { DEFAULT_MODEL, resolveLanguageModel } from "@/lib/agent/providers"
 import { readRoomDoc } from "@/lib/yjs/server"
 
@@ -32,20 +33,8 @@ function sanitizeBranch(raw: string): string {
     .replace(/^-|-$/g, "")
 }
 
-function deriveFallbackBranch(prompt: string): string {
-  const slug = sanitizeBranch(prompt).slice(0, 30).replace(/-$/, "")
-  if (slug.length >= 3) return slug
-  return `agent-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function deriveFallbackLabel(prompt: string): string {
-  const cleaned = prompt.replace(/\s+/g, " ").trim()
-  if (!cleaned) return "Untitled"
-  const words = cleaned.split(" ").slice(0, 6).join(" ")
-  return words.length > 50 ? `${words.slice(0, 50).trimEnd()}…` : words
-}
-
 async function generateOne(prompt: string): Promise<NameResult> {
+  const fallback = deriveFallbackName(prompt)
   try {
     const res = await generateText({
       model: resolveLanguageModel(DEFAULT_MODEL),
@@ -68,18 +57,13 @@ async function generateOne(prompt: string): Promise<NameResult> {
     const branch =
       branchRaw.length >= 3 && branchRaw.length <= 50
         ? branchRaw
-        : deriveFallbackBranch(prompt)
+        : fallback.branch
     const label =
-      labelRaw.length >= 2 && labelRaw.length <= 60
-        ? labelRaw
-        : deriveFallbackLabel(prompt)
+      labelRaw.length >= 2 && labelRaw.length <= 60 ? labelRaw : fallback.label
     return { branch, label }
   } catch (e) {
     console.error("Branch/chat name generation failed:", e)
-    return {
-      branch: deriveFallbackBranch(prompt),
-      label: deriveFallbackLabel(prompt),
-    }
+    return { branch: fallback.branch, label: fallback.label }
   }
 }
 
