@@ -3,6 +3,7 @@ import "server-only"
 import { generateText } from "ai"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { readRoomDoc } from "@/lib/yjs/server"
+import { deriveFallbackName } from "./fallback-name"
 import { resolveLanguageModel, DEFAULT_MODEL } from "./providers"
 
 /**
@@ -33,7 +34,14 @@ export async function generateChatNames(opts: {
     rawText = result.text.trim()
   } catch (e) {
     console.error("v2 chat-naming generation failed:", e)
-    return { branch: "", chatLabel: deriveFallbackLabel(opts.message) }
+    // No-model fallback: derive a tidy deterministic branch/label from the
+    // prompt. The branch is only offered when a branch name was wanted;
+    // otherwise we leave it blank so the caller keeps the existing branch.
+    const fallback = deriveFallbackName(opts.message)
+    return {
+      branch: opts.shouldNameBranch ? fallback.branch : "",
+      chatLabel: fallback.label,
+    }
   }
 
   const lines = rawText
@@ -62,7 +70,7 @@ export async function generateChatNames(opts: {
 
   if (branch.length < 3 || branch.length > 50) branch = ""
   if (chatLabel.length < 2 || chatLabel.length > 60) {
-    chatLabel = deriveFallbackLabel(opts.message)
+    chatLabel = deriveFallbackName(opts.message).label
   }
   return { branch, chatLabel }
 }
@@ -112,11 +120,4 @@ export async function deduplicateBranchName(
     console.error("v2 branch deduplication failed:", e)
     return branchName
   }
-}
-
-function deriveFallbackLabel(message: string): string {
-  const cleaned = message.replace(/\s+/g, " ").trim()
-  if (!cleaned) return ""
-  const words = cleaned.split(" ").slice(0, 6).join(" ")
-  return words.length > 50 ? `${words.slice(0, 50).trimEnd()}…` : words
 }
