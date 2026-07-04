@@ -374,6 +374,22 @@ describe("opencode setup descriptor fields (ADR 0015)", () => {
   })
 })
 
+describe("opencode is out of scope for model-backed naming (#679)", () => {
+  it("wires no printModel on either slot, because neither is chat-capable", () => {
+    // Naming rides the first detected *chat-capable* harness's print mode
+    // (`runHostModel`). A harness is chat-capable only when it has an ACP adapter
+    // to back the external Engine; both opencode slots are terminal-only today
+    // (`acpAdapter: null`), so the chat-capability filter drops them and they are
+    // deliberately left without a print-argv field — the "not chat-capable ⇒
+    // left alone" acceptance criterion, asserted so a later ACP wiring can't
+    // silently regress the invariant.
+    for (const harness of [opencodeGatewayHarness, opencodeCompatHarness]) {
+      expect(harness.acpAdapter).toBeNull()
+      expect(harness.printModel).toBeUndefined()
+    }
+  })
+})
+
 describe("harnessLaunchArgv for opencode slots", () => {
   it("returns opencode's launch argv for both keys", () => {
     expect(harnessLaunchArgv("opencode-gateway")).toEqual(["opencode"])

@@ -4,7 +4,7 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
 import type { HarnessProcessRunner } from "@/lib/agent/harnesses/types"
 import { harnessLaunchArgv } from "@/lib/agent/harnesses"
 import { codexConfigToml } from "./codex"
-import { codexHarness, probeCodexAuth } from "./codex"
+import { codexHarness, codexPrintModel, probeCodexAuth } from "./codex"
 
 /** A `runCommand` invocation captured by the fake sandbox below. */
 type RecordedCall = {
@@ -180,6 +180,46 @@ describe("codexHarness setup descriptor", () => {
     expect(codexHarness.probeAuth).toBe(probeCodexAuth)
     expect(typeof codexHarness.buildInstallCommand).toBe("function")
     expect(codexHarness.authCommand).toEqual(["codex", "login"])
+  })
+})
+
+/**
+ * Codex's per-descriptor print-mode builder (Seam D, #674/#679): a pure function
+ * asserted against the expected non-interactive argv and its light output parse.
+ * Codex's headless form is `codex exec "<prompt>"` — distinct from Claude Code's
+ * `claude -p "<prompt>"`, which is exactly why print-argv is a per-harness field.
+ * By default `codex exec` writes only the final message to stdout (activity goes
+ * to stderr), so the parse is a trim, mirroring `claudeCodePrintModel`.
+ */
+describe("codexPrintModel", () => {
+  it("builds the `codex exec <prompt>` argv with the prompt as a single arg", () => {
+    expect(codexPrintModel.buildArgv("please fix the login")).toEqual([
+      "codex",
+      "exec",
+      "please fix the login",
+    ])
+  })
+
+  it("passes the prompt verbatim — no shell interpolation of quotes/newlines", () => {
+    const prompt = 'add a "dark mode" toggle\nand a setting'
+    expect(codexPrintModel.buildArgv(prompt)).toEqual(["codex", "exec", prompt])
+  })
+
+  it("parses stdout to the model's text, trimmed", () => {
+    expect(codexPrintModel.parseOutput("  fix-login\nFix Login\n")).toBe(
+      "fix-login\nFix Login"
+    )
+  })
+
+  it("returns null for empty / whitespace-only output", () => {
+    expect(codexPrintModel.parseOutput("")).toBeNull()
+    expect(codexPrintModel.parseOutput("   \n\t")).toBeNull()
+  })
+
+  it("is wired onto the descriptor so `runHostModel` can reach it", () => {
+    // Codex is chat-capable (non-null acpAdapter), so it participates in naming.
+    expect(codexHarness.acpAdapter).not.toBeNull()
+    expect(codexHarness.printModel).toBe(codexPrintModel)
   })
 })
 
