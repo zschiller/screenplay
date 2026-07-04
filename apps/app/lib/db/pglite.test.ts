@@ -3,9 +3,18 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { and, eq, sql } from "drizzle-orm"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
-import { createPgliteDb } from "./pglite"
+import { createPgliteDb, type PgliteHandle } from "./pglite"
 import {
   agentChat,
   agentMessage,
@@ -16,15 +25,28 @@ import {
   terminalTab,
   user,
 } from "./schema"
+import { truncateAllTables } from "../../test/pglite"
 import type { ModelMessage } from "ai"
 
-// Every test here boots its own embedded Postgres (PGlite/WASM) and runs the
-// migration set — inherently ~2s each even on an idle machine. Under the full
-// parallel suite the WASM boot competes for CPU with ~100 other test files and
-// can blow past Vitest's 5s default, which is what made the first migration
-// test flake. Raise the timeout for this file so a slow-but-healthy boot isn't
-// mistaken for a hang; a real hang still trips at 30s.
+// Booting embedded Postgres (PGlite/WASM) + running the migration set is
+// inherently ~2s even on an idle machine. Under the full parallel suite that
+// boot competes for CPU with ~100 other test files and can blow past Vitest's
+// 5s default, which is what made the first migration test flake. Raise the
+// timeout for this file so a slow-but-healthy boot isn't mistaken for a hang; a
+// real hang still trips at 30s.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
+
+// The query-behaviour tests below only need a migrated database, not a *fresh*
+// one, so they share a single in-memory boot and truncate between tests rather
+// than re-booting WASM apiece. The durability test still opens its own on-disk
+// dirs (see below) — that one is specifically about the reopen lifecycle.
+let shared: PgliteHandle
+beforeAll(async () => {
+  shared = createPgliteDb("memory://")
+  await shared.ready
+})
+afterAll(() => shared.close())
+beforeEach(() => truncateAllTables(shared.db))
 
 // Each test that needs durability across reopens gets its own temp data dir;
 // we clean them up afterward.
@@ -52,22 +74,16 @@ async function seedUser(db: Awaited<ReturnType<typeof createPgliteDb>>["db"]) {
 
 describe("createPgliteDb", () => {
   it("runs migrations on boot so the surviving tables exist", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
-
     // A query against a migrated table proves the schema is present.
-    const rows = await db.select().from(user)
+    const rows = await shared.db.select().from(user)
     expect(rows).toEqual([])
   })
 
   it("round-trips every surviving table, including the agentMessage jsonb payload", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
+    const db = shared.db
 
     await seedUser(db)
-    await db
-      .insert(room)
-      .values({ id: "r1", name: "Canvas", ownerId: "u1" })
+    await db.insert(room).values({ id: "r1", name: "Canvas", ownerId: "u1" })
     await db.insert(agentChat).values({
       id: "c1",
       roomId: "r1",
@@ -131,8 +147,7 @@ describe("createPgliteDb", () => {
   })
 
   it("preserves the jsonb ->> operator under PGlite", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
+    const db = shared.db
 
     // Mirrors the kv lock query: a `->>` extraction — plain Postgres, identical
     // under PGlite (the #406 spike called this operator out specifically).
@@ -153,8 +168,7 @@ describe("createPgliteDb", () => {
   })
 
   it("rolls back an interactive transaction atomically (the batch→transaction swap)", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
+    const db = shared.db
 
     await seedUser(db)
     await db.insert(room).values({ id: "r1", name: "Canvas", ownerId: "u1" })
