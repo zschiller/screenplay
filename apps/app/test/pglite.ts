@@ -17,6 +17,33 @@ export interface SharedPgliteDb {
 }
 
 /**
+ * Truncate every migrated table back to an empty, fresh-boot state — the cheap
+ * (millisecond) equivalent of re-booting PGlite between tests. `RESTART IDENTITY
+ * CASCADE` drops FK'd children and resets sequences so the slate matches a fresh
+ * migration. `__drizzle_migrations` is left alone so the schema stays migrated.
+ *
+ * Exposed for test files that hold their own PGlite handle directly (rather than
+ * the `@/lib/db`-seamed one) so they don't re-implement the table sweep.
+ */
+export async function truncateAllTables(db: DB): Promise<void> {
+  // `DB` types `execute` off the abstract query-result HKT, so the row shape
+  // isn't inferable here — assert the one column we select.
+  const tableRows = (await db.execute(
+    sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'`
+  )) as unknown as { rows: Array<{ tablename: string }> }
+  const tables = tableRows.rows.map((r) => r.tablename)
+  if (tables.length === 0) return
+
+  await db.execute(
+    sql.raw(
+      `TRUNCATE TABLE ${tables
+        .map((t) => `"${t}"`)
+        .join(", ")} RESTART IDENTITY CASCADE`
+    )
+  )
+}
+
+/**
  * Boot ONE in-memory PGlite for a whole test file and point the `@/lib/db` seam
  * at it, so the app modules under test share this handle instead of each test
  * re-booting a fresh WASM Postgres.
@@ -44,29 +71,10 @@ export async function setupSharedPgliteDb(): Promise<SharedPgliteDb> {
   const globalForDb = globalThis as GlobalWithDb
   globalForDb.__screenplayDbHandle = { db: handle.db, ready: Promise.resolve() }
 
-  // Collect the migration set's tables once. `__drizzle_migrations` is left
-  // alone so the schema stays migrated across resets; everything else is data
-  // to clear between tests.
-  // `DB` types `execute` off the abstract query-result HKT, so the row shape
-  // isn't inferable here — assert the one column we select.
-  const tableRows = (await handle.db.execute(
-    sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'`
-  )) as unknown as { rows: Array<{ tablename: string }> }
-  const tables = tableRows.rows.map((r) => r.tablename)
-
-  // One statement, RESTART IDENTITY CASCADE so FK'd children go too and any
-  // sequences reset — a full clean slate matching a fresh boot.
-  const truncate = sql.raw(
-    `TRUNCATE TABLE ${tables
-      .map((t) => `"${t}"`)
-      .join(", ")} RESTART IDENTITY CASCADE`
-  )
-
   return {
     db: handle.db,
     async reset() {
-      if (tables.length === 0) return
-      await handle.db.execute(truncate)
+      await truncateAllTables(handle.db)
     },
     async close() {
       delete globalForDb.__screenplayDbHandle

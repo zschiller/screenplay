@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { createPgliteDb } from "./pglite"
+import { createPgliteDb, type PgliteHandle } from "./pglite"
 import {
   account,
   comment,
@@ -19,17 +19,25 @@ import {
 // thread/comment/thread_read — must not exist in the local database, while the
 // surviving tables still do.
 describe("local PGlite schema", () => {
+  // Both assertions only read the migrated schema (no writes), so boot one
+  // in-memory PGlite for the file instead of paying a fresh ~2s WASM boot per
+  // test. `beforeAll` gets headroom so the one-time boot stays reliable under
+  // full-suite CPU contention.
+  let handle: PgliteHandle
+  let db: PgliteHandle["db"]
+  beforeAll(async () => {
+    handle = createPgliteDb("memory://")
+    await handle.ready
+    db = handle.db
+  }, 30000)
+  afterAll(() => handle.close())
+
   it("creates the surviving tables", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
     // A query against a migrated core table resolves (empty result, no throw).
     await expect(db.select().from(user)).resolves.toEqual([])
   })
 
   it("excludes every multi-user table", async () => {
-    const { db, ready } = createPgliteDb("memory://")
-    await ready
-
     const excluded = [
       ["session", session],
       ["account", account],

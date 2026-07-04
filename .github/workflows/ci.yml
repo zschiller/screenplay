@@ -35,8 +35,47 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # `setup-node` caches the pnpm store but NOT puppeteer's browser download
+      # (~/.cache/puppeteer). Without this, `puppeteer`'s postinstall re-fetches
+      # ~600 MB of Chromium on every run. Keyed on the lockfile so a puppeteer
+      # version bump busts it.
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            puppeteer-${{ runner.os }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Turbo's local cache lets unchanged packages skip typecheck/test entirely.
+      # A fresh checkout starts empty, so persist `.turbo` across runs: key per
+      # commit, restore the newest prior cache via the prefix fallback (each run
+      # then saves a fresh superset).
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      # `incremental: true` makes each `tsc --noEmit` write a
+      # `tsconfig.tsbuildinfo` next to its config. Restoring these lets a package
+      # that Turbo can't skip (something in it changed) re-check only the changed
+      # files — apps/app drops from ~14s to ~4s — instead of a full cold check.
+      # Gitignored, so they never enter Turbo's input hash.
+      - name: Cache tsc buildinfo
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/*/tsconfig.tsbuildinfo
+            packages/*/tsconfig.tsbuildinfo
+          key: tsbuildinfo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            tsbuildinfo-${{ runner.os }}-
 
       - name: Typecheck
         run: pnpm typecheck
