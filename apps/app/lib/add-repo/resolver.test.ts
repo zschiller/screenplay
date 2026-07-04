@@ -5,8 +5,11 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { NewRepoSource } from "@/lib/github-local/types"
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import {
+  mergeDetectedSettings,
   resolvePresetUpsert,
   resolveRepoData,
+  type DetectableFields,
+  type DetectedSettings,
   type PresetUpsertMeta,
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
@@ -329,5 +332,66 @@ describe("resolvePresetUpsert — confirm's save-as-preset decision", () => {
         true
       )
     ).toBe(null)
+  })
+})
+
+describe("mergeDetectedSettings — seed/merge decision", () => {
+  const DEFAULTS: DetectableFields = {
+    setupScript: "",
+    devScript: "",
+    devServerPort: "3000",
+  }
+  const DETECTED: DetectedSettings = {
+    setupScript: "pnpm install",
+    devScript: "pnpm dev",
+    devServerPort: 5173,
+  }
+
+  it("fills every untouched field from detection", () => {
+    expect(mergeDetectedSettings(DEFAULTS, DETECTED, {})).toEqual({
+      setupScript: "pnpm install",
+      devScript: "pnpm dev",
+      devServerPort: "5173", // number stringified for the text field
+    })
+  })
+
+  it("never clobbers a dirtied field, keeping the user's value", () => {
+    const current: DetectableFields = {
+      setupScript: "make install", // user typed this
+      devScript: "",
+      devServerPort: "3000",
+    }
+    expect(
+      mergeDetectedSettings(current, DETECTED, { setupScript: true })
+    ).toEqual({
+      setupScript: "make install", // preserved
+      devScript: "pnpm dev", // still filled
+      devServerPort: "5173",
+    })
+  })
+
+  it("preserves a dirtied field even when it matches a plain default", () => {
+    // A user who deliberately blanked or re-typed the default is still "dirty":
+    // the flag, not the value, decides — so detection must not refill it.
+    const current: DetectableFields = { ...DEFAULTS, devServerPort: "3000" }
+    const merged = mergeDetectedSettings(current, DETECTED, {
+      devServerPort: true,
+    })
+    expect(merged.devServerPort).toBe("3000")
+  })
+
+  it("leaves all fields untouched when every field is dirty", () => {
+    const current: DetectableFields = {
+      setupScript: "a",
+      devScript: "b",
+      devServerPort: "9000",
+    }
+    expect(
+      mergeDetectedSettings(current, DETECTED, {
+        setupScript: true,
+        devScript: true,
+        devServerPort: true,
+      })
+    ).toEqual(current)
   })
 })

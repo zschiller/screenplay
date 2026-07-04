@@ -109,6 +109,7 @@ import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
+import { detectRepoSettings } from "@/lib/add-repo/actions"
 import {
   resolvePresetUpsert,
   type ResolvedRepoSettings,
@@ -1521,6 +1522,19 @@ export function RoomSidebar({
                     </DialogHeader>
                     {pickerView === "settings" && pendingPick ? (
                       <RepoAddSettings
+                        // Only a GitHub-repo pick has a filesystem to detect
+                        // against (its virtual FS via the trees API, #678); a
+                        // source pick — not yet routed here — has none.
+                        detect={
+                          pendingPick.kind === "repo"
+                            ? () =>
+                                detectRepoSettings({
+                                  owner: pendingPick.repo.owner,
+                                  repo: pendingPick.repo.name,
+                                  ref: pendingPick.repo.defaultBranch,
+                                })
+                            : undefined
+                        }
                         onConfirm={(settings, { savePreset }) => {
                           onCreateRepo(pendingPick, settings)
                           if (savePreset) {
