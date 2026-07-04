@@ -1,13 +1,6 @@
 "use server"
 
-import {
-  adjectives,
-  animals,
-  colors,
-  uniqueNamesGenerator,
-} from "unique-names-generator"
 import { requireUserId } from "@/lib/auth-helpers"
-import { createBranch } from "./github-actions"
 import { getConfigs, saveConfigs } from "./repo-configs-store"
 import type { RepoConfig } from "./repo-configs.types"
 
@@ -35,34 +28,12 @@ export async function upsertRepoConfig(
   }
 
   const idx = list.findIndex((c) => c.id === config.id)
-  const isNew = idx === -1
-  const next: RepoConfig[] = isNew
-    ? [...list, config]
-    : list.map((c) => (c.id === config.id ? config : c))
+  const next: RepoConfig[] =
+    idx === -1
+      ? [...list, config]
+      : list.map((c) => (c.id === config.id ? config : c))
 
   await saveConfigs(userId, next)
-
-  // Auto-seed a starter branch only when the preset has a GitHub identity. A
-  // remote-less local folder (ADR 0013) has no `owner/repo` to push to — its
-  // worktrees branch locally — so skip the API call entirely.
-  if (isNew && config.repoOwner && config.repoName) {
-    const branchName = uniqueNamesGenerator({
-      dictionaries: [adjectives, colors, animals],
-      separator: "-",
-      length: 3,
-    })
-    const result = await createBranch(
-      config.repoOwner,
-      config.repoName,
-      branchName,
-      config.defaultBranch
-    )
-    if (!result.success) {
-      console.warn(
-        `Failed to auto-generate branch ${branchName} for ${config.repoFullName}: ${result.error}`
-      )
-    }
-  }
 
   return next
 }
