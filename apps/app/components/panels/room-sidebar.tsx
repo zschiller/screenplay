@@ -106,6 +106,8 @@ import {
 import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
+import { RepoAddSettings } from "@/components/repo-add-settings"
+import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
@@ -140,6 +142,16 @@ import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
+
+/** A human-readable label for a picker pick, for the settings-stage header. */
+function pickLabel(pick: RepoPickerSelection): string {
+  if (pick.kind === "repo") return pick.repo.fullName
+  if (pick.kind === "config")
+    return pick.config.name
+      ? `${pick.config.repoFullName} · ${pick.config.name}`
+      : pick.config.repoFullName
+  return pick.source.repoFullName || pick.source.localPath || "this project"
+}
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -573,7 +585,10 @@ interface RoomSidebarProps {
   onSelectGroup: (groupId: string, shiftKey: boolean) => void
   onZoomToGroup: (groupId: string) => void
   onSelectBranch: (id: string, options?: { expandPanel?: boolean }) => void
-  onCreateRepo: (pick: RepoPickerSelection) => void
+  onCreateRepo: (
+    pick: RepoPickerSelection,
+    settings?: ResolvedRepoSettings
+  ) => void
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
@@ -694,10 +709,20 @@ export function RoomSidebar({
   chatPanelBranchId,
   branchPrs,
 }: RoomSidebarProps) {
-  // The add-project popover shows either the repo/URL picker or — when the
-  // native folder dialog is unreachable — the folder-path fallback form (#604).
-  const [pickerView, setPickerView] = useState<"repos" | "folder" | null>(null)
+  // The add-project popover moves through a small view-state machine: the
+  // repo/URL picker, the folder-path fallback form (#604), or — once an
+  // unconfigured GitHub repo is picked — the confirm-and-configure `settings`
+  // stage (#676), all in the same dialog shell.
+  const [pickerView, setPickerView] = useState<
+    "repos" | "folder" | "settings" | null
+  >(null)
   const showPicker = pickerView !== null
+  // The unconfigured GitHub pick awaiting confirmation in the `settings` stage.
+  // Held here so Confirm can create it with the resolved run settings and
+  // Cancel can drop it without provisioning anything.
+  const [pendingPick, setPendingPick] = useState<RepoPickerSelection | null>(
+    null
+  )
 
   // "Open a folder" fires the native OS directory dialog directly; only when no
   // native picker is reachable (sidecar driven from a browser) do we open the
@@ -1414,9 +1439,12 @@ export function RoomSidebar({
                   onOpenChange={(open) => {
                     // Desktop opens the picker through the menu (the GitHub item
                     // sets `pickerView`); web's trigger opens the GitHub modal
-                    // straight away. Either way, dismissing closes it.
-                    if (!open) setPickerView(null)
-                    else if (!isLocalBuild) setPickerView("repos")
+                    // straight away. Either way, dismissing closes it and drops
+                    // any pick left waiting in the settings stage (adds nothing).
+                    if (!open) {
+                      setPickerView(null)
+                      setPendingPick(null)
+                    } else if (!isLocalBuild) setPickerView("repos")
                   }}
                 >
                   {isLocalBuild ? (
@@ -1470,15 +1498,36 @@ export function RoomSidebar({
                       <TooltipContent side="right">Add project</TooltipContent>
                     </Tooltip>
                   )}
-                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0">
+                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
                     <DialogHeader className="px-4 pt-4 pb-2">
                       <DialogTitle>
-                        {pickerView === "folder"
-                          ? "Open project"
-                          : "Open GitHub project"}
+                        {pickerView === "settings"
+                          ? "Configure project"
+                          : pickerView === "folder"
+                            ? "Open project"
+                            : "Open GitHub project"}
                       </DialogTitle>
+                      {pickerView === "settings" && pendingPick && (
+                        <DialogDescription>
+                          Confirm the run settings for {pickLabel(pendingPick)}{" "}
+                          before it&apos;s added.
+                        </DialogDescription>
+                      )}
                     </DialogHeader>
-                    {pickerView === "folder" ? (
+                    {pickerView === "settings" && pendingPick ? (
+                      <RepoAddSettings
+                        onConfirm={(settings) => {
+                          onCreateRepo(pendingPick, settings)
+                          setPendingPick(null)
+                          setPickerView(null)
+                        }}
+                        onCancel={() => {
+                          // Cancel adds nothing — drop the pick, close.
+                          setPendingPick(null)
+                          setPickerView(null)
+                        }}
+                      />
+                    ) : pickerView === "folder" ? (
                       <LocalFolderForm
                         onBack={() => setPickerView(null)}
                         onResolved={(source) => {
@@ -1494,6 +1543,17 @@ export function RoomSidebar({
                         // device-flow connect (PRD #428).
                         localSources={isLocalBuild}
                         onSelect={(pick) => {
+                          // An unconfigured GitHub-repo pick is interposed with
+                          // the confirm-and-configure settings stage (#676)
+                          // instead of provisioning on select. A saved-preset
+                          // pick keeps its one-click add; a clone-URL / folder
+                          // source stays on today's immediate path (its funnel
+                          // lands in a later slice).
+                          if (pick.kind === "repo") {
+                            setPendingPick(pick)
+                            setPickerView("settings")
+                            return
+                          }
                           onCreateRepo(pick)
                           setPickerView(null)
                         }}
