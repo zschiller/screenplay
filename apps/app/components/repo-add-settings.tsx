@@ -20,6 +20,7 @@ import {
 } from "@/lib/add-repo/resolver"
 import type { DetectRepoSettingsResult } from "@/lib/add-repo/actions"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import { isLocalBuild } from "@/lib/local-mode"
 
 /** Beyond this the modal gives up on detection and falls back to defaults. */
 const DETECTION_TIMEOUT_MS = 8000
@@ -76,7 +77,13 @@ export function RepoAddSettings({
     devServerPort: "3000",
   })
   const [envVars, setEnvVars] = useState("")
-  const [copyPatterns, setCopyPatterns] = useState("")
+  // A desktop local-folder source shows "files to copy" (not env vars) and
+  // pre-fills the checkout's gitignored config globs (#682): `showEnvField` on
+  // the local build is exactly a folder pick, since a desktop GitHub-clone
+  // passes `showEnvField={false}`.
+  const [copyPatterns, setCopyPatterns] = useState(
+    isLocalBuild && showEnvField ? ".env*" : ""
+  )
   // Advanced-section fields, revealed by the expander (#681).
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(

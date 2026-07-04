@@ -109,7 +109,10 @@ import { BranchBadge } from "@/components/branch-badge"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
-import { detectRepoSettings } from "@/lib/add-repo/actions"
+import {
+  detectFolderSettings,
+  detectRepoSettings,
+} from "@/lib/add-repo/actions"
 import {
   resolvePresetUpsert,
   type ResolvedRepoSettings,
@@ -736,11 +739,15 @@ export function RoomSidebar({
   const openLocalFolder = useCallback(async () => {
     const result = await chooseLocalFolder()
     if (result.kind === "source") {
-      onCreateRepo({ kind: "source", source: result.source })
+      // The native folder dialog funnels through the same settings stage as
+      // every other unconfigured add (#682): store the pick and flip the dialog
+      // so behavior doesn't depend on how the folder was picked.
+      setPendingPick({ kind: "source", source: result.source })
+      setPickerView("settings")
     } else if (result.kind === "fallback") {
       setPickerView("folder")
     }
-  }, [onCreateRepo])
+  }, [])
   const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
@@ -1522,9 +1529,12 @@ export function RoomSidebar({
                     </DialogHeader>
                     {pickerView === "settings" && pendingPick ? (
                       <RepoAddSettings
-                        // Only a GitHub-repo pick has a filesystem to detect
-                        // against (its virtual FS via the trees API, #678); a
-                        // source pick — not yet routed here — has none.
+                        // Detection is backed by the filesystem the pick
+                        // implies: a GitHub-repo pick reads its virtual FS via
+                        // the trees API (#678); a local-folder source reads the
+                        // checkout on disk (#682). A non-GitHub clone-URL source
+                        // has no files pre-clone and no API, so it opens with
+                        // plain defaults (no `detect`).
                         detect={
                           pendingPick.kind === "repo"
                             ? () =>
@@ -1533,7 +1543,13 @@ export function RoomSidebar({
                                   repo: pendingPick.repo.name,
                                   ref: pendingPick.repo.defaultBranch,
                                 })
-                            : undefined
+                            : pendingPick.kind === "source" &&
+                                pendingPick.source.localPath
+                              ? () =>
+                                  detectFolderSettings({
+                                    localPath: pendingPick.source.localPath!,
+                                  })
+                              : undefined
                         }
                         // Env-field presence follows the source (#681): hosted
                         // has env vars, a desktop local-folder has files-to-copy,
@@ -1584,8 +1600,11 @@ export function RoomSidebar({
                       <LocalFolderForm
                         onBack={() => setPickerView(null)}
                         onResolved={(source) => {
-                          onCreateRepo({ kind: "source", source })
-                          setPickerView(null)
+                          // The folder-path fallback funnels through the settings
+                          // stage too (#682), so behavior doesn't depend on how
+                          // the folder was picked.
+                          setPendingPick({ kind: "source", source })
+                          setPickerView("settings")
                         }}
                       />
                     ) : (
@@ -1596,19 +1615,18 @@ export function RoomSidebar({
                         // device-flow connect (PRD #428).
                         localSources={isLocalBuild}
                         onSelect={(pick) => {
-                          // An unconfigured GitHub-repo pick is interposed with
-                          // the confirm-and-configure settings stage (#676)
-                          // instead of provisioning on select. A saved-preset
-                          // pick keeps its one-click add; a clone-URL / folder
-                          // source stays on today's immediate path (its funnel
-                          // lands in a later slice).
-                          if (pick.kind === "repo") {
-                            setPendingPick(pick)
-                            setPickerView("settings")
+                          // Every unconfigured pick — a GitHub repo or a pasted
+                          // clone-URL source — is interposed with the
+                          // confirm-and-configure settings stage (#676, #682)
+                          // instead of provisioning on select. Only a
+                          // saved-preset pick keeps today's one-click add.
+                          if (pick.kind === "config") {
+                            onCreateRepo(pick)
+                            setPickerView(null)
                             return
                           }
-                          onCreateRepo(pick)
-                          setPickerView(null)
+                          setPendingPick(pick)
+                          setPickerView("settings")
                         }}
                       />
                     )}

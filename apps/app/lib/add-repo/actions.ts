@@ -2,7 +2,9 @@
 
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { detectSettings } from "@/lib/add-repo/detect-settings"
+import { DiskDetectFileSystem } from "@/lib/add-repo/disk-fs"
 import { GitHubDetectFileSystem } from "@/lib/add-repo/github-fs"
+import { isLocalBuild } from "@/lib/local-mode"
 import type { DetectedSettings } from "@/lib/add-repo/resolver"
 
 /**
@@ -33,6 +35,33 @@ export async function detectRepoSettings(
     const token = await getGitHubToken()
     if (!token) return { ok: false }
     const fs = new GitHubDetectFileSystem({ ...input, token })
+    const settings = await detectSettings(fs)
+    return { ok: true, settings }
+  } catch {
+    return { ok: false }
+  }
+}
+
+/**
+ * The client entry to deterministic settings detection for a **local-folder**
+ * pick (PRD #673, desktop funnel slice #682). The add modal calls this as it
+ * opens for a folder source: it backs detection with the on-disk virtual FS
+ * rooted at the checkout and runs the `detectSettings` seam over it — no GitHub
+ * connection, no clone. Desktop-only (the on-disk read has no meaning on a
+ * hosted server); the hosted build funnels folders nowhere, so this no-ops to
+ * `{ ok: false }` — the modal's plain defaults — off-desktop.
+ */
+export interface DetectFolderSettingsInput {
+  /** Absolute path of the user's checkout — `NewRepoSource.localPath`. */
+  localPath: string
+}
+
+export async function detectFolderSettings(
+  input: DetectFolderSettingsInput
+): Promise<DetectRepoSettingsResult> {
+  if (!isLocalBuild) return { ok: false }
+  try {
+    const fs = new DiskDetectFileSystem(input.localPath)
     const settings = await detectSettings(fs)
     return { ok: true, settings }
   } catch {
