@@ -127,6 +127,13 @@ async function runNewOrFromBranchPipeline(
   const env = parseEnvVars(repo.envVars)
   const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
 
+  console.warn(
+    `[create] pipeline start flow=${flow} branch=${branch} ` +
+      `sandbox=${sandboxName} localBuild=${isLocalBuild} ` +
+      `localPath=${JSON.stringify(repo.localPath)} ` +
+      `setupScript=${JSON.stringify(repo.setupScript)}`
+  )
+
   // Step 1: Create branch (skip for from-branch flow, and without GitHub API
   // access — then the local backend creates it locally from `baseRevision`)
   if (flow === "new") {

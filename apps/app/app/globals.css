@@ -28,6 +28,24 @@ body {
   visibility: hidden;
 }
 
+/* Frame-label GPU promotion — fixes intermittent WebKit blur on zoom.
+   `translateZ(0)` lifts each label onto its own compositor layer so its
+   constant-size text stays crisp against the zoomed content (see
+   layer-title-bar.tsx). But WebKit only re-rasterizes that backing store when it
+   detects a scale change, and the label's counter-scale keeps its on-screen size
+   constant — so after a zoom WebKit can keep whatever texture it happened to
+   bake mid-gesture, leaving the label blurry (intermittently, per WebKit's
+   raster heuristics). On zoom-settle the canvas sets `data-zoom-settling` for a
+   couple of frames: dropping the promotion de-composites the label so it
+   re-paints inline at native resolution, then the default rule restores it and
+   WebKit captures a fresh, crisp backing store at the resting scale. */
+.canvas-frame-label {
+  --label-promote: translateZ(0);
+}
+[data-zoom-settling] .canvas-frame-label {
+  --label-promote: ;
+}
+
 /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
    cadence to signal a running agent. See components/grip-spinner.tsx. */
 @keyframes grip-dot-twinkle {
@@ -94,6 +112,27 @@ body {
 }
 .tiptap-document > :first-child + * {
   margin-top: 0;
+}
+
+/* Tailwind Typography wraps <code> in literal backtick quotes via ::before /
+   ::after (`.prose code::before { content: "`" }`). The doc editor styles code
+   as chips / <pre> blocks, so strip the backticks for both inline and block
+   code inside the editor. */
+.tiptap code::before,
+.tiptap code::after {
+  content: none;
+}
+
+/* Inline code chip — Notion style. Scoped to code NOT inside a <pre> so code
+   blocks keep their own block styling. Overrides Typography's bold, oversized
+   inline-code defaults with a subtle rounded background pill. */
+.tiptap :not(pre) > code {
+  background-color: var(--muted);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.3em;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--foreground);
 }
 
 /* Inline document-comment highlight — yellow underlay on text spans that

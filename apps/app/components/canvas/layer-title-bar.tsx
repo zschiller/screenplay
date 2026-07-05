@@ -105,13 +105,21 @@ export function LayerTitleBar({
     <div
       className="canvas-frame-label absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap"
       style={{
-        // `translateZ(0)` lifts the label onto its own GPU layer so WebKit
-        // rasterizes this constant-size text at native resolution. Without it
-        // the label inherits the zoomed content layer's downsampled raster and
-        // turns unreadably blurry when zoomed in (WebKit only — Chrome
-        // re-rasterizes sharp). The label is tiny, so its own layer is cheap and
-        // hits no texture-size limit, unlike the 10000px content layer.
-        transform: `scale(${1 / zoom}) translateZ(0)`,
+        // `--label-promote` resolves to `translateZ(0)`, which lifts the label
+        // onto its own GPU layer so WebKit rasterizes this constant-size text at
+        // native resolution. Without it the label inherits the zoomed content
+        // layer's downsampled raster and turns unreadably blurry when zoomed in
+        // (WebKit only — Chrome re-rasterizes sharp). The label is tiny, so its
+        // own layer is cheap and hits no texture-size limit, unlike the 10000px
+        // content layer.
+        //
+        // The promotion is driven by a CSS var (not hard-coded) so the canvas
+        // can momentarily drop it on zoom-settle (`[data-zoom-settling]` in
+        // globals.css): the label's counter-scale keeps its on-screen size
+        // constant, so WebKit sees no scale change and reuses whatever texture
+        // it baked mid-gesture — often blurry. De-composing and re-composing on
+        // settle forces a fresh raster at the resting scale. See globals.css.
+        transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
         transformOrigin: "bottom left",
         maxWidth: layerWidth * zoom,
         marginBottom: 4 / zoom,

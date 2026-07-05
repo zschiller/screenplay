@@ -209,6 +209,9 @@ const GH_TOKEN = "ghp_0123456789abcdefABCDEF0123456789abcd"
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Env stubs (e.g. SANDBOX_BACKEND=local) must not leak between tests —
+  // `stubEnv` isn't auto-restored, and a leaked backend flips code paths.
+  vi.unstubAllEnvs()
   fake.reset()
   fake.createCalls.length = 0
   backend.hostGitAuth = false
@@ -273,6 +276,40 @@ describe("installDependencies", () => {
 
     expect(result.success).toBe(false)
   })
+
+  it("runs the setup script through the login shell on the local backend", async () => {
+    // Desktop: the script must resolve tooling the way the user's terminal does
+    // (corepack/nvm/asdf shims + rc PATH edits), so it goes through `$SHELL
+    // -ilc "<script>"` rather than a bare spawn against the sidecar PATH.
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    vi.stubEnv("SHELL", "/bin/zsh")
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      })
+    )
+
+    const result = await installDependencies("sandbox-a", "pnpm install")
+
+    expect(result).toEqual({ success: true, value: undefined })
+    // The command still rides the `sh -c` log wrapper, but the wrapped command
+    // is now `/bin/zsh -ilc 'pnpm install'`.
+    expect(
+      seen.some((c) => c.includes("-ilc") && c.includes("pnpm install"))
+    ).toBe(true)
+  })
+
+  it("fails the action when the setup script exits non-zero", async () => {
+    // A failing install must error the branch, not silently leave a
+    // dependency-less worktree (previously masked by the log wrapper's exit).
+    fake.setInstance(fakeSandbox(() => ({ exitCode: 1 })))
+
+    const result = await installDependencies("sandbox-a", "pnpm install")
+
+    expect(result.success).toBe(false)
+  })
 })
 
 /** True for the global Claude Code install command. */
@@ -299,6 +336,26 @@ describe("installHarnesses", () => {
 
     expect(result).toEqual({ success: true, value: undefined })
     expect(seen.some((c) => c.includes("@anthropic-ai/claude-code"))).toBe(true)
+  })
+
+  it("installs nothing on the local backend even when a harness is selected", async () => {
+    // Desktop harnesses ride the host's own CLI (host-binary detection), so the
+    // hosted `npm install -g <harness>` must not run there — it only fails
+    // EACCES against the host global prefix and spams the log.
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    getModelProviders.mockReturnValue([configuredAnthropic()])
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push(`${cmd} ${args.join(" ")}`)
+        return { exitCode: 0 }
+      })
+    )
+
+    const result = await installHarnesses("sandbox-a", ["claude-code"])
+
+    expect(result).toEqual({ success: true, value: undefined })
+    expect(seen).toEqual([])
   })
 
   it("is a no-op success when no harness keys are given", async () => {

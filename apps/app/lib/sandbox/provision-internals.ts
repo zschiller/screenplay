@@ -144,11 +144,19 @@ export async function runLogged(
   const header = shellQuote(`\n$ ${label}\n`)
   const quotedCmd = [cmd, ...args].map(shellQuote).join(" ")
   const logPath = sandboxLogPath(sandbox.name)
+  // Capture the command's exit status into `__ec` *before* the trailing
+  // `printf`, then `exit $__ec` so the shell wrapper propagates the real exit
+  // code. Without this the list's status was the final printf's (~always 0), so
+  // a failed setup script (`pnpm install` erroring) looked like success and the
+  // pipeline sailed on to a broken dev server. The `[exit N]` line still records
+  // the real code in the log for the Logs panel.
   const sh =
     `mkdir -p ${sandboxStateDir(sandbox.name)}; ` +
     `printf %s ${header} >> ${logPath} 2>/dev/null; ` +
     `${LOG_ENV} ${quotedCmd} >> ${logPath} 2>&1; ` +
-    `printf '[exit %s]\\n' $? >> ${logPath} 2>/dev/null`
+    `__ec=$?; ` +
+    `printf '[exit %s]\\n' "$__ec" >> ${logPath} 2>/dev/null; ` +
+    `exit "$__ec"`
   return sandbox.runCommand({
     cmd: "sh",
     args: ["-c", sh],

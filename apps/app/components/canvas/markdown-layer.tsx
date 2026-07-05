@@ -1,10 +1,44 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { createPortal } from "react-dom"
-import { Crosshair, MessageSquare } from "lucide-react"
+import {
+  Bold,
+  Check,
+  ChevronDown,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Italic,
+  List,
+  ListOrdered,
+  SquareCode,
+  Strikethrough,
+  TextQuote,
+  Type,
+  type LucideIcon,
+} from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import type { Editor } from "@tiptap/core"
-import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react"
+import {
+  EditorContent,
+  ReactNodeViewRenderer,
+  useEditor,
+  useEditorState,
+} from "@tiptap/react"
 import { Extension } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 import Document from "@tiptap/extension-document"
@@ -19,15 +53,9 @@ import { useMarkdownLayers } from "@/lib/yjs/react"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
-import { isLocalBuild } from "@/lib/local-mode"
 import { LayerTitleText } from "@/components/canvas/layer-title-bar"
 import { LayerShell } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
-import {
-  encodeAnchor,
-  getLineNumbers,
-  getQuotedText,
-} from "@/lib/document-comments"
 import type { MarkdownLayerData } from "@/lib/types"
 
 export interface InlineCommentDraft {
@@ -86,6 +114,165 @@ const TitleEnterBehavior = Extension.create({
     }
   },
 })
+
+/** One button in the selection toolbar. Fires on `mousedown` (not click) with
+ *  `preventDefault` so toggling a format never blurs the editor or collapses
+ *  the selection before the command runs — the same discipline the old
+ *  send-to-agent bubble used. */
+function FormatButton({
+  label,
+  active,
+  onRun,
+  children,
+}: {
+  label: string
+  active: boolean
+  onRun: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onRun()
+      }}
+      className={`flex size-7 items-center justify-center rounded transition-colors hover:bg-accent hover:text-foreground ${
+        active ? "bg-accent text-foreground" : "text-muted-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** The block types the selection toolbar's "Turn into" dropdown can switch
+ *  between. `key` matches the `blockType` string derived from the editor in
+ *  {@link MarkdownLayer}; `run` converts the block the caret sits in.
+ *
+ *  Every command leads with `clearNodes()` — TipTap's "normalize to a simple
+ *  paragraph" primitive — before applying the target. Without it these compose
+ *  instead of replace: blockquote and lists are *wrapping* nodes, so e.g.
+ *  `toggleBlockquote()` on an existing code block wraps it (a quoted code block)
+ *  rather than turning it into a quote. `clearNodes()` first strips any current
+ *  wrapper/type, so each pick is an exclusive "turn into". */
+const NODE_TYPES: {
+  key: string
+  label: string
+  Icon: LucideIcon
+  run: (editor: Editor) => void
+}[] = [
+  {
+    key: "paragraph",
+    label: "Text",
+    Icon: Type,
+    run: (editor) => editor.chain().focus().clearNodes().run(),
+  },
+  {
+    key: "h1",
+    label: "Heading 1",
+    Icon: Heading1,
+    run: (editor) =>
+      editor.chain().focus().clearNodes().setHeading({ level: 1 }).run(),
+  },
+  {
+    key: "h2",
+    label: "Heading 2",
+    Icon: Heading2,
+    run: (editor) =>
+      editor.chain().focus().clearNodes().setHeading({ level: 2 }).run(),
+  },
+  {
+    key: "h3",
+    label: "Heading 3",
+    Icon: Heading3,
+    run: (editor) =>
+      editor.chain().focus().clearNodes().setHeading({ level: 3 }).run(),
+  },
+  {
+    key: "bulletList",
+    label: "Bullet list",
+    Icon: List,
+    run: (editor) =>
+      editor.chain().focus().clearNodes().toggleBulletList().run(),
+  },
+  {
+    key: "orderedList",
+    label: "Numbered list",
+    Icon: ListOrdered,
+    run: (editor) =>
+      editor.chain().focus().clearNodes().toggleOrderedList().run(),
+  },
+  {
+    key: "blockquote",
+    label: "Quote",
+    Icon: TextQuote,
+    run: (editor) => editor.chain().focus().clearNodes().setBlockquote().run(),
+  },
+  {
+    key: "codeBlock",
+    label: "Code block",
+    Icon: SquareCode,
+    run: (editor) => editor.chain().focus().clearNodes().setCodeBlock().run(),
+  },
+]
+
+/** "Turn into" block-type selector for the selection toolbar — the shared
+ *  shadcn {@link DropdownMenu}, for visual/keyboard consistency with the rest
+ *  of the app. `modal={false}` keeps Radix from locking body pointer-events (so
+ *  the canvas/editor stay live underneath) and avoids focus-trapping the menu.
+ *  Radix portals the menu content to `<body>`, outside the doc's `bubbleRef`;
+ *  the doc's outside-pointerdown guard is taught to ignore clicks inside the
+ *  Radix popper wrapper so picking a type doesn't blur the editor mid-select.
+ *  Each `onSelect` re-focuses the editor, which restores the (still-live)
+ *  ProseMirror selection the command then transforms. */
+function NodeTypeDropdown({
+  editor,
+  blockType,
+}: {
+  editor: Editor
+  blockType: string
+}) {
+  const current = NODE_TYPES.find((t) => t.key === blockType) ?? NODE_TYPES[0]
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          tabIndex={-1}
+          title="Turn into"
+          className="flex h-7 items-center gap-1 rounded px-1.5 text-xs text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+        >
+          <current.Icon className="size-3.5" />
+          <span className="whitespace-nowrap">{current.label}</span>
+          <ChevronDown className="size-3" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {NODE_TYPES.map((t) => (
+          <DropdownMenuItem
+            key={t.key}
+            onSelect={() => t.run(editor)}
+            className={
+              t.key === blockType ? "text-foreground" : "text-muted-foreground"
+            }
+          >
+            <t.Icon />
+            <span className="whitespace-nowrap">{t.label}</span>
+            {t.key === blockType && (
+              <Check className="ml-auto size-3.5 text-foreground" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 interface MarkdownLayerProps {
   layer: MarkdownLayerData
@@ -218,7 +405,6 @@ export function MarkdownLayer({
   onStartEdit,
   onStopEdit,
   onEditorReady,
-  onStartInlineComment,
   onSelectInlineThread,
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
@@ -257,11 +443,8 @@ export function MarkdownLayer({
     null
   )
 
-  // Latest non-empty selection inside the editor, used to drive the inline
-  // "Comment" bubble button. The pos pair survives editor blur (which would
-  // otherwise clear the selection on click) so the click handler can encode
-  // anchors against the still-fresh range.
-  const pendingSelectionRef = useRef<{ from: number; to: number } | null>(null)
+  // Anchor for the floating selection toolbar — the start of the current
+  // non-empty text selection, in pre-zoom layer coords.
   const [bubbleAnchor, setBubbleAnchor] = useState<{
     left: number
     top: number
@@ -376,7 +559,7 @@ export function MarkdownLayer({
       editorProps: {
         attributes: {
           class:
-            "tiptap tiptap-document prose prose-sm dark:prose-invert max-w-none focus:outline-none",
+            "tiptap tiptap-document prose prose-sm prose-neutral dark:prose-invert max-w-none focus:outline-none",
         },
       },
     },
@@ -446,22 +629,29 @@ export function MarkdownLayer({
     }
   }, [editor, layer.id, onEditorReady])
 
-  // Drive the inline "Comment" bubble: anchor a small floating button to the
-  // start of any non-empty text selection. Local coords (relative to the
-  // doc tile) so the wrapping `transform: scale(1/zoom)` keeps the button at
-  // a constant screen size regardless of canvas zoom.
+  // Drive the selection toolbar: anchor a small floating bar to the start of
+  // any non-empty text selection. Local coords (relative to the doc tile) so
+  // the wrapping `transform: scale(1/zoom)` keeps the bar at a constant screen
+  // size regardless of canvas zoom.
   //
-  // Visibility is tied to selection emptiness only — *not* to focus. If we
-  // hid the bubble on blur, mousing onto the button (which momentarily
-  // shifts focus despite our preventDefault) would unmount it before the
-  // click handler fires and the gesture would silently no-op.
+  // Visibility is tied to selection emptiness only — *not* to focus. If we hid
+  // the bar on blur, mousing onto a button (which momentarily shifts focus
+  // despite our preventDefault) would unmount it before the command fires and
+  // the gesture would silently no-op.
   useEffect(() => {
     if (!editor) return
     const update = () => {
       const { from, to, empty } = editor.state.selection
       if (empty) {
         setBubbleAnchor(null)
-        pendingSelectionRef.current = null
+        return
+      }
+      // Never show the toolbar over the title: the doc's first block is a
+      // forced heading (the page title), so formatting / "turn into" there is
+      // meaningless — the schema (`heading block*`) pins it as a heading. Match
+      // TitleEnterBehavior's check: index 0 at depth 0 is the title.
+      if (editor.state.doc.resolve(from).index(0) === 0) {
+        setBubbleAnchor(null)
         return
       }
       const rect = rootRef.current?.getBoundingClientRect()
@@ -471,10 +661,9 @@ export function MarkdownLayer({
       const localLeft = (fromCoords.left + toCoords.left) / 2 - rect.left
       const localTop = Math.min(fromCoords.top, toCoords.top) - rect.top
       // Convert from on-screen pixels back into pre-zoom layer coords so the
-      // absolute-positioned button lines up regardless of canvas zoom (the
+      // absolute-positioned bar lines up regardless of canvas zoom (the
       // bounding rect we just measured is post-zoom).
       setBubbleAnchor({ left: localLeft / zoom, top: localTop / zoom })
-      pendingSelectionRef.current = { from, to }
     }
     editor.on("selectionUpdate", update)
     update()
@@ -482,6 +671,39 @@ export function MarkdownLayer({
       editor.off("selectionUpdate", update)
     }
   }, [editor, zoom])
+
+  // Active-format flags for the toolbar. `useEditorState` re-renders only when
+  // the selected snapshot changes, so toggling bold/italic/etc. repaints the
+  // pressed states without wiring a manual transaction subscription.
+  const activeFormats = useEditorState({
+    editor,
+    selector: ({ editor }) =>
+      editor
+        ? {
+            bold: editor.isActive("bold"),
+            italic: editor.isActive("italic"),
+            strike: editor.isActive("strike"),
+            code: editor.isActive("code"),
+            bulletList: editor.isActive("bulletList"),
+            orderedList: editor.isActive("orderedList"),
+            blockType: editor.isActive("heading", { level: 1 })
+              ? "h1"
+              : editor.isActive("heading", { level: 2 })
+                ? "h2"
+                : editor.isActive("heading", { level: 3 })
+                  ? "h3"
+                  : editor.isActive("codeBlock")
+                    ? "codeBlock"
+                    : editor.isActive("blockquote")
+                      ? "blockquote"
+                      : editor.isActive("bulletList")
+                        ? "bulletList"
+                        : editor.isActive("orderedList")
+                          ? "orderedList"
+                          : "paragraph",
+          }
+        : null,
+  })
 
   // Keep the portaled bubble anchored to the start of the selection.
   useCanvasAnchoredPortal({
@@ -494,65 +716,23 @@ export function MarkdownLayer({
     }),
   })
 
-  const handleStartInlineComment = useCallback(() => {
-    if (!editor) return
-    // Prefer the captured ref (set by selectionUpdate while the user was
-    // actively selecting), fall back to the editor's live selection — that
-    // handles edge cases where the ref hasn't been populated yet but the
-    // selection is still alive on screen.
-    const live = editor.state.selection
-    const sel =
-      pendingSelectionRef.current ??
-      (live.from < live.to ? { from: live.from, to: live.to } : null)
-    if (!sel) return
-    const anchorStart = encodeAnchor(editor, sel.from)
-    const anchorEnd = encodeAnchor(editor, sel.to)
-    if (!anchorStart || !anchorEnd) return
-    const quotedText = getQuotedText(editor.state.doc, sel.from, sel.to)
-    const { lineFrom, lineTo } = getLineNumbers(
-      editor.state.doc,
-      sel.from,
-      sel.to
-    )
-    const rect = rootRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const fromCoords = editor.view.coordsAtPos(sel.from)
-    // Anchor the composer at the right edge of the doc tile, vertically
-    // aligned with the top of the selection — same convention Google Docs
-    // uses for thread pins so they don't cover the prose.
-    const localTop = (fromCoords.top - rect.top) / zoom
-    onStartInlineComment?.({
-      documentId: layer.id,
-      anchorStart,
-      anchorEnd,
-      quotedText,
-      lineFrom,
-      lineTo,
-      canvasX: layer.width,
-      canvasY: localTop,
-    })
-    setBubbleAnchor(null)
-    pendingSelectionRef.current = null
-  }, [
-    editor,
-    layer.id,
-    layer.width,
-    onStartInlineComment,
-    zoom,
-    setBubbleAnchor,
-  ])
-
   useEffect(() => {
     if (!editing) return
     const onDown = (e: PointerEvent) => {
       if (!rootRef.current) return
       const target = e.target as Node
       if (rootRef.current.contains(target)) return
-      // The floating "Comment" bubble is portaled out of the doc's DOM tree
+      // The floating selection toolbar is portaled out of the doc's DOM tree
       // (so it can paint above the SelectionOverlay), but interactions with
       // it should not count as clicking outside the doc — that would blur
-      // the editor and clear the selection before the click can fire.
+      // the editor and clear the selection before the command can fire.
       if (bubbleRef.current?.contains(target)) return
+      // The node-type dropdown is the shared shadcn menu, which Radix portals
+      // straight to <body> — outside both refs above. Treat a click inside its
+      // popper wrapper the same as a click on the toolbar so choosing a block
+      // type doesn't blur the editor and tear the toolbar down mid-select.
+      const el = target instanceof Element ? target : target.parentElement
+      if (el?.closest("[data-radix-popper-content-wrapper]")) return
       onStopEdit()
     }
     window.addEventListener("pointerdown", onDown, true)
@@ -710,52 +890,79 @@ export function MarkdownLayer({
 
           {bubbleAnchor &&
             editing &&
+            editor &&
             bubblePortalTarget &&
             createPortal(
-              // Floating "Comment" button anchored above the start of the user's
+              // Floating markdown toolbar anchored above the start of the user's
               // selection — Google-Docs style. Portaled out of the world transform
               // so it sits above the SelectionOverlay (see canvas.tsx for the
               // portal target). Positioned every frame by the rAF loop above
               // (translate is set imperatively from the tile's client rect), so
               // it tracks pan/zoom/drag without needing inverse-scale tricks.
-              // mousedown is preventDefaulted so clicking the button doesn't
-              // blur the editor (mousedown is what shifts focus in browsers;
-              // pointerdown alone isn't enough). The button also fires on
-              // mousedown rather than click so the gesture completes before any
-              // later focus/selection event has a chance to tear down the bubble.
+              // Each button fires on mousedown (not click) with preventDefault so
+              // running a format command never blurs the editor or collapses the
+              // selection before the command lands — see FormatButton.
               <div
                 ref={bubbleRef}
                 className="pointer-events-none absolute top-0 left-0"
               >
                 <div
-                  className="pointer-events-auto"
+                  className="pointer-events-auto flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
                   style={{
                     transform: "translate(-50%, -100%) translateY(-6px)",
                     transformOrigin: "bottom center",
                   }}
                 >
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleStartInlineComment()
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg ring-1 ring-black/10 hover:bg-neutral-800"
+                  <NodeTypeDropdown
+                    editor={editor}
+                    blockType={activeFormats?.blockType ?? "paragraph"}
+                  />
+                  <div className="mx-0.5 h-5 w-px bg-border" />
+                  <FormatButton
+                    label="Bold"
+                    active={!!activeFormats?.bold}
+                    onRun={() => editor.chain().focus().toggleBold().run()}
                   >
-                    {isLocalBuild ? (
-                      <>
-                        <Crosshair className="size-3.5" />
-                        Send to agent
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="size-3.5" />
-                        Comment
-                      </>
-                    )}
-                  </button>
+                    <Bold className="size-3.5" />
+                  </FormatButton>
+                  <FormatButton
+                    label="Italic"
+                    active={!!activeFormats?.italic}
+                    onRun={() => editor.chain().focus().toggleItalic().run()}
+                  >
+                    <Italic className="size-3.5" />
+                  </FormatButton>
+                  <FormatButton
+                    label="Strikethrough"
+                    active={!!activeFormats?.strike}
+                    onRun={() => editor.chain().focus().toggleStrike().run()}
+                  >
+                    <Strikethrough className="size-3.5" />
+                  </FormatButton>
+                  <FormatButton
+                    label="Code"
+                    active={!!activeFormats?.code}
+                    onRun={() => editor.chain().focus().toggleCode().run()}
+                  >
+                    <Code className="size-3.5" />
+                  </FormatButton>
+                  <div className="mx-0.5 h-5 w-px bg-border" />
+                  <FormatButton
+                    label="Bullet list"
+                    active={!!activeFormats?.bulletList}
+                    onRun={() => editor.chain().focus().toggleBulletList().run()}
+                  >
+                    <List className="size-3.5" />
+                  </FormatButton>
+                  <FormatButton
+                    label="Numbered list"
+                    active={!!activeFormats?.orderedList}
+                    onRun={() =>
+                      editor.chain().focus().toggleOrderedList().run()
+                    }
+                  >
+                    <ListOrdered className="size-3.5" />
+                  </FormatButton>
                 </div>
               </div>,
               bubblePortalTarget
