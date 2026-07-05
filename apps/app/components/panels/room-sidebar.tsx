@@ -44,6 +44,7 @@ import {
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
+  AlertTriangle,
   Plus,
   FolderOpen,
   Globe,
@@ -99,6 +100,11 @@ import {
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { Kbd } from "@workspace/ui/components/kbd"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@workspace/ui/components/hover-card"
 import {
   Tooltip,
   TooltipContent,
@@ -1840,6 +1846,9 @@ export function RoomSidebar({
                                         const isLoading =
                                           branch.status === "creating" ||
                                           branch.status === "starting"
+                                        const isError =
+                                          branch.status === "error" ||
+                                          Boolean(branch.error)
                                         const isActive =
                                           activeBranchIds?.has(branch.id) ??
                                           false
@@ -1869,9 +1878,8 @@ export function RoomSidebar({
                                                     onCloseAutoFocus:
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
-                                                    <>
-                                                      <div
-                                                        className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? "opacity-50" : ""}`}
+                                                    <div
+                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? "opacity-50" : ""}`}
                                                         onClick={(e) => {
                                                           e.stopPropagation()
                                                           onSelectBranch(
@@ -1901,7 +1909,30 @@ export function RoomSidebar({
                                                                 : undefined
                                                             }
                                                           >
-                                                            {isLoading ? (
+                                                            {isError ? (
+                                                              <HoverCard
+                                                                openDelay={100}
+                                                              >
+                                                                <HoverCardTrigger
+                                                                  asChild
+                                                                >
+                                                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600! dark:text-red-400!" />
+                                                                </HoverCardTrigger>
+                                                                <HoverCardContent
+                                                                  align="start"
+                                                                  side="right"
+                                                                  className="max-h-64 w-80 overflow-auto"
+                                                                >
+                                                                  <p className="mb-1 text-xs font-medium text-foreground">
+                                                                    Setup failed
+                                                                  </p>
+                                                                  <pre className="text-[11px] break-words whitespace-pre-wrap text-red-600 dark:text-red-400">
+                                                                    {branch.error ||
+                                                                      "Unknown error"}
+                                                                  </pre>
+                                                                </HoverCardContent>
+                                                              </HoverCard>
+                                                            ) : isLoading ? (
                                                               <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
                                                             ) : isActive ? (
                                                               <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
@@ -2079,13 +2110,6 @@ export function RoomSidebar({
                                                           })()}
                                                         </div>
                                                       </div>
-
-                                                      {branch.error && (
-                                                        <p className="px-2 pb-1 text-[10px] text-red-500">
-                                                          {branch.error}
-                                                        </p>
-                                                      )}
-                                                    </>
                                                   )}
                                                 </WithEditableRef>
                                               </SidebarMenuItem>

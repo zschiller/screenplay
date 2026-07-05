@@ -585,9 +585,34 @@ function execHost(
     return Promise.resolve(result(0))
   }
 
+  const cmdLabel = [opts.cmd, ...(opts.args ?? [])].join(" ")
+
   return new Promise((resolve) => {
-    child.on("error", () => resolve(result(1)))
-    child.on("close", (code) => resolve(result(code ?? 0)))
+    // A spawn-level failure (most commonly ENOENT — the command isn't on the
+    // PATH this process inherited) never emits stderr, so without capturing the
+    // error here it vanishes: the caller sees exit 1 with an empty stderr and
+    // no way to tell "command not found" from "command ran and failed". Fold the
+    // error text into stderr so exit-code checkers surface it, and log it.
+    child.on("error", (err: NodeJS.ErrnoException) => {
+      const detail = err.code === "ENOENT" ? `command not found: ${opts.cmd}` : err.message
+      stderr += `${detail}\n`
+      console.warn(
+        `[local-exec] spawn failed: ${cmdLabel}\n` +
+          `  cwd=${cwd}\n` +
+          `  error=${err.code ?? ""} ${err.message}\n` +
+          `  PATH=${(opts.env?.PATH ?? process.env.PATH) ?? ""}`
+      )
+      resolve(result(1))
+    })
+    child.on("close", (code) => {
+      if (code && code !== 0) {
+        console.warn(
+          `[local-exec] exit ${code}: ${cmdLabel} (cwd=${cwd})\n` +
+            `  stderr(tail)=${stderr.slice(-500)}`
+        )
+      }
+      resolve(result(code ?? 0))
+    })
   })
 }
 

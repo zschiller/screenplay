@@ -11,6 +11,7 @@ import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { getGitHubToken } from "@/lib/auth-helpers"
 import { storeEnvVars } from "@/lib/env-store"
 import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
+import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
@@ -21,6 +22,7 @@ import {
   TERMINAL_PORT,
   launchDevAndProxy,
   runLogged,
+  sandboxLogPath,
   writeBridgeFiles,
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, SandboxStepError } from "@/lib/sandbox/run"
@@ -148,8 +150,61 @@ export async function installDependencies(
 ): Promise<SandboxActionResult<void>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     const setup = setupScript?.trim() || "npm install"
-    const [setupCmd, ...setupArgs] = setup.split(/\s+/)
-    await runLogged(sandbox, setupCmd, setupArgs)
+
+    // Desktop (local) backend: run the setup script through the user's
+    // interactive login shell instead of bare-spawning the command. A bare
+    // spawn resolves `pnpm`/`node`/etc. against the sidecar's curated PATH,
+    // which does NOT match the user's terminal — version-manager shims
+    // (corepack/nvm/asdf) and PATH edits live in the interactive rc file
+    // (`.zshrc`), so the bare command can resolve a different or missing binary
+    // than the user gets by hand. (Concretely: it picked a stale pnpm that
+    // rejected a pnpm-10 workspace file even though `pnpm install` worked in the
+    // terminal.) `$SHELL -ilc` reproduces the terminal exactly — same HOME, same
+    // rc, same corepack cache — and as a bonus honors shell operators like
+    // `cd app && pnpm install`. `sidecar.rs` already uses `-ilc` to recover the
+    // login PATH, so this mirrors that. The hosted backend has no user shell, so
+    // it keeps the plain argv split.
+    let setupCmd: string
+    let setupArgs: string[]
+    if (isLocalSandboxBackend()) {
+      setupCmd = process.env.SHELL || "/bin/zsh"
+      setupArgs = ["-ilc", setup]
+    } else {
+      const parts = setup.split(/\s+/)
+      setupCmd = parts[0]
+      setupArgs = parts.slice(1)
+    }
+    console.warn(
+      `[setup] running "${setup}" on ${sandboxName} ` +
+        `via ${setupCmd} ${JSON.stringify(setupArgs)}`
+    )
+    const res = await runLogged(sandbox, setupCmd, setupArgs)
+
+    if (res.exitCode === 0) {
+      console.warn(`[setup] "${setup}" on ${sandboxName} ok`)
+      return
+    }
+
+    // A failing setup script must fail the branch, not silently leave a
+    // dependency-less worktree whose dev server then dies on `command not
+    // found`. (Previously the log wrapper's exit masked this — see runLogged.)
+    // `runLogged` tees output to the sandbox log, so read it back *now* — before
+    // `launchDevAndProxy` truncates it at dev-server start — to surface the real
+    // error on the console and in the branch's error state.
+    let logTail = ""
+    try {
+      const buf = await sandbox.readFileToBuffer({
+        path: sandboxLogPath(sandbox.name),
+      })
+      logTail = buf ? buf.toString("utf8").slice(-3000) : ""
+    } catch {
+      // best-effort: the log read must never mask the real setup failure
+    }
+    console.warn(
+      `[setup] "${setup}" on ${sandboxName} FAILED exit=${res.exitCode}\n` +
+        `--- setup log tail ---\n${logTail}\n--- end setup log ---`
+    )
+    throw new SandboxStepError(setup, res.exitCode, logTail.slice(-500))
   })
 }
 
@@ -236,6 +291,15 @@ export async function installHarnesses(
   sandboxName: string,
   harnessKeys: string[]
 ): Promise<SandboxActionResult<void>> {
+  // The desktop (local) backend has no per-sandbox install step: harnesses ride
+  // the host's own installed CLI (resolved via `hostBinary` on the host PATH —
+  // see `host-binary.ts`), and the login lives on the host. Running the hosted
+  // `npm install -g <harness>` here is not just pointless but harmful: it tries
+  // to write the host's global prefix (e.g. `/usr/local/lib/node_modules`),
+  // fails EACCES, and spams the sandbox log on every worktree create. Skip it.
+  if (isLocalSandboxBackend()) {
+    return { success: true, value: undefined }
+  }
   return runSandboxAction(sandboxName, async (sandbox) => {
     const { installable, skipped } = resolveHarnesses(
       harnessKeys,
