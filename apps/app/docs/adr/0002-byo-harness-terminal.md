@@ -443,3 +443,57 @@ same client, selected by `SANDBOX_BACKEND` exactly as the Sandbox Provider is.
   `SANDBOX_HARNESSES` egress-injection model this ADR rests on doesn't apply when
   the host holds the creds. The `?arg=` launch transport is still wired, so
   dropping a tab straight into a host CLI is a later, additive step.
+
+## Addendum (2026-07-07): the bearer-link becomes an opt-in — a pluggable terminal-access strategy (PRD #692)
+
+The 2026-05-31 addendum shipped the "secret bearer link" as a fallback and named
+its closure — "a real WS proxy / daemon-side credential remains … the path to
+close the bearer-link gap if the single-trusted-operator boundary ever changes"
+— as deferred. This addendum records the decision to build that closure, not as a
+replacement of the bearer link but as **one more point on a spectrum the operator
+selects**. It does not move the default: `bearer` stays the shipped posture and
+the single-trusted-operator boundary above is unchanged for it.
+
+- **The transport auth is now a seam, selected at load like the Sandbox Provider.**
+  A single `TerminalAccessStrategy` sits at the `/api/terminal/url` boundary — the
+  one place that mints the `room_member`-gated credential and resolves what the
+  client connects to. It is chosen once by a `TERMINAL_AUTH` env var (unknown value
+  throws, mirroring `selectSandboxProvider`), and is backend-aware: the local
+  worktree backend resolves to the existing `127.0.0.1` pass-through and ignores
+  the credential exactly as the 2026-06-09 addendum describes. The membership gate
+  stays on the route; the strategy owns only what happens after it.
+
+- **Three strategies, a cost/security spectrum.** `bearer` (default, unchanged) —
+  return `domain(port)`, credential decorative, zero infra. `ttyd-credential` —
+  launch `ttyd` with a per-Sandbox `--credential` and hand the client the secret,
+  moving it out of the URL's leaky channels (Referer, history, logs) with no new
+  host; a static, per-Sandbox, member-shared secret that closes the URL-leak gap
+  but not the multi-subject-authorization gap. `proxy` — a long-running WS service
+  terminates the client socket, calls the **now load-bearing**
+  `verifyTerminalCredential` and re-checks `canAccess` on connect (continuous, 60s,
+  per-user, revocable authorization), then dials the daemon over the Sandbox's
+  private side, keeping it off the public internet. `proxy` is this ADR's original
+  Decision, finally buildable because it is a dedicated service, not a Vercel
+  function.
+
+- **Proxy hosting is fixed, since Vercel cannot hold the socket.** The App Router
+  has no WS-upgrade hook and serverless functions can't hold a persistent
+  connection — the same wall the 2026-05-31 addendum hit. The sanctioned hosts for
+  operators who select `proxy` are **Cloudflare Workers + Durable Objects** (a DO
+  holds the connection and `fetch`es the app to re-check membership; the HMAC
+  verifier is pure crypto and ports directly) or **Fly.io** (a small always-on `ws`
+  service near the Sandboxes — the bridge shape already exists in
+  `lib/terminal/local/server.ts`). Only operators who choose `proxy` deploy it;
+  `bearer` and `ttyd-credential` stay one-click-Vercel.
+
+- **Why a spectrum rather than "just fix it":** authentication and obscurity
+  converge when there is exactly one authorized subject — a per-user check on a
+  single-operator instance verifies a one-element set and can only answer yes,
+  which is precisely why `bearer` is sound under the boundary this ADR fixes.
+  `ttyd-credential` still earns its place there because it repairs the leaky
+  *channel* (a secret in the URL), which is orthogonal to subject count; `proxy`
+  begins to add authorization value only once a second untrusted subject exists —
+  the same multi-tenant trigger that reopens egress injection and metering
+  elsewhere in this ADR. Metering and per-tenant key isolation remain out of scope
+  here and are tracked as their own work; enabling `proxy` authenticates
+  connections but does not by itself make a deployment safe to run multi-tenant.
