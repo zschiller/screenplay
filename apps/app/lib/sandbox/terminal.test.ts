@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createHmac } from "crypto"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type {
   SandboxCommandResult,
@@ -39,6 +40,7 @@ const fake = vi.hoisted(() => {
 vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
 import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
+import { selectTerminalAccessStrategy } from "@/lib/sandbox/terminal-access"
 import { ensureTerminal, killTerminalSession } from "@/lib/sandbox/terminal"
 import { tmuxSessionName } from "@/lib/terminal/session"
 
@@ -156,8 +158,21 @@ function script(issued: Issued): string {
   return issued.args.join(" ")
 }
 
+// `launchTerminal` reads the terminal-access strategy at call time, which folds
+// over TERMINAL_AUTH (+ TERMINAL_AUTH_SECRET for the `ttyd-credential` secret).
+// Save/restore both so a strategy-switching test can't leak into the bearer ones.
+let savedAuth: string | undefined
+let savedSecret: string | undefined
 beforeEach(() => {
   vi.clearAllMocks()
+  savedAuth = process.env.TERMINAL_AUTH
+  savedSecret = process.env.TERMINAL_AUTH_SECRET
+})
+afterEach(() => {
+  if (savedAuth === undefined) delete process.env.TERMINAL_AUTH
+  else process.env.TERMINAL_AUTH = savedAuth
+  if (savedSecret === undefined) delete process.env.TERMINAL_AUTH_SECRET
+  else process.env.TERMINAL_AUTH_SECRET = savedSecret
 })
 
 describe("ensureTerminal", () => {
@@ -224,6 +239,52 @@ describe("ensureTerminal", () => {
     )
     // The status bar is disabled via that config file.
     expect(cmd).toContain("set -g status off")
+    // Under the default `bearer` posture the daemon stays unauthenticated —
+    // byte-for-byte today's command, no `--credential`.
+    expect(cmd).not.toContain("--credential")
+  })
+
+  describe("under ttyd-credential", () => {
+    // The daemon's `--credential` and the client's `basicAuth` are the same
+    // per-Sandbox secret, HMAC'd under TERMINAL_AUTH_SECRET over the Sandbox name.
+    const SECRET = "test-terminal-auth-secret"
+    const expectedCredential = (sandboxName: string) =>
+      `screenplay:${createHmac("sha256", SECRET)
+        .update(sandboxName)
+        .digest("base64url")}`
+
+    it("launches ttyd with a --credential and returns the matching basicAuth", async () => {
+      process.env.TERMINAL_AUTH = "ttyd-credential"
+      process.env.TERMINAL_AUTH_SECRET = SECRET
+      const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
+      fake.setInstance(sandbox)
+
+      // Exercise the real configured strategy end-to-end, so the launch arg and
+      // the resolved response are asserted against one source of truth.
+      const result = await ensureTerminal("sandbox-a", (s) =>
+        selectTerminalAccessStrategy().resolve({
+          sandbox: s,
+          credential: { token: "decorative", expiresAt: 0 },
+          binding: { roomId: "r", sessionId: "s" },
+        })
+      )
+
+      const launch = issued.find(isLaunch)
+      expect(launch).toBeDefined()
+      // The daemon enforces the per-Sandbox secret on the WS handshake…
+      expect(script(launch!)).toContain(
+        `--credential '${expectedCredential("fake-sandbox")}'`
+      )
+      // …and the client is handed exactly that secret as `basicAuth`, alongside
+      // the same public URL as `bearer`.
+      expect(result).toEqual({
+        success: true,
+        value: {
+          url: `https://fake-${TERMINAL_PORT}.example.com`,
+          basicAuth: expectedCredential("fake-sandbox"),
+        },
+      })
+    })
   })
 
   it("binds the daemon to its resolved port on a port-mapped backend", async () => {

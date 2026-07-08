@@ -51,8 +51,10 @@ function frame(command: string, payload: Uint8Array): Uint8Array {
  * The opening handshake. ttyd waits for exactly one `JSON_DATA` message before
  * it spawns the PTY; the message is the JSON itself (leading `{` is the
  * command marker). `authToken` is `""` when the daemon runs without
- * `--credential` (our case) but is carried through so a future
- * credential-checking daemon validates the minted token.
+ * `--credential` (the `bearer` posture); under `ttyd-credential` it carries
+ * `base64(user:pass)`, which ttyd compares against its `--credential` before
+ * spawning the PTY — the handshake channel that keeps the shell secret out of
+ * the URL.
  */
 export function encodeHandshake(input: {
   authToken: string

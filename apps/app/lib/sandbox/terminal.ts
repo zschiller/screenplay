@@ -8,7 +8,10 @@ import {
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
-import type { TerminalAccessResolution } from "@/lib/sandbox/terminal-access"
+import {
+  selectTerminalAccessStrategy,
+  type TerminalAccessResolution,
+} from "@/lib/sandbox/terminal-access"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import { tmuxSessionName } from "@/lib/terminal/session"
 
@@ -283,6 +286,12 @@ async function isTerminalRunning(sandbox: SandboxInstance): Promise<boolean> {
  * `-f ${TMUX_CONF}` loads a one-line config that hides the bottom status bar
  * (see {@link TMUX_CONF}). Both flags precede `new` because they're server/global
  * options; the session name lands last as ttyd's appended url-arg.
+ *
+ * Under `ttyd-credential` the daemon also launches with a `--credential`
+ * (`user:pass`) sourced from the configured {@link TerminalAccessStrategy}, so
+ * ttyd validates the secret the client presents on the WS handshake instead of
+ * serving unauthenticated. Under `bearer` (and the local pass-through) the
+ * strategy yields no credential and the command is byte-for-byte today's.
  */
 async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
   // The daemon binds the *resolved* terminal port (identity on the hosted
@@ -290,13 +299,23 @@ async function launchTerminal(sandbox: SandboxInstance): Promise<void> {
   // which maps the same way — always points at a listening daemon, and multiple
   // open Branches each get their own.
   const terminalPort = sandbox.hostPort(TERMINAL_PORT)
+  // The strategy owns the daemon's auth posture (audited in one module): under
+  // `ttyd-credential` it yields the per-Sandbox `--credential`, under `bearer`
+  // nothing. Read at call time — like the route's resolve — so no per-Sandbox
+  // secret is baked into a module-load singleton. Single-quoted because the
+  // credential is interpolated into the `sh -c` string (the derived password is
+  // base64url + a `:`, but quoting keeps the launch safe regardless).
+  const credential = selectTerminalAccessStrategy().daemonCredential?.(
+    sandbox.name
+  )
+  const credentialArg = credential ? `--credential '${credential}' ` : ""
   await sandbox.runCommand({
     cmd: "sh",
     args: [
       "-c",
       `mkdir -p /tmp/screenplay ${sandboxStateDir(sandbox.name)}; ` +
         `printf 'set -g status off\\n' > ${TMUX_CONF}; ` +
-        `${sessionLeader()} ${TTYD_BIN} --writable --url-arg --port ${terminalPort} ` +
+        `${sessionLeader()} ${TTYD_BIN} --writable ${credentialArg}--url-arg --port ${terminalPort} ` +
         `${TMUX_BIN} -u -f ${TMUX_CONF} new -A -s ` +
         `</dev/null >> ${terminalLogPath(sandbox.name)} 2>&1 & ` +
         `echo $! > ${terminalPidPath(sandbox.name)}; ` +

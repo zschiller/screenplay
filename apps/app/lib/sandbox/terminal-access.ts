@@ -1,5 +1,6 @@
 import "server-only"
 
+import { createHmac } from "crypto"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
 import type { TerminalCredential } from "@/lib/sandbox/terminal-credential"
@@ -9,10 +10,10 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
  * What the terminal tab is told to connect to, once the membership gate has
  * passed. `url` is the origin the client opens; `basicAuth` — a ttyd
  * `--credential` (`user:pass`) the client presents on the WebSocket upgrade — is
- * reserved for the next slice (`ttyd-credential`) and is absent under every
- * strategy shipped here. Adding it now keeps the response contract stable across
- * that slice; a future `proxy` strategy would add one more field (a connection
- * token) without reshaping this.
+ * set only by `ttyd-credential` and absent under `bearer` and the local
+ * pass-through (so the `bearer` response stays byte-for-byte today's shape). A
+ * future `proxy` strategy would add one more field (a connection token) without
+ * reshaping this.
  */
 export interface TerminalAccessResolution {
   url: string
@@ -37,6 +38,41 @@ export interface TerminalAccessStrategy {
     credential: TerminalCredential
     binding: { roomId: string; sessionId: string }
   }): Promise<TerminalAccessResolution>
+
+  /**
+   * The ttyd `--credential` (`user:pass`) this strategy needs the daemon
+   * launched with, or `undefined` to leave the daemon unauthenticated. The
+   * daemon-launch path (`launchTerminal`) reads this so the `--credential` the
+   * daemon enforces and the `basicAuth` the client is handed both come from the
+   * one strategy object and can never drift. Only `ttyd-credential` sets it;
+   * `bearer` and the local pass-through leave it undefined.
+   */
+  daemonCredential?(sandboxName: string): string | undefined
+}
+
+/**
+ * The fixed, non-secret ttyd `--credential` username under `ttyd-credential`.
+ * ttyd base64-encodes the whole `user:pass` and compares it against the
+ * `AuthToken` the client presents on the WS handshake, so the username only has
+ * to be stable between launch and connect — the secret is the password.
+ */
+const TTYD_CREDENTIAL_USER = "screenplay"
+
+/**
+ * Derive the per-Sandbox ttyd `--credential` (`user:pass`) for the
+ * `ttyd-credential` strategy. HMAC over the Sandbox name keys the password to
+ * that Branch: stable for the daemon's lifetime, distinct per Branch, and no
+ * new stored state — a torn-down Branch (a fresh Sandbox name) invalidates its
+ * terminal secret. `TERMINAL_AUTH_SECRET` is the HMAC key (already required for
+ * the minted room-member credential), so `ttyd-credential` needs no new secret.
+ */
+function terminalDaemonCredential(sandboxName: string): string {
+  const secret = process.env.TERMINAL_AUTH_SECRET
+  if (!secret) throw new Error("TERMINAL_AUTH_SECRET is not set")
+  const pass = createHmac("sha256", secret)
+    .update(sandboxName)
+    .digest("base64url")
+  return `${TTYD_CREDENTIAL_USER}:${pass}`
 }
 
 /**
@@ -56,6 +92,34 @@ export interface TerminalAccessStrategy {
 const bearerStrategy: TerminalAccessStrategy = {
   async resolve({ sandbox }) {
     return { url: sandbox.domain(TERMINAL_PORT) }
+  },
+}
+
+/**
+ * `ttyd-credential` (no new infrastructure) — launch the in-Sandbox ttyd daemon
+ * with a per-Sandbox `--credential` and hand the same secret back to the client,
+ * which presents it on the WebSocket handshake (`AuthToken`) so ttyd validates
+ * it instead of serving unauthenticated. Same public `domain(port)` URL as
+ * `bearer`, but the shell secret rides a header the browser never logs — out of
+ * the Referer/history/proxy-log/cert-transparency channels that make the raw URL
+ * a leaky bearer link — while still hosting nothing beyond Vercel.
+ *
+ * Residual risk, documented not fixed: the secret is static for the daemon's
+ * lifetime and shared across a Sandbox's members, so it is not per-user-revocable
+ * mid-session. It closes the URL-channel leak — the whole goal — not a
+ * multi-subject-authorization gap; that is the deferred `proxy` strategy's job
+ * (ADR 0002). Because it is derived per-Sandbox, a torn-down Branch invalidates
+ * its terminal secret.
+ */
+const ttydCredentialStrategy: TerminalAccessStrategy = {
+  async resolve({ sandbox }) {
+    return {
+      url: sandbox.domain(TERMINAL_PORT),
+      basicAuth: terminalDaemonCredential(sandbox.name),
+    }
+  },
+  daemonCredential(sandboxName) {
+    return terminalDaemonCredential(sandboxName)
   },
 }
 
@@ -99,7 +163,10 @@ export function selectTerminalAccessStrategy(): TerminalAccessStrategy {
   if (auth === "bearer" || auth === undefined || auth === "") {
     return bearerStrategy
   }
-  throw new Error(`Unknown TERMINAL_AUTH "${auth}" (expected "bearer")`)
+  if (auth === "ttyd-credential") return ttydCredentialStrategy
+  throw new Error(
+    `Unknown TERMINAL_AUTH "${auth}" (expected "bearer" or "ttyd-credential")`
+  )
 }
 
 /**

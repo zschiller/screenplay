@@ -1,3 +1,4 @@
+import { createHmac } from "crypto"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 // The local pass-through strategy resolves the sidecar terminal server's port
@@ -38,17 +39,31 @@ const resolveWith = (env: { terminalAuth?: string; backend?: string }) => {
   })
 }
 
+// The `ttyd-credential` secret is HMAC'd under TERMINAL_AUTH_SECRET (already
+// required for the minted room-member credential), so pin a known key and derive
+// the expected `user:pass` the same way the strategy does.
+const TERMINAL_SECRET = "test-terminal-auth-secret"
+const expectedBasicAuth = (sandboxName: string) =>
+  `screenplay:${createHmac("sha256", TERMINAL_SECRET)
+    .update(sandboxName)
+    .digest("base64url")}`
+
 let savedAuth: string | undefined
 let savedBackend: string | undefined
+let savedSecret: string | undefined
 beforeEach(() => {
   savedAuth = process.env.TERMINAL_AUTH
   savedBackend = process.env.SANDBOX_BACKEND
+  savedSecret = process.env.TERMINAL_AUTH_SECRET
+  process.env.TERMINAL_AUTH_SECRET = TERMINAL_SECRET
 })
 afterEach(() => {
   if (savedAuth === undefined) delete process.env.TERMINAL_AUTH
   else process.env.TERMINAL_AUTH = savedAuth
   if (savedBackend === undefined) delete process.env.SANDBOX_BACKEND
   else process.env.SANDBOX_BACKEND = savedBackend
+  if (savedSecret === undefined) delete process.env.TERMINAL_AUTH_SECRET
+  else process.env.TERMINAL_AUTH_SECRET = savedSecret
 })
 
 describe("selectTerminalAccessStrategy — hosted backend", () => {
@@ -84,6 +99,58 @@ describe("selectTerminalAccessStrategy — hosted backend", () => {
     expect(() => selectTerminalAccessStrategy()).toThrow(
       /Unknown TERMINAL_AUTH/
     )
+  })
+})
+
+describe("selectTerminalAccessStrategy — ttyd-credential", () => {
+  it("resolves to the same public URL plus the per-Sandbox basicAuth secret", async () => {
+    const access = await resolveWith({
+      terminalAuth: "ttyd-credential",
+      backend: "vercel",
+    })
+
+    // Same URL the client always connects to — the secret moves out of the URL
+    // and into `basicAuth`, which the client presents on the WS handshake.
+    expect(access.url).toBe(`https://fake-${TERMINAL_PORT}.example.com`)
+    expect(access.basicAuth).toBe(expectedBasicAuth(sandbox.name))
+    // The URL itself never carries the secret — that is the whole point.
+    expect(access.url).not.toContain(access.basicAuth)
+  })
+
+  it("launches the daemon with a matching --credential (same value the client is handed)", () => {
+    process.env.SANDBOX_BACKEND = "vercel"
+    process.env.TERMINAL_AUTH = "ttyd-credential"
+
+    const strategy = selectTerminalAccessStrategy()
+    // The launch path reads `daemonCredential`; it must equal the `basicAuth`
+    // the client presents, so the daemon validates exactly what it enforces.
+    expect(strategy.daemonCredential?.(sandbox.name)).toBe(
+      expectedBasicAuth(sandbox.name)
+    )
+  })
+
+  it("derives a distinct secret per Sandbox so a torn-down Branch's is invalid", () => {
+    process.env.SANDBOX_BACKEND = "vercel"
+    process.env.TERMINAL_AUTH = "ttyd-credential"
+
+    const strategy = selectTerminalAccessStrategy()
+    expect(strategy.daemonCredential?.("branch-a")).not.toBe(
+      strategy.daemonCredential?.("branch-b")
+    )
+  })
+
+  it("stays the local pass-through under ttyd-credential on the local backend", async () => {
+    // The local backend wins over TERMINAL_AUTH: no ttyd daemon exists, so no
+    // credential is minted and the localhost origin is returned untouched.
+    const access = await resolveWith({
+      terminalAuth: "ttyd-credential",
+      backend: "local",
+    })
+
+    expect(access).toEqual({
+      url: `http://localhost:${LOCAL_SERVER_PORT}/?sandbox=branch-42`,
+    })
+    expect(access.basicAuth).toBeUndefined()
   })
 })
 
