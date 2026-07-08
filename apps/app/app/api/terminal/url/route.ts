@@ -6,8 +6,10 @@ import {
   harnessAvailability,
   resolveTerminalLaunch,
 } from "@/lib/agent/harnesses/availability"
+import { sandboxProvider } from "@/lib/sandbox"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { issueTerminalCredential } from "@/lib/sandbox/terminal-credential"
+import { terminalAccessStrategy } from "@/lib/sandbox/terminal-access"
 import { ensureTerminal } from "@/lib/sandbox/terminal"
 
 export const runtime = "nodejs"
@@ -15,22 +17,25 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 /**
- * Resolve the live in-sandbox web-terminal for a room member: gate on
- * membership (reusing `issueTerminalCredential`, which folds in `canAccess` —
- * the same predicate behind `/api/yjs/auth`), then ensure the ttyd daemon is
- * running and hand back its `domain(port)` URL plus the short-lived credential.
+ * Resolve the live web-terminal for a room member: gate on membership (reusing
+ * `issueTerminalCredential`, which folds in `canAccess` — the same predicate
+ * behind `/api/yjs/auth`), then let the configured {@link terminalAccessStrategy}
+ * resolve what the client connects to. The gate stays here and runs strictly
+ * first — `401` without a session, `403` for a non-member (a `null` credential)
+ * — and the strategy owns only what happens after it.
+ *
+ * The strategy is selected once at module load by `TERMINAL_AUTH`, mirroring how
+ * `SANDBOX_BACKEND` selects the Sandbox provider. The default (and only strategy
+ * shipped in this slice), `bearer`, reproduces today's behavior byte-for-byte:
+ * ensure the ttyd daemon and hand back its public `domain(port)` URL, with the
+ * minted credential decorative. That `domain(port)` URL is a secret bearer link
+ * (ADR 0002) — SAFE ONLY under single-trusted-operator self-hosting, since it
+ * leaks through Referer/history/logs and anyone holding it gets a writable
+ * shell. Hardening the transport (moving the secret out of the URL) is the next
+ * strategy behind this same seam.
  *
  * `ensureTerminal` is idempotent, so two collaborators opening the same
  * terminal `session` resolve to the same daemon URL and co-view one live PTY.
- *
- * NOTE (ADR 0002): the preferred transport is a server WebSocket proxy that
- * re-validates membership on connect, keeping the unauthenticated daemon off
- * the public internet. That needs a WS-capable server; under the App Router's
- * standard `next start` there is no upgrade hook, so this slice uses the ADR's
- * sanctioned fallback — membership-gated URL retrieval feeding an embedded
- * `domain(port)` iframe. Hardening the daemon itself (proxy or a ttyd
- * credential) is tracked as follow-up; safe only under the self-hosted,
- * single-trusted-operator boundary the ADR fixes.
  */
 export async function POST(req: Request) {
   const session = await getCurrentSession()
@@ -94,20 +99,32 @@ export async function POST(req: Request) {
   )
   const { harnesses, launchArgv } = resolveTerminalLaunch(harnessKey, available)
 
-  // Desktop build: there is no remote VM or ttyd daemon — the terminal is a
-  // node-pty process in the sidecar, reached over a localhost WebSocket
-  // (`lib/terminal/local/`). Hand back that server's `ws` origin with the target
-  // sandbox; the unchanged client appends its session key + the resolved launch
-  // argv as the wire protocol's `?arg=`s, exactly as it did for ttyd. The
-  // node-pty transport already strips provider API keys from the interactive
-  // shell, so the chosen CLI runs on the user's own login, not an API key. No
-  // `domain(port)` bearer link, no fetched tmux. The dynamic import keeps
-  // node-pty/`ws` out of the hosted build's graph.
+  const binding = { roomId, sessionId }
+
+  // Desktop build: the local backend always resolves to the `127.0.0.1`
+  // pass-through strategy regardless of `TERMINAL_AUTH`, ignoring the minted
+  // credential — there is no remote VM or ttyd daemon, only a node-pty process
+  // in the sidecar reached over a localhost WebSocket (`lib/terminal/local/`).
+  // The strategy hands back that server's origin for the target sandbox; the
+  // unchanged client appends its session key + the resolved launch argv as the
+  // wire protocol's `?arg=`s, exactly as it did for ttyd. Resolving the instance
+  // here gives the strategy the Sandbox name it keys the localhost origin on; a
+  // missing sandbox surfaces as `502` rather than a dead URL.
   if (isLocalSandboxBackend()) {
-    const { ensureLocalTerminalServer } =
-      await import("@/lib/terminal/local/server")
-    const { port } = await ensureLocalTerminalServer()
-    const url = `http://localhost:${port}/?sandbox=${encodeURIComponent(sandboxName)}`
+    let url: string
+    try {
+      const sandbox = await sandboxProvider.get({ name: sandboxName })
+      ;({ url } = await terminalAccessStrategy.resolve({
+        sandbox,
+        credential,
+        binding,
+      }))
+    } catch {
+      return NextResponse.json(
+        { error: "Couldn't reach the sandbox terminal." },
+        { status: 502 }
+      )
+    }
     // Nothing detected on the host → a tab that would open a bare shell instead
     // shows a banner pointing at installing a CLI (the deferred homescreen
     // Settings surface), so an empty desktop explains itself rather than
@@ -123,7 +140,13 @@ export async function POST(req: Request) {
     )
   }
 
-  const result = await ensureTerminal(sandboxName)
+  // Hosted: ensure the daemon, then let the strategy resolve what the client
+  // connects to. Under `bearer` this is the public `domain(port)` URL and no
+  // `basicAuth`, byte-for-byte today's shape; a later strategy adds `basicAuth`
+  // the client forwards onto the WS upgrade.
+  const result = await ensureTerminal(sandboxName, (sandbox) =>
+    terminalAccessStrategy.resolve({ sandbox, credential, binding })
+  )
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
@@ -140,8 +163,17 @@ export async function POST(req: Request) {
       ? unconfiguredBannerArgv("hosted")
       : launchArgv
 
+  // `basicAuth` is spread in only when the strategy sets it (never under
+  // `bearer`), so the `bearer` response stays byte-for-byte today's shape.
+  const { url, basicAuth } = result.value
   return NextResponse.json(
-    { url: result.value.url, ...credential, harnesses, launchArgv: hostedArgv },
+    {
+      url,
+      ...(basicAuth ? { basicAuth } : {}),
+      ...credential,
+      harnesses,
+      launchArgv: hostedArgv,
+    },
     { status: 200 }
   )
 }
