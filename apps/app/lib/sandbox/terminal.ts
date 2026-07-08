@@ -8,6 +8,7 @@ import {
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
+import type { TerminalAccessResolution } from "@/lib/sandbox/terminal-access"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import { tmuxSessionName } from "@/lib/terminal/session"
 
@@ -94,7 +95,14 @@ function tmuxUrl(arch: string): string {
 
 /**
  * Ensure the BYO-harness web-terminal daemon is running inside the sandbox on
- * its forwarded port and return the URL it's reachable at.
+ * its forwarded port, then hand the live instance to `resolve` — the configured
+ * {@link TerminalAccessStrategy} — to decide what the client connects to.
+ *
+ * The daemon-ensuring (arch probe, binary fetches, launch) is strategy-agnostic
+ * and stays here; `resolve` runs *inside* the runner so the live
+ * {@link SandboxInstance} never escapes the redaction boundary. Under `bearer`
+ * it returns `domain(TERMINAL_PORT)` — identical to the URL this function used
+ * to build directly.
  *
  * Idempotent: if a daemon is already live (its pidfile names a running
  * process), the existing daemon is reused rather than a duplicate launched, so
@@ -107,8 +115,9 @@ function tmuxUrl(arch: string): string {
  * error string rather than a thrown exception that could spill a token.
  */
 export async function ensureTerminal(
-  sandboxName: string
-): Promise<SandboxActionResult<{ url: string }>> {
+  sandboxName: string,
+  resolve: (sandbox: SandboxInstance) => Promise<TerminalAccessResolution>
+): Promise<SandboxActionResult<TerminalAccessResolution>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
     // Detect the architecture once and key both binary fetches off it, so the
     // terminal stops assuming the x86_64 Vercel image (#268).
@@ -118,7 +127,7 @@ export async function ensureTerminal(
     if (!(await isTerminalRunning(sandbox))) {
       await launchTerminal(sandbox)
     }
-    return { url: sandbox.domain(TERMINAL_PORT) }
+    return resolve(sandbox)
   })
 }
 

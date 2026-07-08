@@ -42,6 +42,15 @@ import { TERMINAL_PORT } from "@/lib/sandbox/provision-internals"
 import { ensureTerminal, killTerminalSession } from "@/lib/sandbox/terminal"
 import { tmuxSessionName } from "@/lib/terminal/session"
 
+// Stand-in for the `bearer` terminal-access strategy: `ensureTerminal` now
+// delegates the URL to a resolver run against the live instance, so these tests
+// pass the same `domain(TERMINAL_PORT)` resolution the shipped default uses.
+// The strategy seam itself is covered by `terminal-access.test.ts`; here we only
+// need the daemon-launch behavior, so a minimal bearer-shaped resolver keeps the
+// URL assertions meaningful.
+const bearerResolve = (sandbox: SandboxInstance) =>
+  Promise.resolve({ url: sandbox.domain(TERMINAL_PORT) })
+
 type Scripted = { exitCode: number; stdout?: string; stderr?: string }
 type Issued = { cmd: string; args: string[]; detached: boolean }
 
@@ -156,7 +165,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-a")
+    const result = await ensureTerminal("sandbox-a", bearerResolve)
 
     expect(result).toEqual({
       success: true,
@@ -170,7 +179,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_RUNNING)
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-a")
+    const result = await ensureTerminal("sandbox-a", bearerResolve)
 
     // Same URL comes back…
     expect(result).toEqual({
@@ -185,7 +194,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_RUNNING)
     fake.setInstance(sandbox)
 
-    await ensureTerminal("sandbox-a")
+    await ensureTerminal("sandbox-a", bearerResolve)
 
     // One install step fetches the tmux tarball and extracts the binary.
     const install = issued.find(isTmuxInstall)
@@ -200,7 +209,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
     fake.setInstance(sandbox)
 
-    await ensureTerminal("sandbox-a")
+    await ensureTerminal("sandbox-a", bearerResolve)
 
     const launch = issued.find(isLaunch)
     expect(launch).toBeDefined()
@@ -228,7 +237,7 @@ describe("ensureTerminal", () => {
     )
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-a")
+    const result = await ensureTerminal("sandbox-a", bearerResolve)
 
     const launch = issued.find(isLaunch)
     expect(script(launch!)).toContain(`--port ${TERMINAL_PORT + 50000}`)
@@ -242,7 +251,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
     fake.setInstance(sandbox)
 
-    await ensureTerminal("sandbox-a")
+    await ensureTerminal("sandbox-a", bearerResolve)
 
     const launch = issued.find(isLaunch)
     expect(launch).toBeDefined()
@@ -270,7 +279,7 @@ describe("ensureTerminal", () => {
       )
       fake.setInstance(sandbox)
 
-      await ensureTerminal("sandbox-a")
+      await ensureTerminal("sandbox-a", bearerResolve)
 
       const install = issued.find(isTtydInstall)
       expect(install).toBeDefined()
@@ -298,7 +307,7 @@ describe("ensureTerminal", () => {
       )
       fake.setInstance(sandbox)
 
-      await ensureTerminal("sandbox-a")
+      await ensureTerminal("sandbox-a", bearerResolve)
 
       const install = issued.find(isTmuxInstall)
       expect(install).toBeDefined()
@@ -319,7 +328,7 @@ describe("ensureTerminal", () => {
     )
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-a")
+    const result = await ensureTerminal("sandbox-a", bearerResolve)
 
     expect(result.success).toBe(false)
     // The unsupported arch short-circuits before any binary download is attempted.
@@ -334,7 +343,7 @@ describe("ensureTerminal", () => {
     const { sandbox, issued } = fakeSandbox(REPORTS_STOPPED)
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-rebuilt")
+    const result = await ensureTerminal("sandbox-rebuilt", bearerResolve)
 
     // No error surfaces — reconnect transparently re-provisions the daemon…
     expect(result.success).toBe(true)
@@ -364,7 +373,7 @@ describe("ensureTerminal", () => {
     }))
     fake.setInstance(sandbox)
 
-    const result = await ensureTerminal("sandbox-a")
+    const result = await ensureTerminal("sandbox-a", bearerResolve)
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
