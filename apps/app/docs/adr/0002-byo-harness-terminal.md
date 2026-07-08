@@ -449,10 +449,11 @@ same client, selected by `SANDBOX_BACKEND` exactly as the Sandbox Provider is.
 The 2026-05-31 addendum shipped the "secret bearer link" as a fallback and named
 its closure — "a real WS proxy / daemon-side credential remains … the path to
 close the bearer-link gap if the single-trusted-operator boundary ever changes"
-— as deferred. This addendum records the decision to build that closure, not as a
-replacement of the bearer link but as **one more point on a spectrum the operator
-selects**. It does not move the default: `bearer` stays the shipped posture and
-the single-trusted-operator boundary above is unchanged for it.
+— as deferred. This addendum records the decision to make the transport auth
+**pluggable** and to ship a no-new-infrastructure hardening, while keeping the
+heavyweight proxy deferred exactly as before. It does not move the default:
+`bearer` stays the shipped posture and the single-trusted-operator boundary above
+is unchanged.
 
 - **The transport auth is now a seam, selected at load like the Sandbox Provider.**
   A single `TerminalAccessStrategy` sits at the `/api/terminal/url` boundary — the
@@ -463,37 +464,26 @@ the single-trusted-operator boundary above is unchanged for it.
   the credential exactly as the 2026-06-09 addendum describes. The membership gate
   stays on the route; the strategy owns only what happens after it.
 
-- **Three strategies, a cost/security spectrum.** `bearer` (default, unchanged) —
-  return `domain(port)`, credential decorative, zero infra. `ttyd-credential` —
-  launch `ttyd` with a per-Sandbox `--credential` and hand the client the secret,
-  moving it out of the URL's leaky channels (Referer, history, logs) with no new
-  host; a static, per-Sandbox, member-shared secret that closes the URL-leak gap
-  but not the multi-subject-authorization gap. `proxy` — a long-running WS service
-  terminates the client socket, calls the **now load-bearing**
-  `verifyTerminalCredential` and re-checks `canAccess` on connect (continuous, 60s,
-  per-user, revocable authorization), then dials the daemon over the Sandbox's
-  private side, keeping it off the public internet. `proxy` is this ADR's original
-  Decision, finally buildable because it is a dedicated service, not a Vercel
-  function.
+- **Two strategies ship; a third stays documented, not built.** `bearer` (default,
+  unchanged) — return `domain(port)`, credential decorative, zero infra.
+  `ttyd-credential` — launch `ttyd` with a per-Sandbox `--credential` and hand the
+  client the secret, moving it out of the URL's leaky channels (Referer, history,
+  logs) with no new host. That secret is static per-Sandbox and shared across a
+  Room's members, so it closes the URL-leak gap, not a multi-subject-authorization
+  gap — which is the right trade for the single-operator / trusted-team self-hosting
+  this ADR fixes, and works one-click on Vercel.
 
-- **Proxy hosting is fixed, since Vercel cannot hold the socket.** The App Router
-  has no WS-upgrade hook and serverless functions can't hold a persistent
-  connection — the same wall the 2026-05-31 addendum hit. The sanctioned hosts for
-  operators who select `proxy` are **Cloudflare Workers + Durable Objects** (a DO
-  holds the connection and `fetch`es the app to re-check membership; the HMAC
-  verifier is pure crypto and ports directly) or **Fly.io** (a small always-on `ws`
-  service near the Sandboxes — the bridge shape already exists in
-  `lib/terminal/local/server.ts`). Only operators who choose `proxy` deploy it;
-  `bearer` and `ttyd-credential` stay one-click-Vercel.
-
-- **Why a spectrum rather than "just fix it":** authentication and obscurity
-  converge when there is exactly one authorized subject — a per-user check on a
-  single-operator instance verifies a one-element set and can only answer yes,
-  which is precisely why `bearer` is sound under the boundary this ADR fixes.
-  `ttyd-credential` still earns its place there because it repairs the leaky
-  *channel* (a secret in the URL), which is orthogonal to subject count; `proxy`
-  begins to add authorization value only once a second untrusted subject exists —
-  the same multi-tenant trigger that reopens egress injection and metering
-  elsewhere in this ADR. Metering and per-tenant key isolation remain out of scope
-  here and are tracked as their own work; enabling `proxy` authenticates
-  connections but does not by itself make a deployment safe to run multi-tenant.
+- **The `proxy` strategy remains deferred, deliberately.** A long-running WS service
+  that terminates the client socket, makes `verifyTerminalCredential` load-bearing,
+  re-checks `canAccess` on connect (continuous, 60s, per-user, revocable), and dials
+  the daemon over its private side is the original Decision above, and the seam's
+  natural third strategy. It is **not** built, because its only gain over
+  `ttyd-credential` is telling users apart, and authentication and obscurity
+  converge when there is exactly one authorized subject: a per-user check on a
+  single-operator or fully-trusted-team instance can only answer yes. The proxy
+  earns its keep the day "self-hosted" means members who genuinely should not shell
+  into each other's Branches — the same trust-boundary change this ADR has always
+  named as its trigger. Until then the seam leaves room for it without paying for
+  it. (When it is built it is a companion service, since Vercel cannot hold the
+  socket — a decision for that day, not this one. Multi-tenant metering / key
+  isolation are unrelated and remain out of scope everywhere in this ADR.)

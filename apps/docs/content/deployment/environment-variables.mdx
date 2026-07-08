@@ -70,11 +70,15 @@ ANTHROPIC_API_KEY=sk-ant-...
 ENCRYPTION_KEY=<64 hex chars>
 
 # --- Terminal access ---
-# HMAC secret for the short-lived, per-session credentials that gate access to
-# a sandbox's terminal daemon (Terminal Tabs). A room member POSTs
-# /api/terminal/auth and gets a signed credential; the terminal-websocket proxy
-# verifies it on connect so the in-sandbox root shell is never reachable on an
-# open URL. Any long random string works.
+# HMAC secret for the short-lived, per-session terminal credentials. A room
+# member POSTs /api/terminal/auth and is issued a signed credential only if the
+# membership check passes — so the credential gates *retrieval* of the terminal
+# URL. Note the current default posture: the in-sandbox terminal daemon is
+# reached over a public, unguessable, ephemeral sandbox URL that is itself the
+# bearer credential; the signed token is not yet verified on connect (a
+# connect-time verifier is the deferred `proxy` strategy — see ADR 0002). Safe
+# under single-operator / trusted-team self-hosting; set TERMINAL_AUTH=ttyd-credential
+# to also move the shell secret out of the URL. Any long random string works.
 # Generate with: openssl rand -hex 32
 TERMINAL_AUTH_SECRET=<64 hex chars>
 
