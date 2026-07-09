@@ -29,37 +29,30 @@ const steps: Step[] = [
 
 export function MinimalWorkflow() {
   return (
-    <section id="how" className="border-b border-border/60 scroll-mt-16">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <section id="how" className="scroll-mt-24">
+      <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:py-24">
+        <span className="neu-inset-sm inline-block rounded-full px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           How it works
         </span>
-        <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
+        <h2 className="mt-6 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
           How it works.
         </h2>
 
-        <ol className="mt-14 divide-y divide-border/60">
+        <ol className="mt-12 grid gap-6 sm:grid-cols-2">
           {steps.map((s) => (
             <li
               key={s.num}
-              className="grid gap-3 py-7 sm:grid-cols-[10rem_1fr] sm:gap-10"
+              className="neu-raised flex flex-col rounded-3xl bg-background p-7"
             >
-              <div className="flex items-baseline gap-3 sm:pt-1">
-                <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-                  {s.num}
-                </span>
-                <span className="text-sm font-medium text-foreground sm:hidden">
-                  {s.title}
-                </span>
+              <div className="neu-inset flex h-11 w-11 items-center justify-center rounded-full font-mono text-xs font-medium text-primary">
+                {s.num}
               </div>
-              <div>
-                <h3 className="hidden text-sm font-medium text-foreground sm:block">
-                  {s.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground sm:mt-1">
-                  {s.body}
-                </p>
-              </div>
+              <h3 className="mt-5 text-sm font-medium text-foreground">
+                {s.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {s.body}
+              </p>
             </li>
           ))}
         </ol>

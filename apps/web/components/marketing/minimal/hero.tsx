@@ -3,9 +3,9 @@ import { githubUrl } from "@/lib/app-url"
 
 export function MinimalHero() {
   return (
-    <section className="border-b border-border/60">
-      <div className="mx-auto w-full max-w-3xl px-6 pt-28 pb-24 sm:pt-36 sm:pb-32">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <section>
+      <div className="mx-auto w-full max-w-3xl px-6 pt-24 pb-24 sm:pt-32 sm:pb-32">
+        <span className="neu-inset-sm inline-block rounded-full px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           Screenplay
         </span>
         <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight text-foreground sm:text-5xl">
@@ -18,10 +18,10 @@ export function MinimalHero() {
           without seeing them together.
         </p>
 
-        <div className="mt-10 flex items-center gap-6 text-sm">
+        <div className="mt-10 flex flex-wrap items-center gap-4 text-sm">
           <Link
             href="#how"
-            className="text-foreground underline decoration-border underline-offset-[6px] transition-colors hover:decoration-foreground"
+            className="neu-pressable rounded-xl bg-background px-5 py-2.5 font-medium text-primary"
           >
             How it works
           </Link>
@@ -29,7 +29,7 @@ export function MinimalHero() {
             href={githubUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="neu-pressable rounded-xl bg-background px-5 py-2.5 text-muted-foreground transition-colors hover:text-foreground"
           >
             GitHub ↗
           </a>

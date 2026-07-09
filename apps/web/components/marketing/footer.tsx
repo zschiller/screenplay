@@ -11,12 +11,12 @@ export function Footer() {
             MIT licensed. Built on a canvas.
           </p>
         </div>
-        <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+        <nav className="flex flex-wrap items-center gap-3 text-xs">
           <a
             href={githubUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="neu-raised-sm rounded-lg bg-background px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
           >
             GitHub
           </a>
@@ -24,7 +24,7 @@ export function Footer() {
             href={stateNpmUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-muted-foreground transition-colors hover:text-foreground"
+            className="neu-raised-sm rounded-lg bg-background px-3 py-1.5 font-mono text-muted-foreground transition-colors hover:text-foreground"
           >
             @screenplay.space/state
           </a>
@@ -32,7 +32,7 @@ export function Footer() {
             href={knobsNpmUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-muted-foreground transition-colors hover:text-foreground"
+            className="neu-raised-sm rounded-lg bg-background px-3 py-1.5 font-mono text-muted-foreground transition-colors hover:text-foreground"
           >
             @screenplay.space/knobs
           </a>

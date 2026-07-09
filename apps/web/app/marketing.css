@@ -1,3 +1,100 @@
+/* ──────────────────────────────────────────────────────────────
+   Neumorphic theme — scoped to the marketing surface via `.neu`.
+   Overriding the shadcn tokens means every existing utility class
+   (text-foreground, bg-background, border-border, …) inherits the
+   soft-UI palette, and we layer raised / inset shadow helpers on top.
+   ────────────────────────────────────────────────────────────── */
+.neu {
+  --neu-bg: #e8ecf3;
+  --neu-dark: #c3cad8;
+  --neu-light: #ffffff;
+
+  --background: var(--neu-bg);
+  --foreground: #3b425c;
+  --card: var(--neu-bg);
+  --card-foreground: #3b425c;
+  --popover: var(--neu-bg);
+  --popover-foreground: #3b425c;
+  --muted: var(--neu-bg);
+  --muted-foreground: #868fa8;
+  --accent: var(--neu-bg);
+  --border: #d4dae5;
+  --input: #d4dae5;
+  --primary: #106be3;
+  --primary-foreground: #ffffff;
+
+  background: var(--neu-bg);
+  color: var(--foreground);
+}
+
+.dark .neu {
+  --neu-bg: #2b303b;
+  --neu-dark: #21252e;
+  --neu-light: #353c49;
+
+  --background: var(--neu-bg);
+  --foreground: #e6eaf2;
+  --card: var(--neu-bg);
+  --card-foreground: #e6eaf2;
+  --popover: var(--neu-bg);
+  --popover-foreground: #e6eaf2;
+  --muted: var(--neu-bg);
+  --muted-foreground: #9aa2b6;
+  --accent: var(--neu-bg);
+  --border: #363d4a;
+  --input: #363d4a;
+  --primary: #4f9dff;
+}
+
+@layer utilities {
+  .neu-raised-sm {
+    box-shadow:
+      4px 4px 8px var(--neu-dark),
+      -4px -4px 8px var(--neu-light);
+  }
+  .neu-raised {
+    box-shadow:
+      6px 6px 14px var(--neu-dark),
+      -6px -6px 14px var(--neu-light);
+  }
+  .neu-raised-lg {
+    box-shadow:
+      14px 14px 30px var(--neu-dark),
+      -14px -14px 30px var(--neu-light);
+  }
+  .neu-inset {
+    box-shadow:
+      inset 5px 5px 11px var(--neu-dark),
+      inset -5px -5px 11px var(--neu-light);
+  }
+  .neu-inset-sm {
+    box-shadow:
+      inset 3px 3px 6px var(--neu-dark),
+      inset -3px -3px 6px var(--neu-light);
+  }
+
+  /* Pressable soft-UI control: extruded at rest, pushed in on press. */
+  .neu-pressable {
+    box-shadow:
+      6px 6px 14px var(--neu-dark),
+      -6px -6px 14px var(--neu-light);
+    transition:
+      box-shadow 0.18s ease,
+      transform 0.18s ease;
+  }
+  .neu-pressable:hover {
+    box-shadow:
+      4px 4px 10px var(--neu-dark),
+      -4px -4px 10px var(--neu-light);
+  }
+  .neu-pressable:active {
+    box-shadow:
+      inset 4px 4px 9px var(--neu-dark),
+      inset -4px -4px 9px var(--neu-light);
+    transform: translateY(1px);
+  }
+}
+
 @layer utilities {
   .cursor-a,
   .cursor-b {

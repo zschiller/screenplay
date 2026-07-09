@@ -4,8 +4,8 @@ import { Wordmark } from "./wordmark"
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-6">
+    <header className="sticky top-0 z-50 px-6 pt-4">
+      <div className="neu-raised mx-auto flex h-14 w-full max-w-3xl items-center justify-between rounded-2xl bg-background/85 px-5 backdrop-blur-md">
         <Link href="/" className="flex items-center gap-2">
           <Wordmark />
         </Link>

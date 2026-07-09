@@ -20,25 +20,25 @@ const problems: Problem[] = [
 
 export function MinimalProblems() {
   return (
-    <section className="border-b border-border/60">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <section>
+      <div className="mx-auto w-full max-w-3xl px-6 py-20 sm:py-24">
+        <span className="neu-inset-sm inline-block rounded-full px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           What changed
         </span>
-        <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
+        <h2 className="mt-6 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
           The problem with one branch at a time.
         </h2>
 
-        <ul className="mt-14 divide-y divide-border/60">
+        <ul className="mt-12 grid gap-6">
           {problems.map((p) => (
             <li
               key={p.label}
-              className="grid gap-3 py-7 sm:grid-cols-[10rem_1fr] sm:gap-10"
+              className="neu-raised rounded-3xl bg-background p-7 sm:p-8"
             >
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:pt-1">
+              <span className="neu-inset-sm inline-block rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 {p.label}
               </span>
-              <p className="text-sm leading-relaxed text-foreground/90">
+              <p className="mt-4 text-sm leading-relaxed text-foreground/90">
                 {p.body}
               </p>
             </li>
