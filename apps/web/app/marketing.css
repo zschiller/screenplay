@@ -222,8 +222,8 @@
     0%,
     14%,
     100% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #8b3ee3;
+      border-color: #8b3ee3;
       transform: scale(1.2);
     }
     25%,
@@ -243,8 +243,8 @@
     }
     25%,
     39% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #8b3ee3;
+      border-color: #8b3ee3;
       transform: scale(1.2);
     }
     40%,
@@ -264,8 +264,8 @@
     }
     50%,
     64% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #8b3ee3;
+      border-color: #8b3ee3;
       transform: scale(1.2);
     }
     65%,
@@ -285,8 +285,8 @@
     }
     75%,
     100% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #8b3ee3;
+      border-color: #8b3ee3;
       transform: scale(1.2);
     }
   }
