@@ -29,34 +29,35 @@ const steps: Step[] = [
 
 export function MinimalWorkflow() {
   return (
-    <section id="how" className="border-b border-border/60 scroll-mt-16">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <section id="how" className="brutal-border-b scroll-mt-16">
+      <div className="mx-auto w-full max-w-5xl px-6 py-20 sm:py-24">
+        <span className="brutal-border-2 inline-block bg-[var(--brutal-yellow)] px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.18em]">
           How it works
         </span>
-        <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-          How it works.
+        <h2 className="mt-6 text-balance text-3xl font-extrabold uppercase leading-[1] tracking-tight sm:text-5xl">
+          Four moves. One canvas.
         </h2>
 
-        <ol className="mt-14 divide-y divide-border/60">
-          {steps.map((s) => (
+        <ol className="mt-14 grid gap-6 sm:grid-cols-2">
+          {steps.map((s, i) => (
             <li
               key={s.num}
-              className="grid gap-3 py-7 sm:grid-cols-[10rem_1fr] sm:gap-10"
+              className="brutal-border brutal-shadow flex gap-5 bg-white p-6"
             >
-              <div className="flex items-baseline gap-3 sm:pt-1">
-                <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
-                  {s.num}
-                </span>
-                <span className="text-sm font-medium text-foreground sm:hidden">
-                  {s.title}
-                </span>
-              </div>
+              <span
+                className="brutal-border-2 grid h-14 w-14 shrink-0 place-items-center font-mono text-xl font-extrabold text-white"
+                style={{
+                  backgroundColor:
+                    i % 2 === 0 ? "var(--brutal-blue)" : "var(--brutal-ink)",
+                }}
+              >
+                {s.num}
+              </span>
               <div>
-                <h3 className="hidden text-sm font-medium text-foreground sm:block">
+                <h3 className="font-mono text-sm font-bold uppercase tracking-[0.1em] text-[var(--brutal-ink)]">
                   {s.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground sm:mt-1">
+                <p className="mt-2 text-sm font-medium leading-relaxed text-[var(--brutal-ink)]">
                   {s.body}
                 </p>
               </div>

@@ -1,10 +1,12 @@
 export function Wordmark() {
   return (
     <span className="flex items-center gap-2">
-      <Glyph />
-      <span className="text-sm font-semibold tracking-tight">
+      <span className="brutal-border-2 grid place-items-center bg-white p-1">
+        <Glyph />
+      </span>
+      <span className="font-mono text-sm font-bold uppercase tracking-tight text-[var(--brutal-ink)]">
         Screenplay
-        <span className="text-muted-foreground">.space</span>
+        <span className="text-[var(--brutal-blue)]">.space</span>
       </span>
     </span>
   )

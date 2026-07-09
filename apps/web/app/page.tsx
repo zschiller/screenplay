@@ -7,7 +7,7 @@ import { MinimalCTA } from "@/components/marketing/minimal/cta"
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="brutalist flex min-h-svh flex-col">
       <Header />
       <main className="flex-1">
         <MinimalHero />

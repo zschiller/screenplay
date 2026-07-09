@@ -4,21 +4,21 @@ import { Wordmark } from "./wordmark"
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-6">
+    <header className="brutal-border-b sticky top-0 z-50 bg-[var(--brutal-paper)]">
+      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2">
           <Wordmark />
         </Link>
-        <nav className="flex items-center gap-6 text-sm">
+        <nav className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.12em] sm:gap-3">
           <Link
             href="#how"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="brutal-border-2 px-3 py-1.5 transition-colors hover:bg-[var(--brutal-yellow)]"
           >
             How
           </Link>
           <Link
             href="#packages"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="brutal-border-2 px-3 py-1.5 transition-colors hover:bg-[var(--brutal-yellow)]"
           >
             Packages
           </Link>
@@ -26,7 +26,7 @@ export function Header() {
             href={githubUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="brutal-border-2 bg-[var(--brutal-blue)] px-3 py-1.5 text-white transition-colors hover:bg-[var(--brutal-ink)]"
           >
             GitHub ↗
           </a>

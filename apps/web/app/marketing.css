@@ -1,4 +1,65 @@
+/* ============================================================
+   BRUTALIST DESIGN SYSTEM
+   Pure black borders, hard offset shadows, no radius, raw grid.
+   Explicit colors so the look holds regardless of theme.
+   ============================================================ */
+:root {
+  --brutal-ink: #111111;
+  --brutal-paper: #f5f4ee;
+  --brutal-blue: #106be3;
+  --brutal-yellow: #ffe500;
+}
+
+.brutalist {
+  background-color: var(--brutal-paper);
+  color: var(--brutal-ink);
+  /* faint engineering grid */
+  background-image:
+    linear-gradient(to right, rgba(17, 17, 17, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(17, 17, 17, 0.045) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
 @layer utilities {
+  .brutal-border {
+    border: 3px solid var(--brutal-ink);
+  }
+  .brutal-border-2 {
+    border: 2px solid var(--brutal-ink);
+  }
+  .brutal-border-b {
+    border-bottom: 3px solid var(--brutal-ink);
+  }
+  .brutal-border-t {
+    border-top: 3px solid var(--brutal-ink);
+  }
+  .brutal-shadow {
+    box-shadow: 6px 6px 0 0 var(--brutal-ink);
+  }
+  .brutal-shadow-sm {
+    box-shadow: 4px 4px 0 0 var(--brutal-ink);
+  }
+  .brutal-shadow-blue {
+    box-shadow: 6px 6px 0 0 var(--brutal-blue);
+  }
+  .brutal-shadow-yellow {
+    box-shadow: 6px 6px 0 0 var(--brutal-yellow);
+  }
+  /* press-down interaction: shadow collapses, block nudges into it */
+  .brutal-press {
+    transition:
+      transform 0.08s ease,
+      box-shadow 0.08s ease;
+  }
+  .brutal-press:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 3px 3px 0 0 var(--brutal-ink);
+  }
+  .brutal-press:active {
+    transform: translate(6px, 6px);
+    box-shadow: 0 0 0 0 var(--brutal-ink);
+  }
+
   .cursor-a,
   .cursor-b {
     will-change: transform;

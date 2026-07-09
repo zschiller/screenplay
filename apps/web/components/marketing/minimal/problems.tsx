@@ -20,25 +20,28 @@ const problems: Problem[] = [
 
 export function MinimalProblems() {
   return (
-    <section className="border-b border-border/60">
-      <div className="mx-auto w-full max-w-3xl px-6 py-24 sm:py-28">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+    <section className="brutal-border-b">
+      <div className="mx-auto w-full max-w-5xl px-6 py-20 sm:py-24">
+        <span className="brutal-border-2 inline-block bg-white px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.18em]">
           What changed
         </span>
-        <h2 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
+        <h2 className="mt-6 max-w-3xl text-balance text-3xl font-extrabold uppercase leading-[1] tracking-tight sm:text-5xl">
           The problem with one branch at a time.
         </h2>
 
-        <ul className="mt-14 divide-y divide-border/60">
-          {problems.map((p) => (
+        <ul className="mt-14 grid gap-6 sm:grid-cols-3">
+          {problems.map((p, i) => (
             <li
               key={p.label}
-              className="grid gap-3 py-7 sm:grid-cols-[10rem_1fr] sm:gap-10"
+              className="brutal-border brutal-shadow flex flex-col bg-white p-6"
             >
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:pt-1">
+              <span className="font-mono text-3xl font-extrabold text-[var(--brutal-blue)]">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="mt-4 font-mono text-xs font-bold uppercase tracking-[0.14em]">
                 {p.label}
               </span>
-              <p className="text-sm leading-relaxed text-foreground/90">
+              <p className="mt-3 text-sm font-medium leading-relaxed text-[var(--brutal-ink)]">
                 {p.body}
               </p>
             </li>
