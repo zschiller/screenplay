@@ -1,3 +1,26 @@
+/* Make it all red — scoped theme override for the web app.
+   Redefines the shadcn accent tokens to a red hue. Imported after
+   @workspace/ui/globals.css so these win without touching the shared package. */
+:root {
+  --primary: oklch(0.55 0.22 27.3);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.22 27.3);
+  --accent: oklch(0.95 0.03 27.3);
+  --accent-foreground: oklch(0.4 0.2 27.3);
+  --sidebar-primary: oklch(0.55 0.22 27.3);
+  --sidebar-ring: oklch(0.55 0.22 27.3);
+}
+
+.dark {
+  --primary: oklch(0.62 0.22 27.3);
+  --primary-foreground: oklch(0.145 0 0);
+  --ring: oklch(0.62 0.22 27.3);
+  --accent: oklch(0.32 0.1 27.3);
+  --accent-foreground: oklch(0.95 0.03 27.3);
+  --sidebar-primary: oklch(0.62 0.22 27.3);
+  --sidebar-ring: oklch(0.62 0.22 27.3);
+}
+
 @layer utilities {
   .cursor-a,
   .cursor-b {
@@ -222,8 +245,8 @@
     0%,
     14%,
     100% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #e3102b;
+      border-color: #e3102b;
       transform: scale(1.2);
     }
     25%,
@@ -243,8 +266,8 @@
     }
     25%,
     39% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #e3102b;
+      border-color: #e3102b;
       transform: scale(1.2);
     }
     40%,
@@ -264,8 +287,8 @@
     }
     50%,
     64% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #e3102b;
+      border-color: #e3102b;
       transform: scale(1.2);
     }
     65%,
@@ -285,8 +308,8 @@
     }
     75%,
     100% {
-      background-color: #106be3;
-      border-color: #106be3;
+      background-color: #e3102b;
+      border-color: #e3102b;
       transform: scale(1.2);
     }
   }
