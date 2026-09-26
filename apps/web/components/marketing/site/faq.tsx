@@ -35,12 +35,18 @@ export function Faq() {
         {faqs.map((f) => (
           <details
             key={f.q}
-            className="group py-5 [&_summary::-webkit-details-marker]:hidden"
+            className="faq-item group py-5 [&_summary::-webkit-details-marker]:hidden"
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-base font-medium">
               {f.q}
-              <span className="grid size-6 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition-transform group-open:rotate-45">
-                +
+              {/* Two bars rather than a "+" glyph, so the cross sits dead-centre
+                  and can spin into an × when the answer opens. */}
+              <span
+                aria-hidden
+                className="relative size-7 shrink-0 rounded-full border border-border text-muted-foreground transition-[transform,background-color,color,border-color] duration-300 ease-[cubic-bezier(.3,1.5,.5,1)] group-open:rotate-[135deg] group-open:border-foreground group-open:bg-foreground group-open:text-background group-[:not([open])]:group-hover:text-foreground"
+              >
+                <span className="absolute top-1/2 left-1/2 h-[1.5px] w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current" />
+                <span className="absolute top-1/2 left-1/2 h-3 w-[1.5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current" />
               </span>
             </summary>
             <p className="mt-3 pr-10 text-sm leading-relaxed text-muted-foreground">

@@ -657,3 +657,28 @@ html {
     scroll-behavior: auto;
   }
 }
+
+/* FAQ answers slide open where the browser can animate <details> content. */
+@supports selector(::details-content) {
+  .faq-item {
+    interpolate-size: allow-keywords;
+  }
+  .faq-item::details-content {
+    block-size: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      block-size 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.3s ease,
+      content-visibility 0.3s allow-discrete;
+  }
+  .faq-item[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .faq-item::details-content {
+    transition: none;
+  }
+}
