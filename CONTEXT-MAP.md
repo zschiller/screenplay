@@ -9,8 +9,8 @@ decisions live in `docs/adr/`, context-scoped ones in `<context>/docs/adr/`.
 
 - [apps/app](./apps/app/CONTEXT.md) — the collaborative canvas and agent runtime
   (rooms, layers, groups, chat targets, tools, agent runs).
-- `apps/web` — the marketing homepage (hero / problems / workflow / packages /
-  CTA / footer).
+- `apps/web` — the marketing homepage (hero with a live canvas mock / problem /
+  scenes / features / open source / FAQ / CTA), plus the animated mascot.
 - `apps/docs` — the documentation site (Nextra + App Router,
   `nextra-theme-docs`). Canonical home for setup, deployment, configuration,
   and contributor docs; the root `README.md` is a thin pointer to it.

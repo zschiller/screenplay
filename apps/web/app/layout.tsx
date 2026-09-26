@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Courier_Prime, Geist, Geist_Mono } from "next/font/google"
 
 import "@workspace/ui/globals.css"
 import "./marketing.css"
@@ -8,16 +8,21 @@ import { ThemeProvider } from "@/components/theme-provider"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
+const fontScreenplay = Courier_Prime({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-screenplay",
+})
+
 const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
 
 export const metadata: Metadata = {
-  title:
-    "Screenplay — a multiplayer canvas for designers vibe coding prototypes",
+  title: "Screenplay — every take, running at once",
   description:
-    "Vibe coding prototypes is great. Reviewing them is broken. Screenplay puts your AI-built prototypes on a multiplayer canvas — every direction laid out, every screen reviewable, every viewer in sync.",
+    "Screenplay gives each coding agent its own branch, its own sandbox, and a frame on a shared canvas. Ask for three directions, click through all three live, and ship the one that works. Works with Claude Code, Codex and opencode.",
 }
 
 export default function RootLayout({
@@ -32,8 +37,9 @@ export default function RootLayout({
       className={cn(
         "antialiased",
         fontMono.variable,
+        fontScreenplay.variable,
         "font-sans",
-        geist.variable,
+        geist.variable
       )}
     >
       <body>

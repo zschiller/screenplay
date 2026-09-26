@@ -1,42 +1,76 @@
-import { githubUrl, knobsNpmUrl, stateNpmUrl } from "@/lib/app-url"
+import {
+  docsUrl,
+  githubUrl,
+  knobsNpmUrl,
+  releasesUrl,
+  stateNpmUrl,
+} from "@/lib/app-url"
 import { Wordmark } from "./wordmark"
+
+const columns = [
+  {
+    title: "Product",
+    links: [
+      { href: "#how", label: "How it works" },
+      { href: "#features", label: "Features" },
+      { href: releasesUrl, label: "Download", external: true },
+    ],
+  },
+  {
+    title: "Developers",
+    links: [
+      { href: docsUrl, label: "Docs" },
+      { href: githubUrl, label: "GitHub", external: true },
+      {
+        href: knobsNpmUrl,
+        label: "@screenplay.space/knobs",
+        external: true,
+        mono: true,
+      },
+      {
+        href: stateNpmUrl,
+        label: "@screenplay.space/state",
+        external: true,
+        mono: true,
+      },
+    ],
+  },
+]
 
 export function Footer() {
   return (
-    <footer className="bg-background">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-12 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-2">
+    <footer className="border-t border-border/60 bg-background">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1fr_auto_auto] md:gap-20">
+        <div className="flex flex-col gap-3">
           <Wordmark />
-          <p className="text-xs text-muted-foreground">
-            MIT licensed. Built on a canvas.
+          <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+            A multiplayer canvas where every branch your agents write is live,
+            side by side.
+          </p>
+          <p className="font-screenplay text-xs text-muted-foreground/80">
+            FADE OUT. &nbsp;·&nbsp; MIT licensed
           </p>
         </div>
-        <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-          <a
-            href={githubUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            GitHub
-          </a>
-          <a
-            href={stateNpmUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono text-muted-foreground transition-colors hover:text-foreground"
-          >
-            @screenplay.space/state
-          </a>
-          <a
-            href={knobsNpmUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono text-muted-foreground transition-colors hover:text-foreground"
-          >
-            @screenplay.space/knobs
-          </a>
-        </nav>
+        {columns.map((col) => (
+          <nav key={col.title} className="flex flex-col gap-3 text-sm">
+            <span className="text-xs font-medium tracking-[0.14em] text-muted-foreground/70 uppercase">
+              {col.title}
+            </span>
+            {col.links.map((l) => (
+              <a
+                key={l.label}
+                href={l.href}
+                {...(l.external ? { target: "_blank", rel: "noreferrer" } : {})}
+                className={
+                  "text-muted-foreground transition-colors hover:text-foreground " +
+                  ("mono" in l && l.mono ? "font-mono text-xs" : "")
+                }
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+        ))}
       </div>
     </footer>
   )
