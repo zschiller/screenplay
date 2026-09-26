@@ -1,6 +1,5 @@
-import { Apple } from "lucide-react"
 import { githubUrl, releasesUrl } from "@/lib/app-url"
-import { GitHubIcon } from "../header"
+import { AppleLogo, GitHubIcon } from "../header"
 import { AppWindow, APP_HEIGHT, APP_WIDTH } from "./app-window"
 import { Mascot } from "./mascot"
 import { ScaleToFit } from "./scale-to-fit"
@@ -47,7 +46,7 @@ export function Hero() {
             rel="noreferrer"
             className="flex h-12 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-medium text-background shadow-lg shadow-black/10 transition-transform hover:-translate-y-0.5"
           >
-            <Apple className="size-[18px] fill-current" strokeWidth={0} />
+            <AppleLogo className="size-[18px] -translate-y-px" />
             Download for Mac
           </a>
           <a

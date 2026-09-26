@@ -1,4 +1,4 @@
-import { Apple } from "lucide-react"
+import { AppleLogo } from "../header"
 import { docsUrl, releasesUrl } from "@/lib/app-url"
 import { Mascot, type MascotTone } from "./mascot"
 
@@ -54,7 +54,7 @@ export function CTA() {
               rel="noreferrer"
               className="flex h-12 items-center gap-2 rounded-full bg-white px-6 text-[15px] font-medium text-[#0A1630] transition-transform hover:-translate-y-0.5"
             >
-              <Apple className="size-[18px] fill-current" strokeWidth={0} />
+              <AppleLogo className="size-[18px] -translate-y-px" />
               Download for Mac
             </a>
             <a
