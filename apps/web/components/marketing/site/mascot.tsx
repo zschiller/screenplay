@@ -12,6 +12,7 @@ const LEFT_EYE = { cx: 9.1, cy: 10.8 }
 const RIGHT_EYE = { cx: 23.75, cy: 8.75 }
 const SMILE = "M14.25 14.4 Q18.4 19.6 22.6 14.9"
 const GRIN = "M13.8 13.9 Q18.4 21.6 23.1 14.4"
+const FROWN = "M14.6 18.6 Q18.4 14.6 22.4 17.8"
 
 export type MascotTone = "blue" | "coral" | "mint" | "sun" | "lilac" | "ink"
 
@@ -31,6 +32,8 @@ type MascotProps = {
   follow?: boolean
   /** Fixed gaze in [-1, 1] units, used when `follow` is off. */
   gaze?: { x: number; y: number }
+  /** "sad" flips the smile — used where the mascot is having a bad time. */
+  mood?: "happy" | "sad"
   className?: string
   title?: string
 }
@@ -40,6 +43,7 @@ export function Mascot({
   tone = "blue",
   follow = true,
   gaze,
+  mood = "happy",
   className,
   title,
 }: MascotProps) {
@@ -82,7 +86,7 @@ export function Mascot({
           setTimeout(() => setBlink(false), 140)
           schedule()
         },
-        2400 + Math.random() * 3600,
+        2400 + Math.random() * 3600
       )
     }
     schedule()
@@ -125,19 +129,45 @@ export function Mascot({
             transition: "transform 220ms cubic-bezier(.2,.8,.2,1)",
           }}
         >
-          <ellipse {...LEFT_EYE} rx="1.8" ry="1.78" fill={face} style={eyeStyle} />
-          <ellipse {...RIGHT_EYE} rx="1.78" ry="1.78" fill={face} style={eyeStyle} />
+          <ellipse
+            {...LEFT_EYE}
+            rx="1.8"
+            ry="1.78"
+            fill={face}
+            style={eyeStyle}
+          />
+          <ellipse
+            {...RIGHT_EYE}
+            rx="1.78"
+            ry="1.78"
+            fill={face}
+            style={eyeStyle}
+          />
           <path
-            d={happy ? GRIN : SMILE}
+            d={mood === "sad" ? FROWN : happy ? GRIN : SMILE}
             stroke={face}
             strokeWidth="2.05"
             strokeLinecap="round"
-            fill={happy ? face : "none"}
+            fill={happy && mood !== "sad" ? face : "none"}
           />
-          {happy ? (
+          {happy && mood !== "sad" ? (
             <>
-              <ellipse cx="6.2" cy="15.6" rx="1.7" ry="1" fill="#FF8FB1" opacity=".75" />
-              <ellipse cx="26.6" cy="13.4" rx="1.7" ry="1" fill="#FF8FB1" opacity=".75" />
+              <ellipse
+                cx="6.2"
+                cy="15.6"
+                rx="1.7"
+                ry="1"
+                fill="#FF8FB1"
+                opacity=".75"
+              />
+              <ellipse
+                cx="26.6"
+                cy="13.4"
+                rx="1.7"
+                ry="1"
+                fill="#FF8FB1"
+                opacity=".75"
+              />
             </>
           ) : null}
         </g>

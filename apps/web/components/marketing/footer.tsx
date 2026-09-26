@@ -1,4 +1,10 @@
-import { docsUrl, githubUrl, knobsNpmUrl, releasesUrl, stateNpmUrl } from "@/lib/app-url"
+import {
+  docsUrl,
+  githubUrl,
+  knobsNpmUrl,
+  releasesUrl,
+  stateNpmUrl,
+} from "@/lib/app-url"
 import { Wordmark } from "./wordmark"
 
 const columns = [
@@ -15,8 +21,18 @@ const columns = [
     links: [
       { href: docsUrl, label: "Docs" },
       { href: githubUrl, label: "GitHub", external: true },
-      { href: knobsNpmUrl, label: "@screenplay.space/knobs", external: true, mono: true },
-      { href: stateNpmUrl, label: "@screenplay.space/state", external: true, mono: true },
+      {
+        href: knobsNpmUrl,
+        label: "@screenplay.space/knobs",
+        external: true,
+        mono: true,
+      },
+      {
+        href: stateNpmUrl,
+        label: "@screenplay.space/state",
+        external: true,
+        mono: true,
+      },
     ],
   },
 ]
@@ -37,7 +53,7 @@ export function Footer() {
         </div>
         {columns.map((col) => (
           <nav key={col.title} className="flex flex-col gap-3 text-sm">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/70">
+            <span className="text-xs font-medium tracking-[0.14em] text-muted-foreground/70 uppercase">
               {col.title}
             </span>
             {col.links.map((l) => (

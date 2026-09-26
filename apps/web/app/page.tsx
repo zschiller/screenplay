@@ -1,19 +1,27 @@
 import { Header } from "@/components/marketing/header"
 import { Footer } from "@/components/marketing/footer"
-import { MinimalHero } from "@/components/marketing/minimal/hero"
-import { MinimalProblems } from "@/components/marketing/minimal/problems"
-import { MinimalWorkflow } from "@/components/marketing/minimal/workflow"
-import { MinimalCTA } from "@/components/marketing/minimal/cta"
+import { Hero } from "@/components/marketing/site/hero"
+import { AgentsStrip } from "@/components/marketing/site/agents-strip"
+import { Problem } from "@/components/marketing/site/problem"
+import { Scenes } from "@/components/marketing/site/scenes"
+import { Features } from "@/components/marketing/site/features"
+import { OpenSource } from "@/components/marketing/site/open-source"
+import { Faq } from "@/components/marketing/site/faq"
+import { CTA } from "@/components/marketing/site/cta"
 
 export default function HomePage() {
   return (
     <div className="flex min-h-svh flex-col">
       <Header />
       <main className="flex-1">
-        <MinimalHero />
-        <MinimalProblems />
-        <MinimalWorkflow />
-        <MinimalCTA />
+        <Hero />
+        <AgentsStrip />
+        <Problem />
+        <Scenes />
+        <Features />
+        <OpenSource />
+        <Faq />
+        <CTA />
       </main>
       <Footer />
     </div>
