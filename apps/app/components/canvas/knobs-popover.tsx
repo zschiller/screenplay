@@ -70,7 +70,7 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
     <Popover>
       <PopoverTrigger asChild>
         <IconButton label="Knobs" tooltipSide="right" className="relative">
-          <SlidersHorizontal className="size-3.5" />
+          <SlidersHorizontal />
           {hasOverrides ? (
             <span
               aria-hidden

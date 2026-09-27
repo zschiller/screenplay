@@ -43,7 +43,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <MousePointer2 className="h-3.5 w-3.5" />
+          <MousePointer2 />
         </IconButton>
         <IconButton
           label="Frame"
@@ -55,7 +55,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <Frame className="h-3.5 w-3.5" />
+          <Frame />
         </IconButton>
         <IconButton
           label="Document"
@@ -67,7 +67,7 @@ export function CanvasToolbar({
             onClearMode()
           }}
         >
-          <FileText className="h-3.5 w-3.5" />
+          <FileText />
         </IconButton>
         {/* Comment mode is web-only: it places multi-user comment
             threads. The local build has no persisted threads (#417) and
@@ -84,7 +84,7 @@ export function CanvasToolbar({
               onClearMode()
             }}
           >
-            <MessageSquare className="h-3.5 w-3.5" />
+            <MessageSquare />
           </IconButton>
         )}
       </div>

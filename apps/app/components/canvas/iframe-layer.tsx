@@ -738,11 +738,7 @@ export function IframeLayer({
                   variant={focused ? "default" : "ghost"}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
-                  {focused ? (
-                    <Move className="size-3.5" />
-                  ) : (
-                    <MousePointer className="size-3.5" />
-                  )}
+                  {focused ? <Move /> : <MousePointer />}
                 </IconButton>
                 <IconButton
                   label={createFlow ? "Stop create flow" : "Create flow"}
@@ -753,7 +749,7 @@ export function IframeLayer({
                     onToggleCreateFlow(createFlow ? null : iframeLayer.id)
                   }
                 >
-                  <Route className="size-3.5" />
+                  <Route />
                 </IconButton>
                 {/* interaction modes above ∣ everything else below */}
                 <div className="my-0.5 h-px w-full bg-foreground/10" />
@@ -763,7 +759,7 @@ export function IframeLayer({
                   variant={showReload ? "default" : "ghost"}
                   onClick={reloadIframe}
                 >
-                  <RotateCw className="size-3.5" />
+                  <RotateCw />
                 </IconButton>
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
@@ -776,7 +772,7 @@ export function IframeLayer({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <IconButton label="More" tooltipSide="right">
-                        <MoreHorizontal className="size-3.5 text-muted-foreground" />
+                        <MoreHorizontal className="text-muted-foreground" />
                       </IconButton>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent

@@ -101,7 +101,7 @@ export function CanvasTopBar({
             tooltipSide="bottom"
             onClick={() => sidebarPanelRef.current?.expand()}
           >
-            <PanelLeftOpen className="h-3.5 w-3.5" />
+            <PanelLeftOpen />
           </IconButton>
         )}
         <Breadcrumb>
@@ -158,7 +158,7 @@ export function CanvasTopBar({
                     tooltipSide="bottom"
                     className="text-muted-foreground"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreHorizontal />
                   </IconButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
