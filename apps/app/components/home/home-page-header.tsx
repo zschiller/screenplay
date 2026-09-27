@@ -30,6 +30,15 @@ const COMPACT_BELOW_PX = 768
 const CompactContext = createContext(false)
 
 /**
+ * Whether the home header is below its compact width — for header content that
+ * has to restructure rather than just hide text (the breadcrumb folds its middle
+ * crumbs away). False on the server and the first client paint.
+ */
+export function useHomeHeaderCompact(): boolean {
+  return useContext(CompactContext)
+}
+
+/**
  * The sticky header of a home page: the page's title (or breadcrumb) on the
  * left, its toolbar on the right. The title side shrinks and truncates first;
  * the toolbar never wraps, and below `@3xl` its buttons collapse to icons with
@@ -63,25 +72,25 @@ export function HomePageHeader({
       data-tauri-drag-region
       className="@container/header flex h-14 items-center bg-background"
     >
-      <div
-        data-tauri-drag-region
-        className={cn(HOME_COLUMN, "flex items-center gap-2")}
-      >
-        <div data-tauri-drag-region className="flex min-w-0 flex-1">
-          {typeof title === "string" ? (
-            <h1 className="truncate text-2xl font-normal">{title}</h1>
-          ) : (
-            title
-          )}
-        </div>
-        {actions && (
-          <CompactContext.Provider value={compact}>
+      <CompactContext.Provider value={compact}>
+        <div
+          data-tauri-drag-region
+          className={cn(HOME_COLUMN, "flex items-center gap-2")}
+        >
+          <div data-tauri-drag-region className="flex min-w-0 flex-1">
+            {typeof title === "string" ? (
+              <h1 className="truncate text-2xl font-normal">{title}</h1>
+            ) : (
+              title
+            )}
+          </div>
+          {actions && (
             <TooltipProvider delayDuration={300}>
               <div className="flex shrink-0 items-center gap-2">{actions}</div>
             </TooltipProvider>
-          </CompactContext.Provider>
-        )}
-      </div>
+          )}
+        </div>
+      </CompactContext.Provider>
     </header>
   )
 }
@@ -107,7 +116,7 @@ export function HomeToolbarTooltip({
   label: string
   children: React.ReactElement
 }) {
-  const compact = useContext(CompactContext)
+  const compact = useHomeHeaderCompact()
   if (!compact) return children
   return (
     <Tooltip>

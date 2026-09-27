@@ -281,30 +281,36 @@ export function narrowHome(): Array<{ name: string; value: string }> {
 /**
  * Pick up the tile or row named `source` and hold it over the one named
  * `target` without letting go, so the shot catches the drop-target highlight.
- * The home DnD sensor waits for 6px of movement before a drag starts, so the
- * pointer nudges first, then travels in steps dnd-kit can track.
+ *
+ * The drag preview floats under the pointer at the spot it was grabbed, so
+ * grabbing the source by its bottom edge and hovering the target just inside
+ * its top edge keeps the preview above the target rather than on top of it —
+ * the drop test is the pointer's position (`pointerWithin`), so that's enough
+ * to light it. The sensor waits for 6px of movement before a drag starts, so
+ * the pointer nudges first, then travels in steps dnd-kit can track.
  */
 export async function dragOnto(
   page: Page,
   source: string,
   target: string
 ): Promise<void> {
-  const from = await page
-    .getByText(source, { exact: true })
-    .first()
-    .boundingBox({ timeout: 15_000 })
-  const to = await page
-    .getByText(target, { exact: true })
-    .first()
-    .boundingBox({ timeout: 15_000 })
+  const draggable = (name: string) =>
+    page
+      .getByText(name, { exact: true })
+      .first()
+      .locator(
+        "xpath=ancestor-or-self::*[@aria-roledescription='draggable'][1]"
+      )
+      .boundingBox({ timeout: 15_000 })
+  const from = await draggable(source)
+  const to = await draggable(target)
   if (!from || !to)
     throw new Error(`drag: ${source} or ${target} not on screen`)
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  const grab = { x: from.x + from.width / 2, y: from.y + from.height - 3 }
+  await page.mouse.move(grab.x, grab.y)
   await page.mouse.down()
-  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2)
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, {
-    steps: 12,
-  })
+  await page.mouse.move(grab.x, grab.y - 12)
+  await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
 }
 
 /**

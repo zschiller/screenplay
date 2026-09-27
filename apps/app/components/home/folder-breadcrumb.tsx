@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { useHomeHeaderCompact } from "./home-page-header"
 
 /**
  * Beyond this many ancestor crumbs (the chain root→current, current included),
@@ -29,9 +30,9 @@ import type { FolderSummary } from "@/lib/folders-actions"
 const MAX_INLINE_ANCESTORS = 3
 
 // The trail never wraps: it's the header's title, one line tall, and it shares
-// the row with the toolbar. Instead every crumb but "All files" can shrink and
-// truncate — the ancestors first (they give way four times as fast), then the
-// current folder, which keeps its leading characters to the last.
+// the row with the toolbar. Instead every crumb can shrink and truncate — the
+// ancestors ("All files" included) first, four times as fast, then the current
+// folder, which keeps its leading characters to the last.
 const LIST_CLASS = "min-w-0 flex-nowrap gap-1.5 text-2xl font-normal sm:gap-2.5"
 const SEPARATOR_CLASS = "shrink-0 [&>svg]:size-5"
 const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[4]"
@@ -48,46 +49,67 @@ const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
  * Deep paths (issue #485) collapse the *middle* into a `BreadcrumbEllipsis`
  * overflow menu: "All files" and the current folder always stay visible, and
  * every ancestor between them moves into the menu, each navigating to its level.
+ *
+ * In a compact header (a narrow window beside a wide sidebar) any folder below
+ * the root collapses, and "All files" joins its ancestors in the menu: the trail
+ * reads "… › current", so the crumb that names the page keeps the room.
  */
 export function FolderBreadcrumb({
   ancestors,
 }: {
   ancestors: FolderSummary[]
 }) {
+  const compact = useHomeHeaderCompact()
   const atRoot = ancestors.length === 0
   const allFilesCrumb = (
-    <BreadcrumbItem className="shrink-0">
+    <BreadcrumbItem
+      className={atRoot ? CURRENT_ITEM_CLASS : ANCESTOR_ITEM_CLASS}
+    >
       {atRoot ? (
-        <BreadcrumbPage className="text-2xl font-normal">
+        <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
           All files
         </BreadcrumbPage>
       ) : (
         <BreadcrumbLink asChild>
-          <Link href="/files">All files</Link>
+          <Link href="/files" className="truncate">
+            All files
+          </Link>
         </BreadcrumbLink>
       )}
     </BreadcrumbItem>
   )
 
   // Past the threshold, keep only "All files" and the current folder inline and
-  // tuck the ancestors between them behind the overflow menu.
-  if (ancestors.length > MAX_INLINE_ANCESTORS) {
+  // tuck the ancestors between them behind the overflow menu (compact: tuck
+  // "All files" in too).
+  if (compact ? !atRoot : ancestors.length > MAX_INLINE_ANCESTORS) {
     const current = ancestors[ancestors.length - 1]!
     const collapsed = ancestors.slice(0, -1)
     return (
       <Breadcrumb className="min-w-0">
         <BreadcrumbList className={LIST_CLASS}>
-          {allFilesCrumb}
-          <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+          {!compact && (
+            <>
+              {allFilesCrumb}
+              <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+            </>
+          )}
           <BreadcrumbItem className="shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger
-                aria-label="Show folders in between"
+                aria-label={
+                  compact ? "Show parent folders" : "Show folders in between"
+                }
                 className="flex items-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none data-[state=open]:text-foreground"
               >
                 <BreadcrumbEllipsis className="size-7" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
+                {compact && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/files">All files</Link>
+                  </DropdownMenuItem>
+                )}
                 {collapsed.map((folder) => (
                   <DropdownMenuItem key={folder.id} asChild>
                     <Link href={`/files/${folder.id}`}>{folder.name}</Link>
