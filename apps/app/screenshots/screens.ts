@@ -844,6 +844,12 @@ export async function chooseFromMenu(
   path: string | string[]
 ): Promise<void> {
   const steps = typeof path === "string" ? [path] : path
+  // Hover-revealed triggers (sidebar rows) only take a click once their row
+  // is hovered.
+  await trigger
+    .locator("xpath=..")
+    .hover({ timeout: 15_000 })
+    .catch(() => {})
   await trigger.click({ timeout: 15_000, force: true })
   for (const [i, label] of steps.entries()) {
     // Radix ignores a select that lands in the same beat the menu opened.
