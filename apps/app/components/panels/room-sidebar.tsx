@@ -126,6 +126,8 @@ import {
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
+import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
+import { hasGitHubRemote } from "@/lib/repo-identity"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import type {
   BranchData,
@@ -785,6 +787,10 @@ export function RoomSidebar({
     Map<string, Set<string>>
   >(new Map())
   const diffStats = useDiffStats(branches, repos)
+  // Whether the GitHub API is reachable at all, for the delete dialog's
+  // remote-branch offer (issue #741). False until probed, so the destructive
+  // toggle is never shown on a guess.
+  const githubTokenAvailable = useGitHubTokenAvailable()
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, RoomSidebarProps["iframeLayers"][number]>()
     for (const a of iframeLayers) m.set(a.id, a)
@@ -2420,6 +2426,9 @@ export function RoomSidebar({
           const branch = pendingDeleteBranchId
             ? branches.find((a) => a.id === pendingDeleteBranchId)
             : null
+          const repo = branch
+            ? repos.find((w) => w.id === branch.repoId)
+            : undefined
           return (
             <DeleteBranchDialog
               open={!!branch}
@@ -2427,6 +2436,10 @@ export function RoomSidebar({
                 if (!open) setPendingDeleteBranchId(null)
               }}
               branchName={branch?.ref ?? ""}
+              // Remote deletion goes through the GitHub API, so it is only
+              // offered when the API can actually serve it: a token resolves
+              // and this Project names a GitHub remote (issue #741).
+              canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
               onConfirm={async ({ deleteOnRemote }) => {
                 if (!branch) return
                 await onRemoveBranch(branch.id, { deleteOnRemote })

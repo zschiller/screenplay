@@ -15,6 +15,20 @@ export interface GitHubRepo {
   pushedAt: string
 }
 
+/**
+ * Whether a GitHub API token resolves for the current user — the one thing a
+ * client surface needs to know about the token seam to decide whether to offer
+ * a GitHub-API-only affordance at all. Reports the boolean, never the token, so
+ * the secret stays server-side.
+ *
+ * `false` is an ordinary state, not an error: the desktop build treats API
+ * access as optional (the no-auth floor, ADR 0008), so every GitHub-API feature
+ * has to be prepared to stay dark.
+ */
+export async function hasGitHubToken(): Promise<boolean> {
+  return (await getGitHubToken()) !== null
+}
+
 export async function listUserRepos(): Promise<GitHubRepo[]> {
   const token = await getGitHubToken()
   if (!token) return []
