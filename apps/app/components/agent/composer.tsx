@@ -49,8 +49,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import { IconButton } from "@workspace/ui/components/icon-button"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { IconButton, Shortcut } from "@workspace/ui/components/icon-button"
 import {
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
@@ -924,9 +923,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       ) : (
                         <span className="flex items-center gap-1.5">
                           New line
-                          <Kbd>
-                            {submitMode === "enter" || onEnter ? "⇧↵" : "↵"}
-                          </Kbd>
+                          <Shortcut
+                            keys={
+                              submitMode === "enter" || onEnter ? "⇧↵" : "↵"
+                            }
+                          />
                         </span>
                       )
                     }

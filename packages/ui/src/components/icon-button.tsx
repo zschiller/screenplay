@@ -4,7 +4,7 @@ import * as React from "react"
 import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
   Tooltip,
   TooltipContent,
@@ -21,8 +21,12 @@ type IconButtonProps = Omit<
    * text of its styled tooltip, so the two can never drift apart.
    */
   label: string
-  /** Optional keyboard-shortcut hint rendered as a `Kbd` inside the tooltip. */
-  shortcut?: string
+  /**
+   * Optional keyboard-shortcut hint for the tooltip, one `Kbd` per key. A
+   * string is split into its leading modifier glyphs and the key (`"⌘B"` →
+   * ⌘, B); pass an array for anything else (`["Esc"]`).
+   */
+  shortcut?: string | readonly string[]
   /**
    * For toggle-style buttons (e.g. tool modes): exposes the on/off state to
    * assistive technology as `aria-pressed`. Leave undefined for plain actions.
@@ -94,14 +98,14 @@ function IconButton({
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1.5">
                 {label}
-                {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+                {shortcut ? <Shortcut keys={shortcut} /> : null}
               </span>
               <span className="opacity-70">{hint}</span>
             </span>
           ) : (
             <>
               {label}
-              {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+              {shortcut ? <Shortcut keys={shortcut} /> : null}
             </>
           )}
         </TooltipContent>
@@ -110,4 +114,27 @@ function IconButton({
   )
 }
 
-export { IconButton, type IconButtonProps }
+const MODIFIERS = new Set(["⌘", "⇧", "⌥", "⌃"])
+
+/** `"⌘⇧B"` → `["⌘", "⇧", "B"]`: each leading modifier glyph is its own key. */
+function shortcutKeys(shortcut: string | readonly string[]): string[] {
+  if (typeof shortcut !== "string") return [...shortcut]
+  const chars = Array.from(shortcut)
+  let i = 0
+  while (i < chars.length - 1 && MODIFIERS.has(chars[i]!)) i++
+  const rest = chars.slice(i).join("")
+  return [...chars.slice(0, i), ...(rest ? [rest] : [])]
+}
+
+/** A shortcut as a `KbdGroup` with one `Kbd` per key. */
+function Shortcut({ keys }: { keys: string | readonly string[] }) {
+  return (
+    <KbdGroup>
+      {shortcutKeys(keys).map((key, i) => (
+        <Kbd key={i}>{key}</Kbd>
+      ))}
+    </KbdGroup>
+  )
+}
+
+export { IconButton, Shortcut, shortcutKeys, type IconButtonProps }

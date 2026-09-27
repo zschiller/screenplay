@@ -8,7 +8,7 @@ import {
   renderHook,
   screen,
 } from "@testing-library/react"
-import { IconButton } from "@workspace/ui/components/icon-button"
+import { IconButton, shortcutKeys } from "@workspace/ui/components/icon-button"
 
 import { CanvasToolbar } from "./canvas-toolbar"
 import { useToolMode } from "./use-tool-mode"
@@ -121,5 +121,15 @@ describe("CanvasToolbar", () => {
         .getByRole("button", { name: "Select" })
         .getAttribute("aria-pressed")
     ).toBe("false")
+  })
+})
+
+describe("shortcutKeys", () => {
+  it("splits leading modifier glyphs into their own keys", () => {
+    expect(shortcutKeys("⌘B")).toEqual(["⌘", "B"])
+    expect(shortcutKeys("⇧↵")).toEqual(["⇧", "↵"])
+    expect(shortcutKeys("⌘⇧Z")).toEqual(["⌘", "⇧", "Z"])
+    expect(shortcutKeys("V")).toEqual(["V"])
+    expect(shortcutKeys(["Esc"])).toEqual(["Esc"])
   })
 })
