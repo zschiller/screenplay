@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { buildAgentSystemPrompt } from "@/lib/agent/config"
+import {
+  buildAgentSystemPrompt,
+  buildMarkdownLayerSystemPrompt,
+} from "@/lib/agent/config"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 
 const EMPTY_DIRECTORY = { documents: [] }
@@ -94,5 +97,41 @@ describe("buildAgentSystemPrompt — skills block", () => {
     expect(prompt.indexOf("Skills available:")).toBeLessThan(
       prompt.indexOf("Workspace context:")
     )
+  })
+})
+
+describe("buildMarkdownLayerSystemPrompt — formatting rules", () => {
+  const prompt = () =>
+    buildMarkdownLayerSystemPrompt({
+      currentTitle: "Sprint notes",
+      currentBody: "Standup is at 10.",
+      layerDirectory: EMPTY_DIRECTORY,
+      selfId: "doc-1",
+    })
+
+  // `replace_document_body` parses its content as CommonMark, so marks do
+  // survive a save. The prompt used to claim the opposite and tell the model to
+  // emit plain text, contradicting the tool's own description (#743).
+  it("tells the model inline marks are preserved", () => {
+    expect(prompt()).toContain("Inline marks are preserved")
+    expect(prompt()).not.toMatch(/emit plain text/)
+  })
+
+  // The narrower truth behind that stale line: `append_to_document_body`
+  // re-reads the body as plain text first, so it flattens marks already in the
+  // document. The prompt states that limitation specifically, scoped to append.
+  it("scopes the flattening caveat to the append tool", () => {
+    const rule = prompt()
+      .split("\n")
+      .find((line) => line.includes("flattened"))
+
+    expect(rule).toBeDefined()
+    expect(rule).toContain("append_to_document_body")
+    expect(rule).toContain("replace_document_body")
+  })
+
+  it("never mentions a sandbox, shell, or commands", () => {
+    expect(prompt()).toMatch(/no sandbox, no shell, no git/)
+    expect(prompt()).not.toMatch(/run_command/)
   })
 })

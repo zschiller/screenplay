@@ -122,8 +122,15 @@ export async function POST(req: Request) {
       systemPrompt: prepared.systemPrompt,
     })
 
+    // Plan mode is a sandbox-chat feature and stops at this boundary (#743).
+    // The spec's decorator drops the marker, and the flag never reaches the
+    // engine: on the ACP engine a plan-mode turn both switches the harness into
+    // its native plan mode and turns the permission handler into the
+    // ExitPlanMode gate, which would refuse this target's document writes and
+    // abort the turn. A document chat has no plan to submit, so there'd be
+    // nothing to approve. The composer hides the toggle, but a chat carrying a
+    // stale `planMode: true` must still run normally here.
     const userText = prepared.decorateUserMessage(message, {
-      planMode,
       isFirstMessage: false,
     })
     await persistUserTurn(chatId, userText)
@@ -141,7 +148,6 @@ export async function POST(req: Request) {
         systemPrompt: prepared.systemPrompt,
         model: effectiveModel,
         tools: prepared.tools,
-        planMode,
       })
     )
 
