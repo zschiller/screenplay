@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect } from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { Crosshair } from "lucide-react"
@@ -10,7 +9,7 @@ import {
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
-import { targetingStore } from "@/lib/targeting-store"
+import { useElementHighlight } from "./use-element-highlight"
 
 /**
  * React node view for the composer's atomic element token (PRD #616, slice
@@ -20,11 +19,9 @@ import { targetingStore } from "@/lib/targeting-store"
  * (mono), the route, and the frame label.
  *
  * Hovering also highlights the referenced element on the canvas: while the card
- * is open we push a `HighlightTarget` into the targeting store, which the Canvas
- * routes to the frame's bridge to draw an outline. It clears on close and on
- * unmount (message sent / token deleted). All of this is composer-only — the
- * sent chat bubble renders tokens as static spans via `elementMarkersToPills`,
- * with no node view and no highlight.
+ * is open (via the shared `useElementHighlight`, which the sent-message
+ * history token uses too); it clears on close and on unmount (message sent /
+ * token deleted).
  */
 export function ElementTokenNodeView({ node }: NodeViewProps) {
   const label = (node.attrs.label as string | undefined) ?? ""
@@ -34,19 +31,7 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
   const route = (node.attrs.route as string | undefined) ?? "/"
   const frameLabel = (node.attrs.frameLabel as string | undefined) ?? ""
 
-  // Clear any highlight this token owns when it unmounts — a sent message, a
-  // deleted token, or a torn-down composer must not leave a stuck outline.
-  useEffect(() => {
-    return () => targetingStore.clearHighlight(ref)
-  }, [ref])
-
-  const handleOpenChange = (open: boolean) => {
-    if (open && iframeLayerId && selector) {
-      targetingStore.setHighlight({ iframeLayerId, selector, ref })
-    } else {
-      targetingStore.clearHighlight(ref)
-    }
-  }
+  const handleOpenChange = useElementHighlight(ref, iframeLayerId, selector)
 
   return (
     <NodeViewWrapper as="span" data-element-token="" className="inline">
