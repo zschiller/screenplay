@@ -371,6 +371,24 @@ export const SCREENS: Screen[] = [
       // selecting its Workspace, not by looking for a tab that isn't there yet.
       // Its chat is then restored as the Workspace's only open one.
       await selectWorkspace(page, "empty-cart-state")
+      await waitForPlanCard(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-plan-request-changes",
+    description:
+      "Request changes on a pending plan: the composer is focused with the plan quoted.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectWorkspace(page, "empty-cart-state")
+      await waitForPlanCard(page)
+      await page
+        .getByRole("button", { name: "Request changes", exact: true })
+        .click({ timeout: 15_000 })
+      // Park the pointer so the button isn't caught in its hover state.
+      await page.mouse.move(0, 0)
     },
     settleMs: 400,
   },
@@ -1364,6 +1382,16 @@ export async function unfreeze(page: Page): Promise<void> {
  * Select a Workspace in the in-room sidebar, which points the chat panel at it
  * and restores that Workspace's remembered chat.
  */
+/**
+ * Wait for the pending plan card's actions. The chat's history loads after the
+ * Workspace is selected, so without this the shot catches "Loading chat…".
+ */
+async function waitForPlanCard(page: Page): Promise<void> {
+  await page
+    .getByRole("button", { name: "Approve", exact: true })
+    .waitFor({ timeout: 30_000 })
+}
+
 export async function selectWorkspace(page: Page, ref: string): Promise<void> {
   // The sidebar's Workspace rows are labelled with the git ref, which is the
   // one part of a Workspace a person reads off the screen.
