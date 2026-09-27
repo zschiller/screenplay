@@ -98,4 +98,19 @@ describe("extractUiStrings", () => {
       "prop:label Workspace & sandbox",
     ])
   })
+
+  it("reads copy staged in a local or a defaulted prop", () => {
+    expect(
+      strings(`
+        function Composer({ placeholder = "Ask the agent…" }) {
+          const emptyLabel = hasRepos ? "No active agents" : "No projects"
+          const id = "not copy"
+        }
+      `)
+    ).toEqual([
+      "var:placeholder Ask the agent…",
+      "var:emptyLabel No active agents",
+      "var:emptyLabel No projects",
+    ])
+  })
 })

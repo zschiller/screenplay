@@ -441,7 +441,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       isStreaming = false,
       onStop,
       hideSend = false,
-      placeholder = "Ask the agent...",
+      placeholder = "Ask the agent…",
       className = "relative border-t border-border p-3",
       onPickElement,
       targetEligible = true,

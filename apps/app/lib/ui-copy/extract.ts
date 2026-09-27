@@ -34,6 +34,10 @@ export const UI_PROP_NAMES = new Set([
   "hint",
 ])
 
+/** Local bindings whose name says they hold copy: `placeholder`,
+ *  `emptyLabel`, `dialogTitle`, `errorMessage`, … */
+const UI_BINDING_NAME = /(placeholder|label|title|description|message)$/i
+
 export interface UiString {
   /** 1-indexed line of the string's start. */
   line: number
@@ -110,6 +114,16 @@ export function extractUiStrings(fileName: string, source: string): UiString[] {
           : undefined
       if (name && UI_PROP_NAMES.has(name))
         collect(node.initializer, `prop:${name}`)
+    } else if (
+      (ts.isVariableDeclaration(node) ||
+        ts.isParameter(node) ||
+        ts.isBindingElement(node)) &&
+      ts.isIdentifier(node.name) &&
+      UI_BINDING_NAME.test(node.name.text)
+    ) {
+      // `const placeholder = cond ? "A" : "B"`, `{ placeholder = "Ask…" }`:
+      // copy staged in a local before it reaches the JSX.
+      collect(node.initializer, `var:${node.name.text}`)
     } else if (ts.isCallExpression(node)) {
       const callee = node.expression
       const isToast =
