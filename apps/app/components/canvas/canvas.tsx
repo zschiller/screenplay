@@ -29,6 +29,7 @@ import {
 } from "@/lib/yjs/react"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
+import { NEW_CANVAS_PARAM } from "@/lib/new-canvas"
 import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
@@ -169,6 +170,7 @@ export function Canvas({
   initialLayout,
   initialThreads,
   initialTerminalTabs,
+  renameOnOpen = false,
 }: {
   roomId: string
   roomName: string
@@ -181,6 +183,8 @@ export function Canvas({
   initialLayout?: PanelLayout
   initialThreads?: ThreadWithComments[]
   initialTerminalTabs?: TerminalTabRecord[]
+  /** A Canvas home just made: open with its title in edit mode (#777). */
+  renameOnOpen?: boolean
 }) {
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -195,6 +199,21 @@ export function Canvas({
     e.preventDefault()
     roomNameEditableRef.current?.startEditing()
   }, [])
+  // A just-made Canvas opens with its title selected, so typing names it.
+  // The flag leaves the URL at once, so a reload or a shared link opens the
+  // Canvas normally.
+  useEffect(() => {
+    if (!renameOnOpen) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.has(NEW_CANVAS_PARAM)) {
+      url.searchParams.delete(NEW_CANVAS_PARAM)
+      window.history.replaceState(window.history.state, "", url)
+    }
+    const frame = requestAnimationFrame(() =>
+      roomNameEditableRef.current?.startEditing()
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [renameOnOpen])
   const handleRoomRename = useCallback(
     async (next: string) => {
       const trimmed = next.trim()

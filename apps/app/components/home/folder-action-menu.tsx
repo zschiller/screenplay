@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderInput, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
+import { FolderInput, Pencil, Pin, PinOff, Plus, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,8 @@ import {
 // behind a confirm (#488); the menu just opens it.
 type Props = {
   children: React.ReactNode
+  /** Creates an Untitled Canvas inside this folder and opens it (#777). */
+  onNewCanvas: () => void
   onRename: () => void
   /** Opens the "Move to…" folder picker to re-parent this folder. */
   onMove: () => void
@@ -30,6 +32,7 @@ type Props = {
 
 export function FolderActionMenu({
   children,
+  onNewCanvas,
   onRename,
   onMove,
   onDelete,
@@ -40,6 +43,11 @@ export function FolderActionMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={onNewCanvas}>
+          <Plus />
+          New canvas
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onRename}>
           <Pencil />
           Rename

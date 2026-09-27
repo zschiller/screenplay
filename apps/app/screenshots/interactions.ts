@@ -346,6 +346,42 @@ export const INTERACTIONS: Interaction[] = [
       }
     },
   },
+  {
+    name: "new-canvas",
+    description:
+      "New canvas from home, then naming it: a dialog before #777, the Canvas's own title after.",
+    path: "/",
+    run: async (page) => {
+      await page.waitForTimeout(800)
+      await click(
+        page,
+        page.getByRole("button", { name: "New canvas" }).first()
+      )
+      await page.waitForTimeout(1200)
+      // Before #777 a dialog asks for the name first; type it there.
+      const dialog = page.getByRole("dialog")
+      if (await dialog.count()) {
+        await page.keyboard.type("Onboarding", { delay: 90 })
+        await page.waitForTimeout(400)
+        await page.keyboard.press("Enter")
+      }
+      await step(() =>
+        page.waitForURL((url) => url.pathname !== "/", {
+          timeout: 30_000,
+          waitUntil: "commit",
+        })
+      )
+      await page.waitForTimeout(2500)
+      // After #777 the Canvas opens with its title already in edit mode.
+      const editing = page.locator('[contenteditable="true"]').first()
+      if (await editing.count()) {
+        await page.keyboard.type("Onboarding", { delay: 90 })
+        await page.waitForTimeout(400)
+        await page.keyboard.press("Enter")
+      }
+      await page.waitForTimeout(1500)
+    },
+  },
 ]
 
 /**

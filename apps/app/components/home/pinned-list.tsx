@@ -23,6 +23,7 @@ import type { FolderSummary } from "@/lib/folders-actions"
 import { useHome } from "./home-provider"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
+import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFolderDroppable } from "./file-dnd"
@@ -284,6 +285,7 @@ function PinnedFolderRow({
     removeFolder,
     unpin,
   } = useHome()
+  const { create: createCanvas } = useCreateCanvas()
   const { onDragStart, onDragEnd, guardClick } = useDragNavGuard()
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -341,6 +343,7 @@ function PinnedFolderRow({
           move / delete / unpin all act on the lifted store, so edits made here
           update the grid behind the sidebar with no stale-state seam. */}
       <FolderActionMenu
+        onNewCanvas={() => void createCanvas(folder.id)}
         onRename={() => setRenameOpen(true)}
         onMove={() => setMoveOpen(true)}
         onDelete={() => setDeleteOpen(true)}

@@ -18,20 +18,25 @@ import { DEFAULT_VIEW_PREFS, withView, type View } from "@/lib/home-view-prefs"
 // client-only; the folder-create flow only needs `createFolder`.
 const createFolder = vi.fn<(name: string) => Promise<FolderSummary>>()
 const renameFolder = vi.fn<(id: string, name: string) => Promise<void>>()
+const createRoom = vi.fn<(name: string) => Promise<RoomSummary>>()
+const placeRoom =
+  vi.fn<(roomId: string, folderId: string | null) => Promise<void>>()
+const push = vi.fn<(href: string) => void>()
 vi.mock("@/lib/folders-actions", () => ({
   createFolder: (name: string) => createFolder(name),
   renameFolder: (id: string, name: string) => renameFolder(id, name),
   listRoomPlacements: vi.fn().mockResolvedValue([]),
-  placeRoom: vi.fn(),
+  placeRoom: (roomId: string, folderId: string | null) =>
+    placeRoom(roomId, folderId),
 }))
 vi.mock("@/lib/rooms-actions", () => ({
-  createRoom: vi.fn(),
+  createRoom: (name: string) => createRoom(name),
   deleteRoom: vi.fn(),
   renameRoom: vi.fn(),
   listRooms: vi.fn().mockResolvedValue([]),
 }))
 vi.mock("@/lib/yjs-host/client", () => ({ prewarmRoom: vi.fn() }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }))
 
 // Radix's dialog/dropdown reach for browser APIs jsdom doesn't implement;
 // polyfill the minimum so the create dialog can mount and submit.
@@ -52,6 +57,9 @@ afterEach(() => {
   cleanup()
   createFolder.mockReset()
   renameFolder.mockReset()
+  createRoom.mockReset()
+  placeRoom.mockReset()
+  push.mockReset()
 })
 
 const folder = (over: Partial<FolderSummary> = {}): FolderSummary => ({
@@ -212,4 +220,88 @@ describe("RoomsView — grid and table offer the same Canvas actions", () => {
       expect(await canvasMenuOffersMove()).toBe(false)
     }
   )
+})
+
+describe("RoomsView — New canvas opens without a dialog (#777)", () => {
+  const untitled: RoomSummary = { ...room, id: "r-new", name: "Untitled" }
+
+  function renderFolder(folderId: string | null, folders: FolderSummary[]) {
+    return render(
+      <HomeProvider
+        initialRooms={[]}
+        initialFolders={folders}
+        initialPlacements={[]}
+        folderView
+        currentFolderId={folderId}
+      >
+        <RoomsView title="All files" showFolders />
+      </HomeProvider>
+    )
+  }
+
+  it("creates an Untitled Canvas and opens it with its title up for editing", async () => {
+    createRoom.mockResolvedValue(untitled)
+    renderFolder(null, [])
+
+    fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    expect(createRoom).toHaveBeenCalledWith("Untitled")
+    expect(screen.queryByRole("dialog")).toBeNull()
+    // Created at the root, so there's nothing to file.
+    expect(placeRoom).not.toHaveBeenCalled()
+  })
+
+  it("files the new Canvas into the folder you're viewing", async () => {
+    createRoom.mockResolvedValue(untitled)
+    renderFolder("f1", [])
+
+    fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
+
+    await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f1"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+  })
+
+  it("creates inside a folder from that folder's menu", async () => {
+    createRoom.mockResolvedValue(untitled)
+    renderFolder(null, [folder({ id: "f2", name: "Specs" })])
+
+    fireEvent.pointerDown(screen.getByLabelText("Folder actions"), {
+      button: 0,
+      ctrlKey: false,
+    })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "New canvas" }))
+
+    await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f2"))
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+  })
+
+  it("creates from the N key, but not while typing", async () => {
+    createRoom.mockResolvedValue(untitled)
+    renderFolder(null, [])
+
+    const input = document.createElement("input")
+    document.body.appendChild(input)
+    fireEvent.keyDown(input, { key: "n" })
+    expect(createRoom).not.toHaveBeenCalled()
+    input.remove()
+
+    fireEvent.keyDown(document.body, { key: "n", metaKey: true })
+    expect(createRoom).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document.body, { key: "n" })
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new?new=1"))
+    expect(createRoom).toHaveBeenCalledTimes(1)
+  })
+
+  it("stays on home when the create fails", async () => {
+    createRoom.mockRejectedValue(new Error("boom"))
+    renderFolder(null, [])
+
+    const button = screen.getAllByRole("button", { name: "New canvas" })[0]!
+    fireEvent.click(button)
+
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false))
+    expect(push).not.toHaveBeenCalled()
+  })
 })
