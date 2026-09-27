@@ -2,14 +2,11 @@ import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import {
-  buildCodexInstallCommand,
-  buildCodexAuthArgv,
-} from "@/lib/host-tool/codex-install-command"
-import {
   commitAndPushRuleMarkdown,
   type Harness,
   type HarnessPrintModel,
   type HarnessProcessRunner,
+  type HostFacts,
 } from "./types"
 
 /**
@@ -72,6 +69,68 @@ export async function probeCodexAuth(
   // 2. CODEX_API_KEY in the environment — `printf` the var and treat a non-empty
   //    value as authed (an unset var expands to empty → not authed).
   return probeOk(run, "sh", ["-c", 'printf %s "$CODEX_API_KEY"'], nonEmpty)
+}
+
+/** The npm package the `npm install -g` path installs (the `codex` binary). */
+export const CODEX_INSTALL_PACKAGE = "@openai/codex"
+
+/**
+ * Codex's GitHub release-download base — the `latest` channel, so the installer
+ * tracks the newest release without pinning a dated tag.
+ */
+export const CODEX_RELEASE_BASE_URL =
+  "https://github.com/openai/codex/releases/latest/download"
+
+/**
+ * The macOS release-asset target triple for a host `arch`. Codex ships one
+ * self-contained binary per target; the primary desktop target is Apple-silicon
+ * (`arm64` → `aarch64-apple-darwin`), with the Intel target for an `x64` host.
+ * Anything else falls back to the arm64 asset — the surface is macOS-only, and
+ * the arm64 build is the one the acceptance path exercises.
+ */
+function codexReleaseTarget(arch: string): string {
+  return arch === "x64" ? "x86_64-apple-darwin" : "aarch64-apple-darwin"
+}
+
+/**
+ * Codex's official no-`npm` install: download the macOS release binary and land
+ * a `codex` executable in `~/.local/bin` — already on the sidecar's augmented
+ * `PATH` (`desktop/src-tauri/src/sidecar.rs`), so it resolves in this same
+ * session and every later one — with no `sudo`, the same deterministic-path move
+ * Claude Code's and the `gh` binary fallbacks use. The release tarball holds a
+ * single target-named binary, so it's renamed to the plain `codex` the launch
+ * command runs.
+ */
+function buildCodexBinaryInstall(arch: string): string {
+  const target = codexReleaseTarget(arch)
+  const asset = `codex-${target}.tar.gz`
+  const bin = `"$HOME/.local/bin"`
+  return (
+    `mkdir -p ${bin} && ` +
+    `curl -fsSL ${CODEX_RELEASE_BASE_URL}/${asset} | tar xz -C ${bin} && ` +
+    `mv ${bin}/codex-${target} ${bin}/codex && ` +
+    `chmod +x ${bin}/codex`
+  )
+}
+
+/**
+ * Codex's {@link Harness.buildInstallCommand} (ADR 0015): the pure mapping from
+ * host facts → the install command run in the inline setup terminal. Codex is
+ * the harness that exercises the full install-branch variety — the reason
+ * {@link HostFacts} carries `brewPresent` and `arch` on top of `npmPresent` —
+ * checked in host-fit order so a host never dead-ends and no path needs `sudo`:
+ *
+ * - **Homebrew present** → `brew install codex`, the native macOS package path.
+ * - **No `brew`, `npm` present** → `npm i -g @openai/codex`, the global install
+ *   that exposes `codex` on `PATH`.
+ * - **Neither** → Codex's own macOS release binary into `~/.local/bin` (ADR
+ *   0015: the vendor's npm-free path), so a host with no `brew`/`npm` still
+ *   installs, no `sudo`.
+ */
+function buildCodexInstallCommand(facts: HostFacts): string {
+  if (facts.brewPresent) return "brew install codex"
+  if (facts.npmPresent) return `npm i -g ${CODEX_INSTALL_PACKAGE}`
+  return buildCodexBinaryInstall(facts.arch)
 }
 
 /**
@@ -165,7 +224,7 @@ export const codexPrintModel: HarnessPrintModel = {
 export const codexHarness: Harness = {
   key: "codex",
   label: "Codex",
-  installPackage: "@openai/codex",
+  installPackage: CODEX_INSTALL_PACKAGE,
   // The global install exposes the `codex` CLI on PATH.
   launchCommand: "codex",
   brokerProviderKey: "openai",
@@ -202,7 +261,11 @@ export const codexHarness: Harness = {
   // verbatim in the setup terminal's PTY.
   probeAuth: probeCodexAuth,
   buildInstallCommand: buildCodexInstallCommand,
-  authCommand: buildCodexAuthArgv(),
+  // `codex login` runs the CLI's browser/device sign-in and exits when it
+  // resolves — the PTY exit is the setup step's completion signal to re-detect.
+  // The credential it writes (`~/.codex/auth.json`) is exactly what
+  // `probeCodexAuth` reads back.
+  authCommand: ["codex", "login"],
   // One-shot non-interactive model call for desktop naming (rides `codex login` /
   // the brokered key, no separate hosted key) — see `runHostModel` (#674). Codex
   // is chat-capable (non-null `acpAdapter`), so a desktop user whose first

@@ -3,7 +3,7 @@ import "server-only"
 import { defaultHostBinaryProber, type HostBinaryProber } from "./host-binary"
 import { HARNESSES } from "./index"
 import { defaultHarnessProcessRunner } from "./process-runner"
-import type { Harness, HarnessProcessRunner } from "./types"
+import type { Harness, HarnessProcessRunner, HostFacts } from "./types"
 
 /**
  * The **live** per-row status behind the desktop "Coding agents" Settings surface
@@ -94,4 +94,42 @@ export function liveHarnessSetupStatuses(): Promise<HarnessSetupStatus[]> {
     defaultHostBinaryProber,
     defaultHarnessProcessRunner
   )
+}
+
+/** The setup terminal commands for a harness row, resolved against live host facts. */
+export interface HarnessSetupCommands {
+  /** Install-then-sign-in in one PTY, for the not-installed state (`null` if the
+   *  harness has no in-app install path). */
+  installAndAuth: string[] | null
+  /** The bare sign-in, for an installed-but-signed-out (or re-run) row. */
+  authOnly: string[]
+}
+
+/**
+ * Resolve a descriptor's setup terminal commands (ADR 0015): its `authCommand`
+ * as the bare sign-in, and — when it carries a `buildInstallCommand` — that
+ * install chained straight into the sign-in in one `sh -c`, so the install and
+ * the CLI's own login share one visible PTY. `null` when the descriptor has no
+ * `authCommand` (nothing this surface can run).
+ *
+ * Chained with `&&`, so a failed install stops before the sign-in with its error
+ * still on screen (the row then re-detects back to "Not installed"); on success
+ * the PTY exit re-detects to Connected. `facts` is a thunk so the host is probed
+ * only when there is an install command to build. The server action wraps this
+ * behind the `isLocalBuild` gate with the live host-facts probe.
+ */
+export async function resolveHarnessSetupCommandsFor(
+  harness: Harness,
+  facts: () => Promise<HostFacts>
+): Promise<HarnessSetupCommands | null> {
+  if (!harness.authCommand) return null
+  const authOnly = harness.authCommand
+  const installAndAuth = harness.buildInstallCommand
+    ? [
+        "sh",
+        "-c",
+        `${harness.buildInstallCommand(await facts())} && ${authOnly.join(" ")}`,
+      ]
+    : null
+  return { installAndAuth, authOnly }
 }

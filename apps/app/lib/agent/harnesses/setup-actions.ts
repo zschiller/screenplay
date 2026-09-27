@@ -5,9 +5,10 @@ import { HARNESSES } from "./index"
 import { harnessAvailability } from "./availability"
 import {
   liveHarnessSetupStatuses,
+  resolveHarnessSetupCommandsFor,
+  type HarnessSetupCommands,
   type HarnessSetupStatus,
 } from "./setup-status"
-import { chainInstallThenAuth } from "@/lib/host-tool/install-and-auth"
 import type { HostFacts } from "./types"
 import { isLocalBuild } from "@/lib/local-mode"
 
@@ -29,39 +30,21 @@ export async function listHarnessSetupStatus(): Promise<HarnessSetupStatus[]> {
   return liveHarnessSetupStatuses()
 }
 
-/** The setup terminal commands for a harness row, resolved against live host facts. */
-export interface HarnessSetupCommands {
-  /** Install-then-sign-in in one PTY, for the not-installed state (`null` if the
-   *  harness has no in-app install path). */
-  installAndAuth: string[] | null
-  /** The bare sign-in, for an installed-but-signed-out (or re-run) row. */
-  authOnly: string[]
-}
-
 /**
- * Resolve the install / sign-in argv for harness `key`, reading the descriptor's
- * per-harness `buildInstallCommand` + `authCommand` against the live host facts
- * (`npm`/`brew` presence, arch). Returns `null` when the key is unknown or the
- * harness carries no `authCommand` (nothing this surface can run). Kept
- * server-side so the descriptor's command builders never ship to the client.
+ * Resolve the install / sign-in argv for harness `key` — the descriptor's
+ * `buildInstallCommand` + `authCommand` against the live host facts
+ * (`npm`/`brew` presence, arch), via {@link resolveHarnessSetupCommandsFor}.
+ * Returns `null` when the key is unknown or the harness carries no
+ * `authCommand` (nothing this surface can run). Kept server-side so the
+ * descriptor's command builders never ship to the client.
  */
 export async function resolveHarnessSetupCommands(
   key: string
 ): Promise<HarnessSetupCommands | null> {
   if (!isLocalBuild) return null
   const harness = HARNESSES.find((h) => h.key === key)
-  if (!harness || !harness.authCommand) return null
-
-  const authOnly = harness.authCommand
-  let installAndAuth: string[] | null = null
-  if (harness.buildInstallCommand) {
-    const facts = await probeHostFacts()
-    installAndAuth = chainInstallThenAuth(
-      harness.buildInstallCommand(facts),
-      authOnly
-    )
-  }
-  return { installAndAuth, authOnly }
+  if (!harness) return null
+  return resolveHarnessSetupCommandsFor(harness, probeHostFacts)
 }
 
 /**
