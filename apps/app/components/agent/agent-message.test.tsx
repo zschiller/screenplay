@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
-import { AgentMessageItem, TaskGroup } from "./agent-message"
+import { inputStore } from "@/lib/input-store"
+import { AgentMessageItem, TaskGroup, quotePlan } from "./agent-message"
 
 afterEach(cleanup)
 
@@ -448,6 +449,36 @@ describe("AgentMessageItem — disclosure sections share one primitive", () => {
         .getByRole("button", { name: /plan/i })
         .getAttribute("aria-expanded")
     ).toBe("false")
+  })
+})
+
+describe("AgentMessageItem — plan card (issue #803)", () => {
+  const plan: AgentMessage = {
+    role: "plan",
+    content: "## Empty cart\n\n1. Add it.",
+    status: "pending",
+    planId: "p1",
+  }
+
+  it("offers Request changes next to Approve on a pending plan", () => {
+    render(<AgentMessageItem message={plan} roomId="r" chatId="c" />)
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Request changes" })).toBeTruthy()
+  })
+
+  it("puts the quoted plan in this chat's composer", () => {
+    const received: string[] = []
+    const unsubscribe = inputStore.subscribe("c", (text) => received.push(text))
+    render(<AgentMessageItem message={plan} roomId="r" chatId="c" />)
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    unsubscribe()
+    expect(received).toEqual([quotePlan(plan.content)])
+  })
+
+  it("quotes every line, leaving a blank line for the feedback", () => {
+    expect(quotePlan("## Title\n\n1. Step\n")).toBe(
+      "> ## Title\n>\n> 1. Step\n\n"
+    )
   })
 })
 

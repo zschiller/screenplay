@@ -1,7 +1,5 @@
 import { cookies } from "next/headers"
-import Link from "next/link"
-import { Button } from "@workspace/ui/components/button"
-import { EntryScreen } from "@/components/entry/entry-screen"
+import { SignInScreen } from "@/components/entry/sign-in-screen"
 import { HomeShell } from "@/components/home/home-shell"
 import { getUserId } from "@/lib/auth-helpers"
 import { readFixtureEntryState } from "@/lib/fixture-entry"
@@ -21,7 +19,8 @@ import { listPins } from "@/lib/pins-actions"
 /**
  * Shared chrome for the signed-in home surface (Recents, Canvases, Settings):
  * the left sidebar plus the scrollable content inset. Auth-gates the whole
- * group — signed-out visitors get the sign-in CTA with no sidebar instead.
+ * group — signed-out visitors get the sign-in screen itself, with no sidebar
+ * and no intermediate landing page.
  *
  * It also server-seeds the rooms/folders store once for the whole group (#510):
  * the store is lifted into the persistent home shell, so the sidebar and the
@@ -39,7 +38,7 @@ export default async function HomeLayout({
   // The local build is always signed in, so a screenshot capture asks for the
   // signed-out surface explicitly (a no-op outside the Fixture World).
   if (!userId || (await readFixtureEntryState()) === "signed-out") {
-    return <SignedOut />
+    return <SignInScreen />
   }
 
   // Seed the sidebar width from the persisted layout cookie so the first paint
@@ -96,22 +95,5 @@ export default async function HomeLayout({
     >
       {children}
     </HomeShell>
-  )
-}
-
-function SignedOut() {
-  return (
-    <EntryScreen
-      description={
-        <>
-          Design UI on an infinite canvas. Each frame is a live preview of your
-          app. Collaborate in real time.
-        </>
-      }
-    >
-      <Button asChild>
-        <Link href="/sign-in">Sign in to get started</Link>
-      </Button>
-    </EntryScreen>
   )
 }

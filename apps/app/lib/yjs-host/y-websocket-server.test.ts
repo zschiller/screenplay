@@ -136,5 +136,40 @@ describe("LocalYjsHost", () => {
         clientDoc.destroy()
       }
     })
+
+    it("a first client does not report synced until the room's disk state is loaded", async () => {
+      const host = getLocalYjsHost()
+      const coldRoom = "cold-room"
+      await host.mutateDoc(coldRoom, (doc) => {
+        doc.getMap("meta").set("savedViewport", "on-disk")
+      })
+      // Unload the room, as after its last peer disconnects, so the next
+      // connection is the one that triggers the disk load.
+      const live = docs.get(coldRoom)
+      if (live) {
+        docs.delete(coldRoom)
+        live.destroy()
+      }
+
+      const clientDoc = new Y.Doc()
+      const provider = new WebsocketProvider(
+        `ws://localhost:${server.port}`,
+        coldRoom,
+        clientDoc,
+        { WebSocketPolyfill: WebSocket as never, disableBc: true }
+      )
+      let atSync: unknown = "never synced"
+      provider.once("sync", () => {
+        atSync = clientDoc.getMap("meta").get("savedViewport")
+      })
+
+      try {
+        await waitFor(() => provider.synced)
+        expect(atSync).toBe("on-disk")
+      } finally {
+        provider.destroy()
+        clientDoc.destroy()
+      }
+    })
   })
 })
