@@ -55,7 +55,7 @@ export function DeleteBranchDialog({
       description={
         <>
           Its agent, chats, and frames will be removed and its sandbox shut
-          down, discarding any uncommitted changes. The branch{" "}
+          down, discarding any uncommitted changes. The git branch{" "}
           <span className="font-mono">{branchName}</span> itself isn’t deleted
           {canDeleteOnRemote ? " unless you choose to below." : "."}
         </>
