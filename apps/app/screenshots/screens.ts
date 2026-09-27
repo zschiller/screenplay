@@ -1378,19 +1378,14 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
  * only way that version can be opened.
  */
 export async function openSetupError(page: Page): Promise<void> {
-  const button = page.getByRole("button", {
-    name: "Show setup error",
-    exact: true,
-  })
-  if (await button.count()) {
-    await button.first().focus()
-    await page.keyboard.press("Enter")
-    await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
-    return
-  }
-  const row = page.locator(".group\\/branch-row", { hasText: "gift-cards" })
-  await row.locator("svg").first().hover({ timeout: 15_000 })
-  await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
+  // The failed Workspace's status line reads "Setup failed · Retry"; the first
+  // half opens the error card.
+  const button = page.getByRole("button", { name: "Setup failed", exact: true })
+  await button.first().focus({ timeout: 15_000 })
+  await page.keyboard.press("Enter")
+  await page
+    .getByRole("button", { name: "Copy error" })
+    .waitFor({ timeout: 5_000 })
 }
 
 /**

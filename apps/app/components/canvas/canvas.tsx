@@ -941,6 +941,7 @@ export function Canvas({
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
     renameBranch,
+    retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,
   } = useBranchIntake({
@@ -1300,6 +1301,7 @@ export function Canvas({
             onCreatePr={branchActions.createPullRequest}
             onRefreshBranch={branchActions.restartSandbox}
             onRecreateBranch={branchActions.recreate}
+            onRetryBranch={retryBranch}
             onRemoveBranch={removeBranchIntake}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}

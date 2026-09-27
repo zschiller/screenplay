@@ -119,6 +119,12 @@ export interface BranchIntake {
   ) => Promise<void>
   renameBranch: (agentId: string, rawBranch: string) => Promise<void>
   /**
+   * Re-run a failed Workspace's create (#791): the same flow, branch and
+   * Sandbox name as the first attempt. A queued seed prompt is still waiting
+   * and fires once the retry reaches `running`.
+   */
+  retryBranch: (agentId: string) => void
+  /**
    * Repo/Branch storage writes that are *also* consumed outside intake, exposed
    * off the controller rather than redefined in the Canvas root: the sidebar's
    * "update repo" (`updateRepoInStorage`) and the heartbeat / Sandbox-reconnect
@@ -126,6 +132,17 @@ export interface BranchIntake {
    */
   updateRepoInStorage: (id: string, patch: Partial<RepoData>) => void
   updateAgentInStorage: (id: string, patch: Partial<BranchData>) => void
+}
+
+/** The `/api/branch/create` body, less the ids every call carries. */
+interface CreateRequestBody {
+  flow: NonNullable<BranchData["createFlow"]>
+  sandboxName: string
+  branch: string
+  repoId: string
+  sourceBranch?: string
+  seedChat: boolean
+  retry?: boolean
 }
 
 /** Mint a deduped random `adjective-color-animal` branch name. */
@@ -211,6 +228,35 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     [ops]
   )
 
+  // Ask the server to provision a Branch's Sandbox. The route answers at once
+  // and provisions after responding, writing progress and the outcome onto the
+  // Branch record. A refused request (no token, a server error) or one that
+  // never reached the server writes nothing, so the Branch would sit on
+  // `creating` forever: mark it failed here instead, so it offers Retry.
+  const requestCreate = useCallback(
+    async (branchId: string, body: CreateRequestBody) => {
+      let error: string | undefined
+      try {
+        const res = await fetch(withBasePath("/api/branch/create"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, branchId, ...body }),
+        })
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as {
+            error?: string
+          } | null
+          error =
+            data?.error || `The server refused the request (${res.status})`
+        }
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err)
+      }
+      if (error) updateAgentInStorage(branchId, { status: "error", error })
+    },
+    [roomId, updateAgentInStorage]
+  )
+
   // Eagerly seed a single new Branch's canvas frame at creation time, rather
   // than waiting on the deferred `running`-gated seeder: a single-member Group
   // at the viewport center, selected and zoomed once its frame mounts. The op
@@ -292,6 +338,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             status: "creating",
             statusMessage: "Creating branch…",
             createdAt: Date.now(),
+            createFlow: "new",
           },
         }).branchId
       })
@@ -299,24 +346,18 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       const seedChat = seedDefaultTabForNewBranch(agentId)
       seedEagerFrameForBranch(agentId)
 
-      fetch(withBasePath("/api/branch/create"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "new",
-          roomId,
-          branchId: agentId,
-          sandboxName,
-          branch,
-          repoId: id,
-          seedChat,
-        }),
+      void requestCreate(agentId, {
+        flow: "new",
+        sandboxName,
+        branch,
+        repoId: id,
+        seedChat,
       })
     },
     [
       addRepoToStorage,
       ops,
-      roomId,
+      requestCreate,
       seedDefaultTabForNewBranch,
       seedEagerFrameForBranch,
       chatTarget,
@@ -450,6 +491,10 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               statusMessage: "Creating branch…",
               createdAt: Date.now(),
               autoNamedBranch: plan.autoNamedBranch,
+              createFlow: plan.flow,
+              ...(plan.flow === "duplicate-branch" && spec.baseBranch
+                ? { createSourceBranch: spec.baseBranch }
+                : {}),
             },
             // Seed a Chat Session only for prompted rows; bare rows get none.
             ...(plan.seedChat ? { chat: { label, model } } : {}),
@@ -521,19 +566,13 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       }
 
       for (const d of dispatched) {
-        fetch(withBasePath("/api/branch/create"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            flow: d.flow,
-            roomId,
-            branchId: d.id,
-            sandboxName: d.sandboxName,
-            branch: d.branch,
-            repoId,
-            sourceBranch: d.sourceBranch,
-            seedChat: d.seedChat,
-          }),
+        void requestCreate(d.id, {
+          flow: d.flow,
+          sandboxName: d.sandboxName,
+          branch: d.branch,
+          repoId,
+          sourceBranch: d.sourceBranch,
+          seedChat: d.seedChat,
         })
       }
     },
@@ -541,6 +580,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       repos,
       ops,
       roomId,
+      requestCreate,
       createDefaultTabForBranch,
       getViewportCenter,
       handleSelectIframeLayer,
@@ -569,30 +609,25 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           statusMessage: "Cloning repository…",
           createdAt: Date.now(),
           autoNamedBranch: false,
+          createFlow: "from-branch",
         },
       })
       chatTarget.addPending([id])
       const seedChat = seedDefaultTabForNewBranch(id)
       seedEagerFrameForBranch(id)
 
-      fetch(withBasePath("/api/branch/create"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          flow: "from-branch",
-          roomId,
-          branchId: id,
-          sandboxName,
-          branch,
-          repoId,
-          seedChat,
-        }),
+      void requestCreate(id, {
+        flow: "from-branch",
+        sandboxName,
+        branch,
+        repoId,
+        seedChat,
       })
     },
     [
       repos,
       ops,
-      roomId,
+      requestCreate,
       seedDefaultTabForNewBranch,
       seedEagerFrameForBranch,
       chatTarget,
@@ -602,17 +637,18 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // Dispatch prompts queued by the prompt-first create handler (createBranch)
   // once their agent's sandbox reaches `running`. Deleting the entry before
   // sending means the prompt fires exactly once — never before `running`, and
-  // never re-sent on a later reconnect. Drop the queue entry if the agent
-  // errored out so failed builds don't leak forever.
+  // never re-sent on a later reconnect. A failed setup keeps its entry, so the
+  // prompt fires once Retry or Recreate brings the Sandbox up (#791); the
+  // entry goes when its Workspace is deleted.
   useEffect(() => {
     if (pendingPromptsRef.current.size === 0) return
+    const live = new Set(agents.map((a) => a.id))
+    for (const id of pendingPromptsRef.current.keys()) {
+      if (!live.has(id)) pendingPromptsRef.current.delete(id)
+    }
     for (const agent of agents) {
       const queued = pendingPromptsRef.current.get(agent.id)
       if (!queued) continue
-      if (agent.status === "error") {
-        pendingPromptsRef.current.delete(agent.id)
-        continue
-      }
       if (agent.status !== "running" || !agent.sandboxName || !agent.ref)
         continue
       pendingPromptsRef.current.delete(agent.id)
@@ -737,6 +773,31 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     [agents, repos, updateAgentInStorage]
   )
 
+  const retryBranch = useCallback(
+    (agentId: string) => {
+      const agent = agents.find((a) => a.id === agentId)
+      if (!agent || !agent.ref) return
+      updateAgentInStorage(agentId, {
+        status: "creating",
+        statusMessage: "Retrying setup…",
+        error: "",
+      })
+      void requestCreate(agentId, {
+        // A Workspace from before flows were recorded retries onto its branch
+        // as it stands, which is right whenever that branch exists.
+        flow: agent.createFlow ?? "from-branch",
+        sandboxName: agent.sandboxName,
+        branch: agent.ref,
+        repoId: agent.repoId,
+        sourceBranch: agent.createSourceBranch,
+        // The client seeded this Workspace's tab at create time.
+        seedChat: false,
+        retry: true,
+      })
+    },
+    [agents, requestCreate, updateAgentInStorage]
+  )
+
   const removeRepo = useCallback(
     async (
       id: string,
@@ -838,6 +899,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     removeRepo,
     removeBranch,
     renameBranch,
+    retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,
   }
