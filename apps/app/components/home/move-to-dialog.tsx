@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Check, Folder as FolderIcon, FolderOpen } from "lucide-react"
 import {
   Dialog,
@@ -143,6 +143,51 @@ function MoveToForm({
     return blocked.has(targetId)
   }
 
+  // Roving tabindex, per the ARIA radio group pattern: the group is one Tab
+  // stop — the picked destination, else the first one on offer — and the arrow
+  // keys walk the enabled destinations, picking as they go.
+  const destinations: Array<string | null> = [
+    null,
+    ...rows.map(({ folder }) => folder.id),
+  ]
+  const tabStop =
+    selected !== undefined && !isDisabled(selected)
+      ? selected
+      : destinations.find((id) => !isDisabled(id))
+  const groupRef = useRef<HTMLDivElement>(null)
+
+  function handleGroupKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const radios = Array.from(
+      groupRef.current?.querySelectorAll<HTMLButtonElement>(
+        "[role=radio]:not(:disabled)"
+      ) ?? []
+    )
+    if (radios.length === 0) return
+    const current = radios.indexOf(e.target as HTMLButtonElement)
+    let next: number
+    switch (e.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        next = (current + 1) % radios.length
+        break
+      case "ArrowUp":
+      case "ArrowLeft":
+        next = (current - 1 + radios.length) % radios.length
+        break
+      case "Home":
+        next = 0
+        break
+      case "End":
+        next = radios.length - 1
+        break
+      default:
+        return
+    }
+    e.preventDefault()
+    radios[next]!.focus()
+    radios[next]!.click()
+  }
+
   async function handleMove() {
     if (selected === undefined) return
     setPending(true)
@@ -163,7 +208,14 @@ function MoveToForm({
         <DialogDescription>Choose a destination folder.</DialogDescription>
       </DialogHeader>
       <ScrollArea className="my-2 max-h-72">
-        <div role="radiogroup" className="flex flex-col gap-0.5 pr-2">
+        <div
+          ref={groupRef}
+          role="radiogroup"
+          aria-label="Destination"
+          onKeyDown={handleGroupKeyDown}
+          // Room for the focus ring, which the scroll viewport would clip.
+          className="flex flex-col gap-0.5 p-1 pr-3"
+        >
           <DestinationRow
             label="All files"
             icon={
@@ -171,6 +223,7 @@ function MoveToForm({
             }
             depth={0}
             selected={selected === null}
+            tabbable={tabStop === null}
             disabled={isDisabled(null)}
             onSelect={() => setSelected(null)}
           />
@@ -184,6 +237,7 @@ function MoveToForm({
               // Nest under the root crumb's indent.
               depth={depth + 1}
               selected={selected === folder.id}
+              tabbable={tabStop === folder.id}
               disabled={isDisabled(folder.id)}
               onSelect={() => setSelected(folder.id)}
             />
@@ -212,6 +266,7 @@ function DestinationRow({
   icon,
   depth,
   selected,
+  tabbable,
   disabled,
   onSelect,
 }: {
@@ -219,6 +274,8 @@ function DestinationRow({
   icon: React.ReactNode
   depth: number
   selected: boolean
+  /** The group's one Tab stop; the others are reached with the arrow keys. */
+  tabbable: boolean
   disabled: boolean
   onSelect: () => void
 }) {
@@ -227,11 +284,12 @@ function DestinationRow({
       type="button"
       role="radio"
       aria-checked={selected}
+      tabIndex={tabbable ? 0 : -1}
       disabled={disabled}
       onClick={onSelect}
       style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
       className={cn(
-        "flex items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm transition-colors",
+        "flex items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         "disabled:cursor-not-allowed disabled:opacity-40",
         selected
           ? "bg-accent text-accent-foreground"

@@ -17,6 +17,7 @@ import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
+import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
 /**
  * Composes a Room's thumbnail from its Thumbnail Manifest: one positioned image
@@ -278,7 +279,7 @@ function RoomCard({ room }: { room: RoomSummary }) {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+              className={ACTION_TRIGGER_REVEAL}
               aria-label="Canvas actions"
             >
               <MoreHorizontal />

@@ -58,6 +58,26 @@ body {
   }
 }
 
+/* Reduce motion, app-wide. With the OS setting on, every CSS animation and
+   transition finishes at once — looping keyframes like the Grip spinner hold
+   still on their end frame, and panels, menus, and dialogs appear rather than
+   slide or zoom. A near-zero duration rather than `none`, so `animationend` and
+   `transitionend` still fire for the code (Radix's presence, above all) that
+   waits on them. `motion` animations are covered by MotionConfig in
+   components/motion-provider.tsx. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Tiptap Collaboration caret — remote user cursors in text layers */
 .collaboration-carets__caret {
   position: relative;
