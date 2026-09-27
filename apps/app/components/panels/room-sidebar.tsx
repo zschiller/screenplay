@@ -159,6 +159,7 @@ import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
+import { branchRowClassName } from "@/components/panels/branch-row-class"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
@@ -330,7 +331,7 @@ function RepoGap({ index }: { index: number }) {
   return (
     <li ref={setNodeRef} aria-hidden className="relative -my-px h-1">
       {isOver ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-fuchsia-500" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-canvas-selection" />
       ) : null}
     </li>
   )
@@ -469,7 +470,7 @@ function SortableRow({
         // `ring` (not `ring-inset`) so it sits OUTSIDE the row, where it
         // remains visible even when the underlying row has its own
         // selection styling (e.g. a selected frame's accent ring).
-        indicator === "into" && "z-10 rounded-md ring-2 ring-fuchsia-500",
+        indicator === "into" && "z-10 rounded-md ring-2 ring-canvas-selection",
         className
       )}
       {...attributes}
@@ -487,9 +488,9 @@ function SortableRow({
 }
 
 /**
- * The single canonical drop indicator — a 2px fuchsia line. Matches the canvas
- * selection color (`#d946ef`, Tailwind `fuchsia-500`) so the sidebar and canvas
- * share one "active target" visual language. No rounded corners, no shadows.
+ * The single canonical drop indicator — a 2px line in the canvas selection
+ * token (`--canvas-selection`) so the sidebar and canvas share one "active
+ * target" visual language. No rounded corners, no shadows.
  *
  * `offsetPx` is how far past the row's edge the line sits — tuned to land in
  * the MIDDLE of the gap to the neighbouring row. The 2px line centers on the
@@ -506,7 +507,7 @@ function DropLine({
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-fuchsia-500"
+      className="pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-canvas-selection"
       style={side === "before" ? { top: -offsetPx } : { bottom: -offsetPx }}
     />
   )
@@ -578,7 +579,7 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
   return (
     <div ref={setNodeRef} aria-hidden className="relative -my-px h-1">
       {isOver ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-fuchsia-500" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-canvas-selection" />
       ) : null}
     </div>
   )
@@ -669,6 +670,12 @@ interface RoomSidebarProps {
    *  and chat panel share one poller and can't disagree about whether a PR
    *  exists for a branch. */
   branchPrs: Map<string, BranchPrInfo>
+  /**
+   * Bumped by the Canvas to open the add-project flow from outside the sidebar
+   * (the empty-canvas "Add a Project" action, #735). Each new value opens it
+   * once: the menu on desktop, the GitHub picker on web.
+   */
+  addProjectRequest?: number
 }
 
 function sanitizeBranchName(raw: string): string {
@@ -725,6 +732,7 @@ export function RoomSidebar({
   activeBranchIds,
   chatPanelBranchId,
   branchPrs,
+  addProjectRequest = 0,
 }: RoomSidebarProps) {
   // The add-project popover moves through a small view-state machine: the
   // repo/URL picker, the folder-path fallback form (#604), or — once an
@@ -756,6 +764,17 @@ export function RoomSidebar({
       setPickerView("folder")
     }
   }, [])
+  // The desktop add-project menu is controlled so the Canvas can open it
+  // (`addProjectRequest`), not only its trigger.
+  const [addProjectMenuOpen, setAddProjectMenuOpen] = useState(false)
+  // Adjusted during render (not in an effect) when the request changes.
+  const [seenAddProjectRequest, setSeenAddProjectRequest] =
+    useState(addProjectRequest)
+  if (addProjectRequest !== seenAddProjectRequest) {
+    setSeenAddProjectRequest(addProjectRequest)
+    if (isLocalBuild) setAddProjectMenuOpen(true)
+    else setPickerView("repos")
+  }
   const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
@@ -1425,7 +1444,9 @@ export function RoomSidebar({
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none">
+      {/* Children fade in over the loading skeleton's matching sidebar
+          (#735); the panel background itself is already there. */}
+      <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0">
         <div
           data-tauri-drag-region
           className="flex h-12 items-center justify-end px-4 pr-3"
@@ -1476,7 +1497,10 @@ export function RoomSidebar({
                     // Desktop: the trigger opens a menu first — "Open project"
                     // fires the native directory dialog directly, "Open GitHub
                     // project" opens the GitHub picker modal (#604).
-                    <DropdownMenu>
+                    <DropdownMenu
+                      open={addProjectMenuOpen}
+                      onOpenChange={setAddProjectMenuOpen}
+                    >
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>
@@ -1717,7 +1741,7 @@ export function RoomSidebar({
                                       setNewWorkspaceBaseBranch(null)
                                       setNewWorkspaceRepoId(repo.id)
                                     }}
-                                    title="New Workspace"
+                                    title="New workspace"
                                   >
                                     <Plus />
                                   </SidebarMenuAction>
@@ -1746,7 +1770,7 @@ export function RoomSidebar({
                                         }
                                       >
                                         <GitBranch />
-                                        Open existing branch
+                                        Open existing git branch
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
@@ -1769,11 +1793,11 @@ export function RoomSidebar({
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
-                                  {/* "Open existing branch" reattaches to a
+                                  {/* "Open existing git branch" reattaches to a
                                     remote branch (flow:"from-branch", no new
                                     branch, no prompt, autoNamedBranch:false) —
                                     a single Enter action. Forking lives in the
-                                    branch menu's "New branch from here…", which
+                                    branch menu's "New workspace from here…", which
                                     opens the create dialog based on that branch
                                     (#353). */}
                                   <Dialog
@@ -1798,7 +1822,7 @@ export function RoomSidebar({
                                     >
                                       <DialogHeader className="px-4 pt-4 pb-2">
                                         <DialogTitle>
-                                          Open existing branch
+                                          Open existing git branch
                                         </DialogTitle>
                                       </DialogHeader>
                                       <BranchPicker
@@ -1885,7 +1909,10 @@ export function RoomSidebar({
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
                                                     <div
-                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? "opacity-50" : ""}`}
+                                                      className={branchRowClassName({
+                                                        isPanelActive,
+                                                        isLoading,
+                                                      })}
                                                         onClick={(e) => {
                                                           e.stopPropagation()
                                                           onSelectBranch(
@@ -2742,7 +2769,7 @@ function RepoSettings({
             onChange={(e) => setName(e.target.value)}
             placeholder={repo.repoFullName}
           />
-          <FieldDescription>Optional workspace label.</FieldDescription>
+          <FieldDescription>Optional project label.</FieldDescription>
         </Field>
 
         <RepoSettingsFields

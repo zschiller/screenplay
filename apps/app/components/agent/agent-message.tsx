@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import Markdown, { type Components } from "react-markdown"
+import { type Components } from "react-markdown"
 import {
   ChevronDown,
   FileText,
@@ -14,14 +14,16 @@ import {
   ClipboardList,
   GitPullRequest,
   ExternalLink,
-  Loader2,
   Sparkles,
   PencilLine,
   SquarePen,
   Brain,
   Crosshair,
   Bot,
+  Square,
 } from "lucide-react"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
@@ -41,6 +43,7 @@ import { chatStore } from "@/lib/chat-store"
 import { openExternal } from "@/lib/open-external"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 import { useElementHighlight } from "./use-element-highlight"
+import { ChatMarkdown } from "./chat-markdown"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -207,7 +210,7 @@ function CreatePrIndicator({
   if (!result) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+        <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground">{title}</div>
           <div className="text-[11px] text-muted-foreground">
@@ -494,9 +497,9 @@ function ToolCallIndicator({
         }`}
       >
         {running ? (
-          <Loader2
+          <Spinner
             data-testid="tool-call-spinner"
-            className="h-3 w-3 shrink-0 animate-spin"
+            className="size-3 shrink-0"
           />
         ) : failed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
@@ -594,7 +597,8 @@ export function TaskGroup({
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
       >
         {anyRunning ? (
-          <Loader2 className="h-3 w-3 shrink-0 [transform-origin:center] animate-spin will-change-transform" />
+          // A running Task is a subagent at work: LLM activity, so the grid.
+          <GripSpinner className="h-3 w-3 shrink-0" />
         ) : anyFailed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
         ) : (
@@ -647,7 +651,7 @@ function PlanMessage({
     ),
     rejected: (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-400">
-        <XCircle className="h-3 w-3" /> Changes Requested
+        <XCircle className="h-3 w-3" /> Changes requested
       </span>
     ),
   }[message.status]
@@ -672,9 +676,7 @@ function PlanMessage({
       </button>
       {expanded && (
         <>
-          <div className="prose prose-sm mt-2 max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
-            <Markdown>{message.content}</Markdown>
-          </div>
+          <ChatMarkdown className="mt-2">{message.content}</ChatMarkdown>
           {message.status === "pending" && (
             <div className="mt-3">
               <Button
@@ -694,9 +696,9 @@ function PlanMessage({
               <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
                 <XCircle className="h-3 w-3" /> Your feedback
               </div>
-              <div className="prose prose-sm max-w-none text-xs prose-neutral dark:prose-invert prose-p:my-0.5">
-                <Markdown>{message.feedback}</Markdown>
-              </div>
+              <ChatMarkdown tone="muted" size="xs">
+                {message.feedback}
+              </ChatMarkdown>
             </div>
           )}
         </>
@@ -732,9 +734,13 @@ function ReasoningMessage({
         />
       </button>
       {expanded && (
-        <div className="prose prose-sm max-w-none border-t border-border px-2 py-1.5 text-xs text-muted-foreground prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-[11px] prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-ol:my-1 prose-ul:my-1">
-          <Markdown>{message.content}</Markdown>
-        </div>
+        <ChatMarkdown
+          tone="muted"
+          size="xs"
+          className="border-t border-border px-2 py-1.5"
+        >
+          {message.content}
+        </ChatMarkdown>
       )}
     </div>
   )
@@ -879,11 +885,14 @@ function UserMessage({
 
   return (
     <div className="flex justify-end">
-      <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
-        <Markdown urlTransform={(url) => url} components={components}>
-          {displayContent}
-        </Markdown>
-      </div>
+      <ChatMarkdown
+        tone="inverted"
+        urlTransform={(url) => url}
+        components={components}
+        className="max-w-[85%] rounded-lg bg-primary px-3 py-1"
+      >
+        {displayContent}
+      </ChatMarkdown>
     </div>
   )
 }
@@ -904,11 +913,7 @@ export function AgentMessageItem({
       return <UserMessage message={message} />
 
     case "assistant":
-      return (
-        <div className="prose prose-sm max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
-          <Markdown>{message.content}</Markdown>
-        </div>
-      )
+      return <ChatMarkdown>{message.content}</ChatMarkdown>
 
     case "reasoning":
       return <ReasoningMessage message={message} />
@@ -932,6 +937,24 @@ export function AgentMessageItem({
         <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {message.content}
+        </div>
+      )
+
+    case "stopped":
+      // A rule across the transcript rather than a bubble: it marks where the
+      // run was cut short, so the turn above doesn't read as a finished one.
+      return (
+        <div
+          role="note"
+          data-testid="run-stopped"
+          className="flex items-center gap-2 text-[11px] text-muted-foreground"
+        >
+          <span className="h-px flex-1 bg-border" />
+          <span className="flex items-center gap-1">
+            <Square className="size-2 fill-current" />
+            Stopped
+          </span>
+          <span className="h-px flex-1 bg-border" />
         </div>
       )
   }

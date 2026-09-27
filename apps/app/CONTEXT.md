@@ -397,6 +397,15 @@ hydration); applying the rename via the per-chat `onChatRename` callback instead
 of writing the Y.Doc here (that callback re-registers per render and drops a
 rename landing in the clear/re-set window).
 
+**Busy Indicator**:
+The two spinners, split by what is busy. The **GripSpinner** (the 9-dot grid,
+`components/grip-spinner.tsx`) means **LLM activity**: the agent thinking, a
+reply streaming, a subagent (Task) running, a live chat tab. The **Spinner**
+(`@workspace/ui/components/spinner`) means **progress**: loading, a request in
+flight, a tool call running, a Sandbox booting.
+_Avoid_: the grid for plain progress; `Spinner` or a raw `Loader2` for model
+activity; a third spinner style.
+
 **Chat Target**:
 What a Chat Session talks to — either a Branch's **sandbox** or a Markdown
 Layer (a document). The target decides the system prompt and which Tools the

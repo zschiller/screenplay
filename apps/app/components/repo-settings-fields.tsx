@@ -252,8 +252,8 @@ export function RepoSettingsFields({
                 placeholder="default"
               />
               <FieldDescription>
-                Optional, e.g. “web” or “api” — tells apart Projects for the same
-                repo
+                Optional, e.g. “web” or “api” — tells apart projects from the
+                same git repository
               </FieldDescription>
             </Field>
           )}

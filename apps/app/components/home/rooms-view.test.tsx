@@ -10,6 +10,8 @@ import {
 import { HomeProvider } from "./home-provider"
 import { RoomsView } from "./rooms-view"
 import type { FolderSummary } from "@/lib/folders-actions"
+import type { RoomSummary } from "@/lib/rooms-actions"
+import { DEFAULT_VIEW_PREFS, withView, type View } from "@/lib/home-view-prefs"
 
 // The server-action modules the provider/view import bind the server-only db,
 // sandbox and yjs-host stacks at import. Stub them so the import graph stays
@@ -155,4 +157,59 @@ describe("RoomsView — creating a folder", () => {
     )
     expect(screen.queryByText("Add folder")).toBeNull()
   })
+})
+
+const room: RoomSummary = {
+  id: "r1",
+  name: "Checkout",
+  ownerId: "u1",
+  isOwner: true,
+  sharedWithCount: 0,
+  createdAt: 1,
+  lastConnectionAt: 1,
+  thumbnailUrl: null,
+  thumbnailUpdatedAt: null,
+  thumbnailManifest: null,
+}
+
+// Recents lists every Canvas, whatever folder it's filed in — which is where the
+// grid and table used to disagree about offering "Move to…" (issue #737).
+function renderRecents(view: View, folders: FolderSummary[]) {
+  return render(
+    <HomeProvider
+      initialRooms={[room]}
+      initialFolders={folders}
+      initialPlacements={[]}
+      initialViewPrefs={withView(DEFAULT_VIEW_PREFS, view)}
+    >
+      <RoomsView title="Recents" showSort={false} />
+    </HomeProvider>
+  )
+}
+
+async function canvasMenuOffersMove(): Promise<boolean> {
+  fireEvent.pointerDown(screen.getByLabelText("Canvas actions"), {
+    button: 0,
+    ctrlKey: false,
+  })
+  await screen.findByText("Pin to sidebar")
+  return screen.queryByText("Move to…") !== null
+}
+
+describe("RoomsView — grid and table offer the same Canvas actions", () => {
+  it.each<View>(["grid", "table"])(
+    "%s offers Move on Recents once a folder exists",
+    async (view) => {
+      renderRecents(view, [folder()])
+      expect(await canvasMenuOffersMove()).toBe(true)
+    }
+  )
+
+  it.each<View>(["grid", "table"])(
+    "%s hides Move while there is no folder to file into",
+    async (view) => {
+      renderRecents(view, [])
+      expect(await canvasMenuOffersMove()).toBe(false)
+    }
+  )
 })

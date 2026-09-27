@@ -36,6 +36,11 @@ export type AgentMessage =
       output: string
     }
   | { role: "error"; content: string }
+  // The user stopped the run here (its `agent_run` ended `aborted`). A marker,
+  // not a message: it carries no content, only the fact that the turn above it
+  // was cut short rather than finished, so a stopped run doesn't read as a
+  // completed one.
+  | { role: "stopped" }
   | {
       role: "plan"
       content: string

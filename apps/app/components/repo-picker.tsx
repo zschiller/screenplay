@@ -145,8 +145,8 @@ export function RepoPicker({
           }}
           placeholder={
             localSources
-              ? "Search or paste a repo URL…"
-              : "Search repositories…"
+              ? "Search or paste a clone URL…"
+              : "Search GitHub repositories…"
           }
         />
         <div className="relative min-h-0 flex-1">
@@ -194,7 +194,7 @@ export function RepoPicker({
                 <div className="flex items-center justify-center gap-2 py-4">
                   <Spinner className="size-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">
-                    Loading repositories…
+                    Loading GitHub repositories…
                   </span>
                 </div>
               ) : showConnectHint ? (
@@ -203,12 +203,12 @@ export function RepoPicker({
                   URL above or add a local folder below.
                 </span>
               ) : (
-                "No repositories found."
+                "No GitHub repositories found."
               )}
             </CommandEmpty>
 
             {!loading && showGroups && (
-              <CommandGroup heading="Configured repositories">
+              <CommandGroup heading="Project presets">
                 {sortedConfigs.map((config) => {
                   const repo = reposByFullName.get(config.repoFullName)
                   const isPrivate = repo?.private ?? config.private
@@ -236,7 +236,7 @@ export function RepoPicker({
 
             {!loading && (
               <CommandGroup
-                heading={showGroups ? "Other repositories" : undefined}
+                heading={showGroups ? "Other GitHub repositories" : undefined}
               >
                 {(showGroups ? otherRepos : repos).map((repo) => (
                   <CommandItem

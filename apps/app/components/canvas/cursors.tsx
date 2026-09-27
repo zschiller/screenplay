@@ -1,5 +1,6 @@
 "use client"
 
+import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { useOtherPresences } from "@/lib/yjs/react"
 
 interface CursorsProps {
@@ -18,11 +19,12 @@ export function Cursors({ viewport }: CursorsProps) {
         const screenY = presence.pointer.y * viewport.zoom + viewport.y
         const message = presence.message ?? null
         const name = presence.identity.name || "Anonymous"
+        const ink = presenceInkClass(presence.color)
 
         return (
           <div
             key={clientId}
-            className="pointer-events-none absolute z-[9999]"
+            className="pointer-events-none absolute z-(--z-canvas-presence)"
             style={{ left: screenX, top: screenY }}
           >
             <svg
@@ -39,7 +41,7 @@ export function Cursors({ viewport }: CursorsProps) {
             </svg>
             {message !== null ? (
               <div
-                className="mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs text-white shadow-md"
+                className={`mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs shadow-md ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
                 <div className="text-[10px] font-medium opacity-80">{name}</div>
@@ -49,7 +51,7 @@ export function Cursors({ viewport }: CursorsProps) {
               </div>
             ) : (
               <span
-                className="mt-1 ml-3 rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap text-white"
+                className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
                 {name}

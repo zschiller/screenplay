@@ -65,18 +65,18 @@ function framingFor(isOwner: boolean, sharedWithCount: number): Framing {
         "its contents. This cannot be undone.",
       confirmLabel: "Delete",
       pendingLabel: "Deleting…",
-      errorFallback: "Failed to delete project",
+      errorFallback: "Failed to delete canvas",
       destructive: true,
     }
   }
   return {
     title: "Delete",
     description:
-      "This project and all of its contents will be permanently deleted. " +
+      "This canvas and all of its contents will be permanently deleted. " +
       "This cannot be undone.",
     confirmLabel: "Delete",
     pendingLabel: "Deleting…",
-    errorFallback: "Failed to delete project",
+    errorFallback: "Failed to delete canvas",
     destructive: true,
   }
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react"
 
+import { presenceInk } from "@/lib/canvas/presence-ink"
+
 interface CursorChatProps {
   /** Screen-space position of the local cursor. */
   screenX: number
@@ -35,7 +37,7 @@ export function CursorChat({
 
   return (
     <div
-      className="pointer-events-none absolute z-[10000]"
+      className="pointer-events-none absolute z-(--z-canvas-presence)"
       style={{ left: screenX, top: screenY }}
     >
       <div
@@ -60,7 +62,11 @@ export function CursorChat({
             e.stopPropagation()
           }}
           onBlur={onClose}
-          className="w-48 bg-transparent text-xs text-white outline-none placeholder:text-white/70"
+          className={
+            presenceInk(color) === "dark"
+              ? "w-48 bg-transparent text-xs text-neutral-950 outline-none placeholder:text-neutral-950/60"
+              : "w-48 bg-transparent text-xs text-white outline-none placeholder:text-white/70"
+          }
         />
       </div>
     </div>

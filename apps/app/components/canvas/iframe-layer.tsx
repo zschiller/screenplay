@@ -403,8 +403,8 @@ export function IframeLayer({
   // highlights (default variant) when HMR drops.
   const showToolbar = selected && !multiSelected
 
-  // Portal target is created in canvas.tsx at z-30 (above the SelectionOverlay
-  // canvas at z-10), so the toolbar isn't painted over by hover rings or
+  // Portal target is created in canvas.tsx in the popovers layer (above the
+  // SelectionOverlay's overlay layer — see the canvas tokens in globals.css), so the toolbar isn't painted over by hover rings or
   // resize handles. Resolved lazily during render — it's only read once the
   // frame is selected (showToolbar), well after the ancestor portal node has
   // mounted, and getElementById returns a stable node reference so dependents
@@ -764,7 +764,7 @@ export function IframeLayer({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      {createFlow ? "Stop Create Flow" : "Create Flow"}
+                      {createFlow ? "Stop create flow" : "Create flow"}
                     </TooltipContent>
                   </Tooltip>
                   {/* interaction modes above ∣ everything else below */}
@@ -897,7 +897,7 @@ export function IframeLayer({
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
                       <span className="text-xs text-muted-foreground">
-                        Waiting for dev server...
+                        Waiting for dev server…
                       </span>
                     </>
                   )}
