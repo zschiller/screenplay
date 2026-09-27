@@ -35,6 +35,7 @@ import type { SortKey } from "@/lib/room-sort"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
 // The Name-column content of a folder row — icon + name link. Shared by the
 // live row and its drag preview so they stay in sync.
@@ -200,7 +201,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+            className={ACTION_TRIGGER_REVEAL}
             aria-label="Folder actions"
           >
             <MoreHorizontal />
@@ -326,7 +327,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+            className={ACTION_TRIGGER_REVEAL}
             aria-label="Canvas actions"
           >
             <MoreHorizontal />

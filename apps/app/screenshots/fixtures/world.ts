@@ -180,6 +180,10 @@ export const FIXTURE_IDS = {
     marketing: "fld-marketing",
     designSystem: "fld-design-system",
     archive: "fld-archive",
+    /** Archive → 2025 → Drafts: deep enough that the breadcrumb collapses its
+     *  middle ancestors behind the overflow menu. */
+    archive2025: "fld-archive-2025",
+    drafts: "fld-drafts",
   },
   rooms: {
     /** The rich Canvas: a Project with Workspaces in every status, frames, a doc, a chat. */
@@ -260,6 +264,18 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
         name: "Archive",
         parentFolderId: ids.folders.designSystem,
         createdAt: daysAgo(now, 20),
+      },
+      {
+        id: ids.folders.archive2025,
+        name: "2025",
+        parentFolderId: ids.folders.archive,
+        createdAt: daysAgo(now, 18),
+      },
+      {
+        id: ids.folders.drafts,
+        name: "Drafts",
+        parentFolderId: ids.folders.archive2025,
+        createdAt: daysAgo(now, 16),
       },
     ],
     rooms: [

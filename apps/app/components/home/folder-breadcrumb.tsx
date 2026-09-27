@@ -100,7 +100,7 @@ export function FolderBreadcrumb({
                 aria-label={
                   compact ? "Show parent folders" : "Show folders in between"
                 }
-                className="flex items-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none data-[state=open]:text-foreground"
+                className="flex items-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:text-foreground"
               >
                 <BreadcrumbEllipsis className="size-7" />
               </DropdownMenuTrigger>

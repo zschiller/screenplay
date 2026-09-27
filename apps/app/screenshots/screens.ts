@@ -183,6 +183,73 @@ export const SCREENS: Screen[] = [
     fullPage: true,
   },
   {
+    name: "home-focus-tile-action",
+    description:
+      "Keyboard focus on a Folder tile's ⋯ actions button in the home grid.",
+    path: "/files",
+    prepare: async (page) => {
+      await tabTo(page, "Folder actions")
+    },
+  },
+  {
+    name: "home-focus-table-action",
+    description:
+      "Keyboard focus on a row's ⋯ actions button in the table view.",
+    path: "/files",
+    cookies: homeView("table"),
+    prepare: async (page) => {
+      await tabTo(page, "Folder actions")
+    },
+  },
+  {
+    name: "home-narrow",
+    description:
+      "The home grid below the md breakpoint, where there is no hover to reveal actions.",
+    path: "/files",
+    viewport: { width: 720, height: 900 },
+  },
+  {
+    name: "home-breadcrumb-overflow",
+    description:
+      "A deep Folder, with keyboard focus on the breadcrumb's overflow menu.",
+    path: `/files/${ids.folders.drafts}`,
+    prepare: async (page) => {
+      await tabTo(page, "Show folders in between")
+    },
+  },
+  {
+    name: "home-resize-handle-focus",
+    description:
+      "Keyboard focus on the handle between the sidebar and content.",
+    path: "/files",
+    prepare: async (page) => {
+      await page.locator("[role=separator]").first().focus()
+    },
+  },
+  {
+    name: "home-move-dialog",
+    description:
+      "The Move to… dialog, driven by keyboard: a destination picked with the arrow keys.",
+    path: "/files",
+    prepare: async (page) => {
+      // The menu has to animate closed for the dialog to take over.
+      await unfreeze(page)
+      await tabTo(page, "Folder actions")
+      await page.keyboard.press("Enter")
+      // Radix focuses the first item once the menu's open animation ends.
+      await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+      await page.waitForTimeout(500)
+      // The menu opens on its first item, Rename; Move to… is next.
+      await page.keyboard.press("ArrowDown")
+      await page.waitForTimeout(300)
+      await page.keyboard.press("Enter")
+      // The dialog focuses its first destination as it opens.
+      await page.getByRole("radiogroup").first().waitFor({ timeout: 5_000 })
+      await page.keyboard.press("ArrowDown")
+    },
+    settleMs: 300,
+  },
+  {
     name: "settings",
     description:
       "Settings: appearance, Projects (the saved presets), coding agents.",
@@ -386,6 +453,46 @@ export async function dragOnto(
   await page.mouse.down()
   await page.mouse.move(grab.x, grab.y - 12)
   await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
+}
+
+/**
+ * Press Tab until keyboard focus lands on the control named `label`, the way a
+ * keyboard user gets there — so the shot shows the `:focus-visible` state a
+ * programmatic `.focus()` might not. `within` limits the match to controls
+ * inside that selector (the sidebar's pinned rows share their labels with the
+ * grid's). Throws after `max` presses, which a `prepare` turns into a warning.
+ */
+export async function tabTo(
+  page: Page,
+  label: string,
+  options: { within?: string; max?: number; delayMs?: number } = {}
+): Promise<void> {
+  const { within = "main", max = 60, delayMs = 0 } = options
+  const probe = `(() => {
+    const el = document.activeElement
+    return !!el && el.getAttribute("aria-label") === ${JSON.stringify(label)} &&
+      !!el.closest(${JSON.stringify(within)})
+  })()`
+  for (let i = 0; i < max; i++) {
+    await page.keyboard.press("Tab")
+    if (delayMs) await page.waitForTimeout(delayMs)
+    if (await page.evaluate(probe)) return
+  }
+  throw new Error(`never reached "${label}" by Tab`)
+}
+
+/**
+ * Undo the settle step's animation freeze, for a `prepare` that walks through a
+ * Radix surface (a menu, a dialog) — those only unmount once their exit
+ * animation ends, so a frozen page leaves a closed menu on screen forever. The
+ * runner freezes again before the shot.
+ */
+export async function unfreeze(page: Page): Promise<void> {
+  await page.evaluate(`
+    for (const el of document.querySelectorAll("style")) {
+      if (el.textContent.includes("animation-play-state: paused")) el.remove()
+    }
+  `)
 }
 
 /**
