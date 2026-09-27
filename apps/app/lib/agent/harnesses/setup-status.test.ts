@@ -2,8 +2,18 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { HostBinaryProber } from "@/lib/agent/harnesses/host-binary"
 import { HARNESSES } from "@/lib/agent/harnesses/index"
-import { resolveHarnessSetupStatuses } from "@/lib/agent/harnesses/setup-status"
-import type { Harness, HarnessProcessRunner } from "@/lib/agent/harnesses/types"
+import {
+  resolveHarnessSetupCommandsFor,
+  resolveHarnessSetupStatuses,
+} from "@/lib/agent/harnesses/setup-status"
+import type {
+  Harness,
+  HarnessProcessRunner,
+  HostFacts,
+} from "@/lib/agent/harnesses/types"
+import { CLAUDE_CODE_INSTALL_PACKAGE } from "@/lib/agent/harnesses/claude-code"
+import { CODEX_INSTALL_PACKAGE } from "@/lib/agent/harnesses/codex"
+import { OPENCODE_INSTALL_PACKAGE } from "@/lib/agent/harnesses/opencode"
 
 /**
  * The live setup-status fold (ADR 0015) reads host presence + each descriptor's
@@ -135,5 +145,151 @@ describe("resolveHarnessSetupStatuses (live setup-status fold)", () => {
     // The second call re-probes every distinct binary — the setup surface reads
     // live, never the launch-memoized resolver.
     expect(probe.mock.calls.length).toBe(afterFirst * 2)
+  })
+})
+
+/**
+ * The setup terminal commands (ADR 0015), resolved through the same path the
+ * `resolveHarnessSetupCommands` server action runs: each real catalog
+ * descriptor's `buildInstallCommand` against host facts, chained into its
+ * `authCommand` in one `sh -c`. Every host-facts variant a harness branches on
+ * (npm / brew / release binary / vendor installer) is covered.
+ */
+describe("resolveHarnessSetupCommandsFor (install → sign-in chaining)", () => {
+  /** Host facts from the branch inputs; nothing present, arm64 by default. */
+  function facts(partial: Partial<HostFacts> = {}): HostFacts {
+    return { npmPresent: false, brewPresent: false, arch: "arm64", ...partial }
+  }
+
+  function harness(key: string): Harness {
+    return HARNESSES.find((h) => h.key === key)!
+  }
+
+  /** The chained `sh -c` script for a harness on the given host. */
+  async function script(key: string, host: HostFacts): Promise<string> {
+    const cmds = await resolveHarnessSetupCommandsFor(
+      harness(key),
+      async () => host
+    )
+    const argv = cmds!.installAndAuth!
+    expect(argv.slice(0, 2)).toEqual(["sh", "-c"])
+    expect(argv).toHaveLength(3)
+    return argv[2]!
+  }
+
+  const cases: Array<{
+    key: string
+    host: HostFacts
+    install: string | RegExp
+    auth: string
+  }> = [
+    {
+      key: "claude-code",
+      host: facts({ npmPresent: true }),
+      install: `npm install -g ${CLAUDE_CODE_INSTALL_PACKAGE}`,
+      auth: "claude /login",
+    },
+    {
+      key: "claude-code",
+      host: facts(),
+      install: "curl -fsSL https://claude.ai/install.sh | bash",
+      auth: "claude /login",
+    },
+    {
+      key: "codex",
+      host: facts({ brewPresent: true, npmPresent: true }),
+      install: "brew install codex",
+      auth: "codex login",
+    },
+    {
+      key: "codex",
+      host: facts({ npmPresent: true }),
+      install: `npm i -g ${CODEX_INSTALL_PACKAGE}`,
+      auth: "codex login",
+    },
+    {
+      key: "codex",
+      host: facts({ arch: "arm64" }),
+      install:
+        /^mkdir -p "\$HOME\/\.local\/bin" && curl -fsSL \S+\/codex-aarch64-apple-darwin\.tar\.gz \| tar xz -C "\$HOME\/\.local\/bin" && mv \S+\/codex-aarch64-apple-darwin \S+\/codex && chmod \+x \S+\/codex$/,
+      auth: "codex login",
+    },
+    {
+      key: "codex",
+      host: facts({ arch: "x64" }),
+      install:
+        /codex-x86_64-apple-darwin\.tar\.gz.*\/codex-x86_64-apple-darwin /,
+      auth: "codex login",
+    },
+    {
+      key: "opencode-gateway",
+      host: facts({ npmPresent: true }),
+      install: `npm install -g ${OPENCODE_INSTALL_PACKAGE}`,
+      auth: "opencode auth login",
+    },
+    {
+      key: "opencode-gateway",
+      host: facts(),
+      install:
+        'OPENCODE_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://opencode.ai/install | bash',
+      auth: "opencode auth login",
+    },
+  ]
+
+  it.each(cases)(
+    "$key on npm=$host.npmPresent brew=$host.brewPresent arch=$host.arch → install && $auth",
+    async ({ key, host, install, auth }) => {
+      const chained = await script(key, host)
+      // Auth is chained after the install with && — a failed install never
+      // reaches the sign-in.
+      expect(chained.endsWith(` && ${auth}`)).toBe(true)
+      const installPart = chained.slice(0, -` && ${auth}`.length)
+      if (typeof install === "string") expect(installPart).toBe(install)
+      else expect(installPart).toMatch(install)
+      // No install path needs sudo.
+      expect(chained).not.toMatch(/\bsudo\b/)
+    }
+  )
+
+  it("returns each harness's own sign-in as the bare auth-only argv", async () => {
+    const authOnly = async (key: string) =>
+      (await resolveHarnessSetupCommandsFor(harness(key), async () => facts()))!
+        .authOnly
+
+    expect(await authOnly("claude-code")).toEqual(["claude", "/login"])
+    expect(await authOnly("codex")).toEqual(["codex", "login"])
+    expect(await authOnly("opencode-gateway")).toEqual([
+      "opencode",
+      "auth",
+      "login",
+    ])
+  })
+
+  it("gives both opencode slots the identical install and sign-in", async () => {
+    const host = facts({ npmPresent: true })
+    expect(await script("opencode-compat", host)).toBe(
+      await script("opencode-gateway", host)
+    )
+  })
+
+  it("has no install chain, and probes no host facts, without an install builder", async () => {
+    const hostFacts = vi.fn(async () => facts())
+    const noInstall: Harness = {
+      ...harness("codex"),
+      buildInstallCommand: undefined,
+    }
+
+    expect(await resolveHarnessSetupCommandsFor(noInstall, hostFacts)).toEqual({
+      installAndAuth: null,
+      authOnly: ["codex", "login"],
+    })
+    expect(hostFacts).not.toHaveBeenCalled()
+  })
+
+  it("resolves nothing for a harness without a sign-in command", async () => {
+    const noAuth: Harness = { ...harness("codex"), authCommand: undefined }
+    expect(
+      await resolveHarnessSetupCommandsFor(noAuth, async () => facts())
+    ).toBeNull()
   })
 })

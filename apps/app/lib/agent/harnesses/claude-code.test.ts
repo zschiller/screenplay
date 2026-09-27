@@ -108,8 +108,8 @@ describe("probeClaudeCodeAuth", () => {
 /**
  * Claude Code's per-descriptor print-mode builder (Seam D, #674): a pure
  * function asserted against the expected non-interactive argv and its light
- * output parse. Prior art: the per-harness install-command / auth-command
- * descriptor tests.
+ * output parse. Prior art: the per-harness install / sign-in command tests
+ * (`setup-status.test.ts`).
  */
 describe("claudeCodePrintModel", () => {
   it("builds the `claude -p <prompt>` argv with the prompt as a single arg", () => {

@@ -2,17 +2,45 @@ import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import {
-  buildClaudeCodeInstallCommand,
-  buildClaudeCodeAuthArgv,
-} from "@/lib/host-tool/claude-code-install-command"
-import {
   BROKERED_VALUE,
   commitAndPushRuleMarkdown,
   type Harness,
   type HarnessPrintModel,
   type HarnessProcessRunner,
+  type HostFacts,
 } from "./types"
 import { probeOk } from "./process-runner"
+
+/** The npm package the `npm install -g` path installs (the `claude` binary). */
+export const CLAUDE_CODE_INSTALL_PACKAGE = "@anthropic-ai/claude-code"
+
+/**
+ * Claude Code's official no-`npm` installer. Landing a `claude` binary in
+ * `~/.local/bin` — already on the sidecar's augmented `PATH`
+ * (`desktop/src-tauri/src/sidecar.rs`), so it resolves in this same session and
+ * every later one — with no `sudo`, the same deterministic-path move the `gh`
+ * binary fallback uses.
+ */
+export const CLAUDE_CODE_INSTALL_SCRIPT_URL = "https://claude.ai/install.sh"
+
+/**
+ * Claude Code's {@link Harness.buildInstallCommand} (ADR 0015): the pure mapping
+ * from host facts → the install command run in the inline setup terminal:
+ *
+ * - **`npm` present** → `npm install -g @anthropic-ai/claude-code`, the global
+ *   install that exposes `claude` on `PATH`.
+ * - **No `npm`** → Claude Code's own `curl … | bash` installer, so a host with
+ *   no `node`/`npm` never dead-ends (ADR 0015: the vendor installer is the
+ *   npm-free path). It drops the binary in `~/.local/bin`, no `sudo`.
+ *
+ * Only `npmPresent` is consulted today; the wider {@link HostFacts} is taken so
+ * the signature matches the descriptor's `buildInstallCommand` and a later
+ * arch-specific path can read `arch` without a shape change.
+ */
+function buildClaudeCodeInstallCommand(facts: HostFacts): string {
+  if (facts.npmPresent) return `npm install -g ${CLAUDE_CODE_INSTALL_PACKAGE}`
+  return `curl -fsSL ${CLAUDE_CODE_INSTALL_SCRIPT_URL} | bash`
+}
 
 /**
  * The macOS login-keychain item Claude Code stores its OAuth credential under.
@@ -154,7 +182,7 @@ export const claudeCodePrintModel: HarnessPrintModel = {
 export const claudeCodeHarness: Harness = {
   key: "claude-code",
   label: "Claude Code",
-  installPackage: "@anthropic-ai/claude-code",
+  installPackage: CLAUDE_CODE_INSTALL_PACKAGE,
   // The global install exposes the `claude` CLI on PATH.
   launchCommand: "claude",
   brokerProviderKey: "anthropic",
@@ -204,7 +232,10 @@ export const claudeCodeHarness: Harness = {
   // and run its interactive sign-in verbatim in the setup terminal's PTY.
   probeAuth: probeClaudeCodeAuth,
   buildInstallCommand: buildClaudeCodeInstallCommand,
-  authCommand: buildClaudeCodeAuthArgv(),
+  // `claude /login` runs the CLI's browser sign-in and exits when it resolves —
+  // the PTY exit is the setup step's completion signal to re-detect. The stored
+  // credential it writes is exactly what `probeClaudeCodeAuth` reads back.
+  authCommand: ["claude", "/login"],
   // One-shot non-interactive model call for desktop naming (rides the user's
   // own Claude login, no hosted key) — see `runHostModel` (#674).
   printModel: claudeCodePrintModel,
