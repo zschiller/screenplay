@@ -98,19 +98,6 @@ function configuredOpenai(): ModelProvider {
   }
 }
 
-// cloneSandbox falls back to the session's GitHub token and persists repo
-// env vars. Both need a request context / KV we don't have under plain Node —
-// stub them so the action's create + result shaping is what's under test.
-const getUserId = vi.hoisted(() => vi.fn(async () => null as string | null))
-const getGitHubToken = vi.hoisted(() =>
-  vi.fn(async () => null as string | null)
-)
-vi.mock("@/lib/auth-helpers", () => ({ getUserId, getGitHubToken }))
-
-const storeEnvVars = vi.hoisted(() => vi.fn(async () => {}))
-const getEnvVars = vi.hoisted(() => vi.fn(async () => undefined))
-vi.mock("@/lib/env-store", () => ({ storeEnvVars, getEnvVars }))
-
 // The bridge module ships large generated scripts; stub the constants so the
 // test pins the action's write + result behavior, not the bundled payload.
 vi.mock("@/lib/sandbox-bridge", () => ({
@@ -120,7 +107,6 @@ vi.mock("@/lib/sandbox-bridge", () => ({
 }))
 
 import {
-  cloneSandbox,
   getBridgeVersion,
   installBridge,
   installHarnesses,
@@ -558,96 +544,6 @@ describe("installRipgrep", () => {
     const result = await installRipgrep("sandbox-a")
 
     expect(result).toEqual({ success: true, value: undefined })
-  })
-})
-
-describe("cloneSandbox", () => {
-  it("creates the sandbox from a token-authed git source and returns its name", async () => {
-    fake.setInstance(fakeSandbox())
-
-    const result = await cloneSandbox(
-      "sandbox-a",
-      "https://github.com/o/r.git",
-      "main",
-      3000,
-      undefined,
-      "tok123"
-    )
-
-    expect(result).toEqual({
-      success: true,
-      value: { sandboxName: "fake-sandbox" },
-    })
-    expect(fake.createCalls).toHaveLength(1)
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/o/r.git",
-      revision: "main",
-      username: "x-access-token",
-      password: "tok123",
-    })
-    // Devserver port, its proxy port, and the BYO-terminal daemon port are forwarded.
-    expect(fake.createCalls[0]!.ports).toEqual([3000, 4000, 7681])
-  })
-
-  it("clones a public repo without auth when no token is available", async () => {
-    fake.setInstance(fakeSandbox())
-
-    await cloneSandbox("sandbox-a", "https://github.com/o/r.git", "main")
-
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/o/r.git",
-      revision: "main",
-    })
-  })
-
-  it("clones via host auth on the local backend, never baking the token into the source", async () => {
-    // The local backend clones as a host process through the user's own git
-    // credentials, so even a passed token must not be spliced into the clone URL.
-    backend.hostGitAuth = true
-    fake.setInstance(fakeSandbox())
-
-    await cloneSandbox(
-      "sandbox-a",
-      "https://github.com/o/r.git",
-      "main",
-      3000,
-      undefined,
-      "tok123"
-    )
-
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/o/r.git",
-      revision: "main",
-    })
-  })
-
-  it("persists repo env vars when provided", async () => {
-    fake.setInstance(fakeSandbox())
-
-    await cloneSandbox("sandbox-a", "url", "main", 3000, { FOO: "bar" }, "tok")
-
-    expect(storeEnvVars).toHaveBeenCalledWith("fake-sandbox", { FOO: "bar" })
-  })
-
-  it("returns a redacted failure result when creation throws", async () => {
-    fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
-
-    const result = await cloneSandbox(
-      "sandbox-a",
-      "url",
-      "main",
-      3000,
-      undefined,
-      "tok"
-    )
-
-    expect(result.success).toBe(false)
-    if (result.success) throw new Error("expected failure")
-    expect(result.error).not.toContain(GH_TOKEN)
-    expect(result.error).toContain("[REDACTED]")
   })
 })
 

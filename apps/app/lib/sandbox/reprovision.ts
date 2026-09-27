@@ -36,7 +36,7 @@ import type { RepoData } from "@/lib/types"
  * the hibernation fallback (a non-hibernating provider degrades to exactly this
  * path).
  *
- * Like `cloneSandbox`, it *creates* the VM rather than resolving an existing
+ * Like `provisionSandbox`, it *creates* the VM rather than resolving an existing
  * one, so it can't ride the `get`-based runner — it builds the uniform result
  * contract itself and redacts the error on the failure path (a clone or
  * provider failure can spill the GitHub token baked into the source URL). The

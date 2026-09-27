@@ -3,17 +3,11 @@ import { getGitHubToken, getUserId } from "@/lib/auth-helpers"
 import { isLocalBuild } from "@/lib/local-mode"
 import { nanoid } from "nanoid"
 import { kv } from "@/lib/kv"
-import {
-  cloneSandbox,
-  installDependencies,
-  installHarnesses,
-  installRipgrep,
-  startDevServer,
-} from "@/lib/sandbox/provision"
-import { parseHarnessKeys } from "@/lib/agent/harnesses"
-import { createAgentBranch, configureAgentGit } from "@/lib/sandbox/git"
 import { crawlRoutes } from "@/lib/sandbox/inspect"
-import { parseCopyPatterns, parseEnvVars } from "@/lib/env-utils"
+import {
+  provisionSandbox,
+  type ProvisionMode,
+} from "@/lib/sandbox/provisioning"
 import type { BranchData, RepoData } from "@/lib/types"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 
@@ -96,133 +90,44 @@ function markError(roomId: string, branchId: string, error?: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Pipelines
+// Provisioning
 // ---------------------------------------------------------------------------
 
-/**
- * Whether the GitHub API can create/rename branches for this Repo: it needs a
- * token *and* a GitHub identity. The local build can lack either (PRD #428) —
- * no token resolved, or a Repo added by URL/local path that isn't on GitHub —
- * and then the branch is created locally at provision time instead, riding the
- * `baseRevision` the pipeline passes to the local backend.
- *
- * The local build always takes that local path, even when a token *does* resolve
- * (host `gh` auth) and the Repo is on GitHub. Its branches are local worktree
- * branches that are only pushed on demand, so "branch from here" forks from a
- * source branch that GitHub has never seen — the API call would 404 with
- * "Failed to get ref for <sourceBranch>". The local backend instead forks from
- * the source ref in the shared managed clone (see `resolveStartPoint`).
- */
-function canUseGitHubApi(repo: RepoData, ghToken: string | undefined): boolean {
-  return Boolean(!isLocalBuild && ghToken && repo.repoOwner && repo.repoName)
+const MODES: Record<CreateRequest["flow"], ProvisionMode> = {
+  new: "new",
+  "from-branch": "from-branch",
+  "duplicate-branch": "duplicate",
 }
 
-async function runNewOrFromBranchPipeline(
+/**
+ * Provision the Branch's Sandbox and mirror the outcome onto the Branch
+ * record: each step's progress as its status message, then either the error
+ * or the running state + preview domain.
+ */
+async function provisionBranch(
   req: CreateRequest,
   repo: RepoData,
-  ghToken: string | undefined,
-  baseRevision?: string
+  ghToken: string | undefined
 ) {
-  const { flow, roomId, branchId, sandboxName, branch } = req
-  const env = parseEnvVars(repo.envVars)
-  const envOrUndefined = Object.keys(env).length > 0 ? env : undefined
-
-  console.warn(
-    `[create] pipeline start flow=${flow} branch=${branch} ` +
-      `sandbox=${sandboxName} localBuild=${isLocalBuild} ` +
-      `localPath=${JSON.stringify(repo.localPath)} ` +
-      `setupScript=${JSON.stringify(repo.setupScript)}`
-  )
-
-  // Step 1: Create branch (skip for from-branch flow, and without GitHub API
-  // access — then the local backend creates it locally from `baseRevision`)
-  if (flow === "new") {
-    if (canUseGitHubApi(repo, ghToken)) {
-      const branchResult = await createAgentBranch(
-        repo,
-        branch,
-        undefined,
-        ghToken
-      )
-      if (!branchResult.success) {
-        await markError(
-          roomId,
-          branchId,
-          branchResult.error || "Failed to create branch"
-        )
-        return
-      }
-    } else {
-      baseRevision ??= repo.defaultBranch
-    }
-  }
-
-  // Step 2: Clone repo into sandbox
-  await updateBranch(roomId, branchId, { statusMessage: "Cloning repository…" })
-  const cloneResult = await cloneSandbox(
-    sandboxName,
-    repo.cloneUrl,
-    branch,
-    repo.devServerPort,
-    envOrUndefined,
+  const { roomId, branchId } = req
+  const result = await provisionSandbox({
+    mode: MODES[req.flow],
+    repo,
+    branch: req.branch,
+    sandboxName: req.sandboxName,
+    sourceBranch: req.sourceBranch,
     ghToken,
-    {
-      localPath: repo.localPath,
-      baseRevision,
-      copyPatterns: parseCopyPatterns(repo.copyPatterns),
-    }
-  )
-  if (!cloneResult.success) {
-    await markError(roomId, branchId, cloneResult.error)
-    return
-  }
-  const clonedSandboxName = cloneResult.value.sandboxName
-
-  // Step 3: Install dependencies + the selected harnesses + ripgrep in parallel.
-  // The harness install and ripgrep are best-effort: `installHarnesses` logs and
-  // swallows a failed CLI internally (one bad harness can't dark the Sandbox) and
-  // ripgrep's result is ignored here, so neither can fail the pipeline. Only the
-  // dependency install is load-bearing. Harness keys come from SANDBOX_HARNESSES;
-  // unset → none.
-  await updateBranch(roomId, branchId, {
-    statusMessage: "Installing dependencies…",
+    onStatus: (statusMessage) =>
+      updateBranch(roomId, branchId, { statusMessage }),
   })
-  const harnessKeys = parseHarnessKeys(process.env.SANDBOX_HARNESSES)
-  const [installResult] = await Promise.all([
-    installDependencies(clonedSandboxName, repo.setupScript),
-    installHarnesses(clonedSandboxName, harnessKeys),
-    installRipgrep(clonedSandboxName),
-  ])
-  if (!installResult.success) {
-    await markError(roomId, branchId, installResult.error)
+  if (!result.success) {
+    await markError(roomId, branchId, result.error)
     return
   }
+  const { sandboxName, previewDomain } = result.value
 
-  // Step 4: Start dev server
   await updateBranch(roomId, branchId, {
-    statusMessage: "Starting dev server…",
-  })
-  const serverResult = await startDevServer(
-    clonedSandboxName,
-    repo.devServerPort,
-    repo.devScript
-  )
-  if (!serverResult.success) {
-    await markError(roomId, branchId, serverResult.error)
-    return
-  }
-
-  // Step 5: Configure git
-  await updateBranch(roomId, branchId, { statusMessage: "Configuring git…" })
-  const gitResult = await configureAgentGit(clonedSandboxName, repo, branch)
-  if (!gitResult.success) {
-    await markError(roomId, branchId, gitResult.error)
-    return
-  }
-
-  // Done
-  await updateBranch(roomId, branchId, {
-    previewDomain: serverResult.value.previewDomain,
+    previewDomain,
     status: "running",
     statusMessage: undefined,
   })
@@ -235,7 +140,7 @@ async function runNewOrFromBranchPipeline(
 
   // Best-effort: crawl routes so the iframeLayer route picker has options without
   // the user (or model) needing to trigger discovery.
-  crawlRoutes(clonedSandboxName)
+  crawlRoutes(sandboxName)
     .then((result) => {
       if (result.success) {
         return updateBranch(roomId, branchId, {
@@ -244,49 +149,6 @@ async function runNewOrFromBranchPipeline(
       }
     })
     .catch(() => {})
-}
-
-async function runDuplicateBranchPipeline(
-  req: CreateRequest,
-  repo: RepoData,
-  ghToken: string | undefined
-) {
-  const { roomId, branchId, sourceBranch } = req
-
-  if (!sourceBranch) {
-    await markError(roomId, branchId, "Source branch not specified")
-    return
-  }
-
-  // Step 1: Create a new branch from the source branch. Without GitHub API
-  // access the local backend creates it locally instead, from the
-  // `baseRevision` forwarded below.
-  if (canUseGitHubApi(repo, ghToken)) {
-    const branchResult = await createAgentBranch(
-      repo,
-      req.branch,
-      sourceBranch,
-      ghToken
-    )
-    if (!branchResult.success) {
-      await markError(
-        roomId,
-        branchId,
-        branchResult.error || "Failed to create branch"
-      )
-      return
-    }
-  }
-
-  // Step 2: Normal sandbox creation from the new branch. Pass through as
-  // "from-branch" since the branch we just created already exists (remotely or
-  // as the local baseRevision to branch from).
-  await runNewOrFromBranchPipeline(
-    { ...req, flow: "from-branch" },
-    repo,
-    ghToken,
-    sourceBranch
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +174,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CreateRequest
-  const { flow, roomId, branchId, repoId } = body
+  const { roomId, branchId, repoId } = body
 
   // Distributed lock — prevent duplicate creation (page reload, multiplayer)
   const lock = await kv.acquireLock(`branch-create:${branchId}`, 300)
@@ -329,11 +191,7 @@ export async function POST(request: Request) {
         return
       }
 
-      if (flow === "duplicate-branch") {
-        await runDuplicateBranchPipeline(body, repo, ghToken)
-      } else {
-        await runNewOrFromBranchPipeline(body, repo, ghToken)
-      }
+      await provisionBranch(body, repo, ghToken)
     } catch (e) {
       await markError(
         roomId,
