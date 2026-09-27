@@ -71,9 +71,9 @@ const fake = vi.hoisted(() => {
 // mirrors `lib/sandbox/types.ts`.
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
-  // These lifecycle tests pin the hosted (Vercel) reclone path, which brokers the
-  // git token — the local backend's host-native auth is exercised in
-  // reprovision.test.ts / provision.test.ts.
+  // These lifecycle tests pin the hosted (Vercel) snapshot/restore paths, which
+  // broker the git token — the local backend's host-native auth is exercised in
+  // provisioning.test.ts / provision.test.ts.
   usesHostGitAuth: false,
   supportsHibernation: (s: { isRunning?: unknown }) =>
     typeof s?.isRunning === "function",
@@ -86,7 +86,7 @@ vi.mock("@/lib/sandbox", () => ({
 // network-policy.test.ts, and the real registry drags in the kv/db chain.
 vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
 
-// restartSandbox falls back to the session's GitHub token; reconnect/restart
+// recreateSandbox falls back to the session's GitHub token; reconnect/restart
 // read persisted repo env. Both need a request context / KV we don't have
 // under plain Node — stub them so the action's create + result shaping is what's
 // under test.
@@ -121,6 +121,25 @@ const installHarnesses = vi.hoisted(() =>
   vi.fn(async () => ({ success: true, value: undefined }))
 )
 vi.mock("@/lib/sandbox/provision", () => ({ installHarnesses }))
+
+// recreateSandbox delegates the whole provision sequence to the Sandbox
+// provisioning module (the same one the Branch-create route calls), so here it's
+// an external boundary: faked so the delegation is what's pinned.
+const provisionSandbox = vi.hoisted(() =>
+  vi.fn(
+    async () =>
+      ({
+        success: true,
+        value: {
+          sandboxName: "sandbox-a",
+          previewDomain: "https://fake-4000.example.com",
+        },
+      }) as Awaited<
+        ReturnType<typeof import("@/lib/sandbox/provisioning").provisionSandbox>
+      >
+  )
+)
+vi.mock("@/lib/sandbox/provisioning", () => ({ provisionSandbox }))
 
 // The bridge module ships large generated scripts; stub the constants so the
 // test pins the action's launch + result behavior, not the bundled payload.
@@ -292,6 +311,13 @@ beforeEach(() => {
   installHarnesses.mockResolvedValue({ success: true, value: undefined })
   getEnvVars.mockResolvedValue(undefined)
   getGitHubToken.mockResolvedValue(null)
+  provisionSandbox.mockResolvedValue({
+    success: true,
+    value: {
+      sandboxName: "sandbox-a",
+      previewDomain: "https://fake-4000.example.com",
+    },
+  })
 })
 
 describe("stopDevServers", () => {
@@ -523,15 +549,22 @@ describe("restartSandbox", () => {
   })
 })
 
+// recreateSandbox is a thin delegate to the one Sandbox provisioning module —
+// the same module the Branch-create route uses — so what's pinned here is the
+// delegation, not the pipeline. The pipeline itself (teardown, source
+// resolution, setup, env vars, harnesses, dev launch) is covered through the
+// module's own interface in provisioning.test.ts / provisioning-hosted.test.ts.
 describe("recreateSandbox", () => {
-  it("reclones fresh from git and runs the full provision pipeline", async () => {
-    // The old VM is fetched and deleted to free the name, then a new one is
-    // cloned from git with the whole setup pipeline.
-    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
-    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
-
+  it("delegates to the provisioning module in recreate mode", async () => {
     const result = await recreateSandbox("sandbox-a", repo, "feature")
 
+    expect(provisionSandbox).toHaveBeenCalledWith({
+      mode: "recreate",
+      repo,
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: undefined,
+    })
     expect(result).toEqual({
       success: true,
       value: {
@@ -539,56 +572,46 @@ describe("recreateSandbox", () => {
         previewDomain: "https://fake-4000.example.com",
       },
     })
-    // Created from a git source and the git/setup pipeline ran — never a
-    // snapshot restore.
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/octocat/hello-world.git",
-      revision: "feature",
-    })
-    expect(configureAgentGit).toHaveBeenCalledWith("sandbox-a", repo, "feature")
+    // Never a snapshot restore, and never a VM cycle of its own — the module
+    // owns every provider call.
+    expect(fake.createCalls).toHaveLength(0)
   })
 
-  it("still reclones when the old sandbox is already gone", async () => {
-    // Freeing the name is best-effort: a missing old VM (e.g. expired snapshot)
-    // must not block the recreate — it just clones fresh.
-    fake.setGetError(new Error("sandbox not found"))
-    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+  it("passes a caller's token through and otherwise falls back to the session's", async () => {
+    await recreateSandbox("sandbox-a", repo, "feature", GH_TOKEN)
+    expect(provisionSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({ ghToken: GH_TOKEN })
+    )
+
+    // The UI callers (Recreate, Branch recovery) carry no token, so the session's
+    // is resolved for them — only the hosted backend ever uses it, to
+    // authenticate the clone.
+    getGitHubToken.mockResolvedValue("ghs_session")
+    await recreateSandbox("sandbox-a", repo, "feature")
+    expect(provisionSandbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ghToken: "ghs_session" })
+    )
+  })
+
+  it("recreates without a token rather than failing when there's no session", async () => {
+    // Recovery can fire outside a request context; a missing token must not turn
+    // into a failed recreate (a public repo clones fine without one).
+    getGitHubToken.mockRejectedValue(new Error("no request context"))
 
     const result = await recreateSandbox("sandbox-a", repo, "feature")
 
     expect(result.success).toBe(true)
-    expect(fake.createCalls[0]!.source).toEqual({
-      type: "git",
-      url: "https://github.com/octocat/hello-world.git",
-      revision: "feature",
-    })
-  })
-
-  it("returns a failure when the setup script exits non-zero", async () => {
-    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
-    fake.setCreate(
-      fakeSandbox({ name: "sandbox-a", respond: () => ({ exitCode: 1 }) })
+    expect(provisionSandbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ghToken: undefined })
     )
-
-    const result = await recreateSandbox("sandbox-a", repo, "feature")
-
-    expect(result.success).toBe(false)
-    if (result.success) throw new Error("expected failure")
-    expect(result.error).toContain("Setup script failed")
-    expect(configureAgentGit).not.toHaveBeenCalled()
   })
 
-  it("returns a redacted failure when creating the new sandbox throws", async () => {
-    fake.setGet(fakeSandbox({ name: "sandbox-a" }))
-    fake.setCreateError(new Error(`provider rejected token ${GH_TOKEN}`))
+  it("surfaces the module's failure unchanged", async () => {
+    provisionSandbox.mockResolvedValue({ success: false, error: "nope" })
 
     const result = await recreateSandbox("sandbox-a", repo, "feature")
 
-    expect(result.success).toBe(false)
-    if (result.success) throw new Error("expected failure")
-    expect(result.error).not.toContain(GH_TOKEN)
-    expect(result.error).toContain("[REDACTED]")
+    expect(result).toEqual({ success: false, error: "nope" })
   })
 })
 

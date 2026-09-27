@@ -3,6 +3,7 @@
 import { getModelProviders } from "@/lib/agent/providers"
 import { buildBrokeredEnv, selectHarnesses } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
+import { getGitHubToken } from "@/lib/auth-helpers"
 import { deleteEnvVars, getEnvVars } from "@/lib/env-store"
 import {
   isSandboxRunning,
@@ -23,7 +24,7 @@ import {
   stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import { lookupStableDevUrl } from "@/lib/sandbox/portless"
-import { reprovisionFromGit } from "@/lib/sandbox/reprovision"
+import { provisionSandbox } from "@/lib/sandbox/provisioning"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -517,21 +518,28 @@ export async function restartSandbox(
 }
 
 /**
- * Recreate a sandbox from scratch: delete the existing VM and reclone the repo
- * fresh from git, running the full setup pipeline. This is the **destructive**
- * path — it discards the in-VM working tree, including any uncommitted changes —
- * so it is the explicit, separately-routed operation the UI gates behind a
- * confirm, never a silent fallback ({@link restartSandbox} fails loud instead of
- * recloning; see ADR 0005).
+ * Recreate a sandbox from scratch: discard the existing Sandbox and provision a
+ * fresh one for the same Branch under the same name, running the full setup
+ * pipeline. This is the **destructive** path — it discards the working tree,
+ * including any uncommitted changes — so it is the explicit, separately-routed
+ * operation the UI gates behind a confirm, never a silent fallback
+ * ({@link restartSandbox} fails loud instead of recloning; see ADR 0005).
  *
  * Used both by the "Recreate from scratch" menu action and by auto-recovery on
  * reconnect when a sandbox's snapshot has fully expired (so there is nothing
- * left to restore from and recloning is the only way back to a live preview).
+ * left to restore from and rebuilding is the only way back to a live preview).
  *
- * Frees the old name first (best-effort — a missing or wedged VM shouldn't block
- * recreating) then delegates to {@link reprovisionFromGit}, which owns the whole
- * create-from-git-through-dev-launch path and returns the uniform redacted
- * contract.
+ * A thin delegate to {@link provisionSandbox} in `recreate` mode, which owns the
+ * whole teardown-through-dev-launch sequence and returns the uniform redacted
+ * contract. It is deliberately the *same* module the Branch-create route
+ * provisions through: the separate pipeline this used to call had drifted — it
+ * re-cloned a local-folder Repo from its (possibly empty) clone URL instead of
+ * pointing at the user's checkout, ran setup outside the login shell, and
+ * skipped env vars and ripgrep.
+ *
+ * `ghToken` falls back to the session's GitHub token, since the UI callers
+ * (Recreate, recovery) don't carry one; only the hosted backend ever uses it, to
+ * authenticate the clone.
  */
 export async function recreateSandbox(
   sandboxName: string,
@@ -541,15 +549,16 @@ export async function recreateSandbox(
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
-  const safeEnv = await getEnvVars(sandboxName)
-  // Free the name so the fresh clone can claim it. Best-effort: the old VM may
-  // be gone (expired snapshot) or wedged, neither of which should block a
-  // recreate.
-  try {
-    const old = await sandboxProvider.get({ name: sandboxName, resume: false })
-    await old.delete()
-  } catch {}
-  return reprovisionFromGit(sandboxName, repo, branch, ghToken, safeEnv)
+  return provisionSandbox({
+    mode: "recreate",
+    repo,
+    branch,
+    sandboxName,
+    // Never let a missing request context turn into a failed recreate: on the
+    // local backend the token is unused anyway, and on the hosted one a public
+    // repo clones fine without it.
+    ghToken: ghToken ?? (await getGitHubToken().catch(() => null)) ?? undefined,
+  })
 }
 
 /**

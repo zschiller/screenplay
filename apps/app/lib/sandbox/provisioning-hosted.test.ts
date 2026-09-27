@@ -15,7 +15,11 @@ import type { RepoData } from "@/lib/types"
 // pin what changes when it's on.
 const fake = vi.hoisted(() => {
   const createCalls: SandboxCreateOptions[] = []
+  const commands: string[][] = []
+  const getCalls: { name: string; resume?: boolean }[] = []
   let createError: unknown = null
+  let deleted = 0
+  let getError: unknown = null
   const sandbox = (): SandboxInstance => {
     const ok: SandboxCommandResult = {
       exitCode: 0,
@@ -32,14 +36,37 @@ const fake = vi.hoisted(() => {
       homeDir: "/home/vercel-sandbox",
       domain: (port: number) => `https://fake-${port}.example.com`,
       hostPort: (port: number) => port,
-      runCommand: (async () => ok) as SandboxInstance["runCommand"],
+      runCommand: (async (
+        first: string | { cmd: string; args?: string[] },
+        args?: string[]
+      ) => {
+        const call =
+          typeof first === "string"
+            ? [first, ...(args ?? [])]
+            : [first.cmd, ...(first.args ?? [])]
+        commands.push(call)
+        return ok
+      }) as SandboxInstance["runCommand"],
       writeFiles: async () => {},
       readFileToBuffer: async () => null,
-      delete: async () => {},
+      delete: async () => {
+        deleted++
+      },
     }
   }
   const provider: SandboxProvider = {
-    get: vi.fn(async () => sandbox()),
+    get: vi.fn(async (opts: { name: string; resume?: boolean }) => {
+      getCalls.push(opts)
+      // One-shot, so it models the Sandbox that's *gone* rather than a provider
+      // that's down: the recreate teardown's lookup fails, and every `get` after
+      // the fresh create still resolves.
+      if (getError) {
+        const e = getError
+        getError = null
+        throw e
+      }
+      return sandbox()
+    }),
     create: vi.fn(async (opts: SandboxCreateOptions) => {
       createCalls.push(opts)
       if (createError) throw createError
@@ -49,8 +76,22 @@ const fake = vi.hoisted(() => {
   return {
     provider,
     createCalls,
+    commands,
+    getCalls,
+    deletes: () => deleted,
+    reset: () => {
+      createCalls.length = 0
+      commands.length = 0
+      getCalls.length = 0
+      deleted = 0
+      createError = null
+      getError = null
+    },
     setCreateError: (e: unknown) => {
       createError = e
+    },
+    setGetErrorOnce: (e: unknown) => {
+      getError = e
     },
   }
 })
@@ -110,8 +151,7 @@ function repo(over: Partial<RepoData> = {}): RepoData {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.unstubAllEnvs()
-  fake.createCalls.length = 0
-  fake.setCreateError(null)
+  fake.reset()
   backend.hostGitAuth = false
 })
 
@@ -243,6 +283,101 @@ describe("provisionSandbox on the hosted backend", () => {
   })
 })
 
+describe("provisionSandbox in recreate mode", () => {
+  it("frees the existing Sandbox before provisioning the fresh one", async () => {
+    await provisionSandbox({
+      mode: "recreate",
+      repo: repo(),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    // The old Sandbox is resolved without resuming it (waking a VM only to throw
+    // it away is a wasted boot) and deleted, so the fresh one can claim the name.
+    expect(fake.getCalls[0]).toEqual({ name: "sandbox-a", resume: false })
+    expect(fake.deletes()).toBe(1)
+    expect(fake.createCalls).toHaveLength(1)
+  })
+
+  it("still provisions when the old Sandbox is already gone", async () => {
+    // Freeing the name is best-effort: a fully-expired snapshot leaves nothing to
+    // delete, and that's the very case automatic Branch recovery recreates from.
+    fake.setGetErrorOnce(new Error("sandbox not found"))
+
+    const result = await provisionSandbox({
+      mode: "recreate",
+      repo: repo(),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    expect(result.success).toBe(true)
+    expect(fake.createCalls).toHaveLength(1)
+  })
+
+  it("never creates the branch — it already exists", async () => {
+    await provisionSandbox({
+      mode: "recreate",
+      repo: repo(),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    expect(createBranch).not.toHaveBeenCalled()
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "git",
+      url: "https://github.com/o/r.git",
+      revision: "feature",
+      username: "x-access-token",
+      password: GH_TOKEN,
+    })
+  })
+
+  it("persists the Repo's env vars against the recreated Sandbox", async () => {
+    await provisionSandbox({
+      mode: "recreate",
+      repo: repo({ envVars: "FOO=bar" }),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    })
+
+    expect(fake.createCalls[0]!.env).toMatchObject({ FOO: "bar" })
+    expect(storeEnvVars).toHaveBeenCalledWith("fake-sandbox", { FOO: "bar" })
+  })
+
+  it("runs the identical step sequence a create runs", async () => {
+    // The ticket's invariant: recreate is a *mode* of this module, not a second
+    // copy that can drift. `from-branch` is what create does for an existing
+    // branch, so given the same inputs the two must issue the same provider
+    // create and the same in-Sandbox commands — setup, ripgrep, harnesses, git
+    // config, dev launch and all. Compared sorted: the setup / harness / ripgrep
+    // installs run concurrently, so their interleaving isn't part of the contract.
+    const args = {
+      repo: repo({ envVars: "FOO=bar", setupScript: "pnpm install" }),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+      ghToken: GH_TOKEN,
+    } as const
+
+    await provisionSandbox({ mode: "from-branch", ...args })
+    const createOptions = fake.createCalls[0]
+    const created = [...fake.commands].sort()
+    fake.reset()
+
+    await provisionSandbox({ mode: "recreate", ...args })
+
+    expect(fake.createCalls[0]).toEqual(createOptions)
+    expect([...fake.commands].sort()).toEqual(created)
+    // A guard on the comparison itself: an empty stream would make it vacuous.
+    expect(created.flat().join(" ")).toContain("pnpm install")
+    expect(created.flat().join(" ")).toContain("ripgrep")
+  })
+})
+
 describe("provisionSandbox where the host owns git auth", () => {
   it("never calls the GitHub API and creates the branch from the default branch at provision time", async () => {
     backend.hostGitAuth = true
@@ -262,6 +397,29 @@ describe("provisionSandbox where the host owns git auth", () => {
       url: "https://github.com/o/r.git",
       revision: "agent/x",
       baseRevision: "main",
+    })
+  })
+
+  it("recreates a local-folder Repo as a worktree of its checkout, never a re-clone", async () => {
+    // The drifted pipeline this replaced built its source from the clone URL
+    // only — so Recreate on a folder-added Repo (which may have no remote at
+    // all, ADR 0013) re-cloned from an empty URL instead of pointing at the
+    // user's existing checkout.
+    backend.hostGitAuth = true
+
+    await provisionSandbox({
+      mode: "recreate",
+      repo: repo({ cloneUrl: "", localPath: "/code/r", copyPatterns: ".env*" }),
+      branch: "feature",
+      sandboxName: "sandbox-a",
+    })
+
+    expect(fake.createCalls[0]!.source).toEqual({
+      type: "local-git",
+      path: "/code/r",
+      revision: "feature",
+      baseRevision: undefined,
+      copyPatterns: [".env*"],
     })
   })
 
