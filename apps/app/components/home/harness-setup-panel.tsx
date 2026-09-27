@@ -4,7 +4,6 @@ import { useCallback, useEffect, useReducer, useState } from "react"
 import { Terminal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
 import {
   listHarnessSetupRows,
   noteHarnessConnected,
@@ -18,6 +17,11 @@ import type {
 import { initialSetupState, setupReducer } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 import { LoadErrorRow } from "@/components/home/load-error"
+import {
+  SettingsRow,
+  SettingsRowList,
+  SettingsRowSkeleton,
+} from "@/components/home/settings-row"
 
 /**
  * The desktop "Coding agents" (Harness Setup) surface in Settings (ADR 0015),
@@ -64,20 +68,15 @@ export function HarnessSetupPanel() {
   }
 
   if (!rows) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Spinner className="size-4" />
-        Checking coding agents…
-      </div>
-    )
+    return <SettingsRowSkeleton label="Checking coding agents…" count={2} />
   }
 
   return (
-    <div className="space-y-2">
+    <SettingsRowList>
       {rows.map((row) => (
         <HarnessSetupPanelRow key={row.hostBinary} initial={row} />
       ))}
-    </div>
+    </SettingsRowList>
   )
 }
 
@@ -145,33 +144,25 @@ function HarnessSetupPanelRow({ initial }: { initial: HarnessSetupRow }) {
   const action = row.action
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-4">
-      <Terminal className="size-5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "size-2 shrink-0 rounded-full",
-              row.connected ? "bg-emerald-500" : "bg-muted-foreground/40"
-            )}
-            aria-hidden
-          />
-          <span className="text-sm font-medium">{row.label}</span>
-        </div>
-        <p className="text-sm text-muted-foreground">{row.detail}</p>
-      </div>
-      {action && (
-        <Button
-          type="button"
-          size="sm"
-          variant={action.primary ? "default" : "outline"}
-          disabled={preparing}
-          onClick={() => start(action.kind)}
-        >
-          {preparing && <Spinner className="size-4" />}
-          {action.label}
-        </Button>
-      )}
-    </div>
+    <SettingsRow
+      icon={Terminal}
+      title={row.label}
+      status={row.connected ? "on" : "off"}
+      detail={row.detail}
+      action={
+        action && (
+          <Button
+            type="button"
+            size="sm"
+            variant={action.primary ? "default" : "outline"}
+            disabled={preparing}
+            onClick={() => start(action.kind)}
+          >
+            {preparing && <Spinner className="size-4" />}
+            {action.label}
+          </Button>
+        )
+      }
+    />
   )
 }

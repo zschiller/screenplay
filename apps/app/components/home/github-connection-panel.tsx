@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import { cn } from "@workspace/ui/lib/utils"
 import { openExternal } from "@/lib/open-external"
 import {
   beginGitHubDeviceFlow,
@@ -30,6 +29,10 @@ import {
 } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
 import { LoadErrorRow } from "@/components/home/load-error"
+import {
+  SettingsRow,
+  SettingsRowSkeleton,
+} from "@/components/home/settings-row"
 
 /** Stable PTY key for the sign-in terminal — reaped on exit, so each run is fresh. */
 const GH_SETUP_SESSION_KEY = "screenplay-gh-setup"
@@ -136,12 +139,7 @@ export function GitHubConnectionPanel() {
   }
 
   if (!status) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Spinner className="size-4" />
-        Checking connection…
-      </div>
-    )
+    return <SettingsRowSkeleton label="Checking connection…" />
   }
 
   const view = describeConnection(status)
@@ -165,32 +163,24 @@ export function GitHubConnectionPanel() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3 rounded-lg border p-4">
-        <Plug className="size-5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "size-2 shrink-0 rounded-full",
-                view.connected ? "bg-emerald-500" : "bg-muted-foreground/40"
-              )}
-              aria-hidden
-            />
-            <span className="text-sm font-medium">{view.title}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">{view.detail}</p>
-        </div>
-        {action && (
-          <Button
-            type="button"
-            size="sm"
-            variant={action.primary ? "default" : "outline"}
-            onClick={() => start(runPlan(action.kind, brewPresent))}
-          >
-            {action.label}
-          </Button>
-        )}
-      </div>
+      <SettingsRow
+        icon={Plug}
+        title={view.title}
+        status={view.connected ? "on" : "off"}
+        detail={view.detail}
+        action={
+          action && (
+            <Button
+              type="button"
+              size="sm"
+              variant={action.primary ? "default" : "outline"}
+              onClick={() => start(runPlan(action.kind, brewPresent))}
+            >
+              {action.label}
+            </Button>
+          )
+        }
+      />
 
       {/* Fallback connect + Disconnect. "Disconnect" keys on `hasDeviceToken`,
           not `tokenSource` — a dormant device token can sit *under* a `gh`

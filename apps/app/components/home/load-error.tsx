@@ -12,6 +12,7 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { SettingsRow } from "@/components/home/settings-row"
 
 /**
  * Retry, with the regular spinner in place of its icon while the retry runs. A
@@ -73,8 +74,9 @@ export function LoadErrorState({
 }
 
 /**
- * A settings-row load failure, shaped like the rows it stands in for (GitHub,
- * coding agents) so the section keeps its layout while it waits for a retry.
+ * A settings-row load failure, a {@link SettingsRow} like the rows it stands in
+ * for (GitHub, coding agents, presets) so the section keeps its layout while it
+ * waits for a retry.
  */
 export function LoadErrorRow({
   title,
@@ -86,13 +88,13 @@ export function LoadErrorRow({
   onRetry: () => Promise<unknown>
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-4" role="alert">
-      <CircleAlert className="size-5 shrink-0 text-destructive" />
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-sm text-muted-foreground">{detail}</p>
-      </div>
-      <RetryButton onRetry={onRetry} />
-    </div>
+    <SettingsRow
+      role="alert"
+      icon={CircleAlert}
+      iconClassName="text-destructive"
+      title={title}
+      detail={detail}
+      action={<RetryButton onRetry={onRetry} />}
+    />
   )
 }

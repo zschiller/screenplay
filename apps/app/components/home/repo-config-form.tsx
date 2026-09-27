@@ -4,6 +4,7 @@ import { useState } from "react"
 import { nanoid } from "nanoid"
 import { FolderOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { DialogFooter } from "@workspace/ui/components/dialog"
 import {
   Field,
   FieldDescription,
@@ -12,6 +13,7 @@ import {
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoPicker } from "@/components/repo-picker"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
@@ -39,6 +41,11 @@ type RepoIdentity = Pick<
   | "private"
 >
 
+/**
+ * The body of the preset editor dialog (the caller owns the `Dialog` and its
+ * header): pick a source, then edit the preset's fields in the dialog's one
+ * scroll area, with Cancel/Save pinned in the footer.
+ */
 export function RepoConfigForm({
   initial,
   existingConfigs,
@@ -159,69 +166,71 @@ export function RepoConfigForm({
 
   if (!repo) {
     return (
-      <div className="flex min-w-0 flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Choose a git repository for this preset.
-        </p>
-        {folderMode ? (
-          <div className="rounded-lg border">
-            <LocalFolderForm
-              onBack={() => setFolderMode(false)}
-              onResolved={applySource}
-            />
-          </div>
-        ) : (
-          <>
+      <>
+        <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">
+          <p className="text-sm text-muted-foreground">
+            Choose a git repository for this preset.
+          </p>
+          {folderMode ? (
             <div className="rounded-lg border">
-              <RepoPicker
-                // Same sources as the canvas add flow: a GitHub pick, or — on
-                // the local build — a pasted clone URL folded into the search
-                // box (#605). Folder sources come through the button below
-                // (#604/#606), not the picker itself.
-                localSources={isLocalBuild}
-                onSelect={(pick) => {
-                  if (pick.kind === "repo") {
-                    setRepo({
-                      repoFullName: pick.repo.fullName,
-                      repoOwner: pick.repo.owner,
-                      repoName: pick.repo.name,
-                      defaultBranch: pick.repo.defaultBranch,
-                      cloneUrl: pick.repo.cloneUrl,
-                      private: pick.repo.private,
-                    })
-                  } else if (pick.kind === "source") {
-                    // A pasted clone URL. The picker here lists no saved
-                    // configs, so `kind: "config"` never occurs.
-                    applySource(pick.source)
-                  }
-                }}
+              <LocalFolderForm
+                onBack={() => setFolderMode(false)}
+                onResolved={applySource}
               />
             </div>
-            {isLocalBuild && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="justify-start gap-2 font-normal"
-                onClick={openFolder}
-              >
-                <FolderOpen className="size-4 text-muted-foreground" />
-                Open a folder
-              </Button>
-            )}
-          </>
-        )}
-        <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          ) : (
+            <>
+              <div className="rounded-lg border">
+                <RepoPicker
+                  // Same sources as the canvas add flow: a GitHub pick, or — on
+                  // the local build — a pasted clone URL folded into the search
+                  // box (#605). Folder sources come through the button below
+                  // (#604/#606), not the picker itself.
+                  localSources={isLocalBuild}
+                  onSelect={(pick) => {
+                    if (pick.kind === "repo") {
+                      setRepo({
+                        repoFullName: pick.repo.fullName,
+                        repoOwner: pick.repo.owner,
+                        repoName: pick.repo.name,
+                        defaultBranch: pick.repo.defaultBranch,
+                        cloneUrl: pick.repo.cloneUrl,
+                        private: pick.repo.private,
+                      })
+                    } else if (pick.kind === "source") {
+                      // A pasted clone URL. The picker here lists no saved
+                      // configs, so `kind: "config"` never occurs.
+                      applySource(pick.source)
+                    }
+                  }}
+                />
+              </div>
+              {isLocalBuild && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-start gap-2 font-normal"
+                  onClick={openFolder}
+                >
+                  <FolderOpen className="size-4 text-muted-foreground" />
+                  Open a folder
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+        <DialogFooter className="mx-0 mb-0">
+          <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-        </div>
-      </div>
+        </DialogFooter>
+      </>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex min-w-0 items-center justify-between gap-2">
+    <>
+      <div className="flex min-w-0 items-center justify-between gap-2 px-4 pb-3">
         <div className="min-w-0 truncate text-sm">
           <span className="text-muted-foreground">Source </span>
           <span className="font-mono">{repo.repoFullName}</span>
@@ -238,8 +247,14 @@ export function RepoConfigForm({
         )}
       </div>
 
-      <ScrollArea className="max-h-[60vh]">
-        <div className="flex flex-col gap-5 pr-3">
+      {/* The dialog's only scroll. The max-height must land on the Radix
+          viewport itself — shadcn hardcodes h-full on it, so a max-h on the
+          outer ScrollArea never creates a scroll boundary (shadcn #296). */}
+      <ScrollArea
+        orientation="vertical"
+        className="border-t [&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
+      >
+        <div className="flex flex-col gap-5 p-4">
           <Field>
             <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
             <Input
@@ -277,16 +292,21 @@ export function RepoConfigForm({
         </div>
       </ScrollArea>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="px-4 pb-3 text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+      <DialogFooter className="mx-0 mb-0">
+        <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={!canSave || saving}>
-          {saving ? "Saving…" : initial ? "Save changes" : "Create preset"}
+        <Button onClick={handleSave} disabled={!canSave || saving}>
+          {saving && <Spinner className="size-4" />}
+          {initial ? "Save changes" : "Create preset"}
         </Button>
-      </div>
-    </div>
+      </DialogFooter>
+    </>
   )
 }
