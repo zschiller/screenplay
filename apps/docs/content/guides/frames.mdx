@@ -1,0 +1,107 @@
+---
+title: Frames
+description: Live previews of your app at any route and device size.
+---
+
+import { Callout } from "nextra/components"
+
+# Frames
+
+A frame is a live preview of a workspace's dev server. It's a real browser
+view, so hot reload, client-side routing, and app state all work as normal.
+
+<Screenshot name="frame-selected" alt="A selected frame with its resize handles and floating toolbar" />
+
+## Adding frames
+
+- A new workspace gets a frame automatically once its dev server is up.
+- The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
+  or draws one where you drag. A new frame is empty ("Choose a branch") until
+  you pick a workspace for it.
+- **Show all routes** in the workspace menu adds a group with a frame for
+  every route the workspace has visited.
+
+## The title bar
+
+Above each frame:
+
+- **Workspace badge**: click it to point the frame at a different workspace.
+  This is how you compare branches on the same screen.
+- **Name**: double-click to rename.
+- **Route**: click to switch pages. Pick a route the workspace has visited, or
+  type any path and choose **Go to *path***. Routes you visit while
+  interacting are added to the list automatically.
+
+<Screenshot name="route-picker" alt="The route picker: search or type a route, with /, /customers and /pricing listed" />
+
+<Screenshot name="frame-branch-picker" alt="The workspace picker on a frame's badge" />
+
+## The frame toolbar
+
+When exactly one frame is selected, a small toolbar appears on its right edge:
+
+| Button | What it does |
+| --- | --- |
+| **Interact** | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it. <kbd>Esc</kbd> returns to the canvas. |
+| **Create Flow** | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. |
+| **Reload** | Reloads the preview. It's highlighted when hot reload has disconnected. |
+| **Knobs** | Live controls your app declares. See [Knobs](#knobs). |
+| **More** | **Device size**, **Fit to content**, **Open prototype player**, **Open in browser**. |
+
+<Screenshot name="frame-tooltip-interact" alt="The frame toolbar with the Interact tooltip" />
+
+Interact and Create Flow switch off automatically when you select something
+else.
+
+<Screenshot name="frame-more-menu" alt="The More menu: Device size, Fit to content, Open prototype player, Open in browser" />
+
+## Sizes
+
+**More → Device size** sets exact device dimensions:
+
+<Screenshot name="device-size-menu" alt="The Device size menu grouped into Desktop, Tablet and Mobile" />
+
+| Group | Presets |
+| --- | --- |
+| Desktop | 4K (3840×2160), 1920×1080, MacBook Pro 16″ (1728×1117), MacBook Pro 14″ (1512×982), Laptop 1440×900, Laptop 1280×800 |
+| Tablet | iPad Pro 13″, iPad Pro 11″, iPad Air 13″, iPad Air 11″, iPad mini, Galaxy Tab S10 Ultra |
+| Mobile | iPhone 17 Pro Max, iPhone 17 Pro, iPhone 17, iPhone Air, iPhone SE, Pixel 9 Pro XL, Pixel 9 Pro, Galaxy S25 Ultra, Galaxy S25, Galaxy Z Fold (unfolded) |
+
+You can also drag a corner handle. While resizing, the frame **snaps** to
+nearby device sizes, which are outlined as you get close. Hold <kbd>⌘</kbd>
+to resize freely. **Fit to content** resizes the frame to the page's full
+document size, which is handy for capturing a whole long page.
+
+A project's **Default frame size** decides what new frames open at.
+
+## Knobs
+
+If your app declares [knobs](/building/knobs), the **Knobs** button opens live
+controls: sliders, switches, text fields, selects, and color pickers. Changes
+apply instantly and sync to everyone viewing the canvas. A dot on the button
+means values differ from their defaults, and **Reset to defaults** clears
+them.
+
+<Screenshot name="knobs-popover" alt="The Knobs popover with Accent color, Corner radius, Headline, Show customer logos and Hero layout" />
+
+With no knobs declared, the popover suggests asking the agent to add some, for
+example "Add a slider knob to control the card padding."
+
+## Shared state
+
+When your app shares state through
+[`@screenplay.space/state`](/building/shared-state), a small `{}` appears on
+the route pill. Hover it to see the current JSON. The state is kept with the
+frame and synced to everyone.
+
+## Preview states
+
+- **Waiting for dev server...** while the workspace boots.
+- **Dev server not responding** if the server doesn't answer in time. Click
+  **Retry**, or check the workspace's logs.
+
+<Callout type="info">
+  A preview that never loads on desktop usually means the dev server isn't
+  listening on the port Screenplay assigned. See
+  [Dev server & ports](/building/dev-server).
+</Callout>

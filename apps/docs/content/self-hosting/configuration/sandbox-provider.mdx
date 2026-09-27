@@ -1,0 +1,88 @@
+---
+title: Sandbox provider
+description: Where workspaces run. Vercel Sandbox by default, local worktrees on desktop, or a provider you add.
+---
+
+import { Callout } from "nextra/components"
+
+# Sandbox provider
+
+Every workspace runs in a **sandbox**. That's where the repository is checked
+out, the setup and run scripts execute, the agent's commands run, and terminal
+tabs connect. Sandboxes sit behind the `SandboxProvider` interface in
+`apps/app/lib/sandbox/`, and `SANDBOX_BACKEND` selects the implementation:
+
+| `SANDBOX_BACKEND` | Provider | Used by |
+| --- | --- | --- |
+| unset / `vercel` | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox): one Linux VM per workspace | Hosted |
+| `local` | A git worktree per workspace on the host machine | Desktop |
+
+Any other value fails at startup.
+
+## Vercel Sandbox (hosted)
+
+Vercel Sandbox authenticates with Vercel's OIDC token, which is injected
+automatically on Vercel. For local development, link the project and pull a
+short-lived token:
+
+```bash
+vercel link
+vercel env pull apps/app/.env.local   # sets VERCEL_OIDC_TOKEN (~12 h)
+```
+
+Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and
+reopening a canvas restores them with the working tree intact. **Restart
+sandbox** uses the same snapshot. Once a snapshot has fully expired, the only
+way back is **Recreate from scratch**, which discards uncommitted work. That's
+why the agent commits and pushes after every change.
+
+## Local worktrees (desktop)
+
+Each project resolves to one local clone: either your folder, or a managed
+clone of the URL you added. Each workspace is a git worktree of that clone,
+so there's one object store per repository and one checkout per branch.
+Worktrees survive restarts, including uncommitted changes. Local sandboxes
+can't hibernate, so **Restart sandbox** isn't offered; **Restart dev server**
+and **Recreate from scratch** are.
+
+Dev servers run under portless on a per-workspace port. See
+[Dev server & ports](/building/dev-server).
+
+## Adding a provider
+
+Any backend that can run commands and read and write files in a Linux
+environment can be a provider: E2B, Modal, a Firecracker service, a Docker
+daemon.
+
+1. Add a factory next to `vercel.ts`, for example `apps/app/lib/sandbox/e2b.ts`:
+
+   ```ts
+   import "server-only"
+   import type { SandboxProvider } from "./types"
+
+   class E2BSandboxProvider implements SandboxProvider {
+     async create(opts) { /* provision, return a SandboxInstance */ }
+     async get(opts)    { /* reconnect, return a SandboxInstance */ }
+   }
+
+   export function getE2BSandboxProvider(): SandboxProvider {
+     return new E2BSandboxProvider()
+   }
+   ```
+
+2. Return it from `selectSandboxProvider()` in `apps/app/lib/sandbox/index.ts`
+   behind a new `SANDBOX_BACKEND` value.
+3. Read your credentials (for example `E2B_API_KEY`) inside the factory.
+
+A `SandboxInstance` is deliberately small: `name`, `worktreePath`, `homeDir`,
+`domain(port)`, `hostPort(port)`, `runCommand`, `writeFiles`,
+`readFileToBuffer`, and `delete()`. See `apps/app/lib/sandbox/types.ts`. The
+agent's tools, the logs stream, and terminals are all written against this
+interface.
+
+<Callout type="info">
+  Capabilities not every backend has are kept off the core interface.
+  **Hibernation** (`snapshot()`, `extendTimeout()`) is an optional extension,
+  detected with `supportsHibernation()`. A provider without it simply doesn't
+  offer Restart sandbox. See `apps/app/docs/adr/0003-honest-sandbox-provider-seam.md`.
+</Callout>

@@ -1,0 +1,57 @@
+---
+title: Play mode
+description: Open a workspace full screen as a clickable prototype, at any device size.
+---
+
+# Play mode
+
+Play mode (the **prototype player**) opens a workspace's app full screen, with
+no canvas around it. Use it to test a flow properly, present a prototype, or
+pass a link to someone to try.
+
+<Screenshot name="play-desktop" alt="The prototype player showing the Northwind homepage full screen, with the player controls in the corner" />
+
+Open it from:
+
+- a workspace's **… → Open prototype player**, or
+- a frame's **More → Open prototype player**. The player opens on that
+  frame's route and with its knob values.
+
+The page title is **▶ *canvas name***, and the URL carries the route and knob
+values, so a copied link opens exactly what you're looking at.
+
+## The player controls
+
+A small bar in the corner holds the controls. Drag it by its handle to any
+corner; the position is remembered.
+
+<Screenshot name="play-hud" alt="The player control bar" />
+
+| Control | What it does |
+| --- | --- |
+| **← Back to *canvas*** | *Hosted.* Returns to the canvas. |
+| **Device** | Switches device size. Phones and tablets appear in a device outline, scaled to fit, with touch input. |
+| **Knobs** | Opens the knobs panel. |
+| **Comments** | *Hosted.* Comments for this workspace. |
+| **Open agent** | Opens a chat side panel for this workspace, so you can ask for changes while you test. |
+
+<Screenshot name="play-device-menu" alt="The device menu in the player" />
+
+## Mobile sizes
+
+Pick a phone to preview inside a device outline. Pointer input switches to
+touch, so tap targets and scrolling behave like the real device.
+
+<Screenshot name="play-mobile" alt="The player showing the homepage inside an iPhone 17 Pro outline" />
+
+## Knobs and the agent
+
+**Knobs** opens the same controls as the frame's knobs popover, with a
+**Reset** button. Values stay in sync with the canvas.
+
+<Screenshot name="play-knobs" alt="The player's Knobs panel" />
+
+**Open agent** docks the workspace's chat beside the prototype. The preview
+updates live as the agent changes the code.
+
+<Screenshot name="play-agent" alt="The player with the agent panel docked on the right" />

@@ -1,0 +1,113 @@
+---
+title: The canvas
+description: Navigate the canvas, use the tools, and arrange frames and documents.
+---
+
+import { Callout } from "nextra/components"
+
+# The canvas
+
+A canvas has three regions:
+
+- **Left sidebar** (<kbd>⌘</kbd> <kbd>B</kbd>): your **Projects** and their
+  workspaces at the top, and the **Canvas** layers list below.
+- **The canvas itself**: an infinite surface of frames and documents, with
+  the toolbar at the bottom center.
+- **Agent panel** (<kbd>⌘</kbd> <kbd>I</kbd>): chat and terminals for the
+  selected workspace or document.
+
+<Screenshot name="hero" alt="The canvas with the sidebar on the left, frames in the middle and the agent panel on the right" />
+
+<kbd>⌘</kbd> <kbd>.</kbd> hides both panels at once, or brings them back.
+Drag a panel's edge to resize it; the layout is remembered.
+
+## Moving around
+
+| Action | How |
+| --- | --- |
+| Pan | Scroll or trackpad-swipe, or hold <kbd>Space</kbd> and drag |
+| Zoom | <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll, or pinch |
+| Jump to a layer | Double-click it in the sidebar's **Canvas** list |
+
+Your viewport is saved with the canvas, so you come back to where you left
+off.
+
+## The top bar
+
+The pill at the top left shows where the canvas lives: **All files** or its
+folder, then the canvas name. Double-click the name to rename it. The **…**
+menu has **Rename** and **Delete**, or **Leave** on a canvas shared with you.
+
+<Screenshot name="canvas-menu" alt="The canvas title pill and its menu" />
+
+On the hosted app, the top right also shows who else is here, plus
+**Share**. See [Sharing & collaboration](/guides/collaboration).
+
+## Tools
+
+The toolbar at the bottom holds the drawing tools. Exactly one is active at a
+time. Pressing a tool's key again returns to **Select**.
+
+| Tool | Key | Use |
+| --- | --- | --- |
+| **Select** | <kbd>V</kbd> | Select, move and resize layers |
+| **Frame** | <kbd>F</kbd> | Click to drop a 1280×800 frame, or drag to draw one |
+| **Document** | <kbd>D</kbd> | Click to drop a document, or drag to draw one |
+| **Comment** | <kbd>C</kbd> | *Hosted only.* Pin a comment to an element or text |
+
+While the Frame or Document tool is active, every group shows a dashed
+**+** slot at its end. Click it to add the new layer to that group.
+
+<Screenshot name="frame-tool" alt="The Frame tool is active in the bottom toolbar" />
+
+## Selecting
+
+- **Click** a layer's title bar to select it. **Shift-click** adds to or
+  removes from the selection.
+- **Drag** on empty canvas to draw a selection marquee.
+- Clicking a group's label selects the whole group.
+- <kbd>Delete</kbd> or <kbd>Backspace</kbd> deletes the selection, and the next
+  layer is selected so you can keep going.
+- <kbd>Esc</kbd> backs out one step at a time: it closes whatever is open
+  (editing, a tool, interact mode), then clears the selection.
+
+## Groups
+
+Layers on the canvas always live in **groups**: rows of frames and documents
+laid out left to right with an even gap. Groups keep related screens together,
+such as a page's desktop and mobile versions or the steps of a signup flow.
+
+- **Move a group** by dragging any member's title bar or the group label.
+  Edges and centers snap to nearby groups, with guide lines.
+- **Merge groups** by dragging one group onto the end of another; the target
+  lights up. Hold <kbd>⌘</kbd> to move without merging.
+- **Reorder within a group** by selecting the group, then dragging a member
+  along the row. Hold <kbd>⌘</kbd> while dragging to pull it out into a new
+  group.
+- **Change spacing** by selecting the group and dragging the handles between
+  members.
+- **Rename** a group by double-clicking its label, or from its **…** menu
+  in the sidebar.
+
+A group disappears when its last member is removed.
+
+## The layers list
+
+The sidebar's **Canvas** section mirrors the canvas. Groups with several
+members appear as folders. Each frame shows its workspace badge and route.
+
+- Click to select; <kbd>Shift</kbd>-click to add to the selection.
+- Double-click to zoom to it.
+- Drag rows to reorder, move a layer into another group, or drop it between
+  groups to start a new one.
+- **…** → **Rename** or **Delete**.
+
+## Undo
+
+<kbd>⌘</kbd> <kbd>Z</kbd> and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> undo and
+redo canvas changes: moves, resizes, adds, deletes, and renames.
+
+<Callout type="info">
+  Undo covers the canvas layout only. It doesn't touch code: to reverse
+  something the agent changed, ask it, or use git.
+</Callout>

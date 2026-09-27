@@ -1,0 +1,112 @@
+---
+title: Dev server & ports
+description: How Screenplay tells your dev server which port to use, and how to make any framework or monorepo work.
+---
+
+import { Callout, Tabs } from "nextra/components"
+
+# Dev server & ports
+
+Every workspace runs your project's **run script** (set in the
+[project settings](/guides/projects#project-settings), never in your repo) and
+previews whatever it serves. Screenplay picks the port for each workspace. The
+one requirement on your app: **the dev server must listen on the port it's
+given**.
+
+Most frameworks do this out of the box, because Screenplay passes the port in
+the standard `PORT` environment variable.
+
+<Tabs items={["Desktop", "Hosted"]}>
+<Tabs.Tab>
+
+Every workspace runs on your machine, so each one needs its own port. The
+run script is started under [portless](https://portless.sh), which sets
+**`PORT`** to the port allocated to that workspace:
+
+```bash
+# Next.js, Create React App, Express, Nuxt… honor $PORT already
+npm run dev
+
+# Vite and other tools that ignore $PORT: pass it explicitly
+vite --port $PORT --strictPort
+
+# A custom server
+node server.js --port $PORT
+```
+
+portless ships with the app, and Screenplay starts its proxy for you. It also
+gives each workspace a **stable URL** like
+`http://my-branch.my-app.localhost:1355` that survives dev server restarts.
+**Open in browser** on a workspace opens it.
+
+If you run `npx portless proxy start` yourself (it asks for `sudo` to use
+port 443 and trust a local HTTPS certificate), Screenplay uses that proxy
+instead, and the stable URLs drop the port:
+`https://my-branch.my-app.localhost`.
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Every workspace is its own VM, so ports can't collide. Screenplay sets both
+**`SCREENPLAY_PORT`** and **`PORT`** to the project's **Dev server port**:
+
+```bash
+next dev --port $SCREENPLAY_PORT
+vite --port $SCREENPLAY_PORT --strictPort
+```
+
+Because the VM is isolated, a script that honors `$PORT`, or even one that
+simply binds the port you configured, works as is.
+
+</Tabs.Tab>
+</Tabs>
+
+A script that honors `$PORT` works on both.
+
+## When the preview never loads
+
+On desktop, a dev server that never listens on its assigned port fails with
+a clear error (`DevServerPortIgnoredError`) instead of leaving a blank frame.
+The usual cause is a script that ignores `$PORT`:
+
+1. Fix the **Run script** in the project settings (for example add
+   `--port $PORT`).
+2. Use **Restart → Restart dev server** on the workspace.
+3. Still stuck? The workspace's **Sandbox logs** tab shows the dev server's
+   and portless's output.
+
+## Monorepos
+
+A project previews **one** app. Filter your monorepo's dev command down to
+that app, and pass the port as a flag:
+
+```bash
+# Turborepo
+turbo run dev --filter=web -- --port $PORT
+
+# pnpm workspaces
+pnpm --filter web dev -- --port $PORT
+```
+
+<Callout type="warning">
+  With Turborepo, pass the port as a flag, as above, instead of relying on the
+  `PORT` variable reaching the task. Turborepo 2's strict env mode strips
+  undeclared variables, so `$PORT` is empty *inside* the task. Workspace
+  scripts that hardcode `--port 3001` also win over the variable. The
+  appended flag handles both, because for Next.js and Vite the last `--port`
+  wins. Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
+  `turbo.json`.
+</Callout>
+
+To work on a second app from the same monorepo, add the repository again as a
+second project with its own run script. Presets make this painless; see
+[Monorepos](/guides/projects#monorepos).
+
+## Why it works this way
+
+- Desktop workspaces run directly on your machine, not in containers, so
+  your already-authenticated tools (including coding CLIs on a subscription
+  login) work inside every workspace.
+- Adopting Screenplay should never require changing your project. The run
+  script lives in Screenplay's settings, and Screenplay invokes portless
+  itself, so your repo needs no config files or dependencies.

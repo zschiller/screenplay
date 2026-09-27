@@ -1,0 +1,71 @@
+---
+title: Agent skills
+description: Teach the agent repository-specific workflows with SKILL.md files, and use the skills Screenplay ships.
+---
+
+import { FileTree } from "nextra/components"
+
+# Agent skills
+
+A **skill** is a Markdown file of instructions the agent can load when a task
+calls for it. The agent always sees each skill's name and one-line
+description, and reads the full instructions only when it needs them. That
+keeps its context lean while making specialized know-how available.
+
+## Using skills
+
+In a workspace chat, type <kbd>/</kbd> to pick a skill. It's inserted as a
+chip, and the agent is required to load it before doing anything else.
+The agent also loads skills on its own when a request matches a description.
+
+<Screenshot name="composer-skills" alt="The / menu listing Screenplay's built-in skills" />
+
+## Built-in skills
+
+Screenplay ships two skills, tagged **App** in the menu:
+
+| Skill | What it teaches |
+| --- | --- |
+| `screenplay-add-knob` | Adding [knobs](/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs. |
+| `screenplay-share-state` | Bridging UI state to the canvas with [shared state](/building/shared-state). |
+
+## Adding your own
+
+Put skills in your repository under `.claude/skills/`, one folder per skill.
+This is the same layout Claude Code uses, so existing skills just work:
+
+<FileTree>
+  <FileTree.Folder name=".claude" defaultOpen>
+    <FileTree.Folder name="skills" defaultOpen>
+      <FileTree.Folder name="add-api-route" defaultOpen>
+        <FileTree.File name="SKILL.md" />
+      </FileTree.Folder>
+      <FileTree.Folder name="release-notes">
+        <FileTree.File name="SKILL.md" />
+      </FileTree.Folder>
+    </FileTree.Folder>
+  </FileTree.Folder>
+</FileTree>
+
+Each `SKILL.md` starts with frontmatter. The `name` must match the folder
+name:
+
+```md
+---
+name: add-api-route
+description: Add a new API route with validation and tests. Use when the user asks for a new endpoint.
+---
+
+# Adding an API route
+
+1. Create the handler in `app/api/<name>/route.ts`…
+2. …
+```
+
+Repository skills show up tagged **Repo** once the workspace's sandbox is
+running. They're read from that workspace's checkout, so different branches
+can carry different skills. If a repository skill has the same name as a
+built-in one, the repository's version wins.
+
+Write the `description` for the agent, not for people: say what the skill does
+**and when to use it**. That's what the agent matches requests against.

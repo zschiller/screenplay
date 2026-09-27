@@ -1,0 +1,121 @@
+---
+title: Knobs
+description: Declare live controls from your app's code with @screenplay.space/knobs, then tweak them on the canvas and in play mode.
+---
+
+import { Callout } from "nextra/components"
+
+# Knobs
+
+Knobs are live controls your app declares from its own code. Screenplay
+renders them in the frame's **Knobs** popover and the
+[player's](/guides/play-mode) knobs panel. Changing a value updates the
+running app instantly, for everyone viewing the canvas, with no rebuild.
+
+<Screenshot name="knobs-popover" alt="The Knobs popover on the Northwind homepage frame: Accent color, Corner radius, Headline, Show customer logos, Hero layout" />
+
+Use knobs for things you want to try rather than decide in code: accent
+colors, spacing, copy variants, feature toggles, layout options.
+
+<Callout type="info">
+  You don't have to write knobs yourself. Ask the agent ("add a slider knob to
+  control the card padding"): Screenplay ships a `screenplay-add-knob`
+  [skill](/building/skills) that teaches it how.
+</Callout>
+
+## Install
+
+```bash
+npm install @screenplay.space/knobs
+```
+
+React 17 or later is a peer dependency.
+
+## Declare knobs
+
+`useKnob` returns the knob's current value:
+
+```tsx
+import { useKnob } from "@screenplay.space/knobs"
+
+export function App() {
+  const accent = useKnob({
+    id: "accent",
+    type: "color",
+    label: "Accent color",
+    default: "#4f46e5",
+  })
+  const radius = useKnob({
+    id: "radius",
+    type: "slider",
+    label: "Corner radius",
+    min: 0,
+    max: 28,
+    step: 1,
+    default: 14,
+  })
+
+  return <div style={{ "--accent": accent, "--radius": `${radius}px` }}>…</div>
+}
+```
+
+This is the code behind the screenshot above. It comes from the demo app used
+throughout these docs.
+
+## Knob types
+
+| `type` | Control | Fields |
+| --- | --- | --- |
+| `slider` | Slider | `min`, `max`, `default` (number); `step?` |
+| `number` | Number field | `default` (number); `min?`, `max?`, `step?` |
+| `boolean` | Switch | `default` (boolean) |
+| `string` | Text field | `default` (string); `placeholder?` |
+| `select` | Dropdown | `default` (string); `options: { value, label? }[]` |
+| `color` | Color picker | `default` (string, e.g. `"#1d4ed8"`) |
+
+Every knob takes an optional `label` (defaults to the `id`). It can also take
+a `validator: (value) => value`, which runs inside your app on every incoming
+value so you can clamp or sanitize it.
+
+## How values behave
+
+- **Stable `id`s keep their values** across reloads. Renaming an `id` resets
+  it to its default.
+- Values are stored **per frame**, so two frames of the same page can show
+  different variants side by side.
+- Values sync to **everyone** on the canvas, and carry over when you open the
+  frame in play mode.
+- **Reset to defaults** in the popover clears them.
+
+## Without React
+
+```ts
+import { registerKnob } from "@screenplay.space/knobs"
+
+const unsubscribe = registerKnob(
+  { id: "background", type: "color", default: "#ffffff" },
+  (value) => {
+    document.body.style.background = String(value)
+  },
+)
+```
+
+## Safe to ship
+
+Knobs only activate in **development** builds, and only when your app is
+running inside a Screenplay frame. Everywhere else, including production
+builds, standalone dev, and iframes on other sites, `useKnob` just returns
+its `default`. Bundlers strip the messaging code from production builds. You
+can commit knob code without guarding it.
+
+<Callout type="warning">
+  **Using Vite?** The package detects development builds through
+  `process.env.NODE_ENV`, and Vite doesn't define a global `process` in the
+  browser. Until this is fixed
+  ([#740](https://github.com/zschiller/screenplay/issues/740)), add this to
+  your `index.html` `<body>` so knobs activate in dev:
+
+  ```html
+  <script>globalThis.process ??= { env: { NODE_ENV: "development" } }</script>
+  ```
+</Callout>

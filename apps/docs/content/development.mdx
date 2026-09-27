@@ -1,30 +1,140 @@
+---
+title: Development
+description: Run Screenplay from source, find your way around the monorepo, and contribute changes.
+---
+
+import { Callout, FileTree, Tabs } from "nextra/components"
+
 # Development
 
-Day-to-day commands for working in the monorepo. The top-level scripts run
-through [Turborepo](https://turborepo.com), fanning out across every workspace.
+## Prerequisites
+
+- [Node.js](https://nodejs.org) 20 or newer
+- [pnpm](https://pnpm.io) 9 (the repo pins `pnpm@9.15.9`)
+- git
 
 ```bash
-pnpm dev         # start the dev servers with Turbopack
-pnpm build       # production build (in apps/app this runs drizzle-kit migrate, then next build)
+git clone https://github.com/zschiller/screenplay.git
+cd screenplay
+pnpm install
+```
+
+## The monorepo
+
+<FileTree>
+  <FileTree.Folder name="apps" defaultOpen>
+    <FileTree.Folder name="app" />
+    <FileTree.Folder name="desktop" />
+    <FileTree.Folder name="docs" />
+    <FileTree.Folder name="web" />
+  </FileTree.Folder>
+  <FileTree.Folder name="packages" defaultOpen>
+    <FileTree.Folder name="screenplay-knobs" />
+    <FileTree.Folder name="screenplay-state" />
+    <FileTree.Folder name="ui" />
+    <FileTree.Folder name="eslint-config" />
+    <FileTree.Folder name="typescript-config" />
+  </FileTree.Folder>
+</FileTree>
+
+| Path | What it is | Dev port |
+| --- | --- | --- |
+| `apps/app` | The product: canvas, agent runtime, API routes | 3000 |
+| `apps/web` | The marketing site | 3001 |
+| `apps/docs` | This site (Nextra) | 3002 |
+| `apps/desktop` | The Tauri shell that packages `apps/app` as the desktop app | — |
+| `packages/screenplay-knobs`, `packages/screenplay-state` | The npm packages apps use to declare [knobs](/building/knobs) and [shared state](/building/shared-state) | — |
+| `packages/ui` | Shared shadcn/ui components | — |
+
+`apps/app/CONTEXT.md` is the glossary for the product's domain language.
+Design decisions are recorded as ADRs in `apps/app/docs/adr/`. Read both
+before a larger change.
+
+## Running the product
+
+There are two ways to run `apps/app` locally.
+
+<Tabs items={["Local mode (no services)", "Hosted mode"]}>
+<Tabs.Tab>
+
+The same build switches the desktop app uses let you run the full product with
+**no external services**: embedded Postgres, a local Yjs server, and
+workspaces as git worktrees. You need a coding CLI such as Claude Code
+installed for the agent.
+
+```bash
+cd apps/app
+NEXT_PUBLIC_SCREENPLAY_LOCAL=1 NEXT_PUBLIC_YJS_HOST=local NEXT_PUBLIC_BASE_PATH= \
+SANDBOX_BACKEND=local SCREENPLAY_DB=pglite BLOB_STORE=local-fs AGENT_ENGINE=external \
+ENCRYPTION_KEY=$(openssl rand -hex 32) TERMINAL_AUTH_SECRET=$(openssl rand -hex 32) \
+  pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Data lives under
+`apps/app` (`.pglite/`, `.data/yjs/`, `.screenplay/blobs/`), and worktrees go
+under `~/.screenplay/`.
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+The multi-user build needs the real services: Postgres, a GitHub OAuth app,
+Liveblocks, a sandbox provider, and at least one model provider. See
+[Self-hosting](/self-hosting) for what each one is.
+
+```bash
+cp apps/app/.env.local.example apps/app/.env.local   # fill in the values
+cd apps/app && pnpm db:migrate
+pnpm dev
+```
+
+The example env sets `NEXT_PUBLIC_BASE_PATH=/app`, so the product is at
+[http://localhost:3000/app](http://localhost:3000/app). Unset it to serve at
+the root. For sign-in, see
+[GitHub OAuth → Local development](/self-hosting/github-oauth#local-development).
+
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+  `pnpm dev` at the repository root starts **every** app through Turborepo.
+  Run it inside `apps/app` to start just the product.
+</Callout>
+
+## Commands
+
+From the repository root (runs across all workspaces via Turborepo):
+
+```bash
+pnpm dev         # dev servers
+pnpm build       # production builds (apps/app runs its migrations first)
 pnpm lint        # ESLint
 pnpm typecheck   # tsc --noEmit
 pnpm format      # Prettier
-pnpm test        # Vitest (run from apps/app for watch mode: pnpm test:watch)
+pnpm test        # Vitest
 ```
 
-## Database
-
-Run these from `apps/app`:
+In `apps/app`, `pnpm test:watch` runs Vitest in watch mode. Database helpers:
 
 ```bash
-pnpm db:generate # generate a new SQL migration from schema changes — commit the output
-pnpm db:migrate  # apply committed migrations to $DATABASE_URL
-pnpm db:push     # push the schema directly without a migration file (throwaway dev only)
+pnpm db:generate # generate a migration from schema changes (commit it)
+pnpm db:migrate  # apply migrations to $DATABASE_URL
+pnpm db:push     # sync the schema without a migration (throwaway dev only)
 pnpm db:studio   # open Drizzle Studio
 ```
 
-See [Database](/deployment/database) for the schema overview and the
-generate-then-commit migration workflow.
+See [Database](/self-hosting/database#changing-the-schema) for the
+migration workflow.
+
+## Desktop app
+
+```bash
+pnpm --filter desktop build:sidecar   # build apps/app as the bundled sidecar
+pnpm --filter desktop dev             # run the Tauri app
+pnpm --filter desktop build           # package Screenplay.app
+```
+
+This needs the Rust and Tauri toolchains. See
+[Desktop app](/self-hosting/configuration/desktop-app).
 
 ## Screenshots for design review
 
@@ -39,3 +149,23 @@ pnpm --filter app screenshots:shots   # capture the named screens, both themes
 
 See [Screenshots for design review](/screenshots) for the before/after workflow,
 how to add a screen, and what the local build leaves out.
+
+## Writing docs
+
+These docs live in `apps/docs/content` as MDX. Run the site with
+`pnpm --filter docs dev`, then open
+[http://localhost:3002/docs](http://localhost:3002/docs).
+
+Screenshots are framed WebP images in `apps/docs/public/screenshots`, in a
+light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
+
+```mdx
+<Screenshot name="hero" alt="Describe what the screenshot shows" />
+```
+
+The component shows the variant that matches the reader's theme.
+
+## Issues
+
+Bugs and feature requests are tracked in
+[GitHub issues](https://github.com/zschiller/screenplay/issues).

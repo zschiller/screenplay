@@ -1,0 +1,51 @@
+---
+title: Terminal tabs
+description: A real shell in the workspace's sandbox, with your coding CLI already running.
+---
+
+import { Callout } from "nextra/components"
+
+# Terminal tabs
+
+A terminal tab is an interactive shell inside a workspace's sandbox, in the
+same directory the agent works in. Use one to run a CLI yourself, poke at the
+repo, or drive a coding CLI in its own interactive interface.
+
+<Screenshot name="terminal" alt="A terminal tab running Claude Code inside the customer-stories workspace" />
+
+## Opening a terminal
+
+Click the caret next to **+** in the agent panel and choose **New terminal**.
+If several coding CLIs are available, pick one to launch it straight away:
+
+| CLI | Notes |
+| --- | --- |
+| **Claude Code** | Anthropic's coding CLI |
+| **Codex** | OpenAI's coding CLI |
+| **opencode (Vercel AI Gateway)** / **opencode (OpenAI-compatible)** | opencode against the gateway or a compatible endpoint (terminal only) |
+
+The CLI starts in the workspace. Quitting it (for example with
+<kbd>Ctrl</kbd> <kbd>D</kbd>) drops you into a normal shell rather than closing
+the tab.
+
+Which CLIs are offered depends on how you run Screenplay:
+
+- **Desktop**: any supported CLI installed on your machine, on its own login.
+  Install and sign in from **Settings → Coding agents**.
+- **Hosted**: the CLIs the operator enabled with `SANDBOX_HARNESSES`. The CLI
+  never sees the real API key; the sandbox injects it on the way out. See
+  [Coding CLIs](/self-hosting/configuration/byo-harnesses).
+
+## Persistence
+
+- Terminal tabs are **yours**. Collaborators on a shared canvas don't see
+  them, and nothing typed there enters chat history.
+- Tabs survive a **page reload** and reattach to the same running process.
+- **Scrollback** isn't saved, and it ends with the sandbox.
+- **Closing** a terminal tab ends its session for good. Closed terminals
+  aren't archived the way chats are.
+
+<Callout type="info">
+  A terminal and a chat can run in the same workspace at the same time, and
+  they share the same files. Commit from one and the other sees it.
+</Callout>

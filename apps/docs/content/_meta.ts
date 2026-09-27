@@ -1,8 +1,15 @@
 const meta = {
+  "-- start": { type: "separator", title: "Get started" },
   index: "Introduction",
-  "getting-started": "Getting Started",
-  deployment: "Deployment",
-  configuration: "Configuration",
+  quickstart: "Quickstart",
+  concepts: "Core concepts",
+  "-- use": { type: "separator", title: "Using Screenplay" },
+  guides: { display: "children" },
+  "-- build": { type: "separator", title: "Building for Screenplay" },
+  building: { display: "children" },
+  "-- host": { type: "separator", title: "Self-hosting" },
+  "self-hosting": { display: "children" },
+  "-- contribute": { type: "separator", title: "Contributing" },
   development: "Development",
   screenshots: "Screenshots for design review",
 }
