@@ -2,20 +2,7 @@
 
 import { useEffect, useRef } from "react"
 
-function resolveColor(
-  el: HTMLElement,
-  varName: string,
-  fallback: string
-): string {
-  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
-  if (!raw) return fallback
-  const temp = document.createElement("div")
-  temp.style.color = raw
-  document.body.appendChild(temp)
-  const resolved = getComputedStyle(temp).color
-  document.body.removeChild(temp)
-  return resolved
-}
+import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
 interface PlaceholderRectsUnderlayProps {
   zoom: number
@@ -71,7 +58,7 @@ export function PlaceholderRectsUnderlay({
     const snap = (v: number) => Math.round(v * dpr) / dpr
     const HALF = 0.5 / dpr
 
-    ctx.strokeStyle = resolveColor(canvas, "--border", "#a1a1aa")
+    ctx.strokeStyle = resolveCanvasColor(canvas, "--border")
     ctx.lineWidth = 1
     for (const rect of rects) {
       const tl = toScreen(rect.x, rect.y)
