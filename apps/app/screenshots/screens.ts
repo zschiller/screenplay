@@ -153,6 +153,21 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-agent-chat-markdown",
+    description:
+      "A markdown-heavy agent reply: table, task list, inline code, highlighted and overflowing code blocks, expanded reasoning.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Breakpoint audit")
+      await page
+        .getByRole("button", { name: /^Reasoning$/ })
+        .first()
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-plan-review",
     description: "A chat paused on a pending plan, awaiting approve/reject.",
     path: `/${ids.rooms.checkout}`,
