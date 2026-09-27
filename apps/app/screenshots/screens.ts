@@ -174,6 +174,107 @@ export const SCREENS: Screen[] = [
     viewport: { width: 1024, height: 768 },
   },
   {
+    name: "canvas-chat-no-projects",
+    description:
+      "The chat panel's empty state on a Canvas with no Project attached.",
+    path: `/${ids.rooms.tokens}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    settleMs: 400,
+  },
+  {
+    name: "chat-target-picker",
+    description: "The chat panel's target picker: Workspaces and Documents.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      // The chat header's trigger is labelled with the current Workspace's
+      // ref; the frame labels on the canvas share that shape and come first.
+      await page
+        .locator("button:has(svg.lucide-chevrons-up-down)")
+        .filter({ hasText: "checkout-polish" })
+        .last()
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "frame-workspace-picker",
+    description:
+      "An unbound frame's Workspace picker, opened from its label on the canvas.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      // Matches the copy on both sides of the #723 rename so a before/after
+      // pair shoots the same state.
+      await page
+        .getByText(/^Choose a (branch|workspace)$/)
+        .first()
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "dialog-new-workspace",
+    description:
+      "The prompt-first New workspace dialog, opened from a Project row.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page.getByText("acme/storefront").first().hover()
+      await page
+        .locator('[title="New workspace"], [title="New Workspace"]')
+        .first()
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-remove-project",
+    description: "Removing a Project from a Canvas: the confirm dialog.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page.getByText("acme/storefront").first().hover()
+      await page.locator('[title="More"]').first().click({ timeout: 15_000 })
+      // Radix ignores a select that lands in the same beat the menu opened.
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Remove" }).click()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-workspace",
+    description: "Deleting a Workspace from its row menu: the confirm dialog.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const row = page
+        .locator(".group\\/branch-row")
+        .filter({ hasText: "checkout-polish" })
+        .first()
+      await row.hover()
+      await row
+        .locator('[aria-haspopup="menu"]')
+        .first()
+        .click({ timeout: 15_000 })
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Delete" }).click()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-canvas",
+    description: "Deleting a Canvas from the home grid: the confirm dialog.",
+    path: "/",
+    prepare: async (page) => {
+      const card = page.getByLabel("Open Checkout flow").first()
+      await card.hover()
+      await page
+        .getByRole("button", { name: "Canvas actions" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page.waitForTimeout(300)
+      await page.getByRole("menuitem", { name: "Delete" }).click()
+    },
+    settleMs: 400,
+  },
+  {
     name: "player",
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,

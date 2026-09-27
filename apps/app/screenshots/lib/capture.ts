@@ -176,7 +176,10 @@ async function captureOne(
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     })
-    await settle(page)
+    // Freeze only after `prepare`: frozen animations stop at their first frame,
+    // so a menu or popover a `prepare` opens would be caught mid-entrance at
+    // opacity 0, and a menu it closes would never finish leaving.
+    await settle(page, { freeze: !screen.prepare })
     if (screen.prepare) {
       // A `prepare` that can't find its affordance shouldn't sink the run: the
       // shot it produces (the screen without that step) is still worth having,
