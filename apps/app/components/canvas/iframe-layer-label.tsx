@@ -27,7 +27,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
-import { LayerTitleText } from "./layer-title-bar"
+import { LayerLabelRow } from "./layer-title-bar"
 
 interface IframeLayerLabelProps {
   label: string
@@ -76,37 +76,38 @@ export function IframeLayerLabel({
   onRename,
 }: IframeLayerLabelProps) {
   return (
-    <div className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible">
-      {onAssignBranch ? (
-        <BranchPicker
-          branch={branch}
-          currentBranchId={branchId}
-          colorKey={branchId}
-          colorIndex={
-            assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-          }
-          assignableBranches={assignableBranches ?? []}
-          onAssignBranch={onAssignBranch}
-        />
-      ) : branch ? (
-        <BranchBadge
-          branch={branch}
-          colorKey={branchId}
-          colorIndex={
-            assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-          }
-          className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
-        />
-      ) : null}
-      <LayerTitleText
-        title={label}
-        selected={selected}
-        color={remoteSelectedColor}
-        onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
-        onRename={onRename}
-        placeholder="Untitled"
-      />
-      {branch &&
+    <LayerLabelRow
+      title={label}
+      selected={selected}
+      color={remoteSelectedColor}
+      onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
+      onRename={onRename}
+      placeholder="Untitled"
+      leading={
+        onAssignBranch ? (
+          <BranchPicker
+            branch={branch}
+            currentBranchId={branchId}
+            colorKey={branchId}
+            colorIndex={
+              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+            }
+            assignableBranches={assignableBranches ?? []}
+            onAssignBranch={onAssignBranch}
+          />
+        ) : branch ? (
+          <BranchBadge
+            branch={branch}
+            colorKey={branchId}
+            colorIndex={
+              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
+            }
+            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
+          />
+        ) : null
+      }
+      trailing={
+        branch &&
         (onSelectRoute ? (
           <RoutePicker
             route={route}
@@ -122,8 +123,9 @@ export function IframeLayerLabel({
             <span className="truncate">{route || "/"}</span>
             <SharedStateIndicator sharedState={sharedState} />
           </Badge>
-        ))}
-    </div>
+        ))
+      }
+    />
   )
 }
 

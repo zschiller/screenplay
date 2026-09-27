@@ -32,6 +32,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { Button } from "@workspace/ui/components/button"
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+  FloatingToolbarSeparator,
+} from "@workspace/ui/components/floating-toolbar"
 import type { Editor } from "@tiptap/core"
 import {
   EditorContent,
@@ -54,8 +60,11 @@ import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
-import { LayerTitleText } from "@/components/canvas/layer-title-bar"
-import { LayerShell } from "@/components/canvas/layer-shell"
+import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
+import {
+  LayerShell,
+  LAYER_SURFACE_CLASS,
+} from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import type { MarkdownLayerData } from "@/lib/types"
 
@@ -132,23 +141,18 @@ function FormatButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
+    <FloatingToolbarButton
+      label={label}
+      pressed={active}
       tabIndex={-1}
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
       onMouseDown={(e) => {
         e.preventDefault()
         e.stopPropagation()
         onRun()
       }}
-      className={`flex size-7 items-center justify-center rounded transition-colors hover:bg-accent hover:text-foreground ${
-        active ? "bg-accent text-foreground" : "text-muted-foreground"
-      }`}
     >
       {children}
-    </button>
+    </FloatingToolbarButton>
   )
 }
 
@@ -243,16 +247,16 @@ function NodeTypeDropdown({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="xs"
           tabIndex={-1}
-          title="Turn into"
-          className="flex h-7 items-center gap-1 rounded px-1.5 text-xs text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+          className="text-muted-foreground"
         >
-          <current.Icon className="size-3.5" />
+          <current.Icon />
           <span className="whitespace-nowrap">{current.label}</span>
-          <ChevronDown className="size-3" />
-        </button>
+          <ChevronDown />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {NODE_TYPES.map((t) => (
@@ -811,7 +815,7 @@ export function MarkdownLayer({
       // pushes overflow clipping to the inner body: `data-markdown-layer-scroll`
       // (overflow-y-auto) clips vertically and the body padding constrains
       // horizontal layout.
-      containerClassName="absolute flex flex-col rounded-md bg-background"
+      containerClassName={`absolute flex flex-col bg-background ${LAYER_SURFACE_CLASS}`}
       containerRef={rootRef}
       containerProps={{
         "data-markdown-layer": "",
@@ -845,31 +849,17 @@ export function MarkdownLayer({
       onSelectGroup={onSelectGroup}
       onRenameGroup={onRenameGroup}
       renderTitle={(api) => (
-        // Flex-row wrapper with an explicit max-width so `truncate` on the
-        // title span has something to clip against — without it, the
-        // LayerTitleBar's `items-start` lets the child size to its (nowrap)
-        // content and the title runs past the tile's right edge. Mirrors
-        // the equivalent row in IframeLayerLabel.
-        <div
-          className="flex min-h-[18px] max-w-full items-center"
+        // The explicit max-width gives the name's `truncate` something to
+        // clip against inside the title bar's `items-start` column.
+        <LayerLabelRow
           style={{ maxWidth: layer.width * zoom }}
-        >
-          <LayerTitleText
-            title={layer.title}
-            placeholder="Untitled"
-            selected={selected || groupSelected}
-            color={remoteSelectedColor}
-            onSelectLayer={(shiftKey) => {
-              // Defer to the group's selection while the group is selected
-              // (shift drills through to additive doc selection). Mirrors
-              // IframeLayerLabel.onSelectFrame.
-              if (selected && !shiftKey) return
-              if (groupSelected && !shiftKey) return
-              api.deferSelect(shiftKey)
-            }}
-            onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
-          />
-        </div>
+          title={layer.title}
+          placeholder="Untitled"
+          selected={selected || groupSelected}
+          color={remoteSelectedColor}
+          onSelectLayer={api.deferSelect}
+          onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
+        />
       )}
     >
       {(api) => (
@@ -923,8 +913,8 @@ export function MarkdownLayer({
                 ref={bubbleRef}
                 className="pointer-events-none absolute top-0 left-0"
               >
-                <div
-                  className="pointer-events-auto flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                <FloatingToolbar
+                  aria-label="Formatting"
                   style={{
                     transform: "translate(-50%, -100%) translateY(-6px)",
                     transformOrigin: "bottom center",
@@ -934,36 +924,36 @@ export function MarkdownLayer({
                     editor={editor}
                     blockType={activeFormats?.blockType ?? "paragraph"}
                   />
-                  <div className="mx-0.5 h-5 w-px bg-border" />
+                  <FloatingToolbarSeparator />
                   <FormatButton
                     label="Bold"
                     active={!!activeFormats?.bold}
                     onRun={() => editor.chain().focus().toggleBold().run()}
                   >
-                    <Bold className="size-3.5" />
+                    <Bold />
                   </FormatButton>
                   <FormatButton
                     label="Italic"
                     active={!!activeFormats?.italic}
                     onRun={() => editor.chain().focus().toggleItalic().run()}
                   >
-                    <Italic className="size-3.5" />
+                    <Italic />
                   </FormatButton>
                   <FormatButton
                     label="Strikethrough"
                     active={!!activeFormats?.strike}
                     onRun={() => editor.chain().focus().toggleStrike().run()}
                   >
-                    <Strikethrough className="size-3.5" />
+                    <Strikethrough />
                   </FormatButton>
                   <FormatButton
                     label="Code"
                     active={!!activeFormats?.code}
                     onRun={() => editor.chain().focus().toggleCode().run()}
                   >
-                    <Code className="size-3.5" />
+                    <Code />
                   </FormatButton>
-                  <div className="mx-0.5 h-5 w-px bg-border" />
+                  <FloatingToolbarSeparator />
                   <FormatButton
                     label="Bullet list"
                     active={!!activeFormats?.bulletList}
@@ -971,7 +961,7 @@ export function MarkdownLayer({
                       editor.chain().focus().toggleBulletList().run()
                     }
                   >
-                    <List className="size-3.5" />
+                    <List />
                   </FormatButton>
                   <FormatButton
                     label="Numbered list"
@@ -980,9 +970,9 @@ export function MarkdownLayer({
                       editor.chain().focus().toggleOrderedList().run()
                     }
                   >
-                    <ListOrdered className="size-3.5" />
+                    <ListOrdered />
                   </FormatButton>
-                </div>
+                </FloatingToolbar>
               </div>,
               bubblePortalTarget
             )}

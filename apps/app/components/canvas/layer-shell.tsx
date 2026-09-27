@@ -10,6 +10,13 @@ import {
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 
+/**
+ * The resting edge every Layer's surface wears: one radius and one hairline, so
+ * an unselected frame and an unselected Document read as the same kind of
+ * object on the canvas. Selection is drawn over it by the Selection Overlay.
+ */
+export const LAYER_SURFACE_CLASS = "rounded-md ring-1 ring-foreground/10"
+
 /** Move callback shared by `onMoveGroup` / `onMoveSelected`. */
 type Mover = (
   dx: number,
@@ -40,7 +47,9 @@ export interface LayerShellApi {
   /**
    * Title-text instant-select: mark the pending click as already-consumed, then
    * select now. Used by the adapter's title row so clicking the name feels
-   * identical to clicking the body.
+   * identical to clicking the body. A plain press on an already-selected layer
+   * (or a member of a selected group) keeps that selection; shift drills
+   * through to additive selection.
    */
   deferSelect: (shiftKey: boolean) => void
 }
@@ -241,10 +250,11 @@ export function LayerShell({
 
   const deferSelect = useCallback(
     (shiftKey: boolean) => {
+      if ((selected || groupSelected) && !shiftKey) return
       selectedOnPointerDown.current = true
       onSelect(layerId, shiftKey)
     },
-    [layerId, onSelect]
+    [selected, groupSelected, layerId, onSelect]
   )
 
   const onBodyPointerDownCapture = useCallback(

@@ -238,3 +238,37 @@ export function LayerTitleText({
     </span>
   )
 }
+
+interface LayerLabelRowProps extends LayerTitleTextProps {
+  /** Content before the name (a frame's branch picker). */
+  leading?: React.ReactNode
+  /** Content after the name (a frame's route picker). */
+  trailing?: React.ReactNode
+  style?: React.CSSProperties
+}
+
+/**
+ * The row under a layer's group label: the layer's name with optional content
+ * either side. Frames and Documents both render their title through this, so
+ * the two kinds of label share one height, gap, and clipping rule.
+ *
+ * The row clips to the title bar's max-width so the name truncates, except
+ * while the name is being edited, when the input may run past it.
+ */
+export function LayerLabelRow({
+  leading,
+  trailing,
+  style,
+  ...titleProps
+}: LayerLabelRowProps) {
+  return (
+    <div
+      className="flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible"
+      style={style}
+    >
+      {leading}
+      <LayerTitleText {...titleProps} />
+      {trailing}
+    </div>
+  )
+}
