@@ -196,7 +196,10 @@ export const INTERACTIONS: Interaction[] = [
         await page.waitForTimeout(140)
       }
       await page.waitForTimeout(600)
-      await click(page, page.getByTitle("Stop").first())
+      await click(
+        page,
+        page.locator('[title="Stop"], [aria-label="Stop"]').first()
+      )
       await page.waitForTimeout(2500)
     },
   },

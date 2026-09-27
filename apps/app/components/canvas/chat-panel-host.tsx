@@ -3,13 +3,7 @@
 import { PanelRightClose } from "lucide-react"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { IconButton } from "@workspace/ui/components/icon-button"
 
 import { ChatPanel } from "@/components/agent/chat-panel"
 import type {
@@ -162,28 +156,26 @@ export function ChatPanelHost({
     })() || (
       <div className="flex h-full flex-col bg-background">
         <div className="flex h-12 items-center bg-background px-3">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-                  onClick={() => chatPanelRef.current?.collapse()}
-                >
-                  <PanelRightClose className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                Collapse chat <Kbd>⌘I</Kbd>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <IconButton
+            label="Collapse chat"
+            shortcut="⌘I"
+            tooltipSide="left"
+            asChild
+          >
+            <button
+              className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+              onClick={() => chatPanelRef.current?.collapse()}
+            >
+              <PanelRightClose />
+            </button>
+          </IconButton>
           <span className="text-xs text-muted-foreground">
             {repos.length === 0 ? "No projects" : "No active agents"}
           </span>
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 items-center justify-center px-6">
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
             {repos.length === 0
               ? "Add a project to get started"
               : "Waiting for an agent to start…"}

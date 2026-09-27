@@ -98,7 +98,7 @@ export function RepoConfigsPanel() {
       ) : loadFailed ? (
         <LoadErrorRow title="Couldn't load project presets" onRetry={reload} />
       ) : configs.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className="py-6 text-center text-sm text-balance text-muted-foreground">
           No project presets yet.
         </p>
       ) : (
