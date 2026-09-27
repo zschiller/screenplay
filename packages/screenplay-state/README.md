@@ -11,11 +11,10 @@ a tiny indicator on the route pill with the JSON in a tooltip. That's
 deliberate — direct editing from the canvas may come later.
 
 The package is dev-only by design. In any build with `NODE_ENV` set to
-anything other than `"development"`, every API on this module is a no-op
-and the postMessage paths are dead-code-eliminated by the bundler.
-Nothing ever leaves the page, no inbound listener is attached, no remote
-setter is ever invoked. Shipping `useSharedState` calls to production is
-safe.
+anything other than `"development"`, every API on this module is a no-op and
+no postMessage path ever runs. Nothing ever leaves the page, no inbound
+listener is attached, no remote setter is ever invoked. Shipping
+`useSharedState` calls to production is safe.
 
 ## Install
 
@@ -24,6 +23,19 @@ npm install --save @screenplay.space/state
 ```
 
 `react >= 17` is a peer dependency.
+
+## Bundler support
+
+Activation only needs your bundler to inline `process.env.NODE_ENV` inside
+dependencies, which Vite, Next, webpack, Rspack, Parcel, and plain esbuild all
+do. **Vite works out of the box** — no `globalThis.process` shim in
+`index.html`, no `define` entry. (Earlier releases also required a global
+`process` object, which Vite doesn't provide, so the package stayed inert
+there.)
+
+Loaded straight into a browser as ESM with no bundler at all, nothing inlines
+`NODE_ENV`; the package then stays inert rather than throwing, and every API
+is a no-op.
 
 ## Use
 
@@ -99,10 +111,15 @@ plus `window.parent !== window`, evaluated once at load time. In any
 non-development build — production, test, or a no-bundler load where
 `NODE_ENV` isn't defined — the publish path never runs, the in-memory
 map is never written to, and the inbound message listener is never
-installed. Bundlers (Next, Vite, esbuild, webpack) statically inline
-`process.env.NODE_ENV`, so a production bundle dead-code-eliminates
-those branches entirely; the package contributes effectively zero
-runtime to a prod build.
+installed.
+
+Bundlers (Next, Vite, esbuild, webpack) statically inline
+`process.env.NODE_ENV`, so in a production bundle that gate is a comparison
+against a literal and every branch behind it is statically false. Whether the
+now-unreachable code is also physically stripped is up to your minifier: both
+esbuild and terser keep it, because `active` also depends on the runtime
+`window.parent !== window` check. It's a few hundred bytes that never
+execute — the safety property is that nothing runs, not that nothing ships.
 
 That's the production-safety story: a prototype that ships
 `useSharedState` calls in committed code, then gets iframed by some

@@ -7,11 +7,14 @@
 // `default` and quietly no-ops — so prototypes shipped with knobs in them
 // keep working everywhere.
 //
-// The package is dev-only by design: production builds dead-code-eliminate
-// the postMessage paths entirely. That means a prototype that is iframed by
+// The package is dev-only by design: outside a `NODE_ENV=development` build
+// none of the postMessage paths run — no listener is attached and no
+// declaration is ever published. That means a prototype that is iframed by
 // some non-screenplay parent in production cannot have its knob values read
-// or written via this protocol, because none of the listeners are attached
-// and none of the publishers run.
+// or written via this protocol. The gate compares against the literal the
+// bundler inlines for `process.env.NODE_ENV`, so the branches are statically
+// false in a production bundle; whether a given minifier also strips them is
+// up to the minifier, but the inertness doesn't depend on that.
 //
 // Each useKnob() call (in non-prod, when iframed):
 //   1. Registers the knob's definition in an in-frame map.
@@ -22,14 +25,30 @@
 import { useEffect, useSyncExternalStore } from "react"
 
 const isBrowser = typeof window !== "undefined"
+
+// Read NODE_ENV as a bare `process.env.NODE_ENV` member expression, with no
+// `typeof process` guard in front of it. Bundlers statically replace that
+// *expression*; only some of them (Next) also inject a browser `process`
+// shim. Vite replaces the expression inside dependencies but defines no
+// global `process`, so a `typeof process !== "undefined"` guard is false at
+// runtime and leaves this package permanently inert in Vite apps. Reading
+// the expression directly means the substituted literal is what gets
+// compared. The try/catch covers the no-bundler case, where nothing replaced
+// the expression and `process` is genuinely absent (ReferenceError) or has
+// no `env` (TypeError): it yields `undefined` instead of throwing at module
+// load.
+function readNodeEnv() {
+  try {
+    return process.env.NODE_ENV
+  } catch {
+    return undefined
+  }
+}
+
 // Treat anything that isn't an explicit "development" build as production —
 // fail closed for plain ESM-in-browser loads where there's no bundler to
-// inline NODE_ENV. Bundlers statically replace `process.env.NODE_ENV`, so a
-// production build dead-code-eliminates the postMessage paths entirely.
-const isDev =
-  typeof process !== "undefined" &&
-  !!process.env &&
-  process.env.NODE_ENV === "development"
+// inline NODE_ENV.
+const isDev = readNodeEnv() === "development"
 const active = isDev && isBrowser && window.parent !== window
 
 const definitions = new Map()
