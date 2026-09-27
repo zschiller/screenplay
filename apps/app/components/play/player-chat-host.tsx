@@ -206,7 +206,7 @@ function PlayerChatHostImpl({
   if (!agent) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
-        <p className="text-xs text-muted-foreground">Agent not found.</p>
+        <p className="text-xs text-muted-foreground">Workspace not found.</p>
       </div>
     )
   }

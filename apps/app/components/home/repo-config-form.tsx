@@ -161,7 +161,7 @@ export function RepoConfigForm({
     return (
       <div className="flex min-w-0 flex-col gap-3">
         <p className="text-sm text-muted-foreground">
-          Choose a repository for this preset.
+          Choose a git repository for this preset.
         </p>
         {folderMode ? (
           <div className="rounded-lg border">
@@ -223,7 +223,7 @@ export function RepoConfigForm({
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0 truncate text-sm">
-          <span className="text-muted-foreground">Repo </span>
+          <span className="text-muted-foreground">Source </span>
           <span className="font-mono">{repo.repoFullName}</span>
         </div>
         {!initial && (
@@ -252,7 +252,7 @@ export function RepoConfigForm({
             {nameCollision && (
               <FieldError>
                 A preset named “{trimmedName || "default"}” already exists for
-                this repo.
+                this source.
               </FieldError>
             )}
           </Field>

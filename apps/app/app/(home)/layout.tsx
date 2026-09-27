@@ -85,7 +85,7 @@ function SignedOut() {
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 py-10">
       <h1 className="text-2xl font-medium">Screenplay</h1>
       <p className="max-w-md text-center text-sm text-muted-foreground">
-        Design UI on an infinite canvas. Each iframeLayer runs a live sandbox.
+        Design UI on an infinite canvas. Each frame is a live preview of your app.
         Collaborate in real time.
       </p>
       <Button asChild>

@@ -59,7 +59,7 @@ export function SettingsView() {
 
           <Section
             title="Project presets"
-            description="Saved per-repo setup, dev, port, and env vars. Applied when you add a project to a canvas."
+            description="Saved setup, dev, port, and env vars for each project. Applied when you add a project to a canvas."
           >
             <RepoConfigsPanel />
           </Section>

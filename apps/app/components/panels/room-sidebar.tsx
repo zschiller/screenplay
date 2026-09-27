@@ -1717,7 +1717,7 @@ export function RoomSidebar({
                                       setNewWorkspaceBaseBranch(null)
                                       setNewWorkspaceRepoId(repo.id)
                                     }}
-                                    title="New Workspace"
+                                    title="New workspace"
                                   >
                                     <Plus />
                                   </SidebarMenuAction>
@@ -1746,7 +1746,7 @@ export function RoomSidebar({
                                         }
                                       >
                                         <GitBranch />
-                                        Open existing branch
+                                        Open existing git branch
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
@@ -1769,11 +1769,11 @@ export function RoomSidebar({
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
-                                  {/* "Open existing branch" reattaches to a
+                                  {/* "Open existing git branch" reattaches to a
                                     remote branch (flow:"from-branch", no new
                                     branch, no prompt, autoNamedBranch:false) —
                                     a single Enter action. Forking lives in the
-                                    branch menu's "New branch from here…", which
+                                    branch menu's "New workspace from here…", which
                                     opens the create dialog based on that branch
                                     (#353). */}
                                   <Dialog
@@ -1798,7 +1798,7 @@ export function RoomSidebar({
                                     >
                                       <DialogHeader className="px-4 pt-4 pb-2">
                                         <DialogTitle>
-                                          Open existing branch
+                                          Open existing git branch
                                         </DialogTitle>
                                       </DialogHeader>
                                       <BranchPicker
@@ -2018,7 +2018,7 @@ export function RoomSidebar({
                                                               />
                                                             ) : (
                                                               <span className="truncate font-mono text-xs text-muted-foreground">
-                                                                creating...
+                                                                creating…
                                                               </span>
                                                             )}
                                                           </div>
@@ -2166,7 +2166,7 @@ export function RoomSidebar({
                           />
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
-                            creating...
+                            creating…
                           </span>
                         )}
                       </div>
@@ -2728,7 +2728,7 @@ function RepoSettings({
             onChange={(e) => setName(e.target.value)}
             placeholder={repo.repoFullName}
           />
-          <FieldDescription>Optional workspace label.</FieldDescription>
+          <FieldDescription>Optional project label.</FieldDescription>
         </Field>
 
         <RepoSettingsFields

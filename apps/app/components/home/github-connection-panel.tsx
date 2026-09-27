@@ -312,9 +312,9 @@ function ConnectGitHubDialog({
         <DialogHeader>
           <DialogTitle>Connect GitHub</DialogTitle>
           <DialogDescription>
-            Authorize Screenplay in your browser to browse your repositories and
-            open pull requests. This is API access only — there is still no
-            login.
+            Authorize Screenplay in your browser to browse your GitHub
+            repositories and open pull requests. This is API access only — there
+            is still no login.
           </DialogDescription>
         </DialogHeader>
         {state.step === "starting" && (

@@ -880,7 +880,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   <TooltipContent side="top">
                     {targetEligible
                       ? "Target an element (⌘E)"
-                      : "Open this branch's preview first to target an element"}
+                      : "Open this workspace's preview first to target an element"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

@@ -445,7 +445,7 @@ export function AgentChat({
                 messages[messages.length - 1]?.role !== "assistant" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <GripSpinner className="h-3 w-3" />
-                    Thinking...
+                    Thinking…
                   </div>
                 )}
             </div>
