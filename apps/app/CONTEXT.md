@@ -664,26 +664,39 @@ _Avoid_: detector/registry (casual); a separate availability path per consumer
 (presence lists; auth is surfaced, not pre-filtered).
 
 **Harness Setup** (desktop):
-The `isLocalBuild`-gated Settings surface that actively **installs and signs in**
-a Harness's host CLI (ADR 0015) — the sibling of the **GitHub Connection**'s guided
-`gh` setup (ADR 0014), built on the same reusable **host-tool setup step**
-(`lib/host-tool/setup-step.ts`) and inline **host-session terminal**
-(`HostSessionTerminal` + `/api/terminal/host`). One setup step per distinct
-installable CLI — **deduped by `hostBinary`**, so the two opencode slots collapse
-to one row — each mapping a live `{ installed, authenticated }` status (the
-descriptor's `hostBinary` probe plus its per-descriptor **auth probe**) to the
-reducer's `DetectionResult`. From not-installed, one action installs (via the
-descriptor's npm-free-preferring **install-command builder**, the sibling of
-`gh-install-command.ts`) then chains straight into the CLI's own sign-in argv in a
-visible PTY; a signed-out CLI just signs in; an authed one offers only a re-run.
-On PTY exit it re-detects **live** and invalidates the shared Harness Availability
-memo, so the connect lands app-wide with no restart. The help is
-**one-directional**, exactly as the GitHub Connection's is toward the `gh` CLI: the
-app installs and launches sign-in but never signs you **out**, uninstalls, or
-manages the CLI's credentials beyond launching its own login.
+The one module that knows how this build **installs and signs in** a Harness's
+host CLI (`lib/agent/harnesses/setup.ts`, ADR 0015) — the sibling of the **GitHub
+Connection**'s guided `gh` setup (ADR 0014), built on the same reusable
+**host-tool setup step** (`lib/host-tool/setup-step.ts`) and inline **host-session
+terminal** (`HostSessionTerminal` + `/api/terminal/host`). Three calls are its
+whole surface: `rows()` (the live per-CLI setup rows), `commandsFor(key, kind)`
+(what a row's action runs in the PTY), and `markConnected()` (bust the
+availability memo, hand back freshly probed rows). Both surfaces — the
+`isLocalBuild`-gated "Coding agents" Settings section and the **first-run gate**
+(ADR 0016) — only _render_ those rows; no setup policy lives in a component.
+One **setup row** per distinct installable CLI — **deduped by `hostBinary`**
+through the single `distinctByHostBinary` rule, so the two opencode slots collapse
+to one row — carrying the live `{ installed, authenticated }` facts (the
+descriptor's `hostBinary` probe plus its per-descriptor **auth probe**), the
+reducer's `DetectionResult`, the row's state line, and the **action** to offer.
+From not-installed, one action installs (via the descriptor's
+npm-free-preferring **install-command builder**, the sibling of
+`gh-install-command.ts`, against the one `probeHostFacts` read) then chains
+straight into the CLI's own sign-in argv in a visible PTY; a signed-out CLI just
+signs in; an authed one offers only a re-run. On PTY exit the row re-detects
+**live** and invalidates the shared Harness Availability memo, so the connect
+lands app-wide with no restart. The host-binary prober and the host process runner
+are **injected ports**, so every rule above is unit-tested against a fake host.
+The help is **one-directional**, exactly as the GitHub Connection's is toward the
+`gh` CLI: the app installs and launches sign-in but never signs you **out**,
+uninstalls, or manages the CLI's credentials beyond launching its own login.
 _Avoid_: treating it as a second setup machine (it is a sibling _instance_ of the
-ADR 0014 step, reducer reused verbatim); gating the availability list on the auth
-fact it surfaces (auth is a Settings label, presence still lists); a per-slot
+ADR 0014 step, reducer reused verbatim); a second host-facts probe or a second
+dedupe-by-`hostBinary` rule (one of each: `probeHostFacts`,
+`distinctByHostBinary`); row policy in the panel or the gate (they render
+`rows()`); reading setup rows off the launch-memoized availability resolver (rows
+are probed live — that freshness is the point); gating the availability list on the
+auth fact it surfaces (auth is a Settings label, presence still lists); a per-slot
 opencode row (dedupe by `hostBinary`); picking a Harness's model here (that's the
 model dropdown / **Harness model catalog**, ADR 0011); signing a harness _out_ or
 uninstalling it (one-directional — help in, never out).

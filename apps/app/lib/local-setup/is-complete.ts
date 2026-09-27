@@ -1,4 +1,4 @@
-import type { HarnessSetupStatus } from "@/lib/agent/harnesses/setup-status"
+import type { HarnessSetupRow } from "@/lib/agent/harnesses/setup"
 
 /**
  * The single, shared definition of "set up enough to open the desktop app"
@@ -27,6 +27,18 @@ export interface GitHubSatisfiedFacts {
 }
 
 /**
+ * The Harness Setup facts the release predicate reads — a row's install/auth
+ * pair, and nothing else (the row's label, key, detail and action are the
+ * Settings/gate surfaces' business). The sibling of
+ * {@link GitHubSatisfiedFacts}: each half of the gate names exactly the shape it
+ * folds.
+ */
+export type HarnessSatisfiedFacts = Pick<
+  HarnessSetupRow,
+  "installed" | "authenticated"
+>
+
+/**
  * The harness half: **some** Harness Setup row is installed and not *known*
  * signed-out. Deliberately `authenticated !== false`, **not** `=== true`: ADR
  * 0015's auth probes are best-effort, so a genuinely signed-in CLI whose
@@ -35,7 +47,7 @@ export interface GitHubSatisfiedFacts {
  * false-blocking a working install. A *known* signed-out CLI (`false`) still
  * blocks; presence (`installed`) is always required.
  */
-export function harnessSatisfied(harnesses: HarnessSetupStatus[]): boolean {
+export function harnessSatisfied(harnesses: HarnessSatisfiedFacts[]): boolean {
   return harnesses.some((row) => row.installed && row.authenticated !== false)
 }
 
@@ -82,7 +94,7 @@ export function isLocalSetupComplete({
  * (token, handle, device-token presence) ever rides to the client.
  */
 export function deriveGateStatus(input: {
-  harnesses: HarnessSetupStatus[]
+  harnesses: HarnessSatisfiedFacts[]
   github: GitHubSatisfiedFacts
 }): { harnessSatisfied: boolean; githubSatisfied: boolean } {
   return {

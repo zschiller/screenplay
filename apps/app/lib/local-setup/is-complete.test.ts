@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import type { HarnessSetupStatus } from "@/lib/agent/harnesses/setup-status"
+import type { HarnessSatisfiedFacts } from "@/lib/local-setup/is-complete"
 import {
   deriveGateStatus,
   githubSatisfied,
@@ -17,23 +17,17 @@ import {
  * (`false`) blocks, and `true` passes.
  */
 
-/** A Harness Setup row with the given install/auth facts (the fields the
- *  predicate reads — label/key/binary are cosmetic here). */
+/** A Harness Setup row's install/auth facts — the whole shape the predicate
+ *  reads (the row's label, key and binary are the surfaces' business). */
 function row(
   installed: boolean,
   authenticated: boolean | null
-): HarnessSetupStatus {
-  return {
-    key: "claude-code",
-    label: "Claude Code",
-    hostBinary: "claude",
-    installed,
-    authenticated,
-  }
+): HarnessSatisfiedFacts {
+  return { installed, authenticated }
 }
 
 describe("harnessSatisfied", () => {
-  const cases: [string, HarnessSetupStatus[], boolean][] = [
+  const cases: [string, HarnessSatisfiedFacts[], boolean][] = [
     ["no harnesses at all", [], false],
     ["one not-installed row", [row(false, null)], false],
     ["installed + authenticated === true", [row(true, true)], true],

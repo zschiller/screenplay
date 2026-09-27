@@ -1,73 +1,54 @@
 "use server"
 
-import { defaultHostBinaryProber } from "./host-binary"
-import { HARNESSES } from "./index"
-import { harnessAvailability } from "./availability"
-import {
-  liveHarnessSetupStatuses,
-  resolveHarnessSetupCommandsFor,
-  type HarnessSetupCommands,
-  type HarnessSetupStatus,
-} from "./setup-status"
-import type { HostFacts } from "./types"
 import { isLocalBuild } from "@/lib/local-mode"
+import {
+  harnessSetup,
+  type HarnessSetupActionKind,
+  type HarnessSetupRow,
+  type HarnessSetupRun,
+} from "./setup"
 
 /**
- * Server actions backing the desktop "Coding agents" setup surface (ADR 0015),
- * the harness sibling of the GitHub-connection actions. Every action is gated to
- * the local build — the surface is `isLocalBuild`-only client-side, and the
- * guard keeps a stray hosted-build call from ever probing host state.
+ * Server actions backing the desktop "Coding agents" setup surface (ADR 0015) and
+ * the first-run gate (ADR 0016), the harness sibling of the GitHub-connection
+ * actions. Each one is a thin pass-through to the **Harness Setup** module
+ * (`./setup.ts`) — every rule lives there — plus the local-build gate: the
+ * surfaces are `isLocalBuild`-only client-side, and the guard keeps a stray
+ * hosted-build call from ever probing host state.
  */
 
 /**
- * The live per-row setup status — read **fresh every call** (never the
- * launch-memoized availability resolver), so a connect that just finished is
- * reflected without a restart. One row per distinct `hostBinary`. `[]` off the
- * desktop build.
+ * The live setup rows — read **fresh every call** (never the launch-memoized
+ * availability resolver), so a connect that just finished is reflected without a
+ * restart. One row per distinct `hostBinary`. `[]` off the desktop build.
  */
-export async function listHarnessSetupStatus(): Promise<HarnessSetupStatus[]> {
+export async function listHarnessSetupRows(): Promise<HarnessSetupRow[]> {
   if (!isLocalBuild) return []
-  return liveHarnessSetupStatuses()
+  return harnessSetup.rows()
 }
 
 /**
- * Resolve the install / sign-in argv for harness `key` — the descriptor's
- * `buildInstallCommand` + `authCommand` against the live host facts
- * (`npm`/`brew` presence, arch), via {@link resolveHarnessSetupCommandsFor}.
- * Returns `null` when the key is unknown or the harness carries no
- * `authCommand` (nothing this surface can run). Kept server-side so the
- * descriptor's command builders never ship to the client.
+ * What harness `key`'s `kind` action runs in the inline host terminal — the
+ * descriptor's install command (against live host facts) chained into its own
+ * sign-in, or the bare sign-in. `null` when the key is unknown or the harness
+ * carries no sign-in path. Kept server-side so the descriptors' command builders
+ * never ship to the client.
  */
-export async function resolveHarnessSetupCommands(
-  key: string
-): Promise<HarnessSetupCommands | null> {
+export async function resolveHarnessSetupRun(
+  key: string,
+  kind: HarnessSetupActionKind
+): Promise<HarnessSetupRun | null> {
   if (!isLocalBuild) return null
-  const harness = HARNESSES.find((h) => h.key === key)
-  if (!harness) return null
-  return resolveHarnessSetupCommandsFor(harness, probeHostFacts)
+  return harnessSetup.commandsFor(key, kind)
 }
 
 /**
- * Bust the shared launch-memoized availability resolver so the model dropdown and
- * new-tab picker re-probe the host on their next read (ADR 0015). The setup
- * surface calls this after a connect finishes, so a freshly installed CLI reaches
- * those surfaces without a restart.
+ * Record a finished setup run: bust the shared launch-memoized availability memo
+ * so the model dropdown and new-tab picker re-probe the host (ADR 0015), and hand
+ * back freshly probed rows — one round trip for "the connect landed app-wide, and
+ * here is the row's new state".
  */
-export async function noteHarnessConnected(): Promise<void> {
-  if (!isLocalBuild) return
-  harnessAvailability.invalidate()
-}
-
-/**
- * The live host facts the install-command builders map to a shell command:
- * `npm`/`brew` presence via the same `command -v` prober host-binary detection
- * uses, and the Node runtime's CPU arch. Never throws — an absent binary probes
- * `false`.
- */
-async function probeHostFacts(): Promise<HostFacts> {
-  const [npmPresent, brewPresent] = await Promise.all([
-    defaultHostBinaryProber("npm"),
-    defaultHostBinaryProber("brew"),
-  ])
-  return { npmPresent, brewPresent, arch: process.arch }
+export async function noteHarnessConnected(): Promise<HarnessSetupRow[]> {
+  if (!isLocalBuild) return []
+  return harnessSetup.markConnected()
 }

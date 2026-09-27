@@ -1,6 +1,6 @@
 "use server"
 
-import { defaultHostBinaryProber } from "@/lib/agent/harnesses/host-binary"
+import { probeHostFacts } from "@/lib/agent/harnesses/host-binary"
 import { isLocalBuild } from "@/lib/local-mode"
 
 /**
@@ -12,12 +12,13 @@ import { isLocalBuild } from "@/lib/local-mode"
 /**
  * Whether Homebrew is on the host `PATH` — the one bit
  * {@link buildGhInstallCommand} needs to pick `brew install gh` over the binary
- * fallback. Reuses the harness resolver's `command -v` prober
- * (`lib/agent/harnesses/host-binary.ts`), so the brew check is the exact shape
- * already trusted for host-binary detection. Never throws: an absent `brew`
- * resolves to `false`, which just routes the install down the binary path.
+ * fallback. Reads it off the **one** host-facts probe
+ * (`probeHostFacts`, `lib/agent/harnesses/host-binary.ts`), the same live read
+ * the Harness Setup module's install commands are built from, so `brew` presence
+ * is never probed two ways. Never throws: an absent `brew` resolves to `false`,
+ * which just routes the install down the binary path.
  */
 export async function probeHomebrewPresent(): Promise<boolean> {
   if (!isLocalBuild) return false
-  return defaultHostBinaryProber("brew")
+  return (await probeHostFacts()).brewPresent
 }
