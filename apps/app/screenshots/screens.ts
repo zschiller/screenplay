@@ -982,6 +982,33 @@ export const SCREENS: Screen[] = [
     cookies: fixtureFault("home-load"),
   },
   {
+    name: "settings-loading",
+    description: "Settings while every panel is still checking or loading.",
+    path: "/settings",
+    fullPage: true,
+    beforeNavigate: (page) => holdServerActions(page, "hang"),
+    settleMs: 500,
+  },
+  {
+    name: "settings-presets-empty",
+    description: "Settings with no saved Project presets.",
+    path: "/settings",
+    fullPage: true,
+    cookies: fixtureFault("no-presets"),
+  },
+  {
+    name: "settings-edit-preset",
+    description: "Settings → editing a saved Project preset.",
+    path: "/settings",
+    fullPage: true,
+    prepare: async (page) => {
+      const edit = page.getByRole("button", { name: "Edit", exact: true })
+      await edit.first().click({ timeout: 30_000 })
+      await page.getByLabel("Preset name").waitFor({ timeout: 10_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "settings-load-error",
     description:
       "Settings when every panel's load fails: GitHub, coding agents, presets.",

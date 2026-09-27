@@ -1,11 +1,13 @@
 "use server"
 
 import { requireUserId } from "@/lib/auth-helpers"
+import { hasFixtureFault } from "@/lib/fixture-faults"
 import { getConfigs, saveConfigs } from "./repo-configs-store"
 import type { RepoConfig } from "./repo-configs.types"
 
 export async function listRepoConfigs(): Promise<RepoConfig[]> {
   const userId = await requireUserId()
+  if (await hasFixtureFault("no-presets")) return []
   return getConfigs(userId)
 }
 
