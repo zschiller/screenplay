@@ -9,7 +9,7 @@ import {
   Trash2,
 } from "lucide-react"
 
-import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,13 +17,6 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@workspace/ui/components/breadcrumb"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { Kbd } from "@workspace/ui/components/kbd"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,22 +95,14 @@ export function CanvasTopBar({
         onClick={(e) => e.stopPropagation()}
       >
         {sidebarCollapsed && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => sidebarPanelRef.current?.expand()}
-                >
-                  <PanelLeftOpen className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Expand sidebar <Kbd>⌘B</Kbd>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <IconButton
+            label="Expand sidebar"
+            shortcut="⌘B"
+            tooltipSide="bottom"
+            onClick={() => sidebarPanelRef.current?.expand()}
+          >
+            <PanelLeftOpen />
+          </IconButton>
         )}
         <Breadcrumb>
           <BreadcrumbList className="gap-0 text-xs sm:gap-0">
@@ -168,13 +153,13 @@ export function CanvasTopBar({
               />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="h-6 w-6 text-muted-foreground"
+                  <IconButton
+                    label="Canvas options"
+                    tooltipSide="bottom"
+                    className="text-muted-foreground"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
+                    <MoreHorizontal />
+                  </IconButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"

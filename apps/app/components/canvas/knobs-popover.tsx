@@ -8,12 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Slider } from "@workspace/ui/components/slider"
@@ -73,24 +68,17 @@ export function KnobsPopover({ knobs, values, onChange }: KnobsPopoverProps) {
 
   return (
     <Popover>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button size="icon-xxs" variant="ghost" className="relative">
-                <SlidersHorizontal />
-                {hasOverrides ? (
-                  <span
-                    aria-hidden
-                    className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
-                  />
-                ) : null}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">Knobs</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <PopoverTrigger asChild>
+        <IconButton label="Knobs" tooltipSide="right" className="relative">
+          <SlidersHorizontal />
+          {hasOverrides ? (
+            <span
+              aria-hidden
+              className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-orange-500 ring-1 ring-background"
+            />
+          ) : null}
+        </IconButton>
+      </PopoverTrigger>
       <PopoverContent
         side="right"
         align="start"

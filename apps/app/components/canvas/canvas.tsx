@@ -35,13 +35,7 @@ import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
 import { PanelRightOpen } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { renameRoom } from "@/lib/rooms-actions"
@@ -1696,22 +1690,14 @@ export function Canvas({
                     </>
                   )}
                   {chatCollapsed && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => chatPanelRef.current?.expand()}
-                          >
-                            <PanelRightOpen className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                          Expand chat <Kbd>⌘I</Kbd>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <IconButton
+                      label="Expand chat"
+                      shortcut="⌘I"
+                      tooltipSide="bottom"
+                      onClick={() => chatPanelRef.current?.expand()}
+                    >
+                      <PanelRightOpen className="h-3.5 w-3.5" />
+                    </IconButton>
                   )}
                 </div>
               </div>
