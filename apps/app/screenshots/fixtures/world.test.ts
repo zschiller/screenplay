@@ -235,7 +235,7 @@ describe("fixture world — what the screens need", () => {
       if (!first) continue // "/" — the home surface
       if (first === "files" && second) expect(folderIds).toContain(second)
       else if (first === "play" && second) expect(roomIds).toContain(second)
-      else if (!["files", "settings", "play"].includes(first)) {
+      else if (!["files", "settings", "play", "sign-in"].includes(first)) {
         expect(roomIds, `screen ${screen.name}`).toContain(first)
       }
     }
