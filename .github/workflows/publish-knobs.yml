@@ -68,7 +68,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -135,10 +135,11 @@ jobs:
           git push origin "${{ steps.bump.outputs.tag }}"
 
       - name: Upgrade npm for Trusted Publishing
-        # Trusted Publishing (OIDC) requires npm >= 11.5.1. Node 20 still
-        # ships with npm 10.x, so install the latest stable npm explicitly
-        # before publishing.
-        run: npm install -g npm@latest
+        # Trusted Publishing (OIDC) requires npm >= 11.5.1. Pin to the npm 11
+        # line rather than @latest: npm 12 raised its Node engine floor and
+        # broke this step on the runner's Node, and a future major can do
+        # the same. Bump the pin deliberately alongside node-version.
+        run: npm install -g npm@^11.5.1
 
       - name: Publish to npm
         working-directory: packages/screenplay-knobs
