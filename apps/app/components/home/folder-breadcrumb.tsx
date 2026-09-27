@@ -28,6 +28,16 @@ import type { FolderSummary } from "@/lib/folders-actions"
  */
 const MAX_INLINE_ANCESTORS = 3
 
+// The trail never wraps: it's the header's title, one line tall, and it shares
+// the row with the toolbar. Instead every crumb but "All files" can shrink and
+// truncate — the ancestors first (they give way four times as fast), then the
+// current folder, which keeps its leading characters to the last.
+const LIST_CLASS = "min-w-0 flex-nowrap gap-1.5 text-2xl font-normal sm:gap-2.5"
+const SEPARATOR_CLASS = "shrink-0 [&>svg]:size-5"
+const ANCESTOR_ITEM_CLASS = "min-w-8 shrink-[4]"
+const CURRENT_ITEM_CLASS = "min-w-0"
+const CURRENT_PAGE_CLASS = "truncate text-2xl font-normal"
+
 /**
  * The files-header trail (PRD #475): an "All files" root crumb, a clickable link
  * per ancestor folder, then the current folder as the bold non-link last crumb.
@@ -46,7 +56,7 @@ export function FolderBreadcrumb({
 }) {
   const atRoot = ancestors.length === 0
   const allFilesCrumb = (
-    <BreadcrumbItem>
+    <BreadcrumbItem className="shrink-0">
       {atRoot ? (
         <BreadcrumbPage className="text-2xl font-normal">
           All files
@@ -65,11 +75,11 @@ export function FolderBreadcrumb({
     const current = ancestors[ancestors.length - 1]!
     const collapsed = ancestors.slice(0, -1)
     return (
-      <Breadcrumb>
-        <BreadcrumbList className="gap-1.5 text-2xl font-normal sm:gap-2.5">
+      <Breadcrumb className="min-w-0">
+        <BreadcrumbList className={LIST_CLASS}>
           {allFilesCrumb}
-          <BreadcrumbSeparator className="[&>svg]:size-5" />
-          <BreadcrumbItem>
+          <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+          <BreadcrumbItem className="shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger
                 aria-label="Show folders in between"
@@ -86,9 +96,9 @@ export function FolderBreadcrumb({
               </DropdownMenuContent>
             </DropdownMenu>
           </BreadcrumbItem>
-          <BreadcrumbSeparator className="[&>svg]:size-5" />
-          <BreadcrumbItem>
-            <BreadcrumbPage className="text-2xl font-normal">
+          <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+          <BreadcrumbItem className={CURRENT_ITEM_CLASS}>
+            <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
               {current.name}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -98,22 +108,26 @@ export function FolderBreadcrumb({
   }
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList className="gap-1.5 text-2xl font-normal sm:gap-2.5">
+    <Breadcrumb className="min-w-0">
+      <BreadcrumbList className={LIST_CLASS}>
         {allFilesCrumb}
         {ancestors.map((folder, i) => {
           const isCurrent = i === ancestors.length - 1
           return (
             <Fragment key={folder.id}>
-              <BreadcrumbSeparator className="[&>svg]:size-5" />
-              <BreadcrumbItem>
+              <BreadcrumbSeparator className={SEPARATOR_CLASS} />
+              <BreadcrumbItem
+                className={isCurrent ? CURRENT_ITEM_CLASS : ANCESTOR_ITEM_CLASS}
+              >
                 {isCurrent ? (
-                  <BreadcrumbPage className="text-2xl font-normal">
+                  <BreadcrumbPage className={CURRENT_PAGE_CLASS}>
                     {folder.name}
                   </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link href={`/files/${folder.id}`}>{folder.name}</Link>
+                    <Link href={`/files/${folder.id}`} className="truncate">
+                      {folder.name}
+                    </Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
