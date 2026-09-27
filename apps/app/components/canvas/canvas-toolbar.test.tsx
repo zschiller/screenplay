@@ -60,6 +60,37 @@ describe("IconButton", () => {
     expect(tooltip.textContent).toContain("Select")
     expect(tooltip.textContent).toContain("V")
   })
+
+  it("labels a child button primitive via asChild, keeping its own element", () => {
+    render(
+      <IconButton label="Project options" asChild>
+        <button className="sidebar-action">
+          <svg />
+        </button>
+      </IconButton>
+    )
+    const button = screen.getByRole("button", { name: "Project options" })
+    expect(button.className).toBe("sidebar-action")
+    expect(button.getAttribute("data-slot")).not.toBe("button")
+  })
+
+  it("still explains itself when disabled, from a wrapper that takes pointer events", async () => {
+    render(
+      <IconButton label="Send" hint="No coding agent detected" disabled>
+        <svg />
+      </IconButton>
+    )
+    const button = screen.getByRole("button", { name: "Send" })
+    expect(button.hasAttribute("disabled")).toBe(true)
+    const wrapper = button.parentElement!
+    expect(wrapper.tagName).toBe("SPAN")
+    await act(async () => {
+      fireEvent.pointerMove(wrapper, { pointerType: "mouse" })
+    })
+    const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip.textContent).toContain("Send")
+    expect(tooltip.textContent).toContain("No coding agent detected")
+  })
 })
 
 describe("CanvasToolbar", () => {

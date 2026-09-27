@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"
 import { Kbd } from "@workspace/ui/components/kbd"
@@ -29,6 +30,17 @@ type IconButtonProps = Omit<
   pressed?: boolean
   /** Which side of the button the tooltip opens on. */
   tooltipSide?: React.ComponentProps<typeof TooltipContent>["side"]
+  /**
+   * Extra tooltip lines under the label (e.g. why the button is disabled, or a
+   * secondary shortcut). The accessible name stays `label` alone.
+   */
+  hint?: React.ReactNode
+  /**
+   * Render the single child as the button instead of a `Button`, so a surface
+   * with its own button primitive (`SidebarMenuAction`, `InputGroupButton`)
+   * keeps its styling and still gets the label and tooltip.
+   */
+  asChild?: boolean
 }
 
 /**
@@ -38,6 +50,10 @@ type IconButtonProps = Omit<
  * composes under Radix `asChild` triggers (`DropdownMenuTrigger`,
  * `PopoverTrigger`) the same way a bare `Button` does.
  *
+ * A disabled button fires no pointer events, so while `disabled` the tooltip
+ * hangs off a wrapping span instead: the label (and `hint`, which is where to
+ * say why) still shows on hover.
+ *
  * Carries its own `TooltipProvider`, so it works anywhere without a provider
  * ancestor.
  */
@@ -46,25 +62,48 @@ function IconButton({
   shortcut,
   pressed,
   tooltipSide = "top",
+  hint,
+  asChild = false,
   variant = "ghost",
   size = "icon-xs",
   ...props
 }: IconButtonProps) {
+  const button = asChild ? (
+    <Slot.Root aria-label={label} aria-pressed={pressed} {...props} />
+  ) : (
+    <Button
+      variant={variant}
+      size={size}
+      aria-label={label}
+      aria-pressed={pressed}
+      {...props}
+    />
+  )
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant={variant}
-            size={size}
-            aria-label={label}
-            aria-pressed={pressed}
-            {...props}
-          />
+          {props.disabled ? (
+            <span className="inline-flex">{button}</span>
+          ) : (
+            button
+          )}
         </TooltipTrigger>
         <TooltipContent side={tooltipSide}>
-          {label}
-          {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+          {hint ? (
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1.5">
+                {label}
+                {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+              </span>
+              <span className="opacity-70">{hint}</span>
+            </span>
+          ) : (
+            <>
+              {label}
+              {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+            </>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

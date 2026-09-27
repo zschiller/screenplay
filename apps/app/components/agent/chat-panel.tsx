@@ -41,14 +41,8 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { Kbd } from "@workspace/ui/components/kbd"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -878,21 +872,19 @@ export function ChatPanel({
     >
       <div className="flex h-12 items-center bg-background px-3">
         {onCollapse && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
-                  onClick={onCollapse}
-                >
-                  <PanelRightClose />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                Collapse chat <Kbd>⌘I</Kbd>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <IconButton
+            label="Collapse chat"
+            shortcut="⌘I"
+            tooltipSide="left"
+            asChild
+          >
+            <button
+              className="mr-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0"
+              onClick={onCollapse}
+            >
+              <PanelRightClose />
+            </button>
+          </IconButton>
         )}
         {disableBranchPicker ? (
           <TargetPill target={target} />
@@ -1043,11 +1035,11 @@ export function ChatPanel({
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                       onAnimationComplete={() => markTabEntered(tab.id)}
-                      className="flex items-stretch overflow-x-clip bg-background"
+                      className="group/tab relative flex items-stretch overflow-x-clip bg-background"
                     >
                       <TabsTrigger
                         value={tab.id}
-                        className="group/tab relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
+                        className="relative min-w-[100px] cursor-grab px-2 py-1 pr-2 text-xs active:cursor-grabbing"
                       >
                         {tab.kind === "terminal" ? (
                           <TerminalTabLabel
@@ -1060,43 +1052,32 @@ export function ChatPanel({
                             onRename={(label) => onRenameChat(tab.id, label)}
                           />
                         )}
-                        <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100">
-                          <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            title="Close"
-                            className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            // The X lives inside a Radix TabsTrigger, which selects
-                            // the tab on pointer/mouse-down and on focus. Stop those
-                            // from reaching the trigger and preventDefault so the X
-                            // never takes focus (whose focusin would bubble up and
-                            // auto-activate the tab) — otherwise closing an
-                            // unselected tab selects it first.
-                            onPointerDown={(e) => {
-                              e.stopPropagation()
-                              e.preventDefault()
-                            }}
-                            onMouseDown={(e) => {
-                              e.stopPropagation()
-                              e.preventDefault()
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onCloseChat(tab.id, neighbourTabId(tab.id))
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                onCloseChat(tab.id, neighbourTabId(tab.id))
-                              }
-                            }}
-                          >
-                            <X className="size-3" />
-                          </span>
-                        </div>
                       </TabsTrigger>
+                      {/* The close button sits beside the trigger, not inside it:
+                          a button can't nest in the trigger's button. It shows on
+                          hover and whenever it holds keyboard focus. Only the
+                          selected tab's close is a Tab stop, so tabbing along
+                          the strip reaches one close, not one per tab. */}
+                      <div className="absolute top-0 right-0 bottom-0 flex items-center bg-[var(--background)] pr-0.5 opacity-0 transition-opacity group-hover/tab:opacity-100 focus-within:opacity-100">
+                        <div className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-[var(--background)]" />
+                        <IconButton
+                          label={
+                            tab.kind === "terminal"
+                              ? "Close terminal"
+                              : "Close chat"
+                          }
+                          size="icon-xxs"
+                          className="relative text-muted-foreground"
+                          tabIndex={tab.id === tabsValue ? 0 : -1}
+                          // Keep the press from starting a tab drag.
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() =>
+                            onCloseChat(tab.id, neighbourTabId(tab.id))
+                          }
+                        >
+                          <X className="size-3" />
+                        </IconButton>
+                      </div>
                     </motion.div>
                   </Reorder.Item>
                 ))}
@@ -1106,45 +1087,26 @@ export function ChatPanel({
               <ButtonGroup
                 className={`${isAgentBusy ? "" : "group/newtab"} ml-1 shrink-0`}
               >
-                <TooltipProvider delayDuration={500}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
-                        onClick={createStickyTab}
-                        disabled={isAgentBusy}
-                        aria-label={
-                          stickyTabKind === "terminal"
-                            ? "New terminal"
-                            : "New chat"
-                        }
-                      >
-                        <Plus className="size-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {isAgentBusy
-                        ? "Sandbox still starting…"
-                        : stickyTabKind === "terminal"
-                          ? "New terminal"
-                          : "New chat"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <IconButton
+                  label={
+                    stickyTabKind === "terminal" ? "New terminal" : "New chat"
+                  }
+                  hint={isAgentBusy ? "Sandbox still starting…" : undefined}
+                  className="group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
+                  onClick={createStickyTab}
+                  disabled={isAgentBusy}
+                >
+                  <Plus className="size-3" />
+                </IconButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
+                    <IconButton
+                      label="New chat or terminal"
                       className="w-4 min-w-0 px-0 opacity-0 group-focus-within/newtab:opacity-100 group-hover/newtab:bg-muted group-hover/newtab:text-foreground group-hover/newtab:opacity-100 group-has-[[aria-expanded=true]]/newtab:bg-muted group-has-[[aria-expanded=true]]/newtab:text-foreground in-data-[slot=button-group]:rounded-md aria-expanded:opacity-100 dark:group-hover/newtab:bg-muted/50 dark:group-has-[[aria-expanded=true]]/newtab:bg-muted/50"
                       disabled={isAgentBusy}
-                      title="New chat or terminal"
-                      aria-label="New chat or terminal"
                     >
                       <ChevronDown className="size-3" />
-                    </Button>
+                    </IconButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => createChatTab()}>
@@ -1190,16 +1152,16 @@ export function ChatPanel({
                 </DropdownMenu>
               </ButtonGroup>
             ) : (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="ml-1 shrink-0"
-                onClick={onCreateChat}
-                disabled={isAgentBusy}
-                title={isAgentBusy ? "Sandbox still starting…" : "New chat"}
-              >
-                <Plus className="size-3" />
-              </Button>
+              <span className="ml-1 inline-flex shrink-0">
+                <IconButton
+                  label="New chat"
+                  hint={isAgentBusy ? "Sandbox still starting…" : undefined}
+                  onClick={onCreateChat}
+                  disabled={isAgentBusy}
+                >
+                  <Plus className="size-3" />
+                </IconButton>
+              </span>
             )}
           </TabsList>
         </ScrollArea>
@@ -1207,9 +1169,9 @@ export function ChatPanel({
           <div className="flex shrink-0 items-center px-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-xs" title="Closed chats">
+                <IconButton label="Closed chats">
                   <Archive className="size-3" />
-                </Button>
+                </IconButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {closedChats.map((chat) => (
