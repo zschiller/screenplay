@@ -43,6 +43,8 @@ import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import { CommentsMenu } from "./comments-menu"
 import { useCommentThreads } from "./use-comment-threads"
+import { useCommentPlacements } from "./use-comment-placements"
+import { OffRouteCommentsContext } from "./off-route-comments"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
@@ -682,18 +684,26 @@ export function Canvas({
   const getViewportCenter = camera.getViewportCenter
 
   const commentThreads = useCommentThreads(roomId, initialThreads)
-  // The top bar's thread list: open the thread and bring its pin to the
-  // middle of the viewport, at the current zoom.
-  const selectCommentThread = useCallback(
-    (threadId: string) => {
-      reference.setActiveThread(threadId)
-      commentThreads.markRead(threadId)
-      const pin = document.querySelector<HTMLElement>(
-        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
-      )
-      if (pin) camera.centerOnElement(pin)
-    },
-    [reference, commentThreads, camera]
+  // Where each comment shows for this viewer (#785): pinned on its route,
+  // counted in its frame's header chip on another route, or detached.
+  const commentPlacements = useCommentPlacements({
+    threads: commentThreads.threads,
+    iframeLayers,
+    layouts: iframeLayerLayouts,
+    zoom,
+    getIframeLayerDom: reference.getIframeLayerDom,
+    getDocumentEditor: reference.getDocumentEditor,
+    documentEditorsVersion: reference.documentEditorsVersion,
+  })
+  const commentFrameInfo = useMemo(
+    () =>
+      new Map(
+        iframeLayers.map((l) => [
+          l.id,
+          { branchId: l.branchId, route: l.route },
+        ])
+      ),
+    [iframeLayers]
   )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
@@ -822,6 +832,42 @@ export function Canvas({
     transformRef,
     createFlowIframeLayerIdRef,
   })
+
+  // The top bar's thread list: open the thread and bring its pin to the
+  // middle of the viewport, at the current zoom. A thread on another route
+  // navigates its frame there first; its pin is centred once it shows.
+  const pendingCenterThreadRef = useRef<string | null>(null)
+  const selectCommentThread = useCallback(
+    (threadId: string) => {
+      reference.setActiveThread(threadId)
+      commentThreads.markRead(threadId)
+      const placement = commentPlacements.placements.get(threadId)
+      if (placement?.kind === "offRoute") {
+        pendingCenterThreadRef.current = threadId
+        layerMutations.updateRoute(placement.frameId, placement.route)
+        return
+      }
+      const pin = document.querySelector<HTMLElement>(
+        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
+      )
+      if (pin) camera.centerOnElement(pin)
+    },
+    [reference, commentThreads, commentPlacements, layerMutations, camera]
+  )
+  useEffect(() => {
+    const threadId = pendingCenterThreadRef.current
+    if (!threadId) return
+    if (commentPlacements.placements.get(threadId)?.kind !== "pinned") return
+    pendingCenterThreadRef.current = null
+    // The pin mounts in this commit; find it on the next frame.
+    const raf = requestAnimationFrame(() => {
+      const pin = document.querySelector<HTMLElement>(
+        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
+      )
+      if (pin) camera.centerOnElement(pin)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [commentPlacements, camera])
 
   // Group Operations controller (PRD #588): the structural sibling of
   // `useLayerMutations`. Where the Layer Mutation bundle writes a field on one
@@ -1454,48 +1500,52 @@ export function Canvas({
                   // scale (see globals.css `.canvas-frame-label`).
                   data-zoom-settling={zoomSettling || undefined}
                 >
-                  <CanvasMemberLayer
-                    iframeLayerGroups={iframeLayerGroups}
-                    iframeLayers={iframeLayers}
-                    markdownLayers={markdownLayers}
-                    selection={selection}
-                    onIframeWheel={camera.handleIframeWheel}
-                    reference={reference}
-                    gesturePreview={gesturePreview}
-                    gestureLayerHandlers={gestureLayerHandlers}
-                    effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
-                    iframeLayerLayouts={iframeLayerLayouts}
-                    groupZIndex={groupZIndex}
-                    groupDisplayNames={groupDisplayNames}
-                    placeholderRects={placeholderRects}
-                    placeholderTool={
-                      frameMode ? "frame" : documentMode ? "document" : null
-                    }
-                    remoteSelectionColors={remoteSelectionColors}
-                    remoteGroupSelectionColors={remoteGroupSelectionColors}
-                    agentDomains={agentDomains}
-                    agents={agents}
-                    repos={repos}
-                    zoom={zoom}
-                    spaceHeld={spaceHeld}
-                    commentMode={commentMode}
-                    pickActive={targeting.pickActive}
-                    dimmedIframeLayerIds={targeting.dimmedIds}
-                    selfName={self?.identity.name || "Anonymous"}
-                    selfColor={self?.color || "#888888"}
-                    editingDocumentLayerId={editingDocumentLayerId}
-                    setEditingDocumentLayerId={setEditingDocumentLayerId}
-                    focusedIframeLayerId={focusedIframeLayerId}
-                    setFocusedIframeLayerId={setFocusedIframeLayerId}
-                    createFlowIframeLayerId={createFlowIframeLayerId}
-                    setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
-                    removeIframeLayer={removeIframeLayer}
-                    handlePlayIframeLayer={handlePlayIframeLayer}
-                    handleCaptureReadyChange={handleCaptureReadyChange}
-                    handleCaptureDirty={handleCaptureDirty}
-                    layerMutations={layerMutations}
-                    groupActions={groupActions}
-                  />
+                  <OffRouteCommentsContext.Provider
+                    value={commentPlacements.offRoute}
+                  >
+                    <CanvasMemberLayer
+                      iframeLayerGroups={iframeLayerGroups}
+                      iframeLayers={iframeLayers}
+                      markdownLayers={markdownLayers}
+                      selection={selection}
+                      onIframeWheel={camera.handleIframeWheel}
+                      reference={reference}
+                      gesturePreview={gesturePreview}
+                      gestureLayerHandlers={gestureLayerHandlers}
+                      effectiveIframeLayerLayouts={effectiveIframeLayerLayouts}
+                      iframeLayerLayouts={iframeLayerLayouts}
+                      groupZIndex={groupZIndex}
+                      groupDisplayNames={groupDisplayNames}
+                      placeholderRects={placeholderRects}
+                      placeholderTool={
+                        frameMode ? "frame" : documentMode ? "document" : null
+                      }
+                      remoteSelectionColors={remoteSelectionColors}
+                      remoteGroupSelectionColors={remoteGroupSelectionColors}
+                      agentDomains={agentDomains}
+                      agents={agents}
+                      repos={repos}
+                      zoom={zoom}
+                      spaceHeld={spaceHeld}
+                      commentMode={commentMode}
+                      pickActive={targeting.pickActive}
+                      dimmedIframeLayerIds={targeting.dimmedIds}
+                      selfName={self?.identity.name || "Anonymous"}
+                      selfColor={self?.color || "#888888"}
+                      editingDocumentLayerId={editingDocumentLayerId}
+                      setEditingDocumentLayerId={setEditingDocumentLayerId}
+                      focusedIframeLayerId={focusedIframeLayerId}
+                      setFocusedIframeLayerId={setFocusedIframeLayerId}
+                      createFlowIframeLayerId={createFlowIframeLayerId}
+                      setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
+                      removeIframeLayer={removeIframeLayer}
+                      handlePlayIframeLayer={handlePlayIframeLayer}
+                      handleCaptureReadyChange={handleCaptureReadyChange}
+                      handleCaptureDirty={handleCaptureDirty}
+                      layerMutations={layerMutations}
+                      groupActions={groupActions}
+                    />
+                  </OffRouteCommentsContext.Provider>
                 </div>
               </TransformComponent>
             </TransformWrapper>
@@ -1527,7 +1577,8 @@ export function Canvas({
                 }}
                 onCancelComment={reference.clearComposer}
                 iframeLayers={Array.from(iframeLayerLayouts.values())}
-                getIframeLayerDom={reference.getIframeLayerDom}
+                frameInfo={commentFrameInfo}
+                placements={commentPlacements.placements}
                 getDocumentEditor={reference.getDocumentEditor}
                 documentEditorsVersion={reference.documentEditorsVersion}
                 commentThreads={commentThreads}
@@ -1690,7 +1741,13 @@ export function Canvas({
                     <>
                       <CommentsMenu
                         threads={commentThreads.threads}
+                        placements={commentPlacements.placements}
                         onSelectThread={selectCommentThread}
+                        getDocumentEditor={reference.getDocumentEditor}
+                        onMarkUnread={(threadId) =>
+                          commentThreads.setThreadUnread(threadId, true)
+                        }
+                        onOpenThread={commentThreads.markRead}
                       />
                       <FollowingToolbar
                         followingId={followingConnectionId}

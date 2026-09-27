@@ -15,6 +15,7 @@ export type DomOp =
   | "getOuterHTML"
   | "elementAtPoint"
   | "getRectsForSelectors"
+  | "resolveAnchors"
   | "getDocumentSize"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
@@ -32,6 +33,8 @@ export type CanvasToIframeMessage =
       op: DomOp
       selector?: string
       selectors?: string[]
+      /** `resolveAnchors`: comment anchors (`ElementAnchor`) to look up. */
+      anchors?: unknown[]
       handle?: string
       x?: number
       y?: number

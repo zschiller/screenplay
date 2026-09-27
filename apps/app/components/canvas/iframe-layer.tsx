@@ -37,6 +37,7 @@ import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
+import { useOffRouteComments } from "./off-route-comments"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -315,6 +316,7 @@ export function IframeLayer({
   dragTranslateY,
   dragPopped,
 }: IframeLayerProps) {
+  const offRouteComments = useOffRouteComments(iframeLayer.id)
   // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
   // navigation and should not reload the iframe.
@@ -706,6 +708,7 @@ export function IframeLayer({
               ? (route) => onSelectRoute(iframeLayer.id, route)
               : undefined
           }
+          offRouteComments={offRouteComments}
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
           onSelectFrame={api.deferSelect}

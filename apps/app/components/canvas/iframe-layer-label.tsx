@@ -27,7 +27,9 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import type { BranchData } from "@/lib/types"
 import type { JsonObject } from "@/lib/postmessage-protocol"
 import { normalizeRoute } from "@/lib/route-utils"
+import type { OffRouteGroup } from "@/lib/comment-anchor"
 import { LayerLabelRow } from "./layer-title-bar"
+import { OffRouteCommentsChip } from "./off-route-comments"
 
 interface IframeLayerLabelProps {
   label: string
@@ -43,6 +45,9 @@ interface IframeLayerLabelProps {
   /** Routes known for the agent backing this iframeLayer. Drives the route picker. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (route: string) => void
+  /** This frame's open comments on other routes (#785), shown as a chip that
+   *  navigates there. */
+  offRouteComments?: OffRouteGroup[]
   /** True when this frame is selected (directly or because its group is). */
   selected?: boolean
   /** Remote selector's color for the name. Ignored while locally selected. */
@@ -70,6 +75,7 @@ export function IframeLayerLabel({
   onAssignBranch,
   discoveredRoutes,
   onSelectRoute,
+  offRouteComments,
   selected,
   remoteSelectedColor,
   onSelectFrame,
@@ -107,23 +113,32 @@ export function IframeLayerLabel({
         ) : null
       }
       trailing={
-        branch &&
-        (onSelectRoute ? (
-          <RoutePicker
-            route={route}
-            discoveredRoutes={discoveredRoutes ?? []}
-            onSelectRoute={onSelectRoute}
-            sharedState={sharedState}
-          />
-        ) : (
-          <Badge
-            variant="outline"
-            className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
-          >
-            <span className="truncate">{route || "/"}</span>
-            <SharedStateIndicator sharedState={sharedState} />
-          </Badge>
-        ))
+        branch && (
+          <>
+            {onSelectRoute ? (
+              <RoutePicker
+                route={route}
+                discoveredRoutes={discoveredRoutes ?? []}
+                onSelectRoute={onSelectRoute}
+                sharedState={sharedState}
+              />
+            ) : (
+              <Badge
+                variant="outline"
+                className="max-w-[9rem] min-w-[20px] shrink-0 border-transparent bg-muted px-1.5 py-0 font-mono text-[10px] text-foreground/50 transition-[max-width] delay-300 duration-200 hover:max-w-full hover:delay-500"
+              >
+                <span className="truncate">{route || "/"}</span>
+                <SharedStateIndicator sharedState={sharedState} />
+              </Badge>
+            )}
+            {onSelectRoute && offRouteComments && (
+              <OffRouteCommentsChip
+                groups={offRouteComments}
+                onNavigate={onSelectRoute}
+              />
+            )}
+          </>
+        )
       }
     />
   )

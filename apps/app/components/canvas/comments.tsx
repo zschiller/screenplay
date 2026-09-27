@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react"
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { motion } from "motion/react"
 import { ArrowUp, CheckCircle2, MoreHorizontal, Trash2 } from "lucide-react"
 import type { Editor } from "@tiptap/core"
@@ -34,11 +27,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useAppSession } from "@/lib/auth-client"
-import {
-  useCommentPositions,
-  usePruneCommentPositions,
-  useSetCommentPosition,
-} from "@/lib/yjs/react"
+import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
 import {
   appendCommentAction,
   createThreadAction,
@@ -48,8 +37,6 @@ import {
   setThreadResolvedAction,
 } from "@/lib/comments-actions"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
-import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
-import type { DomRect } from "@/lib/postmessage-protocol"
 import { decodeAnchor, getLineNumbers } from "@/lib/document-comments"
 import {
   setDocumentCommentRanges,
@@ -81,6 +68,9 @@ interface NewCommentPos {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
+  /** The element's anchor keys and the frame's path, from the bridge (#785). */
+  anchor?: ElementAnchor | null
+  route?: string | null
   /** Inline document-layer anchor (set when the user clicked the bubble
    *  "Comment" button on a text selection inside a doc layer). */
   documentId?: string | null
@@ -107,7 +97,12 @@ interface CommentsProps {
   onNewCommentPlaced: () => void
   onCancelComment: () => void
   iframeLayers: IframeLayerPos[]
-  getIframeLayerDom?: (id: string) => ScreenplayDom | undefined
+  /** The Workspace and shared route of each frame, by id: what a new frame
+   *  comment is anchored to beyond its element (#785). */
+  frameInfo?: ReadonlyMap<string, { branchId?: string; route?: string }>
+  /** Where each open frame or document thread shows for this viewer (see
+   *  `useCommentPlacements`). Only `pinned` threads get a pin. */
+  placements: ReadonlyMap<string, Placement>
   /** Look up a registered markdown-layer editor by id — used to render inline
    *  highlights and project pin positions to the right margin. */
   getDocumentEditor?: (id: string) => Editor | undefined
@@ -129,10 +124,6 @@ interface CommentsProps {
   onActivateThread?: (threadId: string | null) => void
 }
 
-// How far the resolved position must drift from the cached value before we
-// publish a new yjs update. Avoids spamming the doc on sub-pixel jitter.
-const POSITION_DRIFT_PX = 4
-
 export function Comments({
   roomId,
   zoom,
@@ -140,7 +131,8 @@ export function Comments({
   onNewCommentPlaced,
   onCancelComment,
   iframeLayers,
-  getIframeLayerDom,
+  frameInfo,
+  placements,
   getDocumentEditor,
   documentEditorsVersion,
   commentThreads,
@@ -149,10 +141,7 @@ export function Comments({
   onActivateThread,
 }: CommentsProps) {
   const { data: session } = useAppSession()
-  // `threadsLoaded` distinguishes "haven't fetched yet" from "fetched and got
-  // zero". Without it, the prune effect would run with the initial empty array
-  // on first render and wipe every yjs cached position before threads arrive.
-  const { threads, threadsLoaded, markRead, setThreadUnread } = commentThreads
+  const { threads, markRead, setThreadUnread } = commentThreads
   const [internalActiveThreadId, setInternalActiveThreadId] = useState<
     string | null
   >(null)
@@ -180,125 +169,11 @@ export function Comments({
     return m
   }, [iframeLayers])
 
-  // Live tracked-pin positions, read from the room's Yjs doc. Synced across
-  // clients in realtime and persisted by the Yjs server, so a freshly-loaded
-  // canvas can render every pin at its last-seen position without waiting
-  // for the iframe / dev server / bridge.
-  const trackedPositions = useCommentPositions()
-  const setCommentPosition = useSetCommentPosition()
-  const pruneCommentPositions = usePruneCommentPositions()
-  // Latest snapshot for the polling tick to read without re-running on every
-  // yjs update (the effect's deps are intentionally narrow).
-  const trackedPositionsRef = useRef(trackedPositions)
-  // Keep the latest snapshot in the ref (written after commit, not during
-  // render) so the polling tick can read it without re-running on every yjs
-  // update.
-  useEffect(() => {
-    trackedPositionsRef.current = trackedPositions
-  })
-
-  // Drop yjs entries for threads that no longer exist so the doc doesn't
-  // grow forever as comments get resolved/deleted. Gated on the initial
-  // fetch completing so we don't wipe everyone else's cached positions
-  // during our own warm-up.
-  useEffect(() => {
-    if (!threadsLoaded) return
-    pruneCommentPositions(new Set(threads.map((t) => t.id)))
-  }, [threads, threadsLoaded, pruneCommentPositions])
-
-  // Poll selector-anchored threads and update tracked positions. Each tick
-  // sends one batched bridge call per iframeLayer (collapsing N round-trips
-  // into one) and self-throttles via rAF — the next tick is scheduled only
-  // after the previous batch resolves, so cadence tracks the channel's real
-  // throughput instead of flooding it.
-  useEffect(() => {
-    if (!getIframeLayerDom) return
-    let cancelled = false
-    let rafId: number | null = null
-    const anchored = threads.filter(
-      (t) => !t.resolved && t.iframeLayerId && t.selector
-    )
-    if (anchored.length === 0) return
-
-    // Group anchored threads by iframeLayer so we can issue one batched call
-    // per iframe per tick.
-    const byIframeLayer = new Map<string, typeof anchored>()
-    for (const t of anchored) {
-      const arr = byIframeLayer.get(t.iframeLayerId!)
-      if (arr) arr.push(t)
-      else byIframeLayer.set(t.iframeLayerId!, [t])
-    }
-
-    async function tick() {
-      await Promise.all(
-        Array.from(byIframeLayer.entries()).map(
-          async ([iframeLayerId, group]) => {
-            const dom = getIframeLayerDom!(iframeLayerId)
-            if (!dom) return
-            const selectors = group.map((t) => t.selector!)
-            let rects: (DomRect | null)[]
-            try {
-              rects = await dom.getRectsForSelectors(selectors)
-            } catch {
-              return
-            }
-            for (let i = 0; i < group.length; i++) {
-              const t = group[i]
-              const rect = rects[i]
-              if (!t || !rect) continue
-              // Offsets are stored as fractions of the element's size at click
-              // time, so the pin tracks the same relative point on the element
-              // even as it resizes with iframeLayer / page reflow.
-              const x = rect.x + (t.offsetX ?? 0) * rect.width
-              const y = rect.y + (t.offsetY ?? 0) * rect.height
-              // Compare against the current yjs cached position (or DB
-              // fallback if we haven't cached one yet) to skip writes when
-              // nothing meaningful changed.
-              const cached = trackedPositionsRef.current.get(t.id)
-              const baseX = cached?.x ?? t.x
-              const baseY = cached?.y ?? t.y
-              // baseX/baseY are nullable because branch-only threads have no
-              // canvas position. listThreads filters those out, so this is
-              // effectively unreachable for canvas threads — but be defensive
-              // and just write the new position without diffing if we somehow
-              // don't have a baseline.
-              if (
-                baseX === null ||
-                baseY === null ||
-                Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
-              ) {
-                setCommentPosition(t.id, x, y)
-              }
-            }
-          }
-        )
-      )
-      if (cancelled) return
-    }
-
-    function loop() {
-      if (cancelled) return
-      tick().finally(() => {
-        if (cancelled) return
-        rafId = requestAnimationFrame(loop)
-      })
-    }
-    loop()
-    return () => {
-      cancelled = true
-      if (rafId !== null) cancelAnimationFrame(rafId)
-    }
-  }, [threads, getIframeLayerDom, setCommentPosition])
-
-  // Inline doc-comment integration: push the active set of highlighted
-  // ranges into each registered editor, and project the corresponding pin
-  // positions to the right margin of each doc tile so they share the same
-  // canvas-pin model as artboard threads.
-  //
-  // The effect runs whenever the threads list, the active thread, or the
-  // editor registry changes. Selection ranges drift through doc edits via
-  // the plugin's decoration mapping in between refreshes, so we don't need
-  // to re-run on every doc transaction.
+  // Inline doc-comment integration: push the active set of highlighted ranges
+  // into each registered editor. (Their pins are placed by
+  // `useCommentPlacements`, like frame pins.) Selection ranges drift through
+  // doc edits via the plugin's decoration mapping in between refreshes, so
+  // this doesn't need to re-run on every doc transaction.
   useEffect(() => {
     if (!getDocumentEditor) return
     const docThreads = threads.filter(
@@ -315,11 +190,6 @@ export function Comments({
       const editor = getDocumentEditor(docId)
       if (!editor || editor.isDestroyed) continue
       const ranges: DocumentCommentRange[] = []
-      const layer = iframeLayerById.get(docId)
-      const layerEl = editor.view.dom.closest(
-        "[data-doc-id]"
-      ) as HTMLElement | null
-      const layerRect = layerEl?.getBoundingClientRect()
       for (const t of group) {
         const from = decodeAnchor(editor, t.anchorStart!)
         const to = decodeAnchor(editor, t.anchorEnd!)
@@ -330,27 +200,6 @@ export function Comments({
           to,
           active: activeThreadId === t.id,
         })
-        // Project the pin to the right margin of the doc tile, vertically
-        // aligned with the start of the highlighted range. The yjs comment
-        // position is stored in *layer-local* canvas units (matching how
-        // artboard threads store iframe-local coords), so resolvePos's
-        // existing add-the-layer-origin path renders it correctly.
-        if (layer && layerRect) {
-          const fromCoords = editor.view.coordsAtPos(from)
-          const localY = (fromCoords.top - layerRect.top) / zoom
-          const x = layer.width
-          const y = localY
-          const cached = trackedPositionsRef.current.get(t.id)
-          const baseX = cached?.x ?? t.x
-          const baseY = cached?.y ?? t.y
-          if (
-            baseX === null ||
-            baseY === null ||
-            Math.hypot(x - baseX, y - baseY) > POSITION_DRIFT_PX
-          ) {
-            setCommentPosition(t.id, x, y)
-          }
-        }
       }
       setDocumentCommentRanges(editor.view, ranges)
       // On unmount/refresh, clear the highlights so a stale set doesn't
@@ -363,57 +212,51 @@ export function Comments({
     return () => {
       for (const fn of cleanups) fn()
     }
-  }, [
-    threads,
-    activeThreadId,
-    getDocumentEditor,
-    documentEditorsVersion,
-    iframeLayerById,
-    setCommentPosition,
-    zoom,
-  ])
+  }, [threads, activeThreadId, getDocumentEditor, documentEditorsVersion])
 
-  const resolvePos = useCallback(
-    (t: {
-      id?: string
-      x: number | null
-      y: number | null
-      iframeLayerId?: string | null
-      selector?: string | null
-      documentId?: string | null
-    }): { x: number; y: number } | null => {
-      const containerId = t.iframeLayerId ?? t.documentId
-      if (containerId) {
-        const ab = iframeLayerById.get(containerId)
-        // IframeLayers / markdown-layers data may load after threads (yjs
-        // warm-up). Returning null makes the caller skip rendering until
-        // the container's canvas
-        // position is known, so the pin doesn't flash at iframe-local coords
-        // mistakenly placed in canvas space.
-        if (!ab) return null
-        const tracked = t.id ? trackedPositions.get(t.id) : undefined
-        // Either we have a tracked position from selector reflow, or we fall
-        // back to the DB-stored x/y. Branch-only threads (no x/y) never reach
-        // here because listThreads filters them out, but guard regardless.
-        const local =
-          tracked ?? (t.x !== null && t.y !== null ? { x: t.x, y: t.y } : null)
-        if (!local) return null
-        return { x: ab.x + local.x, y: ab.y + local.y }
-      }
-      if (t.x === null || t.y === null) return null
-      return { x: t.x, y: t.y }
-    },
-    [iframeLayerById, trackedPositions]
-  )
+  // Canvas position of a thread's pin: its placement (frame or document
+  // threads, pinned for this viewer only) offset by the container's canvas
+  // origin, or its stored point for a canvas-level thread.
+  const threadPos = (
+    t: ThreadWithComments
+  ): { x: number; y: number } | null => {
+    if (t.iframeLayerId || t.documentId) {
+      const p = placements.get(t.id)
+      if (p?.kind !== "pinned") return null
+      const container = iframeLayerById.get(p.frameId)
+      if (!container) return null
+      return { x: container.x + p.x, y: container.y + p.y }
+    }
+    if (t.x === null || t.y === null) return null
+    return { x: t.x, y: t.y }
+  }
 
-  const composerCanvasPos = newCommentPos ? resolvePos(newCommentPos) : null
+  // The composer sits at its click point, layer-local when it's on a frame or
+  // document. Returns null until the container's canvas position is known.
+  const composerCanvasPos = (() => {
+    if (!newCommentPos) return null
+    const containerId = newCommentPos.iframeLayerId ?? newCommentPos.documentId
+    if (!containerId) return { x: newCommentPos.x, y: newCommentPos.y }
+    const container = iframeLayerById.get(containerId)
+    if (!container) return null
+    return {
+      x: container.x + newCommentPos.x,
+      y: container.y + newCommentPos.y,
+    }
+  })()
+  const composerFrame = newCommentPos?.iframeLayerId
+    ? iframeLayerById.get(newCommentPos.iframeLayerId)
+    : undefined
+  const composerFrameInfo = newCommentPos?.iframeLayerId
+    ? frameInfo?.get(newCommentPos.iframeLayerId)
+    : undefined
 
   return (
     <>
       {threads
         .filter((t) => !t.resolved)
         .map((thread) => {
-          const pos = resolvePos(thread)
+          const pos = threadPos(thread)
           if (!pos) return null
           return (
             <CommentPin
@@ -481,6 +324,22 @@ export function Comments({
                   selector={newCommentPos.selector ?? null}
                   offsetX={newCommentPos.offsetX ?? null}
                   offsetY={newCommentPos.offsetY ?? null}
+                  frameAnchor={
+                    newCommentPos.iframeLayerId
+                      ? {
+                          workspaceId: composerFrameInfo?.branchId ?? null,
+                          // The frame's own report of its path, else the
+                          // route the frame shows for everyone.
+                          route:
+                            newCommentPos.route ??
+                            composerFrameInfo?.route ??
+                            null,
+                          anchor: newCommentPos.anchor ?? null,
+                          viewportWidth: composerFrame?.width ?? null,
+                          viewportHeight: composerFrame?.height ?? null,
+                        }
+                      : null
+                  }
                   documentId={newCommentPos.documentId ?? null}
                   anchorStart={newCommentPos.anchorStart ?? null}
                   anchorEnd={newCommentPos.anchorEnd ?? null}
@@ -658,6 +517,15 @@ function CommentPin({
   )
 }
 
+/** What a new frame comment is anchored to beyond its element path (#785). */
+interface FrameAnchor {
+  workspaceId: string | null
+  route: string | null
+  anchor: ElementAnchor | null
+  viewportWidth: number | null
+  viewportHeight: number | null
+}
+
 function NewThreadComposer({
   roomId,
   x,
@@ -666,6 +534,7 @@ function NewThreadComposer({
   selector,
   offsetX,
   offsetY,
+  frameAnchor,
   documentId,
   anchorStart,
   anchorEnd,
@@ -683,6 +552,7 @@ function NewThreadComposer({
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  frameAnchor: FrameAnchor | null
   documentId?: string | null
   anchorStart?: string | null
   anchorEnd?: string | null
@@ -802,6 +672,7 @@ function NewThreadComposer({
           selector,
           offsetX,
           offsetY,
+          ...frameAnchor,
           documentId,
           anchorStart,
           anchorEnd,
@@ -823,7 +694,7 @@ function NewThreadComposer({
   }
 }
 
-function ThreadView({
+export function ThreadView({
   thread,
   currentUserId,
   getDocumentEditor,
