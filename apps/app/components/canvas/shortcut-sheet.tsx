@@ -27,7 +27,11 @@ export function ShortcutSheet({
   const groups = canvasShortcutGroups({ comments: !isLocalBuild })
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent
+        className="sm:max-w-xl"
+        // A read-only sheet: don't park a focus ring on the close button.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>
