@@ -49,7 +49,7 @@ export function buildMarkdownLayerTools(ctx: MarkdownLayerToolContext) {
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of the targeted document's body. Use the same lightweight markdown syntax as `replace_document_body`. Preserves everything already in the document.",
+        "Append a block of text to the end of the targeted document's body. Use the same lightweight markdown syntax as `replace_document_body`. Keeps everything already in the document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the document's existing marks must survive.",
       inputSchema: jsonSchema<{ content: string }>({
         type: "object",
         properties: { content: { type: "string" } },

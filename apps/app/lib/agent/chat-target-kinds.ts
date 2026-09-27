@@ -175,8 +175,15 @@ export const markdownLayerChatTarget: ChatTargetSpec<
       markdownLayerId: target.markdownLayerId,
     })
   },
-  decorateUserMessage(message, { planMode }) {
-    return prependTurnMarkers(message, { planMode })
+  // No turn markers for a document chat. `[branch: …]` is meaningless without
+  // a sandbox, and `[plan mode: enabled]` would be noise: this target's
+  // toolset has no `submit_plan` gate and its system prompt never mentions
+  // plan mode, so the marker would reach the model with nothing to act on
+  // (#743). The composer hides the Plan toggle for document targets; this is
+  // the server-side half of that contract, so a stale client that still sends
+  // `planMode: true` can't slip the prefix into the prompt.
+  decorateUserMessage(message) {
+    return message
   },
 }
 

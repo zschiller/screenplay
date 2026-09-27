@@ -123,9 +123,17 @@ export function AgentChat({
 
   const markdownLayers = useMarkdownLayers()
 
-  // The `/` skill menu is scoped to sandbox-backed Agent chats: Document /
-  // Markdown-Layer chats have no sandbox to enumerate, no `read_skill` tool,
-  // and their toolset is editorial — so `/` stays a literal slash there.
+  // Sandbox-backed Agent chat vs. Document / Markdown-Layer chat. A Document
+  // chat has no sandbox and an editorial toolset, so three composer affordances
+  // that only make sense against a sandbox are switched off for it:
+  //
+  //   - the `/` skill menu — nothing to enumerate, no `read_skill` tool, so `/`
+  //     stays a literal slash;
+  //   - the Plan toggle — the Document toolset has no `submit_plan` gate, so a
+  //     plan-mode turn would change nothing (#743);
+  //   - element picking — there's no preview to pick from.
+  //
+  // The empty-state copy below splits on the same flag.
   const isAgentChat = !markdownLayerId
   const composerPlaceholder = isAgentChat
     ? "Ask the agent... (@ document, / skill)"
@@ -376,9 +384,20 @@ export function AgentChat({
             </div>
           ) : messages.length === 0 ? (
             <p className="m-auto text-center text-xs text-muted-foreground">
-              Ask the AI to make changes to your app.
-              <br />
-              It can read, edit, and run commands in the sandbox.
+              {isAgentChat ? (
+                <>
+                  Ask the AI to make changes to your app.
+                  <br />
+                  It can read, edit, and run commands in the sandbox.
+                </>
+              ) : (
+                <>
+                  Ask the AI to rewrite this document.
+                  <br />
+                  It can read, edit, and retitle it, and follow @ mentions to
+                  other documents.
+                </>
+              )}
             </p>
           ) : (
             <div className="space-y-3">
@@ -447,7 +466,7 @@ export function AgentChat({
         onModelChange={handleModelChange}
         modelLocked={modelLocked}
         planMode={planMode}
-        onPlanModeChange={onPlanModeChange}
+        onPlanModeChange={isAgentChat ? onPlanModeChange : undefined}
         onSubmit={handleSubmit}
         isStreaming={isStreaming}
         onStop={stopMessage}
