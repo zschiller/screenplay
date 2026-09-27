@@ -1,0 +1,209 @@
+{
+  "$comment": "Framing for each screenshot: null = the full window in Tauri chrome; [x, y, width, height] = a detail crop in CSS px of the 1280x800 capture, magnified and faded at cut edges.",
+  "hero": null,
+  "canvas-overview": null,
+  "setup-gate": [
+    300,
+    0,
+    680,
+    800
+  ],
+  "home-recents": null,
+  "home-all-files": null,
+  "home-table": null,
+  "home-folder": null,
+  "home-canvas-menu": [
+    280,
+    120,
+    640,
+    480
+  ],
+  "home-folder-menu": [
+    560,
+    60,
+    620,
+    300
+  ],
+  "home-sort-menu": [
+    560,
+    0,
+    720,
+    340
+  ],
+  "new-canvas-dialog": [
+    330,
+    240,
+    620,
+    300
+  ],
+  "settings": null,
+  "settings-presets": null,
+  "preset-form": null,
+  "add-project-menu": [
+    0,
+    0,
+    560,
+    340
+  ],
+  "project-menu": [
+    0,
+    0,
+    640,
+    380
+  ],
+  "project-settings": [
+    330,
+    60,
+    620,
+    680
+  ],
+  "ws-menu": [
+    0,
+    40,
+    620,
+    460
+  ],
+  "ws-restart": [
+    0,
+    40,
+    720,
+    460
+  ],
+  "ws-color": [
+    0,
+    40,
+    700,
+    500
+  ],
+  "recreate-dialog": [
+    380,
+    240,
+    520,
+    320
+  ],
+  "delete-branch-dialog": [
+    380,
+    230,
+    520,
+    340
+  ],
+  "new-workspace-multi": [
+    320,
+    150,
+    640,
+    500
+  ],
+  "canvas-menu": [
+    0,
+    0,
+    640,
+    300
+  ],
+  "frame-selected": null,
+  "frame-more-menu": [
+    560,
+    60,
+    640,
+    420
+  ],
+  "device-size-menu": [
+    560,
+    40,
+    640,
+    440
+  ],
+  "knobs-popover": [
+    560,
+    60,
+    620,
+    460
+  ],
+  "route-picker": [
+    250,
+    40,
+    560,
+    340
+  ],
+  "frame-branch-picker": [
+    250,
+    40,
+    560,
+    340
+  ],
+  "frame-tooltip-interact": [
+    760,
+    40,
+    520,
+    340
+  ],
+  "frame-tool": null,
+  "target-picker": [
+    700,
+    0,
+    580,
+    380
+  ],
+  "new-tab-menu": [
+    820,
+    0,
+    460,
+    260
+  ],
+  "composer-mention": [
+    850,
+    480,
+    430,
+    320
+  ],
+  "composer-skills": [
+    860,
+    440,
+    420,
+    360
+  ],
+  "target-picking": null,
+  "composer-element-hover": [
+    850,
+    480,
+    430,
+    320
+  ],
+  "logs": null,
+  "plan-card": null,
+  "doc-chat": null,
+  "doc-selection-toolbar": [
+    400,
+    150,
+    860,
+    480
+  ],
+  "terminal": null,
+  "play-desktop": null,
+  "play-mobile": null,
+  "play-agent": null,
+  "play-hud": [
+    760,
+    440,
+    520,
+    360
+  ],
+  "play-knobs": [
+    700,
+    300,
+    580,
+    500
+  ],
+  "play-device-menu": [
+    760,
+    360,
+    520,
+    440
+  ],
+  "configure-project": [
+    470,
+    100,
+    620,
+    660
+  ],
+  "settings-bottom": null
+}
