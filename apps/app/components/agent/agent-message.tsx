@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import Markdown, { type Components } from "react-markdown"
+import { type Components } from "react-markdown"
 import {
   ChevronDown,
   FileText,
@@ -41,6 +41,7 @@ import { chatStore } from "@/lib/chat-store"
 import { openExternal } from "@/lib/open-external"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 import { useElementHighlight } from "./use-element-highlight"
+import { ChatMarkdown } from "./chat-markdown"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -672,9 +673,7 @@ function PlanMessage({
       </button>
       {expanded && (
         <>
-          <div className="prose prose-sm mt-2 max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
-            <Markdown>{message.content}</Markdown>
-          </div>
+          <ChatMarkdown className="mt-2">{message.content}</ChatMarkdown>
           {message.status === "pending" && (
             <div className="mt-3">
               <Button
@@ -694,9 +693,9 @@ function PlanMessage({
               <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
                 <XCircle className="h-3 w-3" /> Your feedback
               </div>
-              <div className="prose prose-sm max-w-none text-xs prose-neutral dark:prose-invert prose-p:my-0.5">
-                <Markdown>{message.feedback}</Markdown>
-              </div>
+              <ChatMarkdown tone="muted" size="xs">
+                {message.feedback}
+              </ChatMarkdown>
             </div>
           )}
         </>
@@ -732,9 +731,13 @@ function ReasoningMessage({
         />
       </button>
       {expanded && (
-        <div className="prose prose-sm max-w-none border-t border-border px-2 py-1.5 text-xs text-muted-foreground prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-[11px] prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-ol:my-1 prose-ul:my-1">
-          <Markdown>{message.content}</Markdown>
-        </div>
+        <ChatMarkdown
+          tone="muted"
+          size="xs"
+          className="border-t border-border px-2 py-1.5"
+        >
+          {message.content}
+        </ChatMarkdown>
       )}
     </div>
   )
@@ -879,11 +882,14 @@ function UserMessage({
 
   return (
     <div className="flex justify-end">
-      <div className="prose prose-sm max-w-[85%] rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-code:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-pre-code:var(--primary-foreground)] prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-pre:my-1 prose-pre:border-0 prose-pre:bg-primary-foreground/10 prose-ol:my-1 prose-ul:my-1">
-        <Markdown urlTransform={(url) => url} components={components}>
-          {displayContent}
-        </Markdown>
-      </div>
+      <ChatMarkdown
+        tone="inverted"
+        urlTransform={(url) => url}
+        components={components}
+        className="max-w-[85%] rounded-lg bg-primary px-3 py-1"
+      >
+        {displayContent}
+      </ChatMarkdown>
     </div>
   )
 }
@@ -904,11 +910,7 @@ export function AgentMessageItem({
       return <UserMessage message={message} />
 
     case "assistant":
-      return (
-        <div className="prose prose-sm max-w-none text-sm prose-neutral dark:prose-invert prose-headings:my-1.5 prose-p:my-1 prose-code:text-xs prose-code:text-foreground prose-pre:my-1 prose-pre:border prose-pre:border-border prose-pre:bg-background prose-pre:text-foreground prose-ol:my-1 prose-ul:my-1">
-          <Markdown>{message.content}</Markdown>
-        </div>
-      )
+      return <ChatMarkdown>{message.content}</ChatMarkdown>
 
     case "reasoning":
       return <ReasoningMessage message={message} />
