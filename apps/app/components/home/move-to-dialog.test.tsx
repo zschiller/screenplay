@@ -154,4 +154,55 @@ describe("MoveToDialog", () => {
 
     expect(onMove).toHaveBeenCalledWith(null)
   })
+
+  it("is one Tab stop: the first destination on offer until one is picked", () => {
+    render(
+      <MoveToDialog
+        open
+        onOpenChange={vi.fn()}
+        itemName="Alpha"
+        currentParentId={null}
+        movingFolderId="a"
+        folders={tree}
+        onMove={vi.fn().mockResolvedValue(undefined)}
+      />
+    )
+
+    // "All files" is where Alpha already lives and Alpha's own branch is
+    // blocked, so Epsilon is the first destination on offer.
+    const tabbable = screen
+      .getAllByRole("radio")
+      .filter((radio) => radio.tabIndex === 0)
+    expect(tabbable).toEqual([dest("Epsilon")])
+  })
+
+  it("walks the enabled destinations with the arrow keys, picking each", () => {
+    render(
+      <MoveToDialog
+        open
+        onOpenChange={vi.fn()}
+        itemName="Beta"
+        currentParentId="a"
+        movingFolderId="b"
+        folders={tree}
+        onMove={vi.fn().mockResolvedValue(undefined)}
+      />
+    )
+
+    // Enabled, in order: All files, Epsilon (Alpha is home; Beta and Gamma
+    // are Beta's own branch).
+    dest("All files").focus()
+    fireEvent.keyDown(dest("All files"), { key: "ArrowDown" })
+    expect(document.activeElement).toBe(dest("Epsilon"))
+    expect(dest("Epsilon").getAttribute("aria-checked")).toBe("true")
+    expect(dest("Epsilon").tabIndex).toBe(0)
+    expect(dest("All files").tabIndex).toBe(-1)
+
+    // Wraps from the last back to the first.
+    fireEvent.keyDown(dest("Epsilon"), { key: "ArrowDown" })
+    expect(document.activeElement).toBe(dest("All files"))
+
+    fireEvent.keyDown(dest("All files"), { key: "ArrowUp" })
+    expect(document.activeElement).toBe(dest("Epsilon"))
+  })
 })

@@ -23,6 +23,8 @@ export type HistoryEntry =
       plan: string
       status: "pending" | "approved" | "rejected"
     }
+  // A run the user stopped, placed at the run's `endedAt`.
+  | { kind: "stopped" }
 
 /**
  * Render a chat's ACP-native timeline into the `AgentMessage[]` the chat UI
@@ -44,6 +46,10 @@ export function renderHistory(entries: HistoryEntry[]): AgentMessage[] {
         status: entry.status,
         planId: entry.planId,
       })
+      continue
+    }
+    if (entry.kind === "stopped") {
+      out.push({ role: "stopped" })
       continue
     }
     renderRecord(entry.record, out)

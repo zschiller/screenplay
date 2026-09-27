@@ -60,13 +60,16 @@ export function HomeScrollBody({
   }, [])
 
   return (
-    <div ref={ref} className="relative min-h-0 flex-1">
+    // `@container/home` is what the home pages size their gutters and columns off
+    // (`HOME_GUTTER`): the content's width, which the resizable sidebar decides
+    // far more than the window does.
+    <div ref={ref} className="@container/home relative min-h-0 flex-1">
       <ScrollArea
         orientation="vertical"
         // Override the viewport's display:table wrapper back to block so the
         // header's position: sticky works, and lift the scrollbar above the
         // sticky header (z-10) so the header never paints over it.
-        className="h-full [&>[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-scrollbar]]:z-20"
+        className="h-full [&_[data-slot=scroll-area-scrollbar]]:z-20 [&>[data-slot=scroll-area-viewport]>div]:!block"
       >
         {/* Breathing room above the heading; scrolls away as the header pins. */}
         <div data-tauri-drag-region className="h-4" />

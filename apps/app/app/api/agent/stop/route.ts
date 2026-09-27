@@ -1,7 +1,7 @@
 import { getUserId } from "@/lib/auth-helpers"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { transition } from "@/lib/agent/run-state"
-import { broadcastSignal } from "@/lib/agent/broadcast"
+import { broadcastControl, broadcastSignal } from "@/lib/agent/broadcast"
 
 export const runtime = "nodejs"
 
@@ -28,6 +28,10 @@ export async function POST(req: Request) {
     // polls `isRunActive` every ABORT_POLL_INTERVAL_MS and aborts once this
     // lands; the machine's terminal guard keeps a duplicate /stop a no-op.
     await transition(active.id, "aborted")
+    // Mark the transcript before the stream ends, so clients show the run as
+    // stopped rather than finished. A reload rebuilds the same marker from the
+    // run's `aborted` status (see /api/agent/history).
+    await broadcastControl(roomId, chatId, { kind: "stopped" })
   }
 
   // Always end the streaming UI state, mirroring v1's stop semantics: the

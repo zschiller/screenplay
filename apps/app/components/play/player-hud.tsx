@@ -9,7 +9,7 @@ import {
   useState,
 } from "react"
 import Link from "next/link"
-import { animate, motion, useMotionValue } from "motion/react"
+import { animate, motion, useMotionValue, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   GripVertical,
@@ -116,6 +116,23 @@ export function PlayerHud({
   const hudRef = useRef<HTMLDivElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
+  // `MotionConfig reducedMotion="user"` covers declarative animations, but not
+  // the imperative `animate()` calls below — those snap instead of springing.
+  const reduceMotion = useReducedMotion()
+  const snapTo = useCallback(
+    (target: { x: number; y: number }, stiffness: number, damping: number) => {
+      if (reduceMotion) {
+        x.stop()
+        y.stop()
+        x.set(target.x)
+        y.set(target.y)
+        return
+      }
+      animate(x, target.x, { type: "spring", stiffness, damping })
+      animate(y, target.y, { type: "spring", stiffness, damping })
+    },
+    [reduceMotion, x, y]
+  )
 
   const cornerPos = useCallback((c: Corner) => {
     const rect = hudRef.current?.getBoundingClientRect()
@@ -147,13 +164,11 @@ export function PlayerHud({
   // Re-snap on viewport resize so the HUD stays anchored to its corner.
   useEffect(() => {
     function handleResize() {
-      const target = cornerPos(corner)
-      animate(x, target.x, { type: "spring", stiffness: 320, damping: 28 })
-      animate(y, target.y, { type: "spring", stiffness: 320, damping: 28 })
+      snapTo(cornerPos(corner), 320, 28)
     }
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [corner, cornerPos, x, y])
+  }, [corner, cornerPos, snapTo])
 
   const persistCorner = useCallback((next: Corner) => {
     setCorner(next)
@@ -177,10 +192,8 @@ export function PlayerHud({
     const next: Corner =
       `${midY < cy ? "t" : "b"}${midX < cx ? "l" : "r"}` as Corner
     persistCorner(next)
-    const target = cornerPos(next)
-    animate(x, target.x, { type: "spring", stiffness: 360, damping: 26 })
-    animate(y, target.y, { type: "spring", stiffness: 360, damping: 26 })
-  }, [cornerPos, persistCorner, onDraggingChange, x, y])
+    snapTo(cornerPos(next), 360, 26)
+  }, [cornerPos, persistCorner, onDraggingChange, snapTo])
 
   // Where to dock the expanded panel relative to the pill's anchor corner.
   // The pill height is a stable shadcn `icon-xs` row so we use the static
@@ -207,6 +220,30 @@ export function PlayerHud({
     }
     window.addEventListener("pointerdown", onPointerDown)
     return () => window.removeEventListener("pointerdown", onPointerDown)
+  }, [panel])
+
+  // Escape closes the open panel and hands focus back to the button that
+  // opened it. Only while focus is in the HUD (or nowhere): Escape inside the
+  // chat panel or the prototype belongs to them, and one inside a Select or
+  // menu the panel opened lands in a portal outside the HUD, which closes that
+  // first.
+  const panelButtons = useRef<
+    Partial<Record<"knobs" | "comments", HTMLButtonElement | null>>
+  >({})
+  useEffect(() => {
+    if (!panel) return
+    const open = panel
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || e.defaultPrevented) return
+      const active = document.activeElement
+      const inHud = !!active && !!hudRef.current?.contains(active)
+      if (!inHud && active !== document.body && active !== null) return
+      e.preventDefault()
+      setPanel(null)
+      if (inHud) panelButtons.current[open]?.focus()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
   }, [panel])
 
   // Tooltips dock above when the HUD is anchored at the bottom of the
@@ -307,8 +344,13 @@ export function PlayerHud({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                ref={(el) => {
+                  panelButtons.current.knobs = el
+                }}
                 variant={panel === "knobs" ? "default" : "ghost"}
                 size="icon-xs"
+                aria-label="Knobs"
+                aria-expanded={panel === "knobs"}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => setPanel(panel === "knobs" ? null : "knobs")}
               >
@@ -326,8 +368,13 @@ export function PlayerHud({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  ref={(el) => {
+                    panelButtons.current.comments = el
+                  }}
                   variant={panel === "comments" ? "default" : "ghost"}
                   size="icon-xs"
+                  aria-label="Comments"
+                  aria-expanded={panel === "comments"}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() =>
                     setPanel(panel === "comments" ? null : "comments")
@@ -345,6 +392,8 @@ export function PlayerHud({
                 <Button
                   variant={chatOpen ? "default" : "ghost"}
                   size="icon-xs"
+                  aria-label={chatOpen ? "Hide agent" : "Open agent"}
+                  aria-expanded={!!chatOpen}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={onToggleChat}
                 >

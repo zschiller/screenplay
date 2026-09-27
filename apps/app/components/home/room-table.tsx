@@ -27,7 +27,7 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
-import { MoveToDialog } from "./move-to-dialog"
+import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFileDraggable, useFolderDragDrop } from "./file-dnd"
 import { ThumbnailComposite } from "./room-grid"
 import { useHome } from "./home-provider"
@@ -35,6 +35,7 @@ import type { SortKey } from "@/lib/room-sort"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
 // The Name-column content of a folder row — icon + name link. Shared by the
 // live row and its drag preview so they stay in sync.
@@ -54,7 +55,7 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
 // one reads as a blank document. The composite never draws text.
 function RoomRowThumbnail({ room }: { room: RoomSummary }) {
   return (
-    <div className="relative aspect-[4/3] h-20 shrink-0 overflow-hidden rounded-xs bg-muted-foreground/15">
+    <div className="relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs bg-muted-foreground/15 @2xl/home:h-20">
       {room.thumbnailManifest && (
         <ThumbnailComposite
           manifest={room.thumbnailManifest}
@@ -90,6 +91,22 @@ const ROW_PREVIEW_CHIP =
 const ROW_HOVER_PILL =
   "hover:bg-transparent! [&>td]:transition-colors hover:[&>td]:bg-muted/50 " +
   "[&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
+
+// A Folder row's drop-target highlight, drawn to match the grid tile's and the
+// sidebar pin's ring. The ring can't sit on the <tr> (a row takes no radius or
+// shadow of its own), so each cell paints its share as inset edges — top and
+// bottom on every cell, plus the outer side on the rounded end cells — and
+// together they trace the row's rounded pill. (Written out in full: Tailwind
+// only sees class names that appear literally in the source.)
+const ROW_DROP_RING =
+  "[&>td]:shadow-[inset_0_2px_0_0_var(--primary),inset_0_-2px_0_0_var(--primary)] " +
+  "[&>td:first-child]:shadow-[inset_2px_0_0_0_var(--primary),inset_0_2px_0_0_var(--primary),inset_0_-2px_0_0_var(--primary)] " +
+  "[&>td:last-child]:shadow-[inset_-2px_0_0_0_var(--primary),inset_0_2px_0_0_var(--primary),inset_0_-2px_0_0_var(--primary)]"
+
+// The columns that give way as the content narrows (sized off the home
+// container, `HomeScrollBody`): Created goes first, so Name keeps room for the
+// thumbnail and a readable title down to the narrowest the sidebar allows.
+const CREATED_COLUMN = "hidden @2xl/home:table-cell"
 
 export function FolderRowDragPreview({ folder }: { folder: FolderSummary }) {
   return (
@@ -146,7 +163,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       className={cn(
         "group border-b-0 [&>td]:py-1.5",
         ROW_HOVER_PILL,
-        isOver && "bg-accent"
+        isOver && ROW_DROP_RING
       )}
     >
       <TableCell>
@@ -162,7 +179,10 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
       </TableCell>
       <TableCell
         suppressHydrationWarning
-        className="whitespace-nowrap text-muted-foreground"
+        className={cn(
+          "whitespace-nowrap text-muted-foreground",
+          CREATED_COLUMN
+        )}
       >
         {formatDistanceToNow(folder.createdAt)}
       </TableCell>
@@ -181,7 +201,7 @@ function FolderRow({ folder }: { folder: FolderSummary }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+            className={ACTION_TRIGGER_REVEAL}
             aria-label="Folder actions"
           >
             <MoreHorizontal />
@@ -231,6 +251,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
     allFolders,
     folderView,
     currentFolderId,
+    folderOfRoom,
     isPinned,
     pinRoom,
     unpin,
@@ -278,7 +299,10 @@ function RoomRow({ room }: { room: RoomSummary }) {
       </TableCell>
       <TableCell
         suppressHydrationWarning
-        className="whitespace-nowrap text-muted-foreground"
+        className={cn(
+          "whitespace-nowrap text-muted-foreground",
+          CREATED_COLUMN
+        )}
       >
         {formatDistanceToNow(room.createdAt)}
       </TableCell>
@@ -294,9 +318,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
           onRename={() => setRenameOpen(true)}
           onDelete={() => setDeleteOpen(true)}
           onShare={() => setShareOpen(true)}
-          // Filing only makes sense where there's a folder tree to file into —
-          // the files page, not the flat Recents view.
-          onMove={folderView ? () => setMoveOpen(true) : undefined}
+          onMove={canMoveRoom(allFolders) ? () => setMoveOpen(true) : undefined}
           pinned={pinned}
           onTogglePin={() =>
             pinned ? unpin("room", room.id) : pinRoom(room.id)
@@ -305,7 +327,7 @@ function RoomRow({ room }: { room: RoomSummary }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+            className={ACTION_TRIGGER_REVEAL}
             aria-label="Canvas actions"
           >
             <MoreHorizontal />
@@ -322,13 +344,13 @@ function RoomRow({ room }: { room: RoomSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameRoom(room.id, name)}
       />
-      {/* In a folder view every Room shown is placed in the folder being viewed,
-          so its current home is `currentFolderId`. */}
+      {/* The Canvas's real home, not the view's: on Recents the grid spans
+          every folder, so the folder being viewed says nothing about it. */}
       <MoveToDialog
         open={moveOpen}
         onOpenChange={setMoveOpen}
         itemName={room.name}
-        currentParentId={currentFolderId}
+        currentParentId={folderOfRoom(room.id)}
         folders={allFolders}
         onMove={(target) => moveRoom(room.id, target)}
       />
@@ -432,7 +454,7 @@ export function RoomTable({
           <SortableHead
             label="Created"
             sortKey="created"
-            className="whitespace-nowrap"
+            className={cn("whitespace-nowrap", CREATED_COLUMN)}
             style={{ width: "10rem" }}
           />
           {/* Owner column is hidden in the single-user desktop build. It carries

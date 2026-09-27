@@ -1,5 +1,59 @@
 @import "@workspace/ui/globals.css";
 
+/* Canvas tokens (issue #719). One source for the canvas chrome's colours and
+   its stacking order, read by both the drawn overlays (`lib/canvas/tokens.ts`
+   resolves these for the 2D contexts) and the DOM (`text-canvas-selection`,
+   `z-(--z-canvas-chrome)`, …).
+
+   Colours — retune per theme under `.dark` below:
+     selection    local selection outlines, handles, marquee, drafts, and the
+                  selected layer / group titles and sidebar drop lines
+     snap         snap guides and a resize locked onto a device preset
+     inspect      the element under the pointer while commenting / picking
+     highlight    the element a hovered composer token references
+     group-merge  the slot a dragged Group would merge into (drawn at 40%)
+
+   Layers, bottom to top, inside the canvas wrapper (its `isolate` keeps them
+   local, so app-level popovers portalled to <body> always sit above all of
+   them):
+     overlay      the drawn selection / snap / inspect overlay
+     annotations  comment pins and the comment composer
+     popovers     floating frame toolbars and the inline "Comment" bubble
+     presence     remote cursors and the local cursor-chat input
+     chrome       the top bar, the tool bar, the top-right pill and the
+                  window-drag strip behind them
+   Remote cursors sit *under* the chrome on purpose: a peer's pointer is
+   information, the toolbars are controls, and a cursor parked over a button
+   must never hide it. */
+:root {
+  --canvas-selection: oklch(0.667 0.295 322.15);
+  --canvas-snap: oklch(0.637 0.237 25.331);
+  --canvas-inspect: oklch(0.623 0.214 259.815);
+  --canvas-highlight: oklch(0.685 0.169 237.323);
+  --canvas-group-merge: var(--canvas-snap);
+
+  --z-canvas-overlay: 10;
+  --z-canvas-annotations: 20;
+  --z-canvas-popovers: 30;
+  --z-canvas-presence: 40;
+  --z-canvas-chrome: 50;
+}
+
+.dark {
+  --canvas-selection: oklch(0.667 0.295 322.15);
+  --canvas-snap: oklch(0.637 0.237 25.331);
+  --canvas-inspect: oklch(0.623 0.214 259.815);
+  --canvas-highlight: oklch(0.685 0.169 237.323);
+}
+
+@theme inline {
+  --color-canvas-selection: var(--canvas-selection);
+  --color-canvas-snap: var(--canvas-snap);
+  --color-canvas-inspect: var(--canvas-inspect);
+  --color-canvas-highlight: var(--canvas-highlight);
+  --color-canvas-group-merge: var(--canvas-group-merge);
+}
+
 /* Disable browser swipe-to-navigate so two-finger horizontal pans on the
    canvas don't accidentally trigger back/forward. */
 html,
@@ -58,6 +112,26 @@ body {
   }
 }
 
+/* Reduce motion, app-wide. With the OS setting on, every CSS animation and
+   transition finishes at once — looping keyframes like the Grip spinner hold
+   still on their end frame, and panels, menus, and dialogs appear rather than
+   slide or zoom. A near-zero duration rather than `none`, so `animationend` and
+   `transitionend` still fire for the code (Radix's presence, above all) that
+   waits on them. `motion` animations are covered by MotionConfig in
+   components/motion-provider.tsx. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Tiptap Collaboration caret — remote user cursors in text layers */
 .collaboration-carets__caret {
   position: relative;
@@ -88,7 +162,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: #fff;
+  /* Ink comes from `presenceInkClass` in the caret's render (issue #719). */
   padding: 2px 4px;
   border-radius: 3px;
   white-space: nowrap;
@@ -165,4 +239,262 @@ body {
   height: 0;
   width: 0;
   white-space: pre;
+}
+
+/* Chat markdown — the shared renderer every chat message kind uses
+   (`components/agent/chat-markdown.tsx`). Inline code matches the Document
+   editor's chip above; fenced code gets a header (language + copy) and
+   theme-aware highlight.js token colours; code and tables scroll inside the
+   message instead of widening the panel. Colours are custom properties so the
+   inverted user bubble can take the opposite theme's palette: its fill is the
+   `primary` colour, dark in light mode and light in dark mode. */
+.chat-markdown {
+  --chat-code-bg: var(--muted);
+  --chat-code-fg: var(--foreground);
+  --chat-block-bg: color-mix(in oklab, var(--muted) 45%, var(--background));
+  --chat-block-border: var(--border);
+  --chat-block-muted: var(--muted-foreground);
+  --chat-rule: var(--border);
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-title: #8250df;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-builtin: #953800;
+  --hl-tag: #116329;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+  overflow-wrap: anywhere;
+}
+.dark .chat-markdown,
+.chat-markdown-inverted {
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-title: #d2a8ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-builtin: #ffa657;
+  --hl-tag: #7ee787;
+  --hl-addition-bg: rgba(46, 160, 67, 0.15);
+  --hl-deletion-bg: rgba(248, 81, 73, 0.15);
+}
+.dark .chat-markdown-inverted {
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-title: #8250df;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-builtin: #953800;
+  --hl-tag: #116329;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+}
+.chat-markdown-inverted {
+  --chat-code-bg: color-mix(
+    in oklab,
+    var(--primary-foreground) 16%,
+    transparent
+  );
+  --chat-code-fg: var(--primary-foreground);
+  --chat-block-bg: color-mix(
+    in oklab,
+    var(--primary-foreground) 10%,
+    transparent
+  );
+  --chat-block-border: color-mix(
+    in oklab,
+    var(--primary-foreground) 18%,
+    transparent
+  );
+  --chat-block-muted: color-mix(
+    in oklab,
+    var(--primary-foreground) 65%,
+    transparent
+  );
+  --chat-rule: color-mix(in oklab, var(--primary-foreground) 25%, transparent);
+}
+
+.chat-markdown code::before,
+.chat-markdown code::after {
+  content: none;
+}
+
+.chat-markdown :not(pre) > code {
+  background-color: var(--chat-code-bg);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.3em;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--chat-code-fg);
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown-codeblock {
+  margin: 0.5rem 0;
+  border: 1px solid var(--chat-block-border);
+  border-radius: 0.375rem;
+  background-color: var(--chat-block-bg);
+  overflow: hidden;
+  min-width: 0;
+}
+.chat-markdown-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.625rem;
+  border-bottom: 1px solid var(--chat-block-border);
+  color: var(--chat-block-muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  line-height: 1.5rem;
+}
+.chat-markdown-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  color: var(--chat-block-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.chat-markdown-copy:hover,
+.chat-markdown-copy:focus-visible {
+  background-color: var(--chat-code-bg);
+  color: var(--chat-code-fg);
+}
+.chat-markdown .chat-markdown-codeblock pre {
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--chat-code-fg);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.chat-markdown .chat-markdown-codeblock pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 400;
+  color: inherit;
+}
+
+.chat-markdown-scroll {
+  margin: 0.5rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.chat-markdown .chat-markdown-scroll table {
+  margin: 0;
+  width: auto;
+  min-width: 100%;
+  font-size: 0.9em;
+  overflow-wrap: normal;
+}
+.chat-markdown thead {
+  border-bottom-color: var(--chat-rule);
+}
+.chat-markdown tbody tr {
+  border-bottom-color: var(--chat-rule);
+}
+.chat-markdown th,
+.chat-markdown td {
+  padding: 0.25rem 0.625rem 0.25rem 0;
+}
+/* Cells keep to one line: in a narrow panel the auto layout otherwise
+   squeezes short cells into a word per line. The wrapper scrolls instead. */
+.chat-markdown th,
+.chat-markdown td {
+  white-space: nowrap;
+}
+
+/* GFM task lists: the checkbox is the marker, so drop the bullet. */
+.chat-markdown ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.chat-markdown li.task-list-item {
+  padding-left: 0;
+}
+.chat-markdown li.task-list-item input[type="checkbox"] {
+  margin: 0 0.4rem 0 0;
+  vertical-align: -0.1em;
+  accent-color: var(--primary);
+}
+.chat-markdown-inverted li.task-list-item input[type="checkbox"] {
+  accent-color: var(--primary-foreground);
+}
+
+.chat-markdown del {
+  color: var(--chat-block-muted);
+}
+
+/* highlight.js tokens (rehype-highlight). */
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag,
+.chat-markdown .hljs-meta .hljs-keyword,
+.chat-markdown .hljs-doctag,
+.chat-markdown .hljs-template-tag,
+.chat-markdown .hljs-type {
+  color: var(--hl-keyword);
+}
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-regexp,
+.chat-markdown .hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.chat-markdown .hljs-title,
+.chat-markdown .hljs-title.class_,
+.chat-markdown .hljs-title.function_,
+.chat-markdown .hljs-section {
+  color: var(--hl-title);
+}
+.chat-markdown .hljs-number,
+.chat-markdown .hljs-literal,
+.chat-markdown .hljs-attr,
+.chat-markdown .hljs-attribute,
+.chat-markdown .hljs-property,
+.chat-markdown .hljs-selector-attr,
+.chat-markdown .hljs-selector-class,
+.chat-markdown .hljs-selector-id,
+.chat-markdown .hljs-variable.constant_,
+.chat-markdown .hljs-meta {
+  color: var(--hl-number);
+}
+.chat-markdown .hljs-built_in,
+.chat-markdown .hljs-variable,
+.chat-markdown .hljs-params,
+.chat-markdown .hljs-symbol {
+  color: var(--hl-builtin);
+}
+.chat-markdown .hljs-name,
+.chat-markdown .hljs-tag,
+.chat-markdown .hljs-quote,
+.chat-markdown .hljs-selector-pseudo {
+  color: var(--hl-tag);
+}
+.chat-markdown .hljs-comment {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.chat-markdown .hljs-addition {
+  background-color: var(--hl-addition-bg);
+}
+.chat-markdown .hljs-deletion {
+  background-color: var(--hl-deletion-bg);
+}
+.chat-markdown .hljs-emphasis {
+  font-style: italic;
+}
+.chat-markdown .hljs-strong {
+  font-weight: 600;
 }

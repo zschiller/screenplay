@@ -58,7 +58,7 @@ export function GroupLabel({
       dragPointerDown?.(e)
     }
     const colorClass = groupSelected
-      ? "text-fuchsia-500"
+      ? "text-canvas-selection"
       : remoteColor
         ? undefined
         : "text-muted-foreground"
@@ -114,7 +114,7 @@ export function GroupLabel({
       className={cn(
         "mb-0.5 min-w-0 truncate text-xs font-medium",
         groupSelected
-          ? "text-fuchsia-500"
+          ? "text-canvas-selection"
           : remoteColor
             ? undefined
             : "text-muted-foreground"

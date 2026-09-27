@@ -1,7 +1,7 @@
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, isNotNull } from "drizzle-orm"
 import { getUserId } from "@/lib/auth-helpers"
 import { db } from "@/lib/db"
-import { agentMessage, agentPendingToolCall } from "@/lib/db/schema"
+import { agentMessage, agentPendingToolCall, agentRun } from "@/lib/db/schema"
 import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
 
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   const chatId = searchParams.get("chatId")
   if (!chatId) return Response.json([])
 
-  const [rows, planRows] = await Promise.all([
+  const [rows, planRows, stoppedRuns] = await Promise.all([
     db
       .select({
         message: agentMessage.message,
@@ -49,9 +49,22 @@ export async function GET(req: Request) {
           eq(agentPendingToolCall.toolName, "submit_plan")
         )
       ),
+    // Runs the user stopped. The stop drops the run's remaining output, so
+    // nothing in the message log says the turn was cut short; its `endedAt`
+    // places a "Stopped" marker where the transcript ends.
+    db
+      .select({ endedAt: agentRun.endedAt })
+      .from(agentRun)
+      .where(
+        and(
+          eq(agentRun.chatId, chatId),
+          eq(agentRun.status, "aborted"),
+          isNotNull(agentRun.endedAt)
+        )
+      ),
   ])
 
-  // Merge the two streams into one time-ordered timeline so the plan card lands
+  // Merge the streams into one time-ordered timeline so the plan card lands
   // between the narration that preceded it and the resolution that followed.
   const timeline: Array<{ createdAt: Date; entry: HistoryEntry }> = []
   for (const r of rows) {
@@ -70,6 +83,10 @@ export async function GET(req: Request) {
         status: p.status,
       },
     })
+  }
+  for (const r of stoppedRuns) {
+    if (r.endedAt)
+      timeline.push({ createdAt: r.endedAt, entry: { kind: "stopped" } })
   }
   timeline.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
 

@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent/acp/schema"
 import { applyToolCallUpdate } from "@/lib/agent/acp/record"
 import { withBasePath } from "@/lib/base-path"
+import { isFixtureWorld } from "@/lib/fixture-world"
 
 export type ChatState = {
   messages: AgentMessage[]
@@ -50,6 +51,10 @@ export type ChatControlEvent =
   // A turn failure. ACP expresses errors out of band of the update stream, so
   // this is not a `session/update`; it surfaces the error in chat.
   | { kind: "error"; message: string }
+  // The user stopped the run. Sent by /api/agent/stop just before
+  // `chat-stream-end`, so every client drops the same "Stopped" marker into the
+  // transcript that a reload rebuilds from the run's `aborted` status.
+  | { kind: "stopped" }
 
 /**
  * Envelope broadcast via the room Y.Doc to all clients. `id` is generated at
@@ -371,9 +376,17 @@ class ChatStore {
       }
     } catch (e) {
       // Network failure means the server's broadcast may never land — fall
-      // back to clearing local streaming state so the user isn't stuck.
+      // back to clearing local streaming state so the user isn't stuck, and say
+      // so in the transcript: the run may still be going on the server.
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, { error: msg, isStreaming: false })
+      this.update(chatId, {
+        error: msg,
+        isStreaming: false,
+        messages: [
+          ...this.getOrCreate(chatId).messages,
+          { role: "error", content: `Couldn't stop the agent: ${msg}` },
+        ],
+      })
     }
   }
 
@@ -456,6 +469,15 @@ class ChatStore {
                 }
               : m
           ),
+        })
+        break
+      }
+      case "stopped": {
+        const prev = this.getOrCreate(chatId).messages
+        // A duplicate /stop (or a second subscriber) mustn't stack markers.
+        if (prev[prev.length - 1]?.role === "stopped") break
+        this.update(chatId, {
+          messages: [...prev, { role: "stopped" as const }],
         })
         break
       }
@@ -727,3 +749,11 @@ class ChatStore {
 }
 
 export const chatStore = new ChatStore()
+
+// The screenshot harness has no agent to run, so in the Fixture World build it
+// drives the chat's run states (streaming, stopped) by replaying the broadcast
+// events a real run would send. `isFixtureWorld` is a compile-time constant
+// and-ed with the local build, so no other build carries this handle.
+if (isFixtureWorld && typeof window !== "undefined") {
+  ;(window as unknown as { __chatStore?: ChatStore }).__chatStore = chatStore
+}

@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
+import { MotionProvider } from "@/components/motion-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s · Screenplay",
   },
   description:
-    "Design UI on an infinite canvas. Each iframeLayer runs a live sandbox. Collaborate in real time.",
+    "Design UI on an infinite canvas. Each frame is a live preview of your app. Collaborate in real time.",
 }
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
@@ -42,6 +43,7 @@ const fontMono = Geist_Mono({
  */
 async function computeGateState(): Promise<{
   initiallyBlocked: boolean
+  status: { harnessSatisfied: boolean; githubSatisfied: boolean }
   githubSkipped: boolean
 }> {
   const cookieStore = await cookies()
@@ -51,6 +53,7 @@ async function computeGateState(): Promise<{
   const status = await getLocalSetupGateStatus()
   return {
     githubSkipped,
+    status,
     initiallyBlocked: !isLocalSetupComplete({ ...status, githubSkipped }),
   }
 }
@@ -66,10 +69,11 @@ export default async function RootLayout({
   // probes — is dead-code-eliminated and the sign-in path is untouched.
   let body: React.ReactNode = children
   if (isLocalBuild) {
-    const { initiallyBlocked, githubSkipped } = await computeGateState()
+    const { initiallyBlocked, status, githubSkipped } = await computeGateState()
     body = (
       <LocalSetupGate
         initiallyBlocked={initiallyBlocked}
+        initialStatus={status}
         initiallyGithubSkipped={githubSkipped}
       >
         {children}
@@ -90,8 +94,10 @@ export default async function RootLayout({
     >
       <body>
         <ThemeProvider>
-          {body}
-          <Toaster />
+          <MotionProvider>
+            {body}
+            <Toaster />
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>
