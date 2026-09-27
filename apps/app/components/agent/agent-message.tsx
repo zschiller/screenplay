@@ -548,9 +548,15 @@ function ToolCallIndicator({
  * calls (each a normal
  * {@link ToolCallIndicator}) advancing through their own status lifecycle.
  *
- * Default open while the subagent works, closed once it has settled (a reload of
- * a finished run starts collapsed). Per-Task expand/collapse *persistence* is
- * out of scope (#636).
+ * Default open while the subagent works, closed once it has settled: the initial
+ * state is seeded from "is anything running" (so a reload of a finished run
+ * starts collapsed and a reload mid-run starts open), and a live group
+ * auto-collapses when it moves from running to settled (the Task and all its
+ * children are no longer pending or in progress). A group that settles as
+ * *failed* collapses too — the header's red flag already surfaces the failure,
+ * and it keeps a live run consistent with a reload of the same run. Once the
+ * user has toggled a group by hand, their choice wins and the auto-collapse
+ * leaves it alone. Per-Task expand/collapse *persistence* is out of scope (#636).
  */
 export function TaskGroup({
   task,
@@ -565,6 +571,14 @@ export function TaskGroup({
   const anyFailed =
     task.status === "failed" || childCalls.some((c) => c.status === "failed")
   const [expanded, setExpanded] = useState(anyRunning)
+  const [userToggled, setUserToggled] = useState(false)
+  // Follow the running ↔ settled transition until the user takes over. Adjusted
+  // during render (not in an effect) so a settled group never paints open first.
+  const [wasRunning, setWasRunning] = useState(anyRunning)
+  if (wasRunning !== anyRunning) {
+    setWasRunning(anyRunning)
+    if (!userToggled) setExpanded(anyRunning)
+  }
 
   return (
     <div
@@ -572,19 +586,24 @@ export function TaskGroup({
       className="rounded-md border border-border bg-muted/30"
     >
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          setUserToggled(true)
+          setExpanded(!expanded)
+        }}
         data-testid="task-group-header"
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
       >
         {anyRunning ? (
-          <Loader2 className="h-3 w-3 shrink-0 animate-spin [transform-origin:center] will-change-transform" />
+          <Loader2 className="h-3 w-3 shrink-0 [transform-origin:center] animate-spin will-change-transform" />
         ) : anyFailed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
         ) : (
           <Bot className="h-3 w-3 shrink-0" />
         )}
-        <span className="flex-1 truncate">{renderTitleWithCode(task.title)}</span>
-        <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground/70">
+        <span className="flex-1 truncate">
+          {renderTitleWithCode(task.title)}
+        </span>
+        <span className="shrink-0 text-[11px] text-muted-foreground/70 tabular-nums">
           {childCalls.length}
         </span>
         <ChevronDown
@@ -799,7 +818,11 @@ function ElementHistoryToken({
  * token (see `ElementHistoryToken`). Memoizing keeps the token instances stable
  * so an open HoverCard survives those re-renders.
  */
-function UserMessage({ message }: { message: AgentMessage & { role: "user" } }) {
+function UserMessage({
+  message,
+}: {
+  message: AgentMessage & { role: "user" }
+}) {
   // Strip the server turn prefixes and the referenced-documents / targeted-
   // elements footers via the Message Markers codec, then recover the inline
   // chips: `skillMarkersToPills` for the `/`-skill marker and
@@ -818,7 +841,9 @@ function UserMessage({ message }: { message: AgentMessage & { role: "user" } }) 
   // link carries, so each history token can hang a hover card off it.
   const targetedElements = useMemo(
     () =>
-      new Map(parseTargetedElementsFooter(message.content).map((e) => [e.ref, e])),
+      new Map(
+        parseTargetedElementsFooter(message.content).map((e) => [e.ref, e])
+      ),
     [message.content]
   )
   const components = useMemo<Components>(
