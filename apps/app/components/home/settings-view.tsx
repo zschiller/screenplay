@@ -7,6 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { isLocalBuild } from "@/lib/local-mode"
 import { HomeScrollBody } from "./home-scroll-body"
+import { HOME_COLUMN, HomePageHeader } from "./home-page-header"
 import { GitHubConnectionPanel } from "./github-connection-panel"
 import { HarnessSetupPanel } from "./harness-setup-panel"
 import { RepoConfigsPanel } from "./repo-configs-panel"
@@ -18,20 +19,10 @@ const THEMES: { value: string; label: string; icon: LucideIcon }[] = [
 ]
 
 export function SettingsView() {
-  const header = (
-    <header
-      data-tauri-drag-region
-      className="flex h-14 items-center bg-background"
-    >
-      <div className="mx-auto flex w-full max-w-5xl items-center px-16">
-        <h1 className="text-2xl font-normal">Settings</h1>
-      </div>
-    </header>
-  )
   return (
     <>
-      <HomeScrollBody header={header}>
-        <div className="mx-auto max-w-5xl space-y-10 px-16 pb-4">
+      <HomeScrollBody header={<HomePageHeader title="Settings" />}>
+        <div className={cn(HOME_COLUMN, "space-y-10 pb-4")}>
           <Section
             title="Appearance"
             description="How Screenplay looks on this device."
@@ -59,7 +50,7 @@ export function SettingsView() {
 
           <Section
             title="Project presets"
-            description="Saved per-repo setup, dev, port, and env vars. Applied when you add a project to a canvas."
+            description="Saved setup, dev, port, and env vars for each project. Applied when you add a project to a canvas."
           >
             <RepoConfigsPanel />
           </Section>

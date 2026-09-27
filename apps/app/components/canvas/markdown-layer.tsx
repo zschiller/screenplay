@@ -50,6 +50,7 @@ import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
 import { useMarkdownLayers } from "@/lib/yjs/react"
+import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
@@ -452,7 +453,7 @@ export function MarkdownLayer({
   const bubbleRef = useRef<HTMLDivElement>(null)
 
   // Portal target lives outside the world transform so the bubble can sit
-  // above the SelectionOverlay (z-30 sibling vs. the TransformWrapper's
+  // above the SelectionOverlay (popovers-layer sibling vs. the TransformWrapper's
   // stacking context, where an internal z-index would be capped). Resolved
   // lazily during render — it's only read once `bubbleAnchor` is set by a user
   // interaction, well after the ancestor portal node has mounted, and
@@ -496,6 +497,22 @@ export function MarkdownLayer({
         CollaborationCaret.configure({
           provider,
           user: { name: userName || "Anonymous", color: userColor },
+          // The extension's default caret, with the label's ink picked for
+          // contrast against the presence colour instead of always white.
+          render: (user: { name: string; color: string }) => {
+            const caret = document.createElement("span")
+            caret.classList.add("collaboration-carets__caret")
+            caret.setAttribute("style", `border-color: ${user.color}`)
+            const label = document.createElement("div")
+            label.classList.add(
+              "collaboration-carets__label",
+              presenceInkClass(user.color)
+            )
+            label.setAttribute("style", `background-color: ${user.color}`)
+            label.append(document.createTextNode(user.name))
+            caret.append(label)
+            return caret
+          },
         }),
         Mention.extend({
           addNodeView() {
@@ -950,7 +967,9 @@ export function MarkdownLayer({
                   <FormatButton
                     label="Bullet list"
                     active={!!activeFormats?.bulletList}
-                    onRun={() => editor.chain().focus().toggleBulletList().run()}
+                    onRun={() =>
+                      editor.chain().focus().toggleBulletList().run()
+                    }
                   >
                     <List className="size-3.5" />
                   </FormatButton>

@@ -12,6 +12,7 @@ import { useFolderDragDrop } from "./file-dnd"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
 import { useHome } from "./home-provider"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 
 // Structural classes of a folder tile's outer box, shared by the live card and
 // its drag preview so the two stay identical.
@@ -131,7 +132,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+              className={ACTION_TRIGGER_REVEAL}
               aria-label="Folder actions"
             >
               <MoreHorizontal />

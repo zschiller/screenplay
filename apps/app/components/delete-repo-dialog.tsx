@@ -53,8 +53,7 @@ export function DeleteRepoDialog({
                 className="flex flex-col gap-1"
               >
                 <span className="text-sm font-medium">
-                  Also delete {branchCount}{" "}
-                  {branchCount === 1 ? "branch" : "branches"} on remote
+                  {`Also delete ${branchCount} ${branchCount === 1 ? "branch" : "branches"} on remote`}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Permanently deletes the listed branches from origin.

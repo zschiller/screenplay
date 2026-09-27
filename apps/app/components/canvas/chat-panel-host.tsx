@@ -178,14 +178,14 @@ export function ChatPanelHost({
             </Tooltip>
           </TooltipProvider>
           <span className="text-xs text-muted-foreground">
-            {repos.length === 0 ? "No workspaces" : "No active agents"}
+            {repos.length === 0 ? "No projects" : "No active agents"}
           </span>
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 items-center justify-center px-6">
           <p className="text-sm text-muted-foreground">
             {repos.length === 0
-              ? "Add a workspace to get started"
+              ? "Add a project to get started"
               : "Waiting for an agent to start…"}
           </p>
         </div>

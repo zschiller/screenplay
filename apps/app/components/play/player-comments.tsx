@@ -90,10 +90,10 @@ export function PlayerComments({
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-foreground/5 px-3 py-2">
         <span className="text-xs font-medium text-foreground">
-          Branch comments
+          Workspace comments
         </span>
         <span className="font-mono text-[10px] text-muted-foreground">
-          {branch || "(no branch)"}
+          {branch || "(no workspace)"}
         </span>
       </div>
       <div
@@ -102,8 +102,8 @@ export function PlayerComments({
       >
         {threads.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No comments yet. Drop a note for this branch — anyone with access to
-            the project will see it.
+            No comments yet. Drop a note for this workspace — anyone with access
+            to the canvas will see it.
           </p>
         ) : (
           threads.map((t) => {
@@ -176,7 +176,7 @@ export function PlayerComments({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder={
-            branch ? `Comment on ${branch}…` : "Branch isn't ready yet"
+            branch ? `Comment on ${branch}…` : "Workspace isn't ready yet"
           }
           disabled={!branch}
           rows={2}

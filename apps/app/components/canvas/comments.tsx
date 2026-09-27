@@ -477,7 +477,8 @@ export function Comments({
 
       {newCommentPos && composerCanvasPos && (
         <div
-          className="absolute z-[100] size-0"
+          // Above every pin (they're siblings in the annotations layer).
+          className="absolute z-2 size-0"
           style={{ left: composerCanvasPos.x, top: composerCanvasPos.y }}
         >
           <div style={pinStyle}>
@@ -577,7 +578,8 @@ function CommentPin({
   const firstComment = thread.comments[0]
   return (
     <div
-      className="absolute z-[100] size-0 hover:z-[101]"
+      // A hovered pin lifts over its neighbours, still under the composer.
+      className="absolute size-0 hover:z-1"
       style={{ left: pos.x, top: pos.y }}
     >
       <div style={pinStyle}>

@@ -87,7 +87,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   },
   {
     id: "branch-sandbox",
-    label: "Branch & sandbox",
+    label: "Workspace & sandbox",
     itemKeys: ["new-branch-from-here", "restart"],
   },
   { id: "git", label: "Git", itemKeys: ["create-pr", "rebase", "open-github"] },
@@ -247,7 +247,7 @@ export function BranchOverflowMenuContent({
         onClick={() => onNewBranchFromHere(branch.id)}
       >
         <GitBranchPlus />
-        New branch from here…
+        New workspace from here…
       </DropdownMenuItem>
     ),
     restart: (
