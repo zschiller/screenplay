@@ -11,6 +11,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
+import { Checkbox } from "@workspace/ui/components/checkbox"
+import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
 
 export type ConfirmDialogProps = {
@@ -104,7 +106,16 @@ export function ConfirmDialog({
         onOpenChange(next)
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent
+        // Focus the dialog itself rather than Cancel, so opening from a menu
+        // doesn't paint Cancel's focus ring. Tab still reaches both buttons
+        // and Escape still cancels.
+        tabIndex={-1}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          ;(event.currentTarget as HTMLElement | null)?.focus()
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle className="leading-snug break-words">
             {confirmTitle(verb, itemName, itemNoun)}
@@ -154,5 +165,43 @@ export function ConfirmDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+/**
+ * An opt-in extra for a confirm's option slot ("Also delete the branch on
+ * origin"): a checkbox with its label and an optional hint underneath.
+ */
+export function ConfirmOption({
+  id,
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  disabled,
+}: {
+  id: string
+  label: ReactNode
+  hint?: ReactNode
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(next) => onCheckedChange(next === true)}
+        disabled={disabled}
+        className="mt-px"
+      />
+      <div className="grid gap-1.5">
+        <Label htmlFor={id} className="leading-4">
+          {label}
+        </Label>
+        {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+      </div>
+    </div>
   )
 }

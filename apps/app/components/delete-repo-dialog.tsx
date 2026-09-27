@@ -1,9 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ConfirmDialog } from "@/components/confirm-dialog"
-import { Switch } from "@workspace/ui/components/switch"
-import { Label } from "@workspace/ui/components/label"
+import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
 
 type DeleteRepoDialogProps = {
   open: boolean
@@ -47,25 +45,14 @@ export function DeleteRepoDialog({
       {({ pending }) =>
         branchCount > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <Label
-                htmlFor="delete-branches-on-remote"
-                className="flex flex-col gap-1"
-              >
-                <span className="text-sm font-medium">
-                  {`Also delete ${branchCount} ${branchCount === 1 ? "branch" : "branches"} on remote`}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Permanently deletes the listed branches from origin.
-                </span>
-              </Label>
-              <Switch
-                id="delete-branches-on-remote"
-                checked={deleteBranchesOnRemote}
-                onCheckedChange={setDeleteBranchesOnRemote}
-                disabled={pending}
-              />
-            </div>
+            <ConfirmOption
+              id="delete-branches-on-remote"
+              label={`Also delete ${branchCount} ${branchCount === 1 ? "branch" : "branches"} on origin`}
+              hint="Permanently deletes these branches from the remote:"
+              checked={deleteBranchesOnRemote}
+              onCheckedChange={setDeleteBranchesOnRemote}
+              disabled={pending}
+            />
             <ul className="max-h-32 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
               {branches.map((b) => (
                 <li key={b} className="truncate text-muted-foreground">

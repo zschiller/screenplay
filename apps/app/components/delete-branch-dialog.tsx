@@ -1,9 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ConfirmDialog } from "@/components/confirm-dialog"
-import { Switch } from "@workspace/ui/components/switch"
-import { Label } from "@workspace/ui/components/label"
+import { ConfirmDialog, ConfirmOption } from "@/components/confirm-dialog"
 
 type DeleteBranchDialogProps = {
   open: boolean
@@ -56,11 +54,10 @@ export function DeleteBranchDialog({
       itemNoun="workspace"
       description={
         <>
-          The agent and its frames will be removed. The local branch{" "}
-          <span className="font-mono">{branchName}</span> stays in your sandbox
-          {canDeleteOnRemote
-            ? " unless you also delete it on the remote."
-            : "."}
+          Its agent, chats, and frames will be removed and its sandbox shut
+          down, discarding any uncommitted changes. The branch{" "}
+          <span className="font-mono">{branchName}</span> itself isn’t deleted
+          {canDeleteOnRemote ? " unless you choose to below." : "."}
         </>
       }
       // Never ask for a remote delete the dialog didn't offer: the toggle's
@@ -71,20 +68,14 @@ export function DeleteBranchDialog({
     >
       {({ pending }) =>
         canDeleteOnRemote && (
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <Label htmlFor="delete-on-remote" className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Also delete on remote</span>
-              <span className="text-xs text-muted-foreground">
-                origin/<span className="font-mono">{branchName}</span>
-              </span>
-            </Label>
-            <Switch
-              id="delete-on-remote"
-              checked={deleteOnRemote}
-              onCheckedChange={setDeleteOnRemote}
-              disabled={pending}
-            />
-          </div>
+          <ConfirmOption
+            id="delete-on-remote"
+            label="Also delete the branch on origin"
+            hint={<span className="font-mono">origin/{branchName}</span>}
+            checked={deleteOnRemote}
+            onCheckedChange={setDeleteOnRemote}
+            disabled={pending}
+          />
         )
       }
     </ConfirmDialog>
