@@ -277,7 +277,7 @@ export async function startRename(
           ? box.x > width * 0.65
           : box.x >= width * 0.16 && box.x < width * 0.65
     if (!inRegion) continue
-    await label.dblclick()
+    await label.dblclick({ timeout: 10_000 })
     await page
       .locator('[data-editable-text="editing"]')
       .waitFor({ timeout: 5_000 })
