@@ -1,16 +1,13 @@
 "use client"
 
+import { Eye } from "lucide-react"
+
 import {
   Avatar,
   AvatarImage,
   AvatarFallback,
 } from "@workspace/ui/components/avatar"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { useOtherPresences, useSelfPresence } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 
@@ -18,6 +15,11 @@ interface FollowingToolbarProps {
   followingId: number | null
   onFollow: (clientId: number | null) => void
 }
+
+// Strip the icon-button's square ghost chrome: an avatar is already its own
+// round, filled target. The ring separates overlapping avatars in the stack.
+const AVATAR_BUTTON_CLASS =
+  "relative size-auto rounded-full border-0 p-0 ring-2 ring-background transition-shadow hover:bg-transparent hover:ring-foreground/20 dark:hover:bg-transparent"
 
 function getInitials(name: string) {
   return name
@@ -36,83 +38,75 @@ export function FollowingToolbar({
   const self = useSelfPresence()
 
   return (
-    <TooltipProvider>
-      <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
-        {self && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className="relative rounded-full ring-2 ring-background transition-shadow hover:ring-foreground/20"
-                onClick={() => onFollow(null)}
+    <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
+      {self && (
+        <IconButton
+          label={`${self.identity.name || "You"} (you)`}
+          tooltipSide="bottom"
+          className={AVATAR_BUTTON_CLASS}
+          onClick={() => onFollow(null)}
+        >
+          <Avatar size="sm">
+            {self.identity.avatar ? (
+              <AvatarImage src={self.identity.avatar} alt="" />
+            ) : null}
+            <AvatarFallback
+              aria-hidden
+              style={{ backgroundColor: self.color }}
+              className="text-[10px] font-medium text-white"
+            >
+              {getInitials(self.identity.name || "?")}
+            </AvatarFallback>
+          </Avatar>
+        </IconButton>
+      )}
+
+      {others.map(({ clientId, presence }) => {
+        const isFollowing = followingId === clientId
+        const name = presence.identity.name || "Anonymous"
+
+        return (
+          <IconButton
+            key={clientId}
+            label={
+              isFollowing
+                ? `Following ${name} — click to stop`
+                : `Follow ${name}`
+            }
+            tooltipSide="bottom"
+            pressed={isFollowing}
+            className={AVATAR_BUTTON_CLASS}
+            style={{
+              boxShadow: isFollowing
+                ? `0 0 0 2px ${presence.color}`
+                : undefined,
+            }}
+            onClick={() => onFollow(isFollowing ? null : clientId)}
+          >
+            <Avatar size="sm">
+              {presence.identity.avatar ? (
+                <AvatarImage src={presence.identity.avatar} alt="" />
+              ) : null}
+              <AvatarFallback
+                aria-hidden
+                style={{ backgroundColor: presence.color }}
+                className={`text-[10px] font-medium ${presenceInkClass(presence.color)}`}
               >
-                <Avatar size="sm">
-                  {self.identity.avatar ? (
-                    <AvatarImage
-                      src={self.identity.avatar}
-                      alt={self.identity.name}
-                    />
-                  ) : null}
-                  <AvatarFallback
-                    style={{ backgroundColor: self.color }}
-                    className="text-[10px] font-medium text-white"
-                  >
-                    {getInitials(self.identity.name || "?")}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {self.identity.name || "You"} (you)
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        {others.map(({ clientId, presence }) => {
-          const isFollowing = followingId === clientId
-          const name = presence.identity.name || "Anonymous"
-
-          return (
-            <Tooltip key={clientId}>
-              <TooltipTrigger asChild>
-                <button
-                  className="relative rounded-full ring-2 ring-background transition-all"
-                  style={{
-                    boxShadow: isFollowing
-                      ? `0 0 0 2px ${presence.color}`
-                      : undefined,
-                  }}
-                  onClick={() => onFollow(isFollowing ? null : clientId)}
-                >
-                  <Avatar size="sm">
-                    {presence.identity.avatar ? (
-                      <AvatarImage src={presence.identity.avatar} alt={name} />
-                    ) : null}
-                    <AvatarFallback
-                      style={{ backgroundColor: presence.color }}
-                      className={`text-[10px] font-medium ${presenceInkClass(presence.color)}`}
-                    >
-                      {getInitials(name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  {isFollowing && (
-                    <span
-                      className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] ${presenceInkClass(presence.color)}`}
-                      style={{ backgroundColor: presence.color }}
-                    >
-                      ◉
-                    </span>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {isFollowing
-                  ? `Following ${name} — click to stop`
-                  : `Follow ${name}`}
-              </TooltipContent>
-            </Tooltip>
-          )
-        })}
-      </div>
-    </TooltipProvider>
+                {getInitials(name)}
+              </AvatarFallback>
+            </Avatar>
+            {isFollowing && (
+              <span
+                aria-hidden
+                className={`absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full ${presenceInkClass(presence.color)}`}
+                style={{ backgroundColor: presence.color }}
+              >
+                <Eye className="size-2.5" strokeWidth={2.5} />
+              </span>
+            )}
+          </IconButton>
+        )
+      })}
+    </div>
   )
 }

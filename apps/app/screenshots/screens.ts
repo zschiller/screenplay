@@ -517,6 +517,66 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-setup-error",
+    description:
+      "A Workspace's setup error opened from the sidebar, as a keyboard user reaches it.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await openSetupError(page)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-pr-merged",
+    description:
+      "A Canvas whose Workspace has a merged PR: the sidebar's merged icon and diff stats.",
+    path: `/${ids.rooms.pricing}`,
+  },
+  {
+    name: "canvas-pr-closed",
+    description:
+      "A Canvas with a closed-PR Workspace and one still being created.",
+    path: `/${ids.rooms.onboarding}`,
+  },
+  {
+    name: "canvas-frame-toolbar",
+    description:
+      "A selected frame's floating toolbar, hovering its first button to show the tooltip.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByText("Checkout · desktop", { exact: true })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+      // Positional, not by name, so the same step shoots a branch whose
+      // buttons have no accessible name yet.
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-room-menu-hover",
+    description:
+      "Hovering the top bar's Canvas options (…) button beside the Canvas name.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator('[data-slot="breadcrumb-item"] button')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-narrow",
     description:
       "The Canvas at a narrow window, where the panels compete for width.",
@@ -1079,6 +1139,29 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
 }
 
 /**
+ * Open the failed Workspace's setup error from the sidebar. Where the indicator
+ * is a button, it is reached the way a keyboard user would — focus, then Enter —
+ * so the shot proves the error is readable without a mouse. On builds where it
+ * is still a bare icon (a hover card), fall back to hovering it, which is the
+ * only way that version can be opened.
+ */
+export async function openSetupError(page: Page): Promise<void> {
+  const button = page.getByRole("button", {
+    name: "Show setup error",
+    exact: true,
+  })
+  if (await button.count()) {
+    await button.first().focus()
+    await page.keyboard.press("Enter")
+    await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
+    return
+  }
+  const row = page.locator(".group\\/branch-row", { hasText: "gift-cards" })
+  await row.locator("svg").first().hover({ timeout: 15_000 })
+  await page.getByText("Setup failed").waitFor({ timeout: 5_000 })
+}
+
+/**
  * Select a chat tab in the in-room tab strip by label. The panel itself is
  * opened by {@link canvasPanels}, not from here, so this only ever has to pick
  * between tabs that are already on screen.
@@ -1266,6 +1349,24 @@ export function streamingRun(): RunEvent[] {
       },
     },
   ]
+}
+
+/**
+ * Wait for the hovered control's tooltip and show it at rest.
+ *
+ * The runner freezes animations before `prepare` runs, which would pin a
+ * tooltip on the first frame of its fade-in — i.e. invisible. Dropping the
+ * animation on tooltip content alone lets it paint in its final state.
+ */
+export async function showTooltip(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `[data-slot="tooltip-content"] { animation: none !important; }`,
+  })
+  await page
+    .locator('[data-slot="tooltip-content"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .catch(() => {})
 }
 
 /** Look up screens by name, preserving {@link SCREENS} order. Throws on an unknown name. */

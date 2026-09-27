@@ -19,12 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -736,107 +731,86 @@ export function IframeLayer({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon-xxs"
-                        variant={focused ? "default" : "ghost"}
-                        onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                      >
-                        {focused ? <Move /> : <MousePointer />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {focused ? "Back to canvas" : "Interact"}
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon-xxs"
-                        variant={createFlow ? "default" : "ghost"}
-                        onClick={() =>
-                          onToggleCreateFlow(createFlow ? null : iframeLayer.id)
-                        }
-                      >
-                        <Route />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {createFlow ? "Stop create flow" : "Create flow"}
-                    </TooltipContent>
-                  </Tooltip>
-                  {/* interaction modes above ∣ everything else below */}
-                  <div className="my-0.5 h-px w-full bg-foreground/10" />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon-xxs"
-                        variant={showReload ? "default" : "ghost"}
-                        onClick={reloadIframe}
-                      >
-                        <RotateCw />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Reload</TooltipContent>
-                  </Tooltip>
-                  <KnobsPopover
-                    knobs={iframeLayer.knobs}
-                    values={iframeLayer.knobValues}
-                    onChange={(values) =>
-                      onKnobValuesChange?.(iframeLayer.id, values)
-                    }
-                  />
-                  {showOverflow && (
-                    <DropdownMenu>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="icon-xxs" variant="ghost">
-                              <MoreHorizontal className="text-muted-foreground" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">More</TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent
-                        side="right"
-                        align="start"
-                        sideOffset={8}
-                      >
-                        {onSetSize && (
-                          <DeviceSizeSubMenu
-                            width={iframeLayer.width}
-                            height={iframeLayer.height}
-                            onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                          />
+                <IconButton
+                  label={focused ? "Back to canvas" : "Interact"}
+                  tooltipSide="right"
+                  pressed={focused}
+                  variant={focused ? "default" : "ghost"}
+                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                >
+                  {focused ? <Move /> : <MousePointer />}
+                </IconButton>
+                <IconButton
+                  label={createFlow ? "Stop create flow" : "Create flow"}
+                  tooltipSide="right"
+                  pressed={createFlow}
+                  variant={createFlow ? "default" : "ghost"}
+                  onClick={() =>
+                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                  }
+                >
+                  <Route />
+                </IconButton>
+                {/* interaction modes above ∣ everything else below */}
+                <div className="my-0.5 h-px w-full bg-foreground/10" />
+                <IconButton
+                  label="Reload"
+                  tooltipSide="right"
+                  variant={showReload ? "default" : "ghost"}
+                  onClick={reloadIframe}
+                >
+                  <RotateCw />
+                </IconButton>
+                <KnobsPopover
+                  knobs={iframeLayer.knobs}
+                  values={iframeLayer.knobValues}
+                  onChange={(values) =>
+                    onKnobValuesChange?.(iframeLayer.id, values)
+                  }
+                />
+                {showOverflow && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <IconButton label="More" tooltipSide="right">
+                        <MoreHorizontal className="text-muted-foreground" />
+                      </IconButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      side="right"
+                      align="start"
+                      sideOffset={8}
+                    >
+                      {onSetSize && (
+                        <DeviceSizeSubMenu
+                          width={iframeLayer.width}
+                          height={iframeLayer.height}
+                          onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                        />
+                      )}
+                      {showFit && (
+                        <DropdownMenuItem onSelect={handleFitToContent}>
+                          <Maximize2 />
+                          Fit to content
+                        </DropdownMenuItem>
+                      )}
+                      {(!!onSetSize || showFit) &&
+                        (showPlay || showOpenInBrowser) && (
+                          <DropdownMenuSeparator />
                         )}
-                        {showFit && (
-                          <DropdownMenuItem onSelect={handleFitToContent}>
-                            <Maximize2 />
-                            Fit to content
-                          </DropdownMenuItem>
-                        )}
-                        {(!!onSetSize || showFit) &&
-                          (showPlay || showOpenInBrowser) && (
-                            <DropdownMenuSeparator />
-                          )}
-                        {showPlay && (
-                          <DropdownMenuItem
-                            onSelect={() => onPlay?.(iframeLayer.id)}
-                          >
-                            <Play />
-                            Open prototype player
-                          </DropdownMenuItem>
-                        )}
-                        {onOpenInBrowser && (
-                          <OpenInBrowserItem onOpen={onOpenInBrowser} />
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </TooltipProvider>
+                      {showPlay && (
+                        <DropdownMenuItem
+                          onSelect={() => onPlay?.(iframeLayer.id)}
+                        >
+                          <Play />
+                          Open prototype player
+                        </DropdownMenuItem>
+                      )}
+                      {onOpenInBrowser && (
+                        <OpenInBrowserItem onOpen={onOpenInBrowser} />
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>,
               toolbarPortalTarget
             )}
