@@ -6,6 +6,10 @@ import {
   withView,
   type View,
 } from "@/lib/home-view-prefs"
+import {
+  fixtureEntryCookieName,
+  type FixtureEntryState,
+} from "@/lib/fixture-entry"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 
 import { FIXTURE_IDS } from "./fixtures/world"
@@ -178,7 +182,63 @@ export const SCREENS: Screen[] = [
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
+  {
+    name: "sign-in",
+    description: "The hosted sign-in page.",
+    path: "/sign-in",
+  },
+  {
+    name: "home-signed-out",
+    description: "The home surface as a signed-out visitor sees it.",
+    path: "/",
+    cookies: entryState("signed-out"),
+  },
+  {
+    name: "setup-pending",
+    description: "The first-run setup gate with nothing done yet.",
+    path: "/",
+    cookies: entryState("setup-pending"),
+    fullPage: true,
+  },
+  {
+    name: "setup-agent-ready",
+    description:
+      "The setup gate with a coding agent ready and GitHub still open.",
+    path: "/",
+    cookies: entryState("setup-agent-ready"),
+    fullPage: true,
+  },
+  {
+    name: "setup-complete",
+    description: "The setup gate once GitHub is skipped and Finish is ready.",
+    path: "/",
+    cookies: entryState("setup-agent-ready"),
+    fullPage: true,
+    prepare: async (page) => {
+      // Skipping flips the gate's own skip bit; its next poll then releases
+      // Finish, exactly as it does for a person at the gate.
+      await page
+        .getByRole("button", { name: "Skip for now" })
+        .click({ timeout: 15_000 })
+      await page
+        .locator("button:not([disabled])", { hasText: "Finish" })
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
 ]
+
+/**
+ * The cookie that puts a Fixture World capture on one of the screens a person
+ * meets before the app (`@/lib/fixture-entry`) — the signed-out home or a
+ * blocked setup gate, neither of which the always-signed-in, already-set-up
+ * fixture build would otherwise show.
+ */
+export function entryState(
+  state: FixtureEntryState
+): Array<{ name: string; value: string }> {
+  return [{ name: fixtureEntryCookieName(), value: state }]
+}
 
 /**
  * The cookie that picks the home surface's grid-or-table layout. Seeded rather

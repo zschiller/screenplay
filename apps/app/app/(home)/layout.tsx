@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Button } from "@workspace/ui/components/button"
 import { HomeShell } from "@/components/home/home-shell"
 import { getUserId } from "@/lib/auth-helpers"
+import { readFixtureEntryState } from "@/lib/fixture-entry"
 import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
@@ -33,7 +34,9 @@ export default async function HomeLayout({
 }) {
   const userId = await getUserId()
 
-  if (!userId) {
+  // The local build is always signed in, so a screenshot capture asks for the
+  // signed-out surface explicitly (a no-op outside the Fixture World).
+  if (!userId || (await readFixtureEntryState()) === "signed-out") {
     return <SignedOut />
   }
 

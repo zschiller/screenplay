@@ -3,6 +3,7 @@
 import { listHarnessSetupRows } from "@/lib/agent/harnesses/setup-actions"
 import { getGitHubLocalStatus } from "@/lib/github-local/actions"
 import { isFixtureWorld } from "@/lib/fixture-world"
+import { readFixtureEntryState } from "@/lib/fixture-entry"
 import { isLocalBuild } from "@/lib/local-mode"
 import { deriveGateStatus } from "./is-complete"
 
@@ -26,14 +27,23 @@ import { deriveGateStatus } from "./is-complete"
  * no GitHub by design (issue #716). Doing it here rather than at either call
  * site is what keeps that honest — the initial paint and the client poll both
  * read the release facts through this one action, so they cannot disagree about
- * whether the gate is open.
+ * whether the gate is open. A capture screen that wants the gate itself on screen
+ * asks for one of its blocked states through the fixture entry cookie
+ * (`@/lib/fixture-entry`), read here for the same reason.
  */
 export async function getLocalSetupGateStatus(): Promise<{
   harnessSatisfied: boolean
   githubSatisfied: boolean
 }> {
   if (!isLocalBuild) return { harnessSatisfied: false, githubSatisfied: false }
-  if (isFixtureWorld) return { harnessSatisfied: true, githubSatisfied: true }
+  if (isFixtureWorld) {
+    const entry = await readFixtureEntryState()
+    return {
+      harnessSatisfied: entry !== "setup-pending",
+      githubSatisfied:
+        entry !== "setup-pending" && entry !== "setup-agent-ready",
+    }
+  }
   const [harnesses, github] = await Promise.all([
     listHarnessSetupRows(),
     getGitHubLocalStatus(),
