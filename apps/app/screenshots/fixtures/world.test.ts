@@ -233,6 +233,11 @@ describe("fixture world — what the screens need", () => {
     for (const screen of SCREENS) {
       const [first, second] = screen.path.split("/").filter(Boolean)
       if (!first) continue // "/" — the home surface
+      if (first === FIXTURE_IDS.missingRoom) {
+        // The not-found screen: this one must stay missing.
+        expect(roomIds).not.toContain(first)
+        continue
+      }
       if (first === "files" && second) expect(folderIds).toContain(second)
       else if (first === "play" && second) expect(roomIds).toContain(second)
       else if (!["files", "settings", "play", "sign-in"].includes(first)) {

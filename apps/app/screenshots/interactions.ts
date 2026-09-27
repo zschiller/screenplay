@@ -27,6 +27,8 @@ export interface Interaction {
   /** Cookies set before the first navigation — same mechanism as a Screen's,
    *  for flows that start with a panel already open. */
   cookies?: Array<{ name: string; value: string }>
+  /** Runs before the first navigation — same hook as a Screen's. */
+  beforeNavigate?: (page: Page) => Promise<void>
   /** The flow itself. `page` is already loaded at `path` and settled. */
   run: (page: Page) => Promise<void>
 }
@@ -47,6 +49,31 @@ export const INTERACTIONS: Interaction[] = [
         .waitForURL(`**/${ids.rooms.checkout}`, { timeout: 30_000 })
         .catch(() => {})
       await page.waitForTimeout(3500)
+    },
+  },
+  {
+    name: "canvas-loading",
+    description:
+      "Opening a Canvas by URL on a slow connection: the loading skeleton, then the Canvas fading in over it.",
+    path: "/",
+    run: async (page) => {
+      // Locally the Canvas answers in milliseconds, which is too fast to
+      // review. Add latency to every request so the skeleton has a few seconds
+      // on screen, as it would on a slow machine. A full load rather than a
+      // click from home: `next dev` doesn't prefetch, so a soft navigation
+      // would sit on the home page instead of showing the loading state.
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send("Network.enable")
+      await cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: 800,
+        downloadThroughput: -1,
+        uploadThroughput: -1,
+      })
+      await page
+        .goto(`/${ids.rooms.checkout}`, { timeout: 60_000 })
+        .catch(() => {})
+      await page.waitForTimeout(6000)
     },
   },
   {

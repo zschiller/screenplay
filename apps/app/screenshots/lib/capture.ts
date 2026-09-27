@@ -170,6 +170,7 @@ async function captureOne(
   })
   try {
     const page = await context.newPage()
+    await screen.beforeNavigate?.(page)
     // `domcontentloaded`, not `load`: the canvas keeps long-lived connections
     // open, so `load` can outlast the timeout on a perfectly healthy page.
     const response = await page.goto(screen.path, {
@@ -236,6 +237,7 @@ export async function recordInteraction(
       recordVideoDir: dir,
     })
     const page = await context.newPage()
+    await options.interaction.beforeNavigate?.(page)
     await page.goto(options.interaction.path, {
       waitUntil: "domcontentloaded",
       timeout: 120_000,

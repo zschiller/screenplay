@@ -113,6 +113,7 @@ import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 import { CanvasMemberLayer } from "./canvas-member-layer"
 import { CanvasToolbar } from "./canvas-toolbar"
+import { CanvasEmptyState } from "./canvas-empty-state"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
 
@@ -1194,6 +1195,14 @@ export function Canvas({
 
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Bumped to open the sidebar's add-project flow from the empty-canvas
+  // guidance; the sidebar owns the picker itself.
+  const [addProjectRequest, setAddProjectRequest] = useState(0)
+  const handleAddProject = useCallback(() => {
+    sidebarPanelRef.current?.expand()
+    setAddProjectRequest((n) => n + 1)
+  }, [])
+  const isCanvasEmpty = iframeLayers.length === 0 && markdownLayers.length === 0
   // Desktop + non-fullscreen: the macOS traffic lights overlay the top-left,
   // so the collapsed-sidebar pills must shift right to clear them.
   const trafficLightsPresent = useTrafficLightsPresent()
@@ -1308,6 +1317,7 @@ export function Canvas({
               chatCollapsed ? null : chatTarget.selectedAgentId
             }
             branchPrs={branchPrs}
+            addProjectRequest={addProjectRequest}
           />
         </ResizablePanel>
         <ResizableHandle className="focus-visible:ring-0" />
@@ -1616,6 +1626,12 @@ export function Canvas({
                 onClose={closeCursorChat}
               />
             ) : null}
+            {isCanvasEmpty && (
+              <CanvasEmptyState
+                toolMode={toolMode}
+                onAddProject={handleAddProject}
+              />
+            )}
             {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, sitting BEHIND the floating pills (z-[9998]) so
                 the pills stay clickable while the empty toolbar area drags the
@@ -1653,7 +1669,7 @@ export function Canvas({
             {(!isLocalBuild || chatCollapsed) && (
               <div className="pointer-events-none absolute top-0 right-0 z-[9998] flex h-12 items-center px-2">
                 <div
-                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Following other users' viewports and sharing are part of
