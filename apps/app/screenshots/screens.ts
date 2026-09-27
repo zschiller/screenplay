@@ -183,8 +183,8 @@ export const SCREENS: Screen[] = [
 
 /**
  * One screen per inline-rename surface, each caught mid-rename (#720): the
- * `prepare` double-clicks the label so the edit field is open, focused, and
- * its text selected — the state a person sees while typing a new name. They
+ * `prepare` double-clicks the label so the edit field is open and focused with
+ * the caret at the end — the state a person sees while typing a new name. They
  * all live on the reference Canvas; the chat-tab one opens the chat panel.
  */
 function renameScreens(): Screen[] {
@@ -281,6 +281,10 @@ export async function startRename(
     await page
       .locator('[data-editable-text="editing"]')
       .waitFor({ timeout: 5_000 })
+    // Entering edit mode selects the whole name, and the selection highlight
+    // would cover the field itself. Park the caret at the end instead so the
+    // shot shows the field's own background, text and ring.
+    await page.keyboard.press("End")
     return
   }
   throw new Error(`no ${region} rename label reading "${text}"`)
