@@ -62,6 +62,44 @@ export interface Screen {
    * being clicked correct, so there is no flash and nothing to break.
    */
   cookies?: Array<{ name: string; value: string }>
+  /**
+   * Runs on the fresh page before the first navigation — for state that has to
+   * be in place before the app loads, like holding the Yjs connection so a
+   * loading state stays on screen long enough to photograph.
+   */
+  beforeNavigate?: (page: Page) => Promise<void>
+}
+
+/**
+ * Hold every WebSocket open without ever answering it, so the Canvas stays on
+ * its loading skeleton: the room provider paints the skeleton until the Y.Doc
+ * syncs, and a socket nobody speaks on never syncs. Used by the loading screen
+ * and recording, which would otherwise be gone before the first frame.
+ */
+export async function holdYjsConnection(page: Page): Promise<void> {
+  await page.routeWebSocket(/.*/, () => {
+    // Not connecting to the server is the point: the socket opens and stays
+    // silent.
+  })
+}
+
+/**
+ * Make the Canvas throw as it mounts, so the route's error boundary catches it.
+ *
+ * The fixture world can't make the server render fail on demand, but the route
+ * has one boundary for the server render and the client Canvas alike, so any
+ * throw inside it paints the same page. `ResizeObserver` is constructed by the
+ * panel layout on mount and nowhere before the Canvas, so failing it reaches
+ * exactly that boundary and nothing earlier.
+ */
+export async function breakCanvasMount(page: Page): Promise<void> {
+  await page.addInitScript(`
+    window.ResizeObserver = class {
+      constructor() {
+        throw new Error("screenshot harness: simulated Canvas failure")
+      }
+    }
+  `)
 }
 
 /**
@@ -135,6 +173,25 @@ export const SCREENS: Screen[] = [
     name: "canvas-empty",
     description: "A Canvas with nothing on it — the empty state.",
     path: `/${ids.rooms.empty}`,
+  },
+  {
+    name: "canvas-loading",
+    description:
+      "The Canvas route's loading skeleton, held on screen by a silent Yjs socket.",
+    path: `/${ids.rooms.checkout}`,
+    beforeNavigate: holdYjsConnection,
+  },
+  {
+    name: "canvas-not-found",
+    description: "A Canvas id that doesn't exist — the Canvas not-found page.",
+    path: `/${ids.missingRoom}`,
+  },
+  {
+    name: "canvas-error",
+    description:
+      "The Canvas route's error page, reached by making the Canvas throw on mount.",
+    path: `/${ids.rooms.checkout}`,
+    beforeNavigate: breakCanvasMount,
   },
   {
     name: "canvas-documents",

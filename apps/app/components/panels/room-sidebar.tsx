@@ -669,6 +669,12 @@ interface RoomSidebarProps {
    *  and chat panel share one poller and can't disagree about whether a PR
    *  exists for a branch. */
   branchPrs: Map<string, BranchPrInfo>
+  /**
+   * Bumped by the Canvas to open the add-project flow from outside the sidebar
+   * (the empty-canvas "Add a Project" action, #735). Each new value opens it
+   * once: the menu on desktop, the GitHub picker on web.
+   */
+  addProjectRequest?: number
 }
 
 function sanitizeBranchName(raw: string): string {
@@ -725,6 +731,7 @@ export function RoomSidebar({
   activeBranchIds,
   chatPanelBranchId,
   branchPrs,
+  addProjectRequest = 0,
 }: RoomSidebarProps) {
   // The add-project popover moves through a small view-state machine: the
   // repo/URL picker, the folder-path fallback form (#604), or — once an
@@ -756,6 +763,17 @@ export function RoomSidebar({
       setPickerView("folder")
     }
   }, [])
+  // The desktop add-project menu is controlled so the Canvas can open it
+  // (`addProjectRequest`), not only its trigger.
+  const [addProjectMenuOpen, setAddProjectMenuOpen] = useState(false)
+  // Adjusted during render (not in an effect) when the request changes.
+  const [seenAddProjectRequest, setSeenAddProjectRequest] =
+    useState(addProjectRequest)
+  if (addProjectRequest !== seenAddProjectRequest) {
+    setSeenAddProjectRequest(addProjectRequest)
+    if (isLocalBuild) setAddProjectMenuOpen(true)
+    else setPickerView("repos")
+  }
   const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
   const [branchPickerRepoId, setBranchPickerRepoId] = useState<string | null>(
@@ -1425,7 +1443,9 @@ export function RoomSidebar({
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none">
+      {/* Children fade in over the loading skeleton's matching sidebar
+          (#735); the panel background itself is already there. */}
+      <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0">
         <div
           data-tauri-drag-region
           className="flex h-12 items-center justify-end px-4 pr-3"
@@ -1476,7 +1496,10 @@ export function RoomSidebar({
                     // Desktop: the trigger opens a menu first — "Open project"
                     // fires the native directory dialog directly, "Open GitHub
                     // project" opens the GitHub picker modal (#604).
-                    <DropdownMenu>
+                    <DropdownMenu
+                      open={addProjectMenuOpen}
+                      onOpenChange={setAddProjectMenuOpen}
+                    >
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>

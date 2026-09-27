@@ -195,6 +195,11 @@ export const FIXTURE_IDS = {
     /** Filed deep (Design system → Archive), to exercise breadcrumbs. */
     archived: "room-old-experiment",
   },
+  /**
+   * A Canvas id the world deliberately never seeds, for the Canvas not-found
+   * page. `world.test.ts` holds it to staying missing.
+   */
+  missingRoom: "room-that-does-not-exist",
   repos: {
     storefront: "repo-storefront",
   },
