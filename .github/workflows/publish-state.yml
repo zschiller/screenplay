@@ -62,7 +62,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -115,7 +115,8 @@ jobs:
           git push origin "${{ steps.bump.outputs.tag }}"
 
       - name: Upgrade npm for Trusted Publishing
-        run: npm install -g npm@latest
+        # See publish-knobs.yml: pinned to npm 11, not @latest.
+        run: npm install -g npm@^11.5.1
 
       - name: Publish to npm
         working-directory: packages/screenplay-state
