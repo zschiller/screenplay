@@ -9,7 +9,13 @@ import {
 import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 
 import type { useAppSession } from "@/lib/auth-client"
-import { fitRectToViewport, fitScale, type Rect } from "@/lib/canvas/camera"
+import {
+  fitRectToViewport,
+  fitScale,
+  stepZoom,
+  zoomAtPoint,
+  type Rect,
+} from "@/lib/canvas/camera"
 import { CANVAS_SIZE, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "@/lib/constants"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
@@ -97,6 +103,14 @@ export interface CanvasCamera {
   zoomToRect(rect: Rect): void
   /** Pan so an on-screen element sits mid-viewport, keeping the zoom. */
   centerOnElement(el: HTMLElement): void
+  /** Step to the next zoom stop in or out, anchored on the viewport center. */
+  zoomIn(): void
+  zoomOut(): void
+  /** Zoom to `scale` (e.g. 1 for 100%), anchored on the viewport center. */
+  zoomTo(scale: number): void
+  /** Fit a world-space rect (the whole canvas's content); with nothing to fit,
+   *  return to 100% at the canvas center. */
+  zoomToFit(rect: Rect | null): void
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom). */
   handleIframeWheel(iframeLayerId: string, w: WheelForward): void
   /** The `TransformWrapper` props this controller owns. */
@@ -509,6 +523,55 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [transformRef]
   )
 
+  const zoomTo = useCallback(
+    (scale: number) => {
+      const ref = transformRef.current
+      if (!ref) return
+      breakFollow()
+      const wrapper = ref.instance.wrapperComponent
+      const center = {
+        x: (wrapper?.clientWidth ?? window.innerWidth) / 2,
+        y: (wrapper?.clientHeight ?? window.innerHeight) / 2,
+      }
+      const { positionX, positionY, scale: current } = ref.state
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale))
+      const t = zoomAtPoint(
+        { x: positionX, y: positionY, zoom: current },
+        next,
+        center
+      )
+      ref.setTransform(t.x, t.y, t.zoom, 200)
+    },
+    [transformRef, breakFollow]
+  )
+
+  const zoomIn = useCallback(() => {
+    const ref = transformRef.current
+    if (ref) zoomTo(stepZoom(ref.state.scale, 1))
+  }, [transformRef, zoomTo])
+
+  const zoomOut = useCallback(() => {
+    const ref = transformRef.current
+    if (ref) zoomTo(stepZoom(ref.state.scale, -1))
+  }, [transformRef, zoomTo])
+
+  const zoomToFit = useCallback(
+    (rect: Rect | null) => {
+      const ref = transformRef.current
+      if (!ref) return
+      breakFollow()
+      if (rect && rect.width > 0 && rect.height > 0) {
+        zoomToRect(rect)
+        return
+      }
+      const wrapper = ref.instance.wrapperComponent
+      const w = wrapper?.clientWidth ?? window.innerWidth
+      const h = wrapper?.clientHeight ?? window.innerHeight
+      ref.setTransform(w / 2 - CANVAS_SIZE / 2, h / 2 - CANVAS_SIZE / 2, 1, 200)
+    },
+    [transformRef, breakFollow, zoomToRect]
+  )
+
   // --- Follow another user's viewport ---
   useEffect(() => {
     if (followingConnectionId === null) return
@@ -833,6 +896,10 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     zoomToElement,
     zoomToRect,
     centerOnElement,
+    zoomIn,
+    zoomOut,
+    zoomTo,
+    zoomToFit,
     handleIframeWheel,
     transformWrapperProps,
   }

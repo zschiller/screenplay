@@ -109,6 +109,9 @@ import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 import { CanvasMemberLayer } from "./canvas-member-layer"
 import { CanvasToolbar } from "./canvas-toolbar"
+import { CanvasZoomControls } from "./canvas-zoom-controls"
+import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
+import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
@@ -484,6 +487,27 @@ export function Canvas({
   // precedence stays in the pure `resolveEscapeAction`, wrapped by the
   // Interaction controller's `resolveEscape`; the keyboard only applies the
   // chosen exit.
+  // Zoom controls + shortcut sheet (#734): the zoom pill and the ⌘= / ⌘- /
+  // ⌘0 / ⇧1 keys share these verbs; fit frames every Layer on the canvas.
+  const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false)
+  const openShortcutSheet = useCallback(() => setShortcutSheetOpen(true), [])
+  const {
+    zoomIn: cameraZoomIn,
+    zoomOut: cameraZoomOut,
+    zoomTo: cameraZoomTo,
+    zoomToFit: cameraZoomToFit,
+  } = camera
+  const zoomControls = useMemo(
+    () => ({
+      zoomIn: cameraZoomIn,
+      zoomOut: cameraZoomOut,
+      zoomTo100: () => cameraZoomTo(1),
+      zoomToFit: () =>
+        cameraZoomToFit(unionRect(iframeLayerLayoutsRef.current.values())),
+    }),
+    [cameraZoomIn, cameraZoomOut, cameraZoomTo, cameraZoomToFit]
+  )
+
   useCanvasKeyboard({
     toolMode,
     selection,
@@ -493,6 +517,8 @@ export function Canvas({
     interaction,
     sidebarPanelRef,
     chatPanelRef,
+    zoom: zoomControls,
+    openShortcutSheet,
   })
 
   // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
@@ -1574,7 +1600,9 @@ export function Canvas({
               hoveredIframeLayerId={hoveredIframeLayerId}
               iframeLayerLayouts={effectiveIframeLayerLayouts}
               hideResizeHandles={
-                editingDocumentLayerId !== null || selectedGroupIds.size > 0
+                editingDocumentLayerId !== null ||
+                selectedGroupIds.size > 0 ||
+                !showsLayerDetail(zoom)
               }
               gapHandles={gapHandles}
               reorderHandles={reorderHandles}
@@ -1674,6 +1702,19 @@ export function Canvas({
             <CanvasToolbar
               toolMode={toolMode}
               onClearMode={reference.clearMode}
+            >
+              <CanvasZoomControls
+                zoom={zoom}
+                onZoomIn={zoomControls.zoomIn}
+                onZoomOut={zoomControls.zoomOut}
+                onZoomTo100={zoomControls.zoomTo100}
+                onZoomToFit={zoomControls.zoomToFit}
+                onOpenShortcuts={openShortcutSheet}
+              />
+            </CanvasToolbar>
+            <ShortcutSheet
+              open={shortcutSheetOpen}
+              onOpenChange={setShortcutSheetOpen}
             />
             {/* Only render the top-right pill when it has content: the
                 Share/Following controls (web only) or the expand-chat button
