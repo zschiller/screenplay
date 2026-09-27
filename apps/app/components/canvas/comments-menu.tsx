@@ -78,7 +78,7 @@ export function CommentsMenu({
           )}
         </div>
         {openThreads.length === 0 ? (
-          <p className="px-3 py-6 text-center text-muted-foreground">
+          <p className="px-3 py-6 text-center text-balance text-muted-foreground">
             No comments yet. Press C to add one.
           </p>
         ) : (

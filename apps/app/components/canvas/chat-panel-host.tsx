@@ -175,7 +175,7 @@ export function ChatPanelHost({
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 items-center justify-center px-6">
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
             {repos.length === 0
               ? "Add a project to get started"
               : "Waiting for an agent to start…"}

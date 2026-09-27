@@ -1928,254 +1928,280 @@ export function RoomSidebar({
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
                                                     <div
-                                                      className={branchRowClassName({
-                                                        isPanelActive,
-                                                        isLoading,
-                                                      })}
-                                                        onClick={(e) => {
-                                                          e.stopPropagation()
-                                                          onSelectBranch(
-                                                            branch.id,
-                                                            {
-                                                              expandPanel: false,
-                                                            }
-                                                          )
-                                                        }}
-                                                        onDoubleClick={(e) => {
-                                                          e.stopPropagation()
-                                                          onSelectBranch(
-                                                            branch.id
-                                                          )
-                                                        }}
+                                                      className={branchRowClassName(
+                                                        {
+                                                          isPanelActive,
+                                                          isLoading,
+                                                        }
+                                                      )}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        onSelectBranch(
+                                                          branch.id,
+                                                          {
+                                                            expandPanel: false,
+                                                          }
+                                                        )
+                                                      }}
+                                                      onDoubleClick={(e) => {
+                                                        e.stopPropagation()
+                                                        onSelectBranch(
+                                                          branch.id
+                                                        )
+                                                      }}
+                                                    >
+                                                      <SidebarMenuSubButton
+                                                        asChild
+                                                        className="!bg-transparent !pr-0 hover:!bg-transparent"
+                                                        isActive={false}
                                                       >
-                                                        <SidebarMenuSubButton
-                                                          asChild
-                                                          className="!bg-transparent !pr-0 hover:!bg-transparent"
-                                                          isActive={false}
+                                                        <div
+                                                          title={
+                                                            isLoading
+                                                              ? branch.statusMessage ||
+                                                                "Starting…"
+                                                              : undefined
+                                                          }
                                                         >
-                                                          <div
-                                                            title={
-                                                              isLoading
-                                                                ? branch.statusMessage ||
-                                                                  "Starting…"
-                                                                : undefined
-                                                            }
-                                                          >
-                                                            {isError ? (
-                                                              <Popover>
-                                                                <PopoverTrigger asChild>
-                                                                  <button
-                                                                    type="button"
-                                                                    aria-label="Show setup error"
-                                                                    className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    onDoubleClick={(e) => e.stopPropagation()}
-                                                                    // Keep Enter/Space from reaching the sortable
-                                                                    // row's KeyboardSensor (Space is its pick-up key).
-                                                                    onKeyDown={(e) => e.stopPropagation()}
-                                                                  >
-                                                                    <AlertTriangle className="size-3.5 text-destructive" />
-                                                                  </button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent
-                                                                  align="start"
-                                                                  side="right"
-                                                                  className="max-h-64 w-80 gap-1 overflow-auto"
-                                                                  // Portaled, but React events still bubble to the
-                                                                  // row: keep clicks from selecting the Workspace and
-                                                                  // keys/pointer from reaching the dnd-kit sensors.
-                                                                  onClick={(e) => e.stopPropagation()}
-                                                                  onKeyDown={(e) => e.stopPropagation()}
-                                                                  onPointerDown={(e) => e.stopPropagation()}
+                                                          {isError ? (
+                                                            <Popover>
+                                                              <PopoverTrigger
+                                                                asChild
+                                                              >
+                                                                <button
+                                                                  type="button"
+                                                                  aria-label="Show setup error"
+                                                                  className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                                                                  onClick={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  onDoubleClick={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
+                                                                  // Keep Enter/Space from reaching the sortable
+                                                                  // row's KeyboardSensor (Space is its pick-up key).
+                                                                  onKeyDown={(
+                                                                    e
+                                                                  ) =>
+                                                                    e.stopPropagation()
+                                                                  }
                                                                 >
-                                                                  <p className="text-xs font-medium text-popover-foreground">
-                                                                    Setup failed
-                                                                  </p>
-                                                                  <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
-                                                                    {branch.error || "Unknown error"}
-                                                                  </pre>
-                                                                </PopoverContent>
-                                                              </Popover>
-                                                            ) : isLoading ? (
-                                                              // Progress (creating/starting) uses the shared Spinner;
-                                                              // the 9-dot GripSpinner is reserved for agent activity.
-                                                              <Spinner
-                                                                aria-label="Setting up"
-                                                                className="size-3.5 shrink-0 text-sidebar-foreground/70"
-                                                              />
-                                                            ) : isActive ? (
-                                                              <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
-                                                            ) : pr?.state === "merged" ? (
-                                                              <GitMerge className="shrink-0 text-info!" />
-                                                            ) : pr?.state === "open" ? (
-                                                              <GitPullRequest className="shrink-0 text-success!" />
-                                                            ) : pr?.state === "closed" ? (
-                                                              <GitPullRequestClosed className="shrink-0 text-destructive!" />
-                                                            ) : (
-                                                              <GitBranch className="shrink-0 text-sidebar-foreground/70" />
-                                                            )}
-                                                            {branch.ref ? (
-                                                              <BranchBadge
-                                                                ref={branchRef}
-                                                                branch={
+                                                                  <AlertTriangle className="size-3.5 text-destructive" />
+                                                                </button>
+                                                              </PopoverTrigger>
+                                                              <PopoverContent
+                                                                align="start"
+                                                                side="right"
+                                                                className="max-h-64 w-80 gap-1 overflow-auto"
+                                                                // Portaled, but React events still bubble to the
+                                                                // row: keep clicks from selecting the Workspace and
+                                                                // keys/pointer from reaching the dnd-kit sensors.
+                                                                onClick={(e) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                                onKeyDown={(
+                                                                  e
+                                                                ) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                                onPointerDown={(
+                                                                  e
+                                                                ) =>
+                                                                  e.stopPropagation()
+                                                                }
+                                                              >
+                                                                <p className="text-xs font-medium text-popover-foreground">
+                                                                  Setup failed
+                                                                </p>
+                                                                <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
+                                                                  {branch.error ||
+                                                                    "Unknown error"}
+                                                                </pre>
+                                                              </PopoverContent>
+                                                            </Popover>
+                                                          ) : isLoading ? (
+                                                            // Progress (creating/starting) uses the shared Spinner;
+                                                            // the 9-dot GripSpinner is reserved for agent activity.
+                                                            <Spinner
+                                                              aria-label="Setting up"
+                                                              className="size-3.5 shrink-0 text-sidebar-foreground/70"
+                                                            />
+                                                          ) : isActive ? (
+                                                            <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
+                                                          ) : pr?.state ===
+                                                            "merged" ? (
+                                                            <GitMerge className="shrink-0 text-info!" />
+                                                          ) : pr?.state ===
+                                                            "open" ? (
+                                                            <GitPullRequest className="shrink-0 text-success!" />
+                                                          ) : pr?.state ===
+                                                            "closed" ? (
+                                                            <GitPullRequestClosed className="shrink-0 text-destructive!" />
+                                                          ) : (
+                                                            <GitBranch className="shrink-0 text-sidebar-foreground/70" />
+                                                          )}
+                                                          {branch.ref ? (
+                                                            <BranchBadge
+                                                              ref={branchRef}
+                                                              branch={
+                                                                branch.ref
+                                                              }
+                                                              colorKey={
+                                                                branch.id
+                                                              }
+                                                              colorIndex={
+                                                                branch.colorIndex
+                                                              }
+                                                              className="px-1.5 py-0 text-[11px]"
+                                                              onRename={(
+                                                                next
+                                                              ) => {
+                                                                const sanitized =
+                                                                  sanitizeBranchName(
+                                                                    next
+                                                                  )
+                                                                if (!sanitized)
+                                                                  return
+                                                                if (
+                                                                  sanitized ===
                                                                   branch.ref
-                                                                }
-                                                                colorKey={
-                                                                  branch.id
-                                                                }
-                                                                colorIndex={
-                                                                  branch.colorIndex
-                                                                }
-                                                                className="px-1.5 py-0 text-[11px]"
-                                                                onRename={(
-                                                                  next
-                                                                ) => {
-                                                                  const sanitized =
-                                                                    sanitizeBranchName(
-                                                                      next
-                                                                    )
-                                                                  if (
-                                                                    !sanitized
+                                                                )
+                                                                  return
+                                                                // Renaming onto a branch that already exists on the
+                                                                // remote would hijack its history, so that's always
+                                                                // blocked. On the desktop build a name another open
+                                                                // Branch holds is blocked too: the local backend
+                                                                // keeps one checkout per ref (worktrees, ADR 0009),
+                                                                // so the rename would collide at provision time. The
+                                                                // hosted backend has no such limit.
+                                                                const remote =
+                                                                  remoteBranchesByRepo.get(
+                                                                    repo.id
                                                                   )
-                                                                    return
-                                                                  if (
-                                                                    sanitized ===
-                                                                    branch.ref
+                                                                const localTaken =
+                                                                  isLocalBuild &&
+                                                                  repoBranches.some(
+                                                                    (a) =>
+                                                                      a.id !==
+                                                                        branch.id &&
+                                                                      a.ref ===
+                                                                        sanitized
                                                                   )
-                                                                    return
-                                                                  // Renaming onto a branch that already exists on the
-                                                                  // remote would hijack its history, so that's always
-                                                                  // blocked. On the desktop build a name another open
-                                                                  // Branch holds is blocked too: the local backend
-                                                                  // keeps one checkout per ref (worktrees, ADR 0009),
-                                                                  // so the rename would collide at provision time. The
-                                                                  // hosted backend has no such limit.
-                                                                  const remote =
-                                                                    remoteBranchesByRepo.get(
-                                                                      repo.id
-                                                                    )
-                                                                  const localTaken =
-                                                                    isLocalBuild &&
-                                                                    repoBranches.some(
-                                                                      (a) =>
-                                                                        a.id !==
-                                                                          branch.id &&
-                                                                        a.ref ===
-                                                                          sanitized
-                                                                    )
-                                                                  if (
-                                                                    localTaken ||
-                                                                    remote?.has(
-                                                                      sanitized
-                                                                    )
-                                                                  )
-                                                                    return
-                                                                  onRenameBranch(
-                                                                    branch.id,
+                                                                if (
+                                                                  localTaken ||
+                                                                  remote?.has(
                                                                     sanitized
                                                                   )
-                                                                }}
-                                                              />
-                                                            ) : (
-                                                              <span className="truncate font-mono text-xs text-muted-foreground">
-                                                                Creating…
-                                                              </span>
-                                                            )}
-                                                          </div>
-                                                        </SidebarMenuSubButton>
-                                                        <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
-                                                          {(() => {
-                                                            const stats =
-                                                              diffStats.get(
-                                                                branch.id
-                                                              )
-                                                            const hasStats =
-                                                              stats &&
-                                                              (stats.additions >
-                                                                0 ||
-                                                                stats.deletions >
-                                                                  0)
-                                                            return (
-                                                              <>
-                                                                {hasStats && (
-                                                                  <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                                    <span className="text-success">
-                                                                      +
-                                                                      {
-                                                                        stats.additions
-                                                                      }
-                                                                    </span>
-                                                                    <span className="text-destructive">
-                                                                      -
-                                                                      {
-                                                                        stats.deletions
-                                                                      }
-                                                                    </span>
-                                                                  </span>
-                                                                )}
-                                                                <BranchDropdownSlot
-                                                                  menuContent={
-                                                                    <BranchOverflowMenuContent
-                                                                      branch={
-                                                                        branch
-                                                                      }
-                                                                      repo={
-                                                                        repo
-                                                                      }
-                                                                      onPlay={
-                                                                        onPlayBranch
-                                                                      }
-                                                                      onRename={
-                                                                        triggerBranchRename
-                                                                      }
-                                                                      onUpdateBranch={
-                                                                        onUpdateBranch
-                                                                      }
-                                                                      onNewBranchFromHere={() => {
-                                                                        setNewWorkspaceBaseBranch(
-                                                                          branch.ref ??
-                                                                            null
-                                                                        )
-                                                                        setNewWorkspaceRepoId(
-                                                                          branch.repoId
-                                                                        )
-                                                                      }}
-                                                                      onRestartDevServer={
-                                                                        onRestartDevServer
-                                                                      }
-                                                                      onRestart={
-                                                                        onRefreshBranch
-                                                                      }
-                                                                      onRecreate={
-                                                                        setPendingRecreateBranchId
-                                                                      }
-                                                                      onShowRoutes={
-                                                                        onShowRoutes
-                                                                      }
-                                                                      onCreatePr={
-                                                                        onCreatePr
-                                                                      }
-                                                                      pr={pr}
-                                                                      onRebase={
-                                                                        onRebaseOnDefault
-                                                                      }
-                                                                      onDelete={
-                                                                        setPendingDeleteBranchId
-                                                                      }
-                                                                      onCloseAutoFocus={
-                                                                        onBranchMenuCloseAutoFocus
-                                                                      }
-                                                                      isBusy={
-                                                                        isActive
-                                                                      }
-                                                                    />
-                                                                  }
-                                                                />
-                                                              </>
-                                                            )
-                                                          })()}
+                                                                )
+                                                                  return
+                                                                onRenameBranch(
+                                                                  branch.id,
+                                                                  sanitized
+                                                                )
+                                                              }}
+                                                            />
+                                                          ) : (
+                                                            <span className="truncate font-mono text-xs text-muted-foreground">
+                                                              Creating…
+                                                            </span>
+                                                          )}
                                                         </div>
+                                                      </SidebarMenuSubButton>
+                                                      <div className="group/slot flex shrink-0 items-center pr-1 pl-2">
+                                                        {(() => {
+                                                          const stats =
+                                                            diffStats.get(
+                                                              branch.id
+                                                            )
+                                                          const hasStats =
+                                                            stats &&
+                                                            (stats.additions >
+                                                              0 ||
+                                                              stats.deletions >
+                                                                0)
+                                                          return (
+                                                            <>
+                                                              {hasStats && (
+                                                                <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                                                                  <span className="text-success">
+                                                                    +
+                                                                    {
+                                                                      stats.additions
+                                                                    }
+                                                                  </span>
+                                                                  <span className="text-destructive">
+                                                                    -
+                                                                    {
+                                                                      stats.deletions
+                                                                    }
+                                                                  </span>
+                                                                </span>
+                                                              )}
+                                                              <BranchDropdownSlot
+                                                                menuContent={
+                                                                  <BranchOverflowMenuContent
+                                                                    branch={
+                                                                      branch
+                                                                    }
+                                                                    repo={repo}
+                                                                    onPlay={
+                                                                      onPlayBranch
+                                                                    }
+                                                                    onRename={
+                                                                      triggerBranchRename
+                                                                    }
+                                                                    onUpdateBranch={
+                                                                      onUpdateBranch
+                                                                    }
+                                                                    onNewBranchFromHere={() => {
+                                                                      setNewWorkspaceBaseBranch(
+                                                                        branch.ref ??
+                                                                          null
+                                                                      )
+                                                                      setNewWorkspaceRepoId(
+                                                                        branch.repoId
+                                                                      )
+                                                                    }}
+                                                                    onRestartDevServer={
+                                                                      onRestartDevServer
+                                                                    }
+                                                                    onRestart={
+                                                                      onRefreshBranch
+                                                                    }
+                                                                    onRecreate={
+                                                                      setPendingRecreateBranchId
+                                                                    }
+                                                                    onShowRoutes={
+                                                                      onShowRoutes
+                                                                    }
+                                                                    onCreatePr={
+                                                                      onCreatePr
+                                                                    }
+                                                                    pr={pr}
+                                                                    onRebase={
+                                                                      onRebaseOnDefault
+                                                                    }
+                                                                    onDelete={
+                                                                      setPendingDeleteBranchId
+                                                                    }
+                                                                    onCloseAutoFocus={
+                                                                      onBranchMenuCloseAutoFocus
+                                                                    }
+                                                                    isBusy={
+                                                                      isActive
+                                                                    }
+                                                                  />
+                                                                }
+                                                              />
+                                                            </>
+                                                          )
+                                                        })()}
                                                       </div>
+                                                    </div>
                                                   )}
                                                 </WithEditableRef>
                                               </SidebarMenuItem>
@@ -2196,7 +2222,7 @@ export function RoomSidebar({
                   </SidebarMenu>
 
                   {repos.length === 0 && !showPicker && (
-                    <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                    <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
                       No projects yet
                     </div>
                   )}
@@ -2458,7 +2484,7 @@ export function RoomSidebar({
                   </SortableContext>
                 </DropHintContext.Provider>
                 {iframeLayerGroups.length === 0 && (
-                  <div className="py-8 text-center text-xs text-sidebar-foreground/50">
+                  <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
                     No frames yet
                   </div>
                 )}
