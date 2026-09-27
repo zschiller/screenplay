@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem, TaskGroup } from "./agent-message"
@@ -358,14 +359,14 @@ export function AgentChat({
   const modelLocked = messages.length > 0
 
   // While the sandbox is still booting there's no agent to talk to yet — show
-  // a waiting state instead of a live composer whose first send would just
-  // error. Same copy as the terminal tab (terminal-tab.tsx), but the chat's one
-  // busy indicator, the GripSpinner, so every "working" cue in the chat matches.
+  // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
+  // of a live composer whose first send would just error. Mirrors the copy and
+  // Spinner so a freshly-seeded chat tab and terminal tab read identically.
   if (sandboxStatus === "creating" || sandboxStatus === "starting") {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
-        <span role="status" className="flex items-center gap-2">
-          <GripSpinner className="size-4" /> Waiting for the sandbox to start…
+        <span className="flex items-center gap-2">
+          <Spinner className="size-4" /> Waiting for the sandbox to start…
         </span>
       </div>
     )
@@ -379,11 +380,8 @@ export function AgentChat({
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div ref={scrollContentRef} className="flex min-h-full flex-col p-3">
           {isLoadingHistory ? (
-            <div
-              role="status"
-              className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground"
-            >
-              <GripSpinner className="h-3 w-3" />
+            <div className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
               Loading chat…
             </div>
           ) : messages.length === 0 ? (

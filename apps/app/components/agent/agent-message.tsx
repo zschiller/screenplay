@@ -22,6 +22,7 @@ import {
   Bot,
   Square,
 } from "lucide-react"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -209,7 +210,7 @@ function CreatePrIndicator({
   if (!result) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
-        <GripSpinner className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground">{title}</div>
           <div className="text-[11px] text-muted-foreground">
@@ -496,9 +497,9 @@ function ToolCallIndicator({
         }`}
       >
         {running ? (
-          <GripSpinner
+          <Spinner
             data-testid="tool-call-spinner"
-            className="h-3 w-3 shrink-0"
+            className="size-3 shrink-0"
           />
         ) : failed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
@@ -596,6 +597,7 @@ export function TaskGroup({
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
       >
         {anyRunning ? (
+          // A running Task is a subagent at work: LLM activity, so the grid.
           <GripSpinner className="h-3 w-3 shrink-0" />
         ) : anyFailed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
