@@ -125,10 +125,9 @@ function AlertDialogDescription({
 }
 
 /**
- * The confirming action. `variant="destructive"` is a solid red button with
- * white text in both themes, for confirms that permanently destroy something.
- * The Button's own destructive variant is a pale tint that reads as the
- * secondary action, which is wrong for the one button a confirm is about.
+ * The confirming action. `variant="destructive"` is the Button's solid
+ * `destructive-solid`, for confirms that permanently destroy something: the
+ * Button's own tinted `destructive` reads as the secondary action.
  */
 function AlertDialogAction({
   className,
@@ -142,11 +141,9 @@ function AlertDialogAction({
       data-slot="alert-dialog-action"
       data-variant={variant}
       className={cn(
-        buttonVariants({ variant }),
-        variant === "destructive" &&
-          // Dark mode's --destructive is a light red that white text can't sit
-          // on, so dark keeps the light theme's red (red-600).
-          "bg-destructive text-white hover:bg-destructive/90 dark:bg-red-600 dark:hover:bg-red-600/90",
+        buttonVariants({
+          variant: variant === "destructive" ? "destructive-solid" : "default",
+        }),
         className
       )}
       {...props}

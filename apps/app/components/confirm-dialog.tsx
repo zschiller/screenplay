@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,7 +90,6 @@ export function ConfirmDialog({
   // True while Cancel holds focus that a mouse open put there: its ring stays
   // hidden until the first key press, so only keyboard users see it.
   const [quietFocus, setQuietFocus] = useState(false)
-  const cancelRef = useRef<HTMLButtonElement>(null)
 
   // Reset transient state when the dialog closes, so reopening starts clean.
   // Done during render via the previous-prop pattern rather than in an effect
@@ -113,13 +112,9 @@ export function ConfirmDialog({
       }}
     >
       <AlertDialogContent
-        // Focus goes to the safe action, Cancel. Opened by mouse, its ring
-        // stays hidden until a key is pressed; opened by keyboard, it shows.
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
-          setQuietFocus(lastInputWasPointer())
-          cancelRef.current?.focus()
-        }}
+        // Radix focuses Cancel, the safe action, on open. Opened by mouse, its
+        // ring stays hidden until a key is pressed; opened by keyboard, it shows.
+        onOpenAutoFocus={() => setQuietFocus(lastInputWasPointer())}
         onKeyDown={() => {
           if (quietFocus) setQuietFocus(false)
         }}
@@ -138,7 +133,6 @@ export function ConfirmDialog({
         )}
         <AlertDialogFooter>
           <AlertDialogCancel
-            ref={cancelRef}
             disabled={pending}
             className={cn(
               quietFocus &&
