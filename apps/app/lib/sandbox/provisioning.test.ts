@@ -43,7 +43,8 @@ const env = vi.hoisted(() => {
 // The provider registry drags in the kv/db chain; provisioning only folds it
 // into the network policy and harness gate vars, so an empty registry will do.
 vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
-vi.mock("@/lib/env-store", () => ({ storeEnvVars: vi.fn(async () => {}) }))
+const storeEnvVars = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock("@/lib/env-store", () => ({ storeEnvVars }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
   getGitHubTokenForUser: vi.fn(async () => null),
@@ -298,6 +299,103 @@ describe("provisionSandbox on the local backend", () => {
 
     expect(result.success).toBe(false)
     expect(launchDevAndProxy).not.toHaveBeenCalled()
+  })
+
+  it("recreates onto the existing branch as a worktree of the checkout, never a re-clone", async () => {
+    const sandboxName = uniqueName("recreate")
+    const repo = localRepo(checkout)
+    // A live Sandbox on `feature`, with work in its worktree that a recreate is
+    // expected to discard.
+    expect(
+      (
+        await provisionSandbox({
+          mode: "from-branch",
+          repo,
+          branch: "feature",
+          sandboxName,
+        })
+      ).success
+    ).toBe(true)
+    const before = await sandboxProvider.get({ name: sandboxName })
+    await fs.writeFile(path.join(before.worktreePath, "scratch.txt"), "wip\n")
+
+    const statuses: string[] = []
+    const result = await provisionSandbox({
+      mode: "recreate",
+      repo,
+      branch: "feature",
+      sandboxName,
+      onStatus: (m) => {
+        statuses.push(m)
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      value: { sandboxName, previewDomain: expect.any(String) },
+    })
+    const sandbox = await sandboxProvider.get({ name: sandboxName })
+    const wt = sandbox.worktreePath
+    // Still a worktree sharing the user's own `.git`. The Repo has no clone URL
+    // at all (a folder-added Repo may have no remote — ADR 0013), so a recreate
+    // that re-cloned instead would have failed outright.
+    const commonDir = await git(wt, ["rev-parse", "--git-common-dir"])
+    expect(await fs.realpath(path.resolve(wt, commonDir))).toBe(
+      await fs.realpath(path.join(checkout, ".git"))
+    )
+    // On the same branch, at the same commit — the branch already existed, so
+    // it is never re-created (least of all through the GitHub API).
+    expect(await git(wt, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feature")
+    expect(await git(wt, ["rev-parse", "HEAD"])).toBe(
+      await git(checkout, ["rev-parse", "feature"])
+    )
+    expect(createBranch).not.toHaveBeenCalled()
+    // Destructive, as advertised: the old checkout's uncommitted work is gone.
+    await expect(fs.access(path.join(wt, "scratch.txt"))).rejects.toThrow()
+    // And it reports the same steps a create does.
+    expect(statuses).toEqual([
+      "Cloning repository…",
+      "Installing dependencies…",
+      "Starting dev server…",
+      "Configuring git…",
+    ])
+  })
+
+  it("recreates through the same setup and env-var steps a create runs", async () => {
+    const sandboxName = uniqueName("recreate-setup")
+    const repo = localRepo(checkout, {
+      setupScript: "touch setup-ran && true",
+      envVars: "FOO=bar",
+    })
+    await provisionSandbox({
+      mode: "new",
+      repo,
+      branch: "agent/recreate",
+      sandboxName,
+    })
+    vi.clearAllMocks()
+    await fs.rm(shellLog)
+
+    const result = await provisionSandbox({
+      mode: "recreate",
+      repo,
+      branch: "agent/recreate",
+      sandboxName,
+    })
+
+    expect(result.success).toBe(true)
+    // Setup ran under the user's login shell, in the fresh worktree — the drifted
+    // pipeline this replaced bare-spawned a whitespace-split argv, which resolves
+    // `pnpm` against the sidecar's PATH rather than the user's.
+    const shellArgs = (await fs.readFile(shellLog, "utf8")).trim().split("\n")
+    expect(shellArgs).toEqual(["-ilc", "touch setup-ran && true"])
+    const sandbox = await sandboxProvider.get({ name: sandboxName })
+    await expect(
+      fs.access(path.join(sandbox.worktreePath, "setup-ran"))
+    ).resolves.toBeUndefined()
+    // …and the Repo's env vars are persisted against the recreated Sandbox, which
+    // the drifted pipeline skipped entirely.
+    expect(storeEnvVars).toHaveBeenCalledWith(sandboxName, { FOO: "bar" })
   })
 
   it("rejects a duplicate with no source branch before touching anything", async () => {

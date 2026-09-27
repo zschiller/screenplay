@@ -219,16 +219,23 @@ export async function installHarnesses(
  * offset), which injects the DOM bridge. Collapses the legacy `SandboxResult`
  * into the uniform contract — success/failure is the discriminant, so the old
  * `status` field is gone.
+ *
+ * `env` is the Repo's env vars, handed to the dev command the same way the
+ * restart / reconnect / dev-server-bounce paths hand back the persisted copy.
+ * It matters on the local backend, where a Sandbox is a host process tree and
+ * the create-time `env` has nowhere to live: without this the dev server there
+ * would see the Repo's env vars only after its first restart.
  */
 export async function startDevServer(
   sandboxName: string,
   port: number = 3000,
-  devScript?: string
+  devScript?: string,
+  env?: Record<string, string> | null
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    const previewDomain = await launchDevAndProxy(sandbox, port, devScript)
+    const previewDomain = await launchDevAndProxy(sandbox, port, devScript, env)
     return { sandboxName: sandbox.name, previewDomain }
   })
 }

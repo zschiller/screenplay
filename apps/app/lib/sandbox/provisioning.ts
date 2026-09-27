@@ -35,8 +35,15 @@ import type { RepoData } from "@/lib/types"
  *  - `new` — a fresh branch off the Repo's default branch.
  *  - `from-branch` — the branch already exists; provision straight onto it.
  *  - `duplicate` — a fresh branch forked from `sourceBranch`.
+ *  - `recreate` — the branch already exists *and so does the Sandbox*: the
+ *    existing one is discarded and a fresh Sandbox provisioned under the same
+ *    name (the destructive "Recreate from scratch" path, and automatic Branch
+ *    recovery from a fully-expired snapshot). The branch step is the
+ *    `from-branch` no-op — it's the Sandbox, not the branch, that's being
+ *    rebuilt — so the only thing this mode adds is freeing the old Sandbox
+ *    first. See {@link recreateSandbox}.
  */
-export type ProvisionMode = "new" | "from-branch" | "duplicate"
+export type ProvisionMode = "new" | "from-branch" | "duplicate" | "recreate"
 
 export interface ProvisionRequest {
   mode: ProvisionMode
@@ -85,6 +92,12 @@ export type ProvisionResult = SandboxActionResult<{
  *
  * On the hosted backend the branch is created via the GitHub API first and the
  * clone is token-authed.
+ *
+ * `recreate` differs only in what it starts by tearing down (the existing
+ * Sandbox); every step after that is the same code, which is the point — the
+ * separate "reprovision from git" pipeline this replaced had drifted away from
+ * create on the clone source, the setup shell, env vars, ripgrep and harness
+ * selection.
  */
 export async function provisionSandbox(
   req: ProvisionRequest
@@ -94,7 +107,25 @@ export async function provisionSandbox(
     await req.onStatus?.(message)
   }
 
+  // Step 0 (recreate only): free the name so the fresh Sandbox can claim it.
+  // Best-effort — the old Sandbox may be gone (a fully-expired snapshot) or
+  // wedged, and neither should block a recreate. This is the *destructive* step
+  // of the destructive path: the old checkout, uncommitted changes included, is
+  // discarded (ADR 0005 — which is why only the explicitly-confirmed Recreate
+  // and snapshot-less recovery ever ask for this mode).
+  if (mode === "recreate") {
+    try {
+      const old = await sandboxProvider.get({
+        name: sandboxName,
+        resume: false,
+      })
+      await old.delete()
+    } catch {}
+  }
+
   // Step 1: make sure the git branch exists (or say where to create it from).
+  // `from-branch` and `recreate` both provision onto a branch that already
+  // exists, so neither creates one — and neither needs a base revision.
   let baseRevision: string | undefined
   if (mode === "new") {
     if (usesHostGitAuth) {
@@ -139,10 +170,12 @@ export async function provisionSandbox(
 
   // Step 2: create the Sandbox from its source.
   await report("Cloning repository…")
+  const env = parseEnvVars(repo.envVars)
   const created = await createSandbox(
     sandboxName,
     repo,
-    resolveSource(repo, branch, ghToken, baseRevision)
+    resolveSource(repo, branch, ghToken, baseRevision),
+    env
   )
   if (!created.success) return created
   const name = created.value
@@ -160,7 +193,12 @@ export async function provisionSandbox(
 
   // Step 4: dev server + bridge proxy.
   await report("Starting dev server…")
-  const server = await startDevServer(name, repo.devServerPort, repo.devScript)
+  const server = await startDevServer(
+    name,
+    repo.devServerPort,
+    repo.devScript,
+    env
+  )
   if (!server.success) return server
 
   // Step 5: git identity / remote / upstream.
@@ -215,16 +253,18 @@ function resolveSource(
 
 /**
  * Create the Sandbox with the Repo's env (plus the brokered harness gate vars)
- * and network policy, and persist the Repo's env vars against it. A creation
- * failure comes back redacted — it can spill the token baked into a source URL.
+ * and network policy, and persist the Repo's env vars against it — the
+ * persisted copy is what the later restart / reconnect / dev-server-bounce
+ * paths re-inject. A creation failure comes back redacted — it can spill the
+ * token baked into a source URL.
  */
 async function createSandbox(
   sandboxName: string,
   repo: RepoData,
-  source: SandboxSource
+  source: SandboxSource,
+  env: Record<string, string>
 ): Promise<SandboxActionResult<string>> {
   try {
-    const env = parseEnvVars(repo.envVars)
     const providers = getModelProviders()
     // The brokered gate vars (ANTHROPIC_API_KEY=brokered, …) are derived from
     // the harnesses the operator selected via SANDBOX_HARNESSES. No real key is
