@@ -681,11 +681,11 @@ memo, so the connect lands app-wide with no restart. The help is
 **one-directional**, exactly as the GitHub Connection's is toward the `gh` CLI: the
 app installs and launches sign-in but never signs you **out**, uninstalls, or
 manages the CLI's credentials beyond launching its own login.
-_Avoid_: treating it as a second setup machine (it is a sibling *instance* of the
+_Avoid_: treating it as a second setup machine (it is a sibling _instance_ of the
 ADR 0014 step, reducer reused verbatim); gating the availability list on the auth
 fact it surfaces (auth is a Settings label, presence still lists); a per-slot
 opencode row (dedupe by `hostBinary`); picking a Harness's model here (that's the
-model dropdown / **Harness model catalog**, ADR 0011); signing a harness *out* or
+model dropdown / **Harness model catalog**, ADR 0011); signing a harness _out_ or
 uninstalling it (one-directional — help in, never out).
 
 **Harness model catalog**:

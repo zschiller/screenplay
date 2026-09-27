@@ -382,44 +382,46 @@ export function AgentChat({
             </p>
           ) : (
             <div className="space-y-3">
-              {groupToolCalls(messages).map(({ message: msg, index: i, children }) => {
-                // A subagent's calls fold under the Task that spawned them
-                // (#640); `children` is non-empty only for such a Task.
-                if (children.length > 0 && msg.role === "tool_call") {
-                  return (
-                    <TaskGroup
-                      key={i}
-                      task={msg}
-                      childCalls={children.map((c) => c.message)}
-                    />
-                  )
-                }
-                if (msg.role === "tool_use") {
-                  const result = messages
-                    .slice(i + 1)
-                    .find(
-                      (m): m is AgentMessage & { role: "tool_result" } =>
-                        m.role === "tool_result" && m.name === msg.name
+              {groupToolCalls(messages).map(
+                ({ message: msg, index: i, children }) => {
+                  // A subagent's calls fold under the Task that spawned them
+                  // (#640); `children` is non-empty only for such a Task.
+                  if (children.length > 0 && msg.role === "tool_call") {
+                    return (
+                      <TaskGroup
+                        key={i}
+                        task={msg}
+                        childCalls={children.map((c) => c.message)}
+                      />
                     )
+                  }
+                  if (msg.role === "tool_use") {
+                    const result = messages
+                      .slice(i + 1)
+                      .find(
+                        (m): m is AgentMessage & { role: "tool_result" } =>
+                          m.role === "tool_result" && m.name === msg.name
+                      )
+                    return (
+                      <AgentMessageItem
+                        key={i}
+                        message={msg}
+                        toolResult={result}
+                        roomId={roomId}
+                        chatId={chatId}
+                      />
+                    )
+                  }
                   return (
                     <AgentMessageItem
                       key={i}
                       message={msg}
-                      toolResult={result}
                       roomId={roomId}
                       chatId={chatId}
                     />
                   )
                 }
-                return (
-                  <AgentMessageItem
-                    key={i}
-                    message={msg}
-                    roomId={roomId}
-                    chatId={chatId}
-                  />
-                )
-              })}
+              )}
               {isStreaming &&
                 messages[messages.length - 1]?.role !== "assistant" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
