@@ -328,12 +328,16 @@ function TerminalTabLabel({
 }) {
   return (
     <span className="flex items-center gap-1.5">
+      <SquareTerminal
+        aria-hidden
+        className="size-3 shrink-0 text-muted-foreground"
+      />
       <EditableText
         as="span"
         value={terminal.label}
         onCommit={onRename}
         placeholder="Untitled"
-        className={TAB_LABEL_CLASS}
+        className={cn(TAB_LABEL_CLASS, "font-mono text-xs")}
         viewClassName="truncate"
         editClassName={TAB_LABEL_EDIT_CLASS}
       />
@@ -520,7 +524,11 @@ export function ChatPanel({
   } | null =
     chatHistoryPr ??
     (branchPr
-      ? { url: branchPr.url, number: String(branchPr.number), state: branchPr.state }
+      ? {
+          url: branchPr.url,
+          number: String(branchPr.number),
+          state: branchPr.state,
+        }
       : null)
   // The PR button's icon and color mirror the sidebar branch icon so the two
   // stay legible together: open = green, merged = purple, closed = red.

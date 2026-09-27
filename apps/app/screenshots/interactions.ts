@@ -1,7 +1,14 @@
 import type { Page } from "playwright-core"
 
+import { stubTerminal } from "./fixtures/streams"
 import { FIXTURE_IDS } from "./fixtures/world"
-import { canvasPanels, DEFAULT_VIEWPORT, homeView, tabTo } from "./screens"
+import {
+  canvasPanels,
+  DEFAULT_VIEWPORT,
+  homeView,
+  openTerminalTab,
+  tabTo,
+} from "./screens"
 
 /**
  * The **named interactions** — short flows the harness records to video.
@@ -129,6 +136,30 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1500)
       await click(page, page.getByRole("button", { name: /^light$/i }).first())
       await page.waitForTimeout(1500)
+    },
+  },
+  {
+    name: "terminal-theme-switch",
+    description:
+      "An open terminal tab while the app flips light → dark → light, without reopening it.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    run: async (page) => {
+      await openTerminalTab(page).catch(() =>
+        console.warn("  ! skipped a step: could not open a terminal tab")
+      )
+      await page.waitForTimeout(1500)
+      // Flip the theme the way a second window's Settings change reaches this
+      // one: next-themes follows the \`storage\` event, so the canvas (and its
+      // open terminal) re-themes in place with no navigation.
+      for (const theme of ["dark", "light"]) {
+        await page.evaluate(`(() => {
+          localStorage.setItem("theme", "${theme}")
+          window.dispatchEvent(new StorageEvent("storage", { key: "theme", newValue: "${theme}" }))
+        })()`)
+        await page.waitForTimeout(1800)
+      }
     },
   },
   {

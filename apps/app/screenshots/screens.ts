@@ -12,6 +12,7 @@ import {
 } from "@/lib/fixture-entry"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 
+import { stubLogs, stubTerminal } from "./fixtures/streams"
 import { FIXTURE_IDS } from "./fixtures/world"
 import { settle } from "./lib/browser"
 
@@ -70,7 +71,9 @@ export interface Screen {
   /**
    * Runs on the fresh page before the first navigation — for state that has to
    * be in place before the app loads, like holding the Yjs connection so a
-   * loading state stays on screen long enough to photograph.
+   * loading state stays on screen long enough to photograph, or stubbing a
+   * stream the fixture world's (absent) sandbox can't answer
+   * (`./fixtures/streams.ts`).
    */
   beforeNavigate?: (page: Page) => Promise<void>
 }
@@ -369,6 +372,36 @@ export const SCREENS: Screen[] = [
       await selectWorkspace(page, "empty-cart-state")
     },
     settleMs: 400,
+  },
+  {
+    name: "terminal",
+    description:
+      "A terminal tab running a test and printing all 16 ANSI colours.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: stubTerminal,
+    prepare: openTerminalTab,
+    settleMs: 600,
+  },
+  {
+    name: "logs-reconnecting",
+    description:
+      "The sandbox logs panel with coloured output, dropped and reconnecting.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "reconnecting"),
+    prepare: openLogsTab,
+    settleMs: 600,
+  },
+  {
+    name: "logs-error",
+    description: "The sandbox logs panel after the stream keeps failing.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    beforeNavigate: (page) => stubLogs(page, "error"),
+    prepare: openLogsTab,
+    // Long enough for the panel to exhaust its quick retries.
+    settleMs: 6000,
   },
   {
     name: "canvas-selection",
@@ -712,6 +745,42 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
 export async function openChatTab(page: Page, label: string): Promise<void> {
   await page
     .getByRole("tab", { name: new RegExp(label, "i") })
+    .first()
+    .click({ timeout: 15_000 })
+}
+
+/**
+ * Open a fresh terminal tab from the tab strip's "New chat or terminal" menu.
+ *
+ * Opened rather than restored: the fixture world does seed two terminal tabs,
+ * but a cold room load currently prunes them as orphans before its Workspaces
+ * arrive, so they can't be relied on to be there.
+ */
+export async function openTerminalTab(page: Page): Promise<void> {
+  await page
+    .getByRole("button", { name: "New chat or terminal" })
+    .first()
+    .click({ timeout: 15_000 })
+  // One harness reads "New terminal"; several list each harness by name under
+  // a "New terminal" label — either way the first item after "New chat".
+  await page
+    .getByRole("menuitem")
+    .filter({ hasNotText: "New chat" })
+    .first()
+    .click({ timeout: 15_000 })
+  // Let the menu's exit animation finish before the shot: the settle step
+  // pins animations where they stand, which would freeze it half-closed.
+  await page.mouse.move(0, 0)
+  await page
+    .getByRole("menu")
+    .waitFor({ state: "detached", timeout: 5_000 })
+    .catch(() => {})
+}
+
+/** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */
+export async function openLogsTab(page: Page): Promise<void> {
+  await page
+    .getByRole("tab", { name: "Sandbox logs" })
     .first()
     .click({ timeout: 15_000 })
 }

@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Anser from "anser"
+import { RotateCcw } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { withBasePath } from "@/lib/base-path"
+import {
+  ANSI_PALETTE_CSS,
+  ansiClassIndex,
+  ansiColorVar,
+  TERMINAL_FONT_SIZE,
+  xterm256Rgb,
+} from "@/lib/terminal/ansi-palette"
 
 const MAX_TOKENS = 10_000
 const FLUSH_PENDING_MAX_BYTES = 64 * 1024
@@ -10,64 +20,55 @@ const FLUSH_PENDING_MAX_BYTES = 64 * 1024
 type Token = Anser.AnserJsonEntry & { _id: number }
 let nextTokenId = 0
 
-const normalizeRgb = (rgb: string) => rgb.replace(/\s+/g, "")
-
-const ANSI_FG_CLASS: Record<string, string> = {
-  "0,0,0": "text-neutral-700 dark:text-neutral-300",
-  "187,0,0": "text-red-600 dark:text-red-400",
-  "0,187,0": "text-emerald-600 dark:text-emerald-400",
-  "187,187,0": "text-amber-600 dark:text-amber-400",
-  "0,0,187": "text-blue-600 dark:text-blue-400",
-  "187,0,187": "text-fuchsia-600 dark:text-fuchsia-400",
-  "0,187,187": "text-cyan-600 dark:text-cyan-400",
-  "255,255,255": "text-foreground",
-  "85,85,85": "text-neutral-500 dark:text-neutral-400",
-  "255,85,85": "text-red-500 dark:text-red-300",
-  "0,255,0": "text-emerald-500 dark:text-emerald-300",
-  "255,255,85": "text-amber-500 dark:text-amber-300",
-  "85,85,255": "text-blue-500 dark:text-blue-300",
-  "255,85,255": "text-fuchsia-500 dark:text-fuchsia-300",
-  "85,255,255": "text-cyan-500 dark:text-cyan-300",
-}
-
-const ANSI_BG_CLASS: Record<string, string> = {
-  "187,0,0": "bg-red-500/15 dark:bg-red-400/15",
-  "0,187,0": "bg-emerald-500/15 dark:bg-emerald-400/15",
-  "187,187,0": "bg-amber-500/15 dark:bg-amber-400/15",
-  "0,0,187": "bg-blue-500/15 dark:bg-blue-400/15",
-  "187,0,187": "bg-fuchsia-500/15 dark:bg-fuchsia-400/15",
-  "0,187,187": "bg-cyan-500/15 dark:bg-cyan-400/15",
-  "255,85,85": "bg-red-500/15 dark:bg-red-400/15",
-  "0,255,0": "bg-emerald-500/15 dark:bg-emerald-400/15",
-  "255,255,85": "bg-amber-500/15 dark:bg-amber-400/15",
-  "85,85,255": "bg-blue-500/15 dark:bg-blue-400/15",
-  "255,85,255": "bg-fuchsia-500/15 dark:bg-fuchsia-400/15",
-  "85,255,255": "bg-cyan-500/15 dark:bg-cyan-400/15",
+/**
+ * A token's colour as CSS. The base 16 (named, or a 256-colour index under 16)
+ * resolve through the shared ANSI palette's CSS variables, so they follow the
+ * theme; a higher 256-colour index or a truecolour carries its own RGB.
+ */
+function tokenColor(cls: string | null, truecolor: string | null) {
+  if (!cls) return undefined
+  if (cls === "ansi-truecolor") {
+    return truecolor ? `rgb(${truecolor})` : undefined
+  }
+  const index = ansiClassIndex(cls)
+  if (index !== null) return ansiColorVar(index)
+  const palette = /^ansi-palette-(\d+)$/.exec(cls)
+  if (palette) return `rgb(${xterm256Rgb(Number(palette[1])).join(",")})`
+  return undefined
 }
 
 function renderToken(t: Token) {
   const style: React.CSSProperties = {}
-  const classes: string[] = []
-  if (t.fg) {
-    const mapped = ANSI_FG_CLASS[normalizeRgb(t.fg)]
-    if (mapped) classes.push(mapped)
-    else style.color = `rgb(${t.fg})`
-  }
-  if (t.bg) {
-    const mapped = ANSI_BG_CLASS[normalizeRgb(t.bg)]
-    if (mapped) classes.push(mapped)
-    else style.backgroundColor = `rgb(${t.bg})`
-  }
+  const fg = tokenColor(t.fg, t.fg_truecolor)
+  if (fg) style.color = fg
+  const bg = tokenColor(t.bg, t.bg_truecolor)
+  // Backgrounds are a tint of the colour rather than a solid block, so the
+  // (theme) foreground on top of them stays readable in either theme.
+  if (bg) style.backgroundColor = `color-mix(in srgb, ${bg} 18%, transparent)`
   if (t.decorations.includes("bold")) style.fontWeight = 600
   if (t.decorations.includes("italic")) style.fontStyle = "italic"
   if (t.decorations.includes("underline")) style.textDecoration = "underline"
   if (t.decorations.includes("dim")) style.opacity = 0.7
   return (
-    <span key={t._id} className={classes.join(" ") || undefined} style={style}>
+    <span key={t._id} style={style}>
       {t.content}
     </span>
   )
 }
+
+/**
+ * Where the log stream is:
+ * - `connecting` — the first connection hasn't landed yet;
+ * - `live` — streaming;
+ * - `reconnecting` — the stream dropped (or ended) and is being re-opened;
+ * - `error` — {@link ERROR_AFTER_FAILURES} attempts in a row failed. Retries
+ *   carry on in the background at the slowest cadence; Retry skips the wait.
+ */
+type StreamStatus = "connecting" | "live" | "reconnecting" | "error"
+
+/** Back-off between attempts, by consecutive failures (the last one repeats). */
+const RETRY_DELAYS_MS = [1500, 3000, 6000, 15_000]
+const ERROR_AFTER_FAILURES = 3
 
 export function LogsPanel({
   sandboxName,
@@ -79,8 +80,10 @@ export function LogsPanel({
   const pendingRef = useRef("")
   const rafRef = useRef<number | null>(null)
   const [tokens, setTokens] = useState<Token[]>([])
+  const [status, setStatus] = useState<StreamStatus>("connecting")
   const [error, setError] = useState<string | null>(null)
-  const [connected, setConnected] = useState(false)
+  // Set while the loop is waiting out a back-off; calling it ends the wait now.
+  const retryRef = useRef<(() => void) | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const onConnectedRef = useRef(onConnected)
@@ -105,7 +108,14 @@ export function LogsPanel({
     }
     const toParse = buf.slice(0, splitAt + 1)
     pendingRef.current = buf.slice(splitAt + 1)
-    const parsed = Anser.ansiToJson(toParse, { remove_empty: true, json: true })
+    const parsed = Anser.ansiToJson(toParse, {
+      remove_empty: true,
+      json: true,
+      // Class names (`ansi-red`, `ansi-bright-white`) rather than RGB: anser's
+      // RGB gives white and bright white the same value, and the palette
+      // needs to tell all 16 apart.
+      use_classes: true,
+    })
     if (parsed.length === 0) return
     const tagged = parsed as Token[]
     for (const t of tagged) t._id = nextTokenId++
@@ -132,7 +142,7 @@ export function LogsPanel({
     setLastSandboxName(sandboxName)
     setTokens([])
     setError(null)
-    setConnected(false)
+    setStatus("connecting")
   }
 
   useEffect(() => {
@@ -140,6 +150,7 @@ export function LogsPanel({
     pendingRef.current = ""
     let seenNonWhitespace = false
     let isReconnect = false
+    let failures = 0
 
     const runOnce = async () => {
       const url = withBasePath(
@@ -149,9 +160,13 @@ export function LogsPanel({
       if (!res.ok || !res.body) {
         throw new Error(`HTTP ${res.status}`)
       }
-      setConnected(true)
+      failures = 0
+      setStatus("live")
       setError(null)
       if (!isReconnect) onConnectedRef.current?.()
+      // From here on a drop is a *re*connect, and resumes from the live tail
+      // rather than replaying the history already on screen.
+      isReconnect = true
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       while (true) {
@@ -168,24 +183,50 @@ export function LogsPanel({
       }
     }
 
+    // Wait out a back-off — cut short by Retry, or by teardown.
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer)
+          abort.signal.removeEventListener("abort", done)
+          retryRef.current = null
+          resolve()
+        }
+        const timer = setTimeout(done, ms)
+        abort.signal.addEventListener("abort", done)
+        retryRef.current = done
+      })
+
     const loop = async () => {
       while (!abort.signal.aborted) {
         try {
           await runOnce()
-          isReconnect = true
+          // The stream ended cleanly (the container restarted, the proxy
+          // recycled the connection): pick it back up from the live tail.
+          setStatus("reconnecting")
         } catch (e) {
           if ((e as Error).name === "AbortError") return
-          setConnected(false)
+          failures++
           setError(e instanceof Error ? e.message : String(e))
+          setStatus(
+            failures >= ERROR_AFTER_FAILURES
+              ? "error"
+              : isReconnect
+                ? "reconnecting"
+                : "connecting"
+          )
         }
         if (abort.signal.aborted) return
-        await new Promise((r) => setTimeout(r, 1500))
+        // A clean end (no failures) retries as promptly as a first failure.
+        const step = Math.max(failures - 1, 0)
+        await wait(RETRY_DELAYS_MS[Math.min(step, RETRY_DELAYS_MS.length - 1)]!)
       }
     }
 
     loop()
     return () => {
       abort.abort()
+      retryRef.current = null
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
@@ -225,25 +266,64 @@ export function LogsPanel({
       el.scrollHeight - el.scrollTop - el.clientHeight < 20
   }
 
+  const retry = () => {
+    setStatus(tokens.length > 0 ? "reconnecting" : "connecting")
+    retryRef.current?.()
+  }
+
+  const notice =
+    status === "reconnecting" ? (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <Spinner className="size-3" /> Reconnecting…
+      </span>
+    ) : status === "error" ? (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-destructive">
+          Couldn&apos;t stream logs{error ? ` (${error})` : ""}.
+        </span>
+        <Button
+          variant="outline"
+          size="xs"
+          className="shrink-0 font-sans"
+          onClick={retry}
+        >
+          <RotateCcw /> Retry
+        </Button>
+      </span>
+    ) : null
+
   return (
     <div className="flex h-full flex-col bg-background">
+      {/* The shared ANSI palette's CSS variables; React hoists and dedupes it. */}
+      <style href="ansi-palette" precedence="default">
+        {ANSI_PALETTE_CSS}
+      </style>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-foreground/80"
+        style={{ fontSize: TERMINAL_FONT_SIZE }}
+        className="flex-1 overflow-auto px-3 py-2 font-mono leading-relaxed whitespace-pre-wrap text-foreground/80"
       >
-        {error ? (
-          <span className="text-red-600 dark:text-red-400">
-            Failed to stream logs: {error}
-          </span>
-        ) : tokens.length > 0 ? (
+        {tokens.length > 0 ? (
           tokens.map(renderToken)
+        ) : status === "error" || status === "reconnecting" ? (
+          notice
         ) : (
           <span className="text-muted-foreground">
-            {connected ? "No output yet." : "Connecting…"}
+            {status === "live" ? "No output yet." : "Connecting…"}
           </span>
         )}
       </div>
+      {tokens.length > 0 && notice && (
+        // With history on screen the state rides a footer strip instead, so a
+        // dropped stream never hides the output that was already there.
+        <div
+          role="status"
+          className="flex shrink-0 items-center border-t px-3 py-1.5 font-mono text-[11px]"
+        >
+          {notice}
+        </div>
+      )}
     </div>
   )
 }
