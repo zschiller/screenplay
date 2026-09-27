@@ -1,17 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@workspace/ui/components/alert-dialog"
-import { buttonVariants } from "@workspace/ui/components/button"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Switch } from "@workspace/ui/components/switch"
 import { Label } from "@workspace/ui/components/label"
 
@@ -46,44 +36,41 @@ export function DeleteBranchDialog({
   canDeleteOnRemote,
   onConfirm,
 }: DeleteBranchDialogProps) {
-  const [deleting, setDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [deleteOnRemote, setDeleteOnRemote] = useState(false)
 
-  // Reset transient state when the dialog is dismissed, so reopening starts
-  // clean. Done during render via the previous-prop pattern rather than in an
-  // effect (see react.dev "You Might Not Need an Effect").
+  // Reset the opt-in when the dialog closes, so reopening starts local-only.
+  // The previous-prop pattern rather than an effect (see react.dev "You Might
+  // Not Need an Effect").
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (!open) {
-      setDeleting(false)
-      setError(null)
-      setDeleteOnRemote(false)
-    }
+    if (!open) setDeleteOnRemote(false)
   }
 
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={open}
-      onOpenChange={(next) => {
-        if (deleting) return
-        onOpenChange(next)
-      }}
+      onOpenChange={onOpenChange}
+      verb="Delete"
+      itemName={branchName}
+      itemNoun="workspace"
+      description={
+        <>
+          The agent and its frames will be removed. The local branch{" "}
+          <span className="font-mono">{branchName}</span> stays in your sandbox
+          {canDeleteOnRemote
+            ? " unless you also delete it on the remote."
+            : "."}
+        </>
+      }
+      // Never ask for a remote delete the dialog didn't offer: the toggle's
+      // state is unreachable while it's hidden.
+      onConfirm={() =>
+        onConfirm({ deleteOnRemote: canDeleteOnRemote && deleteOnRemote })
+      }
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete branch?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The agent and its frames will be removed. The local branch{" "}
-            <span className="font-mono">{branchName}</span> stays in your
-            sandbox
-            {canDeleteOnRemote
-              ? " unless you also delete it on the remote."
-              : "."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {canDeleteOnRemote && (
+      {({ pending }) =>
+        canDeleteOnRemote && (
           <div className="flex items-center justify-between rounded-md border p-3">
             <Label htmlFor="delete-on-remote" className="flex flex-col gap-1">
               <span className="text-sm font-medium">Also delete on remote</span>
@@ -95,38 +82,11 @@ export function DeleteBranchDialog({
               id="delete-on-remote"
               checked={deleteOnRemote}
               onCheckedChange={setDeleteOnRemote}
-              disabled={deleting}
+              disabled={pending}
             />
           </div>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className={buttonVariants({ variant: "destructive" })}
-            disabled={deleting}
-            onClick={async (event) => {
-              event.preventDefault()
-              setDeleting(true)
-              setError(null)
-              try {
-                // Never ask for a remote delete the dialog didn't offer: the
-                // toggle's state is unreachable while it's hidden.
-                await onConfirm({
-                  deleteOnRemote: canDeleteOnRemote && deleteOnRemote,
-                })
-              } catch (err) {
-                setError(
-                  err instanceof Error ? err.message : "Failed to delete branch"
-                )
-                setDeleting(false)
-              }
-            }}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        )
+      }
+    </ConfirmDialog>
   )
 }

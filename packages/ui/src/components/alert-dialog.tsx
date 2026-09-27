@@ -124,14 +124,23 @@ function AlertDialogDescription({
   )
 }
 
+/**
+ * The confirming action. `variant="destructive"` is the real destructive
+ * treatment (not the default styling with red layered on top), for confirms
+ * that permanently destroy something.
+ */
 function AlertDialogAction({
   className,
+  variant = "default",
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action> & {
+  variant?: "default" | "destructive"
+}) {
   return (
     <AlertDialogPrimitive.Action
       data-slot="alert-dialog-action"
-      className={cn(buttonVariants({ variant: "default" }), className)}
+      data-variant={variant}
+      className={cn(buttonVariants({ variant }), className)}
       {...props}
     />
   )

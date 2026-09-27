@@ -14,6 +14,7 @@ import {
   recreate as recreateBranchRecovery,
   restartDevServer as restartDevServerRecovery,
   restartSandbox as restartSandboxRecovery,
+  type RecoveryOutcome,
 } from "@/lib/branch/recovery"
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -69,8 +70,11 @@ export interface BranchActions {
   restartDevServer: (agentId: string) => void
   /** Snapshot-restore onto a fresh VM, preserving the working tree. */
   restartSandbox: (agentId: string) => void
-  /** Destructive reclone — runs only after the sidebar's confirm. */
-  recreate: (agentId: string) => void
+  /**
+   * Destructive reclone — runs only after the sidebar's confirm, which awaits
+   * it. Rejects with the failure so the confirm can show it inline.
+   */
+  recreate: (agentId: string) => Promise<void>
 }
 
 export function useBranchActions(deps: BranchActionsDeps): BranchActions {
@@ -215,7 +219,12 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       createPullRequest: (agentId) => run("create-pr", agentId),
       restartDevServer: (agentId) => run("restart-dev-server", agentId),
       restartSandbox: (agentId) => run("restart-sandbox", agentId),
-      recreate: (agentId) => run("recreate", agentId),
+      recreate: async (agentId) => {
+        const outcome = (await run("recreate", agentId)) as
+          | RecoveryOutcome
+          | undefined
+        if (outcome && !outcome.ok) throw new Error(outcome.error)
+      },
     }),
     [run]
   )

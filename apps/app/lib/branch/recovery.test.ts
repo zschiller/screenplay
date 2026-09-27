@@ -45,7 +45,11 @@ function makeDeps(
   overrides: Partial<BranchRecoveryDeps> = {}
 ): BranchRecoveryDeps & {
   patches: Array<{ id: string; patch: RecoveryPatch }>
-  toasts: Array<{ kind: "success" | "error"; message: string; description?: string }>
+  toasts: Array<{
+    kind: "success" | "error"
+    message: string
+    description?: string
+  }>
 } {
   const patches: Array<{ id: string; patch: RecoveryPatch }> = []
   const toasts: Array<{
@@ -144,7 +148,7 @@ describe("recreate (Recreate)", () => {
     lifecycle.recreateSandbox.mockResolvedValue(ok)
     const deps = makeDeps()
 
-    await recreate("branch-1", deps)
+    await expect(recreate("branch-1", deps)).resolves.toEqual({ ok: true })
 
     expect(lifecycle.recreateSandbox).toHaveBeenCalledWith(
       "sandbox-1",
@@ -169,7 +173,11 @@ describe("recreate (Recreate)", () => {
     } satisfies SandboxResult)
     const deps = makeDeps()
 
-    await recreate("branch-1", deps)
+    // The outcome carries the failure so the Recreate confirm can show it.
+    await expect(recreate("branch-1", deps)).resolves.toEqual({
+      ok: false,
+      error: "clone failed",
+    })
 
     expect(deps.patches.map((p) => p.patch.status)).toEqual([
       "starting",
@@ -180,6 +188,19 @@ describe("recreate (Recreate)", () => {
       message: "Couldn't recreate sandbox",
       description: "clone failed",
     })
+  })
+  it("treats a thrown sandbox call as a failure instead of leaving it starting", async () => {
+    lifecycle.recreateSandbox.mockRejectedValue(new Error("fetch failed"))
+    const deps = makeDeps()
+
+    await expect(recreate("branch-1", deps)).resolves.toEqual({
+      ok: false,
+      error: "fetch failed",
+    })
+    expect(deps.patches.map((p) => p.patch.status)).toEqual([
+      "starting",
+      "error",
+    ])
   })
 })
 
@@ -239,7 +260,10 @@ describe("guards", () => {
     await restartSandbox("branch-1", deps)
 
     expect(deps.patches).toEqual([
-      { id: "branch-1", patch: { status: "error", error: "Workspace not found" } },
+      {
+        id: "branch-1",
+        patch: { status: "error", error: "Workspace not found" },
+      },
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",

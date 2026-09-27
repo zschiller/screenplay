@@ -15,6 +15,7 @@ import { RepoConfigForm } from "@/components/home/repo-config-form"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { isLocalBuild } from "@/lib/local-mode"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 type Mode =
   | { kind: "list" }
@@ -30,7 +31,8 @@ export function RepoConfigsPanel() {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  // The preset awaiting delete confirmation; the confirm owns pending + error.
+  const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -47,13 +49,9 @@ export function RepoConfigsPanel() {
   }, [])
 
   const handleDelete = async (id: string) => {
-    setDeletingId(id)
-    try {
-      const updated = await deleteRepoConfig(id)
-      setConfigs(updated)
-    } finally {
-      setDeletingId(null)
-    }
+    const updated = await deleteRepoConfig(id)
+    setConfigs(updated)
+    setPendingDelete(null)
   }
 
   if (mode.kind !== "list") {
@@ -140,8 +138,7 @@ export function RepoConfigsPanel() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => handleDelete(config.id)}
-                      disabled={deletingId === config.id}
+                      onClick={() => setPendingDelete(config)}
                     >
                       <Trash2 className="size-3.5" />
                       <span className="sr-only">Delete</span>
@@ -153,6 +150,29 @@ export function RepoConfigsPanel() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        verb="Delete"
+        itemName={pendingDelete?.name}
+        itemNoun="preset"
+        description={
+          pendingDelete ? (
+            <>
+              Adding{" "}
+              <span className="font-mono">
+                {presetOwnerLabel(pendingDelete)}
+              </span>{" "}
+              to a canvas will no longer start from this preset. Projects
+              already on a canvas keep their settings.
+            </>
+          ) : null
+        }
+        onConfirm={() => handleDelete(pendingDelete!.id)}
+      />
 
       <div className="flex justify-end">
         <Button
@@ -181,6 +201,11 @@ type ConfigGroup = {
 /** A folder preset with no detected remote falls back to path identity. */
 function isPathIdentity(c: RepoConfig): boolean {
   return Boolean(c.localPath) && !c.repoOwner
+}
+
+/** The project a preset belongs to, as its group heading shows it. */
+function presetOwnerLabel(c: RepoConfig): string {
+  return isPathIdentity(c) ? basename(c.localPath!) : c.repoFullName
 }
 
 /** Trailing path segment, tolerant of POSIX and Windows separators. */

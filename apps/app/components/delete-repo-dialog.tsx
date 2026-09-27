@@ -1,17 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@workspace/ui/components/alert-dialog"
-import { buttonVariants } from "@workspace/ui/components/button"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { Switch } from "@workspace/ui/components/switch"
 import { Label } from "@workspace/ui/components/label"
 
@@ -23,6 +13,7 @@ type DeleteRepoDialogProps = {
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
+/** Confirm removing a Project (a Repo) and all of its Workspaces from the canvas. */
 export function DeleteRepoDialog({
   open,
   onOpenChange,
@@ -30,42 +21,31 @@ export function DeleteRepoDialog({
   branches,
   onConfirm,
 }: DeleteRepoDialogProps) {
-  const [deleting, setDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(true)
 
-  // Reset transient state when the dialog is dismissed, so reopening starts
-  // clean. Done during render via the previous-prop pattern rather than in an
-  // effect (see react.dev "You Might Not Need an Effect").
+  // Reset the option when the dialog closes, so reopening starts from the
+  // default. The previous-prop pattern rather than an effect (see react.dev
+  // "You Might Not Need an Effect").
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (!open) {
-      setDeleting(false)
-      setError(null)
-      setDeleteBranchesOnRemote(true)
-    }
+    if (!open) setDeleteBranchesOnRemote(true)
   }
 
   const branchCount = branches.length
 
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={open}
-      onOpenChange={(next) => {
-        if (deleting) return
-        onOpenChange(next)
-      }}
+      onOpenChange={onOpenChange}
+      verb="Remove"
+      itemName={repoName}
+      itemNoun="project"
+      description="This project and all of its workspaces will be removed from this canvas."
+      onConfirm={() => onConfirm({ deleteBranchesOnRemote })}
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove workspace?</AlertDialogTitle>
-          <AlertDialogDescription>
-            <span className="font-mono">{repoName}</span> and all of its agents
-            will be removed from this canvas.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {branchCount > 0 && (
+      {({ pending }) =>
+        branchCount > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-md border p-3">
               <Label
@@ -84,7 +64,7 @@ export function DeleteRepoDialog({
                 id="delete-branches-on-remote"
                 checked={deleteBranchesOnRemote}
                 onCheckedChange={setDeleteBranchesOnRemote}
-                disabled={deleting}
+                disabled={pending}
               />
             </div>
             <ul className="max-h-32 overflow-y-auto rounded-md border bg-muted/30 px-3 py-2 font-mono text-xs">
@@ -95,33 +75,8 @@ export function DeleteRepoDialog({
               ))}
             </ul>
           </div>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className={buttonVariants({ variant: "destructive" })}
-            disabled={deleting}
-            onClick={async (event) => {
-              event.preventDefault()
-              setDeleting(true)
-              setError(null)
-              try {
-                await onConfirm({ deleteBranchesOnRemote })
-              } catch (err) {
-                setError(
-                  err instanceof Error
-                    ? err.message
-                    : "Failed to remove workspace"
-                )
-                setDeleting(false)
-              }
-            }}
-          >
-            {deleting ? "Removing…" : "Remove"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        )
+      }
+    </ConfirmDialog>
   )
 }
