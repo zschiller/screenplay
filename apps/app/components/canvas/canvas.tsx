@@ -41,6 +41,8 @@ import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { renameRoom } from "@/lib/rooms-actions"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
+import { CommentsMenu } from "./comments-menu"
+import { useCommentThreads } from "./use-comment-threads"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
@@ -678,6 +680,21 @@ export function Canvas({
   }, [agents])
 
   const getViewportCenter = camera.getViewportCenter
+
+  const commentThreads = useCommentThreads(roomId, initialThreads)
+  // The top bar's thread list: open the thread and bring its pin to the
+  // middle of the viewport, at the current zoom.
+  const selectCommentThread = useCallback(
+    (threadId: string) => {
+      reference.setActiveThread(threadId)
+      commentThreads.markRead(threadId)
+      const pin = document.querySelector<HTMLElement>(
+        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
+      )
+      if (pin) camera.centerOnElement(pin)
+    },
+    [reference, commentThreads, camera]
+  )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
   // panel shows — the selected agent/doc/chat, the per-target memory, and the
@@ -1513,7 +1530,7 @@ export function Canvas({
                 getIframeLayerDom={reference.getIframeLayerDom}
                 getDocumentEditor={reference.getDocumentEditor}
                 documentEditorsVersion={reference.documentEditorsVersion}
-                initialThreads={initialThreads}
+                commentThreads={commentThreads}
                 onSendToChat={reference.sendReference}
                 activeThreadId={reference.activeThreadId}
                 onActivateThread={reference.setActiveThread}
@@ -1671,6 +1688,10 @@ export function Canvas({
                     (PRD #404, issue #417). */}
                   {!isLocalBuild && (
                     <>
+                      <CommentsMenu
+                        threads={commentThreads.threads}
+                        onSelectThread={selectCommentThread}
+                      />
                       <FollowingToolbar
                         followingId={followingConnectionId}
                         onFollow={camera.follow}
