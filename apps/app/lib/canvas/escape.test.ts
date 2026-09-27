@@ -12,6 +12,7 @@ import { type EscapeState, resolveEscapeAction } from "@/lib/canvas/escape"
 /** A neutral state: nothing active, so Escape would only clear the selection. */
 function idleState(overrides: Partial<EscapeState> = {}): EscapeState {
   return {
+    targetPickActive: false,
     cursorChatOpen: false,
     editingDocumentLayerId: null,
     toolMode: "select",
@@ -49,6 +50,22 @@ describe("resolveEscapeAction — precedence", () => {
   // single Escape only ever steps out one level. These pin that the two mode
   // exits sit *below* the transient surfaces (cursor chat, inline editing,
   // document/frame placement, comment mode) and *above* the bare selection.
+
+  it("cancels an armed element pick before anything else", () => {
+    // The pick is modal: one Escape abandons it without also closing cursor
+    // chat, leaving a draw tool, or clearing the selection underneath it.
+    const action = resolveEscapeAction(
+      idleState({
+        targetPickActive: true,
+        cursorChatOpen: true,
+        editingDocumentLayerId: "doc-1",
+        toolMode: "comment",
+        focusedIframeLayerId: "frame-1",
+      })
+    )
+
+    expect(action).toBe("cancel-target-pick")
+  })
 
   it("dismisses cursor chat before exiting any mode", () => {
     const action = resolveEscapeAction(

@@ -448,6 +448,31 @@ _Avoid_: reusing a remembered chat instead of a fresh one; folding the formattin
 thread is the excluded half); resurrecting the frame→agent send path here instead
 of the composer token flow.
 
+**Element Targeting**:
+A Composer's one-shot crosshair **pick** of an element in one of its own
+Branch's preview frames, inserted as an element token (PRD #616). The Composer
+asks through `targetingStore.requestPick`; the Canvas is the sole fulfiller,
+through the **Element Targeting controller** (`useElementTargeting`, #705), which
+also draws the outline for a hovered element token. The decisions live in a
+**React-free core** (`lib/canvas/element-targeting`): the **pick state machine**
+(idle → armed → resolving → idle; a new request **supersedes** the pending pick,
+resolving it `null`; cancel, a **miss**, or a **closed frame** (no DOM bridge)
+resolve `null`; a late element-at-point answer for a pick already settled is
+dropped, so every request settles exactly once), the hit-test against frame
+layouts, the highlight sequencing (a newer hover supersedes an in-flight
+resolve), and **one eligibility rule** — a frame is targetable iff its
+`branchId` equals the pick's Branch id — from which the eligible frames, the
+**dimmed** frames, and the per-Branch "has a targetable frame" publish (the
+Composer's disabled target icon and tooltip) all derive. The pick key is a
+**Branch id**: an agent chat holds it as its `sandboxId` (a sandbox-backed
+agent's id is its Branch's id). Escape during an armed pick is the top step of
+the shared Escape precedence (`resolveEscapeAction` → `cancel-target-pick`),
+applied by **Canvas Keyboard**, not a private listener.
+_Avoid_: putting pick state, the hit-test, or the eligibility filter back in
+`canvas.tsx`; a second eligibility predicate for dimming or the publish; a
+private Escape listener for the pick; calling it "inspect" or "comment" (those
+are the comment-mode placement in **Element Reference**); cross-Branch targeting.
+
 **Terminal Tab**:
 A BYO-harness shell surfaced as a tab in the agent panel, attached to one
 Branch's sandbox and rendered with xterm.js in our own React, connecting to the
@@ -656,11 +681,11 @@ memo, so the connect lands app-wide with no restart. The help is
 **one-directional**, exactly as the GitHub Connection's is toward the `gh` CLI: the
 app installs and launches sign-in but never signs you **out**, uninstalls, or
 manages the CLI's credentials beyond launching its own login.
-_Avoid_: treating it as a second setup machine (it is a sibling *instance* of the
+_Avoid_: treating it as a second setup machine (it is a sibling _instance_ of the
 ADR 0014 step, reducer reused verbatim); gating the availability list on the auth
 fact it surfaces (auth is a Settings label, presence still lists); a per-slot
 opencode row (dedupe by `hostBinary`); picking a Harness's model here (that's the
-model dropdown / **Harness model catalog**, ADR 0011); signing a harness *out* or
+model dropdown / **Harness model catalog**, ADR 0011); signing a harness _out_ or
 uninstalling it (one-directional — help in, never out).
 
 **Harness model catalog**:
@@ -985,8 +1010,8 @@ controller (`useCanvasKeyboard`, PRD #579). It owns the window listeners and the
 whole shortcut map — Escape exits, `v`/`c`/`d`/`f` draw tools, `/` cursor chat,
 ⌘B / ⌘I / ⌘. panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, and the
 space-pan hold — and dispatches into the controllers the earlier cuts bundled
-(**Tool Mode**, **Canvas Selection**, **Element Reference**, the Yjs history) and
-the **Canvas Interaction** controller (whose Focus / Create-Flow / editing /
+(**Tool Mode**, **Canvas Selection**, **Element Reference**, **Element Targeting**, the
+Yjs history) and the **Canvas Interaction** controller (whose Focus / Create-Flow / editing /
 space-held / cursor-chat verbs it applies), plus the panel refs it is handed.
 Sequenced last so it consumes those bundled controllers rather than the loose
 setters they replaced. The Escape **precedence** stays in the React-free

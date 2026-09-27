@@ -84,10 +84,11 @@ export interface CanvasInteraction {
   isCursorChatOpen(): boolean
   /**
    * Resolve the single Escape action for the current interaction state. The
-   * tool/comment bits Escape also reads aren't owned here, so the caller passes
+   * target-pick/tool/comment bits Escape also reads aren't owned here, so the caller passes
    * them in; the rest is read from this controller's mirror refs.
    */
   resolveEscape(input: {
+    targetPickActive: boolean
     toolMode: ToolMode
     hasNewCommentPos: boolean
   }): EscapeAction
@@ -191,10 +192,12 @@ export function useCanvasInteraction(
 
   const resolveEscape = useCallback(
     (input: {
+      targetPickActive: boolean
       toolMode: ToolMode
       hasNewCommentPos: boolean
     }): EscapeAction =>
       resolveEscapeAction({
+        targetPickActive: input.targetPickActive,
         cursorChatOpen: selfMessageRef.current !== null,
         editingDocumentLayerId: editingDocumentLayerIdRef.current,
         toolMode: input.toolMode,

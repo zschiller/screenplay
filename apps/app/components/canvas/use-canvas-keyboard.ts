@@ -6,6 +6,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
 import type { ElementReference } from "@/components/canvas/use-element-reference"
+import type { ElementTargetingController } from "@/components/canvas/use-element-targeting"
 import type { ToolModeController } from "@/components/canvas/use-tool-mode"
 
 /**
@@ -22,7 +23,8 @@ import type { ToolModeController } from "@/components/canvas/use-tool-mode"
  * The Escape *precedence* stays in the React-free `resolveEscapeAction`, wrapped
  * by the Canvas Interaction controller's `resolveEscape` (over
  * `lib/canvas/escape.ts`, pinned by `escape.test.ts`); this controller only
- * applies the chosen exit. No shortcut semantics change from the lift — every
+ * applies the chosen exit (including cancelling an armed Element Targeting
+ * pick, the top of the precedence). No shortcut semantics change from the lift — every
  * shortcut (Escape exits, `v`/`c`/`d`/`f` tools, `/` cursor chat, ⌘B / ⌘I / ⌘.
  * panel toggles, Delete/Backspace, ⌘Z / ⌘⇧Z undo/redo, space-pan) behaves
  * exactly as before, including the `isEditing` guard that suppresses shortcuts
@@ -35,6 +37,8 @@ export interface CanvasKeyboardInputs {
   selection: CanvasSelection
   /** Element Reference controller — comment-mode placement read + clear. */
   reference: ElementReference
+  /** Element Targeting controller — Escape cancels an armed pick first. */
+  targeting: Pick<ElementTargetingController, "isPickActive" | "cancel">
   /** Yjs undo/redo, scoped to room storage. */
   history: { undo: () => void; redo: () => void }
   /**
@@ -53,6 +57,7 @@ export function useCanvasKeyboard({
   toolMode,
   selection,
   reference,
+  targeting,
   history,
   interaction,
   sidebarPanelRef,
@@ -78,10 +83,15 @@ export function useCanvasKeyboard({
         // lib/canvas/escape.test.ts.
         switch (
           interaction.resolveEscape({
+            targetPickActive: targeting.isPickActive(),
             toolMode: toolMode.current(),
             hasNewCommentPos: reference.newCommentPos !== null,
           })
         ) {
+          case "cancel-target-pick":
+            e.preventDefault()
+            targeting.cancel()
+            break
           case "close-cursor-chat":
             interaction.closeCursorChat()
             break
@@ -246,6 +256,7 @@ export function useCanvasKeyboard({
     toolMode,
     selection,
     reference,
+    targeting,
     history,
     interaction,
     sidebarPanelRef,
