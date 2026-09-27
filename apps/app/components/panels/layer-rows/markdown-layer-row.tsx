@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { EditableText } from "@workspace/ui/components/editable-text"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
@@ -106,15 +107,17 @@ export function DocumentRowMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarMenuAction
-          className={
-            isSub
-              ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-              : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-          }
-        >
-          <MoreHorizontal />
-        </SidebarMenuAction>
+        <IconButton label="Document options" tooltipSide="right" asChild>
+          <SidebarMenuAction
+            className={
+              isSub
+                ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+                : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
+            }
+          >
+            <MoreHorizontal />
+          </SidebarMenuAction>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="right"
