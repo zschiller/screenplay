@@ -95,6 +95,8 @@ export interface CanvasCamera {
   zoomToElement(el: HTMLElement): void
   /** Zoom to fit a world-space rect with padding (e.g. a whole Group). */
   zoomToRect(rect: Rect): void
+  /** Pan so an on-screen element sits mid-viewport, keeping the zoom. */
+  centerOnElement(el: HTMLElement): void
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom). */
   handleIframeWheel(iframeLayerId: string, w: WheelForward): void
   /** The `TransformWrapper` props this controller owns. */
@@ -487,6 +489,26 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [transformRef]
   )
 
+  const centerOnElement = useCallback(
+    (el: HTMLElement) => {
+      const ref = transformRef.current
+      const wrapper = ref?.instance.wrapperComponent
+      if (!ref || !wrapper) return
+      const view = wrapper.getBoundingClientRect()
+      const target = el.getBoundingClientRect()
+      const { positionX, positionY, scale } = ref.state
+      ref.setTransform(
+        positionX +
+          (view.left + view.width / 2 - (target.left + target.width / 2)),
+        positionY +
+          (view.top + view.height / 2 - (target.top + target.height / 2)),
+        scale,
+        300
+      )
+    },
+    [transformRef]
+  )
+
   // --- Follow another user's viewport ---
   useEffect(() => {
     if (followingConnectionId === null) return
@@ -810,6 +832,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     getViewportCenter,
     zoomToElement,
     zoomToRect,
+    centerOnElement,
     handleIframeWheel,
     transformWrapperProps,
   }
