@@ -54,7 +54,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-5 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -84,7 +84,7 @@ function AlertDialogFooter({
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -100,7 +100,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "font-heading text-base leading-none font-medium",
+        "font-heading text-base leading-snug font-semibold",
         className
       )}
       {...props}
@@ -125,9 +125,10 @@ function AlertDialogDescription({
 }
 
 /**
- * The confirming action. `variant="destructive"` is the real destructive
- * treatment (not the default styling with red layered on top), for confirms
- * that permanently destroy something.
+ * The confirming action. `variant="destructive"` is a solid red button with
+ * white text in both themes, for confirms that permanently destroy something.
+ * The Button's own destructive variant is a pale tint that reads as the
+ * secondary action, which is wrong for the one button a confirm is about.
  */
 function AlertDialogAction({
   className,
@@ -140,7 +141,14 @@ function AlertDialogAction({
     <AlertDialogPrimitive.Action
       data-slot="alert-dialog-action"
       data-variant={variant}
-      className={cn(buttonVariants({ variant }), className)}
+      className={cn(
+        buttonVariants({ variant }),
+        variant === "destructive" &&
+          // Dark mode's --destructive is a light red that white text can't sit
+          // on, so dark keeps the light theme's red (red-600).
+          "bg-destructive text-white hover:bg-destructive/90 dark:bg-red-600 dark:hover:bg-red-600/90",
+        className
+      )}
       {...props}
     />
   )

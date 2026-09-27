@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +14,8 @@ import {
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
+import { lastInputWasPointer } from "@/lib/input-modality"
 
 export type ConfirmDialogProps = {
   open: boolean
@@ -85,6 +87,10 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // True while Cancel holds focus that a mouse open put there: its ring stays
+  // hidden until the first key press, so only keyboard users see it.
+  const [quietFocus, setQuietFocus] = useState(false)
+  const cancelRef = useRef<HTMLButtonElement>(null)
 
   // Reset transient state when the dialog closes, so reopening starts clean.
   // Done during render via the previous-prop pattern rather than in an effect
@@ -107,17 +113,19 @@ export function ConfirmDialog({
       }}
     >
       <AlertDialogContent
-        // Focus the dialog itself rather than Cancel, so opening from a menu
-        // doesn't paint Cancel's focus ring. Tab still reaches both buttons
-        // and Escape still cancels.
-        tabIndex={-1}
+        // Focus goes to the safe action, Cancel. Opened by mouse, its ring
+        // stays hidden until a key is pressed; opened by keyboard, it shows.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          ;(event.currentTarget as HTMLElement | null)?.focus()
+          setQuietFocus(lastInputWasPointer())
+          cancelRef.current?.focus()
+        }}
+        onKeyDown={() => {
+          if (quietFocus) setQuietFocus(false)
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle className="leading-snug break-words">
+          <AlertDialogTitle className="break-words">
             {confirmTitle(verb, itemName, itemNoun)}
           </AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
@@ -129,7 +137,16 @@ export function ConfirmDialog({
           </p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel
+            ref={cancelRef}
+            disabled={pending}
+            className={cn(
+              quietFocus &&
+                "focus-visible:border-transparent focus-visible:ring-0"
+            )}
+          >
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             disabled={pending}
@@ -194,13 +211,19 @@ export function ConfirmOption({
         checked={checked}
         onCheckedChange={(next) => onCheckedChange(next === true)}
         disabled={disabled}
-        className="mt-px"
+        className="mt-0.5"
       />
-      <div className="grid gap-1.5">
-        <Label htmlFor={id} className="leading-4">
+      {/* Left-aligned text in the body's own size and weight: the option is
+          part of the sentence above it, not a heading over its hint. */}
+      <div className="grid gap-0.5">
+        <Label htmlFor={id} className="leading-5 font-normal">
           {label}
         </Label>
-        {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        {hint && (
+          <div className="text-[13px] leading-5 text-muted-foreground">
+            {hint}
+          </div>
+        )}
       </div>
     </div>
   )

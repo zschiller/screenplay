@@ -48,7 +48,7 @@ export function DeleteRepoDialog({
             <ConfirmOption
               id="delete-branches-on-remote"
               label={`Also delete ${branchCount} ${branchCount === 1 ? "branch" : "branches"} on origin`}
-              hint="Permanently deletes these branches from the remote:"
+              hint="Permanently deletes them from the remote:"
               checked={deleteBranchesOnRemote}
               onCheckedChange={setDeleteBranchesOnRemote}
               disabled={pending}
