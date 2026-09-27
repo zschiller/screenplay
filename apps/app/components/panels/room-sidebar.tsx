@@ -159,6 +159,7 @@ import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
 import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-menu"
+import { branchRowClassName } from "@/components/panels/branch-row-class"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
@@ -1885,7 +1886,10 @@ export function RoomSidebar({
                                                       onBranchMenuCloseAutoFocus,
                                                   }) => (
                                                     <div
-                                                      className={`group/branch-row grid grid-cols-[1fr_auto] items-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground${isPanelActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}${isLoading ? "opacity-50" : ""}`}
+                                                      className={branchRowClassName({
+                                                        isPanelActive,
+                                                        isLoading,
+                                                      })}
                                                         onClick={(e) => {
                                                           e.stopPropagation()
                                                           onSelectBranch(
