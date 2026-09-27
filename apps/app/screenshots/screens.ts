@@ -643,7 +643,7 @@ export const SCREENS: Screen[] = [
   {
     name: "chat-tab-close-focus",
     description:
-      "The active chat tab's close button reached by keyboard (focus the tab, then Tab).",
+      "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
@@ -652,6 +652,10 @@ export const SCREENS: Screen[] = [
         .getByRole("tab", { name: /Checkout polish/i })
         .first()
         .focus()
+      // Park the pointer off the strip, so only focus can reveal the close.
+      await page.mouse.move(0, 0)
+      // The tab's rename label is the first stop after it, the close the next.
+      await page.keyboard.press("Tab")
       await page.keyboard.press("Tab")
       await showTooltip(page)
     },
