@@ -747,6 +747,26 @@ function onboardingRoom(now: number, previewOrigin: string): FixtureRoom {
     status: "stopped",
     createdAt: daysAgo(now, 6),
     colorIndex: 5,
+    sidebarOrder: 0,
+    // A closed PR: with the pricing room's merged one and the checkout room's
+    // open one, the sidebar's three PR state icons each have a screen.
+    prNumber: 455,
+    prUrl: "https://github.com/acme/web/pull/455",
+    prState: "closed",
+  }
+  // `creating` with no ref yet: the row's "Creating…" placeholder.
+  const creating: BranchData = {
+    id: "branch-onboarding-creating",
+    repoId: repo.id,
+    sandboxName: "onboarding-creating",
+    gitUrl: repo.cloneUrl,
+    ref: "",
+    previewDomain: previewDomainFor(previewOrigin, "onboarding-creating"),
+    port: 5174,
+    status: "creating",
+    createdAt: minutesAgo(now, 1),
+    colorIndex: 1,
+    sidebarOrder: 1,
   }
 
   return {
@@ -756,7 +776,7 @@ function onboardingRoom(now: number, previewOrigin: string): FixtureRoom {
     lastOpenedAt: daysAgo(now, 2),
     doc: {
       repos: [repo],
-      branches: [branch],
+      branches: [branch, creating],
       iframeLayers: [
         {
           id: "layer-onboarding-1",
