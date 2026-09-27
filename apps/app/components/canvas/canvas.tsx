@@ -109,7 +109,7 @@ import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 import { CanvasMemberLayer } from "./canvas-member-layer"
 import { CanvasToolbar } from "./canvas-toolbar"
-import { CanvasZoomControls } from "./canvas-zoom-controls"
+import { CanvasZoomMenu } from "./canvas-zoom-menu"
 import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
 import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
@@ -1702,70 +1702,63 @@ export function Canvas({
             <CanvasToolbar
               toolMode={toolMode}
               onClearMode={reference.clearMode}
-            >
-              <CanvasZoomControls
-                zoom={zoom}
-                onZoomIn={zoomControls.zoomIn}
-                onZoomOut={zoomControls.zoomOut}
-                onZoomTo100={zoomControls.zoomTo100}
-                onZoomToFit={zoomControls.zoomToFit}
-                onOpenShortcuts={openShortcutSheet}
-              />
-            </CanvasToolbar>
+            />
             <ShortcutSheet
               open={shortcutSheetOpen}
               onOpenChange={setShortcutSheetOpen}
             />
-            {/* Only render the top-right pill when it has content: the
-                Share/Following controls (web only) or the expand-chat button
-                (when the right sidebar is collapsed). On desktop with the chat
-                open it would otherwise be an empty floating pill. */}
-            {(!isLocalBuild || chatCollapsed) && (
-              <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
-                <div
-                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Following other users' viewports and sharing are part of
+            {/* The top-right pill: the zoom menu (always), the
+                Share/Following controls (web only), and the expand-chat
+                button (when the right sidebar is collapsed). */}
+            <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
+              <div
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CanvasZoomMenu
+                  zoom={zoom}
+                  onZoomIn={zoomControls.zoomIn}
+                  onZoomOut={zoomControls.zoomOut}
+                  onZoomTo={cameraZoomTo}
+                  onZoomToFit={zoomControls.zoomToFit}
+                  onOpenShortcuts={openShortcutSheet}
+                />
+                {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                  {!isLocalBuild && (
-                    <>
-                      <CommentsMenu
-                        threads={commentThreads.threads}
-                        onSelectThread={selectCommentThread}
-                      />
-                      <FollowingToolbar
-                        followingId={followingConnectionId}
-                        onFollow={camera.follow}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={() => setShareDialogOpen(true)}
-                      >
-                        Share
-                      </Button>
-                      <ShareRoomDialog
-                        open={shareDialogOpen}
-                        onOpenChange={setShareDialogOpen}
-                        roomId={roomId}
-                        roomName={currentRoomName}
-                      />
-                    </>
-                  )}
-                  {chatCollapsed && (
-                    <IconButton
-                      label="Expand chat"
-                      shortcut="⌘I"
-                      tooltipSide="bottom"
-                      onClick={() => chatPanelRef.current?.expand()}
-                    >
-                      <PanelRightOpen className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                </div>
+                {!isLocalBuild && (
+                  <>
+                    <CommentsMenu
+                      threads={commentThreads.threads}
+                      onSelectThread={selectCommentThread}
+                    />
+                    <FollowingToolbar
+                      followingId={followingConnectionId}
+                      onFollow={camera.follow}
+                    />
+                    <Button size="sm" onClick={() => setShareDialogOpen(true)}>
+                      Share
+                    </Button>
+                    <ShareRoomDialog
+                      open={shareDialogOpen}
+                      onOpenChange={setShareDialogOpen}
+                      roomId={roomId}
+                      roomName={currentRoomName}
+                    />
+                  </>
+                )}
+                {chatCollapsed && (
+                  <IconButton
+                    label="Expand chat"
+                    shortcut="⌘I"
+                    tooltipSide="bottom"
+                    onClick={() => chatPanelRef.current?.expand()}
+                  >
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                  </IconButton>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </ResizablePanel>
         <ResizableHandle

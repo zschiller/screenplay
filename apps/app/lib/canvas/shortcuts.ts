@@ -3,18 +3,18 @@
  * shortcuts, plus the React-free matcher for the zoom keys.
  *
  * The keyboard controller (`useCanvasKeyboard`) dispatches on
- * {@link matchCanvasShortcut}; the zoom pill's tooltips and the `?` shortcut
- * sheet read {@link ZOOM_SHORTCUTS} / {@link canvasShortcutGroups}, so the key a
- * tooltip advertises and the key that works can't drift apart.
+ * {@link matchCanvasShortcut}; the zoom menu and the `?` shortcut sheet read
+ * {@link ZOOM_SHORTCUTS} / {@link canvasShortcutGroups}, so the key a menu
+ * advertises and the key that works can't drift apart.
  */
 
-/** The zoom keys, as the tooltips and the sheet print them. */
+/** The zoom keys, one entry per key cap, as the zoom menu and the sheet print them. */
 export const ZOOM_SHORTCUTS = {
-  zoomIn: "⌘=",
-  zoomOut: "⌘-",
-  zoomTo100: "⌘0",
-  zoomToFit: "⇧1",
-} as const
+  zoomIn: ["⌘", "="],
+  zoomOut: ["⌘", "-"],
+  zoomTo100: ["⌘", "0"],
+  zoomToFit: ["⇧", "1"],
+} as const satisfies Record<string, readonly string[]>
 
 export const SHORTCUT_SHEET_KEY = "?"
 
@@ -52,10 +52,10 @@ export function canvasShortcutGroups({
     {
       title: "View",
       shortcuts: [
-        { label: "Zoom in", keys: ["⌘", "="] },
-        { label: "Zoom out", keys: ["⌘", "-"] },
-        { label: "Zoom to 100%", keys: ["⌘", "0"] },
-        { label: "Zoom to fit", keys: ["⇧", "1"] },
+        { label: "Zoom in", keys: [...ZOOM_SHORTCUTS.zoomIn] },
+        { label: "Zoom out", keys: [...ZOOM_SHORTCUTS.zoomOut] },
+        { label: "Zoom to 100%", keys: [...ZOOM_SHORTCUTS.zoomTo100] },
+        { label: "Zoom to fit", keys: [...ZOOM_SHORTCUTS.zoomToFit] },
         { label: "Zoom with wheel", keys: ["⌘", "Scroll"] },
         { label: "Pan", keys: ["Space", "Drag"] },
       ],

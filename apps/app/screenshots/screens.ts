@@ -927,13 +927,13 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-zoom-controls",
     description:
-      "The zoom pill beside the bottom toolbar, hovering the percentage to show its tooltip.",
+      "The zoom menu in the top-right pill, opened from its percentage button.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page
-        .getByRole("button", { name: "Zoom to 100%" })
-        .hover({ timeout: 15_000 })
-      await showTooltip(page)
+        .getByRole("button", { name: /^Zoom, / })
+        .click({ timeout: 15_000 })
+      await page.getByRole("menu").waitFor({ state: "visible", timeout: 5_000 })
     },
     settleMs: 400,
   },

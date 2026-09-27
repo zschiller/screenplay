@@ -20,21 +20,14 @@ import type { ToolModeController } from "./use-tool-mode"
  * exclusion holds by construction. The only other dependency is `onClearMode`,
  * the comment-placement reset the element-reference controller owns — kept out
  * of Tool Mode deliberately (it is comment sub-state, not an armed tool).
- *
- * `children` (the zoom pill, #734) sits just right of the tool pill, outside
- * the centered box, so adding it doesn't shift the tools off center.
  */
 export function CanvasToolbar({
   toolMode,
   onClearMode,
-  children,
 }: {
   toolMode: ToolModeController
   /** Reset the comment-placement sub-state (element-reference controller). */
   onClearMode: () => void
-  /** A pill set beside the tool pill (the zoom controls), positioned so the
-   *  tool pill itself stays centered. */
-  children?: React.ReactNode
 }) {
   const { frameMode, documentMode, commentMode } = toolMode
   return (
@@ -95,11 +88,6 @@ export function CanvasToolbar({
           </FloatingToolbarButton>
         )}
       </FloatingToolbar>
-      {children && (
-        <div className="absolute top-1/2 left-full flex -translate-y-1/2 items-center">
-          {children}
-        </div>
-      )}
     </div>
   )
 }
