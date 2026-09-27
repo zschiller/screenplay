@@ -65,13 +65,6 @@ import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
 import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { isBranchBusy } from "@/lib/branch-busy"
-import { eligibleTargetFrames } from "@/lib/canvas/element-targeting"
-import {
-  targetingStore,
-  type PickedElement,
-  type PickRequest,
-} from "@/lib/targeting-store"
-import type { DomRect } from "@/lib/postmessage-protocol"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -87,6 +80,7 @@ import { useTerminalTabs } from "@/components/canvas/use-terminal-tabs"
 import { useCanvasSelection } from "@/components/canvas/use-canvas-selection"
 import { useCanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import { useCanvasKeyboard } from "@/components/canvas/use-canvas-keyboard"
+import { useElementTargeting } from "@/components/canvas/use-element-targeting"
 import { useLayerMutations } from "@/components/canvas/use-layer-mutations"
 import { useGroupActions } from "@/components/canvas/use-group-actions"
 import { useToolMode } from "@/components/canvas/use-tool-mode"
@@ -121,10 +115,6 @@ import { CanvasMemberLayer } from "./canvas-member-layer"
 import { CanvasToolbar } from "./canvas-toolbar"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
-
-// Stable empty set for the "no pick armed → nothing dimmed" case, so the
-// memoized member layer isn't handed a fresh Set identity every render.
-const EMPTY_DIMMED_IDS: ReadonlySet<string> = new Set()
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -454,23 +444,6 @@ export function Canvas({
   // the selection → presence broadcast are presence effects, owned by the Canvas
   // Camera controller now (PRD #588) — the canvas presence owner.
 
-  // Canvas Keyboard controller (PRD #579, cut 4/4): owns the global
-  // keydown/keyup listeners and the whole shortcut map, dispatching into the
-  // bundled controllers (Tool Mode, Selection, Element Reference, Yjs history,
-  // Interaction), the panel refs, and the cursor-chat verbs. The Escape
-  // precedence stays in the pure `resolveEscapeAction`, wrapped by the
-  // Interaction controller's `resolveEscape`; the keyboard only applies the
-  // chosen exit.
-  useCanvasKeyboard({
-    toolMode,
-    selection,
-    reference,
-    history,
-    interaction,
-    sidebarPanelRef,
-    chatPanelRef,
-  })
-
   // Prune capture bookkeeping for frames removed from the canvas so a deleted
   // frame's stale dirty flag never lands in a POSTed subset (#474).
   useEffect(() => {
@@ -491,6 +464,38 @@ export function Canvas({
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
   useEffect(() => {
     iframeLayerLayoutsRef.current = iframeLayerLayouts
+  })
+
+  // Element Targeting controller (PRD #616, #705): the Canvas fulfils a
+  // Composer's one-shot crosshair pick and draws the hovered-token highlight.
+  // The pick state machine, the one eligibility rule (pickable Branches and
+  // dimmed frames), the hit-test and the highlight sequencing live in the
+  // React-free core it wraps; Escape during a pick goes through the shared
+  // precedence the keyboard controller applies.
+  const targeting = useElementTargeting({
+    iframeLayers,
+    iframeLayerLayouts,
+    getIframeLayerDom: reference.getIframeLayerDom,
+    transformRef,
+  })
+
+  // Canvas Keyboard controller (PRD #579, cut 4/4): owns the global
+  // keydown/keyup listeners and the whole shortcut map, dispatching into the
+  // bundled controllers (Tool Mode, Selection, Element Reference, Element
+  // Targeting, Yjs history, Interaction), the panel refs, and the cursor-chat
+  // verbs. The Escape
+  // precedence stays in the pure `resolveEscapeAction`, wrapped by the
+  // Interaction controller's `resolveEscape`; the keyboard only applies the
+  // chosen exit.
+  useCanvasKeyboard({
+    toolMode,
+    selection,
+    reference,
+    targeting,
+    history,
+    interaction,
+    sidebarPanelRef,
+    chatPanelRef,
   })
 
   // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
@@ -1142,212 +1147,6 @@ export function Canvas({
     [commentMode, reference]
   )
 
-  // Element targeting (PRD #616, slice #618): the Canvas is the sole fulfiller
-  // of composer pick requests. A request arms a one-shot crosshair pick
-  // restricted to the requesting branch's own frames (via `eligibleTargetFrames`)
-  // and reuses the same `elementAtPoint` hit-test the comment path does; the
-  // next canvas click resolves it with the picked element, and Esc / a miss
-  // cancels it with `null`. State drives the cursor + click routing; the ref
-  // lets the async resolver and the Esc listener read the live request without
-  // re-binding.
-  const [targetPick, setTargetPick] = useState<PickRequest | null>(null)
-  const targetPickRef = useRef<PickRequest | null>(null)
-  const setTargetPickBoth = useCallback((req: PickRequest | null) => {
-    targetPickRef.current = req
-    setTargetPick(req)
-  }, [])
-
-  // Publish which branches currently have an eligible (open) frame so each
-  // branch's Composer can disable its target affordance when picking would have
-  // nothing to hit (#619). A branch is targetable exactly when some frame on the
-  // canvas is assigned to it — the same `branchId` match `eligibleTargetFrames`
-  // makes. Cleared on unmount so a stale set doesn't outlive the Room.
-  const eligibleTargetBranchIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const layer of iframeLayers) {
-      if (layer.branchId) ids.add(layer.branchId)
-    }
-    return ids
-  }, [iframeLayers])
-  useEffect(() => {
-    targetingStore.publishEligibleBranches(eligibleTargetBranchIds)
-  }, [eligibleTargetBranchIds])
-  useEffect(() => {
-    return () => targetingStore.publishEligibleBranches(new Set())
-  }, [])
-
-  // During a pick, dim every frame that isn't eligible for the requesting branch
-  // so it's visually clear what can be targeted; the eligible frames stay at full
-  // opacity and are the only ones the hit-test (below) resolves against. Empty
-  // (no dimming) whenever no pick is armed.
-  const dimmedIframeLayerIds = useMemo(() => {
-    if (!targetPick) return EMPTY_DIMMED_IDS
-    const eligible = new Set(
-      eligibleTargetFrames(targetPick.branchId, iframeLayers).map((l) => l.id)
-    )
-    const dimmed = new Set<string>()
-    for (const layer of iframeLayers) {
-      if (!eligible.has(layer.id)) dimmed.add(layer.id)
-    }
-    return dimmed
-  }, [targetPick, iframeLayers])
-
-  useEffect(() => {
-    const unregister = targetingStore.register((request) => {
-      // A second request supersedes an unfinished one — cancel the stale pick.
-      const prev = targetPickRef.current
-      if (prev) prev.resolve(null)
-      setTargetPickBoth(request)
-    })
-    return () => {
-      unregister()
-      // Resolve any in-flight pick on unmount so its promise never dangles.
-      const prev = targetPickRef.current
-      if (prev) prev.resolve(null)
-      targetPickRef.current = null
-    }
-  }, [setTargetPickBoth])
-
-  const resolveTargetPick = useCallback(
-    (picked: PickedElement | null) => {
-      const active = targetPickRef.current
-      if (!active) return
-      active.resolve(picked)
-      setTargetPickBoth(null)
-    },
-    [setTargetPickBoth]
-  )
-
-  // Esc cancels an armed pick with no token. Capture-phase so it wins over the
-  // canvas keyboard controller's own Escape precedence while a pick is open.
-  useEffect(() => {
-    if (!targetPick) return undefined
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return
-      e.preventDefault()
-      e.stopPropagation()
-      resolveTargetPick(null)
-    }
-    window.addEventListener("keydown", onKey, true)
-    return () => window.removeEventListener("keydown", onKey, true)
-  }, [targetPick, resolveTargetPick])
-
-  // Element highlight (PRD #616, slice #620): outline the element a hovered
-  // composer / message token references. We resolve the selector to a rect via
-  // the referenced frame's bridge and draw it on the SelectionOverlay — the same
-  // canvas that draws the pick/inspect rect — so the outline keeps a constant
-  // 1px stroke at any zoom. (The earlier in-iframe box scaled with the frame, so
-  // its border thickened/thinned as you zoomed.) A closed frame or a stale
-  // selector resolves to nothing and the highlight simply clears; a newer hover
-  // supersedes any in-flight resolve via the seq guard.
-  const [highlightRect, setHighlightRect] = useState<{
-    iframeLayerId: string
-    rect: DomRect
-  } | null>(null)
-  const highlightSeqRef = useRef(0)
-  useEffect(() => {
-    let active = true
-    const unregister = targetingStore.registerHighlight((target) => {
-      const seq = ++highlightSeqRef.current
-      const dom = target
-        ? reference.getIframeLayerDom(target.iframeLayerId)
-        : undefined
-      if (!target || !dom) {
-        setHighlightRect(null)
-        return
-      }
-      dom
-        .getRectsForSelectors([target.selector])
-        .then(([rect]) => {
-          // Drop a resolve superseded by a newer hover or a torn-down effect.
-          if (!active || seq !== highlightSeqRef.current) return
-          setHighlightRect(
-            rect ? { iframeLayerId: target.iframeLayerId, rect } : null
-          )
-        })
-        .catch(() => {
-          if (active && seq === highlightSeqRef.current) setHighlightRect(null)
-        })
-    })
-    return () => {
-      active = false
-      unregister()
-      setHighlightRect(null)
-    }
-  }, [reference])
-
-  // Targeting-mode canvas click: convert to world coords (same camera math as
-  // the comment path), hit-test only the requesting branch's eligible frames,
-  // then resolve the pick with the deepest element at that point. A click that
-  // lands outside every eligible frame cancels.
-  const handleTargetClick = useCallback(
-    (e: React.MouseEvent) => {
-      const active = targetPickRef.current
-      if (!active) return
-      const tref = transformRef.current
-      if (!tref) {
-        resolveTargetPick(null)
-        return
-      }
-      const { positionX, positionY, scale } = tref.state
-      const rect = e.currentTarget.getBoundingClientRect()
-      const canvasX = (e.clientX - rect.left - positionX) / scale
-      const canvasY = (e.clientY - rect.top - positionY) / scale
-
-      const eligible = eligibleTargetFrames(active.branchId, iframeLayers)
-      const eligibleIds = new Set(eligible.map((l) => l.id))
-
-      for (const layout of iframeLayerLayouts.values()) {
-        if (!eligibleIds.has(layout.id)) continue
-        if (
-          canvasX >= layout.x &&
-          canvasX <= layout.x + layout.width &&
-          canvasY >= layout.y &&
-          canvasY <= layout.y + layout.height
-        ) {
-          const localX = canvasX - layout.x
-          const localY = canvasY - layout.y
-          const dom = reference.getIframeLayerDom(layout.id)
-          const layer = eligible.find((l) => l.id === layout.id)
-          if (!dom || !layer) {
-            resolveTargetPick(null)
-            return
-          }
-          // End pick mode immediately; the elementAtPoint round-trip is async and
-          // resolves the (already-captured) request directly below.
-          setTargetPickBoth(null)
-          dom
-            .elementAtPoint(localX, localY)
-            .then((result) => {
-              if (!result || !result.tagName) {
-                active.resolve(null)
-                return
-              }
-              active.resolve({
-                tagName: result.tagName,
-                id: result.id,
-                selector: result.selector,
-                route: layer.route ?? "/",
-                iframeLayerId: layout.id,
-                frameLabel: layer.label,
-              })
-            })
-            .catch(() => active.resolve(null))
-          return
-        }
-      }
-      // Miss — clicked outside every eligible frame.
-      resolveTargetPick(null)
-    },
-    [
-      iframeLayers,
-      iframeLayerLayouts,
-      reference,
-      resolveTargetPick,
-      setTargetPickBoth,
-    ]
-  )
-
   // The selection → presence broadcast lives on the Canvas Camera controller now
   // (PRD #588) — the canvas presence owner.
 
@@ -1534,7 +1333,10 @@ export function Canvas({
                 ? "grabbing"
                 : spaceHeld
                   ? "grab"
-                  : documentMode || frameMode || commentMode || targetPick
+                  : documentMode ||
+                      frameMode ||
+                      commentMode ||
+                      targeting.pickActive
                     ? "crosshair"
                     : activeGapHandle
                       ? "col-resize"
@@ -1555,8 +1357,8 @@ export function Canvas({
             onClick={
               commentMode
                 ? handleCanvasClick
-                : targetPick
-                  ? handleTargetClick
+                : targeting.pickActive
+                  ? targeting.handleClick
                   : undefined
             }
           >
@@ -1656,8 +1458,8 @@ export function Canvas({
                     zoom={zoom}
                     spaceHeld={spaceHeld}
                     commentMode={commentMode}
-                    pickActive={!!targetPick}
-                    dimmedIframeLayerIds={dimmedIframeLayerIds}
+                    pickActive={targeting.pickActive}
+                    dimmedIframeLayerIds={targeting.dimmedIds}
                     selfName={self?.identity.name || "Anonymous"}
                     selfColor={self?.color || "#888888"}
                     editingDocumentLayerId={editingDocumentLayerId}
@@ -1788,7 +1590,9 @@ export function Canvas({
                 // armed element pick, so the user can see what element they're
                 // about to anchor a comment to / target.
                 const source =
-                  commentMode || targetPick ? reference.inspectHover : null
+                  commentMode || targeting.pickActive
+                    ? reference.inspectHover
+                    : null
                 if (!source) return null
                 const layout = iframeLayerLayouts.get(source.iframeLayerId)
                 if (!layout) return null
@@ -1799,21 +1603,7 @@ export function Canvas({
                   height: source.rect.height,
                 }
               })()}
-              highlightRect={(() => {
-                // Token-hover outline, projected the same way as inspectRect so
-                // it draws on the overlay canvas with a zoom-independent stroke.
-                if (!highlightRect) return null
-                const layout = iframeLayerLayouts.get(
-                  highlightRect.iframeLayerId
-                )
-                if (!layout) return null
-                return {
-                  x: layout.x + highlightRect.rect.x,
-                  y: layout.y + highlightRect.rect.y,
-                  width: highlightRect.rect.width,
-                  height: highlightRect.rect.height,
-                }
-              })()}
+              highlightRect={targeting.highlightRect}
             />
             <Cursors viewport={{ ...viewportPos, zoom }} />
             {chatAnchor && self?.message != null ? (

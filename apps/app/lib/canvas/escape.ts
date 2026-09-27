@@ -13,6 +13,7 @@ import type { ToolMode } from "@/lib/canvas/tool-mode"
  * resulting action out — rather than against the canvas component's wiring.
  */
 export type EscapeAction =
+  | "cancel-target-pick"
   | "close-cursor-chat"
   | "stop-editing-document"
   | "exit-document-mode"
@@ -28,6 +29,11 @@ export type EscapeAction =
  * handler applies, top (most transient) to bottom.
  */
 export interface EscapeState {
+  /**
+   * A Composer's one-shot element pick is armed (Element Targeting). It sits
+   * above everything else: the pick is modal, so Escape abandons it first.
+   */
+  targetPickActive: boolean
   /** A Figma-style cursor-chat message is open. */
   cursorChatOpen: boolean
   /** A Markdown Layer is being edited inline. */
@@ -48,12 +54,14 @@ export interface EscapeState {
 
 /**
  * Resolve the one action Escape takes for a given interaction state. The order
- * of the checks *is* the precedence: a cursor-chat dismiss outranks leaving a
+ * of the checks *is* the precedence: an armed element pick is cancelled before
+ * anything else, a cursor-chat dismiss outranks leaving a
  * mode, leaving a mode outranks clearing the selection, and so on. With nothing
  * else active, a focused frame exits focus mode and a Create Flow frame exits
  * Create Flow mode; with neither, Escape clears the selection.
  */
 export function resolveEscapeAction(state: EscapeState): EscapeAction {
+  if (state.targetPickActive) return "cancel-target-pick"
   if (state.cursorChatOpen) return "close-cursor-chat"
   if (state.editingDocumentLayerId) return "stop-editing-document"
   if (state.toolMode === "document") return "exit-document-mode"

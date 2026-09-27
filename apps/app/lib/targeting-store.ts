@@ -3,8 +3,13 @@
  * the Canvas. The Composer lives deep in the chat panel; the crosshair
  * hit-test lives in the Canvas, which owns the iframe DOM bridge and frame
  * geometry. This singleton bridges them the same way `inputStore` bridges
- * shortcut actions into a chat: the Canvas registers a single fulfiller, and a
- * Composer calls `requestPick(branchId)` to enter a one-shot pick.
+ * shortcut actions into a chat: the Canvas registers a single fulfiller (the
+ * Element Targeting controller, `useElementTargeting`), and a Composer calls
+ * `requestPick(branchId)` to enter a one-shot pick.
+ *
+ * Every key here is a **Branch id**. An agent chat holds it as its `sandboxId`
+ * (a sandbox-backed agent's id is its Branch's id); eligibility matches it
+ * against each Iframe Layer's `branchId`.
  *
  * The promise resolves with the picked element (enough for both the inline
  * token and the `Targeted elements:` footer) or `null` when the pick is
@@ -32,6 +37,7 @@ export interface PickedElement {
 /** A pending pick the Canvas fulfills: which branch's frames are eligible, and
  *  the resolver to call with the result (or `null` to cancel). */
 export interface PickRequest {
+  /** The requesting Composer's Branch id (an agent chat's `sandboxId`). */
   branchId: string
   resolve: (picked: PickedElement | null) => void
 }

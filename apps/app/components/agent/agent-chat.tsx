@@ -308,13 +308,17 @@ export function AgentChat({
   // own preview frames. The Composer's target icon / ⌘E calls this, which asks
   // the Canvas (through the targeting store) to run a one-shot crosshair pick
   // over the eligible frames and resolves with the picked element — or null when
-  // cancelled or when no Canvas is mounted (doc chats, the seed composer). Keyed
-  // by the branch id (the sandbox-backed agent's id), which the frame
-  // eligibility predicate matches against each frame's `branchId`.
+  // cancelled or when no Canvas is mounted (doc chats, the seed composer).
+  //
+  // The pick key is a **Branch id**: this chat's `sandboxId` prop is the
+  // sandbox-backed agent's id, which *is* its Branch's id (`agent.id`), and
+  // Element Targeting's eligibility rule matches it against each frame's
+  // `branchId`. Named here so the two ids aren't mistaken for different keys.
+  const pickBranchId = sandboxId
   const handlePickElement = useCallback(() => {
-    if (!sandboxId) return Promise.resolve(null)
-    return targetingStore.requestPick(sandboxId)
-  }, [sandboxId])
+    if (!pickBranchId) return Promise.resolve(null)
+    return targetingStore.requestPick(pickBranchId)
+  }, [pickBranchId])
 
   // Whether this branch has an eligible frame open right now — the Canvas
   // publishes it, and it drives the composer target icon's disabled/tooltip
@@ -322,7 +326,8 @@ export function AgentChat({
   // stays a generic input with no store dependency.
   const targetEligible = useSyncExternalStore(
     subscribeTargetEligibility,
-    () => (sandboxId ? targetingStore.hasEligibleFrames(sandboxId) : false),
+    () =>
+      pickBranchId ? targetingStore.hasEligibleFrames(pickBranchId) : false,
     () => false
   )
 
