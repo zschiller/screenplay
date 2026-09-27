@@ -513,7 +513,10 @@ export const SCREENS: Screen[] = [
       )
       await openChatTab(page, "New chat")
       await replayRun(page, ids.chats.fresh, streamingRun())
-      await page.getByTitle("Stop").first().click({ timeout: 10_000 })
+      await page
+        .locator('[title="Stop"], [aria-label="Stop"]')
+        .first()
+        .click({ timeout: 10_000 })
     },
     settleMs: 400,
   },
@@ -660,6 +663,154 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "sidebar-collapse-hover",
+    description: "Hovering the sidebar's collapse button.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator("button:has(svg.lucide-panel-left-close)")
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-project-row-hover",
+    description:
+      "Hovering a Project row's New workspace (+) button in the sidebar.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page.getByText("acme/storefront").first().hover()
+      await page
+        .locator('[title="New workspace"], [aria-label="New workspace"]')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-workspace-menu-hover",
+    description: "Hovering a Workspace row's overflow (…) button.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const row = page
+        .locator(".group\\/branch-row")
+        .filter({ hasText: "checkout-polish" })
+        .first()
+      await row.hover()
+      await row
+        .locator('[aria-haspopup="menu"]')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "sidebar-layer-menu-hover",
+    description: "Hovering a Layer row's overflow (…) button in the sidebar.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const row = page.locator(".group\\/frame-row").first()
+      await row.hover()
+      await row
+        .locator('[aria-haspopup="menu"]')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-tab-close-focus",
+    description:
+      "The active chat tab's close button reached by keyboard (focus the tab, then Tab past its label).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      await page
+        .getByRole("tab", { name: /Checkout polish/i })
+        .first()
+        .focus()
+      // Park the pointer off the strip, so only focus can reveal the close.
+      await page.mouse.move(0, 0)
+      // The tab's rename label is the first stop after it, the close the next.
+      await page.keyboard.press("Tab")
+      await page.keyboard.press("Tab")
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "chat-new-chat-hover",
+    description: "Hovering the chat tab strip's New chat (+) button.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .locator('[data-slot="tabs-list"] button:has(svg.lucide-plus)')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "composer-send-hover",
+    description:
+      "A drafted message with the pointer on Send: the Enter / Shift+Enter hint.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await page.locator(".ProseMirror").last().click({ timeout: 15_000 })
+      await page.keyboard.type("Tighten the summary spacing")
+      await page
+        .locator('[title="Send"], [aria-label="Send"]')
+        .last()
+        .hover({ force: true, timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "composer-model-locked-hover",
+    description:
+      "Hovering the model picker of a chat that has started, where the model is locked.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      // force: the locked picker is disabled, so it takes no pointer events of
+      // its own; hovering its box is what a person does.
+      await page
+        .locator(
+          '[data-slot="input-group"] button:has(svg.lucide-chevron-down)'
+        )
+        .filter({ visible: true })
+        .last()
+        .hover({ force: true, timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-hud-hover",
+    description: "The prototype player's HUD, hovering the knobs button.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: async (page) => {
+      await page
+        .locator("button:has(svg.lucide-sliders-horizontal)")
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-narrow",
     description:
       "The Canvas at a narrow window, where the panels compete for width.",
@@ -713,7 +864,7 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await page.getByText("acme/storefront").first().hover()
       await page
-        .locator('[title="New workspace"], [title="New Workspace"]')
+        .locator('[title="New workspace"], [aria-label="New workspace"]')
         .first()
         .click({ timeout: 15_000 })
     },
@@ -725,7 +876,10 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await page.getByText("acme/storefront").first().hover()
-      await page.locator('[title="More"]').first().click({ timeout: 15_000 })
+      await page
+        .locator('[title="More"], [aria-label="Project options"]')
+        .first()
+        .click({ timeout: 15_000 })
       // Radix ignores a select that lands in the same beat the menu opened.
       await page.waitForTimeout(300)
       await page.getByRole("menuitem", { name: "Remove" }).click()

@@ -49,6 +49,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { IconButton, Shortcut } from "@workspace/ui/components/icon-button"
 import {
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
@@ -807,21 +808,32 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               </span>
             ) : (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <InputGroupButton
-                    size="xs"
-                    className="-ml-1 text-xs"
-                    disabled={modelLocked}
-                    title={
-                      modelLocked
-                        ? "Model is locked to this session"
-                        : "Change model"
-                    }
-                  >
-                    {currentModel.label}
-                    <ChevronDown />
-                  </InputGroupButton>
-                </DropdownMenuTrigger>
+                <TooltipProvider>
+                  <Tooltip>
+                    {/* The span carries the tooltip: a locked (disabled)
+                        picker emits no pointer events, and the lock is exactly
+                        what needs explaining. */}
+                    <TooltipTrigger asChild>
+                      <span className="-ml-1 inline-flex">
+                        <DropdownMenuTrigger asChild>
+                          <InputGroupButton
+                            size="xs"
+                            className="text-xs"
+                            disabled={modelLocked}
+                          >
+                            {currentModel.label}
+                            <ChevronDown />
+                          </InputGroupButton>
+                        </DropdownMenuTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {modelLocked
+                        ? "A chat keeps the model it started with. Start a new chat to switch."
+                        : "Change model"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <DropdownMenuContent align="start">
                   {models.length === 0 ? (
                     <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
@@ -848,70 +860,98 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               </DropdownMenu>
             )}
             {onPlanModeChange && (
-              <InputGroupButton
-                size="xs"
-                variant={planMode ? "default" : "ghost"}
-                onClick={() => onPlanModeChange(!planMode)}
-                title={planMode ? "Plan mode enabled" : "Enable plan mode"}
-                className="text-xs"
-              >
-                <ClipboardList />
-                Plan
-              </InputGroupButton>
-            )}
-            {onPickElement && (
               <TooltipProvider>
                 <Tooltip>
-                  {/* Wrap the trigger in a span: a disabled button emits no
-                      pointer events, so Radix couldn't surface the "open the
-                      preview first" explanation without a live element to hover. */}
                   <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <InputGroupButton
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={triggerPick}
-                        disabled={noAgents || !targetEligible}
-                      >
-                        <Crosshair />
-                      </InputGroupButton>
-                    </span>
+                    <InputGroupButton
+                      size="xs"
+                      variant={planMode ? "default" : "ghost"}
+                      onClick={() => onPlanModeChange(!planMode)}
+                      aria-pressed={!!planMode}
+                      className="text-xs"
+                    >
+                      <ClipboardList />
+                      Plan
+                    </InputGroupButton>
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    {targetEligible
-                      ? "Target an element (⌘E)"
-                      : "Open this workspace's preview first to target an element"}
+                    {planMode ? "Plan mode enabled" : "Enable plan mode"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {hideSend ? null : isStreaming && onStop ? (
-              <InputGroupButton
-                size="icon-xs"
-                variant="secondary"
-                onClick={onStop}
-                title="Stop"
-                className="ml-auto"
-              >
-                <Square fill="currentColor" />
-              </InputGroupButton>
-            ) : (
-              <InputGroupButton
-                size="icon-xs"
-                variant={
-                  (hasContent || allowEmptySubmit) && !noAgents
-                    ? "default"
-                    : "ghost"
+            {onPickElement && (
+              <IconButton
+                label="Target an element"
+                shortcut="⌘E"
+                hint={
+                  targetEligible
+                    ? undefined
+                    : "Open this workspace's preview first"
                 }
-                onClick={handleSubmit}
-                disabled={
-                  (!hasContent && !allowEmptySubmit) || isStreaming || noAgents
-                }
-                title={noAgents ? "No coding agent detected" : "Send"}
-                className="ml-auto"
+                asChild
+                disabled={noAgents || !targetEligible}
               >
-                <ArrowUp />
-              </InputGroupButton>
+                <InputGroupButton
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={triggerPick}
+                >
+                  <Crosshair />
+                </InputGroupButton>
+              </IconButton>
+            )}
+            {hideSend ? null : (
+              <span className="ml-auto inline-flex">
+                {isStreaming && onStop ? (
+                  <IconButton label="Stop" asChild>
+                    <InputGroupButton
+                      size="icon-xs"
+                      variant="secondary"
+                      onClick={onStop}
+                    >
+                      <Square fill="currentColor" />
+                    </InputGroupButton>
+                  </IconButton>
+                ) : (
+                  <IconButton
+                    label="Send"
+                    shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
+                    hint={
+                      noAgents ? (
+                        "No coding agent detected"
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          New line
+                          <Shortcut
+                            keys={
+                              submitMode === "enter" || onEnter ? "⇧↵" : "↵"
+                            }
+                          />
+                        </span>
+                      )
+                    }
+                    asChild
+                    disabled={
+                      (!hasContent && !allowEmptySubmit) ||
+                      isStreaming ||
+                      noAgents
+                    }
+                  >
+                    <InputGroupButton
+                      size="icon-xs"
+                      variant={
+                        (hasContent || allowEmptySubmit) && !noAgents
+                          ? "default"
+                          : "ghost"
+                      }
+                      onClick={handleSubmit}
+                    >
+                      <ArrowUp />
+                    </InputGroupButton>
+                  </IconButton>
+                )}
+              </span>
             )}
           </InputGroupAddon>
         </InputGroup>

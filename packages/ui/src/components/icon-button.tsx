@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"
-import { Kbd } from "@workspace/ui/components/kbd"
+import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import {
   Tooltip,
   TooltipContent,
@@ -20,8 +21,12 @@ type IconButtonProps = Omit<
    * text of its styled tooltip, so the two can never drift apart.
    */
   label: string
-  /** Optional keyboard-shortcut hint rendered as a `Kbd` inside the tooltip. */
-  shortcut?: string
+  /**
+   * Optional keyboard-shortcut hint for the tooltip, one `Kbd` per key. A
+   * string is split into its leading modifier glyphs and the key (`"⌘B"` →
+   * ⌘, B); pass an array for anything else (`["Esc"]`).
+   */
+  shortcut?: string | readonly string[]
   /**
    * For toggle-style buttons (e.g. tool modes): exposes the on/off state to
    * assistive technology as `aria-pressed`. Leave undefined for plain actions.
@@ -29,6 +34,17 @@ type IconButtonProps = Omit<
   pressed?: boolean
   /** Which side of the button the tooltip opens on. */
   tooltipSide?: React.ComponentProps<typeof TooltipContent>["side"]
+  /**
+   * Extra tooltip lines under the label (e.g. why the button is disabled, or a
+   * secondary shortcut). The accessible name stays `label` alone.
+   */
+  hint?: React.ReactNode
+  /**
+   * Render the single child as the button instead of a `Button`, so a surface
+   * with its own button primitive (`SidebarMenuAction`, `InputGroupButton`)
+   * keeps its styling and still gets the label and tooltip.
+   */
+  asChild?: boolean
 }
 
 /**
@@ -38,6 +54,10 @@ type IconButtonProps = Omit<
  * composes under Radix `asChild` triggers (`DropdownMenuTrigger`,
  * `PopoverTrigger`) the same way a bare `Button` does.
  *
+ * A disabled button fires no pointer events, so while `disabled` the tooltip
+ * hangs off a wrapping span instead: the label (and `hint`, which is where to
+ * say why) still shows on hover.
+ *
  * Carries its own `TooltipProvider`, so it works anywhere without a provider
  * ancestor.
  */
@@ -46,29 +66,75 @@ function IconButton({
   shortcut,
   pressed,
   tooltipSide = "top",
+  hint,
+  asChild = false,
   variant = "ghost",
   size = "icon-xs",
   ...props
 }: IconButtonProps) {
+  const button = asChild ? (
+    <Slot.Root aria-label={label} aria-pressed={pressed} {...props} />
+  ) : (
+    <Button
+      variant={variant}
+      size={size}
+      aria-label={label}
+      aria-pressed={pressed}
+      {...props}
+    />
+  )
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant={variant}
-            size={size}
-            aria-label={label}
-            aria-pressed={pressed}
-            {...props}
-          />
+          {props.disabled ? (
+            <span className="inline-flex">{button}</span>
+          ) : (
+            button
+          )}
         </TooltipTrigger>
         <TooltipContent side={tooltipSide}>
-          {label}
-          {shortcut ? <Kbd>{shortcut}</Kbd> : null}
+          {hint ? (
+            <span className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1.5">
+                {label}
+                {shortcut ? <Shortcut keys={shortcut} /> : null}
+              </span>
+              <span className="opacity-70">{hint}</span>
+            </span>
+          ) : (
+            <>
+              {label}
+              {shortcut ? <Shortcut keys={shortcut} /> : null}
+            </>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )
 }
 
-export { IconButton, type IconButtonProps }
+const MODIFIERS = new Set(["⌘", "⇧", "⌥", "⌃"])
+
+/** `"⌘⇧B"` → `["⌘", "⇧", "B"]`: each leading modifier glyph is its own key. */
+function shortcutKeys(shortcut: string | readonly string[]): string[] {
+  if (typeof shortcut !== "string") return [...shortcut]
+  const chars = Array.from(shortcut)
+  let i = 0
+  while (i < chars.length - 1 && MODIFIERS.has(chars[i]!)) i++
+  const rest = chars.slice(i).join("")
+  return [...chars.slice(0, i), ...(rest ? [rest] : [])]
+}
+
+/** A shortcut as a `KbdGroup` with one `Kbd` per key. */
+function Shortcut({ keys }: { keys: string | readonly string[] }) {
+  return (
+    <KbdGroup>
+      {shortcutKeys(keys).map((key, i) => (
+        <Kbd key={i}>{key}</Kbd>
+      ))}
+    </KbdGroup>
+  )
+}
+
+export { IconButton, Shortcut, shortcutKeys, type IconButtonProps }
