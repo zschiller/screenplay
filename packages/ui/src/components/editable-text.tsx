@@ -66,7 +66,7 @@ export type EditableTextProps = {
  *  The negative margin cancels the padding so entering edit mode doesn't shift
  *  surrounding layout; horizontal overflow scrolls with a hidden scrollbar. */
 const EDIT_FIELD_CLASS =
-  "relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground shadow-sm ring-1 ring-ring px-0.5 py-0.5 -mx-0.5 -my-0.5"
+  "relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground ring-1 ring-ring/50 px-0.5 py-0.5 -mx-0.5 -my-0.5"
 
 const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
   function EditableText(
