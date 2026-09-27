@@ -517,6 +517,57 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "canvas-chat-tool-states",
+    description:
+      "Every tool-call state: running, done, failed with and without a reason, an expanded edit diff, and a long transcript error.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, toolStatesRun())
+      await expandToolCall(page, /^Edit/)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-tool-hover",
+    description:
+      "A tool call whose path is too long for the row, hovered to read it in full.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, toolStatesRun())
+      // Hover the row, not the path text: hovering the text scrolls the
+      // clipped title sideways to bring it into view.
+      await page
+        .getByRole("button", { name: /^Read 3 lines/ })
+        .first()
+        .hover({ timeout: 10_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-disclosure-focus",
+    description:
+      "A collapsible chat section (reasoning) reached from the keyboard, showing its focus ring.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "Checkout polish")
+      // Reach it with the keyboard (focus back, then Tab onto it) so the
+      // browser treats the focus as keyboard focus and paints the ring.
+      await page
+        .getByRole("button", { name: /^Reasoning$/ })
+        .first()
+        .focus({ timeout: 15_000 })
+      await page.keyboard.press("Shift+Tab")
+      await page.keyboard.press("Tab")
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-setup-error",
     description:
       "A Workspace's setup error opened from the sidebar, as a keyboard user reaches it.",
@@ -1078,6 +1129,131 @@ export function streamingRun(): RunEvent[] {
         content: text(
           "The summary sits in the right column, so on mobile it lands under the form. I'll pin it to the bottom of the viewport below 768px and"
         ),
+      },
+    },
+  ]
+}
+
+/**
+ * Expand a collapsed tool-call row whose accessible name matches `name`. Skips
+ * a row that already reports itself open, so a row that opens by default (a
+ * failed call showing its reason) isn't toggled shut.
+ */
+export async function expandToolCall(page: Page, name: RegExp): Promise<void> {
+  const row = page.getByRole("button", { name }).first()
+  await row.waitFor({ timeout: 10_000 })
+  if ((await row.getAttribute("aria-expanded")) !== "true") await row.click()
+}
+
+/**
+ * A finished run with one tool call in every state the row has: a read whose
+ * path overflows the row, an edit carrying a diff, a command that failed with
+ * a reason and one that failed with none, and a command still running. It ends
+ * on a transcript error long enough to wrap.
+ */
+export function toolStatesRun(): RunEvent[] {
+  const call = (update: Record<string, unknown>): RunEvent => ({
+    type: "chat-acp-update",
+    update: { sessionUpdate: "tool_call", ...update },
+  })
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Pin the order summary on mobile and run the build."),
+      },
+    },
+    { type: "chat-stream-start" },
+    call({
+      toolCallId: "fixture-states-read",
+      title:
+        "Read apps/storefront/app/(checkout)/components/summary/sticky-order-summary.tsx",
+      kind: "read",
+      status: "completed",
+      rawInput: {
+        file_path:
+          "apps/storefront/app/(checkout)/components/summary/sticky-order-summary.tsx",
+      },
+      content: [
+        {
+          type: "content",
+          content: text(
+            '     1→export function StickyOrderSummary() {\n     2→  return <aside className="md:static" />\n     3→}'
+          ),
+        },
+      ],
+    }),
+    call({
+      toolCallId: "fixture-states-edit",
+      title: "Edit app/checkout/summary.tsx",
+      kind: "edit",
+      status: "completed",
+      rawInput: { file_path: "app/checkout/summary.tsx" },
+      content: [
+        {
+          type: "diff",
+          path: "app/checkout/summary.tsx",
+          oldText: [
+            "export function OrderSummary({ items }: Props) {",
+            "  return (",
+            '    <aside className="md:static">',
+            "      <Totals items={items} />",
+            "    </aside>",
+            "  )",
+            "}",
+          ].join("\n"),
+          newText: [
+            "export function OrderSummary({ items }: Props) {",
+            "  return (",
+            '    <aside className="sticky bottom-0 md:static">',
+            "      <Totals items={items} />",
+            "      <PayButton />",
+            "    </aside>",
+            "  )",
+            "}",
+          ].join("\n"),
+        },
+      ],
+    }),
+    call({
+      toolCallId: "fixture-states-build",
+      title: "pnpm build",
+      kind: "execute",
+      status: "failed",
+      rawInput: { command: "pnpm build --filter storefront" },
+      content: [
+        {
+          type: "content",
+          content: text(
+            "app/checkout/summary.tsx:5:8 - error TS2304: Cannot find name 'PayButton'.\n\nFound 1 error in app/checkout/summary.tsx:5"
+          ),
+        },
+      ],
+    }),
+    call({
+      toolCallId: "fixture-states-deploy",
+      title: "Preview deploy",
+      kind: "execute",
+      status: "failed",
+      rawInput: { command: "pnpm deploy:preview" },
+    }),
+    call({
+      toolCallId: "fixture-states-test",
+      title: "pnpm test",
+      kind: "execute",
+      status: "in_progress",
+      rawInput: {
+        command:
+          "pnpm test --filter storefront -- app/checkout/summary.test.tsx --reporter=verbose",
+      },
+    }),
+    {
+      type: "chat-control",
+      control: {
+        kind: "error",
+        message:
+          "The agent stopped responding: request to https://api.example.com/v1/sessions/4f9c2e1a-8b7d-4c3e-9a2f-1d5e6b7c8a9f/prompt timed out after 120000ms",
       },
     },
   ]

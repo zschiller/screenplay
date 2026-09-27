@@ -347,6 +347,118 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
 // A thin smoke test over the render shell (issue #640): the grouping *logic*
 // lives in `groupToolCalls` and is unit-tested there without a DOM; here we only
 // confirm the container renders, its children live inside it, and it collapses.
+describe("AgentMessageItem — one tool-call row (issue #728)", () => {
+  const text = (t: string): ToolCallContent => ({
+    type: "content",
+    content: { type: "text", text: t },
+  })
+
+  it("shows a failed call's reason without being opened", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          status: "failed",
+          content: [text("error TS2304: Cannot find name 'PayButton'.")],
+        })}
+      />
+    )
+    expect(screen.getByTestId("tool-content-text").textContent).toContain(
+      "Cannot find name 'PayButton'"
+    )
+  })
+
+  it("says so when a failed call reported no reason", () => {
+    render(
+      <AgentMessageItem message={toolCall({ status: "failed", content: [] })} />
+    )
+    expect(screen.getByTestId("tool-call-no-reason")).toBeTruthy()
+  })
+
+  it("offers no expand control when there is nothing to expand", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({ status: "completed", content: [] })}
+      />
+    )
+    expect(screen.queryByRole("button")).toBeNull()
+  })
+
+  it("exposes its expanded state to assistive technology", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({ status: "completed", content: [text("ok")] })}
+      />
+    )
+    const row = screen.getByTestId("tool-call")
+    expect(row.getAttribute("aria-expanded")).toBe("false")
+    fireEvent.click(row)
+    expect(row.getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("renders an edit as a line diff, marking only the changed lines", () => {
+    render(
+      <AgentMessageItem
+        message={toolCall({
+          status: "completed",
+          content: [
+            {
+              type: "diff",
+              path: "src/a.ts",
+              oldText: "keep\nold\nkeep too",
+              newText: "keep\nnew\nkeep too",
+            },
+          ],
+        })}
+      />
+    )
+    fireEvent.click(screen.getByTestId("tool-call"))
+    const diff = screen.getByTestId("tool-content-diff")
+    const kinds = [...diff.querySelectorAll("[data-diff]")].map((el) =>
+      el.getAttribute("data-diff")
+    )
+    expect(kinds).toEqual(["context", "removed", "added", "context"])
+  })
+})
+
+describe("AgentMessageItem — disclosure sections share one primitive", () => {
+  it("gives reasoning an aria-expanded header", () => {
+    render(<AgentMessageItem message={{ role: "reasoning", content: "x" }} />)
+    const header = screen.getByRole("button", { name: /reasoning/i })
+    expect(header.getAttribute("aria-expanded")).toBe("false")
+  })
+
+  it("lets only a rejected plan collapse", () => {
+    const plan = (status: "pending" | "rejected"): AgentMessage => ({
+      role: "plan",
+      content: "Do the thing.",
+      status,
+      planId: "p1",
+    })
+    const { unmount } = render(
+      <AgentMessageItem message={plan("pending")} roomId="r" chatId="c" />
+    )
+    expect(screen.queryByRole("button", { name: /plan/i })).toBeNull()
+    unmount()
+    // A rejected plan opens collapsed.
+    render(
+      <AgentMessageItem message={plan("rejected")} roomId="r" chatId="c" />
+    )
+    expect(
+      screen
+        .getByRole("button", { name: /plan/i })
+        .getAttribute("aria-expanded")
+    ).toBe("false")
+  })
+})
+
+describe("AgentMessageItem — transcript error", () => {
+  it("renders the full error text", () => {
+    const long = "https://api.example.com/" + "a".repeat(200)
+    render(<AgentMessageItem message={{ role: "error", content: long }} />)
+    expect(screen.getByTestId("chat-error").textContent).toContain(long)
+  })
+})
+
 describe("TaskGroup — subagent grouping render (issue #640)", () => {
   const task = toolCall({
     toolCallId: "task_1",

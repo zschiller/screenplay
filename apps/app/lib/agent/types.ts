@@ -25,16 +25,6 @@ export type AgentMessage =
   // block distinct from the assistant message body so streamed thinking isn't
   // silently dropped.
   | { role: "reasoning"; content: string }
-  | {
-      role: "tool_use"
-      name: CustomToolName
-      input: Record<string, unknown>
-    }
-  | {
-      role: "tool_result"
-      name: CustomToolName
-      output: string
-    }
   | { role: "error"; content: string }
   // The user stopped the run here (its `agent_run` ended `aborted`). A marker,
   // not a message: it carries no content, only the fact that the turn above it
@@ -54,8 +44,7 @@ export type AgentMessage =
       feedback?: string
     }
   // ACP-native tool call (issue #377), keyed by `toolCallId` and updated in
-  // place through its status lifecycle. Unlike the legacy `tool_use`/
-  // `tool_result` pair (matched by the parent at render time), this single row
+  // place through its status lifecycle. This single row
   // carries the whole call — its status and its structured `content` blocks
   // (text, file `diff`, `terminal`) — so the renderer never re-pairs and never
   // flattens the richer output.
