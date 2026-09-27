@@ -300,6 +300,23 @@ export const SCREENS: Screen[] = [
     fullPage: true,
   },
   {
+    name: "settings-default-agent",
+    description: "Settings: the Default agent menu open on Coding agents.",
+    path: "/settings",
+    prepare: async (page) => {
+      const trigger = page.getByRole("button", { name: "Default agent" })
+      const menu = page.getByRole("menu")
+      // The first click can land before hydration or before the catalog
+      // loads (the trigger is disabled until then); retry until it opens.
+      for (let i = 0; i < 20 && !(await menu.isVisible()); i++) {
+        await trigger.click({ timeout: 5_000 })
+        await menu.waitFor({ timeout: 500 }).catch(() => {})
+      }
+      await menu.waitFor()
+    },
+    settleMs: 300,
+  },
+  {
     name: "canvas",
     description:
       "The reference Canvas: two Groups, a Document Layer, an unbound frame, the Workspace sidebar.",
@@ -451,6 +468,20 @@ export const SCREENS: Screen[] = [
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
       await openChatTab(page, "New chat")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-off-default",
+    description:
+      "A new chat switched off the default model: the composer says so.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await page.getByTitle("Change model").click()
+      await page.getByRole("menuitem", { name: "Sonnet 5" }).click()
+      await page.getByText("· not default").waitFor()
     },
     settleMs: 400,
   },

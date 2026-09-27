@@ -27,30 +27,13 @@ import {
   type ModelInfo,
 } from "@/lib/models-store"
 import { resolveDefaultModel } from "@/lib/model-selection"
+import { useDefaultModel } from "@/lib/default-model-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
-
-const LAST_MODEL_STORAGE_KEY = "agent-last-model"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
 // render would make React re-subscribe every render.
 const subscribeTargetEligibility = (onChange: () => void) =>
   targetingStore.subscribeEligibility(onChange)
-
-function readStoredModel(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    return window.localStorage.getItem(LAST_MODEL_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeStoredModel(modelId: string) {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(LAST_MODEL_STORAGE_KEY, modelId)
-  } catch {}
-}
 
 interface AgentChatProps {
   chatId: string
@@ -111,10 +94,9 @@ export function AgentChat({
   const [serverDefaultModel, setServerDefaultModel] = useState<string | null>(
     null
   )
-  // Read the last-used model from localStorage during render (SSR-safe — the
-  // reader returns null when `window` is undefined) rather than syncing it in
-  // via an effect, which would trigger a cascading render on mount.
-  const [storedModel, setStoredModel] = useState<string | null>(readStoredModel)
+  // The user's default from Settings, live so a change there reaches an open
+  // chat that hasn't picked its own model yet.
+  const userDefaultModel = useDefaultModel()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ComposerHandle>(null)
@@ -282,32 +264,37 @@ export function AgentChat({
     }
   }, [isAgentChat, sandboxName])
 
-  // Precedence: per-chat override (set by `onModelChange`) → user's stored
-  // last-used model from localStorage → server-side default for the
-  // configured provider set → first available. See `resolveDefaultModel`.
+  // Precedence: per-chat override (set by `onModelChange`) → the user's
+  // default from Settings → server-side default for the configured provider
+  // set → first available. See `resolveDefaultModel`.
+  const defaultModel = resolveDefaultModel({
+    stored: userDefaultModel,
+    serverDefault: serverDefaultModel,
+    models,
+  })
   const effectiveModel = resolveDefaultModel({
     perSession: model,
-    stored: storedModel,
+    stored: userDefaultModel,
     serverDefault: serverDefaultModel,
     models,
   })
 
+  // Picking a model here changes only this chat; the default lives in Settings.
   const handleModelChange = useCallback(
-    (m: string) => {
-      writeStoredModel(m)
-      setStoredModel(m)
-      onModelChange?.(m)
-    },
+    (m: string) => onModelChange?.(m),
     [onModelChange]
   )
 
   // The Composer serializes the draft to a Message-Markers wire body and hands
   // it back here with the chosen model; the chat just relays it to the engine.
+  // A chat still following the default is pinned to the model it first sends
+  // with, so changing the default later never relabels a running session.
   const handleSubmit = useCallback(
-    ({ text, model }: ComposerSubmitPayload) => {
-      sendMessage(text, { model })
+    ({ text, model: submitted }: ComposerSubmitPayload) => {
+      if (!model && submitted) onModelChange?.(submitted)
+      sendMessage(text, { model: submitted })
     },
-    [sendMessage]
+    [sendMessage, model, onModelChange]
   )
 
   // Element targeting (PRD #616): agent chats in a room can target this branch's
@@ -348,9 +335,10 @@ export function AgentChat({
   // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
   useEffect(() => {
     return inputStore.subscribeSend(chatId, (text) => {
+      if (!model && effectiveModel) onModelChange?.(effectiveModel)
       sendMessage(text, { model: effectiveModel })
     })
-  }, [chatId, sendMessage, effectiveModel])
+  }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 
   // Once a chat has at least one message in its log, the model used for the
   // first turn is locked — switching mid-conversation can confuse the
@@ -447,6 +435,7 @@ export function AgentChat({
         models={models}
         modelsLoaded={modelsLoaded}
         model={effectiveModel}
+        defaultModel={defaultModel}
         onModelChange={handleModelChange}
         modelLocked={modelLocked}
         planMode={planMode}
