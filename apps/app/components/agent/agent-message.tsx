@@ -14,14 +14,15 @@ import {
   ClipboardList,
   GitPullRequest,
   ExternalLink,
-  Loader2,
   Sparkles,
   PencilLine,
   SquarePen,
   Brain,
   Crosshair,
   Bot,
+  Square,
 } from "lucide-react"
+import { GripSpinner } from "@/components/grip-spinner"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
@@ -208,7 +209,7 @@ function CreatePrIndicator({
   if (!result) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+        <GripSpinner className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground">{title}</div>
           <div className="text-[11px] text-muted-foreground">
@@ -495,9 +496,9 @@ function ToolCallIndicator({
         }`}
       >
         {running ? (
-          <Loader2
+          <GripSpinner
             data-testid="tool-call-spinner"
-            className="h-3 w-3 shrink-0 animate-spin"
+            className="h-3 w-3 shrink-0"
           />
         ) : failed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
@@ -595,7 +596,7 @@ export function TaskGroup({
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
       >
         {anyRunning ? (
-          <Loader2 className="h-3 w-3 shrink-0 [transform-origin:center] animate-spin will-change-transform" />
+          <GripSpinner className="h-3 w-3 shrink-0" />
         ) : anyFailed ? (
           <AlertCircle className="h-3 w-3 shrink-0" />
         ) : (
@@ -934,6 +935,24 @@ export function AgentMessageItem({
         <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {message.content}
+        </div>
+      )
+
+    case "stopped":
+      // A rule across the transcript rather than a bubble: it marks where the
+      // run was cut short, so the turn above doesn't read as a finished one.
+      return (
+        <div
+          role="note"
+          data-testid="run-stopped"
+          className="flex items-center gap-2 text-[11px] text-muted-foreground"
+        >
+          <span className="h-px flex-1 bg-border" />
+          <span className="flex items-center gap-1">
+            <Square className="size-2 fill-current" />
+            Stopped
+          </span>
+          <span className="h-px flex-1 bg-border" />
         </div>
       )
   }

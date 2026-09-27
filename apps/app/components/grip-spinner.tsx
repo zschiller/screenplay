@@ -38,7 +38,13 @@ function randomAnim(): DotAnim {
   }
 }
 
-export function GripSpinner({ className }: { className?: string }) {
+export function GripSpinner({
+  className,
+  "data-testid": testId,
+}: {
+  className?: string
+  "data-testid"?: string
+}) {
   const [anims, setAnims] = useState<DotAnim[] | null>(null)
 
   // Seed the randomized per-dot timings on mount only. This deliberately sets
@@ -60,6 +66,7 @@ export function GripSpinner({ className }: { className?: string }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      data-testid={testId}
       aria-hidden="true"
     >
       {DOTS.map(([cx, cy], i) => {
