@@ -164,7 +164,9 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
       />
     )
     // Verbatim — not "Read File.Ts" from word-by-word title casing.
-    expect(screen.getByTestId("tool-call").textContent).toContain("Read file.ts")
+    expect(screen.getByTestId("tool-call").textContent).toContain(
+      "Read file.ts"
+    )
   })
 
   it("renders inline `code` in an ACP title as markdown, not literal backticks", () => {
@@ -186,7 +188,10 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
   it("renders non-code markdown characters in an ACP title verbatim", () => {
     render(
       <AgentMessageItem
-        message={toolCall({ title: "Edit src/__init__.py", status: "completed" })}
+        message={toolCall({
+          title: "Edit src/__init__.py",
+          status: "completed",
+        })}
       />
     )
     expect(screen.getByTestId("tool-call").textContent).toContain(
@@ -211,7 +216,10 @@ describe("AgentMessageItem — ACP tool call (issue #377)", () => {
   it("renders multiple inline `code` spans in one ACP title", () => {
     const { container } = render(
       <AgentMessageItem
-        message={toolCall({ title: "Edit `a.ts` and `b.ts`", status: "completed" })}
+        message={toolCall({
+          title: "Edit `a.ts` and `b.ts`",
+          status: "completed",
+        })}
       />
     )
     const codes = Array.from(container.querySelectorAll("code")).map(
@@ -375,6 +383,104 @@ describe("TaskGroup — subagent grouping render (issue #640)", () => {
     expect(screen.queryByTestId("tool-call")).toBeNull()
 
     fireEvent.click(screen.getByTestId("task-group-header"))
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
+  })
+})
+
+// Issue #709: the expanded state was seeded once on mount, so a live group that
+// opened while running stayed open after it settled.
+describe("TaskGroup — auto-collapse on settle (issue #709)", () => {
+  type ToolCall = Extract<AgentMessage, { role: "tool_call" }>
+  const task = (status: ToolCall["status"]) =>
+    toolCall({ toolCallId: "task_1", title: "Task", status }) as ToolCall
+  const child = (status: ToolCall["status"]) =>
+    toolCall({
+      toolCallId: "child_1",
+      title: "read_file",
+      kind: "read",
+      status,
+      rawInput: { path: "src/foo.ts" },
+      parentToolCallId: "task_1",
+    }) as ToolCall
+
+  it("collapses a live group when the Task and its children settle", () => {
+    const { rerender } = render(
+      <TaskGroup
+        task={task("in_progress")}
+        childCalls={[child("in_progress")]}
+      />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
+
+    // Child finishes but the Task is still running → stays open.
+    rerender(
+      <TaskGroup task={task("in_progress")} childCalls={[child("completed")]} />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
+
+    rerender(
+      <TaskGroup task={task("completed")} childCalls={[child("completed")]} />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+  })
+
+  it("collapses a live group that settles as failed", () => {
+    const { rerender } = render(
+      <TaskGroup
+        task={task("in_progress")}
+        childCalls={[child("in_progress")]}
+      />
+    )
+    rerender(<TaskGroup task={task("failed")} childCalls={[child("failed")]} />)
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+  })
+
+  it("keeps a group the user expanded open after it settles", () => {
+    const { rerender } = render(
+      <TaskGroup
+        task={task("in_progress")}
+        childCalls={[child("in_progress")]}
+      />
+    )
+    // Collapse then re-expand by hand: the user now owns the state.
+    fireEvent.click(screen.getByTestId("task-group-header"))
+    fireEvent.click(screen.getByTestId("task-group-header"))
+
+    rerender(
+      <TaskGroup task={task("completed")} childCalls={[child("completed")]} />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeTruthy()
+  })
+
+  it("keeps a group the user collapsed closed while it keeps running", () => {
+    const { rerender } = render(
+      <TaskGroup task={task("in_progress")} childCalls={[child("pending")]} />
+    )
+    fireEvent.click(screen.getByTestId("task-group-header"))
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+
+    rerender(
+      <TaskGroup
+        task={task("in_progress")}
+        childCalls={[child("in_progress")]}
+      />
+    )
+    rerender(
+      <TaskGroup task={task("completed")} childCalls={[child("completed")]} />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+  })
+
+  it("starts collapsed on a reload of a finished run, open on a reload mid-run", () => {
+    render(
+      <TaskGroup task={task("completed")} childCalls={[child("completed")]} />
+    )
+    expect(screen.queryByTestId("tool-call")).toBeNull()
+    cleanup()
+
+    render(
+      <TaskGroup task={task("in_progress")} childCalls={[child("completed")]} />
+    )
     expect(screen.queryByTestId("tool-call")).toBeTruthy()
   })
 })
