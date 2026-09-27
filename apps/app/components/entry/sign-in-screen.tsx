@@ -71,8 +71,8 @@ export function SignInScreen() {
             </p>
           )}
           <p className="max-w-[36ch] text-xs text-balance text-muted-foreground">
-            Screenplay clones your repositories and pushes commits on your
-            behalf.
+            Screenplay clones your GitHub repositories and pushes commits on
+            your behalf.
           </p>
         </div>
       </div>
