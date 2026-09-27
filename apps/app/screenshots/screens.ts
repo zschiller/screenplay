@@ -444,6 +444,79 @@ export const SCREENS: Screen[] = [
     },
   },
   {
+    name: "canvas-chat-empty",
+    description: "A frame chat with nothing sent yet: the empty state.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-empty-document",
+    description: "A Document chat with nothing sent yet: the empty state.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await selectChatTarget(page, "Checkout brief")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-loading",
+    description: "A chat while its history is still loading.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      // History loads once, on mount, so hold the request open and reload.
+      await page.route("**/api/agent/history**", () => {})
+      await page.reload()
+      await page.waitForTimeout(1500)
+    },
+  },
+  {
+    name: "canvas-chat-streaming",
+    description: "A run mid-stream, with assistant text already arriving.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, streamingRun())
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-stopped",
+    description: "A run the user stopped part-way through.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, [
+        ...streamingRun(),
+        { type: "chat-control", control: { kind: "stopped" } },
+        { type: "chat-stream-end" },
+      ])
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-chat-stop-failed",
+    description: "A run whose Stop request failed.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page.route("**/api/agent/stop", (route) =>
+        route.fulfill({ status: 500, body: "The run didn't respond" })
+      )
+      await openChatTab(page, "New chat")
+      await replayRun(page, ids.chats.fresh, streamingRun())
+      await page.getByTitle("Stop").first().click({ timeout: 10_000 })
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-narrow",
     description:
       "The Canvas at a narrow window, where the panels compete for width.",
@@ -834,6 +907,97 @@ export async function addPeer(
   }
   await page.bringToFront()
   return peer
+}
+
+/**
+ * Pick a Chat Target from the chat panel's header picker — how a Document chat
+ * is reached, since the panel opens on the Canvas's first Workspace.
+ */
+export async function selectChatTarget(
+  page: Page,
+  label: string
+): Promise<void> {
+  const trigger = page
+    .getByRole("button")
+    .filter({ has: page.locator("svg.lucide-chevrons-up-down") })
+    .last()
+  await trigger.click({ timeout: 15_000 })
+  await page
+    .getByRole("option", { name: new RegExp(label, "i") })
+    .first()
+    .click({ timeout: 15_000 })
+  // The picker can stay open after the pick; toggle it shut so the chat shows.
+  const picker = page.getByPlaceholder("Search branches and layers...")
+  const closed = await picker
+    .waitFor({ state: "hidden", timeout: 2_000 })
+    .then(() => true)
+    .catch(() => false)
+  if (!closed) await trigger.click({ timeout: 5_000 })
+}
+
+/**
+ * One chat broadcast event, minus the `chatId`/`id` envelope {@link replayRun}
+ * fills in. The same shapes `ChatBroadcastEvent` defines in `lib/chat-store.ts`.
+ */
+export type RunEvent = Record<string, unknown> & { type: string }
+
+/**
+ * Replay a run's broadcast events into a chat. The harness has no agent to run,
+ * so a run's live states (streaming, stopped) are reached by feeding the chat
+ * store the events a real run broadcasts, through the handle the Fixture World
+ * build exposes. Passed as a source string for the same `__name` reason as the
+ * theme init script (`lib/browser.ts`).
+ */
+export async function replayRun(
+  page: Page,
+  chatId: string,
+  events: readonly RunEvent[]
+): Promise<void> {
+  const payload = JSON.stringify(
+    events.map((e, i) => ({
+      ...e,
+      chatId,
+      id: `fixture-${chatId}-${Date.now()}-${i}`,
+    }))
+  )
+  await page.evaluate(
+    `for (const e of ${payload}) window.__chatStore?.handleBroadcastEvent(e)`
+  )
+}
+
+const text = (t: string) => ({ type: "text", text: t })
+
+/** A run part-way through: the prompt, a finished tool call, and half a reply. */
+export function streamingRun(): RunEvent[] {
+  return [
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: text("Make the order summary sticky on mobile."),
+      },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "fixture-read",
+        title: "Read app/checkout/summary.tsx",
+        kind: "read",
+        status: "completed",
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: text(
+          "The summary sits in the right column, so on mobile it lands under the form. I'll pin it to the bottom of the viewport below 768px and"
+        ),
+      },
+    },
+  ]
 }
 
 /** Look up screens by name, preserving {@link SCREENS} order. Throws on an unknown name. */

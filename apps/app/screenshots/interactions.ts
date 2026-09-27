@@ -6,8 +6,11 @@ import {
   canvasPanels,
   DEFAULT_VIEWPORT,
   homeView,
+  openChatTab,
   openTerminalTab,
+  replayRun,
   tabTo,
+  type RunEvent,
 } from "./screens"
 
 /**
@@ -125,6 +128,76 @@ export const INTERACTIONS: Interaction[] = [
         await page.waitForTimeout(160)
       }
       await page.waitForTimeout(1200)
+    },
+  },
+  {
+    name: "chat-stop",
+    description:
+      "A run streams into an empty chat, then the user stops it part-way.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    run: async (page) => {
+      const chatId = ids.chats.fresh
+      // No agent runs here: the send and stop requests are answered locally,
+      // and the run itself is replayed as the broadcasts a real one sends.
+      await page.route("**/api/agent/stream", (route) =>
+        route.fulfill({ status: 200, body: "{}" })
+      )
+      await page.route("**/api/agent/stop", async (route) => {
+        await replayRun(page, chatId, [
+          { type: "chat-control", control: { kind: "stopped" } },
+          { type: "chat-stream-end" },
+        ])
+        await route.fulfill({ status: 200, body: '{"success":true}' })
+      })
+      await openChatTab(page, "New chat").catch(() => {})
+      await page.waitForTimeout(1200)
+
+      const prompt = "Make the order summary sticky on mobile."
+      await replayRun(page, chatId, [
+        {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "user_message_chunk",
+            content: { type: "text", text: prompt },
+          },
+        },
+        { type: "chat-stream-start" },
+      ])
+      await page.waitForTimeout(1600)
+      await replayRun(page, chatId, [
+        {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "fixture-read",
+            title: "Read app/checkout/summary.tsx",
+            kind: "read",
+            status: "completed",
+          },
+        },
+      ])
+      await page.waitForTimeout(900)
+      const reply =
+        "The summary sits in the right column, so on mobile it lands under the form. I'll pin it to the bottom of the viewport below 768px and keep the pay button inside it, so the total and the action stay together while"
+      const words = reply.split(" ")
+      for (let i = 0; i < words.length; i += 3) {
+        const chunk: RunEvent = {
+          type: "chat-acp-update",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: `${i ? " " : ""}${words.slice(i, i + 3).join(" ")}`,
+            },
+          },
+        }
+        await replayRun(page, chatId, [chunk])
+        await page.waitForTimeout(140)
+      }
+      await page.waitForTimeout(600)
+      await click(page, page.getByTitle("Stop").first())
+      await page.waitForTimeout(2500)
     },
   },
   {

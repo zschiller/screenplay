@@ -9,7 +9,13 @@ import { useEffect, useState } from "react"
  * shimmers in a non-repeating, organic pattern.
  *
  * The dot coordinates mirror lucide-react's `Grip` icon exactly so it reads as
- * the same glyph at rest. Randomized delays/durations are applied in an effect
+ * the same glyph at rest.
+ *
+ * **Use it only for LLM activity**: the agent thinking, a reply streaming, a
+ * subagent (Task) running, a chat tab whose run is live. Anything else that is
+ * merely in progress (loading data, a request in flight, a tool call running,
+ * a sandbox booting) uses `Spinner` from `@workspace/ui/components/spinner`.
+ * Keeping the two apart is what lets the grid mean "the model is working". Randomized delays/durations are applied in an effect
  * (post-hydration) to avoid SSR mismatches — the server renders a calm,
  * deterministic grid and the client kicks off the shimmer on mount.
  */

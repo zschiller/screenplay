@@ -221,6 +221,8 @@ export const FIXTURE_IDS = {
     checkoutPolish: "chat-checkout-polish",
     /** A markdown-heavy reply: tables, task lists, inline and block code. */
     markdown: "chat-markdown-reply",
+    /** No messages yet, on the same Workspace. */
+    fresh: "chat-checkout-fresh",
   },
 } as const
 
@@ -537,6 +539,15 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       branchId: b.checkoutPolish,
       label: "Breakpoint audit",
       createdAt: minutesAgo(now, 6),
+      model: "claude-sonnet-4-5",
+    },
+    {
+      // A frame chat with nothing sent yet: the empty state, and the chat the
+      // run-state screens stream into (see `screens.ts`).
+      id: FIXTURE_IDS.chats.fresh,
+      branchId: b.checkoutPolish,
+      label: "New chat",
+      createdAt: minutesAgo(now, 3),
       model: "claude-sonnet-4-5",
     },
     {

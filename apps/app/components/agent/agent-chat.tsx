@@ -7,7 +7,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react"
-import { Loader2 } from "lucide-react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
@@ -373,32 +372,24 @@ export function AgentChat({
     )
   }
 
+  const lastRole = messages[messages.length - 1]?.role
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div ref={scrollContentRef} className="flex min-h-full flex-col p-3">
           {isLoadingHistory ? (
-            <div className="m-auto">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
+              Loading chat…
             </div>
           ) : messages.length === 0 ? (
-            <p className="m-auto text-center text-xs text-muted-foreground">
-              {isAgentChat ? (
-                <>
-                  Ask the AI to make changes to your app.
-                  <br />
-                  It can read, edit, and run commands in the sandbox.
-                </>
-              ) : (
-                <>
-                  Ask the AI to rewrite this document.
-                  <br />
-                  It can read, edit, and retitle it, and follow @ mentions to
-                  other documents.
-                </>
-              )}
-            </p>
+            <ChatEmptyState
+              isAgentChat={isAgentChat}
+              branch={branch}
+              onPickStarter={(text) => composerRef.current?.insertText(text)}
+            />
           ) : (
             <div className="space-y-3">
               {groupToolCalls(messages).map(
@@ -441,13 +432,24 @@ export function AgentChat({
                   )
                 }
               )}
-              {isStreaming &&
-                messages[messages.length - 1]?.role !== "assistant" && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <GripSpinner className="h-3 w-3" />
-                    Thinking…
-                  </div>
-                )}
+              {/* The run's in-progress cue, held until the run settles. Before
+                  any text streams (and between tool calls) it says "Thinking…";
+                  once the assistant is writing, the grid alone trails the
+                  message, so the reply never looks finished while it grows. */}
+              {isStreaming && (
+                <div
+                  role="status"
+                  data-testid="run-in-progress"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <GripSpinner className="h-3 w-3" />
+                  {lastRole === "assistant" ? (
+                    <span className="sr-only">Responding…</span>
+                  ) : (
+                    "Thinking…"
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -474,6 +476,74 @@ export function AgentChat({
         onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
         targetEligible={targetEligible}
       />
+    </div>
+  )
+}
+
+/** Starter prompts per Chat Target: a nudge at the kind of ask that works. */
+const FRAME_STARTERS = [
+  "Explain how this page is built",
+  "Tighten the spacing on mobile",
+  "Add a loading state",
+]
+const DOCUMENT_STARTERS = [
+  "Tighten the wording",
+  "Add a summary at the top",
+  "Turn this into a checklist",
+]
+
+/**
+ * The empty chat, worded for its Chat Target in the UI's own nouns: a frame
+ * chat changes the Workspace's code (and so what its frames show), a Document
+ * chat edits the Document. A starter fills the composer rather than sending, so
+ * it can be edited first.
+ */
+function ChatEmptyState({
+  isAgentChat,
+  branch,
+  onPickStarter,
+}: {
+  isAgentChat: boolean
+  branch?: string
+  onPickStarter: (text: string) => void
+}) {
+  const starters = isAgentChat ? FRAME_STARTERS : DOCUMENT_STARTERS
+  return (
+    <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">
+          {isAgentChat ? "Change what your frames show" : "Edit this Document"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {isAgentChat ? (
+            <>
+              The agent edits the code in{" "}
+              {branch ? (
+                <span className="font-mono whitespace-nowrap text-foreground">
+                  {branch}
+                </span>
+              ) : (
+                "this Workspace"
+              )}{" "}
+              and can run commands, and your frames update as it works.
+            </>
+          ) : (
+            "The agent can rewrite and retitle it, and read any Document you @ mention."
+          )}
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-1.5">
+        {starters.map((text) => (
+          <button
+            key={text}
+            type="button"
+            onClick={() => onPickStarter(text)}
+            className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {text}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
