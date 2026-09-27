@@ -11,6 +11,7 @@ import {
   terminalWebSocketUrl,
   TTYD_SUBPROTOCOL,
 } from "@/lib/terminal/ttyd-protocol"
+import { TERMINAL_FONT_SIZE, xtermAnsiTheme } from "@/lib/terminal/ansi-palette"
 
 /**
  * The hardened xterm + ttyd-wire-protocol terminal pane, extracted out of
@@ -106,6 +107,32 @@ function systemColor(keyword: string, fallback: string): string {
   return resolved || fallback
 }
 
+/**
+ * The xterm theme for the pane as it's styled *now*: the host's resolved
+ * background/foreground (the app's theme tokens), the OS selection colour, and
+ * the shared ANSI palette for whichever theme the host sits under. Re-read on
+ * every theme switch, so it must derive everything from the live DOM.
+ *
+ * Selection uses the CSS system-color keyword `Highlight`: unlike a hard-coded
+ * hex it tracks light/dark mode and the user's accent colour, so the selection
+ * matches native chrome in either theme. `selectionForeground` is deliberately
+ * unset so selected glyphs keep their original (ANSI/foreground) colour, as a
+ * native terminal does. (Theme tokens like `--primary` were no good here:
+ * they're authored as `oklch(...)`, which the canvas/regex resolve pipeline
+ * can't normalize.)
+ */
+function readTheme(host: HTMLElement) {
+  const styles = getComputedStyle(host)
+  const foreground = resolveColor(styles.color, "#ffffff")
+  return {
+    background: resolveColor(styles.backgroundColor, "#000000"),
+    foreground,
+    cursor: foreground,
+    selectionBackground: systemColor("Highlight", "#b3d7ff"),
+    ...xtermAnsiTheme(host.closest(".dark") ? "dark" : "light"),
+  }
+}
+
 export function useTerminalPane({
   connectKey,
   resolve,
@@ -181,7 +208,8 @@ export function useTerminalPane({
       ]
         .filter(Boolean)
         .join(", ")
-      const fontSize = 13
+      // Shared with the logs panel, so terminal output reads at one size.
+      const fontSize = TERMINAL_FONT_SIZE
       // The concrete primary face we wait on and later re-measure against —
       // Geist Mono when the theme resolved `--font-mono`, else the first
       // monospace fallback.
@@ -205,25 +233,32 @@ export function useTerminalPane({
       }
       if (cancelled) return
 
-      // Use the OS's real selection background via the CSS system-color keyword
-      // `Highlight`. Unlike a hard-coded hex, it tracks light/dark mode and the
-      // user's accent color, so the selection matches native chrome in either
-      // theme. We deliberately leave `selectionForeground` unset so selected
-      // glyphs keep their original (ANSI/foreground) color rather than being
-      // recolored — matching how a native terminal highlights text. (Theme
-      // tokens like `--primary` were no good here: they're authored as
-      // `oklch(...)`, which the canvas/regex resolve pipeline can't normalize.)
-      const foreground = resolveColor(styles.color, "#ffffff")
       const term = new Terminal({
         cursorBlink: true,
         fontFamily,
         fontSize,
-        theme: {
-          background: resolveColor(styles.backgroundColor, "#000000"),
-          foreground,
-          cursor: foreground,
-          selectionBackground: systemColor("Highlight", "#b3d7ff"),
-        },
+        theme: readTheme(host),
+        // A safety net under the palette: the 16 colours already clear AA on
+        // the theme background, but a program's own 256-colour/truecolour
+        // output, or text on an ANSI background, can land anywhere. xterm
+        // nudges such a cell's foreground until it reads.
+        minimumContrastRatio: 4.5,
+      })
+
+      // Follow the app's theme live. `next-themes` switches theme by toggling
+      // the `dark` class (and `color-scheme`) on <html>; xterm paints from its
+      // own theme object, not CSS, so an open terminal would otherwise keep
+      // the colours it was opened with until it's reopened.
+      const themeObserver = new MutationObserver(() => {
+        try {
+          term.options.theme = readTheme(host)
+        } catch {
+          // Terminal may already be disposed; ignore.
+        }
+      })
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class", "style"],
       })
       const fit = new FitAddon()
       term.loadAddon(fit)
@@ -507,6 +542,7 @@ export function useTerminalPane({
         clearTimeout(revealScan1)
         clearTimeout(revealScan2)
         observer.disconnect()
+        themeObserver.disconnect()
         dataSub.dispose()
         resizeSub.dispose()
         ws.onclose = null
