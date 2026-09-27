@@ -140,7 +140,7 @@ export function TerminalTab({
           className="absolute inset-0 h-full w-full bg-background text-foreground"
         />
         {overlay.status !== "ready" && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
             {overlay.status === "loading" ? (
               <span className="flex items-center gap-2">
                 <Spinner className="size-4" /> Starting terminal…
@@ -150,7 +150,7 @@ export function TerminalTab({
                 <Spinner className="size-4" /> Waiting for the sandbox to start…
               </span>
             ) : overlay.status === "error" ? (
-              <span>{overlay.message}</span>
+              <span className="max-w-sm">{overlay.message}</span>
             ) : (
               <span>Waiting for the sandbox to start…</span>
             )}

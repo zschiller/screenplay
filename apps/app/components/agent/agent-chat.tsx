@@ -351,7 +351,7 @@ export function AgentChat({
   // Spinner so a freshly-seeded chat tab and terminal tab read identically.
   if (sandboxStatus === "creating" || sandboxStatus === "starting") {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
         <span className="flex items-center gap-2">
           <Spinner className="size-4" /> Waiting for the sandbox to start…
         </span>
@@ -480,7 +480,7 @@ function ChatEmptyState({
 }) {
   const starters = isAgentChat ? FRAME_STARTERS : DOCUMENT_STARTERS
   return (
-    <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center">
+    <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
           {isAgentChat ? "Change what your frames show" : "Edit this Document"}
