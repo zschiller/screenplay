@@ -15,7 +15,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "screenshots:browsers": "playwright-core install chromium ffmpeg",
+    "screenshots:seed": "tsx screenshots/bin/seed.ts",
+    "screenshots:boot": "tsx screenshots/bin/boot.ts",
+    "screenshots:shots": "tsx screenshots/bin/shots.ts",
+    "screenshots:video": "tsx screenshots/bin/video.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.75",
@@ -90,7 +95,9 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.9",
     "jsdom": "^29.1.1",
+    "playwright-core": "~1.56.0",
     "puppeteer": "^24.42.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7"
   }

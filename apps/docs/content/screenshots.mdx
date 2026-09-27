@@ -1,0 +1,171 @@
+# Screenshots for design review
+
+Every design-polish ticket ships before/after screenshots on its PR, so design
+can be reviewed in the pull request instead of by cloning the branch. The
+**screenshot harness** (`apps/app/screenshots/`) is the scripted path to those
+images: one command boots the local build against a seeded fixture world, one
+captures the named screens in light and dark, one records a short video of a
+named interaction.
+
+## The three commands
+
+Run them from `apps/app`.
+
+```bash
+pnpm screenshots:browsers   # once per machine: download Chromium + ffmpeg
+pnpm screenshots:boot       # seed a fresh world and serve it at :3947
+pnpm screenshots:shots      # capture every named screen, light and dark
+pnpm screenshots:video open-canvas   # record one named interaction
+```
+
+`shots` and `video` boot the app themselves when nothing is serving the port,
+and reuse a `boot` you already have open when there is — so the first is a
+one-shot in a cold container and the second is a fast re-shoot while you
+iterate. Whichever one started the server stops it again.
+
+```
+apps/app/.screenshots/          # gitignored
+├── pglite/  yjs/  blobs/       # the seeded world
+├── secrets.env                 # minted on first run
+└── captures/<label>/           # <screen>.<theme>.png + manifest.json
+```
+
+## The before/after workflow
+
+Capture the base branch first, then your own, into two labels:
+
+```bash
+git switch main
+pnpm --filter app screenshots:shots --label before
+
+git switch my-polish-branch
+pnpm --filter app screenshots:shots --label after
+```
+
+Both runs shoot the same named screens at the same size, so
+`.screenshots/captures/before/` and `.screenshots/captures/after/` hold
+matching filenames and any image-diff tool pairs them without configuration.
+Attach the pairs that changed to the PR — not the whole set.
+
+Both branches need the harness for this to work, which is true of anything
+merged after it landed. Against an older base, capture "before" from a
+worktree instead:
+
+```bash
+git worktree add ../screenplay-before <old-base>
+cd ../screenplay-before && pnpm install
+pnpm --filter app screenshots:shots --label before \
+  --out ../screenplay/apps/app/.screenshots/captures
+```
+
+### Narrowing a run
+
+```bash
+pnpm screenshots:shots --list                    # the named screens
+pnpm screenshots:shots --screens canvas,settings # just these
+pnpm screenshots:shots --themes dark             # just one theme
+pnpm screenshots:shots --fresh                   # re-seed a clean world first
+```
+
+`--fresh` needs the database to itself, so stop a running `boot` before using
+it.
+
+### Recording an interaction
+
+A still can't review motion — an entrance animation, a drag, a panel that
+slides. `video` records one named flow to
+`.screenshots/captures/videos/<name>.<theme>.webm`:
+
+```bash
+pnpm screenshots:video --list
+pnpm screenshots:video canvas-zoom --theme dark
+```
+
+Name the flow in the PR ("recorded `open-canvas`") so a reviewer can re-record
+the same one on their branch and compare like for like.
+
+## Adding a screen
+
+`apps/app/screenshots/screens.ts` is the named screen list, and adding to it is
+a few lines. Light and dark, the viewport, settling, and the output filename are
+the runner's job:
+
+```ts
+{
+  name: "canvas-narrow",
+  description: "The Canvas at a narrow window, where the panels compete for width.",
+  path: `/${ids.rooms.checkout}`,
+  viewport: { width: 1024, height: 768 },
+}
+```
+
+A screen that needs a panel open or a tab selected adds `cookies` (preferred —
+the screen paints correct rather than being clicked correct) or a `prepare`
+step. A `prepare` that can't find its target warns and the screen is captured
+without it, rather than sinking the run.
+
+Interactions live next door in `interactions.ts`, same shape.
+
+## The fixture world
+
+`apps/app/screenshots/fixtures/world.ts` describes everything the harness seeds
+— Canvases (including an empty one) filed into Folders, a Project with a
+Workspace in each status, iframe and Document Layers, a chat with tool calls, a
+pending plan, terminal tabs, pins, and saved Project presets. It is data only;
+`fixtures/seed.ts` is the single writer that turns it into PGlite rows, Y.Docs,
+and blobs.
+
+Every id is a stable literal and every timestamp is derived from one instant, so
+two runs produce the same URLs and the same relative dates — which is what makes
+a before/after pair diffable at all. `world.test.ts` holds the world to its own
+rules (every Layer in exactly one Group, every Pin pointing at something real,
+every Workspace status covered), so extending it is safe.
+
+Need one more state on screen? Add it to the literal. That's the intended way to
+use this.
+
+### Frames have content
+
+Each fixture Workspace points at a small **fixture preview server** the harness
+runs beside the app, which serves a flat wireframe per route and inlines the
+real Sandbox Bridge. So frames load, report ready, and drop the "Waiting for dev
+server…" overlay exactly as a real Workspace's would — without cloning a repo or
+running `pnpm install` per Workspace. The pages are deliberately not mock
+product screens.
+
+### Fixture mode
+
+The harness runs the app with `NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD=1`
+(`apps/app/lib/fixture-world.ts`), which tells it that the world on disk is
+already what it should be, so it doesn't go looking at the host: the first-run
+setup gate opens without probing for a coding CLI, Sandbox Reconnect doesn't
+reconcile Workspaces that have no sandboxes behind them, and opening a Canvas to
+photograph it doesn't restamp it as just-edited. It is `and`-ed with
+`isLocalBuild`, so the hosted app can never enter it.
+
+## What the local build doesn't have
+
+The local build excludes the entire multi-user surface (see
+[Local (single-user) build](/configuration/local-build)), so these never appear
+in a capture and a ticket that changes them can't be reviewed from this harness:
+
+- **Comments** — threads, canvas pins, replies, read state, the player comment
+  feed. (The single-user "Send to Claude" reference path _is_ kept.)
+- **Cursors and presence** — with one local Yjs peer there is nobody else on the
+  canvas; the follow toolbar is hidden.
+- **Sharing and membership** — no `room_member`, no Share affordances, no
+  collaborator lists.
+- **Sign-in** — there is no login screen to shoot.
+
+Capture those against a hosted deployment with a second signed-in account. There
+is no scripted path for it yet; when there is, it belongs here.
+
+Two more things vary by machine rather than by branch, so ignore them in a diff
+(or leave those screens out of it):
+
+- **Settings → Coding agents** reads the host live, so it shows whichever CLIs
+  are installed where you ran the capture.
+- **Thumbnail capture**: the harness seeds each Canvas's thumbnail itself, but a
+  running app may re-capture frames with headless Chromium. It can't launch as
+  root (so a container run logs a skip and keeps the seeded images) and the
+  seeded and re-captured versions differ slightly.
