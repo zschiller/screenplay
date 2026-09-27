@@ -37,7 +37,7 @@ export function liveAcpConsumerPorts(
       broadcastControl(roomId, chatId, { kind: "error", message }),
     broadcastEnd: () => broadcastSignal(roomId, chatId, "chat-stream-end"),
     appendRecord: (record) => appendAcpMessage(chatId, record),
-    upsertToolCall: (record) => upsertAcpToolCall(chatId, record),
+    upsertToolCall: (record) => upsertAcpToolCall(chatId, runId, record),
     transition: (to: RunStatus) => transition(runId, to),
     broadcastPermissionRequest: (request) =>
       broadcastPermissionRequest(roomId, chatId, request),
