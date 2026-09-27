@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import Link from "next/link"
 import { Button } from "@workspace/ui/components/button"
+import { EntryScreen } from "@/components/entry/entry-screen"
 import { HomeShell } from "@/components/home/home-shell"
 import { getUserId } from "@/lib/auth-helpers"
 import { readFixtureEntryState } from "@/lib/fixture-entry"
@@ -85,15 +86,17 @@ export default async function HomeLayout({
 
 function SignedOut() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 py-10">
-      <h1 className="text-2xl font-medium">Screenplay</h1>
-      <p className="max-w-md text-center text-sm text-muted-foreground">
-        Design UI on an infinite canvas. Each iframeLayer runs a live sandbox.
-        Collaborate in real time.
-      </p>
+    <EntryScreen
+      description={
+        <>
+          Design UI on an infinite canvas. Each iframeLayer runs a live sandbox.
+          Collaborate in real time.
+        </>
+      }
+    >
       <Button asChild>
         <Link href="/sign-in">Sign in to get started</Link>
       </Button>
-    </div>
+    </EntryScreen>
   )
 }
