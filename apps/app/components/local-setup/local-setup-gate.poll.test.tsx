@@ -7,13 +7,9 @@ vi.mock("@/lib/local-setup/gate-status", () => ({
   getLocalSetupGateStatus: () => getLocalSetupGateStatus(),
 }))
 vi.mock("@/lib/local-setup/github-skip", () => ({ writeGitHubSkip: vi.fn() }))
-// The panels probe the host on mount; the gate's own poll is what's under test.
-vi.mock("@/components/home/github-connection-panel", () => ({
-  GitHubConnectionPanel: () => null,
-}))
-vi.mock("@/components/home/harness-setup-panel", () => ({
-  HarnessSetupPanel: () => null,
-}))
+// The steps probe the host on mount; the gate's own poll is what's under test.
+vi.mock("./agent-step", () => ({ AgentStep: () => null }))
+vi.mock("./github-step", () => ({ GitHubStep: () => null }))
 
 import { LocalSetupGate } from "./local-setup-gate"
 

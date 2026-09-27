@@ -1,15 +1,12 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
-import { Check } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
-import { cn } from "@workspace/ui/lib/utils"
-import { GitHubConnectionPanel } from "@/components/home/github-connection-panel"
-import { HarnessSetupPanel } from "@/components/home/harness-setup-panel"
-import { ScreenplayLogo } from "@/components/screenplay-logo"
 import { getLocalSetupGateStatus } from "@/lib/local-setup/gate-status"
 import { writeGitHubSkip } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
+import { AgentStep } from "./agent-step"
+import { GitHubStep } from "./github-step"
 
 /** Modest poll cadence (ADR 0016) — brisk enough that Finish lights up within a
  *  beat of terminal sign-in, slow enough to not busy-loop while blocked. */
@@ -18,19 +15,17 @@ const POLL_INTERVAL_MS = 1800
 /**
  * The desktop first-run blocking gate (ADR 0016), mounted once at the root
  * layout and `isLocalBuild`-gated by its caller. When a launch lands blocked it
- * renders **only** the setup flow — no browsable app behind it — with both steps
- * visible at once: **Step 1** mounts the existing {@link HarnessSetupPanel} (the
- * hard requirement, led with so it can't be skipped past) and **Step 2** mounts
- * the existing {@link GitHubConnectionPanel} verbatim (its own inline
- * host-session terminal, device-flow fallback, live re-detect). A single gated
- * **Finish** opens the app the instant the release condition holds.
+ * renders **only** the setup flow — no browsable app behind it — as a two-step
+ * stepper: **Step 1** a coding agent ({@link AgentStep}, the hard requirement,
+ * led with so it can't be skipped past) and **Step 2** GitHub
+ * ({@link GitHubStep}). Only the current step is expanded; a settled step
+ * collapses to one row with the choice made and Change to reopen it. A single
+ * gated **Finish** opens the app the instant the release condition holds.
  *
- * Both panels are visible together rather than a strict one-step-at-a-time
- * wizard — that would fight the panels' self-contained live re-detect and would
- * hide an already-green GitHub state from a user whose `gh` login is already
- * present. The harness half **hard-blocks**; the GitHub half honors the ADR 0008
- * no-auth floor, so Step 2 offers a **"Skip for now"** that persists (a cookie,
- * read server-side next launch) and releases the GitHub half.
+ * The harness half **hard-blocks**; the GitHub half honors the ADR 0008 no-auth
+ * floor, so Step 2 offers **Skip**, which persists (a cookie, read server-side
+ * next launch) and releases the GitHub half. A skipped step shows a grey dash,
+ * never the done tick.
  *
  * The gate owns the release truth by **polling** the shared
  * {@link getLocalSetupGateStatus} action and folding it — with the skip bit —
@@ -60,10 +55,10 @@ export function LocalSetupGate({
   // is already correct (no gate-over-app or app-over-gate flash). A not-blocked
   // launch is `opened` from the start and never mounts the gate.
   const [opened, setOpened] = useState(!initiallyBlocked)
-  // The last release facts read — each step's badge shows its own half.
+  // The last release facts read; each step shows its own half.
   const [status, setStatus] = useState(initialStatus)
   // Seeded from the server-parsed skip cookie so the gate folds the same GitHub
-  // half the initial paint did; clicking "Skip for now" flips it true (and
+  // half the initial paint did; clicking Skip flips it true (and
   // persists the cookie), which releases at once if the harness half holds.
   const [githubSkipped, setGithubSkipped] = useState(initiallyGithubSkipped)
   const released =
@@ -71,6 +66,8 @@ export function LocalSetupGate({
   const harnessDone = status.harnessSatisfied
   const githubDone = status.githubSatisfied || githubSkipped
   const finishReasonId = useId()
+  // A settled step the person reopened with Change, if any.
+  const [reopened, setReopened] = useState<1 | 2 | null>(null)
 
   // Poll the release facts ONLY while still blocked, and stop the moment the
   // condition is met — no perpetual loop on a healthy session.
@@ -104,78 +101,51 @@ export function LocalSetupGate({
   const skip = () => {
     writeGitHubSkip()
     setGithubSkipped(true)
+    setReopened(null)
   }
+
+  // Reopen a step that's already settled; otherwise the first unsettled step
+  // is the one expanded.
+  const current: 1 | 2 | null =
+    reopened ?? (!harnessDone ? 1 : !githubDone ? 2 : null)
 
   if (opened) return <>{children}</>
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-12">
-      <div className="w-full max-w-xl space-y-8">
-        <div className="space-y-2">
-          <ScreenplayLogo className="mb-4 size-10" />
-          <h1 className="text-2xl font-normal">Set up Screenplay</h1>
-          <p className="text-sm text-muted-foreground">
-            Screenplay backs agent chat and terminal tabs with a coding CLI on
-            this device. Install and sign in to at least one to get started;
-            connecting GitHub is optional.
-          </p>
+      <div className="flex w-full max-w-md flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            {current ? `Step ${current} of 2` : "Ready to finish"}
+          </span>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Set up Screenplay
+          </h1>
         </div>
 
-        <section className="space-y-3">
-          <div className="space-y-0.5">
-            <h2 className="flex items-center gap-2 text-sm font-medium">
-              <StepBadge step={1} done={harnessDone} />
-              Install a coding agent
-            </h2>
-            <p className="pl-7 text-sm text-muted-foreground">
-              Pick one to install and sign in. This updates automatically the
-              moment sign-in finishes.
-            </p>
-          </div>
-          <HarnessSetupPanel />
-        </section>
+        <AgentStep
+          current={current === 1}
+          done={harnessDone}
+          onChange={() => setReopened(1)}
+          onCollapse={() => setReopened(null)}
+        />
+        <GitHubStep
+          current={current === 2}
+          satisfied={status.githubSatisfied}
+          skipped={githubSkipped}
+          onChange={() => setReopened(2)}
+          onCollapse={() => setReopened(null)}
+          onSkip={skip}
+        />
 
-        <section className="space-y-3">
-          <div className="space-y-0.5">
-            <h2 className="flex items-center gap-2 text-sm font-medium">
-              <StepBadge step={2} done={githubDone} />
-              Connect GitHub (optional)
-            </h2>
-            <p className="pl-7 text-sm text-muted-foreground">
-              Lights up browsing your GitHub repositories and branches, and
-              opening pull requests. You can skip this — adding a project by
-              clone URL or local folder needs no connection — and connect later
-              in Settings.
-            </p>
-          </div>
-          <GitHubConnectionPanel />
-          {githubSkipped ? (
-            <p className="px-1 text-sm text-muted-foreground">
-              Skipped — you can connect GitHub anytime from Settings.
-            </p>
-          ) : (
-            <div className="flex justify-start">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="font-normal text-muted-foreground"
-                onClick={skip}
-              >
-                Skip for now
-              </Button>
-            </div>
-          )}
-        </section>
-
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <p className="text-xs text-muted-foreground">
+            You can change these later in Settings.
+          </p>
           {!released && (
-            <p
-              id={finishReasonId}
-              className="text-right text-sm text-muted-foreground"
-            >
+            <span id={finishReasonId} className="sr-only">
               {finishBlockedReason({ harnessDone, githubDone })}
-            </p>
+            </span>
           )}
           <Button
             type="button"
@@ -188,32 +158,6 @@ export function LocalSetupGate({
         </div>
       </div>
     </div>
-  )
-}
-
-/**
- * A setup step's number, which becomes a check once that step is done — so the
- * gate reads as progress at a glance rather than as two paragraphs of copy.
- */
-function StepBadge({ step, done }: { step: number; done: boolean }) {
-  return (
-    <span
-      className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums transition-colors",
-        done
-          ? "bg-primary text-primary-foreground"
-          : "border border-border text-muted-foreground"
-      )}
-    >
-      {done ? (
-        <Check className="size-3" strokeWidth={3} aria-hidden />
-      ) : (
-        <span aria-hidden>{step}</span>
-      )}
-      <span className="sr-only">
-        {done ? `Step ${step}, done:` : `Step ${step}:`}
-      </span>
-    </span>
   )
 }
 

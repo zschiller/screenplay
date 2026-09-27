@@ -35,7 +35,7 @@ import {
 } from "@/components/home/settings-row"
 
 /** Stable PTY key for the sign-in terminal — reaped on exit, so each run is fresh. */
-const GH_SETUP_SESSION_KEY = "screenplay-gh-setup"
+export const GH_SETUP_SESSION_KEY = "screenplay-gh-setup"
 
 /** What the working terminal is running — an install-then-sign-in, or a bare
  *  sign-in — so the section can label it and mount the matching command. */
@@ -57,78 +57,28 @@ interface RunPlan {
  * app's own device-flow token.
  */
 export function GitHubConnectionPanel() {
-  const [state, dispatch] = useReducer(setupReducer, initialSetupState)
-  const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
-  // Whether Homebrew is on the host PATH, probed up front when `gh` is absent so
-  // the install button can pick `brew install gh` vs. the binary fallback
-  // synchronously. Irrelevant (and left false) in every other state.
-  const [brewPresent, setBrewPresent] = useState(false)
-  // The command the working terminal runs, captured at click time (the pre-run
-  // phase is gone once we're `working`, so we can't re-derive it there).
-  const [run, setRun] = useState<RunPlan | null>(null)
+  const {
+    status,
+    statusFailed,
+    working,
+    start,
+    onTerminalExit,
+    redetect,
+    disconnect,
+    disconnecting,
+  } = useGitHubConnection()
   const [deviceOpen, setDeviceOpen] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
-  const [statusFailed, setStatusFailed] = useState(false)
-
-  // Re-probe the resolver and re-fold the setup machine. Used by actions that
-  // change the connection outside the terminal — a device-flow success or a
-  // Disconnect — so the section reflects them at once. Mirrors the mount effect's
-  // Homebrew probe so a state that lands on "not installed" still picks the right
-  // install command.
-  const redetect = useCallback(async () => {
-    const s = await getGitHubLocalStatus()
-    setStatus(s)
-    setStatusFailed(false)
-    if (s.tokenSource === null && s.gh === "not-installed") {
-      setBrewPresent(await probeHomebrewPresent())
-    }
-    dispatch({ type: "detected", result: detectionResult(s) })
-  }, [])
-
-  // Detect whenever the step is `unknown`: on mount, and again after the setup
-  // terminal exits (its `terminal-exited` event returns the step to `unknown`).
-  // The fresh result decides the phase, so a finished install+login lands in
-  // `authed`. When `gh` is absent we also probe Homebrew, so the Install button's
-  // command is ready the moment it's clicked.
-  useEffect(() => {
-    if (state.phase !== "unknown") return
-    let cancelled = false
-    getGitHubLocalStatus()
-      .then(async (s) => {
-        if (cancelled) return
-        setStatus(s)
-        if (s.tokenSource === null && s.gh === "not-installed") {
-          const brew = await probeHomebrewPresent()
-          if (cancelled) return
-          setBrewPresent(brew)
-        }
-        dispatch({ type: "detected", result: detectionResult(s) })
-      })
-      .catch((err) => {
-        console.error("Failed to check the GitHub connection", err)
-        if (!cancelled) setStatusFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [state.phase])
-
-  // Start a terminal action: remember its command/label, then flip to `working`.
-  function start(plan: RunPlan) {
-    setRun(plan)
-    dispatch({ type: "run-started" })
-  }
 
   // The setup terminal is live — show it in place of the status row until the
   // PTY exits and we re-detect.
-  if (state.phase === "working" && run) {
+  if (working) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">{run.message}</p>
+        <p className="text-sm text-muted-foreground">{working.message}</p>
         <HostSessionTerminal
           sessionKey={GH_SETUP_SESSION_KEY}
-          command={run.command}
-          onExit={() => dispatch({ type: "terminal-exited" })}
+          command={working.command}
+          onExit={onTerminalExit}
         />
       </div>
     )
@@ -144,16 +94,6 @@ export function GitHubConnectionPanel() {
 
   const view = describeConnection(status)
   const action = setupAction(status)
-
-  const disconnect = async () => {
-    setDisconnecting(true)
-    try {
-      await disconnectGitHub()
-      await redetect()
-    } finally {
-      setDisconnecting(false)
-    }
-  }
 
   // The device flow is the fallback (ADR 0014): offered only when it's
   // configured and no token has resolved — for a user who'd rather not use `gh`,
@@ -174,7 +114,7 @@ export function GitHubConnectionPanel() {
               type="button"
               size="sm"
               variant={action.primary ? "default" : "outline"}
-              onClick={() => start(runPlan(action.kind, brewPresent))}
+              onClick={() => start(action.kind)}
             >
               {action.label}
             </Button>
@@ -228,6 +168,98 @@ export function GitHubConnectionPanel() {
   )
 }
 
+/**
+ * The GitHub connection's live state and setup actions, shared by the Settings
+ * panel and the first-run gate's GitHub step so both read and drive the
+ * connection one way. `working` is the run in progress while the setup
+ * terminal is live; its exit re-detects.
+ */
+export function useGitHubConnection() {
+  const [state, dispatch] = useReducer(setupReducer, initialSetupState)
+  const [status, setStatus] = useState<GitHubLocalStatus | null>(null)
+  // Whether Homebrew is on the host PATH, probed up front when `gh` is absent so
+  // the install button can pick `brew install gh` vs. the binary fallback
+  // synchronously. Irrelevant (and left false) in every other state.
+  const [brewPresent, setBrewPresent] = useState(false)
+  // The command the working terminal runs, captured at click time (the pre-run
+  // phase is gone once we're `working`, so we can't re-derive it there).
+  const [run, setRun] = useState<RunPlan | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [statusFailed, setStatusFailed] = useState(false)
+
+  // Re-probe the resolver and re-fold the setup machine. Used by actions that
+  // change the connection outside the terminal — a device-flow success or a
+  // Disconnect — so the section reflects them at once. Mirrors the mount effect's
+  // Homebrew probe so a state that lands on "not installed" still picks the right
+  // install command.
+  const redetect = useCallback(async () => {
+    const s = await getGitHubLocalStatus()
+    setStatus(s)
+    setStatusFailed(false)
+    if (s.tokenSource === null && s.gh === "not-installed") {
+      setBrewPresent(await probeHomebrewPresent())
+    }
+    dispatch({ type: "detected", result: detectionResult(s) })
+  }, [])
+
+  // Detect whenever the step is `unknown`: on mount, and again after the setup
+  // terminal exits (its `terminal-exited` event returns the step to `unknown`).
+  // The fresh result decides the phase, so a finished install+login lands in
+  // `authed`. When `gh` is absent we also probe Homebrew, so the Install button's
+  // command is ready the moment it's clicked.
+  useEffect(() => {
+    if (state.phase !== "unknown") return
+    let cancelled = false
+    getGitHubLocalStatus()
+      .then(async (s) => {
+        if (cancelled) return
+        setStatus(s)
+        if (s.tokenSource === null && s.gh === "not-installed") {
+          const brew = await probeHomebrewPresent()
+          if (cancelled) return
+          setBrewPresent(brew)
+        }
+        dispatch({ type: "detected", result: detectionResult(s) })
+      })
+      .catch((err) => {
+        console.error("Failed to check the GitHub connection", err)
+        if (!cancelled) setStatusFailed(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [state.phase])
+
+  // Start a terminal action: remember its command/label, then flip to `working`.
+  const start = (kind: SetupActionKind) => {
+    setRun(runPlan(kind, brewPresent))
+    dispatch({ type: "run-started" })
+  }
+
+  const onTerminalExit = () => dispatch({ type: "terminal-exited" })
+
+  const disconnect = async () => {
+    setDisconnecting(true)
+    try {
+      await disconnectGitHub()
+      await redetect()
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  return {
+    status,
+    statusFailed,
+    working: state.phase === "working" ? run : null,
+    start,
+    onTerminalExit,
+    redetect,
+    disconnect,
+    disconnecting,
+  }
+}
+
 /** A setup terminal action: install `gh` (then chain into sign-in), or just
  *  sign in an already-installed `gh`. */
 type SetupActionKind = "install" | "auth"
@@ -264,7 +296,7 @@ type ConnectState =
  * terminal outcome. Optional and on-demand — closing it just means no
  * device-flow token, never a blocked app or a touched `gh` login.
  */
-function ConnectGitHubDialog({
+export function ConnectGitHubDialog({
   onDone,
 }: {
   onDone: (connected: boolean) => void
@@ -407,7 +439,7 @@ function detectionResult(status: GitHubLocalStatus): DetectionResult {
  * login (no other clutter — no logout, ADR 0014). A device connection (with or
  * without `gh`) already has API access, so it offers nothing here.
  */
-function setupAction(
+export function setupAction(
   status: GitHubLocalStatus
 ): { kind: SetupActionKind; label: string; primary: boolean } | null {
   if (status.tokenSource === "gh") {

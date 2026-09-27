@@ -1395,6 +1395,26 @@ export const SCREENS: Screen[] = [
     fullPage: true,
   },
   {
+    name: "setup-agent-choices",
+    description:
+      "The setup gate's agent step after Change, listing every coding agent.",
+    path: "/",
+    cookies: entryState("setup-pending"),
+    fullPage: true,
+    prepare: async (page) => {
+      // The first click can land before hydration; retry until the list shows.
+      const change = page.getByRole("button", { name: "Change" })
+      const list = page.getByRole("radiogroup", { name: "Coding agent" })
+      await change.waitFor({ timeout: 15_000 })
+      for (let i = 0; i < 10 && !(await list.isVisible()); i++) {
+        await change.click()
+        await page.waitForTimeout(300)
+      }
+      await list.waitFor({ timeout: 5_000 })
+    },
+    settleMs: 300,
+  },
+  {
     name: "setup-agent-ready",
     description:
       "The setup gate with a coding agent ready and GitHub still open.",
@@ -1412,7 +1432,7 @@ export const SCREENS: Screen[] = [
       // Skipping flips the gate's own skip bit; its next poll then releases
       // Finish, exactly as it does for a person at the gate.
       await page
-        .getByRole("button", { name: "Skip for now" })
+        .getByRole("button", { name: "Skip" })
         .click({ timeout: 15_000 })
       await page
         .locator("button:not([disabled])", { hasText: "Finish" })
