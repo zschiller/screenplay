@@ -43,9 +43,13 @@ export interface IntakeBranch {
 /** Options that gate the destructive remote-delete path. */
 export interface TeardownOptions {
   /**
-   * Also delete the affected branches on the git remote. The controller awaits
-   * these deletes and fails loud on the first failure (a partial teardown must
-   * not pass silently); a Sandbox teardown is always fire-and-forget.
+   * Also delete the affected branches on the git remote. Opt-in, and never
+   * load-bearing for the local teardown: removing a single Branch commits the
+   * local removal first and treats the remote delete as a best-effort tail,
+   * warning rather than failing when it doesn't land (issue #741). A Sandbox
+   * teardown is likewise always fire-and-forget. Removing a whole Repo still
+   * awaits its remote deletes and fails loud, because that dialog lists the
+   * branches it is about to take with it.
    */
   deleteOnRemote: boolean
 }

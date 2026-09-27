@@ -6,6 +6,7 @@ import {
   useRef,
 } from "react"
 import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import {
   adjectives,
   animals,
@@ -29,6 +30,7 @@ import {
   planRepoTeardown,
 } from "@/lib/branch/intake"
 import { readLastTabKind } from "@/lib/canvas/tab-kind"
+import { hasGitHubRemote } from "@/lib/repo-identity"
 import {
   resolveRepoData,
   type ResolvedRepoSettings,
@@ -776,24 +778,14 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     async (id: string, { deleteOnRemote }: { deleteOnRemote: boolean }) => {
       const agent = agents.find((a) => a.id === id)
       const plan = planBranchTeardown(id, agents, { deleteOnRemote })
+      // Resolved before the record goes — the remote tail below runs after the
+      // Branch is out of the collections.
+      const repo = agent ? repos.find((w) => w.id === agent.repoId) : undefined
 
-      if (plan.remoteRefs.length > 0 && agent) {
-        const repo = repos.find((w) => w.id === agent.repoId)
-        if (repo) {
-          for (const ref of plan.remoteRefs) {
-            const result = await deleteBranch(
-              repo.repoOwner,
-              repo.repoName,
-              ref
-            )
-            if (!result.success) {
-              throw new Error(
-                result.error ?? "Failed to delete branch on remote"
-              )
-            }
-          }
-        }
-      }
+      // The local teardown lands first and unconditionally. Deleting the
+      // Workspace is what the user asked for; the remote branch is an extra, and
+      // an extra that fails must not take the whole delete down with it (issue
+      // #741 — a tokenless desktop build used to abort here and delete nothing).
       // Clear selection + collapse the panel if this was the selected Branch.
       chatTarget.clearIfSelected(id)
       // removeAgentFromStorage clears the chat-store mirror for the Chat
@@ -806,6 +798,35 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       if (plan.sandboxNames.length > 0) {
         void deleteSandboxes(plan.sandboxNames).catch(() => {})
       }
+
+      // The remote delete is the best-effort tail, for the same reason: the
+      // dialog is already done, so a failure is a warning after the fact rather
+      // than an inline error over a Workspace that no longer exists. A Repo with
+      // no GitHub remote is skipped outright rather than warned about — the
+      // dialog never offers the toggle there, so there is nothing to report.
+      if (plan.remoteRefs.length === 0 || !repo || !hasGitHubRemote(repo)) {
+        return
+      }
+      void (async () => {
+        for (const ref of plan.remoteRefs) {
+          const result = await deleteBranch(
+            repo.repoOwner,
+            repo.repoName,
+            ref
+          ).catch((err: unknown) => ({
+            success: false as const,
+            error: err instanceof Error ? err.message : undefined,
+          }))
+          if (!result.success) {
+            toast.warning(
+              `Workspace deleted, but ${ref} is still on the remote`,
+              {
+                description: result.error ?? "The remote delete failed.",
+              }
+            )
+          }
+        }
+      })()
     },
     [agents, repos, chatTarget, removeAgentFromStorage]
   )
