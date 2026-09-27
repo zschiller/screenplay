@@ -840,7 +840,10 @@ export async function selectWorkspace(page: Page, ref: string): Promise<void> {
  * only way that version can be opened.
  */
 export async function openSetupError(page: Page): Promise<void> {
-  const button = page.getByRole("button", { name: "Show setup error" })
+  const button = page.getByRole("button", {
+    name: "Show setup error",
+    exact: true,
+  })
   if (await button.count()) {
     await button.first().focus()
     await page.keyboard.press("Enter")
