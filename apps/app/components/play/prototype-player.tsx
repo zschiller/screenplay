@@ -118,6 +118,7 @@ export function PrototypePlayer({
     } catch {}
   }, [])
   const devicePreset = getIframeLayerSizePreset(deviceSizeId)
+  const isDesktop = devicePreset.category === "Desktop"
   const isTouchDevice =
     devicePreset.category === "Mobile" || devicePreset.category === "Tablet"
 
@@ -137,7 +138,7 @@ export function PrototypePlayer({
     return () => ro.disconnect()
   }, [])
   const fitScale = useMemo(() => {
-    if (devicePreset.category === "Desktop") return 1
+    if (isDesktop) return 1
     if (!stageSize) return 1
     const availW = Math.max(0, stageSize.w - DEVICE_PADDING * 2)
     const availH = Math.max(0, stageSize.h - DEVICE_PADDING * 2)
@@ -147,7 +148,7 @@ export function PrototypePlayer({
       availW / devicePreset.width,
       availH / devicePreset.height
     )
-  }, [devicePreset, stageSize])
+  }, [devicePreset, isDesktop, stageSize])
 
   const initialSrc = useMemo(() => {
     const path = initialRoute || "/"
@@ -313,7 +314,27 @@ export function PrototypePlayer({
             ref={stageRef}
             className="absolute inset-0 flex items-center justify-center overflow-hidden"
           >
-            {devicePreset.category === "Desktop" ? (
+            {/* One iframe for every device size: switching resizes this
+             *  wrapper instead of swapping elements, so the prototype keeps its
+             *  route and in-memory state. */}
+            <div
+              className={
+                isDesktop
+                  ? "relative h-full w-full"
+                  : "relative shrink-0 overflow-hidden bg-white shadow-2xl ring-1 ring-white/10 dark:bg-zinc-900"
+              }
+              style={
+                isDesktop
+                  ? undefined
+                  : {
+                      width: devicePreset.width,
+                      height: devicePreset.height,
+                      transform: `scale(${fitScale})`,
+                      transformOrigin: "center center",
+                      borderRadius: devicePreset.cornerRadius,
+                    }
+              }
+            >
               <iframe
                 ref={iframeRef}
                 src={initialSrc}
@@ -322,27 +343,7 @@ export function PrototypePlayer({
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 style={iframeStyle}
               />
-            ) : (
-              <div
-                className="relative shrink-0 overflow-hidden bg-white shadow-2xl ring-1 ring-white/10 dark:bg-zinc-900"
-                style={{
-                  width: devicePreset.width,
-                  height: devicePreset.height,
-                  transform: `scale(${fitScale})`,
-                  transformOrigin: "center center",
-                  borderRadius: devicePreset.cornerRadius,
-                }}
-              >
-                <iframe
-                  ref={iframeRef}
-                  src={initialSrc}
-                  title={`${roomName} — ${branch}`}
-                  className="h-full w-full border-0 bg-white dark:bg-zinc-900"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  style={iframeStyle}
-                />
-              </div>
-            )}
+            </div>
           </div>
           <PlayerHud
             roomId={roomId}
