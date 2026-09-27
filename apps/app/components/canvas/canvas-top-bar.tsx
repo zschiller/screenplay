@@ -90,7 +90,7 @@ export function CanvasTopBar({
   const router = useRouter()
   return (
     <div
-      className={`pointer-events-none absolute top-0 left-0 z-[9998] flex h-12 items-center pr-2 ${
+      className={`pointer-events-none absolute top-0 left-0 z-(--z-canvas-chrome) flex h-12 items-center pr-2 ${
         // When the macOS traffic lights are showing (desktop, not
         // fullscreen) and the sidebar is collapsed, the canvas fills the
         // full width — shift these pills right to clear the lights.

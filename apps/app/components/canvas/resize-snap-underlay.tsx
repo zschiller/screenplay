@@ -8,21 +8,7 @@ import {
   type IframeLayerSizeCategory,
 } from "@/lib/iframe-layer-sizes"
 import { rectFromAnchor } from "@/lib/canvas/snap"
-
-function resolveColor(
-  el: HTMLElement,
-  varName: string,
-  fallback: string
-): string {
-  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
-  if (!raw) return fallback
-  const temp = document.createElement("div")
-  temp.style.color = raw
-  document.body.appendChild(temp)
-  const resolved = getComputedStyle(temp).color
-  document.body.removeChild(temp)
-  return resolved
-}
+import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
 interface ResizeSnapUnderlayProps {
   zoom: number
@@ -95,7 +81,7 @@ export function ResizeSnapUnderlay({
     // NOT drawn here — the live SelectionOverlay rect already sits exactly on it
     // (the iframeLayer is patched to the snapped size) and turns red itself, so
     // a ghost here would just double up on that rect.
-    const ghostColor = resolveColor(canvas, "--border", "#a1a1aa")
+    const ghostColor = resolveCanvasColor(canvas, "--border")
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
@@ -200,12 +186,11 @@ export function ResizeSnapUnderlay({
           const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
           return (
             <div
-              className="absolute flex items-center gap-1 text-[11px] leading-none font-semibold whitespace-nowrap"
+              className="absolute flex items-center gap-1 text-[11px] leading-none font-semibold whitespace-nowrap text-canvas-snap"
               style={{
                 left: snappedLabelPos.screenX,
                 top: snappedLabelPos.screenY,
                 transform: "translate(-100%, 4px)",
-                color: "#ef4444",
               }}
             >
               <Icon className="h-3 w-3" />

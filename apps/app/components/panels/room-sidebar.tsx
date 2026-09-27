@@ -331,7 +331,7 @@ function RepoGap({ index }: { index: number }) {
   return (
     <li ref={setNodeRef} aria-hidden className="relative -my-px h-1">
       {isOver ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-fuchsia-500" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-canvas-selection" />
       ) : null}
     </li>
   )
@@ -470,7 +470,7 @@ function SortableRow({
         // `ring` (not `ring-inset`) so it sits OUTSIDE the row, where it
         // remains visible even when the underlying row has its own
         // selection styling (e.g. a selected frame's accent ring).
-        indicator === "into" && "z-10 rounded-md ring-2 ring-fuchsia-500",
+        indicator === "into" && "z-10 rounded-md ring-2 ring-canvas-selection",
         className
       )}
       {...attributes}
@@ -488,9 +488,9 @@ function SortableRow({
 }
 
 /**
- * The single canonical drop indicator — a 2px fuchsia line. Matches the canvas
- * selection color (`#d946ef`, Tailwind `fuchsia-500`) so the sidebar and canvas
- * share one "active target" visual language. No rounded corners, no shadows.
+ * The single canonical drop indicator — a 2px line in the canvas selection
+ * token (`--canvas-selection`) so the sidebar and canvas share one "active
+ * target" visual language. No rounded corners, no shadows.
  *
  * `offsetPx` is how far past the row's edge the line sits — tuned to land in
  * the MIDDLE of the gap to the neighbouring row. The 2px line centers on the
@@ -507,7 +507,7 @@ function DropLine({
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-fuchsia-500"
+      className="pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-canvas-selection"
       style={side === "before" ? { top: -offsetPx } : { bottom: -offsetPx }}
     />
   )
@@ -579,7 +579,7 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
   return (
     <div ref={setNodeRef} aria-hidden className="relative -my-px h-1">
       {isOver ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-fuchsia-500" />
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-canvas-selection" />
       ) : null}
     </div>
   )

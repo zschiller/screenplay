@@ -1,5 +1,59 @@
 @import "@workspace/ui/globals.css";
 
+/* Canvas tokens (issue #719). One source for the canvas chrome's colours and
+   its stacking order, read by both the drawn overlays (`lib/canvas/tokens.ts`
+   resolves these for the 2D contexts) and the DOM (`text-canvas-selection`,
+   `z-(--z-canvas-chrome)`, …).
+
+   Colours — retune per theme under `.dark` below:
+     selection    local selection outlines, handles, marquee, drafts, and the
+                  selected layer / group titles and sidebar drop lines
+     snap         snap guides and a resize locked onto a device preset
+     inspect      the element under the pointer while commenting / picking
+     highlight    the element a hovered composer token references
+     group-merge  the slot a dragged Group would merge into (drawn at 40%)
+
+   Layers, bottom to top, inside the canvas wrapper (its `isolate` keeps them
+   local, so app-level popovers portalled to <body> always sit above all of
+   them):
+     overlay      the drawn selection / snap / inspect overlay
+     annotations  comment pins and the comment composer
+     popovers     floating frame toolbars and the inline "Comment" bubble
+     presence     remote cursors and the local cursor-chat input
+     chrome       the top bar, the tool bar, the top-right pill and the
+                  window-drag strip behind them
+   Remote cursors sit *under* the chrome on purpose: a peer's pointer is
+   information, the toolbars are controls, and a cursor parked over a button
+   must never hide it. */
+:root {
+  --canvas-selection: oklch(0.667 0.295 322.15);
+  --canvas-snap: oklch(0.637 0.237 25.331);
+  --canvas-inspect: oklch(0.623 0.214 259.815);
+  --canvas-highlight: oklch(0.685 0.169 237.323);
+  --canvas-group-merge: var(--canvas-snap);
+
+  --z-canvas-overlay: 10;
+  --z-canvas-annotations: 20;
+  --z-canvas-popovers: 30;
+  --z-canvas-presence: 40;
+  --z-canvas-chrome: 50;
+}
+
+.dark {
+  --canvas-selection: oklch(0.667 0.295 322.15);
+  --canvas-snap: oklch(0.637 0.237 25.331);
+  --canvas-inspect: oklch(0.623 0.214 259.815);
+  --canvas-highlight: oklch(0.685 0.169 237.323);
+}
+
+@theme inline {
+  --color-canvas-selection: var(--canvas-selection);
+  --color-canvas-snap: var(--canvas-snap);
+  --color-canvas-inspect: var(--canvas-inspect);
+  --color-canvas-highlight: var(--canvas-highlight);
+  --color-canvas-group-merge: var(--canvas-group-merge);
+}
+
 /* Disable browser swipe-to-navigate so two-finger horizontal pans on the
    canvas don't accidentally trigger back/forward. */
 html,
@@ -108,7 +162,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: #fff;
+  /* Ink comes from `presenceInkClass` in the caret's render (issue #719). */
   padding: 2px 4px;
   border-radius: 3px;
   white-space: nowrap;
