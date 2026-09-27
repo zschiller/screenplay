@@ -149,6 +149,13 @@ export const NARROW_HOME_VIEWPORT = { width: 900, height: 768 } as const
 
 const ids = FIXTURE_IDS
 
+/** The Checkout canvas's desktop frame, by its title. */
+function checkoutDesktopFrame(page: Page) {
+  return page.locator("[data-iframe-layer]", {
+    has: page.getByText("Checkout · desktop", { exact: true }),
+  })
+}
+
 export const SCREENS: Screen[] = [
   {
     name: "home-recents",
@@ -794,6 +801,38 @@ export const SCREENS: Screen[] = [
         .first()
         .hover({ timeout: 15_000 })
       await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-interacting",
+    description:
+      "Double-clicking a frame's body: the frame enters interaction, with its ring and the Esc hint under it.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const frame = checkoutDesktopFrame(page)
+      await frame.waitFor({ state: "visible", timeout: 15_000 })
+      await frame.dblclick({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-frame-interact-escape",
+    description:
+      "Interacting with a frame, clicking into the preview, then pressing Esc: the frame is back on the canvas, still selected.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      const frame = checkoutDesktopFrame(page)
+      await frame.waitFor({ state: "visible", timeout: 15_000 })
+      await frame.click({ timeout: 15_000 })
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .click({ timeout: 15_000 })
+      // Focus now lives inside the preview's iframe, where the canvas's own
+      // keydown listener can't hear it.
+      await frame.click({ timeout: 15_000 })
+      await page.keyboard.press("Escape")
     },
     settleMs: 400,
   },

@@ -24,6 +24,7 @@ import {
   FloatingToolbarButton,
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
+import { Kbd } from "@workspace/ui/components/kbd"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -33,6 +34,7 @@ import {
   type ScreenplayDom,
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
+import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
@@ -493,9 +495,32 @@ export function IframeLayer({
     onSharedStateChanged,
   })
 
+  // Both interact mode and Create Flow mode forward pointer events to the
+  // iframe and hide the canvas overlay. Create Flow additionally captures
+  // navigation events into a history trail (handled in canvas.tsx).
+  const interactive = focused || createFlow
+
   const dom = useScreenplayDom(iframeRef, {
     onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
+    // Esc the page didn't claim, forwarded by the bridge because keydowns
+    // never leave the iframe. Replay it on the canvas's own window so it
+    // walks the same Escape precedence (lib/canvas/escape.ts) as an Esc
+    // pressed on the canvas: an armed pick cancels first, otherwise the frame
+    // leaves interaction.
+    onEscape: () => {
+      if (!interactive) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    },
   })
+
+  // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
+  // back to the canvas. Otherwise it stays inside the iframe, and canvas
+  // shortcuts, a second Esc included, go to the preview instead.
+  useEffect(() => {
+    if (interactive) return
+    const iframe = iframeRef.current
+    if (iframe && document.activeElement === iframe) iframe.blur()
+  }, [interactive])
 
   const handleFitToContent = useCallback(async () => {
     try {
@@ -645,11 +670,6 @@ export function IframeLayer({
     }, PLACEHOLDER_RELOAD_GRACE_MS)
     return () => clearTimeout(id)
   }, [probeState, contentReady, recoveryTick, reloadIframe])
-
-  // Both interact mode and Create Flow mode forward pointer events to the
-  // iframe and hide the canvas overlay. Create Flow additionally captures
-  // navigation events into a history trail (handled in canvas.tsx).
-  const interactive = focused || createFlow
 
   return (
     <LayerShell
@@ -912,9 +932,57 @@ export function IframeLayer({
                     }
                   : {})}
                 onPointerDownCapture={api.onBodyPointerDownCapture}
+                onDoubleClick={(e) => {
+                  if (
+                    !canInteractOnDoubleClick({
+                      hasPreview: !!iframeLayer.branchId,
+                      commentMode: !!commentMode,
+                      // A dimmed frame is ineligible for an armed pick, but
+                      // the pick still owns the pointer.
+                      pickActive: !!pickActive || !!dimmed,
+                      spaceHeld,
+                    })
+                  )
+                    return
+                  e.stopPropagation()
+                  // Interaction lives only while its frame is selected, so a
+                  // double-click on a member of a selected group narrows the
+                  // selection to this frame first.
+                  onSelect(iframeLayer.id, false)
+                  onFocus(iframeLayer.id)
+                }}
               />
             )}
           </div>
+          {focused && (
+            // The interacting hint under the frame: what mode this is and how
+            // to leave it. Counter-scaled like the title bar so it stays one
+            // screen size at any zoom; clicking it exits too.
+            <div
+              className="absolute top-full left-1/2"
+              style={{
+                transform: `translateX(-50%) scale(${1 / zoom})`,
+                transformOrigin: "top center",
+                marginTop: 8 / zoom,
+              }}
+            >
+              <button
+                type="button"
+                data-interacting-hint=""
+                className="flex h-7 items-center gap-1.5 rounded-full bg-background px-2.5 text-xs whitespace-nowrap text-muted-foreground shadow-sm ring-1 ring-foreground/10 hover:text-foreground"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onFocus(null)
+                }}
+              >
+                <span className="font-medium text-foreground">Interacting</span>
+                <span aria-hidden>·</span>
+                <Kbd>Esc</Kbd>
+                <span>to exit</span>
+              </button>
+            </div>
+          )}
         </>
       )}
     </LayerShell>
