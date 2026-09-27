@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react"
 import { Button } from "@workspace/ui/components/button"
+import { ScreenplayLogo } from "@/components/screenplay-logo"
 import { getLocalSetupGateStatus } from "@/lib/local-setup/gate-status"
 import { writeGitHubSkip } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
@@ -115,6 +116,7 @@ export function LocalSetupGate({
     <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-12">
       <div className="flex w-full max-w-md flex-col gap-4">
         <div className="flex flex-col gap-1">
+          <ScreenplayLogo className="mb-3 size-10" />
           <span className="text-xs font-medium text-muted-foreground">
             {current ? `Step ${current} of 2` : "Ready to finish"}
           </span>
