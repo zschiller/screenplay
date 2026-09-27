@@ -41,7 +41,7 @@ import { type Harness } from "./types"
  * row — the dropdown / terminal folds ignore it, preserving the
  * presence-lists-auth-surfaced invariant. The launch-memoized resolvers here
  * never probe auth (that is the hot path), so they always report `null`; the
- * live setup status (`listHarnessSetupStatus`) is what fills the boolean.
+ * live Harness Setup rows (`setup.ts`) are what fill the boolean.
  */
 export interface HarnessStatus {
   installed: boolean

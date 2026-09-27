@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { detectInstalledHarnessKeys } from "@/lib/agent/harnesses/host-binary"
+import {
+  detectInstalledHarnessKeys,
+  distinctByHostBinary,
+  probeHostFacts,
+} from "@/lib/agent/harnesses/host-binary"
 import type { Harness } from "@/lib/agent/harnesses"
 
 /**
@@ -75,5 +79,44 @@ describe("detectInstalledHarnessKeys", () => {
     expect([...keys].sort()).toEqual(["a", "c1", "c2"])
     // abin, bbin, cbin — three distinct binaries despite four harnesses.
     expect(probe).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe("distinctByHostBinary (the one dedupe rule)", () => {
+  it("keeps one entry per distinct hostBinary, in catalog order", () => {
+    expect(distinctByHostBinary([a, c1, b, c2]).map((h) => h.key)).toEqual([
+      "a",
+      "c1",
+      "b",
+    ])
+  })
+
+  it("represents a shared binary by the first descriptor that names it", () => {
+    // The opencode-slot shape: the row/probe speaks for the whole binary through
+    // its first catalog entry.
+    expect(distinctByHostBinary([c2, c1])[0]!.key).toBe("c2")
+  })
+
+  it("is empty for an empty catalog", () => {
+    expect(distinctByHostBinary([])).toEqual([])
+  })
+})
+
+describe("probeHostFacts (the one host-facts probe)", () => {
+  it("reads npm / brew presence through the injected prober, with the live arch", async () => {
+    const probe = fakeProbe(["npm"])
+    expect(await probeHostFacts(probe)).toEqual({
+      npmPresent: true,
+      brewPresent: false,
+      arch: process.arch,
+    })
+    expect(probe.mock.calls.flat().sort()).toEqual(["brew", "npm"])
+  })
+
+  it("reports an absent binary as false rather than throwing", async () => {
+    expect(await probeHostFacts(fakeProbe([]))).toMatchObject({
+      npmPresent: false,
+      brewPresent: false,
+    })
   })
 })

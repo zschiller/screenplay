@@ -148,7 +148,7 @@ export async function probeOpencodeAuth(
  * The desktop "Coding agents" setup trio shared by **both** opencode slots (ADR
  * 0015): one binary, one install, one login. The setup surface already collapses
  * the two slots to a single `opencode` row keyed on `hostBinary`
- * (`resolveHarnessSetupStatuses`), so whichever slot is the row's representative
+ * (the **Harness Setup** module's rows), so whichever slot is the row's representative
  * carries the same probe/install/sign-in — spread into each descriptor so they
  * stay identical by construction.
  */
