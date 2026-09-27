@@ -11,6 +11,7 @@ import {
   type DeviceAuthorization,
   type DeviceFlowOutcome,
 } from "@/lib/github-local/device-flow"
+import { hasFixtureFault } from "@/lib/fixture-faults"
 import { parseGitHubRemote } from "@/lib/github-local/parse-remote"
 import { getLocalTokenStore } from "@/lib/github-local/token-store"
 import {
@@ -63,7 +64,9 @@ export async function getGitHubLocalStatus(): Promise<GitHubLocalStatus> {
   const connection = await readLocalGitHubConnection()
   return {
     ...connection,
-    deviceFlowConfigured: Boolean(process.env.SCREENPLAY_GITHUB_CLIENT_ID),
+    deviceFlowConfigured:
+      Boolean(process.env.SCREENPLAY_GITHUB_CLIENT_ID) ||
+      (await hasFixtureFault("github-device-flow")),
   }
 }
 

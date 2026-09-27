@@ -21,6 +21,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
+import { toast } from "sonner"
 import { descendantFolderIds } from "@/lib/folder-cascade"
 import { planFileDrop, type FileDragItem } from "@/lib/file-dnd"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -203,10 +204,20 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
       const targetId = (over.data.current?.folderId ?? null) as string | null
       const plan = planFileDrop(item, targetId, allFolders)
       if (!plan) return
-      // Fire-and-forget like the dialog's onMove; the provider patches local
-      // state optimistically so the item leaves the view without a reload.
-      if (plan.kind === "room") void moveRoom(plan.id, plan.targetId)
-      else void moveFolder(plan.id, plan.targetId)
+      // The provider patches local state optimistically so the item leaves
+      // the view without a reload, and rolls it back if the server refuses.
+      // Nothing else is on screen to say why the tile came back, so a failure
+      // gets a toast.
+      const move =
+        plan.kind === "room"
+          ? moveRoom(plan.id, plan.targetId)
+          : moveFolder(plan.id, plan.targetId)
+      move.catch((err: unknown) => {
+        console.error("Failed to move", err)
+        toast.error(`Couldn't move “${item.name}”`, {
+          description: "It's back where it was.",
+        })
+      })
     },
     [activeItem, allFolders, moveRoom, moveFolder, resetDrag]
   )

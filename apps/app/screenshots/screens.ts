@@ -10,6 +10,7 @@ import {
   fixtureEntryCookieName,
   type FixtureEntryState,
 } from "@/lib/fixture-entry"
+import { fixtureFaultCookieName, type FixtureFault } from "@/lib/fixture-faults"
 import { panelLayoutCookieName } from "@/lib/panel-layout"
 
 import { stubLogs, stubTerminal } from "./fixtures/streams"
@@ -974,6 +975,117 @@ export const SCREENS: Screen[] = [
     },
     settleMs: 300,
   },
+  {
+    name: "home-load-error",
+    description: "Recents when the Canvas list fails to load.",
+    path: "/",
+    cookies: fixtureFault("home-load"),
+  },
+  {
+    name: "settings-load-error",
+    description:
+      "Settings when every panel's load fails: GitHub, coding agents, presets.",
+    path: "/settings",
+    fullPage: true,
+    beforeNavigate: failServerActions,
+    settleMs: 500,
+  },
+  {
+    name: "home-create-error",
+    description: "The New canvas dialog after creating the Canvas fails.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await failServerActions(page)
+      // The header button can be clicked before hydration wires it up, so
+      // retry until the dialog is actually open.
+      const dialog = page.getByRole("dialog")
+      for (let i = 0; i < 5 && !(await dialog.count()); i++) {
+        await page.getByRole("button", { name: "New canvas" }).first().click()
+        await page.waitForTimeout(500)
+      }
+      await dialog.getByRole("textbox").fill("Onboarding")
+      await page.getByRole("button", { name: "Create" }).click()
+      await page.waitForTimeout(800)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-rename-error",
+    description: "The Rename dialog after renaming a Canvas fails.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await failServerActions(page)
+      await openCanvasMenu(page, "Checkout flow")
+      await page.getByRole("menuitem", { name: "Rename" }).click()
+      await page.getByRole("dialog").getByRole("textbox").fill("Checkout v2")
+      await page.getByRole("button", { name: "Save" }).click()
+      await page.waitForTimeout(800)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-pin-error",
+    description: "The error toast after pinning a Canvas fails.",
+    path: "/",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await failServerActions(page)
+      await openCanvasMenu(page, "Checkout flow")
+      await page
+        .getByRole("menuitem", { name: /^(Pin to sidebar|Unpin)$/ })
+        .click()
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "home-move-error",
+    description:
+      "The error toast after dragging a Canvas into a Folder fails; the tile is back.",
+    path: "/files",
+    prepare: async (page) => {
+      await unfreeze(page)
+      await failServerActions(page)
+      await dragOnto(page, "Empty canvas", "Marketing site")
+      await page.mouse.up()
+      await page.mouse.move(0, 0)
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "github-connect-error",
+    description: "The GitHub device-code dialog after starting the flow fails.",
+    path: "/settings",
+    cookies: fixtureFault("github-device-flow"),
+    prepare: async (page) => {
+      await unfreeze(page)
+      await page
+        .getByRole("button", { name: "Connect with a device code instead" })
+        .click({ timeout: 15_000 })
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sign-in-error",
+    description: "The sign-in page after the GitHub redirect fails to start.",
+    path: "/sign-in",
+    beforeNavigate: async (page) => {
+      await page.route("**/api/auth/sign-in/social*", (route) =>
+        route.fulfill({ status: 500, body: "simulated failure" })
+      )
+    },
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "Continue with GitHub" })
+        .click({ timeout: 15_000 })
+      await page.waitForTimeout(1000)
+    },
+    settleMs: 300,
+  },
 ]
 
 /**
@@ -1083,6 +1195,44 @@ export async function freezeYjs(page: Page): Promise<void> {
     timeout: 60_000,
   })
   await page.waitForTimeout(5_500)
+}
+
+/**
+ * The cookie that asks the Fixture World for a server-side failure
+ * (`@/lib/fixture-faults`) — one the browser can't cause, like the home layout's
+ * own Canvas load.
+ */
+export function fixtureFault(
+  fault: FixtureFault
+): Array<{ name: string; value: string }> {
+  return [{ name: fixtureFaultCookieName(), value: fault }]
+}
+
+/**
+ * Fail every server action from here on with a 500, the way a dropped sidecar
+ * or a database error reaches the client. A `beforeNavigate` fails a page's
+ * loads; a `prepare` calls it once the page is up, so only the mutation it then
+ * drives fails.
+ */
+export async function failServerActions(page: Page): Promise<void> {
+  await page.route("**/*", (route) => {
+    const request = route.request()
+    if (request.method() === "POST" && request.headers()["next-action"]) {
+      return route.fulfill({ status: 500, body: "simulated failure" })
+    }
+    return route.fallback()
+  })
+}
+
+/** Hover a Canvas tile on the home grid and open its ⋯ actions menu. */
+export async function openCanvasMenu(page: Page, name: string): Promise<void> {
+  await page.getByLabel(`Open ${name}`).first().hover()
+  await page
+    .getByRole("button", { name: "Canvas actions" })
+    .first()
+    .click({ timeout: 15_000 })
+  await page.getByRole("menu").first().waitFor({ timeout: 5_000 })
+  await page.waitForTimeout(300)
 }
 
 /**

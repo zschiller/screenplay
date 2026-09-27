@@ -232,6 +232,7 @@ function PinnedRoomRow({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename canvas"
+        errorMessage="Couldn't rename the canvas. Try again."
         initialValue={room.name}
         submitLabel="Save"
         submittingLabel="Saving…"
@@ -355,6 +356,7 @@ function PinnedFolderRow({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename folder"
+        errorMessage="Couldn't rename the folder. Try again."
         initialValue={folder.name}
         submitLabel="Save"
         submittingLabel="Saving…"

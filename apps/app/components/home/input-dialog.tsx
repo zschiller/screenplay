@@ -21,6 +21,12 @@ type InputDialogProps = {
   submitLabel: string
   submittingLabel: string
   placeholder?: string
+  /**
+   * Shown inline under the field when `onSubmit` rejects — the same pattern
+   * as the Move dialog. A fixed line rather than the error's own message,
+   * which a server action redacts in production.
+   */
+  errorMessage: string
   onSubmit: (value: string) => Promise<void>
 }
 
@@ -33,6 +39,7 @@ export function InputDialog({
   submitLabel,
   submittingLabel,
   placeholder,
+  errorMessage,
   onSubmit,
 }: InputDialogProps) {
   return (
@@ -46,6 +53,7 @@ export function InputDialog({
             submitLabel={submitLabel}
             submittingLabel={submittingLabel}
             placeholder={placeholder}
+            errorMessage={errorMessage}
             onSubmit={onSubmit}
             onCancel={() => onOpenChange(false)}
           />
@@ -62,6 +70,7 @@ function InputDialogForm({
   submitLabel,
   submittingLabel,
   placeholder,
+  errorMessage,
   onSubmit,
   onCancel,
 }: {
@@ -71,18 +80,24 @@ function InputDialogForm({
   submitLabel: string
   submittingLabel: string
   placeholder?: string
+  errorMessage: string
   onSubmit: (value: string) => Promise<void>
   onCancel: () => void
 }) {
   const [value, setValue] = useState(initialValue)
   const [submitting, setSubmitting] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
+    setFailed(false)
     try {
       await onSubmit(value)
       onCancel()
+    } catch (err) {
+      console.error(err)
+      setFailed(true)
     } finally {
       setSubmitting(false)
     }
@@ -94,13 +109,18 @@ function InputDialogForm({
         <DialogTitle>{title}</DialogTitle>
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
-      <div className="my-4">
+      <div className="my-4 space-y-2">
         <Input
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
         />
+        {failed && (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMessage}
+          </p>
+        )}
       </div>
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onCancel}>

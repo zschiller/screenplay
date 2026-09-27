@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useReducer, useState } from "react"
-import { ExternalLink, Plug } from "lucide-react"
+import { ExternalLink, Plug, RotateCw } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -29,6 +29,7 @@ import {
   type DetectionResult,
 } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
+import { LoadErrorRow } from "@/components/home/load-error"
 
 /** Stable PTY key for the sign-in terminal — reaped on exit, so each run is fresh. */
 const GH_SETUP_SESSION_KEY = "screenplay-gh-setup"
@@ -64,6 +65,7 @@ export function GitHubConnectionPanel() {
   const [run, setRun] = useState<RunPlan | null>(null)
   const [deviceOpen, setDeviceOpen] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [statusFailed, setStatusFailed] = useState(false)
 
   // Re-probe the resolver and re-fold the setup machine. Used by actions that
   // change the connection outside the terminal — a device-flow success or a
@@ -73,6 +75,7 @@ export function GitHubConnectionPanel() {
   const redetect = useCallback(async () => {
     const s = await getGitHubLocalStatus()
     setStatus(s)
+    setStatusFailed(false)
     if (s.tokenSource === null && s.gh === "not-installed") {
       setBrewPresent(await probeHomebrewPresent())
     }
@@ -87,16 +90,21 @@ export function GitHubConnectionPanel() {
   useEffect(() => {
     if (state.phase !== "unknown") return
     let cancelled = false
-    getGitHubLocalStatus().then(async (s) => {
-      if (cancelled) return
-      setStatus(s)
-      if (s.tokenSource === null && s.gh === "not-installed") {
-        const brew = await probeHomebrewPresent()
+    getGitHubLocalStatus()
+      .then(async (s) => {
         if (cancelled) return
-        setBrewPresent(brew)
-      }
-      dispatch({ type: "detected", result: detectionResult(s) })
-    })
+        setStatus(s)
+        if (s.tokenSource === null && s.gh === "not-installed") {
+          const brew = await probeHomebrewPresent()
+          if (cancelled) return
+          setBrewPresent(brew)
+        }
+        dispatch({ type: "detected", result: detectionResult(s) })
+      })
+      .catch((err) => {
+        console.error("Failed to check the GitHub connection", err)
+        if (!cancelled) setStatusFailed(true)
+      })
     return () => {
       cancelled = true
     }
@@ -121,6 +129,10 @@ export function GitHubConnectionPanel() {
         />
       </div>
     )
+  }
+
+  if (statusFailed) {
+    return <LoadErrorRow title="Couldn't check GitHub" onRetry={redetect} />
   }
 
   if (!status) {
@@ -268,43 +280,54 @@ function ConnectGitHubDialog({
   onDone: (connected: boolean) => void
 }) {
   const [state, setState] = useState<ConnectState>({ step: "starting" })
+  // Bumped by "Try again" to run the flow afresh with a new code.
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const begun = await beginGitHubDeviceFlow()
-      if (cancelled) return
-      if (!begun.ok) {
-        setState({ step: "failed", message: begun.error })
-        return
-      }
-      setState({
-        step: "authorize",
-        userCode: begun.grant.userCode,
-        verificationUri: begun.grant.verificationUri,
-      })
-      const outcome = await completeGitHubDeviceFlow(begun.grant)
-      if (cancelled) return
-      if (outcome.status === "authorized") {
-        onDone(true)
-      } else {
+      try {
+        const begun = await beginGitHubDeviceFlow()
+        if (cancelled) return
+        if (!begun.ok) {
+          setState({ step: "failed", message: begun.error })
+          return
+        }
         setState({
-          step: "failed",
-          message:
-            outcome.status === "denied"
-              ? "Authorization was denied."
-              : outcome.status === "expired"
-                ? "The code expired — try connecting again."
-                : outcome.message,
+          step: "authorize",
+          userCode: begun.grant.userCode,
+          verificationUri: begun.grant.verificationUri,
         })
+        const outcome = await completeGitHubDeviceFlow(begun.grant)
+        if (cancelled) return
+        if (outcome.status === "authorized") {
+          onDone(true)
+        } else {
+          setState({
+            step: "failed",
+            message:
+              outcome.status === "denied"
+                ? "Authorization was denied."
+                : outcome.status === "expired"
+                  ? "The code expired."
+                  : outcome.message,
+          })
+        }
+      } catch (err) {
+        // The action itself failed (the sidecar is unreachable), rather than
+        // returning a failure of its own.
+        console.error("GitHub device flow failed", err)
+        if (!cancelled) {
+          setState({ step: "failed", message: "Couldn't reach GitHub." })
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-    // Deliberately mount-once: the flow must not restart on re-render.
+    // Runs once per attempt: the flow must not restart on re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [attempt])
 
   return (
     <Dialog open onOpenChange={(open) => !open && onDone(false)}>
@@ -352,7 +375,23 @@ function ConnectGitHubDialog({
           </div>
         )}
         {state.step === "failed" && (
-          <span className="py-2 text-sm text-destructive">{state.message}</span>
+          <div className="flex flex-col items-start gap-3 py-2">
+            <p role="alert" className="text-sm text-destructive">
+              {state.message}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setState({ step: "starting" })
+                setAttempt((n) => n + 1)
+              }}
+            >
+              <RotateCw />
+              Try again
+            </Button>
+          </div>
         )}
       </DialogContent>
     </Dialog>

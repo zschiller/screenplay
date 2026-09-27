@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react"
+import { toast } from "sonner"
 import {
   DEFAULT_SCOPE_SORT,
   DEFAULT_VIEW_PREFS,
@@ -28,6 +29,7 @@ import {
 import {
   createFolder as createFolderAction,
   deleteFolder as deleteFolderAction,
+  listFolders,
   listRoomPlacements,
   moveFolder as moveFolderAction,
   placeRoom as placeRoomAction,
@@ -97,6 +99,13 @@ type HomeContextValue = {
    */
   ancestors: FolderSummary[]
   loading: boolean
+  /**
+   * The Canvas, Folder, or Pin load failed. The content area shows an error
+   * with Retry instead of an empty state, which would read as an empty account.
+   */
+  loadFailed: boolean
+  /** Re-run the whole load; rejects (leaving `loadFailed` set) if it fails again. */
+  reload: () => Promise<void>
   view: View
   setView: (v: View) => void
   sort: SortKey
@@ -144,7 +153,11 @@ type HomeContextValue = {
    * real current home, independent of which folder view is on screen.
    */
   folderOfRoom: (roomId: string) => string | null
-  /** Pin a Room to the sidebar (appends to the end); idempotent. */
+  /**
+   * Pin a Room to the sidebar (appends to the end); idempotent. The pin
+   * mutations are fire-and-forget from menus and the drag list, so they report
+   * their own failures with a toast and never reject.
+   */
   pinRoom: (roomId: string) => Promise<void>
   /**
    * Pin a Folder to the sidebar (appends to the end); idempotent. A shortcut,
@@ -175,6 +188,7 @@ export function HomeProvider({
   initialFolders,
   initialPlacements,
   initialPins,
+  initialLoadFailed = false,
   // A folder-scoped view (All files / a folder) partitions its contents by the
   // current folder; the flat view (Recents) leaves this off and shows every
   // Room with no folders. `currentFolderId` only applies when `folderView` is
@@ -193,6 +207,7 @@ export function HomeProvider({
   initialFolders?: FolderSummary[]
   initialPlacements?: RoomPlacementSummary[]
   initialPins?: PinSummary[]
+  initialLoadFailed?: boolean
   folderView?: boolean
   currentFolderId?: string | null
   initialViewPrefs?: HomeViewPrefs
@@ -206,6 +221,7 @@ export function HomeProvider({
   // With server-seeded rooms the grid is ready on first paint — no loading
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
+  const [loadFailed, setLoadFailed] = useState(initialLoadFailed)
 
   // The grid/table view is global — one layout shared by every surface — while
   // the sort is remembered per surface (Recents / All files / each folder),
@@ -258,7 +274,10 @@ export function HomeProvider({
       .then((roomList) => {
         if (!cancelled) setRooms(roomList)
       })
-      .catch((err) => console.error("Failed to load rooms", err))
+      .catch((err) => {
+        console.error("Failed to load rooms", err)
+        if (!cancelled) setLoadFailed(true)
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
@@ -298,6 +317,23 @@ export function HomeProvider({
       cancelled = true
     }
   }, [initialPins])
+
+  // Retry after a failed load: fetch everything the layout seeds, and only swap
+  // it in once all of it arrived, so a second failure leaves the error up
+  // rather than a half-loaded grid.
+  const reload = useCallback(async () => {
+    const [roomList, folderList, placementList, pinList] = await Promise.all([
+      listRooms(),
+      listFolders(),
+      listRoomPlacements(),
+      listPins(),
+    ])
+    setRooms(roomList)
+    setFolders(folderList)
+    setPlacements(placementList)
+    setPins(pinList)
+    setLoadFailed(false)
+  }, [])
 
   // Surface fresh capture rounds on an already-open grid without a reload:
   // poll the per-Room thumbnail record and merge newer manifests in place. Gated
@@ -528,7 +564,14 @@ export function HomeProvider({
   // double-pin reconciles to the one pin the action returns rather than stacking
   // a row. Per-user, so a shared Room's other viewers are unaffected.
   const pinRoom = useCallback(async (roomId: string) => {
-    const summary = await pinRoomAction(roomId)
+    let summary: PinSummary
+    try {
+      summary = await pinRoomAction(roomId)
+    } catch (err) {
+      console.error("Failed to pin canvas", err)
+      toast.error("Couldn't pin the canvas")
+      return
+    }
     setPins((prev) =>
       prev.some(
         (p) => p.kind === summary.kind && p.targetId === summary.targetId
@@ -543,7 +586,14 @@ export function HomeProvider({
   // action returns rather than stacking a row. A shortcut, not a move: the
   // Folder's placement in the tree is untouched.
   const pinFolder = useCallback(async (folderId: string) => {
-    const summary = await pinFolderAction(folderId)
+    let summary: PinSummary
+    try {
+      summary = await pinFolderAction(folderId)
+    } catch (err) {
+      console.error("Failed to pin folder", err)
+      toast.error("Couldn't pin the folder")
+      return
+    }
     setPins((prev) =>
       prev.some(
         (p) => p.kind === summary.kind && p.targetId === summary.targetId
@@ -554,7 +604,17 @@ export function HomeProvider({
   }, [])
 
   const unpin = useCallback(async (kind: PinKind, targetId: string) => {
-    await unpinAction(kind, targetId)
+    try {
+      await unpinAction(kind, targetId)
+    } catch (err) {
+      console.error("Failed to unpin", err)
+      toast.error(
+        kind === "room"
+          ? "Couldn't unpin the canvas"
+          : "Couldn't unpin the folder"
+      )
+      return
+    }
     setPins((prev) =>
       prev.filter((p) => !(p.kind === kind && p.targetId === targetId))
     )
@@ -566,9 +626,12 @@ export function HomeProvider({
   // positions by index, the same packing the server runs) rather than waiting
   // for the round-trip and snapping back. The action returns the persisted list,
   // which we then reconcile to — authoritative if a concurrent pin/unpin landed.
+  // A failed save rolls back to the order before the drag.
   const reorderPins = useCallback(
     async (ordered: { kind: PinKind; targetId: string }[]) => {
+      let before: PinSummary[] | undefined
       setPins((prev) => {
+        before = prev
         const byKey = new Map(
           prev.map((p) => [`${p.kind}:${p.targetId}`, p] as const)
         )
@@ -585,8 +648,13 @@ export function HomeProvider({
         }
         return next
       })
-      const persisted = await reorderPinsAction(ordered)
-      setPins(persisted)
+      try {
+        setPins(await reorderPinsAction(ordered))
+      } catch (err) {
+        console.error("Failed to reorder pins", err)
+        if (before) setPins(before)
+        toast.error("Couldn't save the new pin order")
+      }
     },
     []
   )
@@ -616,6 +684,8 @@ export function HomeProvider({
     currentFolderId,
     ancestors,
     loading,
+    loadFailed,
+    reload,
     view,
     setView,
     sort,

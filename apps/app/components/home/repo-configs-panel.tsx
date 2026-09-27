@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   Folder,
   FolderLock,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
 import { deleteRepoConfig, listRepoConfigs } from "@/lib/repo-configs-actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
@@ -30,6 +31,7 @@ type Mode =
 export function RepoConfigsPanel() {
   const [configs, setConfigs] = useState<RepoConfig[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [mode, setMode] = useState<Mode>({ kind: "list" })
   // The preset awaiting delete confirmation; the confirm owns pending + error.
   const [pendingDelete, setPendingDelete] = useState<RepoConfig | null>(null)
@@ -40,12 +42,22 @@ export function RepoConfigsPanel() {
       .then((list) => {
         if (!cancelled) setConfigs(list)
       })
+      .catch((err) => {
+        console.error("Failed to load project presets", err)
+        if (!cancelled) setLoadFailed(true)
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
+  }, [])
+
+  // Retry after a failed load; a second failure rejects and leaves the error up.
+  const reload = useCallback(async () => {
+    setConfigs(await listRepoConfigs())
+    setLoadFailed(false)
   }, [])
 
   const handleDelete = async (id: string) => {
@@ -83,6 +95,8 @@ export function RepoConfigsPanel() {
           <Spinner className="size-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">Loading…</span>
         </div>
+      ) : loadFailed ? (
+        <LoadErrorRow title="Couldn't load project presets" onRetry={reload} />
       ) : configs.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           No project presets yet.
@@ -178,7 +192,9 @@ export function RepoConfigsPanel() {
         <Button
           size="sm"
           onClick={() => setMode({ kind: "new" })}
-          disabled={loading}
+          // The form checks a new preset against the loaded list, so it
+          // waits for one.
+          disabled={loading || loadFailed}
         >
           <Plus className="size-3.5" />
           New preset
