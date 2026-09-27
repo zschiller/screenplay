@@ -1,25 +1,11 @@
 "use server"
 
 import { getModelProviders } from "@/lib/agent/providers"
-import {
-  buildBrokeredEnv,
-  resolveHarnesses,
-  selectHarnesses,
-  type Harness,
-} from "@/lib/agent/harnesses"
+import { resolveHarnesses, type Harness } from "@/lib/agent/harnesses"
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import { getGitHubToken } from "@/lib/auth-helpers"
-import { storeEnvVars } from "@/lib/env-store"
-import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import type { SandboxInstance } from "@/lib/sandbox/types"
-import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
 import {
-  PROXY_PORT_OFFSET,
-  SANDBOX_TIMEOUT,
-  SANDBOX_VCPUS,
-  SNAPSHOT_EXPIRATION,
-  TERMINAL_PORT,
   launchDevAndProxy,
   runLogged,
   sandboxLogPath,
@@ -27,104 +13,6 @@ import {
 } from "@/lib/sandbox/provision-internals"
 import { runSandboxAction, SandboxStepError } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
-
-/**
- * How the repo reaches the sandbox beyond the clone URL (PRD #428, local build
- * only): `localPath` routes the local backend at the user's existing clone
- * instead of cloning the URL; `baseRevision` is the ref to create `branch`
- * from when it doesn't exist yet (the no-GitHub-API path, where no one created
- * the branch remotely first).
- */
-export interface CloneSourceOptions {
-  localPath?: string
-  baseRevision?: string
-  /**
-   * Glob patterns of files (e.g. `.env*`) the local backend copies from the
-   * original checkout into the new worktree — the desktop-mode replacement
-   * for spelling env vars out in repo settings. Only meaningful alongside
-   * `localPath`; the hosted path has no original checkout to copy from.
-   */
-  copyPatterns?: string[]
-}
-
-/**
- * Clone a repo into a new sandbox. Unlike the other provision actions this one
- * *creates* the VM rather than resolving an existing one, so it can't ride the
- * `get`-based runner — it builds the uniform result contract itself and redacts
- * the error on the failure path (a clone failure can spill the GitHub token
- * baked into the source URL).
- */
-export async function cloneSandbox(
-  sandboxName: string,
-  gitUrl: string,
-  branch: string,
-  port: number = 3000,
-  env?: Record<string, string>,
-  ghToken?: string,
-  sourceOpts?: CloneSourceOptions
-): Promise<SandboxActionResult<{ sandboxName: string }>> {
-  try {
-    if (!ghToken) ghToken = (await getGitHubToken()) ?? undefined
-
-    const providers = getModelProviders()
-    const networkPolicy = buildNetworkPolicy(providers)
-    // The brokered gate vars (ANTHROPIC_API_KEY=brokered, …) are derived from
-    // the harnesses the operator selected via SANDBOX_HARNESSES, beside the
-    // network policy. No real key is emitted — the firewall injects it on egress.
-    const installable = selectHarnesses(
-      process.env.SANDBOX_HARNESSES,
-      providers
-    ).installable
-    const mergedEnv = { ...buildBrokeredEnv(installable), ...(env ?? {}) }
-
-    const sandbox = await sandboxProvider.create({
-      name: sandboxName,
-      // The local backend clones as a host process through the user's
-      // own git credentials, so never bake a brokered token into its clone URL —
-      // host auth covers private repos. Only the hosted path splices the token
-      // in. A Repo added from a local folder (PRD #428) skips cloning entirely:
-      // the local backend roots at the existing clone.
-      source:
-        usesHostGitAuth && sourceOpts?.localPath
-          ? {
-              type: "local-git",
-              path: sourceOpts.localPath,
-              revision: branch,
-              baseRevision: sourceOpts?.baseRevision,
-              copyPatterns: sourceOpts?.copyPatterns,
-            }
-          : !usesHostGitAuth && ghToken
-            ? {
-                type: "git",
-                url: gitUrl,
-                revision: branch,
-                username: "x-access-token",
-                password: ghToken,
-              }
-            : {
-                type: "git",
-                url: gitUrl,
-                revision: branch,
-                baseRevision: sourceOpts?.baseRevision,
-              },
-      ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT],
-      timeout: SANDBOX_TIMEOUT,
-      snapshotExpiration: SNAPSHOT_EXPIRATION,
-      resources: { vcpus: SANDBOX_VCPUS },
-      env: mergedEnv,
-      networkPolicy,
-    })
-
-    if (env && Object.keys(env).length > 0) {
-      await storeEnvVars(sandbox.name, env)
-    }
-
-    return { success: true, value: { sandboxName: sandbox.name } }
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    return { success: false, error: redactSensitiveInfo(message) }
-  }
-}
 
 /**
  * Write the in-sandbox HTML-injecting proxy and DOM bridge script into the
