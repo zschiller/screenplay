@@ -780,8 +780,28 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       () => ({
         insertText: (text: string) => {
           if (!editor) return
-          const prefix = editor.isEmpty ? "" : "\n\n"
-          editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+          if (!text.includes("\n")) {
+            const prefix = editor.isEmpty ? "" : "\n\n"
+            editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+            return
+          }
+          // A plain string's newlines collapse to spaces, so multi-line text
+          // (a quoted plan) goes in as one paragraph per line. The leading
+          // empty paragraph starts it on its own line after an existing draft.
+          const lines = text
+            .split("\n")
+            .map((line) =>
+              line
+                ? { type: "paragraph", content: [{ type: "text", text: line }] }
+                : { type: "paragraph" }
+            )
+          editor
+            .chain()
+            .focus("end")
+            .insertContent(
+              editor.isEmpty ? lines : [{ type: "paragraph" }, ...lines]
+            )
+            .run()
         },
         focus: () => editor?.chain().focus("end").run(),
       }),
