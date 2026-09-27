@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback } from "react"
+import { toast } from "sonner"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
@@ -128,7 +129,7 @@ export function useFrameActions({
       if (!agent) return
       const routes = agent.discoveredRoutes ?? []
       if (routes.length === 0) {
-        alert("No routes have been discovered for this branch yet.")
+        toast.info("No routes have been discovered for this branch yet.")
         return
       }
       const result = addRoutesGroupForAgent(agentId, routes)
