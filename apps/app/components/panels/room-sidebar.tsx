@@ -37,7 +37,6 @@ import {
 import {
   FolderPlus,
   Folder,
-  Loader2,
   Settings,
   ChevronRight,
   GitBranch,
@@ -101,10 +100,11 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Kbd } from "@workspace/ui/components/kbd"
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@workspace/ui/components/hover-card"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
+import { Spinner } from "@workspace/ui/components/spinner"
 import {
   Tooltip,
   TooltipContent,
@@ -1943,41 +1943,55 @@ export function RoomSidebar({
                                                             }
                                                           >
                                                             {isError ? (
-                                                              <HoverCard
-                                                                openDelay={100}
-                                                              >
-                                                                <HoverCardTrigger
-                                                                  asChild
-                                                                >
-                                                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600! dark:text-red-400!" />
-                                                                </HoverCardTrigger>
-                                                                <HoverCardContent
+                                                              <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                  <button
+                                                                    type="button"
+                                                                    aria-label="Show setup error"
+                                                                    className="-m-0.5 flex shrink-0 cursor-pointer rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    onDoubleClick={(e) => e.stopPropagation()}
+                                                                    // Keep Enter/Space from reaching the sortable
+                                                                    // row's KeyboardSensor (Space is its pick-up key).
+                                                                    onKeyDown={(e) => e.stopPropagation()}
+                                                                  >
+                                                                    <AlertTriangle className="size-3.5 text-destructive" />
+                                                                  </button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent
                                                                   align="start"
                                                                   side="right"
-                                                                  className="max-h-64 w-80 overflow-auto"
+                                                                  className="max-h-64 w-80 gap-1 overflow-auto"
+                                                                  // Portaled, but React events still bubble to the
+                                                                  // row: keep clicks from selecting the Workspace and
+                                                                  // keys/pointer from reaching the dnd-kit sensors.
+                                                                  onClick={(e) => e.stopPropagation()}
+                                                                  onKeyDown={(e) => e.stopPropagation()}
+                                                                  onPointerDown={(e) => e.stopPropagation()}
                                                                 >
-                                                                  <p className="mb-1 text-xs font-medium text-foreground">
+                                                                  <p className="text-xs font-medium text-popover-foreground">
                                                                     Setup failed
                                                                   </p>
-                                                                  <pre className="text-[11px] break-words whitespace-pre-wrap text-red-600 dark:text-red-400">
-                                                                    {branch.error ||
-                                                                      "Unknown error"}
+                                                                  <pre className="font-mono text-xs break-words whitespace-pre-wrap text-destructive">
+                                                                    {branch.error || "Unknown error"}
                                                                   </pre>
-                                                                </HoverCardContent>
-                                                              </HoverCard>
+                                                                </PopoverContent>
+                                                              </Popover>
                                                             ) : isLoading ? (
-                                                              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-sidebar-foreground/70" />
+                                                              // Progress (creating/starting) uses the shared Spinner;
+                                                              // the 9-dot GripSpinner is reserved for agent activity.
+                                                              <Spinner
+                                                                aria-label="Setting up"
+                                                                className="size-3.5 shrink-0 text-sidebar-foreground/70"
+                                                              />
                                                             ) : isActive ? (
                                                               <GripSpinner className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/70" />
-                                                            ) : pr?.state ===
-                                                              "merged" ? (
-                                                              <GitMerge className="shrink-0 text-purple-600! dark:text-purple-400!" />
-                                                            ) : pr?.state ===
-                                                              "open" ? (
-                                                              <GitPullRequest className="shrink-0 text-green-700! dark:text-green-300!" />
-                                                            ) : pr?.state ===
-                                                              "closed" ? (
-                                                              <GitPullRequestClosed className="shrink-0 text-red-600! dark:text-red-400!" />
+                                                            ) : pr?.state === "merged" ? (
+                                                              <GitMerge className="shrink-0 text-info!" />
+                                                            ) : pr?.state === "open" ? (
+                                                              <GitPullRequest className="shrink-0 text-success!" />
+                                                            ) : pr?.state === "closed" ? (
+                                                              <GitPullRequestClosed className="shrink-0 text-destructive!" />
                                                             ) : (
                                                               <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                                                             )}
@@ -2045,7 +2059,7 @@ export function RoomSidebar({
                                                               />
                                                             ) : (
                                                               <span className="truncate font-mono text-xs text-muted-foreground">
-                                                                creating…
+                                                                Creating…
                                                               </span>
                                                             )}
                                                           </div>
@@ -2066,13 +2080,13 @@ export function RoomSidebar({
                                                               <>
                                                                 {hasStats && (
                                                                   <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                                    <span className="text-green-700 dark:text-green-300">
+                                                                    <span className="text-success">
                                                                       +
                                                                       {
                                                                         stats.additions
                                                                       }
                                                                     </span>
-                                                                    <span className="text-red-700 dark:text-red-300">
+                                                                    <span className="text-destructive">
                                                                       -
                                                                       {
                                                                         stats.deletions
@@ -2193,7 +2207,7 @@ export function RoomSidebar({
                           />
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
-                            creating…
+                            Creating…
                           </span>
                         )}
                       </div>
