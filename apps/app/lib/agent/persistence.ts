@@ -111,20 +111,44 @@ export async function appendAcpMessage(
 }
 
 /**
+ * The `agent_message` row id one ACP tool call owns. Scoped to the **run**, not
+ * just the chat (#742): provider tool-call ids are only guaranteed unique
+ * within the turn that issued them, and OpenAI-compatible servers that number
+ * calls per response (`call_1`, `call_2`, … restarting every turn) reuse them
+ * across turns. Keying by chat alone let a later turn's call overwrite an
+ * earlier turn's row; keying by run cannot, because a run never spans turns.
+ *
+ * Nothing outside this module parses the id — it is an opaque text primary key
+ * — so pre-existing rows keep their older chat-scoped ids and simply stop
+ * colliding with new ones.
+ */
+function acpToolCallRowId(
+  chatId: string,
+  runId: string,
+  toolCallId: string
+): string {
+  return `tc_${chatId}_${runId}_${toolCallId}`
+}
+
+/**
  * Upsert an ACP-native tool-call record *in place* by `toolCallId` (ADR 0006,
- * issue #377). The row id is derived from the chat + tool-call id, so every
- * `pending` → `in_progress` → `completed`/`failed` update rewrites the same
- * row — and `createdAt` keeps its first-insert value, so the call holds its
- * position in the conversation order regardless of how many times it updates.
+ * issue #377). The row id is derived from the chat + run + tool-call id, so
+ * every `pending` → `in_progress` → `completed`/`failed` update *of the same
+ * call* rewrites the same row — and `createdAt` keeps its first-insert value,
+ * so the call holds its position in the conversation order regardless of how
+ * many times it updates. Two runs that happen to reuse a provider's tool-call
+ * id get two rows, not one (see {@link acpToolCallRowId}); the consumer is
+ * built per run, so a single call's updates all land under one run id.
  */
 export async function upsertAcpToolCall(
   chatId: string,
+  runId: string,
   record: AcpToolCallRecord
 ): Promise<void> {
   await db
     .insert(agentMessage)
     .values({
-      id: `tc_${chatId}_${record.toolCallId}`,
+      id: acpToolCallRowId(chatId, runId, record.toolCallId),
       chatId,
       role: record.role,
       message: record,
