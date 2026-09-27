@@ -14,8 +14,9 @@ export default function SignInPage() {
     <EntryScreen
       description={
         <>
-          Sign in with GitHub to continue. Screenplay needs repo access so it
-          can clone your projects and push commits on your behalf.
+          Sign in with GitHub to continue. Screenplay needs access to your
+          GitHub repositories so it can clone them and push commits on your
+          behalf.
         </>
       }
     >

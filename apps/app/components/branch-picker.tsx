@@ -51,7 +51,7 @@ export function BranchPicker({
   return (
     <Command>
       <CommandInput
-        placeholder="Search branches..."
+        placeholder="Search git branches…"
         onKeyDown={(e) => {
           metaRef.current = e.metaKey
         }}
@@ -65,11 +65,11 @@ export function BranchPicker({
             <div className="flex items-center justify-center gap-2 py-4">
               <Spinner className="size-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                Loading branches…
+                Loading git branches…
               </span>
             </div>
           ) : (
-            "No branches found."
+            "No git branches found."
           )}
         </CommandEmpty>
         <CommandGroup>

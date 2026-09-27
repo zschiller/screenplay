@@ -73,7 +73,7 @@ export function DeleteBranchDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete branch?</AlertDialogTitle>
+          <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
           <AlertDialogDescription>
             The agent and its frames will be removed. The local branch{" "}
             <span className="font-mono">{branchName}</span> stays in your

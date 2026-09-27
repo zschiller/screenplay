@@ -89,8 +89,8 @@ function SignedOut() {
     <EntryScreen
       description={
         <>
-          Design UI on an infinite canvas. Each iframeLayer runs a live sandbox.
-          Collaborate in real time.
+          Design UI on an infinite canvas. Each frame is a live preview of your
+          app. Collaborate in real time.
         </>
       }
     >

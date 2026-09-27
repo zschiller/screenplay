@@ -648,7 +648,7 @@ function PlanMessage({
     ),
     rejected: (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-400">
-        <XCircle className="h-3 w-3" /> Changes Requested
+        <XCircle className="h-3 w-3" /> Changes requested
       </span>
     ),
   }[message.status]

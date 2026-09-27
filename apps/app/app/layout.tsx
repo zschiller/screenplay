@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s · Screenplay",
   },
   description:
-    "Design UI on an infinite canvas. Each iframeLayer runs a live sandbox. Collaborate in real time.",
+    "Design UI on an infinite canvas. Each frame is a live preview of your app. Collaborate in real time.",
 }
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })

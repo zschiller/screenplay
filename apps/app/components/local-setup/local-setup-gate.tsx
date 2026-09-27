@@ -135,9 +135,10 @@ export function LocalSetupGate({
               Connect GitHub (optional)
             </h2>
             <p className="pl-7 text-sm text-muted-foreground">
-              Lights up repo listing, Branch-via-API, and pull requests. You can
-              skip this — adding a repo by URL or local folder needs no
-              connection — and connect later in Settings.
+              Lights up browsing your GitHub repositories and branches, and
+              opening pull requests. You can skip this — adding a project by
+              clone URL or local folder needs no connection — and connect later
+              in Settings.
             </p>
           </div>
           <GitHubConnectionPanel />
