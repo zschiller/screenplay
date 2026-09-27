@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import Markdown, { type Components } from "react-markdown"
 import {
   ChevronDown,
@@ -38,9 +38,9 @@ import {
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { chatStore } from "@/lib/chat-store"
-import { targetingStore } from "@/lib/targeting-store"
 import { openExternal } from "@/lib/open-external"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
+import { useElementHighlight } from "./use-element-highlight"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -725,12 +725,10 @@ function ReasoningMessage({
  * A single element token in the sent-message bubble, hung off a HoverCard that
  * reveals the detail (selector / route / frame) the terse label hides — mirror
  * of the composer's node view. While the card is open it also outlines the
- * referenced element on the canvas via the targeting store, guarded by `refId`
- * so leaving clears only our own highlight (and an unmount clears it too, in
- * case the card closes by teardown rather than a pointer-out). The canvas
- * highlight needs the frame's layer id, carried in the footer on turns sent
- * after that was added; a legacy token without one still shows the detail card,
- * just no outline.
+ * referenced element on the canvas via the shared `useElementHighlight`. The
+ * canvas highlight needs the frame's layer id, carried in the footer on turns
+ * sent after that was added; a legacy token without one still shows the detail
+ * card, just no outline.
  *
  * Module-scoped (not an inline closure inside the markdown `components`) so its
  * identity is stable: the highlight re-renders the Canvas subtree that hosts the
@@ -746,21 +744,11 @@ function ElementHistoryToken({
   detail: TargetedElement
   children: ReactNode
 }) {
-  useEffect(() => {
-    return () => targetingStore.clearHighlight(refId)
-  }, [refId])
-
-  const handleOpenChange = (open: boolean) => {
-    if (open && detail.iframeLayerId && detail.selector) {
-      targetingStore.setHighlight({
-        iframeLayerId: detail.iframeLayerId,
-        selector: detail.selector,
-        ref: refId,
-      })
-    } else {
-      targetingStore.clearHighlight(refId)
-    }
-  }
+  const handleOpenChange = useElementHighlight(
+    refId,
+    detail.iframeLayerId,
+    detail.selector
+  )
 
   return (
     <HoverCard onOpenChange={handleOpenChange}>
