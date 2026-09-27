@@ -27,7 +27,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { roomId } = await params
   const room = await getRoom(roomId)
-  return { title: room?.name ?? "Project" }
+  return { title: room?.name ?? "Canvas not found" }
 }
 
 export default async function RoomPage({

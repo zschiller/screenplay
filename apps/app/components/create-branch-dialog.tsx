@@ -68,7 +68,7 @@ interface CreateBranchDialogProps {
   defaultBranch: string
   /**
    * The base each row starts on. Defaults to {@link defaultBranch}; the
-   * "New branch from here…" menu item (#353) seeds it with the originating
+   * "New workspace from here…" menu item (#353) seeds it with the originating
    * branch's ref so the dialog opens pre-based on that branch (a base ≠ the
    * default resolves to the planner's `duplicate-branch` flow), still with an
    * empty prompt.
@@ -250,9 +250,9 @@ export function CreateBranchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="px-4 pt-4 pb-3">
-          <DialogTitle>Create branches</DialogTitle>
+          <DialogTitle>Create workspaces</DialogTitle>
           <DialogDescription>
-            Create one or more branches, each with an optional prompt.
+            Create one or more workspaces, each with an optional prompt.
           </DialogDescription>
         </DialogHeader>
 
@@ -320,8 +320,8 @@ export function CreateBranchDialog({
           </Button>
           <Button onClick={submitAll}>
             {rows.length === 1
-              ? "Create branch"
-              : `Create ${rows.length} branches`}
+              ? "Create workspace"
+              : `Create ${rows.length} workspaces`}
             <Kbd>↵</Kbd>
           </Button>
         </DialogFooter>

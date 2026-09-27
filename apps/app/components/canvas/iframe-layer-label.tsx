@@ -209,7 +209,7 @@ function RoutePicker({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search or type a route..."
+            placeholder="Search or type a route…"
             value={input}
             onValueChange={setInput}
           />
@@ -349,7 +349,7 @@ function BranchPicker({
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
-              Choose a branch
+              Choose a workspace
             </span>
           )}
           <ChevronsUpDown
@@ -369,9 +369,9 @@ function BranchPicker({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <Command>
-          <CommandInput placeholder="Search branches..." />
+          <CommandInput placeholder="Search workspaces…" />
           <CommandList>
-            <CommandEmpty>No branches found.</CommandEmpty>
+            <CommandEmpty>No workspaces found.</CommandEmpty>
             <CommandGroup>
               {pickableBranches.map((a) => {
                 const isBusy =

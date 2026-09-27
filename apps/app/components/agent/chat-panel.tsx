@@ -948,7 +948,7 @@ export function ChatPanel({
                   isAgentBusy
                     ? "Sandbox still starting…"
                     : anyChatStreaming
-                      ? "Agent is working on this branch…"
+                      ? "Agent is working in this workspace…"
                       : undefined
                 }
               >
@@ -1382,11 +1382,11 @@ function TargetPicker({
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" side="bottom" align="start">
         <Command>
-          <CommandInput placeholder="Search branches and layers..." />
+          <CommandInput placeholder="Search workspaces and layers…" />
           <CommandList>
             <CommandEmpty>No matches.</CommandEmpty>
             {pickableAgents.length > 0 && (
-              <CommandGroup heading="Branches">
+              <CommandGroup heading="Workspaces">
                 {pickableAgents.map((a) => {
                   const isBusy =
                     a.status === "creating" || a.status === "starting"

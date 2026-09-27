@@ -31,7 +31,14 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { cn } from "@workspace/ui/lib/utils"
 import { HomeScrollBody } from "./home-scroll-body"
+import {
+  HOME_COLUMN,
+  HomePageHeader,
+  HomeToolbarLabel,
+  HomeToolbarTooltip,
+} from "./home-page-header"
 import {
   useHome,
   defaultOrder,
@@ -44,6 +51,7 @@ import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
 import { prewarmRoom } from "@/lib/yjs-host/client"
+import { CanvasIcon } from "@/components/canvas-icon"
 
 const SORT_LABELS: Record<SortKey, string> = {
   updated: "Last edited",
@@ -104,31 +112,25 @@ export function RoomsView({
   const reversedOrder: SortOrder = primaryOrder === "asc" ? "desc" : "asc"
   const isDefaultOrder = order === primaryOrder
 
+  const sortLabel = `Sort: ${SORT_LABELS[sort]}, ${ORDER_LABELS[sort][order].toLowerCase()}`
+
   const header = (
-    <header
-      data-tauri-drag-region
-      className="flex h-14 items-center bg-background"
-    >
-      <div
-        data-tauri-drag-region
-        className="mx-auto flex w-full max-w-5xl items-center gap-2 px-16"
-      >
-        {/* All files / a folder reads as a breadcrumb trail; Recents keeps its
-            plain title. */}
-        {folderView ? (
-          <FolderBreadcrumb ancestors={ancestors} />
-        ) : (
-          <h1 className="text-2xl font-normal">{title}</h1>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+    <HomePageHeader
+      // All files / a folder reads as a breadcrumb trail; Recents keeps its
+      // plain title.
+      title={folderView ? <FolderBreadcrumb ancestors={ancestors} /> : title}
+      actions={
+        <>
           {showSort && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  {isDefaultOrder ? <ArrowDown /> : <ArrowUp />}
-                  {SORT_LABELS[sort]}
-                </Button>
-              </DropdownMenuTrigger>
+              <HomeToolbarTooltip label={sortLabel}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" aria-label={sortLabel}>
+                    {isDefaultOrder ? <ArrowDown /> : <ArrowUp />}
+                    <HomeToolbarLabel>{SORT_LABELS[sort]}</HomeToolbarLabel>
+                  </Button>
+                </DropdownMenuTrigger>
+              </HomeToolbarTooltip>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Sort by</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
@@ -179,19 +181,30 @@ export function RoomsView({
           </Tabs>
 
           {showFolders && (
-            <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
-              <FolderPlus />
-              Add folder
-            </Button>
+            <HomeToolbarTooltip label="Add folder">
+              <Button
+                variant="outline"
+                aria-label="Add folder"
+                onClick={() => setNewFolderOpen(true)}
+              >
+                <FolderPlus />
+                <HomeToolbarLabel>Add folder</HomeToolbarLabel>
+              </Button>
+            </HomeToolbarTooltip>
           )}
 
-          <Button onClick={() => setNewRoomOpen(true)}>
-            <Plus />
-            New canvas
-          </Button>
-        </div>
-      </div>
-    </header>
+          <HomeToolbarTooltip label="New canvas">
+            <Button
+              aria-label="New canvas"
+              onClick={() => setNewRoomOpen(true)}
+            >
+              <Plus />
+              <HomeToolbarLabel>New canvas</HomeToolbarLabel>
+            </Button>
+          </HomeToolbarTooltip>
+        </>
+      }
+    />
   )
 
   return (
@@ -215,7 +228,7 @@ export function RoomsView({
             <EmptyState onCreate={() => setNewRoomOpen(true)} />
           )
         ) : (
-          <div className="mx-auto max-w-5xl px-16 pb-4">
+          <div className={cn(HOME_COLUMN, "pb-4")}>
             {/* Drag-drop filing rides the one DndContext mounted at the shell
                 (HomeShell), so a canvas or folder can be dragged onto a folder
                 tile here — or onto a pinned folder / "All files" in the sidebar
@@ -292,7 +305,7 @@ export function RoomsView({
 
 function EmptyState({
   onCreate,
-  icon = <LayoutGrid />,
+  icon = <CanvasIcon />,
   title = "Create your first canvas",
   description = "A canvas is your space to design with live previews.",
 }: {

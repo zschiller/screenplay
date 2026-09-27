@@ -764,7 +764,7 @@ export function IframeLayer({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      {createFlow ? "Stop Create Flow" : "Create Flow"}
+                      {createFlow ? "Stop create flow" : "Create flow"}
                     </TooltipContent>
                   </Tooltip>
                   {/* interaction modes above ∣ everything else below */}
@@ -897,7 +897,7 @@ export function IframeLayer({
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
                       <span className="text-xs text-muted-foreground">
-                        Waiting for dev server...
+                        Waiting for dev server…
                       </span>
                     </>
                   )}

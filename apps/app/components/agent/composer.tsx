@@ -441,7 +441,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       isStreaming = false,
       onStop,
       hideSend = false,
-      placeholder = "Ask the agent...",
+      placeholder = "Ask the agent…",
       className = "relative border-t border-border p-3",
       onPickElement,
       targetEligible = true,
@@ -880,7 +880,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                   <TooltipContent side="top">
                     {targetEligible
                       ? "Target an element (⌘E)"
-                      : "Open this branch's preview first to target an element"}
+                      : "Open this workspace's preview first to target an element"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

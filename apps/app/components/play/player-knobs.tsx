@@ -73,7 +73,7 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
             <p>
               Call{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">
-                useKnob(...)
+                useKnob()
               </code>{" "}
               from{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">

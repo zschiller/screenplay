@@ -29,8 +29,8 @@ type Props = {
   /**
    * Opens the "Move to…" folder picker. Filing a Room is per-user, so this is
    * offered to collaborators too, not just the owner — moving a shared Room only
-   * changes where the mover sees it. Omitted outside a folder view (Recents),
-   * where it hides.
+   * changes where the mover sees it. Omitted, and hidden, while the user has no
+   * Folder to file into — see `canMoveRoom`, the one rule every surface uses.
    */
   onMove?: () => void
   /** Whether this Room is pinned — flips the toggle label and icon. */

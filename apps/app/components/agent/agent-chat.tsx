@@ -136,8 +136,8 @@ export function AgentChat({
   // The empty-state copy below splits on the same flag.
   const isAgentChat = !markdownLayerId
   const composerPlaceholder = isAgentChat
-    ? "Ask the agent... (@ document, / skill)"
-    : "Ask the agent... (@ to mention a document)"
+    ? "Ask the agent… (@ document, / skill)"
+    : "Ask the agent… (@ to mention a document)"
 
   // Merged App ∪ Repo Skill index for the `/` menu, fetched once on chat open
   // (see effect below) and handed to the Composer. `skillsLoading` drives the
@@ -445,7 +445,7 @@ export function AgentChat({
                 messages[messages.length - 1]?.role !== "assistant" && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <GripSpinner className="h-3 w-3" />
-                    Thinking...
+                    Thinking…
                   </div>
                 )}
             </div>

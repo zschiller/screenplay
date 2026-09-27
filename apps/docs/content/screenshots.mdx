@@ -105,7 +105,7 @@ step. A `prepare` that can't find its target warns and the screen is captured
 without it, rather than sinking the run.
 
 A surface whose content streams in over the network — the terminal's
-WebSocket, the sandbox logs — adds `routes`: stubs installed before the first
+WebSocket, the sandbox logs — adds `beforeNavigate` stubs, installed before the first
 navigation, since the fixture world has no running sandbox to answer.
 `screenshots/fixtures/streams.ts` has the terminal and logs stubs the
 `terminal`, `logs-reconnecting` and `logs-error` screens use.

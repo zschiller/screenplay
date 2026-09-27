@@ -141,7 +141,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => s.label)).toEqual([
       "Identity",
       "Preview",
-      "Branch & sandbox",
+      "Workspace & sandbox",
       "Git",
       "Danger",
     ])
@@ -175,7 +175,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     // The section skeleton still drives item grouping and separators, but the
     // labels themselves are no longer surfaced in the menu.
     expect(
-      screen.queryByText(/^(Identity|Preview|Branch & sandbox|Git|Danger)$/)
+      screen.queryByText(/^(Identity|Preview|Workspace & sandbox|Git|Danger)$/)
     ).toBeNull()
   })
 
@@ -190,7 +190,7 @@ describe("BranchOverflowMenuContent rendering", () => {
       "Open prototype player",
       "Open in browser",
       "Show all routes",
-      "New branch from here…",
+      "New workspace from here…",
       "Restart",
       "Create pull request",
       "Rebase on main",
@@ -331,18 +331,18 @@ function MenuToDialogHarness() {
   )
 }
 
-describe('"New branch from here…" opens the create dialog', () => {
+describe('"New workspace from here…" opens the create dialog', () => {
   it("opens it pre-based on this branch with an empty prompt", async () => {
     render(<MenuToDialogHarness />)
 
     // No dialog until the item is chosen.
-    expect(screen.queryByText("Create branches")).toBeNull()
+    expect(screen.queryByText("Create workspaces")).toBeNull()
 
-    fireEvent.click(screen.getByText("New branch from here…"))
+    fireEvent.click(screen.getByText("New workspace from here…"))
 
     // The create dialog is now open…
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).queryByText("Create branches")).not.toBeNull()
+    expect(within(dialog).queryByText("Create workspaces")).not.toBeNull()
     // …pre-based on this branch (the base chip shows its ref, not the default)…
     expect(within(dialog).queryByText(branch.ref)).not.toBeNull()
     expect(within(dialog).queryByText(repo.defaultBranch)).toBeNull()
@@ -354,7 +354,7 @@ describe('"New branch from here…" opens the create dialog', () => {
   it("is disabled for a branch with no ref to fork from", () => {
     renderMenu({ ref: undefined })
     const item = screen
-      .getByText("New branch from here…")
+      .getByText("New workspace from here…")
       .closest("[role=menuitem]")
     expect(item?.getAttribute("aria-disabled")).toBe("true")
   })

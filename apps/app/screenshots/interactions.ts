@@ -2,7 +2,13 @@ import type { Page } from "playwright-core"
 
 import { stubTerminal } from "./fixtures/streams"
 import { FIXTURE_IDS } from "./fixtures/world"
-import { canvasPanels, DEFAULT_VIEWPORT, openTerminalTab } from "./screens"
+import {
+  canvasPanels,
+  DEFAULT_VIEWPORT,
+  homeView,
+  openTerminalTab,
+  tabTo,
+} from "./screens"
 
 /**
  * The **named interactions** — short flows the harness records to video.
@@ -28,9 +34,8 @@ export interface Interaction {
   /** Cookies set before the first navigation — same mechanism as a Screen's,
    *  for flows that start with a panel already open. */
   cookies?: Array<{ name: string; value: string }>
-  /** Network stubs installed before the first navigation — same mechanism as a
-   *  Screen's `routes`. */
-  routes?: (page: Page) => Promise<void>
+  /** Runs before the first navigation — same hook as a Screen's. */
+  beforeNavigate?: (page: Page) => Promise<void>
   /** The flow itself. `page` is already loaded at `path` and settled. */
   run: (page: Page) => Promise<void>
 }
@@ -51,6 +56,31 @@ export const INTERACTIONS: Interaction[] = [
         .waitForURL(`**/${ids.rooms.checkout}`, { timeout: 30_000 })
         .catch(() => {})
       await page.waitForTimeout(3500)
+    },
+  },
+  {
+    name: "canvas-loading",
+    description:
+      "Opening a Canvas by URL on a slow connection: the loading skeleton, then the Canvas fading in over it.",
+    path: "/",
+    run: async (page) => {
+      // Locally the Canvas answers in milliseconds, which is too fast to
+      // review. Add latency to every request so the skeleton has a few seconds
+      // on screen, as it would on a slow machine. A full load rather than a
+      // click from home: `next dev` doesn't prefetch, so a soft navigation
+      // would sit on the home page instead of showing the loading state.
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send("Network.enable")
+      await cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: 800,
+        downloadThroughput: -1,
+        uploadThroughput: -1,
+      })
+      await page
+        .goto(`/${ids.rooms.checkout}`, { timeout: 60_000 })
+        .catch(() => {})
+      await page.waitForTimeout(6000)
     },
   },
   {
@@ -114,7 +144,7 @@ export const INTERACTIONS: Interaction[] = [
       "An open terminal tab while the app flips light → dark → light, without reopening it.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
-    routes: stubTerminal,
+    beforeNavigate: stubTerminal,
     run: async (page) => {
       await openTerminalTab(page).catch(() =>
         console.warn("  ! skipped a step: could not open a terminal tab")
@@ -148,6 +178,101 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1200)
     },
   },
+  {
+    name: "keyboard-home",
+    description:
+      "Home by keyboard alone: Tab through the grid to a tile's ⋯ menu, open Move to…, arrow through destinations.",
+    path: "/files",
+    run: async (page) => {
+      // Slow enough per press that a reviewer can follow the focus ring.
+      await step(() => tabTo(page, "Folder actions", { delayMs: 350 }))
+      await page.waitForTimeout(700)
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(700)
+      // The menu opens on its first item, Rename; Move to… is next.
+      await page.keyboard.press("ArrowDown")
+      await page.waitForTimeout(500)
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(900)
+      for (const key of ["ArrowDown", "ArrowDown", "ArrowUp"]) {
+        await page.keyboard.press(key)
+        await page.waitForTimeout(600)
+      }
+      await page.keyboard.press("Escape")
+      await page.waitForTimeout(900)
+    },
+  },
+  {
+    name: "keyboard-home-table",
+    description:
+      "The table view by keyboard: Tab down the rows, each row's ⋯ button showing as it takes focus.",
+    path: "/files",
+    cookies: homeView("table"),
+    run: async (page) => {
+      await step(() => tabTo(page, "Canvas actions", { delayMs: 350 }))
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.press("Tab")
+        await page.waitForTimeout(450)
+      }
+      await page.waitForTimeout(800)
+    },
+  },
+  {
+    name: "player-keyboard",
+    description:
+      "The player HUD by keyboard: open the Knobs panel, close it with Escape, again with reduced motion on.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    run: async (page) => {
+      await page.waitForTimeout(800)
+      for (const reducedMotion of ["no-preference", "reduce"] as const) {
+        await page.emulateMedia({ reducedMotion })
+        // Focus the device picker and Tab once to Knobs — its neighbour in the
+        // pill — the way a keyboard user reaches it.
+        await step(() =>
+          page
+            .getByRole("combobox", { name: /^device/i })
+            .first()
+            .focus()
+        )
+        await page.keyboard.press("Tab")
+        await page.waitForTimeout(500)
+        await page.keyboard.press("Enter")
+        await page.waitForTimeout(1200)
+        await page.keyboard.press("Escape")
+        await page.waitForTimeout(1200)
+      }
+    },
+  },
+  {
+    name: "player-hud-drag",
+    description:
+      "Dragging the player HUD across the screen and letting it snap to a corner, then again with reduced motion on.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    run: async (page) => {
+      const box = page.viewportSize() ?? DEFAULT_VIEWPORT
+      await page.waitForTimeout(800)
+      const targets = [
+        { x: box.width * 0.3, y: box.height * 0.35 },
+        { x: box.width * 0.7, y: box.height * 0.65 },
+      ]
+      for (const [i, reducedMotion] of (
+        ["no-preference", "reduce"] as const
+      ).entries()) {
+        await page.emulateMedia({ reducedMotion })
+        const grip = page.getByLabel("Drag to a corner").first()
+        const from = await grip.boundingBox().catch(() => null)
+        if (!from) {
+          console.warn("  ! skipped a step: could not find the HUD grip")
+          return
+        }
+        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(targets[i]!.x, targets[i]!.y, { steps: 25 })
+        await page.mouse.up()
+        await page.waitForTimeout(1500)
+      }
+    },
+  },
 ]
 
 /**
@@ -163,6 +288,17 @@ async function click(
     await locator.click({ timeout: 10_000 })
   } catch {
     console.warn(`  ! skipped a step: could not click ${locator}`)
+  }
+}
+
+/** Run a step that may not find its target, narrating a miss like {@link click}. */
+async function step(fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn()
+  } catch (error) {
+    console.warn(
+      `  ! skipped a step: ${error instanceof Error ? error.message : error}`
+    )
   }
 }
 

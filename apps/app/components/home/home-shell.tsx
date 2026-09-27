@@ -90,7 +90,9 @@ export function HomeShell({
           >
             <HomeSidebar />
           </ResizablePanel>
-          <ResizableHandle className="focus-visible:ring-0" />
+          {/* Keyboard focus thickens the divider into the ring colour, the only
+              sign a keyboard user has that arrow keys will now resize. */}
+          <ResizableHandle className="focus-visible:bg-ring focus-visible:ring-2 focus-visible:ring-ring/50" />
           <ResizablePanel id="home-content">
             <main className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-background">
               {children}

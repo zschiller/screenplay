@@ -9,7 +9,7 @@ import { encodeOutput } from "@/lib/terminal/ttyd-protocol"
  * terminal shows "Couldn't reach the sandbox terminal." and the logs panel a
  * 404 — true, but not the surface a design-polish ticket needs to review.
  *
- * Installed through a Screen's `routes` hook, before the first navigation: both
+ * Installed through a Screen's `beforeNavigate` hook, before the first navigation: both
  * surfaces connect the moment they mount (terminal and logs tabs are
  * force-mounted), so a stub installed later would miss the only request.
  */

@@ -170,16 +170,16 @@ async function captureOne(
   })
   try {
     const page = await context.newPage()
-    await screen.routes?.(page)
+    await screen.beforeNavigate?.(page)
     // `domcontentloaded`, not `load`: the canvas keeps long-lived connections
     // open, so `load` can outlast the timeout on a perfectly healthy page.
     const response = await page.goto(screen.path, {
       waitUntil: "domcontentloaded",
       timeout: 120_000,
     })
-    // Don't freeze yet when a `prepare` follows: a menu it opens and closes
-    // would be pinned mid-exit-animation and never unmount. The settle after
-    // `prepare` freezes the page for the shot.
+    // Freeze only after `prepare`: frozen animations stop at their first frame,
+    // so a menu or popover a `prepare` opens would be caught mid-entrance at
+    // opacity 0, and a menu it closes would never finish leaving.
     await settle(page, { freeze: !screen.prepare })
     if (screen.prepare) {
       // A `prepare` that can't find its affordance shouldn't sink the run: the
@@ -240,7 +240,7 @@ export async function recordInteraction(
       recordVideoDir: dir,
     })
     const page = await context.newPage()
-    await options.interaction.routes?.(page)
+    await options.interaction.beforeNavigate?.(page)
     await page.goto(options.interaction.path, {
       waitUntil: "domcontentloaded",
       timeout: 120_000,

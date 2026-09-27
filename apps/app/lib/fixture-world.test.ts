@@ -66,13 +66,42 @@ describe("fixture-world switch", () => {
 describe("fixture world → the first-run setup gate", () => {
   afterEach(() => {
     vi.unstubAllEnvs()
+    vi.doUnmock("next/headers")
     vi.resetModules()
+  })
+
+  /** Stand in for the request's cookie jar, carrying an entry-state cookie or none. */
+  function mockEntryCookie(value: string | undefined) {
+    vi.doMock("next/headers", () => ({
+      cookies: async () => ({
+        get: (name: string) =>
+          name === "screenplay_fixture_entry" && value !== undefined
+            ? { name, value }
+            : undefined,
+      }),
+    }))
+  }
+
+  it.each([
+    ["setup-pending", { harnessSatisfied: false, githubSatisfied: false }],
+    ["setup-agent-ready", { harnessSatisfied: true, githubSatisfied: false }],
+    ["signed-out", { harnessSatisfied: true, githubSatisfied: true }],
+    ["garbage", { harnessSatisfied: true, githubSatisfied: true }],
+  ])("reads the %s entry cookie as %o", async (value, expected) => {
+    vi.resetModules()
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD", "1")
+    mockEntryCookie(value)
+    const { getLocalSetupGateStatus } =
+      await import("./local-setup/gate-status")
+    expect(await getLocalSetupGateStatus()).toEqual(expected)
   })
 
   it("opens the gate without probing the host at all", async () => {
     vi.resetModules()
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD", "1")
+    mockEntryCookie(undefined)
 
     // Both host probes throw: a capture container has no coding CLI and no
     // GitHub, so the short-circuit must happen *before* either is reached, not
