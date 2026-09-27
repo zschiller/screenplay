@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and PRDs are tracked as GitHub issues (github.com/zschiller/screenplay), managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked as GitHub issues (github.com/zschiller/screenplay), managed via the `gh` CLI. Dependencies between issues are always GitHub native blocking edges ("blocked by"), never prose alone. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
