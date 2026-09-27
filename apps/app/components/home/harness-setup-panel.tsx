@@ -17,6 +17,7 @@ import type {
 } from "@/lib/agent/harnesses/setup"
 import { initialSetupState, setupReducer } from "@/lib/host-tool/setup-step"
 import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
+import { LoadErrorRow } from "@/components/home/load-error"
 
 /**
  * The desktop "Coding agents" (Harness Setup) surface in Settings (ADR 0015),
@@ -33,16 +34,34 @@ import { HostSessionTerminal } from "@/components/agent/host-session-terminal"
  */
 export function HarnessSetupPanel() {
   const [rows, setRows] = useState<HarnessSetupRow[] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    listHarnessSetupRows().then((r) => {
-      if (!cancelled) setRows(r)
-    })
+    listHarnessSetupRows()
+      .then((r) => {
+        if (!cancelled) setRows(r)
+      })
+      .catch((err) => {
+        console.error("Failed to check coding agents", err)
+        if (!cancelled) setLoadFailed(true)
+      })
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Retry after a failed check; a second failure rejects and leaves the error up.
+  const recheck = useCallback(async () => {
+    setRows(await listHarnessSetupRows())
+    setLoadFailed(false)
+  }, [])
+
+  if (loadFailed) {
+    return (
+      <LoadErrorRow title="Couldn't check coding agents" onRetry={recheck} />
+    )
+  }
 
   if (!rows) {
     return (

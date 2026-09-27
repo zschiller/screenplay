@@ -5,6 +5,7 @@ import { EntryScreen } from "@/components/entry/entry-screen"
 import { HomeShell } from "@/components/home/home-shell"
 import { getUserId } from "@/lib/auth-helpers"
 import { readFixtureEntryState } from "@/lib/fixture-entry"
+import { hasFixtureFault } from "@/lib/fixture-faults"
 import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
@@ -62,21 +63,35 @@ export default async function HomeLayout({
   // empty/loading grid (and an empty Pinned section) when returning home from a
   // canvas. One fetch for the whole group: the lifted store is the single source
   // of truth the sidebar and the content grid share.
-  const [initialRooms, initialFolders, initialPlacements, initialPins] =
-    await Promise.all([
-      listRooms().catch(() => []),
-      listFolders().catch(() => []),
-      listRoomPlacements().catch(() => []),
-      listPins().catch(() => []),
-    ])
+  //
+  // A failed load must not read as an empty account ("Create your first
+  // canvas"), so any failure seeds empty lists *and* flags the store, which
+  // shows an error with Retry in place of the grid.
+  const failLoad = await hasFixtureFault("home-load")
+  const load = <T,>(fetch: () => Promise<T[]>): Promise<T[] | null> =>
+    (failLoad
+      ? Promise.reject(new Error("fixture fault: home-load"))
+      : fetch()
+    ).catch((err: unknown) => {
+      console.error("Failed to load the home store", err)
+      return null
+    })
+  const [rooms, folders, placements, pins] = await Promise.all([
+    load(listRooms),
+    load(listFolders),
+    load(listRoomPlacements),
+    load(listPins),
+  ])
+  const loadFailed = [rooms, folders, placements, pins].some((r) => r === null)
 
   return (
     <HomeShell
       initialLayout={initialLayout}
-      initialRooms={initialRooms}
-      initialFolders={initialFolders}
-      initialPlacements={initialPlacements}
-      initialPins={initialPins}
+      initialRooms={rooms ?? []}
+      initialFolders={folders ?? []}
+      initialPlacements={placements ?? []}
+      initialPins={pins ?? []}
+      initialLoadFailed={loadFailed}
       initialViewPrefs={initialViewPrefs}
     >
       {children}

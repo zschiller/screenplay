@@ -50,6 +50,7 @@ import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
+import { LoadErrorState } from "./load-error"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import { CanvasIcon } from "@/components/canvas-icon"
 
@@ -99,6 +100,8 @@ export function RoomsView({
     createRoom,
     createFolder,
     loading,
+    loadFailed,
+    reload,
   } = useHome()
   const [newRoomOpen, setNewRoomOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -215,6 +218,12 @@ export function RoomsView({
             <Spinner className="size-4" />
             <span className="text-sm">Loading…</span>
           </div>
+        ) : loadFailed ? (
+          <LoadErrorState
+            title="Couldn't load your canvases"
+            description="Something went wrong while loading them."
+            onRetry={reload}
+          />
         ) : rooms.length === 0 && folders.length === 0 ? (
           // A nested folder with nothing in it reads as "empty", not first-run.
           folderView && currentFolderId !== null ? (
@@ -260,6 +269,7 @@ export function RoomsView({
           if (!creating) setNewRoomOpen(open)
         }}
         title="New canvas"
+        errorMessage="Couldn't create the canvas. Try again."
         placeholder="Untitled"
         submitLabel={creating ? "Creating…" : "Create"}
         submittingLabel="Creating…"
@@ -284,6 +294,7 @@ export function RoomsView({
             if (!creatingFolder) setNewFolderOpen(open)
           }}
           title="New folder"
+          errorMessage="Couldn't create the folder. Try again."
           placeholder="Untitled folder"
           submitLabel={creatingFolder ? "Creating…" : "Create"}
           submittingLabel="Creating…"

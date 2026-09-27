@@ -17,6 +17,15 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-border": "var(--border)",
         } as React.CSSProperties
       }
+      // The toast stays neutral; only its icon takes the status colour.
+      toastOptions={{
+        classNames: {
+          error: "[&_[data-icon]]:text-destructive",
+          success: "[&_[data-icon]]:text-success",
+          warning: "[&_[data-icon]]:text-warning",
+          info: "[&_[data-icon]]:text-info",
+        },
+      }}
       {...props}
     />
   )

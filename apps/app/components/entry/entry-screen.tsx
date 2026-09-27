@@ -18,7 +18,7 @@ export function EntryScreen({
         <ScreenplayLogo className="size-12" />
         <h1 className="text-2xl font-normal">Screenplay</h1>
       </div>
-      <p className="max-w-md text-center text-sm text-muted-foreground">
+      <p className="max-w-md text-center text-sm text-balance text-muted-foreground">
         {description}
       </p>
       {children}

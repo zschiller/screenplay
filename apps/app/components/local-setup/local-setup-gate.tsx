@@ -80,10 +80,17 @@ export function LocalSetupGate({
     let timer: ReturnType<typeof setTimeout>
 
     const poll = async () => {
-      const next = await getLocalSetupGateStatus()
-      if (cancelled) return
-      // A release re-renders with `released` true, which cancels the loop.
-      setStatus(next)
+      try {
+        const next = await getLocalSetupGateStatus()
+        if (cancelled) return
+        // A release re-renders with `released` true, which cancels the loop.
+        setStatus(next)
+      } catch (err) {
+        // A transient failure (the sidecar busy or restarting) must not end
+        // the loop: nothing else would ever release Finish.
+        console.error("Failed to read setup status", err)
+        if (cancelled) return
+      }
       timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 

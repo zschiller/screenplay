@@ -110,6 +110,13 @@ navigation, since the fixture world has no running sandbox to answer.
 `screenshots/fixtures/streams.ts` has the terminal and logs stubs the
 `terminal`, `logs-reconnecting` and `logs-error` screens use.
 
+A failure state is simulated rather than staged. `failServerActions` (in
+`screens.ts`) answers every server action with a 500, from `beforeNavigate` to
+fail a page's loads or from `prepare` to fail only the mutation it then drives.
+A failure the browser can't cause, such as the home layout's server-side load,
+is a **fixture fault**: a cookie `apps/app/lib/fixture-faults.ts` honours only
+in the fixture world (`fixtureFault("home-load")`).
+
 Interactions live next door in `interactions.ts`, same shape.
 
 ## The fixture world

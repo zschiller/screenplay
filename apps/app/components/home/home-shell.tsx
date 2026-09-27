@@ -36,6 +36,7 @@ export function HomeShell({
   initialFolders,
   initialPlacements,
   initialPins,
+  initialLoadFailed,
   initialViewPrefs,
 }: {
   children: React.ReactNode
@@ -44,6 +45,7 @@ export function HomeShell({
   initialFolders: FolderSummary[]
   initialPlacements: RoomPlacementSummary[]
   initialPins: PinSummary[]
+  initialLoadFailed?: boolean
   initialViewPrefs?: HomeViewPrefs
 }) {
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
@@ -63,6 +65,7 @@ export function HomeShell({
       initialFolders={initialFolders}
       initialPlacements={initialPlacements}
       initialPins={initialPins}
+      initialLoadFailed={initialLoadFailed}
       initialViewPrefs={initialViewPrefs}
       folderView={folderView}
       currentFolderId={currentFolderId}
