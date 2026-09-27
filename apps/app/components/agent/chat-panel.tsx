@@ -280,10 +280,6 @@ function useUsingMouse(): boolean {
 // widen the tab's footprint.
 const TAB_LABEL_CLASS =
   "max-w-[100px] min-w-0 rounded-xs px-0.5 py-0.5 -mx-0.5 -my-0.5"
-// Edit-mode-only decoration. Uses theme tokens (not the sidebar rows' hardcoded
-// white) so it reads against the tab strip.
-const TAB_LABEL_EDIT_CLASS =
-  "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-background text-foreground shadow-sm ring-[0.5px] ring-border"
 
 function ChatTabLabel({
   chat,
@@ -307,7 +303,6 @@ function ChatTabLabel({
         placeholder="Untitled"
         className={TAB_LABEL_CLASS}
         viewClassName="truncate"
-        editClassName={TAB_LABEL_EDIT_CLASS}
       />
     </span>
   )
@@ -335,7 +330,6 @@ function TerminalTabLabel({
         placeholder="Untitled"
         className={TAB_LABEL_CLASS}
         viewClassName="truncate"
-        editClassName={TAB_LABEL_EDIT_CLASS}
       />
     </span>
   )

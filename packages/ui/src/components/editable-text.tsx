@@ -26,7 +26,11 @@ export type EditableTextProps = {
    *  like `truncate` that should clip the read-only label but not the
    *  caret/text while the user is typing. */
   viewClassName?: string
-  /** Extra classes applied only in edit mode. */
+  /** Extra classes applied only in edit mode, merged over the shared
+   *  `EDIT_FIELD_CLASS` look. Use for layout only (e.g. `flex-1`,
+   *  `max-w-full`, margins that offset a padded view) — the field's colors,
+   *  ring, and radius come from the primitive so every rename looks the same
+   *  in both themes. */
   editClassName?: string
   disabled?: boolean
   /** Default true. Strips newlines, commits on Enter. */
@@ -55,6 +59,14 @@ export type EditableTextProps = {
    *  contenteditable selection works. */
   onPointerDown?: (e: React.PointerEvent<HTMLElement>) => void
 }
+
+/** The one inline-rename field style. Theme tokens (not a hard-coded white
+ *  box) so the field reads as an input in light and dark mode; the ring doubles
+ *  as the focus ring, since the element only exists in edit mode while focused.
+ *  The negative margin cancels the padding so entering edit mode doesn't shift
+ *  surrounding layout; horizontal overflow scrolls with a hidden scrollbar. */
+const EDIT_FIELD_CLASS =
+  "relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-background text-foreground shadow-sm ring-1 ring-ring px-0.5 py-0.5 -mx-0.5 -my-0.5"
 
 const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
   function EditableText(
@@ -298,7 +310,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
         "aria-label": placeholder,
         "data-placeholder": placeholder,
         "data-editable-text": "editing",
-        className: cn(sharedClass, editClassName),
+        className: cn(sharedClass, EDIT_FIELD_CLASS, editClassName),
         style:
           lockWidthOnEdit && lockedWidthRef.current != null
             ? { ...style, maxWidth: lockedWidthRef.current }

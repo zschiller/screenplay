@@ -173,12 +173,118 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.checkout}`,
     viewport: { width: 1024, height: 768 },
   },
+  ...renameScreens(),
   {
     name: "player",
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
 ]
+
+/**
+ * One screen per inline-rename surface, each caught mid-rename (#720): the
+ * `prepare` double-clicks the label so the edit field is open, focused, and
+ * its text selected — the state a person sees while typing a new name. They
+ * all live on the reference Canvas; the chat-tab one opens the chat panel.
+ */
+function renameScreens(): Screen[] {
+  const canvas = `/${ids.rooms.checkout}`
+  const on = (
+    name: string,
+    description: string,
+    text: string,
+    region: RenameRegion,
+    extra: Partial<Screen> = {}
+  ): Screen => ({
+    name,
+    description,
+    path: canvas,
+    prepare: (page) => startRename(page, text, region),
+    settleMs: 200,
+    ...extra,
+  })
+  return [
+    on(
+      "rename-canvas-name",
+      "Renaming the Canvas from its name in the top bar.",
+      "Checkout flow",
+      "canvas"
+    ),
+    on(
+      "rename-group-label",
+      "Renaming a Group from its label on the Canvas.",
+      "Checkout",
+      "canvas"
+    ),
+    on(
+      "rename-layer-title",
+      "Renaming a Layer from its title bar on the Canvas.",
+      "Checkout · desktop",
+      "canvas"
+    ),
+    on(
+      "rename-sidebar-group",
+      "Renaming a Group from its row in the sidebar.",
+      "Cart",
+      "sidebar"
+    ),
+    on(
+      "rename-sidebar-layer",
+      "Renaming a Layer from its row in the sidebar.",
+      "Checkout brief",
+      "sidebar"
+    ),
+    on(
+      "rename-workspace",
+      "Renaming a Workspace from its badge in the sidebar.",
+      "apple-pay-button",
+      "sidebar"
+    ),
+    on(
+      "rename-chat-tab",
+      "Renaming a chat from its tab in the chat panel.",
+      "Checkout polish",
+      "chat",
+      { cookies: canvasPanels({ chatPct: 30 }) }
+    ),
+  ]
+}
+
+type RenameRegion = "sidebar" | "canvas" | "chat"
+
+/**
+ * Double-click an idle inline-rename label into edit mode. The same text can
+ * appear in the sidebar, on the Canvas, and in the chat panel (a Group named
+ * "Checkout" is all three), so the label is picked by where it sits on screen.
+ */
+export async function startRename(
+  page: Page,
+  text: string,
+  region: RenameRegion
+): Promise<void> {
+  const labels = page.locator('[data-editable-text="idle"]', {
+    hasText: new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+  })
+  await labels.first().waitFor({ timeout: 15_000 })
+  const width = page.viewportSize()?.width ?? DEFAULT_VIEWPORT.width
+  for (const label of await labels.all()) {
+    const box = await label.boundingBox()
+    if (!box) continue
+    const inRegion =
+      region === "sidebar"
+        ? box.x < width * 0.16
+        : region === "chat"
+          ? box.x > width * 0.65
+          : box.x >= width * 0.16 && box.x < width * 0.65
+    if (!inRegion) continue
+    await label.dblclick()
+    await page
+      .locator('[data-editable-text="editing"]')
+      .waitFor({ timeout: 5_000 })
+    return
+  }
+  throw new Error(`no ${region} rename label reading "${text}"`)
+}
 
 /**
  * The cookie that picks the home surface's grid-or-table layout. Seeded rather

@@ -164,7 +164,7 @@ export function CanvasTopBar({
                 placeholder="Untitled"
                 className="min-w-0 px-1.5 py-1 text-xs font-medium text-foreground"
                 viewClassName="truncate"
-                editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 mx-1 my-0.5"
+                editClassName="mx-1 my-0.5"
               />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

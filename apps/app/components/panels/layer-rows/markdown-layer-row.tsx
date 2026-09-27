@@ -40,7 +40,6 @@ export function DocumentRow({
       placeholder="Untitled"
       className="min-w-0"
       viewClassName="truncate"
-      editClassName="relative z-10 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
     />
   )
 

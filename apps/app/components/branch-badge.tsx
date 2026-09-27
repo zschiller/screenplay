@@ -53,7 +53,7 @@ export const BranchBadge = forwardRef<EditableTextHandle, BranchBadgeProps>(
             lockWidthOnEdit
             className="min-w-0"
             viewClassName="truncate"
-            editClassName="relative z-10 box-content min-w-0 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15 px-0.5 py-0.5 -mx-0.5 -my-0.5"
+            editClassName="box-content max-w-full"
           />
         ) : (
           <span className="truncate">{branch}</span>
