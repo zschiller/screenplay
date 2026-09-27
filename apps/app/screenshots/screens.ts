@@ -1557,6 +1557,51 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "canvas-frame-states",
+    description:
+      "A frame in every Workspace stage: booting, starting, ready, failed, stopped, and no Workspace.",
+    path: `/${ids.rooms.frameStates}`,
+    // Long enough for the ready frame's page to paint and the probe of the
+    // cold ones to settle on "not ready".
+    settleMs: 2500,
+  },
+  ...(
+    [
+      ["booting", "framesBooting", "Booting"],
+      ["starting", "framesStarting", "Starting"],
+      ["failed", "framesFailed", "Failed"],
+      ["stopped", "framesStopped", "Stopped"],
+    ] as const
+  ).map(
+    ([stage, branch, label]): Screen => ({
+      name: `play-${stage}`,
+      description: `The prototype player on a Workspace that is ${label.toLowerCase()}.`,
+      path: playPath(ids.branches[branch], `layer-frames-${stage}`),
+      settleMs: 2500,
+    })
+  ),
+  {
+    name: "canvas-frame-open-logs",
+    description:
+      "A failed frame's Open logs: the chat panel opens on that Workspace's sandbox logs.",
+    path: `/${ids.rooms.frameStates}`,
+    beforeNavigate: (page) => stubLogs(page, "reconnecting"),
+    prepare: async (page) => {
+      await page
+        .locator('[data-frame-stage="workspace-failed"]')
+        .getByRole("button", { name: "Open logs" })
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 1200,
+  },
+  {
+    name: "play-connecting",
+    description:
+      "The prototype player before the room syncs, held by a silent Yjs socket.",
+    path: playPath(ids.branches.framesReady, "layer-frames-ready"),
+    beforeNavigate: holdYjsConnection,
+  },
+  {
     name: "canvas-zoomed-out",
     // After every other Canvas screen on purpose: the zoom persists into the
     // Canvas's saved viewport, so any Canvas screen after this one would open
@@ -2088,6 +2133,11 @@ export async function openChatHistory(page: Page): Promise<void> {
 }
 
 /** Select the chat panel's sandbox logs tab (an icon-only tab, named by its label). */
+/** The prototype player's URL for one Workspace, opened from one of its frames. */
+function playPath(branchId: string, iframeLayerId: string): string {
+  return `/play/${ids.rooms.frameStates}/${branchId}?iframe-layer=${iframeLayerId}`
+}
+
 export async function openLogsTab(page: Page): Promise<void> {
   await page
     .getByRole("tab", { name: "Sandbox logs" })

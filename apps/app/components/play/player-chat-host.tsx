@@ -23,6 +23,8 @@ interface PlayerChatHostProps {
   agentId: string
   /** Hides the panel and lets the parent fold the panel slot. */
   onCollapse: () => void
+  /** A frame's "Open logs", forwarded to the panel (see `ChatPanel`). */
+  logsRequest?: { agentId: string; nonce: number } | null
 }
 
 /**
@@ -35,6 +37,7 @@ function PlayerChatHostImpl({
   roomId,
   agentId,
   onCollapse,
+  logsRequest,
 }: PlayerChatHostProps) {
   const collections = useRoomCollections()
   const agents = useBranches()
@@ -250,6 +253,7 @@ function PlayerChatHostImpl({
       branchPr={branchPrs.get(agent.id) ?? null}
       onPrCreated={setBranchPr}
       onCollapse={onCollapse}
+      logsRequest={logsRequest}
     />
   )
 }

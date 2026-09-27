@@ -234,3 +234,41 @@ export function recreate(
     deps
   )
 }
+
+/**
+ * **Workspace Start** — what a frame's Retry (on a failed Workspace) and Start
+ * (on a stopped one) run (issue #731). It goes through the status-flipping
+ * runner, unlike the bare Dev Server Restart, so the frame follows the Workspace
+ * from `starting` to `running`, or back to `error` with the new reason.
+ *
+ * Hosted, it is Sandbox Restart. The local build has no VM to restore (see the
+ * restart submenu in `branch-overflow-menu.tsx`), so there it restarts the dev
+ * server in the existing worktree.
+ */
+export function startWorkspace(
+  id: string,
+  deps: BranchRecoveryDeps,
+  { local }: { local: boolean }
+): Promise<RecoveryOutcome> {
+  if (!local) return restartSandbox(id, deps)
+  return runSandboxRecovery(
+    id,
+    {
+      startingMessage: "Restarting dev server…",
+      successMessage: "Dev server restarted",
+      failureTitle: "Couldn't restart dev server",
+      run: async (agent, repo) => {
+        const result = await restartDevServerSandbox(agent.sandboxName, repo)
+        if (!result.success) return result
+        return {
+          success: true,
+          value: {
+            sandboxName: agent.sandboxName,
+            previewDomain: result.value.previewDomain,
+          },
+        }
+      },
+    },
+    deps
+  )
+}

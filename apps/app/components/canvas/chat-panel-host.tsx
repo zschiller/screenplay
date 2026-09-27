@@ -47,6 +47,7 @@ export function ChatPanelHost({
   onUpdateChatSession,
   onSetBranchPr,
   onLogsReady,
+  logsRequest,
 }: {
   chatTarget: ChatTarget
   tabPool: TabPool
@@ -64,6 +65,7 @@ export function ChatPanelHost({
   onUpdateChatSession: (id: string, data: Partial<ChatSessionData>) => void
   onSetBranchPr: (branchId: string, pr: BranchPrInfo) => void
   onLogsReady: () => void
+  logsRequest: { agentId: string; nonce: number } | null
 }) {
   return (
     (() => {
@@ -151,6 +153,7 @@ export function ChatPanelHost({
           onPrCreated={onSetBranchPr}
           onCollapse={() => chatPanelRef.current?.collapse()}
           onLogsReady={onLogsReady}
+          logsRequest={logsRequest}
         />
       )
     })() || (

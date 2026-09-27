@@ -6,6 +6,14 @@ import { canAccess, getRoom } from "@/lib/rooms"
 import { readRoomDoc } from "@/lib/yjs/server"
 import { YjsRoomProvider } from "@/lib/yjs-host/client"
 import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { PrototypePlayer } from "@/components/play/prototype-player"
 
 export async function generateMetadata({
@@ -77,8 +85,23 @@ export default async function PlayPage({
     <YjsRoomProvider
       roomId={roomId}
       fallback={
-        <div className="fixed inset-0 flex items-center justify-center bg-black text-xs text-white/60">
-          Connecting…
+        // The player's chrome is black whatever the theme, so the wait reads
+        // on it in the dark token set.
+        <div className="dark fixed inset-0 flex bg-black text-foreground">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon" className="mb-1">
+                <Spinner
+                  aria-label="Connecting"
+                  className="text-muted-foreground"
+                />
+              </EmptyMedia>
+              <EmptyTitle>Connecting</EmptyTitle>
+              <EmptyDescription className="text-xs/relaxed">
+                Joining {room.name || "the canvas"}.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       }
     >

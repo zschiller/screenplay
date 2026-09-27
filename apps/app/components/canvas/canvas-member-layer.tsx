@@ -79,6 +79,8 @@ function CanvasMemberLayerImpl({
   remoteGroupSelectionColors,
   agentDomains,
   agents,
+  onRestartWorkspace,
+  onOpenLogs,
   repos,
   zoom,
   spaceHeld,
@@ -123,6 +125,10 @@ function CanvasMemberLayerImpl({
   remoteGroupSelectionColors: Map<string, string>
   agentDomains: AgentDomains
   agents: BranchData[]
+  /** A frame's Retry / Start on its failed or stopped Workspace. */
+  onRestartWorkspace: (branchId: string) => void
+  /** A frame's "Open logs": show its Workspace's sandbox logs. */
+  onOpenLogs: (branchId: string) => void
   repos: RepoData[]
   zoom: number
   spaceHeld: boolean
@@ -394,6 +400,9 @@ function CanvasMemberLayerImpl({
               onDomReady={reference.onIframeLayerDomReady}
               onCaptureReadyChange={handleCaptureReadyChange}
               onCaptureDirty={handleCaptureDirty}
+              workspace={assignedAgent}
+              onRestartWorkspace={onRestartWorkspace}
+              onOpenLogs={onOpenLogs}
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}

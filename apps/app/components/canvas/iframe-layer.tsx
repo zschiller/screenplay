@@ -11,7 +11,6 @@ import {
   RotateCw,
   Route,
 } from "lucide-react"
-import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +24,8 @@ import {
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
 import { Kbd } from "@workspace/ui/components/kbd"
+import { resolveFrameStage } from "@/components/frame-status/frame-stage"
+import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -215,6 +216,15 @@ interface IframeLayerProps {
    */
   onCaptureReadyChange?: (iframeLayerId: string, ready: boolean) => void
   onCaptureDirty?: (iframeLayerId: string) => void
+  /**
+   * The assigned Workspace's lifecycle, which picks the status screen the frame
+   * shows over its preview (issue #731). Unset when the frame has no Workspace.
+   */
+  workspace?: Pick<BranchData, "status" | "statusMessage" | "error">
+  /** Restart the frame's Workspace (failed or stopped). */
+  onRestartWorkspace?: (branchId: string) => void
+  /** Show the frame's Workspace's sandbox logs. */
+  onOpenLogs?: (branchId: string) => void
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableBranches?: BranchData[]
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
@@ -300,6 +310,9 @@ export function IframeLayer({
   onDomReady,
   onCaptureReadyChange,
   onCaptureDirty,
+  workspace,
+  onRestartWorkspace,
+  onOpenLogs,
   assignableBranches,
   onAssignBranch,
   discoveredRoutes,
@@ -671,6 +684,27 @@ export function IframeLayer({
     return () => clearTimeout(id)
   }, [probeState, contentReady, recoveryTick, reloadIframe])
 
+  // The one status screen covering the preview, or null once the live page is
+  // up. A branch can be assigned before its dev server is up, so there may be
+  // no URL to probe yet; that reads as "starting" rather than a blank frame. A
+  // frame whose Workspace was deleted reads as having none.
+  const branchId = iframeLayer.branchId
+  const stage = resolveFrameStage({
+    status: branchId ? workspace?.status : undefined,
+    hasPreview: !!desiredSrc,
+    probe: probeState,
+    contentReady,
+    recoveryExhausted: recoveryTick >= MAX_PLACEHOLDER_RELOADS,
+  })
+
+  // Retry a dev server that never answered: probe again and give the iframe a
+  // fresh recovery budget, starting from a clean reload.
+  const retryPreview = useCallback(() => {
+    retryProbe()
+    setRecoveryTick(0)
+    reloadIframe()
+  }, [retryProbe, reloadIframe])
+
   return (
     <LayerShell
       layerId={iframeLayer.id}
@@ -852,54 +886,6 @@ export function IframeLayer({
                 style={{ pointerEvents: interactive ? "auto" : "none" }}
               />
             )}
-            {/* Overlay covering the still-loading (or placeholder) iframe. It drops
-            the instant the iframe's bridge reports the real page is up
-            (`contentReady`) — a postMessage, no server round-trip — so the warm
-            path doesn't sit on the spinner waiting for the probe RPC to return.
-            Crucially it stays up while recovery is still reloading (probe ready
-            but no real page yet, under the cap): otherwise the bridge-less proxy
-            placeholder — an unstyled "Dev server not yet ready" — flashes
-            through, as does the about:blank white between reload cycles. Once
-            recovery is exhausted the overlay drops so a genuinely stuck server
-            doesn't sit under an infinite spinner. A branch can be assigned
-            before its dev server is up, so there may be no URL to probe yet —
-            still show the waiting state (the probe holds in `waiting` without a
-            URL) so the frame isn't blank. */}
-            {!contentReady &&
-              (probeState !== "ready" ||
-                recoveryTick < MAX_PLACEHOLDER_RELOADS) &&
-              (desiredSrc || iframeLayer.branchId) && (
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white p-4 text-center text-balance dark:bg-zinc-900">
-                  {probeState === "timedout" ? (
-                    <>
-                      <span className="text-xs font-medium text-foreground">
-                        Dev server not responding
-                      </span>
-                      <span className="max-w-[240px] text-xs text-muted-foreground">
-                        The preview couldn&apos;t be reached. It may still be
-                        starting up.
-                      </span>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="pointer-events-auto mt-1"
-                        onClick={retryProbe}
-                      >
-                        <RotateCw />
-                        Retry
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-                      <span className="text-xs text-muted-foreground">
-                        Waiting for dev server…
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-
             {/* Dim scrim for an armed pick on another branch (#619): a subtle
             wash over the frame body so the eligible (undimmed) frames stand out.
             Pointer-transparent — a click still falls through to the canvas-level
@@ -954,6 +940,45 @@ export function IframeLayer({
                   onSelect(iframeLayer.id, false)
                   onFocus(iframeLayer.id)
                 }}
+              />
+            )}
+
+            {/* The status screen covering the still-loading (or placeholder)
+            iframe. It drops the instant the iframe's bridge reports the real
+            page is up (`contentReady`) — a postMessage, no server round-trip —
+            so the warm path doesn't sit on it waiting for the probe RPC to
+            return. It stays up while recovery is still reloading, so the
+            proxy's bare "Dev server not yet ready" placeholder and the
+            about:blank between reload cycles never flash through; once recovery
+            is exhausted it turns into the failed state rather than dropping to
+            a blank frame. It sits above the drag overlay but is
+            pointer-transparent apart from its buttons, so the frame still drags
+            and selects through it. */}
+            {stage && (
+              <FrameStatus
+                stage={stage}
+                detail={
+                  stage === "workspace-failed"
+                    ? workspace?.error
+                    : workspace?.statusMessage
+                }
+                onRetry={
+                  stage === "preview-failed"
+                    ? retryPreview
+                    : branchId && onRestartWorkspace
+                      ? () => onRestartWorkspace(branchId)
+                      : undefined
+                }
+                onStart={
+                  branchId && onRestartWorkspace
+                    ? () => onRestartWorkspace(branchId)
+                    : undefined
+                }
+                onOpenLogs={
+                  branchId && onOpenLogs
+                    ? () => onOpenLogs(branchId)
+                    : undefined
+                }
               />
             )}
           </div>
