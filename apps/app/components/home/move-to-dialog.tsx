@@ -25,6 +25,17 @@ import type { FolderSummary } from "@/lib/folders-actions"
 // picker disable the folder itself and its descendants, so a move can't create
 // a cycle — the same rule `moveFolder` enforces server-side.
 
+/**
+ * Whether "Move to…" is offered for a Canvas: once the user has any Folder to
+ * file into, on every surface that lists the Canvas (grid, table, sidebar pin),
+ * whichever route it's on. One rule, so the same Canvas never offers a Move in
+ * one view and hides it in another. (A Folder can always move, to the root at
+ * least, so its menu doesn't ask.)
+ */
+export function canMoveRoom(folders: FolderSummary[]): boolean {
+  return folders.length > 0
+}
+
 type MoveToDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void

@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { Folder as FolderIcon, MoreHorizontal, Scan } from "lucide-react"
+import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
+import { CanvasIcon } from "@/components/canvas-icon"
 import { Reorder } from "motion/react"
 import {
   SidebarGroup,
@@ -23,7 +24,7 @@ import { useHome } from "./home-provider"
 import { RoomActionMenu } from "./room-action-menu"
 import { FolderActionMenu } from "./folder-action-menu"
 import { InputDialog } from "./input-dialog"
-import { MoveToDialog } from "./move-to-dialog"
+import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFolderDroppable } from "./file-dnd"
 
 /**
@@ -206,7 +207,7 @@ function PinnedRoomRow({
             prewarmRoom(room.id)
           }}
         >
-          <Scan />
+          <CanvasIcon />
           <span className="truncate">{room.name}</span>
         </Link>
       </SidebarMenuButton>
@@ -218,9 +219,7 @@ function PinnedRoomRow({
         onRename={() => setRenameOpen(true)}
         onDelete={() => setDeleteOpen(true)}
         onShare={() => setShareOpen(true)}
-        // Filing needs a folder tree to file into; offer it once the user has any
-        // folder, regardless of which route the sidebar is on.
-        onMove={allFolders.length > 0 ? () => setMoveOpen(true) : undefined}
+        onMove={canMoveRoom(allFolders) ? () => setMoveOpen(true) : undefined}
         pinned
         onTogglePin={() => unpin("room", room.id)}
       >

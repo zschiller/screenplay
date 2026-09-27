@@ -42,6 +42,7 @@ const fontMono = Geist_Mono({
  */
 async function computeGateState(): Promise<{
   initiallyBlocked: boolean
+  status: { harnessSatisfied: boolean; githubSatisfied: boolean }
   githubSkipped: boolean
 }> {
   const cookieStore = await cookies()
@@ -51,6 +52,7 @@ async function computeGateState(): Promise<{
   const status = await getLocalSetupGateStatus()
   return {
     githubSkipped,
+    status,
     initiallyBlocked: !isLocalSetupComplete({ ...status, githubSkipped }),
   }
 }
@@ -66,10 +68,11 @@ export default async function RootLayout({
   // probes — is dead-code-eliminated and the sign-in path is untouched.
   let body: React.ReactNode = children
   if (isLocalBuild) {
-    const { initiallyBlocked, githubSkipped } = await computeGateState()
+    const { initiallyBlocked, status, githubSkipped } = await computeGateState()
     body = (
       <LocalSetupGate
         initiallyBlocked={initiallyBlocked}
+        initialStatus={status}
         initiallyGithubSkipped={githubSkipped}
       >
         {children}

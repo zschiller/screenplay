@@ -1,9 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
+import { Check } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
 import { GitHubConnectionPanel } from "@/components/home/github-connection-panel"
 import { HarnessSetupPanel } from "@/components/home/harness-setup-panel"
+import { ScreenplayLogo } from "@/components/screenplay-logo"
 import { getLocalSetupGateStatus } from "@/lib/local-setup/gate-status"
 import { writeGitHubSkip } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
@@ -43,38 +46,44 @@ const POLL_INTERVAL_MS = 1800
  */
 export function LocalSetupGate({
   initiallyBlocked,
+  initialStatus,
   initiallyGithubSkipped,
   children,
 }: {
   initiallyBlocked: boolean
+  /** The release facts the server read for the first paint. */
+  initialStatus: { harnessSatisfied: boolean; githubSatisfied: boolean }
   initiallyGithubSkipped: boolean
   children: React.ReactNode
 }) {
-  // Launch-scoped: seed both from the server's initial decision so the first
-  // paint is already correct (no gate-over-app or app-over-gate flash). A
-  // not-blocked launch is `opened` from the start and never mounts the gate.
+  // Launch-scoped: seed from the server's initial decision so the first paint
+  // is already correct (no gate-over-app or app-over-gate flash). A not-blocked
+  // launch is `opened` from the start and never mounts the gate.
   const [opened, setOpened] = useState(!initiallyBlocked)
-  const [released, setReleased] = useState(!initiallyBlocked)
-  // Seeded from the server-parsed skip cookie so the poll folds the same GitHub
+  // The last release facts read — each step's badge shows its own half.
+  const [status, setStatus] = useState(initialStatus)
+  // Seeded from the server-parsed skip cookie so the gate folds the same GitHub
   // half the initial paint did; clicking "Skip for now" flips it true (and
-  // persists the cookie) so the very next poll can release without a reload.
+  // persists the cookie), which releases at once if the harness half holds.
   const [githubSkipped, setGithubSkipped] = useState(initiallyGithubSkipped)
+  const released =
+    !initiallyBlocked || isLocalSetupComplete({ ...status, githubSkipped })
+  const harnessDone = status.harnessSatisfied
+  const githubDone = status.githubSatisfied || githubSkipped
+  const finishReasonId = useId()
 
   // Poll the release facts ONLY while still blocked, and stop the moment the
-  // condition is met — no perpetual loop on a healthy session. Re-runs when the
-  // skip bit flips so a fresh skip is folded in on the next tick.
+  // condition is met — no perpetual loop on a healthy session.
   useEffect(() => {
     if (released) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
 
     const poll = async () => {
-      const status = await getLocalSetupGateStatus()
+      const next = await getLocalSetupGateStatus()
       if (cancelled) return
-      if (isLocalSetupComplete({ ...status, githubSkipped })) {
-        setReleased(true)
-        return
-      }
+      // A release re-renders with `released` true, which cancels the loop.
+      setStatus(next)
       timer = setTimeout(poll, POLL_INTERVAL_MS)
     }
 
@@ -83,7 +92,7 @@ export function LocalSetupGate({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [released, githubSkipped])
+  }, [released])
 
   const skip = () => {
     writeGitHubSkip()
@@ -96,7 +105,8 @@ export function LocalSetupGate({
     <div className="flex min-h-svh flex-col items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-xl space-y-8">
         <div className="space-y-2">
-          <h1 className="text-2xl font-medium">Set up Screenplay</h1>
+          <ScreenplayLogo className="mb-4 size-10" />
+          <h1 className="text-2xl font-normal">Set up Screenplay</h1>
           <p className="text-sm text-muted-foreground">
             Screenplay backs agent chat and terminal tabs with a coding CLI on
             this device. Install and sign in to at least one to get started;
@@ -106,8 +116,11 @@ export function LocalSetupGate({
 
         <section className="space-y-3">
           <div className="space-y-0.5">
-            <h2 className="text-sm font-medium">1 · Install a coding agent</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="flex items-center gap-2 text-sm font-medium">
+              <StepBadge step={1} done={harnessDone} />
+              Install a coding agent
+            </h2>
+            <p className="pl-7 text-sm text-muted-foreground">
               Pick one to install and sign in. This updates automatically the
               moment sign-in finishes.
             </p>
@@ -117,10 +130,11 @@ export function LocalSetupGate({
 
         <section className="space-y-3">
           <div className="space-y-0.5">
-            <h2 className="text-sm font-medium">
-              2 · Connect GitHub (optional)
+            <h2 className="flex items-center gap-2 text-sm font-medium">
+              <StepBadge step={2} done={githubDone} />
+              Connect GitHub (optional)
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="pl-7 text-sm text-muted-foreground">
               Lights up browsing your GitHub repositories and branches, and
               opening pull requests. You can skip this — adding a project by
               clone URL or local folder needs no connection — and connect later
@@ -147,10 +161,19 @@ export function LocalSetupGate({
           )}
         </section>
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {!released && (
+            <p
+              id={finishReasonId}
+              className="text-right text-sm text-muted-foreground"
+            >
+              {finishBlockedReason({ harnessDone, githubDone })}
+            </p>
+          )}
           <Button
             type="button"
             disabled={!released}
+            aria-describedby={released ? undefined : finishReasonId}
             onClick={() => setOpened(true)}
           >
             Finish
@@ -159,4 +182,45 @@ export function LocalSetupGate({
       </div>
     </div>
   )
+}
+
+/**
+ * A setup step's number, which becomes a check once that step is done — so the
+ * gate reads as progress at a glance rather than as two paragraphs of copy.
+ */
+function StepBadge({ step, done }: { step: number; done: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium tabular-nums transition-colors",
+        done
+          ? "bg-primary text-primary-foreground"
+          : "border border-border text-muted-foreground"
+      )}
+    >
+      {done ? (
+        <Check className="size-3" strokeWidth={3} aria-hidden />
+      ) : (
+        <span aria-hidden>{step}</span>
+      )}
+      <span className="sr-only">
+        {done ? `Step ${step}, done:` : `Step ${step}:`}
+      </span>
+    </span>
+  )
+}
+
+/** What still stands between the person and Finish, in one line. */
+export function finishBlockedReason({
+  harnessDone,
+  githubDone,
+}: {
+  harnessDone: boolean
+  githubDone: boolean
+}): string {
+  if (!harnessDone && !githubDone) {
+    return "Sign in to a coding agent, and connect or skip GitHub, to finish."
+  }
+  if (!harnessDone) return "Sign in to a coding agent to finish."
+  return "Connect GitHub or skip it to finish."
 }

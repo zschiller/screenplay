@@ -195,6 +195,11 @@ export const FIXTURE_IDS = {
     /** Filed deep (Design system → Archive), to exercise breadcrumbs. */
     archived: "room-old-experiment",
   },
+  /**
+   * A Canvas id the world deliberately never seeds, for the Canvas not-found
+   * page. `world.test.ts` holds it to staying missing.
+   */
+  missingRoom: "room-that-does-not-exist",
   repos: {
     storefront: "repo-storefront",
   },
@@ -210,6 +215,8 @@ export const FIXTURE_IDS = {
   },
   chats: {
     checkoutPolish: "chat-checkout-polish",
+    /** A markdown-heavy reply: tables, task lists, inline and block code. */
+    markdown: "chat-markdown-reply",
   },
 } as const
 
@@ -298,7 +305,7 @@ export function buildFixtureWorld(options: BuildWorldOptions): FixtureWorld {
         createdAt: minutesAgo(now, 11),
       },
     ],
-    chats: [checkoutChat(now), emptyCartChat(now)],
+    chats: [checkoutChat(now), emptyCartChat(now), markdownChat(now)],
     pins: [
       { id: "pin-checkout", roomId: ids.rooms.checkout, position: 0 },
       {
@@ -507,6 +514,13 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       label: "Empty cart",
       createdAt: minutesAgo(now, 18),
       planMode: true,
+      model: "claude-sonnet-4-5",
+    },
+    {
+      id: FIXTURE_IDS.chats.markdown,
+      branchId: b.checkoutPolish,
+      label: "Breakpoint audit",
+      createdAt: minutesAgo(now, 6),
       model: "claude-sonnet-4-5",
     },
     {
@@ -1053,6 +1067,86 @@ function checkoutChat(now: number): FixtureChat {
     model: "claude-sonnet-4-5",
     systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
     createdAt: minutesAgo(now, 42),
+    messages,
+  }
+}
+
+/**
+ * A reply in the shape agents actually write: GFM tables, a task list,
+ * strikethrough, inline code in every message kind, and fenced code blocks —
+ * one of them wider than the chat panel, so overflow is on screen too.
+ */
+function markdownChat(now: number): FixtureChat {
+  const at = (minutes: number) => minutesAgo(now, minutes)
+  const text = (t: string) => [{ type: "text" as const, text: t }]
+  const messages: FixtureChat["messages"] = [
+    {
+      id: "md-1",
+      createdAt: at(6),
+      record: {
+        role: "user",
+        content: text(
+          "Audit the hard-coded breakpoints — which files still use `max-width: 640px`?"
+        ),
+      },
+    },
+    {
+      id: "md-2",
+      createdAt: at(6),
+      record: {
+        role: "thought",
+        content: text(
+          "Grep for `640px` across `app/` and `components/`, then compare each hit against the `md` token."
+        ),
+      },
+    },
+    {
+      id: "md-3",
+      createdAt: at(5),
+      record: {
+        role: "agent",
+        content: text(
+          [
+            "Three files still hard-code the breakpoint instead of reading the `md` token:",
+            "",
+            "| File | Line | Rule | Fix |",
+            "| --- | ---: | --- | --- |",
+            "| `components/cart/summary-rail.tsx` | 42 | `max-width: 640px` | `md:` variant |",
+            "| `app/checkout/address-form.tsx` | 17 | `@media (max-width: 640px)` | `md:` variant |",
+            "| `components/ui/sticky-footer.tsx` | 8 | `max-w-[640px]` | ~~`sm:`~~ `md:` token |",
+            "",
+            "- [x] Search `app/` and `components/`",
+            "- [x] Confirm `tailwind.config.ts` defines `md` as `768px`",
+            "- [ ] Swap the three rules for the token",
+            "",
+            "The summary rail is the only one with logic around it:",
+            "",
+            "```tsx",
+            "export function SummaryRail({ items }: { items: CartItem[] }) {",
+            '  const isMobile = useMediaQuery("(max-width: 640px)") // hard-coded: should read the md token from the theme config instead',
+            "  const total = items.reduce((sum, item) => sum + item.price * item.qty, 0)",
+            "  return isMobile ? <StickySummary total={total} /> : <Rail total={total} />",
+            "}",
+            "```",
+            "",
+            "Run this to confirm nothing else matches:",
+            "",
+            "```bash",
+            "rg -n '640px' app components",
+            "```",
+          ].join("\n")
+        ),
+      },
+    },
+  ]
+
+  return {
+    id: FIXTURE_IDS.chats.markdown,
+    roomId: FIXTURE_IDS.rooms.checkout,
+    sandboxName: "checkout-polish",
+    model: "claude-sonnet-4-5",
+    systemPrompt: "Match the existing Tailwind tokens; never add new colors.",
+    createdAt: at(6),
     messages,
   }
 }

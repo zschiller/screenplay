@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Clock, LayoutGrid, Settings, type LucideIcon } from "lucide-react"
+import { Clock, Files, Settings, type LucideIcon } from "lucide-react"
 import {
   SidebarContent,
   SidebarGroup,
@@ -29,7 +29,9 @@ const RECENTS: NavLink = { href: "/", label: "Recents", icon: Clock }
 /** Lower group, below the divider. */
 const SECTIONS: NavLink[] = [
   // The root of the folder tree (PRD #475): top-level folders above the files.
-  { href: "/files", label: "All files", icon: LayoutGrid },
+  // Not the Canvas icon: this is every file, folders included, and a Canvas
+  // wears `CanvasIcon` alone.
+  { href: "/files", label: "All files", icon: Files },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
