@@ -539,6 +539,44 @@ export const SCREENS: Screen[] = [
     path: `/${ids.rooms.onboarding}`,
   },
   {
+    name: "canvas-frame-toolbar",
+    description:
+      "A selected frame's floating toolbar, hovering its first button to show the tooltip.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .getByText("Checkout · desktop", { exact: true })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .waitFor({ state: "visible", timeout: 15_000 })
+      // Positional, not by name, so the same step shoots a branch whose
+      // buttons have no accessible name yet.
+      await page
+        .locator("#frame-toolbar-portal button")
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-room-menu-hover",
+    description:
+      "Hovering the top bar's Canvas options (…) button beside the Canvas name.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator('[data-slot="breadcrumb-item"] button')
+        .first()
+        .hover({ timeout: 15_000 })
+      await showTooltip(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "canvas-narrow",
     description:
       "The Canvas at a narrow window, where the panels compete for width.",
@@ -1043,6 +1081,24 @@ export function streamingRun(): RunEvent[] {
       },
     },
   ]
+}
+
+/**
+ * Wait for the hovered control's tooltip and show it at rest.
+ *
+ * The runner freezes animations before `prepare` runs, which would pin a
+ * tooltip on the first frame of its fade-in — i.e. invisible. Dropping the
+ * animation on tooltip content alone lets it paint in its final state.
+ */
+export async function showTooltip(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `[data-slot="tooltip-content"] { animation: none !important; }`,
+  })
+  await page
+    .locator('[data-slot="tooltip-content"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .catch(() => {})
 }
 
 /** Look up screens by name, preserving {@link SCREENS} order. Throws on an unknown name. */
