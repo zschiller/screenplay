@@ -699,36 +699,15 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
-    name: "confirm-delete-workspace",
-    description: "Canvas sidebar → a Workspace's … menu → Delete.",
-    path: `/${ids.rooms.checkout}`,
-    prepare: async (page) => {
-      await chooseFromMenu(page, rowMenuTrigger(page, "empty-cart-state"), [
-        "Delete",
-      ])
-    },
-    settleMs: 300,
-  },
-  {
-    name: "confirm-remove-project",
-    description: "Canvas sidebar → the Project's … menu → Remove.",
-    path: `/${ids.rooms.checkout}`,
-    prepare: async (page) => {
-      await chooseFromMenu(page, rowMenuTrigger(page, "acme/storefront"), [
-        "Remove",
-      ])
-    },
-    settleMs: 300,
-  },
-  {
     name: "confirm-recreate-workspace",
     description: "Canvas sidebar → a Workspace's … → Restart → Recreate.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await chooseFromMenu(page, rowMenuTrigger(page, "empty-cart-state"), [
-        "Restart",
-        "Recreate from scratch",
-      ])
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
     },
     settleMs: 300,
   },
@@ -739,10 +718,11 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await freezeYjs(page)
       await holdServerActions(page, "hang")
-      await chooseFromMenu(page, rowMenuTrigger(page, "empty-cart-state"), [
-        "Restart",
-        "Recreate from scratch",
-      ])
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
       await confirmDialog(page, "Recreate")
     },
     settleMs: 600,
@@ -754,10 +734,11 @@ export const SCREENS: Screen[] = [
     prepare: async (page) => {
       await freezeYjs(page)
       await holdServerActions(page, "fail")
-      await chooseFromMenu(page, rowMenuTrigger(page, "empty-cart-state"), [
-        "Restart",
-        "Recreate from scratch",
-      ])
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
       await confirmDialog(page, "Recreate")
       await page
         .getByRole("alertdialog")
@@ -797,12 +778,13 @@ export const SCREENS: Screen[] = [
     description: "Settings → a saved Project preset's Delete button.",
     path: "/settings",
     prepare: async (page) => {
-      // Held so a build without the confirm deletes nothing for real.
+      // Wait for the presets to load before holding server actions (the list
+      // itself loads through one), then hold them so a build without the
+      // confirm deletes nothing for real.
+      const del = page.getByRole("button", { name: "Delete", exact: true })
+      await del.first().waitFor({ timeout: 30_000 })
       await holdServerActions(page, "hang")
-      await page
-        .getByRole("button", { name: "Delete", exact: true })
-        .first()
-        .click({ timeout: 15_000 })
+      await del.first().click({ timeout: 15_000 })
     },
     settleMs: 300,
   },
@@ -864,12 +846,13 @@ export async function chooseFromMenu(
   const steps = typeof path === "string" ? [path] : path
   await trigger.click({ timeout: 15_000, force: true })
   for (const [i, label] of steps.entries()) {
-    const item = page
-      .getByRole("menuitem", { name: label, exact: true })
-      .first()
+    // Radix ignores a select that lands in the same beat the menu opened.
+    await page.waitForTimeout(300)
+    const item = page.getByRole("menuitem", { name: label, exact: true }).last()
     if (i < steps.length - 1) {
-      await item.hover({ timeout: 10_000 })
-      await item.press("ArrowRight").catch(() => {})
+      // Open the submenu the way a keyboard user does.
+      await item.focus({ timeout: 10_000 })
+      await item.press("ArrowRight")
     } else {
       await item.click({ timeout: 10_000 })
     }
@@ -887,6 +870,19 @@ export function rowMenuTrigger(page: Page, text: string): Locator {
       "xpath=ancestor::*[.//button[@aria-haspopup='menu']][1]//button[@aria-haspopup='menu']"
     )
     .first()
+}
+
+/**
+ * The \`…\` menu trigger on a Workspace row, which only shows while the row is
+ * hovered: hover the row, then hand back its trigger.
+ */
+export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
+  const row = page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: ref })
+    .first()
+  await row.hover({ timeout: 15_000 })
+  return row.locator('[aria-haspopup="menu"]').first()
 }
 
 /** Click the confirm dialog's action button. */
