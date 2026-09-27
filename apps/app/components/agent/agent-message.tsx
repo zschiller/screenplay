@@ -1,9 +1,8 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useRef, useState, type ReactNode } from "react"
 import { type Components } from "react-markdown"
 import {
-  ChevronDown,
   FileText,
   Terminal,
   Pencil,
@@ -39,11 +38,18 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { chatStore } from "@/lib/chat-store"
-import { openExternal } from "@/lib/open-external"
+import { diffLines, foldContext } from "@/lib/agent/line-diff"
 import { MENTION_TEXT_CLASS_INVERTED } from "@/lib/mention-styles"
 import { useElementHighlight } from "./use-element-highlight"
 import { ChatMarkdown } from "./chat-markdown"
+import { ChatDisclosure } from "./chat-disclosure"
 
 const toolIcons: Record<string, typeof FileText> = {
   read_file: FileText,
@@ -197,158 +203,11 @@ const KIND_VERB: Record<string, string> = {
   execute: "Run command",
 }
 
-function CreatePrIndicator({
-  message,
-  result,
-}: {
-  message: AgentMessage & { role: "tool_use" }
-  result?: AgentMessage & { role: "tool_result" }
-}) {
-  const input = message.input as { title?: string; body?: string }
-  const title = input.title?.trim() || "Pull request"
-
-  if (!result) {
-    return (
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs">
-        <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground">{title}</div>
-          <div className="text-[11px] text-muted-foreground">
-            Opening pull request…
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const output = result.output
-  const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/)
-  const numberMatch = output.match(/#(\d+)/)
-  const failed = /^Failed to create PR/i.test(output)
-
-  if (failed) {
-    return (
-      <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <div className="font-medium">Couldn&apos;t open pull request</div>
-          <div className="mt-0.5 text-[11px] break-words opacity-90">
-            {output.replace(/^Failed to create PR:\s*/i, "")}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (urlMatch) {
-    const url = urlMatch[0]
-    const number = numberMatch?.[1]
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => {
-          // The desktop webview can't honor target="_blank"; route through the
-          // opener plugin (and keep `href` for context-menu copy/accessibility).
-          e.preventDefault()
-          openExternal(url)
-        }}
-        className="group flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs transition-colors hover:border-foreground/20 hover:bg-muted"
-      >
-        <GitPullRequest className="h-3.5 w-3.5 shrink-0 text-green-700 dark:text-green-300" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-foreground">{title}</div>
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            {number && <span>#{number}</span>}
-            {number && <span>·</span>}
-            <span className="truncate">github.com</span>
-          </div>
-        </div>
-        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-      </a>
-    )
-  }
-
-  return (
-    <div className="rounded-md border border-border bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
-      {output}
-    </div>
-  )
-}
-
-function ToolIndicator({
-  message,
-  result,
-}: {
-  message: AgentMessage & { role: "tool_use" }
-  result?: AgentMessage & { role: "tool_result" }
-}) {
-  const [expanded, setExpanded] = useState(false)
-  if (message.name === "create_pr") {
-    return <CreatePrIndicator message={message} result={result} />
-  }
-  const Icon = toolIcons[message.name] ?? Terminal
-  const input = message.input as Record<string, unknown>
-  const path = input.path
-  const isRunCommand = message.name === "run_command"
-  const isReadSkill = message.name === "read_skill"
-  const isSetTitle = message.name === "set_document_title"
-  const command = isRunCommand
-    ? [input.command, ...((input.args as string[] | undefined) ?? [])]
-        .filter(Boolean)
-        .join(" ")
-    : null
-  const skillName = isReadSkill ? (input.name as string | undefined) : null
-  const newTitle = isSetTitle ? (input.title as string | undefined) : null
-
-  return (
-    // Keep the scrollable output OUTSIDE the <button> — see ToolCallIndicator:
-    // a max-height-clamped overflow child nested in a button mislays out under
-    // WebKit (the desktop app's WKWebView).
-    <div>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted"
-      >
-        <Icon className="h-3 w-3 shrink-0" />
-        <span className="flex-1 truncate">
-          {formatToolName(message.name)}
-          {isRunCommand && command ? (
-            <>
-              {" "}
-              <code className="align-baseline font-mono text-[11px]">
-                {command}
-              </code>
-            </>
-          ) : isReadSkill && skillName ? (
-            ` ${skillName}`
-          ) : isSetTitle && newTitle ? (
-            ` ${newTitle}`
-          ) : path ? (
-            ` ${String(path)}`
-          ) : null}
-        </span>
-        <ChevronDown
-          className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
-        />
-      </button>
-      {expanded && result && (
-        <pre
-          className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}
-        >
-          {result.output}
-        </pre>
-      )}
-    </div>
-  )
-}
-
-// One shared height cap for every expanded tool-output block, so read, bash,
-// and edit all bound their content the same way instead of one growing
-// unbounded while another collapses to a tiny scroller. `whitespace-pre-wrap
-// break-words` wraps long lines (no horizontal scrollbar); `overflow-y-auto`
-// scrolls only once the content exceeds the cap.
+// One shared height cap for every tool-output block, so read, bash, and edit
+// all bound their content the same way instead of one growing unbounded while
+// another collapses to a tiny scroller. `whitespace-pre-wrap break-words` wraps
+// long lines (no horizontal scrollbar); `overflow-y-auto` scrolls only once the
+// content exceeds the cap.
 const TOOL_OUTPUT_CAP =
   "max-h-64 overflow-y-auto whitespace-pre-wrap break-words"
 
@@ -373,41 +232,89 @@ function cleanToolText(text: string): string {
   return out.replace(/^[ \t]*\d+→/gm, "")
 }
 
+const DIFF_ROW_CLASS: Record<"context" | "added" | "removed", string> = {
+  context: "text-muted-foreground",
+  added: "bg-success/10 text-foreground",
+  removed: "bg-destructive/10 text-foreground",
+}
+const DIFF_SIGN: Record<"context" | "added" | "removed", string> = {
+  context: " ",
+  added: "+",
+  removed: "-",
+}
+const DIFF_SIGN_CLASS: Record<"context" | "added" | "removed", string> = {
+  context: "",
+  added: "text-success",
+  removed: "text-destructive",
+}
+
+/** A file edit as a line diff: shared lines as context, changes marked +/-. */
+function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
+  const rows = useMemo(
+    () => foldContext(diffLines(block.oldText, block.newText)),
+    [block.oldText, block.newText]
+  )
+  return (
+    <div data-testid="tool-content-diff">
+      <div className="border-b border-border px-2 py-1 font-mono text-[10px] break-all text-muted-foreground">
+        {block.path}
+      </div>
+      <div className={`${TOOL_OUTPUT_CAP} py-1 font-mono text-[10px]`}>
+        {rows.map((row, i) =>
+          row.kind === "skip" ? (
+            <div key={i} className="px-2 text-muted-foreground/70 select-none">
+              ⋯ {row.count} unchanged lines
+            </div>
+          ) : (
+            <div
+              key={i}
+              data-diff={row.kind}
+              className={`flex px-2 ${DIFF_ROW_CLASS[row.kind]}`}
+            >
+              <span
+                aria-hidden
+                className={`w-3 shrink-0 select-none ${DIFF_SIGN_CLASS[row.kind]}`}
+              >
+                {DIFF_SIGN[row.kind]}
+              </span>
+              <span className="sr-only">
+                {row.kind === "added"
+                  ? "Added: "
+                  : row.kind === "removed"
+                    ? "Removed: "
+                    : ""}
+              </span>
+              <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
+                {row.text || " "}
+              </span>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Render one ACP {@link ToolCallContent} block *structurally* — a file `diff`
- * as path + added/removed text, a `terminal` as its handle, a text `content`
- * block as preformatted text. The point is that ACP's richer output is carried
- * as structure, not flattened to one `<pre>`; the visual polish (a real diff
- * viewer, a terminal emulator) is deferred.
+ * as a line diff, a `terminal` as its handle, a text `content` block as
+ * preformatted text — rather than flattening it all to one `<pre>`.
  */
-function ToolContentBlock({ block }: { block: ToolCallContent }) {
-  if (block.type === "diff") {
-    return (
-      <div
-        data-testid="tool-content-diff"
-        className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background`}
-      >
-        <div className="border-b border-border bg-muted/50 px-2 py-1 font-mono text-[10px] text-muted-foreground">
-          {block.path}
-        </div>
-        {block.oldText != null && (
-          <pre className="bg-red-50 px-2 py-1 font-mono text-[10px] break-words whitespace-pre-wrap text-red-700 dark:bg-red-950/40 dark:text-red-300">
-            {block.oldText}
-          </pre>
-        )}
-        <pre className="bg-green-50 px-2 py-1 font-mono text-[10px] break-words whitespace-pre-wrap text-green-700 dark:bg-green-950/40 dark:text-green-300">
-          {block.newText}
-        </pre>
-      </div>
-    )
-  }
+function ToolContentBlock({
+  block,
+  failed,
+}: {
+  block: ToolCallContent
+  failed?: boolean
+}) {
+  if (block.type === "diff") return <DiffBlock block={block} />
   if (block.type === "terminal") {
     return (
       <div
         data-testid="tool-content-terminal"
-        className="mt-1 flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground"
+        className="flex items-center gap-1.5 px-2 py-1 font-mono text-[10px] text-muted-foreground"
       >
-        <Terminal className="h-3 w-3 shrink-0" />
+        <Terminal className="size-3 shrink-0" />
         terminal {block.terminalId}
       </div>
     )
@@ -419,20 +326,70 @@ function ToolContentBlock({ block }: { block: ToolCallContent }) {
   return (
     <pre
       data-testid="tool-content-text"
-      className={`mt-1 ${TOOL_OUTPUT_CAP} rounded-md border border-border bg-background p-2 font-mono text-[10px] text-muted-foreground`}
+      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-[10px] ${failed ? "text-destructive" : "text-muted-foreground"}`}
     >
       {text}
     </pre>
   )
 }
 
+/** The text of a failed call's output, or null when it reported none. */
+function hasFailureText(content: ToolCallContent[]): boolean {
+  return content.some(
+    (b) =>
+      b.type !== "content" ||
+      (b.content.type === "text" && cleanToolText(b.content.text) !== "")
+  )
+}
+
 /**
- * Render an ACP-native tool call (issue #377), keyed by id and advancing
- * through its status lifecycle in place — generalizing the old `create_pr`-only
- * spinner to *every* tool. `pending`/`in_progress` show a spinner; `completed`
- * shows its (optional) structured content; `failed` is flagged red.
+ * A row's title, clipped to one line, with the full text on hover when (and
+ * only when) it doesn't fit — long paths and commands are exactly the part a
+ * truncated row hides.
  */
-function ToolCallIndicator({
+function TruncatedTitle({
+  children,
+  fullText,
+}: {
+  children: ReactNode
+  fullText: string
+}) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip
+        open={open}
+        onOpenChange={(next) => {
+          const el = ref.current
+          setOpen(next && !!el && el.scrollWidth > el.clientWidth)
+        }}
+      >
+        <TooltipTrigger asChild>
+          <span ref={ref} className="block truncate">
+            {children}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          align="start"
+          className="max-w-sm font-mono break-all"
+        >
+          {fullText}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/**
+ * The one tool-call row (issue #728), keyed by id and advancing through its
+ * status lifecycle in place: running shows the progress spinner, done shows the
+ * tool's icon, and failed shows the reason — its output, or a line saying none
+ * was reported — without needing to be opened. A row only expands when it has
+ * output to show.
+ */
+function ToolCallRow({
   message,
 }: {
   message: AgentMessage & { role: "tool_call" }
@@ -479,61 +436,84 @@ function ToolCallIndicator({
   const structured = isRawToolName || (verb != null && detail != null)
   const hasContent = message.content.length > 0
 
-  return (
-    // The expanded content must live OUTSIDE the <button>: WebKit (WKWebView,
-    // where the desktop app runs) reserves a scrollable, max-height-clamped
-    // child's *full* content height for layout when it's nested inside a
-    // <button>, so the row would occupy the un-scrolled height yet still scroll
-    // — leaving a large gap. Keeping the button to just the header sidesteps it.
-    <div>
-      <button
-        onClick={() => hasContent && setExpanded(!expanded)}
-        data-testid="tool-call"
-        data-status={message.status}
-        className={`flex w-full items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-xs ${
-          failed
-            ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
-            : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
-        }`}
+  const title = structured ? (
+    <>
+      {label}
+      {detail ? (
+        <>
+          {" "}
+          <code className="align-baseline font-mono text-[11px]">{detail}</code>
+        </>
+      ) : null}
+    </>
+  ) : (
+    renderTitleWithCode(message.title)
+  )
+  const fullText = structured
+    ? [label, detail].filter(Boolean).join(" ")
+    : message.title.replace(/`/g, "")
+
+  const icon = running ? (
+    <Spinner
+      data-testid="tool-call-spinner"
+      aria-label="Running"
+      className="size-3 shrink-0"
+    />
+  ) : failed ? (
+    <AlertCircle
+      aria-label="Failed"
+      className="size-3 shrink-0 text-destructive"
+    />
+  ) : (
+    <Icon aria-hidden className="size-3 shrink-0" />
+  )
+  const headerProps = {
+    "data-testid": "tool-call",
+    "data-status": message.status,
+  }
+
+  if (failed) {
+    // A failure is never hidden behind a click: its reason is the body.
+    return (
+      <ChatDisclosure
+        collapsible={false}
+        icon={icon}
+        title={<TruncatedTitle fullText={fullText}>{title}</TruncatedTitle>}
+        headerProps={headerProps}
       >
-        {running ? (
-          <Spinner
-            data-testid="tool-call-spinner"
-            className="size-3 shrink-0"
-          />
-        ) : failed ? (
-          <AlertCircle className="h-3 w-3 shrink-0" />
+        {hasFailureText(message.content) ? (
+          message.content.map((block, i) => (
+            <ToolContentBlock key={i} block={block} failed />
+          ))
         ) : (
-          <Icon className="h-3 w-3 shrink-0" />
+          <p
+            data-testid="tool-call-no-reason"
+            className="px-2 py-1.5 text-[11px] text-destructive"
+          >
+            The tool failed without reporting a reason.
+          </p>
         )}
-        <span className="flex-1 truncate">
-          {structured ? (
-            <>
-              {label}
-              {detail ? (
-                <>
-                  {" "}
-                  <code className="align-baseline font-mono text-[11px]">
-                    {detail}
-                  </code>
-                </>
-              ) : null}
-            </>
-          ) : (
-            renderTitleWithCode(message.title)
-          )}
-        </span>
-        {hasContent && (
-          <ChevronDown
-            className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
-          />
-        )}
-      </button>
-      {expanded &&
-        message.content.map((block, i) => (
-          <ToolContentBlock key={i} block={block} />
-        ))}
-    </div>
+      </ChatDisclosure>
+    )
+  }
+
+  return (
+    <ChatDisclosure
+      collapsible={hasContent}
+      open={expanded}
+      onOpenChange={setExpanded}
+      icon={icon}
+      title={<TruncatedTitle fullText={fullText}>{title}</TruncatedTitle>}
+      headerProps={headerProps}
+    >
+      {hasContent ? (
+        <div className="divide-y divide-border">
+          {message.content.map((block, i) => (
+            <ToolContentBlock key={i} block={block} />
+          ))}
+        </div>
+      ) : undefined}
+    </ChatDisclosure>
   )
 }
 
@@ -549,7 +529,7 @@ function ToolCallIndicator({
  * rather than an opaque spinner. (There is no meaningful denominator: a subagent's
  * eventual tool-call total is unknown while it runs.) Expanded, it lists the child
  * calls (each a normal
- * {@link ToolCallIndicator}) advancing through their own status lifecycle.
+ * {@link ToolCallRow}) advancing through their own status lifecycle.
  *
  * Default open while the subagent works, closed once it has settled: the initial
  * state is seeded from "is anything running" (so a reload of a finished run
@@ -584,43 +564,40 @@ export function TaskGroup({
   }
 
   return (
-    <div
-      data-testid="task-group"
-      className="rounded-md border border-border bg-muted/30"
-    >
-      <button
-        onClick={() => {
+    <div data-testid="task-group">
+      <ChatDisclosure
+        open={expanded}
+        onOpenChange={(next) => {
           setUserToggled(true)
-          setExpanded(!expanded)
+          setExpanded(next)
         }}
-        data-testid="task-group-header"
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
+        icon={
+          anyRunning ? (
+            // A running Task is a subagent at work: LLM activity, so the grid.
+            <GripSpinner className="size-3 shrink-0" />
+          ) : anyFailed ? (
+            <AlertCircle
+              aria-label="Failed"
+              className="size-3 shrink-0 text-destructive"
+            />
+          ) : (
+            <Bot aria-hidden className="size-3 shrink-0" />
+          )
+        }
+        title={renderTitleWithCode(task.title)}
+        meta={
+          <span className="shrink-0 text-[11px] text-muted-foreground/70 tabular-nums">
+            {childCalls.length}
+          </span>
+        }
+        headerProps={{ "data-testid": "task-group-header" }}
       >
-        {anyRunning ? (
-          // A running Task is a subagent at work: LLM activity, so the grid.
-          <GripSpinner className="h-3 w-3 shrink-0" />
-        ) : anyFailed ? (
-          <AlertCircle className="h-3 w-3 shrink-0" />
-        ) : (
-          <Bot className="h-3 w-3 shrink-0" />
-        )}
-        <span className="flex-1 truncate">
-          {renderTitleWithCode(task.title)}
-        </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground/70 tabular-nums">
-          {childCalls.length}
-        </span>
-        <ChevronDown
-          className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
-        />
-      </button>
-      {expanded && (
-        <div className="space-y-2 border-t border-border py-2 pr-2 pl-3">
+        <div className="space-y-2 py-2 pr-2 pl-3">
           {childCalls.map((child) => (
-            <ToolCallIndicator key={child.toolCallId} message={child} />
+            <ToolCallRow key={child.toolCallId} message={child} />
           ))}
         </div>
-      )}
+      </ChatDisclosure>
     </div>
   )
 }
@@ -645,12 +622,12 @@ function PlanMessage({
   const statusBadge = {
     pending: null,
     approved: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
         <CheckCircle2 className="h-3 w-3" /> Approved
       </span>
     ),
     rejected: (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
         <XCircle className="h-3 w-3" /> Changes requested
       </span>
     ),
@@ -660,50 +637,47 @@ function PlanMessage({
   const [expanded, setExpanded] = useState(!isRejected)
 
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
-      <button
-        onClick={() => isRejected && setExpanded(!expanded)}
-        className={`flex items-center gap-2 ${isRejected ? "cursor-pointer" : "cursor-default"}`}
-      >
-        <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground">Plan</span>
-        {statusBadge}
-        {isRejected && (
-          <ChevronDown
-            className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`}
-          />
+    <ChatDisclosure
+      // Only a rejected plan folds away; a pending or approved one stays open.
+      collapsible={isRejected}
+      open={expanded}
+      onOpenChange={setExpanded}
+      icon={<ClipboardList aria-hidden className="size-3 shrink-0" />}
+      title={
+        <span className="flex items-center gap-2">
+          <span className="font-medium">Plan</span>
+          {statusBadge}
+        </span>
+      }
+    >
+      <div className="px-3 py-2.5">
+        <ChatMarkdown>{message.content}</ChatMarkdown>
+        {message.status === "pending" && (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs"
+              onClick={handleApprove}
+              disabled={isSubmitting}
+            >
+              <CheckCircle2 className="mr-1 h-3 w-3" />
+              Approve
+            </Button>
+          </div>
         )}
-      </button>
-      {expanded && (
-        <>
-          <ChatMarkdown className="mt-2">{message.content}</ChatMarkdown>
-          {message.status === "pending" && (
-            <div className="mt-3">
-              <Button
-                size="sm"
-                variant="default"
-                className="h-7 text-xs"
-                onClick={handleApprove}
-                disabled={isSubmitting}
-              >
-                <CheckCircle2 className="mr-1 h-3 w-3" />
-                Approve
-              </Button>
+        {isRejected && message.feedback && (
+          <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+              <XCircle className="h-3 w-3" /> Your feedback
             </div>
-          )}
-          {isRejected && message.feedback && (
-            <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
-              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                <XCircle className="h-3 w-3" /> Your feedback
-              </div>
-              <ChatMarkdown tone="muted" size="xs">
-                {message.feedback}
-              </ChatMarkdown>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+            <ChatMarkdown tone="muted" size="xs">
+              {message.feedback}
+            </ChatMarkdown>
+          </div>
+        )}
+      </div>
+    </ChatDisclosure>
   )
 }
 
@@ -722,27 +696,16 @@ function ReasoningMessage({
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="rounded-md border border-border bg-muted/30">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
-      >
-        <Brain className="h-3 w-3 shrink-0" />
-        <span className="flex-1 truncate">Reasoning</span>
-        <ChevronDown
-          className={`h-3 w-3 shrink-0 transition-transform ${expanded ? "" : "-rotate-90"}`}
-        />
-      </button>
-      {expanded && (
-        <ChatMarkdown
-          tone="muted"
-          size="xs"
-          className="border-t border-border px-2 py-1.5"
-        >
-          {message.content}
-        </ChatMarkdown>
-      )}
-    </div>
+    <ChatDisclosure
+      open={expanded}
+      onOpenChange={setExpanded}
+      icon={<Brain aria-hidden className="size-3 shrink-0" />}
+      title="Reasoning"
+    >
+      <ChatMarkdown tone="muted" size="xs" className="px-2 py-1.5">
+        {message.content}
+      </ChatMarkdown>
+    </ChatDisclosure>
   )
 }
 
@@ -899,12 +862,10 @@ function UserMessage({
 
 export function AgentMessageItem({
   message,
-  toolResult,
   roomId,
   chatId,
 }: {
   message: AgentMessage
-  toolResult?: AgentMessage & { role: "tool_result" }
   roomId?: string
   chatId?: string
 }) {
@@ -918,14 +879,8 @@ export function AgentMessageItem({
     case "reasoning":
       return <ReasoningMessage message={message} />
 
-    case "tool_use":
-      return <ToolIndicator message={message} result={toolResult} />
-
-    case "tool_result":
-      return null
-
     case "tool_call":
-      return <ToolCallIndicator message={message} />
+      return <ToolCallRow message={message} />
 
     case "plan":
       return roomId && chatId ? (
@@ -934,9 +889,16 @@ export function AgentMessageItem({
 
     case "error":
       return (
-        <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
-          <AlertCircle className="h-3 w-3 shrink-0" />
-          {message.content}
+        // Wraps anywhere: a transcript error is often one long URL or stack
+        // line with no spaces to break on.
+        <div
+          data-testid="chat-error"
+          className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-xs text-destructive"
+        >
+          <AlertCircle aria-hidden className="mt-px size-3 shrink-0" />
+          <p className="min-w-0 flex-1 [overflow-wrap:anywhere] whitespace-pre-wrap">
+            {message.content}
+          </p>
         </div>
       )
 

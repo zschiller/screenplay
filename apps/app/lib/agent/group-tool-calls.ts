@@ -11,8 +11,7 @@ type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
  * `children` as "render this as a collapsible group".
  *
  * `index` is the message's position in the *flat* input list, preserved so the
- * render layer keeps stable React keys (and can still pair a legacy
- * `tool_use`/`tool_result` by slicing the original array).
+ * render layer keeps stable React keys.
  */
 export interface GroupedMessage {
   message: AgentMessage

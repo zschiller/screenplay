@@ -18,7 +18,6 @@ import {
   type ComposerHandle,
   type ComposerSubmitPayload,
 } from "./composer"
-import type { AgentMessage } from "@/lib/agent/types"
 import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
 import { targetingStore } from "@/lib/targeting-store"
@@ -402,23 +401,6 @@ export function AgentChat({
                         key={i}
                         task={msg}
                         childCalls={children.map((c) => c.message)}
-                      />
-                    )
-                  }
-                  if (msg.role === "tool_use") {
-                    const result = messages
-                      .slice(i + 1)
-                      .find(
-                        (m): m is AgentMessage & { role: "tool_result" } =>
-                          m.role === "tool_result" && m.name === msg.name
-                      )
-                    return (
-                      <AgentMessageItem
-                        key={i}
-                        message={msg}
-                        toolResult={result}
-                        roomId={roomId}
-                        chatId={chatId}
                       />
                     )
                   }

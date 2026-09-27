@@ -123,17 +123,29 @@ function ensureTabVisible(viewport: HTMLElement, el: HTMLElement) {
   }
 }
 
-// Scan a chat's messages newest-first for the most recent `create_pr` tool
-// result and pull the PR url/number out of its output. Pure over `messages`
-// so the `useMemo` below is a single reactive call the compiler can preserve.
+// Scan a chat's messages newest-first for the most recent completed
+// `create_pr` tool call and pull the PR url/number out of its output. Pure over
+// `messages` so the `useMemo` below is a single reactive call the compiler can
+// preserve.
 function findLatestPr(
   messages: AgentMessage[]
 ): { url: string; number: string } | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
-    if (m.role === "tool_result" && m.name === "create_pr") {
-      const url = m.output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
-      const num = m.output.match(/#(\d+)/)?.[1]
+    if (
+      m.role === "tool_call" &&
+      m.title === "create_pr" &&
+      m.status === "completed"
+    ) {
+      const output = m.content
+        .map((b) =>
+          b.type === "content" && b.content.type === "text"
+            ? b.content.text
+            : ""
+        )
+        .join("\n")
+      const url = output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
+      const num = output.match(/#(\d+)/)?.[1]
       if (url && num) return { url, number: num }
     }
   }
