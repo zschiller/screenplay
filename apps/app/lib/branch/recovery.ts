@@ -76,6 +76,13 @@ export interface BranchRecoveryDeps {
   toast: RecoveryToasts
 }
 
+/**
+ * How a VM-cycling recovery settled, for callers that need more than the toast
+ * (the Recreate confirm shows a failure inline). A vanished Branch is `ok`: a
+ * silent no-op, nothing to report.
+ */
+export type RecoveryOutcome = { ok: true } | { ok: false; error: string }
+
 /** What a VM-cycling recovery fn returns: the (possibly new) sandbox + preview. */
 type SandboxRecoveryResult = SandboxActionResult<{
   sandboxName: string
@@ -109,15 +116,15 @@ async function runSandboxRecovery(
   id: string,
   spec: SandboxRecoverySpec,
   deps: BranchRecoveryDeps
-): Promise<void> {
+): Promise<RecoveryOutcome> {
   const agent = deps.findAgent(id)
-  if (!agent?.sandboxName) return
+  if (!agent?.sandboxName) return { ok: true }
 
   const repo = deps.findRepo(agent.repoId)
   if (!repo) {
     deps.patchAgent(id, { status: "error", error: "Workspace not found" })
     deps.toast.error(spec.failureTitle, "Workspace not found")
-    return
+    return { ok: false, error: "Workspace not found" }
   }
 
   deps.patchAgent(id, {
@@ -125,7 +132,14 @@ async function runSandboxRecovery(
     statusMessage: spec.startingMessage,
   })
 
-  const result = await spec.run(agent, repo)
+  // A thrown call (the server action's request failed) is a failure like any
+  // other, not a Branch stuck on `starting`.
+  const result = await spec.run(agent, repo).catch(
+    (err: unknown): SandboxRecoveryResult => ({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  )
   if (result.success) {
     deps.patchAgent(id, {
       sandboxName: result.value.sandboxName,
@@ -137,6 +151,7 @@ async function runSandboxRecovery(
       error: "",
     })
     deps.toast.success(spec.successMessage)
+    return { ok: true }
   } else {
     deps.patchAgent(id, {
       status: "error",
@@ -144,6 +159,7 @@ async function runSandboxRecovery(
       error: result.error || "",
     })
     deps.toast.error(spec.failureTitle, result.error || undefined)
+    return { ok: false, error: result.error || spec.failureTitle }
   }
 }
 
@@ -184,7 +200,7 @@ export async function restartDevServer(
 export function restartSandbox(
   id: string,
   deps: BranchRecoveryDeps
-): Promise<void> {
+): Promise<RecoveryOutcome> {
   return runSandboxRecovery(
     id,
     {
@@ -205,7 +221,7 @@ export function restartSandbox(
 export function recreate(
   id: string,
   deps: BranchRecoveryDeps
-): Promise<void> {
+): Promise<RecoveryOutcome> {
   return runSandboxRecovery(
     id,
     {

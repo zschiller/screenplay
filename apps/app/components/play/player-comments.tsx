@@ -16,6 +16,7 @@ import {
   listBranchThreadsAction,
 } from "@/lib/comments-actions"
 import type { ThreadWithComments } from "@/lib/comments"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 interface PlayerCommentsProps {
   roomId: string
@@ -76,14 +77,12 @@ export function PlayerComments({
     })
   }, [body, isPending, branch, roomId])
 
-  const handleDelete = useCallback((threadId: string) => {
-    startTransition(async () => {
-      try {
-        await deleteThreadAction(threadId)
-        setThreads((prev) => prev.filter((t) => t.id !== threadId))
-      } catch {}
-    })
-  }, [])
+  // Deleting a comment is permanent, so it goes through a confirm; the
+  // confirm owns the pending state and shows a failure inline.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const pendingDelete = pendingDeleteId
+    ? threads.find((t) => t.id === pendingDeleteId)
+    : undefined
 
   const meId = session?.user?.id
 
@@ -134,7 +133,7 @@ export function PlayerComments({
                     {t.createdBy === meId ? (
                       <button
                         type="button"
-                        onClick={() => handleDelete(t.id)}
+                        onClick={() => setPendingDeleteId(t.id)}
                         className="ml-auto text-muted-foreground hover:text-destructive"
                         title="Delete comment"
                       >
@@ -151,6 +150,21 @@ export function PlayerComments({
           })
         )}
       </div>
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteId(null)
+        }}
+        verb="Delete"
+        itemNoun="comment"
+        description="This comment will be deleted for everyone. This cannot be undone."
+        onConfirm={async () => {
+          if (!pendingDelete) return
+          await deleteThreadAction(pendingDelete.id)
+          setThreads((prev) => prev.filter((t) => t.id !== pendingDelete.id))
+          setPendingDeleteId(null)
+        }}
+      />
       <form
         className="flex flex-col gap-1.5 border-t border-foreground/5 p-2"
         onSubmit={(e) => {

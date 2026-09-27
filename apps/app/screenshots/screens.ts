@@ -1,4 +1,4 @@
-import type { Page } from "playwright-core"
+import type { Locator, Page } from "playwright-core"
 
 import {
   DEFAULT_VIEW_PREFS,
@@ -689,6 +689,165 @@ export const SCREENS: Screen[] = [
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
+
+  // --- Confirm dialogs (issue #724) -----------------------------------------
+  // Each opens a destructive action's confirm and stops there; none of them
+  // confirms for real, so the Fixture World is never mutated. The pending and
+  // error states hold every server action (see `holdServerActions`), and the
+  // screens that write to the canvas doc cut the Yjs socket first (see
+  // `freezeYjs`), so e.g. a Workspace's transient `starting` status never
+  // reaches the persisted doc.
+  {
+    name: "confirm-delete-canvas",
+    description: "Home → a Canvas's … menu → Delete: the delete confirm.",
+    path: "/files",
+    prepare: async (page) => {
+      await chooseFromMenu(
+        page,
+        page.getByRole("button", { name: "Canvas actions" }).first(),
+        "Delete"
+      )
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-delete-canvas-pending",
+    description: "The Canvas delete confirm while the delete is in flight.",
+    path: "/files",
+    prepare: async (page) => {
+      await holdServerActions(page, "hang")
+      await chooseFromMenu(
+        page,
+        page.getByRole("button", { name: "Canvas actions" }).first(),
+        "Delete"
+      )
+      await confirmDialog(page, "Delete")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-delete-canvas-error",
+    description: "The Canvas delete confirm after the delete failed.",
+    path: "/files",
+    prepare: async (page) => {
+      await holdServerActions(page, "fail")
+      await chooseFromMenu(
+        page,
+        page.getByRole("button", { name: "Canvas actions" }).first(),
+        "Delete"
+      )
+      await confirmDialog(page, "Delete")
+      await page
+        .getByRole("alertdialog")
+        .locator(".text-destructive")
+        .first()
+        .waitFor({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-delete-folder",
+    description: "Home → a Folder's … menu → Delete: the cascade confirm.",
+    path: "/files",
+    prepare: async (page) => {
+      await chooseFromMenu(
+        page,
+        page.getByRole("button", { name: "Folder actions" }).first(),
+        "Delete"
+      )
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-recreate-workspace",
+    description: "Canvas sidebar → a Workspace's … → Restart → Recreate.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-recreate-workspace-pending",
+    description: "The Recreate confirm after confirming, while it runs.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await freezeYjs(page)
+      await holdServerActions(page, "hang")
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
+      await confirmDialog(page, "Recreate")
+    },
+    settleMs: 600,
+  },
+  {
+    name: "confirm-recreate-workspace-error",
+    description: "The Recreate confirm after the recreation failed.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await freezeYjs(page)
+      await holdServerActions(page, "fail")
+      await chooseFromMenu(
+        page,
+        await branchRowMenu(page, "empty-cart-state"),
+        ["Restart", "Recreate from scratch"]
+      )
+      await confirmDialog(page, "Recreate")
+      await page
+        .getByRole("alertdialog")
+        .locator(".text-destructive")
+        .first()
+        .waitFor({ timeout: 15_000 })
+        .catch(() => {})
+    },
+    settleMs: 600,
+  },
+  {
+    name: "confirm-delete-frame",
+    description: "Canvas sidebar → a frame's … menu → Delete.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      // Frozen so a build without the confirm (the "before" half) deletes on
+      // screen only, never in the persisted world.
+      await freezeYjs(page)
+      await chooseFromMenu(page, rowMenuTrigger(page, "Empty cart"), ["Delete"])
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-delete-group",
+    description: "Canvas sidebar → a Group's … menu → Delete.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      // Frozen so a build without the confirm (the "before" half) deletes on
+      // screen only, never in the persisted world.
+      await freezeYjs(page)
+      await chooseFromMenu(page, rowMenuTrigger(page, "Checkout"), ["Delete"])
+    },
+    settleMs: 300,
+  },
+  {
+    name: "confirm-delete-preset",
+    description: "Settings → a saved Project preset's Delete button.",
+    path: "/settings",
+    prepare: async (page) => {
+      // Wait for the presets to load before holding server actions (the list
+      // itself loads through one), then hold them so a build without the
+      // confirm deletes nothing for real.
+      const del = page.getByRole("button", { name: "Delete", exact: true })
+      await del.first().waitFor({ timeout: 30_000 })
+      await holdServerActions(page, "hang")
+      await del.first().click({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
   {
     name: "sign-in",
     description: "The hosted sign-in page.",
@@ -734,6 +893,115 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
 ]
+
+/**
+ * Open a menu from its trigger and pick an item, walking into submenus: pass
+ * `["Restart", "Recreate from scratch"]` to hover the first and click the last.
+ */
+export async function chooseFromMenu(
+  page: Page,
+  trigger: Locator,
+  path: string | string[]
+): Promise<void> {
+  const steps = typeof path === "string" ? [path] : path
+  // Hover-revealed triggers (sidebar rows) only take a click once their row
+  // is hovered.
+  await trigger
+    .locator("xpath=..")
+    .hover({ timeout: 15_000 })
+    .catch(() => {})
+  await trigger.click({ timeout: 15_000, force: true })
+  for (const [i, label] of steps.entries()) {
+    // Radix ignores a select that lands in the same beat the menu opened.
+    await page.waitForTimeout(300)
+    const item = page.getByRole("menuitem", { name: label, exact: true }).last()
+    if (i < steps.length - 1) {
+      // Open the submenu the way a keyboard user does.
+      await item.focus({ timeout: 10_000 })
+      await item.press("ArrowRight")
+    } else {
+      await item.click({ timeout: 10_000 })
+    }
+  }
+}
+
+/**
+ * The `…` menu trigger on the sidebar row whose text is `text`: the nearest
+ * ancestor of the text that holds a menu trigger, hovered so the trigger shows.
+ */
+export function rowMenuTrigger(page: Page, text: string): Locator {
+  const label = page.getByText(text, { exact: true }).first()
+  return label
+    .locator(
+      "xpath=ancestor::*[.//button[@aria-haspopup='menu']][1]//button[@aria-haspopup='menu']"
+    )
+    .first()
+}
+
+/**
+ * The \`…\` menu trigger on a Workspace row, which only shows while the row is
+ * hovered: hover the row, then hand back its trigger.
+ */
+export async function branchRowMenu(page: Page, ref: string): Promise<Locator> {
+  const row = page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: ref })
+    .first()
+  await row.hover({ timeout: 15_000 })
+  return row.locator('[aria-haspopup="menu"]').first()
+}
+
+/** Click the confirm dialog's action button. */
+export async function confirmDialog(page: Page, verb: string): Promise<void> {
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: verb, exact: true })
+    .click({ timeout: 10_000 })
+}
+
+/**
+ * Hold every Next.js server action from here on: `hang` never answers (the
+ * pending state), `fail` answers 500 (the error state). Either way the server
+ * never runs the action, so the Fixture World is untouched.
+ */
+export async function holdServerActions(
+  page: Page,
+  mode: "hang" | "fail"
+): Promise<void> {
+  await page.route("**/*", async (route) => {
+    const request = route.request()
+    if (request.method() !== "POST" || !request.headers()["next-action"]) {
+      return route.fallback()
+    }
+    if (mode === "fail") {
+      return route.fulfill({ status: 500, body: "Internal Server Error" })
+    }
+    // hang: leave the request unanswered.
+  })
+}
+
+/**
+ * Reload the page with the Yjs socket's client → server direction cut, so
+ * local canvas writes (a Workspace flipped to `starting`) render but are never
+ * persisted into the Fixture World.
+ */
+export async function freezeYjs(page: Page): Promise<void> {
+  await page.routeWebSocket(/.*/, (ws) => {
+    const server = ws.connectToServer()
+    let initialSync = true
+    // Let the handshake through so the canvas loads, then drop client writes.
+    setTimeout(() => (initialSync = false), 5_000)
+    ws.onMessage((message) => {
+      if (initialSync) server.send(message)
+    })
+    server.onMessage((message) => ws.send(message))
+  })
+  await page.reload({ waitUntil: "load" })
+  await page.getByText("empty-cart-state", { exact: true }).first().waitFor({
+    timeout: 60_000,
+  })
+  await page.waitForTimeout(5_500)
+}
 
 /**
  * The cookie that puts a Fixture World capture on one of the screens a person

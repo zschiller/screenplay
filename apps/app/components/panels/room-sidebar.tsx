@@ -155,6 +155,7 @@ import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
 import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
 import type { ComposerSpec } from "@/lib/branch-create-planner"
@@ -687,6 +688,12 @@ function sanitizeBranchName(raw: string): string {
     .replace(/^-|-$/g, "")
 }
 
+/** A sidebar Layer awaiting its delete confirm. */
+type PendingRemoveLayer = {
+  kind: "iframe-layer" | "markdown-layer"
+  id: string
+}
+
 export function RoomSidebar({
   repos,
   branches,
@@ -798,6 +805,13 @@ export function RoomSidebar({
   const [pendingDeleteRepoId, setPendingDeleteRepoId] = useState<string | null>(
     null
   )
+  // Sidebar Layer / Group deletes have no undo, so they go through a confirm
+  // (issue #724). The canvas's own Delete key is unchanged.
+  const [pendingRemoveLayer, setPendingRemoveLayer] =
+    useState<PendingRemoveLayer | null>(null)
+  const [pendingRemoveGroupId, setPendingRemoveGroupId] = useState<
+    string | null
+  >(null)
   const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
   // Per-repo cache of remote branch names, fetched lazily on first
   // render of a repo and refreshed whenever the repo list changes.
@@ -883,7 +897,7 @@ export function RoomSidebar({
       onSelect: onSelectIframeLayer,
       onActivate: onZoomToIframeLayer,
       onRename: onRenameIframeLayer,
-      onRemove: onRemoveIframeLayer,
+      onRemove: (id) => setPendingRemoveLayer({ kind: "iframe-layer", id }),
     },
     "markdown-layer": {
       Row: DocumentRow as AnyRowDispatcher["Row"],
@@ -892,7 +906,7 @@ export function RoomSidebar({
       onSelect: onSelectDocument,
       onActivate: onZoomToDocument,
       onRename: onRenameDocument,
-      onRemove: onRemoveDocument,
+      onRemove: (id) => setPendingRemoveLayer({ kind: "markdown-layer", id }),
     },
   }
 
@@ -2389,7 +2403,7 @@ export function RoomSidebar({
                                             <DropdownMenuItem
                                               variant="destructive"
                                               onClick={() =>
-                                                onRemoveIframeLayerGroup(
+                                                setPendingRemoveGroupId(
                                                   group.id
                                                 )
                                               }
@@ -2500,12 +2514,12 @@ export function RoomSidebar({
                 if (!open) setPendingRecreateBranchId(null)
               }}
               branchName={branch?.ref ?? ""}
-              onConfirm={() => {
+              onConfirm={async () => {
                 if (!branch) return
-                // Close immediately and let the recreation run in the
-                // background — progress shows on the branch in the sidebar.
+                // The confirm stays open ("Recreating…") until this settles;
+                // a failure rejects and shows inline for a retry.
+                await onRecreateBranch(branch.id)
                 setPendingRecreateBranchId(null)
-                void onRecreateBranch(branch.id)
               }}
             />
           )
@@ -2553,6 +2567,73 @@ export function RoomSidebar({
                 if (!repo) return
                 await onRemoveRepo(repo.id, { deleteBranchesOnRemote })
                 setPendingDeleteRepoId(null)
+              }}
+            />
+          )
+        })()}
+        {(() => {
+          const pending = pendingRemoveLayer
+          const iframeLayer =
+            pending?.kind === "iframe-layer"
+              ? iframeLayersById.get(pending.id)
+              : undefined
+          const document =
+            pending?.kind === "markdown-layer"
+              ? documentsById.get(pending.id)
+              : undefined
+          const noun = pending?.kind === "markdown-layer" ? "document" : "frame"
+          // An unnamed Layer reads "Delete frame?" rather than quoting nothing.
+          const name = iframeLayer?.label ?? document?.title
+          return (
+            <ConfirmDialog
+              open={!!(iframeLayer || document)}
+              onOpenChange={(open) => {
+                if (!open) setPendingRemoveLayer(null)
+              }}
+              verb="Delete"
+              itemName={name}
+              itemNoun={noun}
+              description={`This ${noun} will be removed from the canvas for everyone. This cannot be undone.`}
+              onConfirm={() => {
+                if (iframeLayer) onRemoveIframeLayer(iframeLayer.id)
+                if (document) onRemoveDocument(document.id)
+                setPendingRemoveLayer(null)
+              }}
+            />
+          )
+        })()}
+        {(() => {
+          const group = pendingRemoveGroupId
+            ? iframeLayerGroups.find((g) => g.id === pendingRemoveGroupId)
+            : undefined
+          const members = group ? getGroupMembers(group) : []
+          const frames = members.filter((m) => m.kind === "iframe-layer").length
+          const documents = members.filter(
+            (m) => m.kind === "markdown-layer"
+          ).length
+          const contents = [
+            frames > 0 && (frames === 1 ? "1 frame" : `${frames} frames`),
+            documents > 0 &&
+              (documents === 1 ? "1 document" : `${documents} documents`),
+          ]
+            .filter(Boolean)
+            .join(" and ")
+          return (
+            <ConfirmDialog
+              open={!!group}
+              onOpenChange={(open) => {
+                if (!open) setPendingRemoveGroupId(null)
+              }}
+              verb="Delete"
+              itemName={group?.name}
+              itemNoun="group"
+              description={
+                `This group${contents ? ` and its ${contents}` : ""} will be ` +
+                "removed from the canvas for everyone. This cannot be undone."
+              }
+              onConfirm={() => {
+                if (group) onRemoveIframeLayerGroup(group.id)
+                setPendingRemoveGroupId(null)
               }}
             />
           )

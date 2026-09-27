@@ -1,17 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@workspace/ui/components/alert-dialog"
-import { buttonVariants } from "@workspace/ui/components/button"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 // The confirm for deleting a Folder and everything beneath it (PRD #475, #488).
 // Deleting a Folder is always destructive — it permanently deletes the owned
@@ -79,67 +68,19 @@ export function DeleteFolderDialog({
   sharedWithCount,
   onConfirm,
 }: DeleteFolderDialogProps) {
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  // Reset transient state when the dialog is dismissed, so reopening starts
-  // clean — the previous-prop pattern rather than an effect (see react.dev
-  // "You Might Not Need an Effect"), matching DeleteRoomDialog.
-  const [wasOpen, setWasOpen] = useState(open)
-  if (open !== wasOpen) {
-    setWasOpen(open)
-    if (!open) {
-      setPending(false)
-      setError(null)
-    }
-  }
-
-  const description = describeDeletion(
-    deletedCount,
-    sharedOwnedCount,
-    sharedWithCount
-  )
-
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={open}
-      onOpenChange={(next) => {
-        if (pending) return
-        onOpenChange(next)
-        if (!next) setError(null)
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Delete &ldquo;{folderName}&rdquo;?
-          </AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className={buttonVariants({ variant: "destructive" })}
-            disabled={pending}
-            onClick={async (event) => {
-              event.preventDefault()
-              setPending(true)
-              setError(null)
-              try {
-                await onConfirm()
-              } catch (err) {
-                setError(
-                  err instanceof Error ? err.message : "Failed to delete folder"
-                )
-                setPending(false)
-              }
-            }}
-          >
-            {pending ? "Deleting…" : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      onOpenChange={onOpenChange}
+      verb="Delete"
+      itemName={folderName}
+      itemNoun="folder"
+      description={describeDeletion(
+        deletedCount,
+        sharedOwnedCount,
+        sharedWithCount
+      )}
+      onConfirm={onConfirm}
+    />
   )
 }

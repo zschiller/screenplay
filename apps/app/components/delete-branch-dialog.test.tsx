@@ -42,14 +42,12 @@ describe("DeleteBranchDialog remote-delete offer", () => {
   it("opens with the remote delete off, so Delete is local-only by default", () => {
     const { onConfirm } = renderDialog()
 
-    expect(screen.getByRole("switch")).toHaveProperty(
+    expect(screen.getByRole("checkbox")).toHaveProperty(
       "dataset.state",
       "unchecked"
     )
     expect(
-      screen.getByText(
-        /stays in your sandbox unless you also delete it on the remote\./i
-      )
+      screen.getByText(/itself isn’t deleted unless you choose to below\./i)
     ).toBeDefined()
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
@@ -60,7 +58,7 @@ describe("DeleteBranchDialog remote-delete offer", () => {
   it("passes the opt-in through once the toggle is switched on", () => {
     const { onConfirm } = renderDialog()
 
-    fireEvent.click(screen.getByRole("switch"))
+    fireEvent.click(screen.getByRole("checkbox"))
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     expect(onConfirm).toHaveBeenCalledWith({ deleteOnRemote: true })
@@ -69,14 +67,12 @@ describe("DeleteBranchDialog remote-delete offer", () => {
   it("hides the toggle entirely when the GitHub API can't serve it", () => {
     const { onConfirm } = renderDialog({ canDeleteOnRemote: false })
 
-    expect(screen.queryByRole("switch")).toBeNull()
-    expect(screen.queryByText(/delete on remote/i)).toBeNull()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(screen.queryByText(/delete the branch on origin/i)).toBeNull()
     // …and the description drops the clause that dangles without the toggle,
     // ending the sentence cleanly instead.
-    expect(
-      screen.queryByText(/unless you also delete it on the remote/i)
-    ).toBeNull()
-    expect(screen.getByText(/stays in your sandbox\./i)).toBeDefined()
+    expect(screen.queryByText(/unless you choose to below/i)).toBeNull()
+    expect(screen.getByText(/itself isn’t deleted\./i)).toBeDefined()
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
