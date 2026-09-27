@@ -2,7 +2,10 @@
 
 import { FileText, Frame, MessageSquare, MousePointer2 } from "lucide-react"
 
-import { IconButton } from "@workspace/ui/components/icon-button"
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+} from "@workspace/ui/components/floating-toolbar"
 
 import { isLocalBuild } from "@/lib/local-mode"
 
@@ -29,65 +32,62 @@ export function CanvasToolbar({
   const { frameMode, documentMode, commentMode } = toolMode
   return (
     <div className="pointer-events-none absolute bottom-0 left-1/2 z-(--z-canvas-chrome) flex h-12 -translate-x-1/2 items-center px-2">
-      <div
-        className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+      <FloatingToolbar
+        aria-label="Tools"
+        className="[&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <IconButton
+        <FloatingToolbarButton
           label="Select"
           shortcut="V"
           pressed={toolMode.isSelect}
-          variant={toolMode.isSelect ? "default" : "ghost"}
           onClick={() => {
             toolMode.set("select")
             onClearMode()
           }}
         >
           <MousePointer2 />
-        </IconButton>
-        <IconButton
+        </FloatingToolbarButton>
+        <FloatingToolbarButton
           label="Frame"
           shortcut="F"
           pressed={frameMode}
-          variant={frameMode ? "default" : "ghost"}
           onClick={() => {
             toolMode.toggle("frame")
             onClearMode()
           }}
         >
           <Frame />
-        </IconButton>
-        <IconButton
+        </FloatingToolbarButton>
+        <FloatingToolbarButton
           label="Document"
           shortcut="D"
           pressed={documentMode}
-          variant={documentMode ? "default" : "ghost"}
           onClick={() => {
             toolMode.toggle("document")
             onClearMode()
           }}
         >
           <FileText />
-        </IconButton>
+        </FloatingToolbarButton>
         {/* Comment mode is web-only: it places multi-user comment
             threads. The local build has no persisted threads (#417) and
             its element→agent targeting now lives in the composer token
             path (#618), so there's no comment tool on desktop. */}
         {!isLocalBuild && (
-          <IconButton
+          <FloatingToolbarButton
             label="Comment"
             shortcut="C"
             pressed={commentMode}
-            variant={commentMode ? "default" : "ghost"}
             onClick={() => {
               toolMode.toggle("comment")
               onClearMode()
             }}
           >
             <MessageSquare />
-          </IconButton>
+          </FloatingToolbarButton>
         )}
-      </div>
+      </FloatingToolbar>
     </div>
   )
 }

@@ -19,7 +19,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { IconButton } from "@workspace/ui/components/icon-button"
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+  FloatingToolbarSeparator,
+} from "@workspace/ui/components/floating-toolbar"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -34,7 +38,7 @@ import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
-import { LayerShell } from "./layer-shell"
+import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
 import type {
   DomRect,
@@ -704,11 +708,7 @@ export function IframeLayer({
           }
           selected={selected || groupSelected}
           remoteSelectedColor={remoteSelectedColor}
-          onSelectFrame={(shiftKey) => {
-            if (selected && !shiftKey) return
-            if (groupSelected && !shiftKey) return
-            api.deferSelect(shiftKey)
-          }}
+          onSelectFrame={api.deferSelect}
           onRename={
             onRename ? (next) => onRename(iframeLayer.id, next) : undefined
           }
@@ -721,46 +721,43 @@ export function IframeLayer({
             showToolbar &&
             toolbarPortalTarget &&
             createPortal(
-              <div
+              <FloatingToolbar
                 ref={toolbarRef}
+                orientation="vertical"
+                aria-label="Frame"
                 // Positioned every frame by the rAF loop above (translate is set
                 // imperatively from the frame's getBoundingClientRect). Lives
                 // outside the world transform, so it's already at constant screen
                 // size — no inverse-zoom scaling needed.
-                className="pointer-events-auto absolute top-0 left-0 flex flex-col items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
+                className="absolute top-0 left-0"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                <IconButton
+                <FloatingToolbarButton
                   label={focused ? "Back to canvas" : "Interact"}
-                  tooltipSide="right"
                   pressed={focused}
-                  variant={focused ? "default" : "ghost"}
                   onClick={() => onFocus(focused ? null : iframeLayer.id)}
                 >
                   {focused ? <Move /> : <MousePointer />}
-                </IconButton>
-                <IconButton
+                </FloatingToolbarButton>
+                <FloatingToolbarButton
                   label={createFlow ? "Stop create flow" : "Create flow"}
-                  tooltipSide="right"
                   pressed={createFlow}
-                  variant={createFlow ? "default" : "ghost"}
                   onClick={() =>
                     onToggleCreateFlow(createFlow ? null : iframeLayer.id)
                   }
                 >
                   <Route />
-                </IconButton>
+                </FloatingToolbarButton>
                 {/* interaction modes above ∣ everything else below */}
-                <div className="my-0.5 h-px w-full bg-foreground/10" />
-                <IconButton
+                <FloatingToolbarSeparator />
+                <FloatingToolbarButton
                   label="Reload"
-                  tooltipSide="right"
                   variant={showReload ? "default" : "ghost"}
                   onClick={reloadIframe}
                 >
                   <RotateCw />
-                </IconButton>
+                </FloatingToolbarButton>
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -771,9 +768,9 @@ export function IframeLayer({
                 {showOverflow && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <IconButton label="More" tooltipSide="right">
+                      <FloatingToolbarButton label="More">
                         <MoreHorizontal className="text-muted-foreground" />
-                      </IconButton>
+                      </FloatingToolbarButton>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       side="right"
@@ -811,10 +808,12 @@ export function IframeLayer({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-              </div>,
+              </FloatingToolbar>,
               toolbarPortalTarget
             )}
-          <div className="relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900">
+          <div
+            className={`relative h-full w-full overflow-hidden bg-white dark:bg-zinc-900 ${LAYER_SURFACE_CLASS}`}
+          >
             {/* Mount the iframe as soon as there's a URL — don't gate it on the
             probe. The probe is a server-action round-trip; gating the mount on
             it meant the browser only started fetching the page *after* the probe
