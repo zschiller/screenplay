@@ -293,6 +293,43 @@ export const SCREENS: Screen[] = [
     settleMs: 300,
   },
   {
+    name: "home-search",
+    description:
+      "Home search (#807): results from every folder, each naming where it lives.",
+    path: "/files",
+    prepare: async (page) => {
+      await searchHome(page, "design")
+    },
+  },
+  {
+    name: "home-search-table",
+    description: "The same search in the table layout, with a Location column.",
+    path: "/files",
+    cookies: homeView("table"),
+    prepare: async (page) => {
+      await searchHome(page, "design")
+    },
+  },
+  {
+    name: "home-search-empty",
+    description: "A search that matches nothing.",
+    path: "/files",
+    prepare: async (page) => {
+      await searchHome(page, "zzz")
+    },
+  },
+  {
+    name: "home-search-narrow",
+    description:
+      "Search at the narrowest content width: the field shrinks, the toolbar collapses to icons.",
+    path: "/files",
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: [...narrowHome(), ...homeView("table")],
+    prepare: async (page) => {
+      await searchHome(page, "exp")
+    },
+  },
+  {
     name: "settings",
     description:
       "Settings: appearance, Projects (the saved presets), coding agents.",
@@ -1736,4 +1773,19 @@ export function selectScreens(names: readonly string[]): Screen[] {
     )
   }
   return SCREENS.filter((screen) => names.includes(screen.name))
+}
+
+/**
+ * Focus home search with its `/` shortcut and type a query. The first key can
+ * land before hydration wires the shortcut, so retry until the field has focus.
+ */
+async function searchHome(page: Page, query: string): Promise<void> {
+  const field = page.getByLabel("Search canvases and folders")
+  await field.waitFor({ timeout: 15_000 })
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await page.keyboard.press("/")
+    if (await field.evaluate((el) => el === document.activeElement)) break
+    await page.waitForTimeout(250)
+  }
+  await page.keyboard.type(query)
 }

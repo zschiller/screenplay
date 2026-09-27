@@ -60,11 +60,13 @@ import {
   type CascadeRoom,
   type FolderCascade,
 } from "@/lib/folder-cascade"
+import { searchLibrary, type OwnerFilter } from "@/lib/home-search"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
 
 export type { View }
 export type { SortKey, SortOrder }
 export type { PinKind, PinSummary }
+export type { OwnerFilter }
 
 /** A→Z reads as the natural default for names; everything else newest-first. */
 export function defaultOrder(sort: SortKey): SortOrder {
@@ -153,6 +155,19 @@ type HomeContextValue = {
    * real current home, independent of which folder view is on screen.
    */
   folderOfRoom: (roomId: string) => string | null
+  /**
+   * The Canvases and Folders matching a search across every folder, not just
+   * the one on screen, ordered by the current sort (#807).
+   */
+  search: (
+    query: string,
+    owner: OwnerFilter
+  ) => { rooms: RoomSummary[]; folders: FolderSummary[] }
+  /**
+   * The trail of folders from the root down to `folderId` (null = the root,
+   * an empty trail) — where a search result lives.
+   */
+  folderPath: (folderId: string | null) => FolderSummary[]
   /**
    * Pin a Room to the sidebar (appends to the end); idempotent. The pin
    * mutations are fire-and-forget from menus and the drag list, so they report
@@ -670,6 +685,17 @@ export function HomeProvider({
     [placementByRoom]
   )
 
+  const search = useCallback(
+    (query: string, owner: OwnerFilter) =>
+      searchLibrary({ rooms, folders, query, owner, sort, order }),
+    [rooms, folders, sort, order]
+  )
+
+  const folderPath = useCallback(
+    (folderId: string | null) => ancestorChain(folders, folderId),
+    [folders]
+  )
+
   // The pinned rows render ascending by position — the order pins were added.
   const sortedPins = useMemo(
     () => [...pins].sort((a, b) => a.position - b.position),
@@ -706,6 +732,8 @@ export function HomeProvider({
     foldersById,
     isPinned,
     folderOfRoom,
+    search,
+    folderPath,
     pinRoom,
     pinFolder,
     unpin,

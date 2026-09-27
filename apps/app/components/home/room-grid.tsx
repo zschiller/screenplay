@@ -18,6 +18,7 @@ import { prewarmRoom } from "@/lib/yjs-host/client"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
+import { ResultLocation } from "./result-location"
 
 /**
  * Composes a Room's thumbnail from its Thumbnail Manifest: one positioned image
@@ -136,9 +137,12 @@ const ROOM_TILE_OUTER =
 function RoomTileFace({
   room,
   menu,
+  location,
 }: {
   room: RoomSummary
   menu: React.ReactNode
+  /** A search result's folder trail, leading the metadata line (#807). */
+  location?: React.ReactNode
 }) {
   return (
     <>
@@ -163,10 +167,16 @@ function RoomTileFace({
             {room.name}
           </Link>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            {location && (
+              <>
+                <span className="min-w-0 shrink">{location}</span>
+                <span>·</span>
+              </>
+            )}
             {/* Relative time reads Date.now(), which differs between the SSR
                 pass and hydration; keep the server value rather than
                 regenerate. */}
-            <span suppressHydrationWarning>
+            <span suppressHydrationWarning className="shrink-0">
               Edited{" "}
               {formatDistanceToNow(room.lastConnectionAt ?? room.createdAt)}
             </span>
@@ -211,14 +221,19 @@ export function RoomTileDragPreview({ room }: { room: RoomSummary }) {
   )
 }
 
-function RoomCard({ room }: { room: RoomSummary }) {
+function RoomCard({
+  room,
+  showLocation,
+}: {
+  room: RoomSummary
+  showLocation: boolean
+}) {
   const {
     renameRoom,
     removeRoom,
     moveRoom,
     allFolders,
     folderView,
-    currentFolderId,
     folderOfRoom,
     isPinned,
     pinRoom,
@@ -232,14 +247,14 @@ function RoomCard({ room }: { room: RoomSummary }) {
 
   // Draggable onto a folder to file it (issue #487), but only on the files page
   // where there are folders to file into — the flat Recents view disables it.
-  // The displayed rooms all live in the folder being viewed, so that's the home
-  // a drop relocates from.
+  // The Room's own folder is the home a drop relocates from, which search
+  // results (spanning every folder) need as much as a folder view.
   const { setNodeRef, attributes, listeners, isDragging } = useFileDraggable(
     {
       kind: "room",
       id: room.id,
       name: room.name,
-      currentParentId: currentFolderId,
+      currentParentId: folderOfRoom(room.id),
     },
     { disabled: !folderView, preview: <RoomTileDragPreview room={room} /> }
   )
@@ -262,6 +277,9 @@ function RoomCard({ room }: { room: RoomSummary }) {
     >
       <RoomTileFace
         room={room}
+        location={
+          showLocation && <ResultLocation folderId={folderOfRoom(room.id)} />
+        }
         menu={
           <RoomActionMenu
             room={room}
@@ -331,11 +349,18 @@ function RoomCard({ room }: { room: RoomSummary }) {
   )
 }
 
-export function RoomGrid({ rooms }: { rooms: RoomSummary[] }) {
+export function RoomGrid({
+  rooms,
+  showLocation = false,
+}: {
+  rooms: RoomSummary[]
+  /** Search results: each tile names the folder it lives in (#807). */
+  showLocation?: boolean
+}) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
       {rooms.map((room) => (
-        <RoomCard key={room.id} room={room} />
+        <RoomCard key={room.id} room={room} showLocation={showLocation} />
       ))}
     </div>
   )

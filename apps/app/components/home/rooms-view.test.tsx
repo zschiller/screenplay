@@ -213,3 +213,83 @@ describe("RoomsView — grid and table offer the same Canvas actions", () => {
     }
   )
 })
+
+describe("RoomsView — search and the ownership filter (#807)", () => {
+  const nested = folder({ id: "f2", name: "Archive", parentFolderId: "f1" })
+  const shared: RoomSummary = {
+    ...room,
+    id: "r2",
+    name: "Pricing page",
+    isOwner: false,
+  }
+
+  function renderRoot() {
+    return render(
+      <HomeProvider
+        initialRooms={[room, shared]}
+        initialFolders={[folder(), nested]}
+        initialPlacements={[{ roomId: "r1", folderId: "f2" }]}
+        initialViewPrefs={withView(DEFAULT_VIEW_PREFS, "table")}
+        folderView
+        currentFolderId={null}
+      >
+        <RoomsView title="All files" showFolders />
+      </HomeProvider>
+    )
+  }
+
+  it("finds a Canvas filed two folders deep and names where it lives", () => {
+    renderRoot()
+    // At the root, the Canvas filed in Designs / Archive isn't listed.
+    expect(screen.queryByText("Checkout")).toBeNull()
+
+    fireEvent.change(screen.getByLabelText("Search canvases and folders"), {
+      target: { value: "check" },
+    })
+
+    expect(screen.getByText("Checkout")).not.toBeNull()
+    expect(screen.getByText("Designs / Archive")).not.toBeNull()
+    expect(screen.getByRole("status").textContent).toBe(
+      "1 result across all folders"
+    )
+  })
+
+  it("says so when nothing matches, and clears back to the folder", () => {
+    renderRoot()
+    fireEvent.change(screen.getByLabelText("Search canvases and folders"), {
+      target: { value: "zzz" },
+    })
+    expect(screen.getByText("No matches")).not.toBeNull()
+
+    fireEvent.click(screen.getByText("Clear search"))
+    expect(screen.getByText("Designs")).not.toBeNull()
+  })
+
+  it("lists only Canvases shared with the user under Shared with me", async () => {
+    renderRoot()
+    fireEvent.pointerDown(screen.getByLabelText("Owner: Anyone"), {
+      button: 0,
+      ctrlKey: false,
+    })
+    fireEvent.click(await screen.findByText("Shared with me"))
+
+    expect(screen.getByText("Pricing page")).not.toBeNull()
+    expect(screen.queryByText("Checkout")).toBeNull()
+    expect(screen.getByLabelText("Owner: Shared with me")).not.toBeNull()
+  })
+
+  it("focuses search on /, but not while typing elsewhere", () => {
+    renderRoot()
+    const search = screen.getByLabelText("Search canvases and folders")
+
+    const other = document.createElement("input")
+    document.body.appendChild(other)
+    other.focus()
+    fireEvent.keyDown(other, { key: "/" })
+    expect(document.activeElement).toBe(other)
+    other.remove()
+
+    fireEvent.keyDown(document.body, { key: "/" })
+    expect(document.activeElement).toBe(search)
+  })
+})
