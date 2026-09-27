@@ -2,7 +2,7 @@
 
 Declare interactive controls (sliders, switches, selects, color pickers, text inputs) from a prototype's own code. They show up in a popover on the screenplay canvas next to the artboard's "interact" button. Knob state syncs across viewers in real time.
 
-The package is dev-only by design. In any build with `NODE_ENV` set to anything other than `"development"`, `useKnob` quietly returns the declared `default` and every postMessage path is dead-code-eliminated by the bundler — no listener is attached, no declaration is published, no value is ever read or written from a parent frame. So shipping knobs in committed code is safe: even if the deployed prototype is iframed by some non-screenplay parent in production, none of the knob protocol is wired up to act on.
+The package is dev-only by design. In any build with `NODE_ENV` set to anything other than `"development"`, `useKnob` quietly returns the declared `default` and no postMessage path ever runs — no listener is attached, no declaration is published, no value is ever read or written from a parent frame. So shipping knobs in committed code is safe: even if the deployed prototype is iframed by some non-screenplay parent in production, none of the knob protocol is wired up to act on.
 
 ## Install
 
@@ -11,6 +11,12 @@ npm install --save @screenplay.space/knobs
 ```
 
 `react >= 17` is a peer dependency.
+
+## Bundler support
+
+Activation only needs your bundler to inline `process.env.NODE_ENV` inside dependencies, which Vite, Next, webpack, Rspack, Parcel and plain esbuild all do. **Vite works out of the box** — no `globalThis.process` shim in `index.html`, no `define` entry. (Earlier releases also required a global `process` object, which Vite doesn't provide, so the package stayed inert there.)
+
+Loaded straight into a browser as ESM with no bundler at all, nothing inlines `NODE_ENV`; the package then stays inert rather than throwing, and `useKnob` returns the declared `default`.
 
 ## Use
 

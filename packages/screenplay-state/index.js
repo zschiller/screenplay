@@ -13,8 +13,11 @@
 // inbound listener is attached, no remote setter is ever invoked. That's
 // the production-safety story: a prototype that ships `useSharedState`
 // calls and gets iframed by some non-screenplay parent in production cannot
-// have its state read or written via this protocol, because the postMessage
-// paths are dead-code-eliminated by the bundler.
+// have its state read or written via this protocol, because none of the
+// postMessage paths run. The gate compares against the literal the bundler
+// inlines for `process.env.NODE_ENV`, so the branches are statically false
+// in a production bundle; whether a given minifier also strips them is up
+// to the minifier, but the inertness doesn't depend on that.
 //
 // Each useSharedState(key, value, setter?) call (in dev, when iframed):
 //   1. Registers the (optional) setter so remote updates can write back into
@@ -30,14 +33,30 @@
 import { useEffect, useRef } from "react"
 
 const isBrowser = typeof window !== "undefined"
+
+// Read NODE_ENV as a bare `process.env.NODE_ENV` member expression, with no
+// `typeof process` guard in front of it. Bundlers statically replace that
+// *expression*; only some of them (Next) also inject a browser `process`
+// shim. Vite replaces the expression inside dependencies but defines no
+// global `process`, so a `typeof process !== "undefined"` guard is false at
+// runtime and leaves this package permanently inert in Vite apps. Reading
+// the expression directly means the substituted literal is what gets
+// compared. The try/catch covers the no-bundler case, where nothing replaced
+// the expression and `process` is genuinely absent (ReferenceError) or has
+// no `env` (TypeError): it yields `undefined` instead of throwing at module
+// load.
+function readNodeEnv() {
+  try {
+    return process.env.NODE_ENV
+  } catch {
+    return undefined
+  }
+}
+
 // Treat anything that isn't an explicit "development" build as production —
 // fail closed for plain ESM-in-browser loads where there's no bundler to
-// inline NODE_ENV. Bundlers statically replace `process.env.NODE_ENV`, so a
-// production build dead-code-eliminates the postMessage paths entirely.
-const isDev =
-  typeof process !== "undefined" &&
-  !!process.env &&
-  process.env.NODE_ENV === "development"
+// inline NODE_ENV.
+const isDev = readNodeEnv() === "development"
 const active = isDev && isBrowser && window.parent !== window
 
 // Hard cap on the published payload. Anything above this gets dropped with
