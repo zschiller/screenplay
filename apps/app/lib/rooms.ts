@@ -3,6 +3,7 @@ import "server-only"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
+import { isFixtureWorld } from "@/lib/fixture-world"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
@@ -148,7 +149,18 @@ export async function deleteRoom(roomId: string): Promise<void> {
   await db.delete(schema.room).where(eq(schema.room.id, roomId))
 }
 
+/**
+ * Stamp a Room as just-opened, which is what orders the home grid by recency.
+ *
+ * A no-op in the {@link isFixtureWorld} build (issue #716): there, opening a
+ * Canvas means a capture run is photographing it, not that anyone worked on it —
+ * and letting it write would reshuffle the home grid and rewrite every "Edited
+ * N days ago" to "just now" partway through a capture set, so the before and
+ * after halves of a comparison would disagree about a surface neither branch
+ * touched.
+ */
 export async function touchRoomOpened(roomId: string): Promise<void> {
+  if (isFixtureWorld) return
   await db
     .update(schema.room)
     .set({ lastOpenedAt: new Date() })

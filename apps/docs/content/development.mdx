@@ -25,3 +25,17 @@ pnpm db:studio   # open Drizzle Studio
 
 See [Database](/deployment/database) for the schema overview and the
 generate-then-commit migration workflow.
+
+## Screenshots for design review
+
+Design-polish tickets ship before/after screenshots on the PR. The screenshot
+harness boots the local build against a seeded fixture world and captures a
+named list of screens in light and dark:
+
+```bash
+pnpm --filter app screenshots:boot    # a browsable, fully-populated local build
+pnpm --filter app screenshots:shots   # capture the named screens, both themes
+```
+
+See [Screenshots for design review](/screenshots) for the before/after workflow,
+how to add a screen, and what the local build leaves out.

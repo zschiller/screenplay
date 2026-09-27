@@ -4,6 +4,7 @@ const meta = {
   deployment: "Deployment",
   configuration: "Configuration",
   development: "Development",
+  screenshots: "Screenshots for design review",
 }
 
 export default meta

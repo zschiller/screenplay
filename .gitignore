@@ -43,6 +43,11 @@ pnpm-debug.log*
 *.pglite
 .data/
 
+# screenshot harness state + capture output (issue #716) — never committed:
+#  - the throwaway PGlite dir, Y.Docs, blobs, and minted secrets
+#  - capture sets (the committed sample set lives in apps/app/screenshots/sample/)
+apps/app/.screenshots/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

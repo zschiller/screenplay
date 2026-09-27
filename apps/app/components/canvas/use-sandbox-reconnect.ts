@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 
 import { withBasePath } from "@/lib/base-path"
+import { isFixtureWorld } from "@/lib/fixture-world"
 import {
   keepAliveSandbox,
   reconnectSandbox,
@@ -35,6 +36,11 @@ import type { BranchData, RepoData } from "@/lib/types"
  * The async apply (the resume POST, `reconnectSandbox` / `recreateSandbox`, the
  * `updateAgentInStorage` writes) lives here; only the per-Branch branch
  * selection is pure, in `resolveReconnect`.
+ *
+ * Both effects are skipped wholesale in the {@link isFixtureWorld} build: its
+ * Workspaces are seeded records with no sandbox behind them, so reconciling them
+ * against the host would replace the seeded statuses with errors and drive a
+ * Recreate (a real reclone) per Workspace — see `lib/fixture-world.ts`.
  */
 export interface SandboxReconnectInputs {
   /** Live Branches from the synced Y.Doc — the reconnect + heartbeat read these. */
@@ -59,6 +65,7 @@ export function useSandboxReconnect({
   // fires again.
   const reconnectedRef = useRef(false)
   useEffect(() => {
+    if (isFixtureWorld) return
     if (reconnectedRef.current || agents.length === 0) return
     reconnectedRef.current = true
 
@@ -163,6 +170,7 @@ export function useSandboxReconnect({
   // minutes (well within the 30-minute timeout) and pauses when the tab is
   // hidden so sandboxes can expire when the user leaves.
   useEffect(() => {
+    if (isFixtureWorld) return
     const HEARTBEAT_MS = 20 * 60 * 1000
 
     const pingAll = () => {
