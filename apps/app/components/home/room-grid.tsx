@@ -11,7 +11,7 @@ import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 import { RoomActionMenu } from "./room-action-menu"
 import { InputDialog } from "./input-dialog"
-import { MoveToDialog } from "./move-to-dialog"
+import { MoveToDialog, canMoveRoom } from "./move-to-dialog"
 import { useFileDraggable } from "./file-dnd"
 import { useHome } from "./home-provider"
 import { prewarmRoom } from "@/lib/yjs-host/client"
@@ -218,6 +218,7 @@ function RoomCard({ room }: { room: RoomSummary }) {
     allFolders,
     folderView,
     currentFolderId,
+    folderOfRoom,
     isPinned,
     pinRoom,
     unpin,
@@ -266,9 +267,9 @@ function RoomCard({ room }: { room: RoomSummary }) {
             onRename={() => setRenameOpen(true)}
             onDelete={() => setDeleteOpen(true)}
             onShare={() => setShareOpen(true)}
-            // Filing needs a folder tree to file into; offer it once the user has
-            // any folder, matching the sidebar's pinned-room menu exactly.
-            onMove={allFolders.length > 0 ? () => setMoveOpen(true) : undefined}
+            onMove={
+              canMoveRoom(allFolders) ? () => setMoveOpen(true) : undefined
+            }
             pinned={pinned}
             onTogglePin={() =>
               pinned ? unpin("room", room.id) : pinRoom(room.id)
@@ -295,13 +296,13 @@ function RoomCard({ room }: { room: RoomSummary }) {
         submittingLabel="Saving…"
         onSubmit={(name) => renameRoom(room.id, name)}
       />
-      {/* In a folder view every Room shown is placed in the folder being viewed,
-          so its current home is `currentFolderId`. */}
+      {/* The Canvas's real home, not the view's: on Recents the grid spans
+          every folder, so the folder being viewed says nothing about it. */}
       <MoveToDialog
         open={moveOpen}
         onOpenChange={setMoveOpen}
         itemName={room.name}
-        currentParentId={currentFolderId}
+        currentParentId={folderOfRoom(room.id)}
         folders={allFolders}
         onMove={(target) => moveRoom(room.id, target)}
       />

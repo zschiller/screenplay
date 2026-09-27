@@ -97,6 +97,13 @@ export function canvasPanels(layout: {
 /** The window every screen is shot at unless it overrides it. */
 export const DEFAULT_VIEWPORT = { width: 1512, height: 982 } as const
 
+/**
+ * The desktop app's smallest window (`minWidth` in the Tauri config) — the
+ * narrowest the home content ever gets once {@link narrowHome} drags the sidebar
+ * to its widest.
+ */
+export const NARROW_HOME_VIEWPORT = { width: 900, height: 768 } as const
+
 const ids = FIXTURE_IDS
 
 export const SCREENS: Screen[] = [
@@ -121,6 +128,59 @@ export const SCREENS: Screen[] = [
     description: "The home grid switched to its table layout.",
     path: "/files",
     cookies: homeView("table"),
+  },
+  {
+    name: "home-drop-target",
+    description:
+      "A Canvas dragged over a Folder tile: the drop-target ring, mid-drag.",
+    path: "/files",
+    prepare: async (page) => {
+      await dragOnto(page, "Empty canvas", "Marketing site")
+    },
+    settleMs: 200,
+  },
+  {
+    name: "home-table-drop-target",
+    description:
+      "The same drag in the table layout: a Folder row's drop-target ring.",
+    path: "/files",
+    cookies: homeView("table"),
+    prepare: async (page) => {
+      await dragOnto(page, "Empty canvas", "Marketing site")
+    },
+    settleMs: 200,
+  },
+  {
+    name: "home-recents-narrow",
+    description:
+      "Recents at the narrowest content width: a small window, the sidebar dragged to its widest.",
+    path: "/",
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: narrowHome(),
+  },
+  {
+    name: "home-folder-narrow",
+    description:
+      "Two Folders deep at the narrowest content width: the breadcrumb truncates, the toolbar collapses to icons.",
+    path: `/files/${ids.folders.archive}`,
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: narrowHome(),
+  },
+  {
+    name: "home-table-narrow",
+    description:
+      "The table layout at the narrowest content width, where columns give way.",
+    path: "/files",
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: [...narrowHome(), ...homeView("table")],
+  },
+  {
+    name: "settings-narrow",
+    description: "Settings at the narrowest content width.",
+    path: "/settings",
+    viewport: NARROW_HOME_VIEWPORT,
+    cookies: narrowHome(),
+    fullPage: true,
   },
   {
     name: "settings",
@@ -270,6 +330,62 @@ export function homeView(view: View): Array<{ name: string; value: string }> {
       ),
     },
   ]
+}
+
+/**
+ * The home layout cookie with the sidebar at its 480px maximum, which at
+ * {@link NARROW_HOME_VIEWPORT} leaves the content its narrowest (~420px). Like
+ * {@link canvasPanels}, the values are percentages of the group; the panel's
+ * own `maxSize` clamps anything past 480px.
+ */
+export function narrowHome(): Array<{ name: string; value: string }> {
+  const sidebar = (480 / NARROW_HOME_VIEWPORT.width) * 100
+  return [
+    {
+      name: panelLayoutCookieName("home-layout"),
+      value: encodeURIComponent(
+        JSON.stringify({
+          "home-sidebar": sidebar,
+          "home-content": 100 - sidebar,
+        })
+      ),
+    },
+  ]
+}
+
+/**
+ * Pick up the tile or row named `source` and hold it over the one named
+ * `target` without letting go, so the shot catches the drop-target highlight.
+ *
+ * The drag preview floats under the pointer at the spot it was grabbed, so
+ * grabbing the source by its bottom edge and hovering the target just inside
+ * its top edge keeps the preview above the target rather than on top of it —
+ * the drop test is the pointer's position (`pointerWithin`), so that's enough
+ * to light it. The sensor waits for 6px of movement before a drag starts, so
+ * the pointer nudges first, then travels in steps dnd-kit can track.
+ */
+export async function dragOnto(
+  page: Page,
+  source: string,
+  target: string
+): Promise<void> {
+  const draggable = (name: string) =>
+    page
+      .getByText(name, { exact: true })
+      .first()
+      .locator(
+        "xpath=ancestor-or-self::*[@aria-roledescription='draggable'][1]"
+      )
+      .boundingBox({ timeout: 15_000 })
+  const from = await draggable(source)
+  const to = await draggable(target)
+  if (!from || !to)
+    throw new Error(`drag: ${source} or ${target} not on screen`)
+  const grab = { x: from.x + from.width / 2, y: from.y + from.height - 3 }
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x, grab.y - 12)
+  await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 })
 }
 
 /**
