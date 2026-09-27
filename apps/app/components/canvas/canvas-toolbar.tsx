@@ -35,7 +35,7 @@ export function CanvasToolbar({
 }) {
   const { frameMode, documentMode, commentMode } = toolMode
   return (
-    <div className="pointer-events-none absolute bottom-0 left-1/2 z-[9998] flex h-12 -translate-x-1/2 items-center px-2">
+    <div className="pointer-events-none absolute bottom-0 left-1/2 z-(--z-canvas-chrome) flex h-12 -translate-x-1/2 items-center px-2">
       <div
         className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
         onClick={(e) => e.stopPropagation()}

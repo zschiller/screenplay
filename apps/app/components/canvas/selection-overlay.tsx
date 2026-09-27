@@ -7,6 +7,7 @@ import type {
   ReorderHandle,
 } from "@/lib/canvas/layout"
 import type { SnapGuide } from "@/lib/canvas/snap"
+import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
 
 interface OtherSelection {
   selectedIframeLayerIds: string[]
@@ -96,21 +97,6 @@ interface SelectionOverlayProps {
   isResizeSnapped?: boolean
 }
 
-function resolveColor(
-  el: HTMLElement,
-  varName: string,
-  fallback: string
-): string {
-  const raw = getComputedStyle(el).getPropertyValue(varName).trim()
-  if (!raw) return fallback
-  const temp = document.createElement("div")
-  temp.style.color = raw
-  document.body.appendChild(temp)
-  const resolved = getComputedStyle(temp).color
-  document.body.removeChild(temp)
-  return resolved
-}
-
 export function SelectionOverlay({
   hidden,
   zoom,
@@ -156,10 +142,16 @@ export function SelectionOverlay({
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.scale(dpr, dpr)
 
-    const primaryColor = "#d946ef" // tailwind fuchsia-500
-    // While snapped to a device preset, the selection rect + handles go red.
-    const selectionColor = isResizeSnapped ? "#ef4444" : primaryColor
-    const bgColor = resolveColor(canvas, "--background", "#fff")
+    // Every colour is a canvas token (app/globals.css), shared with the DOM
+    // titles, so the overlay and the labels can't drift apart per theme.
+    const primaryColor = resolveCanvasColor(canvas, CANVAS_COLOR.selection)
+    const snapColor = resolveCanvasColor(canvas, CANVAS_COLOR.snap)
+    const inspectColor = resolveCanvasColor(canvas, CANVAS_COLOR.inspect)
+    const highlightColor = resolveCanvasColor(canvas, CANVAS_COLOR.highlight)
+    // While snapped to a device preset, the selection rect + handles take the
+    // snap colour.
+    const selectionColor = isResizeSnapped ? snapColor : primaryColor
+    const bgColor = resolveCanvasColor(canvas, "--background")
     const HANDLE_SIZE = 8
 
     const toScreen = (x: number, y: number) => ({
@@ -358,18 +350,17 @@ export function SelectionOverlay({
       const r = snap(br.x)
       const b = snap(br.y)
       ctx.globalAlpha = 0.1
-      ctx.fillStyle = "#3b82f6"
+      ctx.fillStyle = inspectColor
       ctx.fillRect(l, t, r - l, b - t)
       ctx.globalAlpha = 1
-      ctx.strokeStyle = "#3b82f6"
+      ctx.strokeStyle = inspectColor
       ctx.lineWidth = 1
       // Inside stroke: inset by HALF so the 1px line sits entirely within the bounds
       ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
     }
 
     // Draw the token-hover highlight rect. Same screen-space projection and
-    // constant-1px inside stroke as the inspect rect, tinted sky-blue to match
-    // the composer token.
+    // constant-1px inside stroke as the inspect rect, in the highlight token.
     if (highlightRect) {
       const tl = toScreen(highlightRect.x, highlightRect.y)
       const br = toScreen(
@@ -381,10 +372,10 @@ export function SelectionOverlay({
       const r = snap(br.x)
       const b = snap(br.y)
       ctx.globalAlpha = 0.1
-      ctx.fillStyle = "#0ea5e9"
+      ctx.fillStyle = highlightColor
       ctx.fillRect(l, t, r - l, b - t)
       ctx.globalAlpha = 1
-      ctx.strokeStyle = "#0ea5e9"
+      ctx.strokeStyle = highlightColor
       ctx.lineWidth = 1
       ctx.strokeRect(l + HALF, t + HALF, r - l - 2 * HALF, b - t - 2 * HALF)
     }
@@ -529,7 +520,7 @@ export function SelectionOverlay({
     // on the endpoints) so the line tracks the world coord exactly as the
     // camera pans, without jitter.
     if (snapGuides && snapGuides.length > 0) {
-      const guideColor = "#ef4444" // tailwind red-500
+      const guideColor = snapColor
       const X_ARM = 3 // half-extent of × markers in screen px
       ctx.strokeStyle = guideColor
       ctx.lineWidth = 1
@@ -646,7 +637,7 @@ export function SelectionOverlay({
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 z-10"
+      className="pointer-events-none absolute inset-0 z-(--z-canvas-overlay)"
       style={hidden ? { visibility: "hidden" } : undefined}
     />
   )

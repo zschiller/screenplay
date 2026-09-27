@@ -192,11 +192,11 @@ export function LayerTitleText({
   onRename,
   placeholder,
 }: LayerTitleTextProps) {
-  // Local selection (fuchsia) wins; a remote selector's color applies only
+  // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
   const remoteColor = !selected && color ? color : undefined
   const colorClass = selected
-    ? "text-fuchsia-500"
+    ? "text-canvas-selection"
     : remoteColor
       ? undefined
       : "text-foreground/70"

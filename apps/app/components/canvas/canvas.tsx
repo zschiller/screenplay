@@ -1324,7 +1324,7 @@ export function Canvas({
             `overflow: auto` inline, which wins over any class. */}
         <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
           <div
-            className="relative h-full w-full"
+            className="relative isolate h-full w-full"
             data-canvas-wrapper
             ref={canvasWrapperRef}
             style={{
@@ -1487,7 +1487,7 @@ export function Canvas({
                   renders the composer that anchors an element/selection and
                   sends it to the agent (#417). */}
             <div
-              className="pointer-events-none absolute inset-0 z-20"
+              className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
               style={{
                 transformOrigin: "0 0",
                 transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
@@ -1523,7 +1523,7 @@ export function Canvas({
                   coords via a rAF loop. */}
             <div
               id="frame-toolbar-portal"
-              className="pointer-events-none absolute inset-0 z-30"
+              className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
             />
 
             {/* Portal target for the inline "Comment" bubble that appears
@@ -1534,7 +1534,7 @@ export function Canvas({
                   and positioned via rAF from markdown-layer. */}
             <div
               id="inline-comment-bubble-portal"
-              className="pointer-events-none absolute inset-0 z-30"
+              className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
             />
 
             {/* `hidden` mid-zoom and mid-pan — it reads the deferred zoom/
@@ -1617,12 +1617,12 @@ export function Canvas({
               />
             ) : null}
             {/* Window-drag strip: spans the full toolbar height across the top
-                of the canvas, sitting BEHIND the floating pills (z-[9998]) so
-                the pills stay clickable while the empty toolbar area drags the
-                native window. */}
+                of the canvas, in the chrome layer but BEHIND the floating pills
+                (same layer, earlier in DOM order) so the pills stay clickable
+                while the empty toolbar area drags the native window. */}
             <div
               data-tauri-drag-region
-              className="absolute top-0 right-0 left-0 z-[9997] h-12"
+              className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
             />
             <CanvasTopBar
               roomId={roomId}
@@ -1651,7 +1651,7 @@ export function Canvas({
                 (when the right sidebar is collapsed). On desktop with the chat
                 open it would otherwise be an empty floating pill. */}
             {(!isLocalBuild || chatCollapsed) && (
-              <div className="pointer-events-none absolute top-0 right-0 z-[9998] flex h-12 items-center px-2">
+              <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
                 <div
                   className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5"
                   onClick={(e) => e.stopPropagation()}

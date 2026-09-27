@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react"
 
+import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
+
 interface GroupMergeUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -17,7 +19,7 @@ interface GroupMergeUnderlayProps {
 /**
  * Screen-space underlay that renders the group-merge drop target while a
  * group is being dragged near another group's trailing "+ frame" slot. Drawn
- * as a low-opacity red outline to signal the merge drop target.
+ * as a low-opacity outline in the group-merge token to signal the drop target.
  * Rendered before the TransformWrapper in DOM order so the source group (and
  * any other world content) paints on top — only the empty target slot remains
  * visible behind the preview outlines, mirroring [[ResizeSnapUnderlay]].
@@ -55,7 +57,8 @@ export function GroupMergeUnderlay({
       y: y * zoom + viewportPos.y,
     })
 
-    ctx.strokeStyle = "rgba(239, 68, 68, 0.4)"
+    ctx.strokeStyle = resolveCanvasColor(canvas, CANVAS_COLOR.groupMerge)
+    ctx.globalAlpha = 0.4
     ctx.lineWidth = 1
     for (const rect of rects) {
       const tl = toScreen(rect.x, rect.y)
@@ -66,6 +69,7 @@ export function GroupMergeUnderlay({
       const b = Math.round(br.y)
       ctx.strokeRect(l + 0.5, t + 0.5, rr - l - 1, b - t - 1)
     }
+    ctx.globalAlpha = 1
 
     ctx.setTransform(1, 0, 0, 1, 0, 0)
   }, [zoom, viewportPos, rects])

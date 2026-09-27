@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useOtherPresences, useSelfPresence } from "@/lib/yjs/react"
+import { presenceInkClass } from "@/lib/canvas/presence-ink"
 
 interface FollowingToolbarProps {
   followingId: number | null
@@ -88,14 +89,14 @@ export function FollowingToolbar({
                     ) : null}
                     <AvatarFallback
                       style={{ backgroundColor: presence.color }}
-                      className="text-[10px] font-medium text-white"
+                      className={`text-[10px] font-medium ${presenceInkClass(presence.color)}`}
                     >
                       {getInitials(name)}
                     </AvatarFallback>
                   </Avatar>
                   {isFollowing && (
                     <span
-                      className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] text-white"
+                      className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] ${presenceInkClass(presence.color)}`}
                       style={{ backgroundColor: presence.color }}
                     >
                       ◉
