@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useEffect, useSyncExternalStore, type HTMLAttributes } from "react"
 
 /**
  * Workspace ↔ frame hover cross-highlighting (#793). The room sidebar and the
@@ -7,14 +7,17 @@ import { useSyncExternalStore } from "react"
  * - hovering a Workspace row (`source: "workspace"`) outlines that Workspace's
  *   frames on the Canvas and highlights their rows in the layer list;
  * - hovering a frame, in the layer list or on the Canvas (`source: "frame"`),
- *   highlights its Workspace row. Its sibling frames stay as they are.
+ *   highlights its Workspace row. Its sibling frames stay as they are;
+ * - hovering a Workspace row also lights up the rows of the Groups on it
+ *   (#872), and hovering a Group row or its Workspace pill (`source:
+ *   "group"`) lights up that Workspace row.
  *
- * Every key is a **Branch id** (a Workspace's id, and an Iframe Layer's
- * `branchId`).
+ * Every key is a **Branch id** (a Workspace's id, an Iframe Layer's
+ * `branchId`, and a Group's Workspace from `groupBranchId`).
  */
 export interface WorkspaceHover {
   branchId: string
-  source: "workspace" | "frame"
+  source: "workspace" | "frame" | "group"
 }
 
 let current: WorkspaceHover | null = null
@@ -63,16 +66,18 @@ export function useWorkspaceHover(): WorkspaceHover | null {
   )
 }
 
-/** True while a frame of this Workspace is hovered (its row lights up). */
+/** True while a frame or Group on this Workspace is hovered (its row lights
+ *  up). */
 export function useIsWorkspaceHighlighted(branchId: string): boolean {
   const read = () => {
     const h = workspaceHoverStore.get()
-    return h?.source === "frame" && h.branchId === branchId
+    return !!h && h.source !== "workspace" && h.branchId === branchId
   }
   return useSyncExternalStore(workspaceHoverStore.subscribe, read, () => false)
 }
 
-/** True while this frame's Workspace row is hovered (the frame lights up). */
+/** True while this frame's (or Group's) Workspace row is hovered (the row
+ *  lights up). */
 export function useIsFrameHighlighted(branchId: string | undefined): boolean {
   const read = () => {
     const h = workspaceHoverStore.get()
@@ -89,4 +94,22 @@ export function useHoveredWorkspaceId(): string | null {
     return h?.source === "workspace" ? h.branchId : null
   }
   return useSyncExternalStore(workspaceHoverStore.subscribe, read, () => null)
+}
+
+/** Pointer handlers that publish a hover of `source` on this Workspace while
+ *  the pointer is over the element, and clear it if the element unmounts
+ *  mid-hover (deleted, collapsed). Empty when there is no Workspace. */
+export function useWorkspaceHoverProps(
+  branchId: string | undefined,
+  source: WorkspaceHover["source"]
+): Pick<HTMLAttributes<Element>, "onPointerEnter" | "onPointerLeave"> {
+  useEffect(() => {
+    if (!branchId) return
+    return () => workspaceHoverStore.clear({ branchId, source })
+  }, [branchId, source])
+  if (!branchId) return {}
+  return {
+    onPointerEnter: () => workspaceHoverStore.set({ branchId, source }),
+    onPointerLeave: () => workspaceHoverStore.clear({ branchId, source }),
+  }
 }

@@ -13,6 +13,7 @@ import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
 import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
@@ -63,6 +64,8 @@ interface GroupLabelProps {
  * `MarkdownLayer` so both kinds of group members render the same label.
  */
 export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
+  // Hovering the pill lights up its Workspace in the sidebar (#872).
+  const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   if (!workspace) return <GroupName {...props} className="mb-0.5" />
   return (
     <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
@@ -72,13 +75,16 @@ export function GroupLabel({ workspace, ...props }: GroupLabelProps) {
           label={props.label}
           workspace={workspace}
           switcher={workspace.switcher}
+          hoverProps={hoverProps}
         />
       ) : (
         // Names win: the Workspace gives up its width first. Pressing it
         // selects the Group, like its name, rather than reordering the member.
         <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
           <span
+            data-slot="group-workspace"
             className="flex min-w-10 shrink-[100]"
+            {...hoverProps}
             onPointerDown={(e) => {
               if (e.button !== 0) return
               e.stopPropagation()
@@ -105,10 +111,12 @@ function GroupWorkspaceSwitcher({
   label,
   workspace,
   switcher,
+  hoverProps,
 }: {
   label: string
   workspace: FrameWorkspace
   switcher: GroupWorkspaceSwitch
+  hoverProps: ReturnType<typeof useWorkspaceHoverProps>
 }) {
   const [open, setOpen] = useState(false)
   return (
@@ -121,6 +129,8 @@ function GroupWorkspaceSwitcher({
         <PopoverTrigger asChild>
           <button
             type="button"
+            data-slot="group-workspace"
+            {...hoverProps}
             aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
             // Names win: the Workspace gives up its width first.
             className="group flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none"

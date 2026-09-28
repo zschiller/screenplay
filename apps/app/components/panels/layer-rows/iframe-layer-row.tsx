@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useRef } from "react"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import {
   SidebarMenuAction,
@@ -23,7 +23,7 @@ import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
 import {
   useIsFrameHighlighted,
-  workspaceHoverStore,
+  useWorkspaceHoverProps,
 } from "@/lib/workspace-hover-store"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
@@ -75,18 +75,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     // hover background.
     const branchId = item.branchId ?? undefined
     const isHighlighted = useIsFrameHighlighted(branchId)
-    useEffect(() => {
-      if (!branchId) return
-      return () => workspaceHoverStore.clear({ branchId, source: "frame" })
-    }, [branchId])
-    const hoverProps = branchId
-      ? {
-          onPointerEnter: () =>
-            workspaceHoverStore.set({ branchId, source: "frame" }),
-          onPointerLeave: () =>
-            workspaceHoverStore.clear({ branchId, source: "frame" }),
-        }
-      : {}
+    const hoverProps = useWorkspaceHoverProps(branchId, "frame")
     const highlightClass = isHighlighted
       ? "bg-sidebar-accent text-sidebar-accent-foreground"
       : undefined

@@ -1539,12 +1539,7 @@ export const SCREENS: Screen[] = [
       "Hovering a Workspace row: its frames are outlined on the Canvas and lit in the layer list (#793).",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      await page
-        .locator(".group\\/branch-row")
-        .filter({ hasText: "Checkout polish" })
-        .first()
-        .locator("[data-sidebar=menu-sub-button]")
-        .hover({ timeout: 15_000 })
+      await hoverWorkspaceRow(page, "Checkout polish")
     },
     settleMs: 300,
   },
@@ -1571,6 +1566,54 @@ export const SCREENS: Screen[] = [
       const frame = checkoutDesktopFrame(page)
       await frame.waitFor({ state: "visible", timeout: 15_000 })
       await frame.hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-workspace-hover-groups",
+    description:
+      "Hovering a Workspace row lights up the Groups on it and their following frames; frames of those Groups on other Workspaces stay unlit (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await hoverWorkspaceRow(page, "search-filters")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-workspace-hover-exception",
+    description:
+      "Hovering the Workspace of an exception frame: that frame lights up, its Group (on another Workspace) doesn't (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await hoverWorkspaceRow(page, "saved-searches")
+    },
+    settleMs: 300,
+  },
+  {
+    name: "sidebar-group-row-hover-workspace",
+    description:
+      "Hovering a Group row in the layer list: its Workspace row lights up (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator(".group\\/frame-group-row")
+        .filter({ hasText: "Progress" })
+        .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "canvas-group-pill-hover-workspace",
+    description:
+      "Hovering the Workspace pill on a Group's label on the Canvas: its Workspace row lights up (#872).",
+    path: `/${ids.rooms.frameStates}`,
+    prepare: async (page) => {
+      await page
+        .locator('[data-slot="group-workspace"]')
+        .filter({ hasText: "search-filters" })
+        .first()
+        .hover({ timeout: 15_000 })
     },
     settleMs: 300,
   },
@@ -4267,4 +4310,13 @@ export async function addFixtureFolder(page: Page): Promise<void> {
   await page
     .getByText("Detecting settings…")
     .waitFor({ state: "detached", timeout: 15_000 })
+}
+
+/** Hover a Workspace row in the sidebar by its branch (or title). */
+async function hoverWorkspaceRow(page: Page, name: string): Promise<void> {
+  await page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: name })
+    .first()
+    .hover({ timeout: 15_000 })
 }
