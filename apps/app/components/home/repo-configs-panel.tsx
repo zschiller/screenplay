@@ -138,7 +138,7 @@ export function RepoConfigsPanel() {
                           ? FolderLock
                           : Folder
                     }
-                    title={<span className="font-mono">{group.heading}</span>}
+                    title={group.heading}
                     detail={
                       <span className="block truncate">
                         {presetDetail(config, group)}

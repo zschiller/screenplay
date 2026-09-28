@@ -3,7 +3,7 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
 
 /** The row frame every settings panel shares: icon, text, trailing action. */
-const ROW_FRAME = "flex items-center gap-3 rounded-lg border px-4 py-3"
+const ROW_FRAME = "flex items-center gap-3 rounded-lg border p-4"
 
 /**
  * One settings row (issue #736): an icon, a title with an optional status dot, a
@@ -37,17 +37,17 @@ export function SettingsRow({
         className={cn("size-5 shrink-0 text-muted-foreground", iconClassName)}
       />
       <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           {status && (
             <span
               className={cn(
-                "size-2 shrink-0 rounded-full",
+                "mt-1.5 size-2 shrink-0 rounded-full",
                 status === "on" ? "bg-success" : "bg-muted-foreground/40"
               )}
               aria-hidden
             />
           )}
-          <span className="truncate text-sm font-medium">{title}</span>
+          <span className="min-w-0 text-sm font-medium">{title}</span>
         </div>
         {detail && <p className="text-sm text-muted-foreground">{detail}</p>}
       </div>
@@ -80,9 +80,14 @@ export function SettingsRowSkeleton({
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className={ROW_FRAME} aria-hidden>
           <Skeleton className="size-5 shrink-0 rounded-md" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
-            <Skeleton className="h-3.5 w-32" />
-            <Skeleton className="h-3.5 w-64 max-w-full" />
+          {/* Two 20px lines 2px apart: the height of a row's title + detail. */}
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-3.5 w-32" />
+            </div>
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-3.5 w-64 max-w-full" />
+            </div>
           </div>
           <Skeleton className="h-7 w-24 shrink-0" />
         </div>
