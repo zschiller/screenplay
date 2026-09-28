@@ -101,6 +101,8 @@ describe("canvasShortcutGroups", () => {
         .map((s) => s.label)
     expect(labels(true)).toContain("Comment")
     expect(labels(false)).not.toContain("Comment")
+    expect(labels(true)).toContain("Next comment")
+    expect(labels(false)).not.toContain("Next comment")
   })
 })
 
