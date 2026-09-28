@@ -3,6 +3,7 @@ import "server-only"
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
+import type { ElementAnchor } from "@/lib/comment-anchor"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -28,6 +29,14 @@ export type ThreadRecord = {
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  /** Frame-comment anchors (#785): see `lib/comment-anchor.ts`. Null on
+   *  threads made before them. */
+  workspaceId: string | null
+  route: string | null
+  anchor: ElementAnchor | null
+  viewportWidth: number | null
+  viewportHeight: number | null
+  snapshot: string | null
   /** Inline document-layer anchor. When `documentId` is set the thread is
    *  anchored to a text range inside a TipTap doc (Notion-style layer);
    *  `anchorStart`/`anchorEnd` are base64-encoded Y.RelativePosition values
@@ -71,6 +80,12 @@ function toThread(row: typeof schema.thread.$inferSelect): ThreadRecord {
     selector: row.selector,
     offsetX: row.offsetX,
     offsetY: row.offsetY,
+    workspaceId: row.workspaceId,
+    route: row.route,
+    anchor: row.anchor ?? null,
+    viewportWidth: row.viewportWidth,
+    viewportHeight: row.viewportHeight,
+    snapshot: row.snapshot,
     documentId: row.documentId,
     anchorStart: row.anchorStart,
     anchorEnd: row.anchorEnd,
@@ -230,6 +245,12 @@ export async function createThreadWithFirstComment(opts: {
   selector: string | null
   offsetX: number | null
   offsetY: number | null
+  workspaceId?: string | null
+  route?: string | null
+  anchor?: ElementAnchor | null
+  viewportWidth?: number | null
+  viewportHeight?: number | null
+  snapshot?: string | null
   documentId?: string | null
   anchorStart?: string | null
   anchorEnd?: string | null
@@ -254,6 +275,12 @@ export async function createThreadWithFirstComment(opts: {
       selector: opts.selector,
       offsetX: opts.offsetX,
       offsetY: opts.offsetY,
+      workspaceId: opts.workspaceId ?? null,
+      route: opts.route ?? null,
+      anchor: opts.anchor ?? null,
+      viewportWidth: opts.viewportWidth ?? null,
+      viewportHeight: opts.viewportHeight ?? null,
+      snapshot: opts.snapshot ?? null,
       documentId: opts.documentId ?? null,
       anchorStart: opts.anchorStart ?? null,
       anchorEnd: opts.anchorEnd ?? null,

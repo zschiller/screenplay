@@ -8,6 +8,7 @@ import {
   resolveReference,
 } from "@/lib/canvas/chat-reference"
 import type { IframeLayerLayoutMap } from "@/lib/canvas/layout"
+import type { ElementAnchor } from "@/lib/comment-anchor"
 import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
@@ -68,6 +69,10 @@ export interface CommentPlacement {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
+  /** The element's anchor keys and the frame's path, from the bridge (#785).
+   *  Absent against an older bridge. */
+  anchor?: ElementAnchor | null
+  route?: string | null
   documentId?: string | null
   anchorStart?: string | null
   anchorEnd?: string | null
@@ -209,6 +214,8 @@ export function useElementReference(
                     selector: result.selector || null,
                     offsetX,
                     offsetY,
+                    anchor: result.anchor ?? null,
+                    route: result.path ?? null,
                   }
                 })
               })

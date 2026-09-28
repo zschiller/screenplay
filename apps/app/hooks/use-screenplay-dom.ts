@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { RefObject } from "react"
 import type { DomOp, DomRect } from "@/lib/postmessage-protocol"
 import { isScreenplayMessage } from "@/lib/postmessage-protocol"
+import type { ElementAnchor } from "@/lib/comment-anchor"
 
 export type Handle = string
 
@@ -17,7 +18,17 @@ export type PickResult = {
   tagName?: string
   /** The picked element's `id` attribute, when it has one. */
   id?: string
+  /** The keys a comment remembers the element by (#785). Undefined against an
+   *  older in-iframe bridge. */
+  anchor?: ElementAnchor
+  /** The path the frame was on when picked. Undefined against an older
+   *  in-iframe bridge. */
+  path?: string
 }
+
+/** One `resolveAnchors` answer: the frame's current path and a rect (or null)
+ *  per anchor, in the frame's viewport coordinates. */
+export type ResolvedAnchors = { path: string; rects: (DomRect | null)[] }
 
 type Pending = {
   resolve: (v: unknown) => void
@@ -102,6 +113,7 @@ export function useScreenplayDom(
       op?: DomOp
       selector?: string
       selectors?: string[]
+      anchors?: ElementAnchor[]
       handle?: string
       enabled?: boolean
       x?: number
@@ -221,6 +233,12 @@ export function useScreenplayDom(
           type: "screenplay:dom-query",
           op: "getRectsForSelectors",
           selectors,
+        }),
+      resolveAnchors: (anchors: ElementAnchor[]) =>
+        request<ResolvedAnchors>({
+          type: "screenplay:dom-query",
+          op: "resolveAnchors",
+          anchors,
         }),
       getDocumentSize: () =>
         request<{ width: number; height: number } | null>({
