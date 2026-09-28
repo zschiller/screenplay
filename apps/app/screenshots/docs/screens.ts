@@ -441,6 +441,28 @@ async function scrollToPlan(page: Page) {
   await sleep(page, 800)
 }
 
+/**
+ * Open a play-mode HUD surface: click its button until `ready` is visible.
+ * The HUD paints before play mode has hydrated, so an early click can land
+ * on a button with no handler yet and silently do nothing.
+ */
+async function openHud(page: Page, button: string, ready: string) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await clickAt(page, await playHudButton(page, button), 300)
+    const opened = await page
+      .locator(ready)
+      .first()
+      .waitFor({ state: "visible", timeout: 4_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (opened) {
+      await sleep(page, 800) // let the entrance animation finish
+      return
+    }
+  }
+  throw new Error(`play HUD: ${button} never opened ${ready}`)
+}
+
 /** A play-mode HUD button, once the room has synced and the HUD is up. */
 async function playHudButton(page: Page, selector: string) {
   await page.waitForSelector(selector, { state: "visible", timeout: 30_000 })
@@ -1130,10 +1152,10 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [700, 300, 580, 500],
     focus: POPOVER,
     prepare: async (page) => {
-      await clickAt(
+      await openHud(
         page,
-        await playHudButton(page, "button:has(svg.lucide-sliders-horizontal)"),
-        1200
+        "button:has(svg.lucide-sliders-horizontal)",
+        "text=Accent color"
       )
     },
   }),
@@ -1143,11 +1165,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: PLAY,
     beforeNavigate: warmPlay,
     prepare: async (page) => {
-      await clickAt(
-        page,
-        await playHudButton(page, "button:has(svg.lucide-messages-square)"),
-        2500
-      )
+      await openHud(page, "button:has(svg.lucide-messages-square)", COMPOSER)
+      await sleep(page, 1500) // the transcript loads after the panel opens
     },
   }),
   screen({
@@ -1158,11 +1177,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [760, 360, 520, 440],
     focus: MENU,
     prepare: async (page) => {
-      await clickAt(
-        page,
-        await playHudButton(page, "button[aria-label^='Device']"),
-        900
-      )
+      await openHud(page, "button[aria-label^='Device']", "[role=option]")
     },
   }),
   screen({
@@ -1172,11 +1187,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     beforeNavigate: warmPlay,
     prepare: async (page) => {
       await unfreeze(page)
-      await clickAt(
-        page,
-        await playHudButton(page, "button[aria-label^='Device']"),
-        900
-      )
+      await openHud(page, "button[aria-label^='Device']", "[role=option]")
       await page
         .locator("[role=option],[role=menuitem],[role=menuitemradio]")
         .filter({ hasText: "iPhone 17 Pro" })
