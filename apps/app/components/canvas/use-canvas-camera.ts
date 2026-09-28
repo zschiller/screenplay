@@ -90,6 +90,13 @@ export interface CanvasCamera {
   /** True while a zoom (pinch / wheel+ctrl) is in flight — overlays hide and
    *  the transform layer is GPU-promoted until it settles. */
   isZooming: boolean
+  /** The zoom as a whole percent, live on every transform frame (unlike the
+   *  deferred {@link zoom}) — for the zoom menu's readout. Subscribe with
+   *  `useSyncExternalStore` so only the subscriber re-renders mid-zoom. */
+  liveZoomPercent: {
+    subscribe(listener: () => void): () => void
+    get(): number
+  }
   followingConnectionId: number | null
   /** Follow a peer's viewport (or `null` to stop following). */
   follow(connectionId: number | null): void
@@ -233,6 +240,31 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isZooming, setIsZooming] = useState(false)
 
+  // --- Live zoom readout ---
+  // The deferred `zoom` above only lands on settle, so the zoom menu reads this
+  // instead: a tiny external store updated from every `onTransform`, notifying
+  // only when the rounded percent changes, so a zoom re-renders just the menu.
+  const liveZoomPercentRef = useRef(100)
+  const liveZoomListenersRef = useRef(new Set<() => void>())
+  const setLiveZoom = useCallback((scale: number) => {
+    const percent = Math.round(scale * 100)
+    if (percent === liveZoomPercentRef.current) return
+    liveZoomPercentRef.current = percent
+    for (const listener of liveZoomListenersRef.current) listener()
+  }, [])
+  const liveZoomPercent = useMemo(
+    () => ({
+      subscribe(listener: () => void) {
+        liveZoomListenersRef.current.add(listener)
+        return () => {
+          liveZoomListenersRef.current.delete(listener)
+        }
+      },
+      get: () => liveZoomPercentRef.current,
+    }),
+    []
+  )
+
   const flushCameraSync = useCallback(
     (vp: ViewportData) => {
       setZoom(vp.zoom)
@@ -368,9 +400,10 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     viewportRestoredRef.current = true
     ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
     setZoom(savedViewport.zoom)
+    setLiveZoom(savedViewport.zoom)
     setViewportPos({ x: savedViewport.x, y: savedViewport.y })
     setPresence({ viewport: savedViewport })
-  }, [transformRef, savedViewport, setPresence])
+  }, [transformRef, savedViewport, setPresence, setLiveZoom])
 
   // --- Presence: identity publish + placeholder-viewport seed ---
   // Publish identity + a stable color into awareness on mount and whenever the
@@ -773,18 +806,20 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
           0
         )
         setZoom(savedViewport.zoom)
+        setLiveZoom(savedViewport.zoom)
         setViewportPos({ x: savedViewport.x, y: savedViewport.y })
         setPresence({ viewport: savedViewport })
       } else {
         const { scale, positionX, positionY } = ref.state
         setZoom(scale)
+        setLiveZoom(scale)
         setViewportPos({ x: positionX, y: positionY })
         setPresence({
           viewport: { x: positionX, y: positionY, zoom: scale },
         })
       }
     },
-    [savedViewport, setPresence]
+    [savedViewport, setPresence, setLiveZoom]
   )
 
   const onPanningStart = useCallback(() => {
@@ -811,6 +846,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     ) => {
       const vp = { x: state.positionX, y: state.positionY, zoom: state.scale }
       latestVpRef.current = vp
+      setLiveZoom(state.scale)
       if (zoomingRef.current) {
         // Mid-zoom: skip the expensive React/presence sync, keep the latest
         // state, and (re)arm the settle watchdog so we flush when motion stops.
@@ -834,7 +870,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       // them to the moving layers, throttled to ~60Hz.
       flushCameraSyncThrottled(vp)
     },
-    [flushCameraSyncThrottled, endZoom, endPan]
+    [flushCameraSyncThrottled, endZoom, endPan, setLiveZoom]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(
@@ -889,6 +925,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     isPanning,
     isDragPanning,
     isZooming,
+    liveZoomPercent,
     followingConnectionId,
     follow,
     breakFollow,

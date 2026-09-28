@@ -1707,22 +1707,15 @@ export function Canvas({
               open={shortcutSheetOpen}
               onOpenChange={setShortcutSheetOpen}
             />
-            {/* The top-right pill: the zoom menu (always), the
-                Share/Following controls (web only), and the expand-chat
-                button (when the right sidebar is collapsed). */}
+            {/* The top-right pill, in Figma's order: the people controls
+                (comments, facepile, Share; web only), then the zoom menu
+                (always), then the expand-chat button at the edge (when the
+                right sidebar is collapsed). */}
             <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
               <div
                 className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
                 onClick={(e) => e.stopPropagation()}
               >
-                <CanvasZoomMenu
-                  zoom={zoom}
-                  onZoomIn={zoomControls.zoomIn}
-                  onZoomOut={zoomControls.zoomOut}
-                  onZoomTo={cameraZoomTo}
-                  onZoomToFit={zoomControls.zoomToFit}
-                  onOpenShortcuts={openShortcutSheet}
-                />
                 {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
@@ -1747,6 +1740,14 @@ export function Canvas({
                     />
                   </>
                 )}
+                <CanvasZoomMenu
+                  liveZoomPercent={camera.liveZoomPercent}
+                  onZoomIn={zoomControls.zoomIn}
+                  onZoomOut={zoomControls.zoomOut}
+                  onZoomTo={cameraZoomTo}
+                  onZoomToFit={zoomControls.zoomToFit}
+                  onOpenShortcuts={openShortcutSheet}
+                />
                 {chatCollapsed && (
                   <IconButton
                     label="Expand chat"

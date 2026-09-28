@@ -1,5 +1,6 @@
 "use client"
 
+import { useSyncExternalStore } from "react"
 import { ChevronDown } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -16,6 +17,8 @@ import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { ZOOM_MAX, ZOOM_MIN } from "@/lib/constants"
 import { SHORTCUT_SHEET_KEY, ZOOM_SHORTCUTS } from "@/lib/canvas/shortcuts"
 
+import type { CanvasCamera } from "./use-canvas-camera"
+
 /**
  * The top bar's zoom menu (#734), after Figma's: the live zoom percentage as a
  * plain menu button, opening zoom in / out / fit, the fixed 50 / 100 / 200%
@@ -24,21 +27,26 @@ import { SHORTCUT_SHEET_KEY, ZOOM_SHORTCUTS } from "@/lib/canvas/shortcuts"
  * {@link ZOOM_SHORTCUTS} the keyboard matches on.
  */
 export function CanvasZoomMenu({
-  zoom,
+  liveZoomPercent,
   onZoomIn,
   onZoomOut,
   onZoomTo,
   onZoomToFit,
   onOpenShortcuts,
 }: {
-  zoom: number
+  /** The camera's live readout, so the percent tracks a zoom mid-gesture. */
+  liveZoomPercent: CanvasCamera["liveZoomPercent"]
   onZoomIn: () => void
   onZoomOut: () => void
   onZoomTo: (scale: number) => void
   onZoomToFit: () => void
   onOpenShortcuts: () => void
 }) {
-  const percent = Math.round(zoom * 100)
+  const percent = useSyncExternalStore(
+    liveZoomPercent.subscribe,
+    liveZoomPercent.get,
+    liveZoomPercent.get
+  )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -54,14 +62,14 @@ export function CanvasZoomMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem
-          disabled={zoom >= ZOOM_MAX - 1e-3}
+          disabled={percent >= ZOOM_MAX * 100}
           onSelect={onZoomIn}
         >
           Zoom in
           <Keys keys={ZOOM_SHORTCUTS.zoomIn} />
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={zoom <= ZOOM_MIN + 1e-3}
+          disabled={percent <= ZOOM_MIN * 100}
           onSelect={onZoomOut}
         >
           Zoom out
