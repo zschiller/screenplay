@@ -268,7 +268,7 @@ function CommentRow({
   currentUserId: string | null
   members: CommentMember[]
   memberNames: string[]
-  /** The agent's status chip, beside the name on its latest reply. */
+  /** The agent's status chip, under its latest reply. */
   status?: React.ReactNode
   onDelete: () => void
 }) {
@@ -289,7 +289,6 @@ function CommentRow({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex h-5 items-center gap-1.5">
           <span className="truncate font-medium">{comment.authorName}</span>
-          {status}
           <time
             className="shrink-0 text-xs text-muted-foreground"
             dateTime={new Date(comment.createdAt).toISOString()}
@@ -368,6 +367,7 @@ function CommentRow({
         ) : (
           <CommentBody body={comment.body} memberNames={memberNames} />
         )}
+        {status && <div className="mt-1">{status}</div>}
       </div>
     </div>
   )
@@ -573,10 +573,13 @@ export function MentionTextarea({
 export function AgentStatusChip({
   status,
   commit,
+  besideAgent = false,
   className,
 }: {
   status: NonNullable<ThreadWithComments["agentStatus"]>
   commit?: string | null
+  /** Next to the agent's name, which already says who is working. */
+  besideAgent?: boolean
   className?: string
 }) {
   return (
@@ -595,7 +598,7 @@ export function AgentStatusChip({
       ) : status === "working" ? (
         <>
           <GripSpinner className="size-3" />
-          Agent working
+          {besideAgent ? "Working" : "Agent working"}
         </>
       ) : (
         <>
@@ -622,7 +625,7 @@ function AgentPendingRow({
     <div className="flex items-center gap-2">
       <AgentAvatar />
       <span className="font-medium">Agent</span>
-      <AgentStatusChip status={status} />
+      <AgentStatusChip status={status} besideAgent />
     </div>
   )
 }
