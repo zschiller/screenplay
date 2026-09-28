@@ -558,17 +558,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
     description: "Inside the Marketing folder.",
     path: `/files/${ids.folders.marketing}`,
   }),
-  screen({
-    name: "new-canvas-dialog",
-    description: "The New canvas dialog, with a name typed.",
-    path: "/",
-    focus: DIALOG,
-    prepare: async (page) => {
-      await page.getByRole("button", { name: "New canvas" }).first().click()
-      await sleep(page, 900)
-      await page.keyboard.type("Q4 campaign", { delay: 20 })
-    },
-  }),
 
   // --- Settings -------------------------------------------------------------
   screen({
@@ -577,43 +566,22 @@ export const DOCS_SCREENS: DocsScreen[] = [
     path: "/settings",
   }),
   screen({
-    name: "settings-bottom",
-    description: "Settings, scrolled to the end.",
-    path: "/settings",
-    prepare: async (page) => {
-      await page.mouse.move(700, 400)
-      await page.mouse.wheel(0, 2000)
-      await sleep(page, 800)
-    },
+    name: "settings-coding-agents",
+    description: "Settings → Coding agents.",
+    path: "/settings?section=coding-agents",
   }),
   screen({
     name: "settings-presets",
-    description: "Settings → Projects: the saved presets.",
-    path: "/settings",
-    prepare: async (page) => {
-      await page
-        .getByRole("button", { name: "New preset" })
-        .first()
-        .scrollIntoViewIfNeeded()
-      await page.evaluate(
-        `[...document.querySelectorAll("main button")].find((b) => b.innerText.trim() === "New preset")?.scrollIntoView({ block: "end" })`
-      )
-      await sleep(page, 600)
-    },
+    description: "Settings → Project presets.",
+    path: "/settings?section=project-presets",
   }),
   screen({
     name: "preset-form",
     description: "Editing a Project preset.",
-    path: "/settings",
+    path: "/settings?section=project-presets",
     prepare: async (page) => {
       await page.getByRole("button", { name: "Edit" }).first().click()
       await sleep(page, 1200)
-      await page.evaluate(
-        `document.querySelector("main input")?.scrollIntoView({ block: "start" })`
-      )
-      await page.mouse.move(700, 400)
-      await page.mouse.wheel(0, -120)
-      await sleep(page, 600)
     },
   }),
   screen({
