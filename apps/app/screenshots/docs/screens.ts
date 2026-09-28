@@ -589,6 +589,8 @@ export const DOCS_SCREENS: DocsScreen[] = [
     description: "The first-run setup gate, with Claude Code ready.",
     path: "/",
     cookies: entryState("setup-agent-ready"),
+    // The setup stepper is a small card in an otherwise empty window.
+    crop: [360, 150, 560, 420],
   }),
 
   // --- Canvas and sidebar ---------------------------------------------------
