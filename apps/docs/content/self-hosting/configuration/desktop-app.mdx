@@ -21,7 +21,7 @@ bundled **Node sidecar** ([#418](https://github.com/zschiller/screenplay/issues/
 Every local backend is selected together in one place,
 `apps/desktop/desktop.env`. Each seam still reads its own env var (the switches
 are independent by design); this profile is where the desktop distribution sets
-them as a set, so one repo produces both the hosted deployment (none set) and the
+them as a set, so one repository produces both the hosted deployment (none set) and the
 desktop app:
 
 ```bash
@@ -56,7 +56,7 @@ Tauri owns the sidecar end-to-end:
 
 ## Secrets
 
-`ENCRYPTION_KEY` (repo-config / env-var encryption at rest) and
+`ENCRYPTION_KEY` (project-preset / env-var encryption at rest) and
 `TERMINAL_AUTH_SECRET` are deployment secrets in the hosted app. A desktop
 install has no deployment, so the shell **mints and persists them on first
 launch** next to the app data — stable across restarts, unique per install.

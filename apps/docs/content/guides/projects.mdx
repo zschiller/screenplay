@@ -20,9 +20,9 @@ Click the **Add project** icon next to **Projects**.
 - **Open project** *(desktop)* picks a folder on your machine, usually your
   existing clone. Screenplay creates a separate worktree for each workspace
   and never touches your own checkout.
-- **Open GitHub project** opens a searchable picker. **Configured
-  repositories** (ones with a saved [preset](#project-presets)) are listed
-  first, then **Other repositories**. On desktop you can also paste any clone
+- **Open GitHub project** opens a searchable picker. **Project presets**
+  (repositories with a saved [preset](#project-presets)) are listed first,
+  then **Other GitHub repositories**. On desktop you can also paste any clone
   URL, including non-GitHub hosts, and pick **Add *url***.
 
 Picking a saved preset adds the project straight away. Otherwise
@@ -63,13 +63,14 @@ Changes apply to workspaces you create afterwards.
 
 Hover a project and click **…**:
 
-<Screenshot name="project-menu" alt="The project menu: Open existing branch, Settings, Remove" />
+<Screenshot name="project-menu" alt="The project menu: Open existing git branch, Settings, Remove" />
 
-- **Open existing branch** opens a workspace on a branch that already exists
+- **Open existing git branch** opens a workspace on a branch that already exists
   instead of creating a new one.
 - **Settings** edits the settings described above.
 - **Remove** takes the project and all its workspaces off this canvas.
-  Optionally, it also deletes their branches from the remote.
+  Optionally, it also deletes their branches from the remote: the
+  **Also delete *N* branches on remote** toggle is on by default.
 
 The **+** next to **…** creates a [new workspace](/guides/workspaces).
 

@@ -10,7 +10,7 @@ import { Callout, FileTree, Tabs } from "nextra/components"
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 20 or newer
-- [pnpm](https://pnpm.io) 9 (the repo pins `pnpm@9.15.9`)
+- [pnpm](https://pnpm.io) 9 (the repository pins `pnpm@9.15.9`)
 - git
 
 ```bash
@@ -147,7 +147,7 @@ pnpm --filter app screenshots:boot    # a browsable, fully-populated local build
 pnpm --filter app screenshots:shots   # capture the named screens, both themes
 ```
 
-See [Screenshots for design review](/screenshots) for the before/after workflow,
+See [Screenshots](/screenshots) for the before/after workflow,
 how to add a screen, and what the local build leaves out.
 
 ## Writing docs
@@ -163,7 +163,10 @@ light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
 <Screenshot name="hero" alt="Describe what the screenshot shows" />
 ```
 
-The component shows the variant that matches the reader's theme.
+The component shows the variant that matches the reader's theme. Every
+screenshot is generated: run `pnpm --filter docs screenshots` to regenerate them
+after a UI change, and see [Docs screenshots](/screenshots#docs-screenshots) to
+add one.
 
 ## Issues
 

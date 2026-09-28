@@ -1,6 +1,6 @@
 ---
 title: Workspaces
-description: Create branches with their own live environment, and manage them from the sidebar.
+description: Create workspaces with their own live environment, and manage them from the sidebar.
 ---
 
 import { Callout } from "nextra/components"
@@ -14,10 +14,10 @@ color tags that workspace's frames across the canvas.
 
 ## Creating workspaces
 
-Hover a project and click **+** (**New Workspace**). **Create branches** can
+Hover a project and click **+** (**New workspace**). **Create workspaces** can
 create several at once:
 
-<Screenshot name="new-workspace-multi" alt="Create branches with two rows, each with a prompt" />
+<Screenshot name="new-workspace-multi" alt="Create workspaces with two rows, each with a prompt" />
 
 - Each row starts from a **base branch** (the chip above the prompt), which
   defaults to the project's default branch.
@@ -35,7 +35,7 @@ out the branch, runs the setup script, and boots the dev server. The agent
 panel shows the live **sandbox logs** meanwhile. When the server is up, a
 frame appears on the canvas and the panel switches to chat.
 
-To work on a branch that already exists, use **… → Open existing branch** on
+To work on a branch that already exists, use **… → Open existing git branch** on
 the project instead.
 
 ## The sidebar row
@@ -43,7 +43,7 @@ the project instead.
 Each workspace row shows:
 
 - a **status icon**: a spinner while starting, a warning when setup failed
-  (hover it for the error), an activity spinner while the agent works, or the
+  (click it for the error), an activity spinner while the agent works, or the
   pull request's state once one is open;
 - the **branch name** (double-click to rename);
 - **+/− line counts** for changes compared with the base branch.
@@ -64,7 +64,7 @@ Hover a workspace and click **…**:
 | **Open prototype player** | Opens [play mode](/guides/play-mode) for this workspace. |
 | **Open in browser** | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
 | **Show all routes** | Adds a group with one frame per route the workspace has visited. |
-| **New branch from here…** | Opens **Create branches** with this branch as the base. |
+| **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
 | **Restart** | See [Restarting](#restarting). |
 | **Create pull request** / **Open pull request #N** | Opens a PR into the project's default branch, or jumps to the existing one. |
 | **Rebase on *main*** | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
@@ -113,10 +113,14 @@ needs a GitHub connection.
 
 ## Deleting
 
-**… → Delete** removes the workspace and its frames from the canvas. Turn on
-**Also delete on remote** to delete `origin/<branch>` as well.
+**… → Delete** removes the workspace and its frames from the canvas. The
+local branch stays in your sandbox. If you're connected to GitHub and the
+project has a GitHub remote, the dialog also offers **Also delete on remote**,
+which deletes `origin/<branch>` as well. It's off by default. If the remote
+delete fails, the workspace is still deleted and a warning names the branch
+left on the remote.
 
-<Screenshot name="delete-branch-dialog" alt="The Delete branch dialog with the Also delete on remote toggle" />
+<Screenshot name="delete-branch-dialog" alt="The Delete workspace dialog with the Also delete on remote toggle" />
 
 ## One branch, one workspace (desktop)
 

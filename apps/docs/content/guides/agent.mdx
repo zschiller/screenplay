@@ -8,15 +8,15 @@ import { Callout } from "nextra/components"
 # Agent chat
 
 The agent panel on the right (<kbd>⌘</kbd> <kbd>I</kbd>) is where you work
-with the agent. It always targets one workspace or one document, and
-everything it does happens inside that workspace's sandbox.
+with the agent. It always targets one workspace or one document. In a
+workspace chat, everything it does happens inside that workspace's sandbox.
 
 <Screenshot name="hero" alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews" />
 
 ## Choosing a target
 
 The pill at the top of the panel shows the current **target**. Click it to
-switch to any running workspace (**Branches**) or document (**Documents**).
+switch to any running workspace (**Workspaces**) or document (**Documents**).
 Clicking a workspace in the sidebar does the same thing. When you switch back
 to a target, the panel reopens the chat you last used there.
 
@@ -93,7 +93,8 @@ token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
 
 Turn on **Plan** in the composer when you want to approve the approach before
 any code changes. The agent investigates, then presents a **Plan** card
-instead of editing.
+instead of editing. Plan mode is for workspace chats; the composer in a
+document chat has no **Plan** toggle.
 
 <Screenshot name="plan-card" alt="An approved plan card for adding an FAQ, followed by the agent implementing it" />
 

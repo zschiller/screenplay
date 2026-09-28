@@ -16,7 +16,7 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 - A new workspace gets a frame automatically once its dev server is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
-  or draws one where you drag. A new frame is empty ("Choose a branch") until
+  or draws one where you drag. A new frame is empty ("Choose a workspace") until
   you pick a workspace for it.
 - **Show all routes** in the workspace menu adds a group with a frame for
   every route the workspace has visited.
@@ -26,7 +26,7 @@ view, so hot reload, client-side routing, and app state all work as normal.
 Above each frame:
 
 - **Workspace badge**: click it to point the frame at a different workspace.
-  This is how you compare branches on the same screen.
+  This is how you compare workspaces on the same screen.
 - **Name**: double-click to rename.
 - **Route**: click to switch pages. Pick a route the workspace has visited, or
   type any path and choose **Go to *path***. Routes you visit while
@@ -43,14 +43,14 @@ When exactly one frame is selected, a small toolbar appears on its right edge:
 | Button | What it does |
 | --- | --- |
 | **Interact** | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it. <kbd>Esc</kbd> returns to the canvas. |
-| **Create Flow** | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. |
+| **Create flow** | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. |
 | **Reload** | Reloads the preview. It's highlighted when hot reload has disconnected. |
 | **Knobs** | Live controls your app declares. See [Knobs](#knobs). |
 | **More** | **Device size**, **Fit to content**, **Open prototype player**, **Open in browser**. |
 
 <Screenshot name="frame-tooltip-interact" alt="The frame toolbar with the Interact tooltip" />
 
-Interact and Create Flow switch off automatically when you select something
+Interact and Create flow switch off automatically when you select something
 else.
 
 <Screenshot name="frame-more-menu" alt="The More menu: Device size, Fit to content, Open prototype player, Open in browser" />
@@ -96,7 +96,7 @@ frame and synced to everyone.
 
 ## Preview states
 
-- **Waiting for dev server...** while the workspace boots.
+- **Waiting for dev server…** while the workspace boots.
 - **Dev server not responding** if the server doesn't answer in time. Click
   **Retry**, or check the workspace's logs.
 

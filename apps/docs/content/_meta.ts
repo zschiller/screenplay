@@ -11,7 +11,7 @@ const meta = {
   "self-hosting": { display: "children" },
   "-- contribute": { type: "separator", title: "Contributing" },
   development: "Development",
-  screenshots: "Screenshots for design review",
+  screenshots: "Screenshots",
 }
 
 export default meta

@@ -8,7 +8,7 @@ import { Callout, Tabs } from "nextra/components"
 # Dev server & ports
 
 Every workspace runs your project's **run script** (set in the
-[project settings](/guides/projects#project-settings), never in your repo) and
+[project settings](/guides/projects#project-settings), never in your repository) and
 previews whatever it serves. Screenplay picks the port for each workspace. The
 one requirement on your app: **the dev server must listen on the port it's
 given**.
@@ -91,7 +91,7 @@ pnpm --filter web dev -- --port $PORT
 <Callout type="warning">
   With Turborepo, pass the port as a flag, as above, instead of relying on the
   `PORT` variable reaching the task. Turborepo 2's strict env mode strips
-  undeclared variables, so `$PORT` is empty *inside* the task. Workspace
+  undeclared variables, so `$PORT` is empty *inside* the task. Package
   scripts that hardcode `--port 3001` also win over the variable. The
   appended flag handles both, because for Next.js and Vite the last `--port`
   wins. Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
@@ -109,4 +109,4 @@ second project with its own run script. Presets make this painless; see
   login) work inside every workspace.
 - Adopting Screenplay should never require changing your project. The run
   script lives in Screenplay's settings, and Screenplay invokes portless
-  itself, so your repo needs no config files or dependencies.
+  itself, so your repository needs no config files or dependencies.
