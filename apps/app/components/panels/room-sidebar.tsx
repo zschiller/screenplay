@@ -1556,8 +1556,8 @@ export function RoomSidebar({
                       </IconButton>
                     </DialogTrigger>
                   )}
-                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-3 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-2 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
-                    <DialogHeader className="px-4 pt-4 pb-2">
+                  <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-4 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-3 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0">
+                    <DialogHeader className="px-5 pt-5 pb-2">
                       <DialogTitle>
                         {pickerView === "settings"
                           ? "Configure project"
@@ -1839,7 +1839,7 @@ export function RoomSidebar({
                                       onKeyDown={(e) => e.stopPropagation()}
                                       onPointerDown={(e) => e.stopPropagation()}
                                     >
-                                      <DialogHeader className="px-4 pt-4 pb-2">
+                                      <DialogHeader className="px-5 pt-5 pb-2">
                                         <DialogTitle>
                                           Open existing git branch
                                         </DialogTitle>
@@ -2880,7 +2880,7 @@ function RepoSettings({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="-mx-4 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-4">
+      <div className="-mx-5 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5">
         <Field>
           <FieldLabel htmlFor="repo-settings-name">Label</FieldLabel>
           <Input

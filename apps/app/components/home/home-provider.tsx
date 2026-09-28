@@ -113,7 +113,11 @@ type HomeContextValue = {
   order: SortOrder
   setOrder: (o: SortOrder) => void
 
-  createRoom: (name: string) => Promise<RoomSummary>
+  /**
+   * Create a Canvas. It lands in `folderId` when given (null = the root),
+   * otherwise in the folder you're viewing.
+   */
+  createRoom: (name: string, folderId?: string | null) => Promise<RoomSummary>
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
   /** File a Room into a folder for this user (null = drop it back to root). */
@@ -400,15 +404,18 @@ export function HomeProvider({
   )
 
   const createRoom = useCallback(
-    async (name: string) => {
+    async (name: string, folderId?: string | null) => {
       const room = await createRoomAction(name)
       setRooms((prev) => [room, ...prev])
-      // New canvas lands in the folder you're viewing (root needs no row).
-      if (folderView && currentFolderId !== null) {
-        await placeRoomAction(room.id, currentFolderId)
+      // New canvas lands in the folder asked for, else the folder you're
+      // viewing (root needs no row).
+      const target =
+        folderId !== undefined ? folderId : folderView ? currentFolderId : null
+      if (target !== null) {
+        await placeRoomAction(room.id, target)
         setPlacements((prev) => [
           ...prev.filter((p) => p.roomId !== room.id),
-          { roomId: room.id, folderId: currentFolderId },
+          { roomId: room.id, folderId: target },
         ])
       }
       return room

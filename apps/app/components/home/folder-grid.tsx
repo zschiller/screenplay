@@ -6,6 +6,7 @@ import { Folder as FolderIcon, MoreHorizontal } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { FolderActionMenu } from "./folder-action-menu"
+import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
 import { useFolderDragDrop } from "./file-dnd"
@@ -89,6 +90,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
     pinFolder,
     unpin,
   } = useHome()
+  const { create: createCanvas } = useCreateCanvas()
   const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -121,6 +123,7 @@ function FolderCard({ folder }: { folder: FolderSummary }) {
         folder={folder}
         menu={
           <FolderActionMenu
+            onNewCanvas={() => void createCanvas(folder.id)}
             onRename={() => setRenameOpen(true)}
             onMove={() => setMoveOpen(true)}
             onDelete={() => setDeleteOpen(true)}

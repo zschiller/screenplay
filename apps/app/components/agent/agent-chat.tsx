@@ -11,8 +11,12 @@ import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
-import { AgentMessageItem, TaskGroup } from "./agent-message"
-import { groupToolCalls } from "@/lib/agent/group-tool-calls"
+import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
+import {
+  groupToolCalls,
+  type GroupedMessage,
+} from "@/lib/agent/group-tool-calls"
+import { foldFinishedTurns } from "@/lib/agent/turn-summary"
 import {
   Composer,
   type ComposerHandle,
@@ -366,6 +370,19 @@ export function AgentChat({
 
   const lastRole = messages[messages.length - 1]?.role
 
+  const renderEntry = ({ message: msg, index: i, children }: GroupedMessage) =>
+    // A subagent's calls fold under the Task that spawned them (#640);
+    // `children` is non-empty only for such a Task.
+    children.length > 0 && msg.role === "tool_call" ? (
+      <TaskGroup
+        key={i}
+        task={msg}
+        childCalls={children.map((c) => c.message)}
+      />
+    ) : (
+      <AgentMessageItem key={i} message={msg} roomId={roomId} chatId={chatId} />
+    )
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
@@ -384,28 +401,19 @@ export function AgentChat({
             />
           ) : (
             <div className="space-y-3">
-              {groupToolCalls(messages).map(
-                ({ message: msg, index: i, children }) => {
-                  // A subagent's calls fold under the Task that spawned them
-                  // (#640); `children` is non-empty only for such a Task.
-                  if (children.length > 0 && msg.role === "tool_call") {
-                    return (
-                      <TaskGroup
-                        key={i}
-                        task={msg}
-                        childCalls={children.map((c) => c.message)}
-                      />
-                    )
-                  }
-                  return (
-                    <AgentMessageItem
-                      key={i}
-                      message={msg}
-                      roomId={roomId}
-                      chatId={chatId}
-                    />
-                  )
-                }
+              {foldFinishedTurns(groupToolCalls(messages), {
+                streaming: isStreaming,
+              }).map((item) =>
+                item.kind === "turn-summary" ? (
+                  <TurnSummaryRow
+                    key={`summary-${item.index}`}
+                    summary={item.summary}
+                  >
+                    {item.steps.map((entry) => renderEntry(entry))}
+                  </TurnSummaryRow>
+                ) : (
+                  renderEntry(item.entry)
+                )
               )}
               {/* The run's in-progress cue, held until the run settles. Before
                   any text streams (and between tool calls) it says "Thinking…";
