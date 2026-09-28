@@ -137,6 +137,7 @@ import {
   workspaceHoverStore,
 } from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
+import { PrStateBadge } from "@/components/pr-state-badge"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 
 /**
@@ -1187,7 +1188,6 @@ export function RoomSidebar({
                                           branch={branch}
                                           context={{
                                             agentWorking: isActive,
-                                            pr,
                                           }}
                                           onRetry={() =>
                                             onRetryBranch(branch.id)
@@ -1256,9 +1256,21 @@ export function RoomSidebar({
                                           stats &&
                                           (stats.additions > 0 ||
                                             stats.deletions > 0)
+                                        // A ready or working Workspace ends with its PR, else
+                                        // its line count (#963); one setting up, stopped or
+                                        // failed ends with nothing.
+                                        const isRunning =
+                                          branch.status === "running" &&
+                                          !branch.error
                                         return (
                                           <>
-                                            {hasStats && (
+                                            {isRunning && pr ? (
+                                              <PrStateBadge
+                                                number={pr.number}
+                                                state={pr.state}
+                                                className="px-1 md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden"
+                                              />
+                                            ) : isRunning && hasStats ? (
                                               <span className="flex items-center gap-1 px-1 font-mono text-3xs md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                 <span className="text-success">
                                                   +{stats.additions}
@@ -1267,7 +1279,7 @@ export function RoomSidebar({
                                                   -{stats.deletions}
                                                 </span>
                                               </span>
-                                            )}
+                                            ) : null}
                                             {showRepoNames && (
                                               <span className="truncate pr-1 pl-1.5 text-xs text-muted-foreground md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
                                                 {repoShortName(repo)}

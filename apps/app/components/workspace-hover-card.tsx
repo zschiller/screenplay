@@ -95,13 +95,8 @@ function WorkspaceHoverDetail({ branchId }: { branchId: string }) {
   if (!branch) return null
 
   const repo = repos.find((r) => r.id === branch.repoId)
-  const pr =
-    branch.prState && typeof branch.prNumber === "number"
-      ? { number: branch.prNumber, state: branch.prState }
-      : undefined
   const line = workspaceStatusLine(branch, {
     agentWorking: isBranchBusy(branch.id, chats),
-    pr,
   })
   const details = workspaceDetails(branch, repo)
   const label = branch.ref ? workspaceLabel(branch) : "New workspace"
