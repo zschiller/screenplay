@@ -1176,15 +1176,35 @@ export const SCREENS: Screen[] = [
   {
     name: "frame-workspace-picker",
     description:
-      "An unbound frame's Workspace picker, opened from its label on the canvas.",
+      "An unbound frame's Workspace picker: in its body since #798, before that opened from its label.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      // Matches the copy on both sides of the #723 rename so a before/after
-      // pair shoots the same state.
+      // Before #798 the picker opened from the label (copy matches both sides
+      // of the #723 rename); since then it sits in the frame body, where
+      // hovering a row shows its highlight.
+      const label = page.getByText(/^Choose a (branch|workspace)$/).first()
+      if (await label.isVisible().catch(() => false)) {
+        await label.click({ timeout: 15_000 })
+        return
+      }
       await page
-        .getByText(/^Choose a (branch|workspace)$/)
+        .locator('[data-frame-stage="unassigned"] [cmdk-item]')
         .first()
+        .hover({ timeout: 15_000 })
+    },
+    settleMs: 300,
+  },
+  {
+    name: "frame-new-workspace",
+    description:
+      "New workspace from an unbound frame's picker (#798): the same dialog, and the Workspace fills that frame.",
+    path: `/${ids.rooms.checkout}`,
+    prepare: async (page) => {
+      await page
+        .locator('[data-frame-stage="unassigned"] [cmdk-item]')
+        .filter({ hasText: "New workspace" })
         .click({ timeout: 15_000 })
+      await page.getByRole("dialog").waitFor({ timeout: 15_000 })
     },
     settleMs: 300,
   },

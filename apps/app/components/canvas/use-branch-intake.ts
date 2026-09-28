@@ -107,7 +107,15 @@ export interface BranchIntake {
     pick: RepoPickerSelection,
     settings?: ResolvedRepoSettings
   ) => void
-  createBranch: (repoId: string, specs: ComposerSpec[]) => Promise<void>
+  /**
+   * `intoFrameId` (#798): an unassigned frame's New workspace. The first
+   * created Workspace is assigned to that frame instead of getting a new one.
+   */
+  createBranch: (
+    repoId: string,
+    specs: ComposerSpec[],
+    options?: { intoFrameId?: string }
+  ) => Promise<void>
   createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
     id: string,
@@ -389,7 +397,11 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // through unchanged. A non-default base derives `flow:"duplicate-branch"`
   // (#325); the chosen base rides along as the source the server forks from.
   const createBranch = useCallback(
-    async (repoId: string, specs: ComposerSpec[]) => {
+    async (
+      repoId: string,
+      specs: ComposerSpec[],
+      options?: { intoFrameId?: string }
+    ) => {
       const repo = repos.find((w) => w.id === repoId)
       if (!repo || specs.length === 0) return
 
@@ -532,6 +544,20 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             seedChat: plan.seedChat,
           })
         })
+
+        // An unassigned frame's New workspace (#798): the first Workspace
+        // fills that frame rather than a new one, and fulfils its deferred
+        // seed the same way a seeded frame does.
+        const intoFrameId = options?.intoFrameId
+        const intoFrame = intoFrameId ? frameSpecs.shift() : undefined
+        if (intoFrameId && intoFrame) {
+          ops.patch("iframeLayers", intoFrameId, {
+            branchId: intoFrame.agentId,
+          })
+          ops.patch("branches", intoFrame.agentId, {
+            pendingIframeLayerSeed: false,
+          })
+        }
 
         // Seed the frames inside the same transaction (clears each Branch's
         // `pendingIframeLayerSeed`, so the deferred reactive seeder skips them).

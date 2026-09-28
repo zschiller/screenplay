@@ -48,7 +48,9 @@ import { DeviceSizeSubMenu } from "./device-size-menu"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import { KnobsPopover } from "./knobs-popover"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
-import type { BranchData } from "@/lib/types"
+import { UnassignedFramePicker } from "./unassigned-frame-picker"
+import type { StatusLineContext } from "@/lib/branch/status-line"
+import type { BranchData, RepoData } from "@/lib/types"
 import type {
   DomRect,
   HmrStatus,
@@ -238,6 +240,13 @@ interface IframeLayerProps {
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableBranches?: BranchData[]
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
+  /** The room's Projects: an unassigned frame offers New workspace in each. */
+  repos?: RepoData[]
+  /** The sidebar's status facts for a Workspace (agent working, PR), which
+   *  an unassigned frame's picker shows beside each Workspace. */
+  workspaceStatusContext?: (branchId: string) => StatusLineContext
+  /** Start a Workspace in `repoId` that this frame will preview. */
+  onNewWorkspace?: (iframeLayerId: string, repoId: string) => void
   /** Routes discovered for the agent backing this iframeLayer. */
   discoveredRoutes?: { route: string; label: string }[]
   onSelectRoute?: (iframeLayerId: string, route: string) => void
@@ -328,6 +337,9 @@ export function IframeLayer({
   onOpenLogs,
   assignableBranches,
   onAssignBranch,
+  repos,
+  workspaceStatusContext,
+  onNewWorkspace,
   discoveredRoutes,
   onSelectRoute,
   groupLabel,
@@ -990,32 +1002,51 @@ export function IframeLayer({
             a blank frame. It sits above the drag overlay but is
             pointer-transparent apart from its buttons, so the frame still drags
             and selects through it. */}
-            {stage && (
-              <FrameStatus
-                stage={stage}
-                detail={
-                  stage === "workspace-failed"
-                    ? workspace?.error
-                    : workspace?.statusMessage
+            {stage === "unassigned" && onAssignBranch ? (
+              <UnassignedFramePicker
+                branches={assignableBranches ?? []}
+                repos={repos ?? []}
+                statusContext={
+                  workspaceStatusContext ?? (() => ({ agentWorking: false }))
                 }
-                onRetry={
-                  stage === "preview-failed"
-                    ? retryPreview
-                    : branchId && onRestartWorkspace
-                      ? () => onRestartWorkspace(branchId)
-                      : undefined
-                }
-                onStart={
-                  branchId && onRestartWorkspace
-                    ? () => onRestartWorkspace(branchId)
-                    : undefined
-                }
-                onOpenLogs={
-                  branchId && onOpenLogs
-                    ? () => onOpenLogs(branchId)
+                onAssign={(id) => onAssignBranch(iframeLayer.id, id)}
+                zoom={zoom}
+                frameWidth={iframeLayer.width}
+                frameHeight={iframeLayer.height}
+                onNewWorkspace={
+                  onNewWorkspace
+                    ? (repoId) => onNewWorkspace(iframeLayer.id, repoId)
                     : undefined
                 }
               />
+            ) : (
+              stage && (
+                <FrameStatus
+                  stage={stage}
+                  detail={
+                    stage === "workspace-failed"
+                      ? workspace?.error
+                      : workspace?.statusMessage
+                  }
+                  onRetry={
+                    stage === "preview-failed"
+                      ? retryPreview
+                      : branchId && onRestartWorkspace
+                        ? () => onRestartWorkspace(branchId)
+                        : undefined
+                  }
+                  onStart={
+                    branchId && onRestartWorkspace
+                      ? () => onRestartWorkspace(branchId)
+                      : undefined
+                  }
+                  onOpenLogs={
+                    branchId && onOpenLogs
+                      ? () => onOpenLogs(branchId)
+                      : undefined
+                  }
+                />
+              )
             )}
           </div>
           {focused && (

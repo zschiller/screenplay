@@ -26,6 +26,7 @@ import type { CanvasSelection } from "./use-canvas-selection"
 import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
+import type { StatusLineContext } from "@/lib/branch/status-line"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -81,6 +82,8 @@ function CanvasMemberLayerImpl({
   agents,
   onRestartWorkspace,
   onOpenLogs,
+  workspaceStatusContext,
+  onNewWorkspace,
   repos,
   zoom,
   spaceHeld,
@@ -130,6 +133,10 @@ function CanvasMemberLayerImpl({
   onRestartWorkspace: (branchId: string) => void
   /** A frame's "Open logs": show its Workspace's sandbox logs. */
   onOpenLogs: (branchId: string) => void
+  /** The sidebar's status facts for a Workspace, for the unassigned picker. */
+  workspaceStatusContext: (branchId: string) => StatusLineContext
+  /** An unassigned frame's New workspace: start one in `repoId` for the frame. */
+  onNewWorkspace: (iframeLayerId: string, repoId: string) => void
   repos: RepoData[]
   zoom: number
   spaceHeld: boolean
@@ -416,6 +423,9 @@ function CanvasMemberLayerImpl({
               onOpenLogs={onOpenLogs}
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
+              repos={repos}
+              workspaceStatusContext={workspaceStatusContext}
+              onNewWorkspace={onNewWorkspace}
               discoveredRoutes={agentInfo?.discoveredRoutes}
               onSelectRoute={layerMutations.updateRoute}
               remoteSelectedColor={remoteSelectedColor}

@@ -38,8 +38,7 @@ export interface FrameStatusProps {
 const COPY: Record<FrameStage, { title: string; description: string }> = {
   unassigned: {
     title: "No Workspace",
-    description:
-      "Choose a Workspace from the frame's title to preview it here.",
+    description: "Pick one on the canvas to preview it here.",
   },
   booting: {
     title: "Booting sandbox",

@@ -237,3 +237,41 @@ describe("create requests the server refuses (#791)", () => {
     })
   })
 })
+
+describe("New workspace from an unassigned frame (#798)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 }))
+    )
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("fills that frame instead of adding a new one", async () => {
+    const { collections, result } = mountIntake({ defaultBranch: "main" })
+    collections.iframeLayers.set("frame-1", {
+      id: "frame-1",
+      width: 480,
+      height: 320,
+      label: "Untitled frame",
+      iframeState: {},
+    })
+
+    await act(async () => {
+      await result.current.createBranch(
+        "repo-1",
+        [{ baseBranch: "main", model: "opus", prompt: "" }],
+        { intoFrameId: "frame-1" }
+      )
+    })
+
+    const created = collections.branches
+      .toArray()
+      .find((b) => b.id !== "branch-1")!
+    expect(created).toMatchObject({ pendingIframeLayerSeed: false })
+    expect(collections.iframeLayers.get("frame-1")?.branchId).toBe(created.id)
+    expect(collections.iframeLayers.toArray()).toHaveLength(1)
+  })
+})

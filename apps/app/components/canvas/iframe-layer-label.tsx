@@ -84,7 +84,9 @@ export function IframeLayerLabel({
       onRename={onRename}
       placeholder="Untitled"
       leading={
-        onAssignBranch ? (
+        // An unassigned frame picks its Workspace in its body (#798), so the
+        // label only offers the picker once there's a Workspace to switch.
+        branch && onAssignBranch ? (
           <BranchPicker
             branch={branch}
             currentBranchId={branchId}
@@ -265,7 +267,7 @@ function RoutePicker({
 }
 
 interface BranchPickerProps {
-  branch?: string
+  branch: string
   currentBranchId?: string
   colorKey?: string
   colorIndex?: number
@@ -342,25 +344,15 @@ function BranchPicker({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {branch ? (
-            <BranchBadge
-              branch={branch}
-              colorKey={colorKey}
-              colorIndex={colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
-            />
-          ) : (
-            <span className="truncate text-xs text-muted-foreground">
-              Choose a workspace
-            </span>
-          )}
+          <BranchBadge
+            branch={branch}
+            colorKey={colorKey}
+            colorIndex={colorIndex}
+            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
+          />
           <ChevronsUpDown
             aria-hidden
-            className={
-              branch
-                ? "ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
-                : "ml-1 h-3 w-3 shrink-0 text-muted-foreground"
-            }
+            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-hover:delay-500 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
           />
         </button>
       </PopoverTrigger>

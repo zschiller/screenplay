@@ -41,6 +41,8 @@ import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { ShareRoomDialog } from "@/components/share-room-dialog"
+import { CreateBranchDialog } from "@/components/create-branch-dialog"
+import type { StatusLineContext } from "@/lib/branch/status-line"
 import { renameRoom } from "@/lib/rooms-actions"
 import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
@@ -690,6 +692,35 @@ export function Canvas({
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
   const chatSessions = useChatSessions()
+
+  // Workspaces with a chat turn in flight: the sidebar's status icons and an
+  // unassigned frame's picker (#798) read the same set.
+  const activeBranchIds = useMemo(
+    () =>
+      new Set(
+        agents.filter((a) => isBranchBusy(a.id, chatSessions)).map((a) => a.id)
+      ),
+    [agents, chatSessions]
+  )
+  const workspaceStatusContext = useCallback(
+    (branchId: string): StatusLineContext => ({
+      agentWorking: activeBranchIds.has(branchId),
+      pr: branchPrs.get(branchId),
+    }),
+    [activeBranchIds, branchPrs]
+  )
+
+  // An unassigned frame's New workspace (#798): the dialog it opens, and the
+  // frame the new Workspace fills.
+  const [newWorkspaceForFrame, setNewWorkspaceForFrame] = useState<{
+    frameId: string
+    repoId: string
+  } | null>(null)
+  const openNewWorkspaceForFrame = useCallback(
+    (frameId: string, repoId: string) =>
+      setNewWorkspaceForFrame({ frameId, repoId }),
+    []
+  )
 
   const agentDomains = useMemo(() => {
     const domains: Record<
@@ -1456,13 +1487,7 @@ export function Canvas({
             onRenameIframeLayerGroup={renameIframeLayerGroup}
             onRemoveIframeLayerGroup={removeIframeLayerGroup}
             onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-            activeBranchIds={
-              new Set(
-                agents
-                  .filter((a) => isBranchBusy(a.id, chatSessions))
-                  .map((a) => a.id)
-              )
-            }
+            activeBranchIds={activeBranchIds}
             chatPanelBranchId={
               chatCollapsed ? null : chatTarget.selectedAgentId
             }
@@ -1616,6 +1641,8 @@ export function Canvas({
                     agents={agents}
                     onRestartWorkspace={branchActions.startWorkspace}
                     onOpenLogs={openBranchLogs}
+                    workspaceStatusContext={workspaceStatusContext}
+                    onNewWorkspace={openNewWorkspaceForFrame}
                     repos={repos}
                     zoom={zoom}
                     spaceHeld={spaceHeld}
@@ -1927,6 +1954,27 @@ export function Canvas({
           />
         </ResizablePanel>
       </ResizablePanelGroup>
+      {(() => {
+        const target = newWorkspaceForFrame
+        const repo = target
+          ? repos.find((r) => r.id === target.repoId)
+          : undefined
+        return target && repo ? (
+          <CreateBranchDialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setNewWorkspaceForFrame(null)
+            }}
+            defaultBranch={repo.defaultBranch}
+            repoOwner={repo.repoOwner}
+            repoName={repo.repoName}
+            markdownLayers={markdownLayers}
+            onSubmit={(specs) =>
+              createBranch(repo.id, specs, { intoFrameId: target.frameId })
+            }
+          />
+        ) : null
+      })()}
     </>
   )
 }
