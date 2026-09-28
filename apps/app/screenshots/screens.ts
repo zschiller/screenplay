@@ -1104,19 +1104,6 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
-    name: "player-hud-hover",
-    description: "The prototype player's HUD, hovering the knobs button.",
-    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
-    prepare: async (page) => {
-      await page
-        .locator("button:has(svg.lucide-sliders-horizontal)")
-        .first()
-        .hover({ timeout: 15_000 })
-      await showTooltip(page)
-    },
-    settleMs: 400,
-  },
-  {
     name: "canvas-zoom-controls",
     description:
       "The zoom menu in the top-right pill, opened from its percentage button.",
@@ -1345,6 +1332,40 @@ export const SCREENS: Screen[] = [
     name: "player",
     description: "The prototype player for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+  },
+  {
+    name: "player-knobs",
+    description: "The prototype player with its Knobs panel open.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: async (page) => {
+      await page
+        .locator(
+          'button:has(svg.lucide-sliders-horizontal), button:text-is("Knobs")'
+        )
+        .first()
+        .click({ timeout: 15_000 })
+    },
+    settleMs: 400,
+  },
+  {
+    name: "player-agent",
+    description:
+      "The prototype player with the agent open beside it, composer in view.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    prepare: openPlayerAgent,
+    settleMs: 400,
+  },
+  {
+    name: "player-phone",
+    description: "The prototype player previewing the Workspace on a phone.",
+    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
+    beforeNavigate: (page) =>
+      page.addInitScript(() => {
+        window.localStorage.setItem(
+          "screenplay:player-device-size",
+          "iphone-17-pro"
+        )
+      }),
   },
   {
     name: "player-chat-warming-up",
@@ -1997,9 +2018,9 @@ function varUint(n: number): number[] {
   return bytes
 }
 
-/** Open the player's agent panel from the HUD. */
+/** Open the player's agent panel from its bar. */
 export async function openPlayerAgent(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open agent" }).click()
+  await page.getByRole("button", { name: /^(Open agent|Agent)$/ }).click()
 }
 
 /**

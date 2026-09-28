@@ -34,7 +34,7 @@ import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
-import { PlayerHud } from "./player-hud"
+import { PlayerBar } from "./player-bar"
 import { PlayerChatHost } from "./player-chat-host"
 
 interface PrototypePlayerProps {
@@ -103,11 +103,9 @@ export function PrototypePlayer({
   // Last serialized snapshot we sent down to the iframe — used to suppress
   // redundant applies when our own publish loops back through Yjs.
   const lastAppliedSharedRef = useRef<string | null>(null)
-  // While the HUD is being dragged the iframe must not capture pointer events
-  // — pointer capture doesn't cross cross-origin iframe boundaries, so a fast
-  // drag would otherwise escape onto the iframe's document and the drag would
-  // drop. We flip pointer-events:none on the iframe for the duration.
-  const [hudDragging, setHudDragging] = useState(false)
+  // The prototype's current path, for the player bar. The bridge reports
+  // every client-side navigation.
+  const [route, setRoute] = useState(initialRoute || "/")
   const [chatCollapsed, setChatCollapsed] = useState(true)
   const chatPanelRef = useRef<PanelImperativeHandle>(null)
   const knobValuesRef = useRef(knobValues)
@@ -285,6 +283,8 @@ export function PrototypePlayer({
         // Resend the current cursor mode — a navigation or reload re-injects
         // the bridge with default state, so the puck would otherwise reset.
         sendCursorMode(isTouchDeviceRef.current)
+      } else if (e.data.type === "screenplay:navigation") {
+        setRoute(e.data.path)
       } else if (e.data.type === "screenplay:knobs-declared") {
         setKnobs(e.data.knobs)
         // Iframe just (re)registered; push our values down so the prototype
@@ -321,7 +321,7 @@ export function PrototypePlayer({
           lastAppliedSharedRef.current = serialized
           collections.iframeLayers.update(iframeLayerId, { sharedState: next })
         } else {
-          // No persistence path — keep a local copy so the HUD/dev tools
+          // No persistence path — keep a local copy so the bar/dev tools
           // could surface it later without round-tripping through Yjs.
           sharedStateRef.current = next
         }
@@ -385,10 +385,6 @@ export function PrototypePlayer({
     chatPanelRef.current?.collapse()
   }, [])
 
-  const iframeStyle: React.CSSProperties = {
-    pointerEvents: hudDragging ? "none" : "auto",
-  }
-
   const iframe = initialSrc ? (
     <iframe
       ref={iframeRef}
@@ -396,7 +392,6 @@ export function PrototypePlayer({
       title={`${roomName} — ${branch}`}
       className="h-full w-full border-0 bg-white dark:bg-zinc-900"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      style={iframeStyle}
     />
   ) : null
   // The same status screen a canvas frame shows, so the player never sits on a
@@ -423,10 +418,14 @@ export function PrototypePlayer({
       className="fixed inset-0 bg-black"
     >
       <ResizablePanel id="player-canvas" minSize="200px">
-        <div className="relative h-full w-full">
+        {/* The bar has a row of its own above the stage, so it never covers
+         *  the prototype; its panels drop over the stage below it. */}
+        <div
+          className={`relative flex h-full w-full flex-col pt-12 ${isTouchDevice ? "" : "bg-muted"}`}
+        >
           <div
             ref={stageRef}
-            className="absolute inset-0 flex items-center justify-center overflow-hidden"
+            className="relative flex flex-1 items-center justify-center overflow-hidden"
           >
             {/* One iframe for every device size: switching resizes this
              *  wrapper instead of swapping elements, so the prototype keeps its
@@ -453,15 +452,16 @@ export function PrototypePlayer({
               {statusScreen}
             </div>
           </div>
-          <PlayerHud
+          <PlayerBar
             roomId={roomId}
             roomName={roomName}
             agentId={agentId}
             branch={branch}
+            colorIndex={workspace?.colorIndex}
+            route={route}
             knobs={knobs}
             knobValues={knobValues}
             onKnobChange={handleKnobChange}
-            onDraggingChange={setHudDragging}
             onToggleChat={handleToggleChat}
             chatOpen={!chatCollapsed}
             initialThreads={initialThreads}

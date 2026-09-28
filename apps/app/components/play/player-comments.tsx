@@ -23,12 +23,15 @@ interface PlayerCommentsProps {
   branch: string
   agentId: string
   initialThreads: ThreadWithComments[]
+  /** Every change to the list, so the player bar's count stays current. */
+  onThreadsChange?: (threads: ThreadWithComments[]) => void
 }
 
 export function PlayerComments({
   roomId,
   branch,
   initialThreads,
+  onThreadsChange,
 }: PlayerCommentsProps) {
   const { data: session } = useSession()
   const [threads, setThreads] = useState<ThreadWithComments[]>(initialThreads)
@@ -51,6 +54,14 @@ export function PlayerComments({
       cancelled = true
     }
   }, [roomId, branch])
+
+  const onThreadsChangeRef = useRef(onThreadsChange)
+  useEffect(() => {
+    onThreadsChangeRef.current = onThreadsChange
+  }, [onThreadsChange])
+  useEffect(() => {
+    onThreadsChangeRef.current?.(threads)
+  }, [threads])
 
   // Keep the list pinned to the latest entry.
   useEffect(() => {

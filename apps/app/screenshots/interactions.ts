@@ -360,21 +360,15 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "player-keyboard",
     description:
-      "The player HUD by keyboard: open the Knobs panel, close it with Escape, again with reduced motion on.",
+      "The player bar by keyboard: open the Knobs panel, close it with Escape, again with reduced motion on.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
     run: async (page) => {
       await page.waitForTimeout(800)
       for (const reducedMotion of ["no-preference", "reduce"] as const) {
         await page.emulateMedia({ reducedMotion })
-        // Focus the device picker and Tab once to Knobs — its neighbour in the
-        // pill — the way a keyboard user reaches it.
         await step(() =>
-          page
-            .getByRole("combobox", { name: /^device/i })
-            .first()
-            .focus()
+          page.getByRole("button", { name: "Knobs" }).first().focus()
         )
-        await page.keyboard.press("Tab")
         await page.waitForTimeout(500)
         await page.keyboard.press("Enter")
         await page.waitForTimeout(1200)
@@ -401,43 +395,9 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1000)
       await step(() => frame.goto(new URL("cart", src).href))
       await page.waitForTimeout(1200)
-      // An option's name is its label then its size ("iPhone 17 Pro402×874"),
-      // so anchor on the digit to keep "iPhone 17 Pro Max" out.
-      for (const device of [/^iPhone 17 Pro\s*\d/, /^Desktop · 1920/]) {
-        await click(page, page.getByRole("combobox", { name: /^device/i }))
-        await page.waitForTimeout(400)
-        await click(page, page.getByRole("option", { name: device }))
+      for (const device of ["Phone", "Desktop"]) {
+        await click(page, page.getByRole("radio", { name: device }))
         await page.waitForTimeout(1800)
-      }
-    },
-  },
-  {
-    name: "player-hud-drag",
-    description:
-      "Dragging the player HUD across the screen and letting it snap to a corner, then again with reduced motion on.",
-    path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
-    run: async (page) => {
-      const box = page.viewportSize() ?? DEFAULT_VIEWPORT
-      await page.waitForTimeout(800)
-      const targets = [
-        { x: box.width * 0.3, y: box.height * 0.35 },
-        { x: box.width * 0.7, y: box.height * 0.65 },
-      ]
-      for (const [i, reducedMotion] of (
-        ["no-preference", "reduce"] as const
-      ).entries()) {
-        await page.emulateMedia({ reducedMotion })
-        const grip = page.getByLabel("Drag to a corner").first()
-        const from = await grip.boundingBox().catch(() => null)
-        if (!from) {
-          console.warn("  ! skipped a step: could not find the HUD grip")
-          return
-        }
-        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
-        await page.mouse.down()
-        await page.mouse.move(targets[i]!.x, targets[i]!.y, { steps: 25 })
-        await page.mouse.up()
-        await page.waitForTimeout(1500)
       }
     },
   },
