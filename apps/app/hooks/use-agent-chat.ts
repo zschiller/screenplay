@@ -22,6 +22,8 @@ interface UseAgentChatOptions {
 
 interface SendOptions {
   model?: string
+  /** The composer document, kept so a failed or queued send can be edited. */
+  draft?: unknown
 }
 
 export function useAgentChat({
@@ -71,7 +73,7 @@ export function useAgentChat({
 
   const sendMessage = useCallback(
     (text: string, options?: SendOptions) => {
-      chatStore.sendMessage({
+      return chatStore.sendMessage({
         roomId,
         chatId,
         sandboxName,
@@ -82,6 +84,7 @@ export function useAgentChat({
         autoNamedBranch,
         planMode,
         model: options?.model,
+        draft: options?.draft,
         onBranchRename,
         onChatRename,
       })
@@ -104,12 +107,30 @@ export function useAgentChat({
     chatStore.stopMessage(roomId, chatId)
   }, [roomId, chatId])
 
+  const retryFailedSend = useCallback(
+    () => chatStore.retryFailedSend(chatId),
+    [chatId]
+  )
+  const takeFailedSend = useCallback(
+    () => chatStore.takeFailedSend(chatId),
+    [chatId]
+  )
+  const takeQueued = useCallback(
+    (id: string) => chatStore.takeQueued(chatId, id),
+    [chatId]
+  )
+
   return {
     messages: state.messages,
     isStreaming: state.isStreaming,
     isLoadingHistory: state.isLoadingHistory,
     error: state.error,
+    failedSend: state.failedSend,
+    queued: state.queued,
     sendMessage,
     stopMessage,
+    retryFailedSend,
+    takeFailedSend,
+    takeQueued,
   }
 }

@@ -8,7 +8,10 @@ import {
   useSyncExternalStore,
 } from "react"
 import { getSkillMenuItems, type SkillMenuItem } from "@/lib/skills-store"
+import { Clock, X } from "lucide-react"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { GripSpinner } from "@/components/grip-spinner"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { AgentMessageItem, TaskGroup, TurnSummaryRow } from "./agent-message"
@@ -83,20 +86,30 @@ export function AgentChat({
   onChatRename,
   isActive = true,
 }: AgentChatProps) {
-  const { messages, isStreaming, isLoadingHistory, sendMessage, stopMessage } =
-    useAgentChat({
-      chatId,
-      roomId,
-      sandboxName,
-      branch,
-      markdownLayerId,
-      isFirstChat,
-      autoNamedBranch,
-      planMode,
-      onBranchRename,
-      onChatRename,
-      isActive,
-    })
+  const {
+    messages,
+    isStreaming,
+    isLoadingHistory,
+    failedSend,
+    queued,
+    sendMessage,
+    stopMessage,
+    retryFailedSend,
+    takeFailedSend,
+    takeQueued,
+  } = useAgentChat({
+    chatId,
+    roomId,
+    sandboxName,
+    branch,
+    markdownLayerId,
+    isFirstChat,
+    autoNamedBranch,
+    planMode,
+    onBranchRename,
+    onChatRename,
+    isActive,
+  })
 
   const [models, setModels] = useState<ModelInfo[]>([])
   const [modelsLoaded, setModelsLoaded] = useState(false)
@@ -299,11 +312,23 @@ export function AgentChat({
   // A chat still following the default is pinned to the model it first sends
   // with, so changing the default later never relabels a running session.
   const handleSubmit = useCallback(
-    ({ text, model: submitted }: ComposerSubmitPayload) => {
+    ({ text, model: submitted, draft }: ComposerSubmitPayload) => {
       if (!model && submitted) onModelChange?.(submitted)
-      sendMessage(text, { model: submitted })
+      void sendMessage(text, { model: submitted, draft })
     },
     [sendMessage, model, onModelChange]
+  )
+
+  // Put a held message (refused or queued) back in the composer to edit. The
+  // composer's own document restores mentions and element tokens intact; a
+  // message sent from outside the composer has only its text.
+  const restoreToComposer = useCallback(
+    (held: { message: string; draft?: unknown } | null) => {
+      if (!held) return
+      if (held.draft) composerRef.current?.restoreDraft(held.draft)
+      else composerRef.current?.insertText(held.message)
+    },
+    []
   )
 
   // Element targeting (PRD #616): agent chats in a room can target this branch's
@@ -345,7 +370,7 @@ export function AgentChat({
   useEffect(() => {
     return inputStore.subscribeSend(chatId, (text) => {
       if (!model && effectiveModel) onModelChange?.(effectiveModel)
-      sendMessage(text, { model: effectiveModel })
+      void sendMessage(text, { model: effectiveModel })
     })
   }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 
@@ -393,7 +418,7 @@ export function AgentChat({
               <Spinner className="size-3" />
               Loading chat…
             </div>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && !failedSend ? (
             <ChatEmptyState
               isAgentChat={isAgentChat}
               branch={branch}
@@ -433,6 +458,16 @@ export function AgentChat({
                   )}
                 </div>
               )}
+              {failedSend && (
+                <FailedSendNotice
+                  message={failedSend.message}
+                  error={failedSend.error}
+                  roomId={roomId}
+                  chatId={chatId}
+                  onRetry={() => void retryFailedSend()}
+                  onEdit={() => restoreToComposer(takeFailedSend())}
+                />
+              )}
             </div>
           )}
         </div>
@@ -456,7 +491,23 @@ export function AgentChat({
         onSubmit={handleSubmit}
         isStreaming={isStreaming}
         onStop={stopMessage}
+        queueWhileStreaming
+        draftKey={chatId}
         placeholder={composerPlaceholder}
+        aboveInput={
+          queued.length > 0 ? (
+            <ul aria-label="Queued messages" className="mb-2 space-y-1">
+              {queued.map((q) => (
+                <QueuedRow
+                  key={q.id}
+                  message={q.message}
+                  onEdit={() => restoreToComposer(takeQueued(q.id))}
+                  onRemove={() => takeQueued(q.id)}
+                />
+              ))}
+            </ul>
+          ) : undefined
+        }
         onPickElement={isAgentChat && sandboxId ? handlePickElement : undefined}
         targetEligible={targetEligible}
       />
@@ -529,5 +580,75 @@ function ChatEmptyState({
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * A message the server refused, kept where it was sent with Retry and Edit so
+ * no typed text is lost (#802).
+ */
+function FailedSendNotice({
+  message,
+  error,
+  roomId,
+  chatId,
+  onRetry,
+  onEdit,
+}: {
+  message: string
+  error: string
+  roomId: string
+  chatId: string
+  onRetry: () => void
+  onEdit: () => void
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1" data-testid="failed-send">
+      <div className="w-full">
+        <AgentMessageItem
+          message={{ role: "user", content: message }}
+          roomId={roomId}
+          chatId={chatId}
+        />
+      </div>
+      <div className="-mr-2 flex max-w-full items-center text-xs">
+        <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
+          Not sent: {error}
+        </span>
+        <Button variant="ghost" size="xs" onClick={onRetry}>
+          Retry
+        </Button>
+        <Button variant="ghost" size="xs" onClick={onEdit}>
+          Edit
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** One message waiting for the current run to end. */
+function QueuedRow({
+  message,
+  onEdit,
+  onRemove,
+}: {
+  message: string
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  return (
+    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs">
+      <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="shrink-0 text-muted-foreground">Queued</span>
+      <span className="min-w-0 flex-1 truncate" title={message}>
+        {message}
+      </span>
+      <Button variant="ghost" size="xs" onClick={onEdit}>
+        Edit
+      </Button>
+      <IconButton label="Remove from queue" size="icon-xs" onClick={onRemove}>
+        <X />
+      </IconButton>
+    </li>
   )
 }
