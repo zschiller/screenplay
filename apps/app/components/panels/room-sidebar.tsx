@@ -110,6 +110,14 @@ import type {
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { sortForSidebar } from "@/lib/sidebar-order"
 import {
+  parseSidebarRowId,
+  resolveSidebarDrop,
+  sidebarRowId,
+  type MoveMemberTarget,
+  type SidebarDropHint,
+  type SidebarRow,
+} from "@/lib/sidebar-drop"
+import {
   IframeLayerRowMenu,
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
@@ -141,51 +149,8 @@ import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
  */
 type ResolvedMember = { kind: string; id: string; data: unknown }
 
-/**
- * One visible row in the sidebar's Canvas section. `group-header` is the
- * folder line for a multi-member group, `flat` is the single-member
- * shorthand (no header), and `member` is a child row inside an expanded
- * multi-member group. The Sortable list contains one entry per row.
- */
-type SidebarDragRow =
-  | { kind: "group-header"; groupId: string }
-  | { kind: "flat"; groupId: string; member: ResolvedMember }
-  | { kind: "member"; groupId: string; member: ResolvedMember }
-
-function rowSortableId(row: SidebarDragRow): string {
-  if (row.kind === "group-header") return `group:${row.groupId}`
-  if (row.kind === "flat") return `flat:${row.groupId}`
-  return `member:${row.member.kind}:${row.member.id}`
-}
-
-type ParsedRowId =
-  | { kind: "group-header"; groupId: string }
-  | { kind: "flat"; groupId: string }
-  | { kind: "member"; memberKind: string; memberId: string }
-  | { kind: "gap"; sidebarIndex: number }
-
-function parseSortableId(id: string): ParsedRowId | null {
-  if (id.startsWith("gap:")) {
-    return { kind: "gap", sidebarIndex: Number(id.slice(4)) }
-  }
-  if (id.startsWith("group:")) {
-    return { kind: "group-header", groupId: id.slice(6) }
-  }
-  if (id.startsWith("flat:")) {
-    return { kind: "flat", groupId: id.slice(5) }
-  }
-  if (id.startsWith("member:")) {
-    const rest = id.slice(7)
-    const colon = rest.indexOf(":")
-    if (colon < 0) return null
-    return {
-      kind: "member",
-      memberKind: rest.slice(0, colon),
-      memberId: rest.slice(colon + 1),
-    }
-  }
-  return null
-}
+/** One visible row in the sidebar's Canvas section (see Sidebar Drop). */
+type SidebarDragRow = SidebarRow<ResolvedMember>
 
 /**
  * Which edge of `rect` a drop lands on — purely from the live POINTER Y vs the
@@ -199,16 +164,12 @@ function pointerSide(rect: ClientRect, pointerY: number): "before" | "after" {
 }
 
 /**
- * The single drop indicator for the whole Canvas list, computed once by the
- * parent on each drag move and read by every {@link SortableRow}. Exactly one
- * row matches at a time, so a given gap is ALWAYS painted at one pixel — the
- * line can't flicker between the bottom of one row and the top of the next.
- *   - `into`: nest the dragged member into this container row (full ring).
- *   - `line`: a thin rule on this row's `before`/`after` edge.
+ * The single drop indicator for the whole Canvas list, resolved once by the
+ * parent on each drag move (by {@link resolveSidebarDrop}) and read by every
+ * {@link SortableRow}. Exactly one row matches at a time, so a given gap is
+ * ALWAYS painted at one pixel.
  */
-type DropHint =
-  | { kind: "into"; rowId: string }
-  | { kind: "line"; rowId: string; edge: "before" | "after" }
+type DropHint = SidebarDropHint
 
 const DropHintContext = createContext<DropHint | null>(null)
 
@@ -412,7 +373,7 @@ function SortableRow({
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id,
-    data: { groupId, kind: parseSortableId(id)?.kind },
+    data: { groupId, kind: parseSidebarRowId(id)?.kind },
   })
   // The parent computes ONE hint for the whole list (pointer-based, gap-
   // normalized) and we just render the part that targets this row. Exactly one
@@ -617,15 +578,10 @@ interface RoomSidebarProps {
   onReorderBranches: (repoId: string, orderedIds: string[]) => void
   /**
    * Move a single member across (or within) groups. `target` either points
-   * into an existing group at a specific index, or asks for a new
-   * single-member group to be created at a given sidebar slot.
+   * into an existing group at a gap index (as the sidebar shows it), or asks
+   * for a new single-member group to be created at a given sidebar slot.
    */
-  onMoveMember: (
-    member: GroupMember,
-    target:
-      | { kind: "into-group"; groupId: string; index: number }
-      | { kind: "new-group"; sidebarIndex: number }
-  ) => void
+  onMoveMember: (member: GroupMember, target: MoveMemberTarget) => void
   onRenameIframeLayerGroup: (groupId: string, name: string) => void
   onRemoveIframeLayerGroup: (groupId: string) => void
   onCollapseSidebar?: () => void
@@ -915,7 +871,7 @@ export function RoomSidebar({
   }, [iframeLayerGroups, iframeLayersById, documentsById])
 
   const sortableIds = useMemo(
-    () => flattenedRows.map(rowSortableId),
+    () => flattenedRows.map(sidebarRowId),
     [flattenedRows]
   )
 
@@ -941,7 +897,7 @@ export function RoomSidebar({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const row = flattenedRows.find(
-        (r) => rowSortableId(r) === String(event.active.id)
+        (r) => sidebarRowId(r) === String(event.active.id)
       )
       setActiveDragRow(row ?? null)
       const ae = event.activatorEvent as { clientY?: number }
@@ -961,66 +917,28 @@ export function RoomSidebar({
     endDrag()
   }, [endDrag])
 
-  /** Group a parsed `over` row belongs to (members don't carry it in the id). */
-  const overRowGroupId = useCallback(
-    (over: ParsedRowId): string | undefined => {
-      if (over.kind === "group-header" || over.kind === "flat")
-        return over.groupId
-      if (over.kind === "member")
-        return flattenedRows.find(
-          (r) =>
-            r.kind === "member" &&
-            r.member.kind === over.memberKind &&
-            r.member.id === over.memberId
-        )?.groupId
-      return undefined
-    },
-    [flattenedRows]
+  /** Groups in sidebar order with their full member lists, for Sidebar Drop. */
+  const dropGroups = useMemo(
+    () =>
+      iframeLayerGroups.map((g) => ({ id: g.id, members: getGroupMembers(g) })),
+    [iframeLayerGroups]
   )
 
   /**
-   * The one canonical hint for the current pointer position. `before`/`after`
-   * comes purely from the pointer vs the over row's midpoint; an `after` on a
-   * member is normalized to `before` of the next member in the SAME group so a
-   * given gap always renders at one fixed pixel.
+   * The Sidebar Drop decision (hint + intent) for a pointer over `over`.
+   * `before`/`after` comes purely from the pointer vs the over row's midpoint,
+   * so the drag-move hint and the drop commit read the same rule.
    */
-  const computeDropHint = useCallback(
-    (
-      activeRow: SidebarDragRow,
-      overId: string,
-      overRect: ClientRect,
-      pointerY: number
-    ): DropHint | null => {
-      const over = parseSortableId(overId)
-      if (!over || over.kind === "gap") return null
-      const overIsContainer =
-        over.kind === "group-header" || over.kind === "flat"
-      const overGroupId = overRowGroupId(over)
-
-      // A whole group resolves to a gap strip (see canvasCollision); it never
-      // produces a row line.
-      if (activeRow.kind === "group-header") return null
-
-      const sameGroup =
-        overGroupId !== undefined && overGroupId === activeRow.groupId
-      // Member dropped on a DIFFERENT group's container → nest (ring). On its
-      // OWN group's header there's nothing to show: extraction to a new group
-      // is owned by the gap strip directly above the group.
-      if (overIsContainer)
-        return sameGroup ? null : { kind: "into", rowId: overId }
-
-      const edge = pointerSide(overRect, pointerY)
-      // Collapse "after this member" onto "before the next member" so the gap
-      // between two members of one group is a single pixel, not two.
-      if (edge === "after" && over.kind === "member") {
-        const idx = flattenedRows.findIndex((r) => rowSortableId(r) === overId)
-        const next = flattenedRows[idx + 1]
-        if (next && next.kind === "member" && next.groupId === overGroupId)
-          return { kind: "line", rowId: rowSortableId(next), edge: "before" }
-      }
-      return { kind: "line", rowId: overId, edge }
-    },
-    [flattenedRows, overRowGroupId]
+  const resolveDrop = useCallback(
+    (activeId: string, over: { id: string | number; rect: ClientRect }) =>
+      resolveSidebarDrop({
+        rows: flattenedRows,
+        groups: dropGroups,
+        activeId,
+        overId: String(over.id),
+        side: pointerSide(over.rect, pointerYRef.current),
+      }),
+    [flattenedRows, dropGroups]
   )
 
   // onDragMove (not onDragOver): the latter only fires when the `over` row
@@ -1030,22 +948,10 @@ export function RoomSidebar({
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
       const { active, over } = event
-      const activeRow =
-        over && String(active.id) !== String(over.id)
-          ? flattenedRows.find((r) => rowSortableId(r) === String(active.id))
-          : undefined
-      const next =
-        activeRow && over
-          ? computeDropHint(
-              activeRow,
-              String(over.id),
-              over.rect,
-              pointerYRef.current
-            )
-          : null
+      const next = over ? resolveDrop(String(active.id), over).hint : null
       setDropHint((prev) => (sameDropHint(prev, next) ? prev : next))
     },
-    [flattenedRows, computeDropHint]
+    [resolveDrop]
   )
 
   // --- "Branches" section drag (repos + their branches) ---
@@ -1211,188 +1117,17 @@ export function RoomSidebar({
     [branchesByRepo, onReorderBranches, reorderRepoToGap, endBranchesDrag]
   )
 
-  /**
-   * Slot the source group into the sidebar at `sidebarIndex` (gap-space
-   * coordinates: 0 = before first, N = after last). Accounts for the
-   * removal of the source group itself so callers can pass the gap index
-   * directly off a `gap:N` drop.
-   */
-  const reorderGroupToGap = useCallback(
-    (groupId: string, sidebarIndex: number) => {
-      const currentIds = iframeLayerGroups.map((g) => g.id)
-      const currentIdx = currentIds.indexOf(groupId)
-      if (currentIdx < 0) return
-      let target = sidebarIndex
-      if (currentIdx < sidebarIndex) target -= 1
-      const withoutSource = currentIds.filter((_, i) => i !== currentIdx)
-      const clamped = Math.max(0, Math.min(target, withoutSource.length))
-      const newOrder = [
-        ...withoutSource.slice(0, clamped),
-        groupId,
-        ...withoutSource.slice(clamped),
-      ]
-      if (newOrder.join(",") === currentIds.join(",")) return
-      onReorderIframeLayerGroups(newOrder)
-    },
-    [iframeLayerGroups, onReorderIframeLayerGroups]
-  )
-
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const pointerY = pointerYRef.current
-      endDrag()
       const { active, over } = event
-      if (!over) return
-      const activeId = String(active.id)
-      const overId = String(over.id)
-      if (activeId === overId) return
-
-      const activeInfo = parseSortableId(activeId)
-      if (!activeInfo || activeInfo.kind === "gap") return
-
-      const activeRow = flattenedRows.find((r) => rowSortableId(r) === activeId)
-      if (!activeRow) return
-
-      const overInfo = parseSortableId(overId)
-      if (!overInfo) return
-
-      // Gap drop — either group reorder (preserving group id) or new
-      // single-member group, depending on whether the dragged row IS a group.
-      if (overInfo.kind === "gap") {
-        if (activeRow.kind === "member") {
-          onMoveMember(
-            {
-              kind: activeRow.member.kind,
-              id: activeRow.member.id,
-            } as GroupMember,
-            { kind: "new-group", sidebarIndex: overInfo.sidebarIndex }
-          )
-        } else {
-          // group-header or flat → keep group identity
-          reorderGroupToGap(activeRow.groupId, overInfo.sidebarIndex)
-        }
-        return
-      }
-
-      // Dragging a multi-member group's header onto another row → treat as
-      // a whole-group reorder. (Nesting groups isn't a thing.)
-      if (activeRow.kind === "group-header") {
-        if (
-          overInfo.kind === "group-header" &&
-          overInfo.groupId === activeRow.groupId
-        )
-          return
-        const overGroupId =
-          overInfo.kind === "group-header" || overInfo.kind === "flat"
-            ? overInfo.groupId
-            : // over is a member — find its group via flattened rows
-              flattenedRows.find(
-                (r) =>
-                  r.kind === "member" &&
-                  r.member.kind === overInfo.memberKind &&
-                  r.member.id === overInfo.memberId
-              )?.groupId
-        if (!overGroupId || overGroupId === activeRow.groupId) return
-        const overIdx = iframeLayerGroups.findIndex((g) => g.id === overGroupId)
-        if (overIdx < 0) return
-        const insertAfter = pointerSide(over.rect, pointerY) === "after"
-        const sidebarIndex = insertAfter ? overIdx + 1 : overIdx
-        reorderGroupToGap(activeRow.groupId, sidebarIndex)
-        return
-      }
-
-      // Active is a member or a flat (= single-member) row — move that one
-      // member to wherever the drop landed.
-      const draggedMember: GroupMember = {
-        kind: activeRow.member.kind,
-        id: activeRow.member.id,
-      } as GroupMember
-
-      // Drop onto a multi-member group's header.
-      if (overInfo.kind === "group-header") {
-        if (overInfo.groupId === activeRow.groupId) {
-          // Same group as the dragged member — the indicator paints a
-          // "before" line above the header (the member started inside
-          // the group, below the header, so direction is always "up"
-          // from its perspective). Route that to "extract me into a new
-          // sibling group above this one" — the same action the gap
-          // above the group would trigger. Otherwise we'd silently no-op
-          // and the user would have to creep 1–2 pixels further up to
-          // hit the gap zone.
-          const sidebarIdx = iframeLayerGroups.findIndex(
-            (g) => g.id === overInfo.groupId
-          )
-          if (sidebarIdx < 0) return
-          onMoveMember(draggedMember, {
-            kind: "new-group",
-            sidebarIndex: sidebarIdx,
-          })
-          return
-        }
-        // Cross-group → append into the target group.
-        const targetGroup = iframeLayerGroups.find(
-          (g) => g.id === overInfo.groupId
-        )
-        if (!targetGroup) return
-        const targetMembers = getGroupMembers(targetGroup)
-        onMoveMember(draggedMember, {
-          kind: "into-group",
-          groupId: overInfo.groupId,
-          index: targetMembers.length,
-        })
-        return
-      }
-
-      // Drop onto another flat (single-member) row → merge into that group,
-      // creating a 2-member group with a header.
-      if (overInfo.kind === "flat") {
-        if (overInfo.groupId === activeRow.groupId) return
-        onMoveMember(draggedMember, {
-          kind: "into-group",
-          groupId: overInfo.groupId,
-          index: 1,
-        })
-        return
-      }
-
-      // Drop adjacent to another member.
-      const overGroupId = flattenedRows.find(
-        (r) =>
-          r.kind === "member" &&
-          r.member.kind === overInfo.memberKind &&
-          r.member.id === overInfo.memberId
-      )?.groupId
-      if (!overGroupId) return
-      const targetGroup = iframeLayerGroups.find((g) => g.id === overGroupId)
-      if (!targetGroup) return
-      const targetMembers = getGroupMembers(targetGroup)
-      const overMemberIdx = targetMembers.findIndex(
-        (m) => m.kind === overInfo.memberKind && m.id === overInfo.memberId
-      )
-      if (overMemberIdx < 0) return
-
-      // before/after comes from the live pointer vs the over row's midpoint —
-      // the exact same rule the drop hint uses — so the commit always lands
-      // where the indicator pointed. (Visual `after X` normalizes to `before
-      // X+1`, but both resolve to this same gap index, so no extra handling.)
-      const insertAfter = pointerSide(over.rect, pointerY) === "after"
-      let targetIndex = insertAfter ? overMemberIdx + 1 : overMemberIdx
-
-      // moveMember's same-group path expects an index in post-removal space.
-      if (activeRow.kind === "member" && activeRow.groupId === overGroupId) {
-        const currentIdx = targetMembers.findIndex(
-          (m) => m.kind === draggedMember.kind && m.id === draggedMember.id
-        )
-        if (currentIdx >= 0 && currentIdx < targetIndex) targetIndex -= 1
-      }
-
-      onMoveMember(draggedMember, {
-        kind: "into-group",
-        groupId: overGroupId,
-        index: targetIndex,
-      })
+      const intent = over ? resolveDrop(String(active.id), over).intent : null
+      endDrag()
+      if (!intent) return
+      if (intent.kind === "reorder-groups")
+        onReorderIframeLayerGroups(intent.orderedIds)
+      else onMoveMember(intent.member, intent.target)
     },
-    [flattenedRows, iframeLayerGroups, onMoveMember, reorderGroupToGap, endDrag]
+    [resolveDrop, onMoveMember, onReorderIframeLayerGroups, endDrag]
   )
 
   // Auto-select branches when they finish creating. onSelectBranch is stored in
