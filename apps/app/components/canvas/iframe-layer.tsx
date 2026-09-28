@@ -959,7 +959,9 @@ export function IframeLayer({
             // hung under the ring like a canvas size tag, so the mode reads
             // as part of the selection rather than another floating control.
             // Counter-scaled like the title bar so it stays one screen size
-            // at any zoom; the margin clears the bottom resize handle.
+            // at any zoom; the margin clears the bottom resize handle. The key
+            // sits 2px in from the tag's edge, so its radius is the tag's
+            // minus 2px and the corners stay concentric.
             <div
               data-interacting-hint=""
               className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-[11px] leading-4 font-medium whitespace-nowrap text-white"
@@ -970,7 +972,7 @@ export function IframeLayer({
               }}
             >
               Interacting
-              <Kbd className="h-4 min-w-4 bg-white/20 px-1 text-[10px] text-white">
+              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-[10px] text-white">
                 Esc
               </Kbd>
             </div>
