@@ -13,6 +13,11 @@ vi.mock("@/lib/db", () => ({ db: {} }))
 
 import { AcpUpdateConsumer, type AcpConsumerPorts } from "./consumer"
 import { driveEngineTurn } from "./live-turn"
+import {
+  launchTurn,
+  type PreparedTurn,
+  type TurnLaunchDeps,
+} from "../turn-launch"
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import {
   createRunState,
@@ -22,16 +27,15 @@ import {
 } from "../run-state"
 import { renderHistory, type HistoryEntry } from "@/lib/agent/history-render"
 import { wireToContentBlocks } from "./markers"
-import { userMessageChunk } from "./schema"
 import type { AcpMessageRecord, AcpToolCallRecord } from "./record"
 import { chatStore, type ChatBroadcastEvent } from "@/lib/chat-store"
 import type { AgentMessage } from "@/lib/agent/types"
 
 /**
  * The keystone end-to-end live-route seam test (ADR 0006, issue #397). It drives
- * what `/api/agent/stream` and `/api/agent/plan` now drive —
+ * what `/api/agent/stream` drives — {@link launchTurn} (Turn Launch, #907), then
  * `Engine.run → AcpUpdateConsumer` through {@link driveEngineTurn}, with the
- * abort watchdog at this boundary — over an **injected fake `StreamDriver`**,
+ * abort watchdog at that boundary — over an **injected fake `StreamDriver`**,
  * an **in-memory run-state**, and **in-memory ACP ports**. It asserts the whole
  * cutover in one place: ACP-native records persisted (no `ModelMessage` rows),
  * ACP-shaped broadcasts (no `chat-stream`), the correct terminal run-state, the
@@ -49,7 +53,7 @@ const RUN_ID = "run_1"
  * and the Room broadcast captured as an ordered envelope log — exactly the
  * shape `broadcastChatEventViaDoc` appends and every browser subscriber renders.
  */
-function liveHarness(seedStatus: RunStatus = "running") {
+function liveHarness() {
   const records: AcpMessageRecord[] = []
   const toolCalls = new Map<string, AcpToolCallRecord>()
   const planRows = new Map<
@@ -60,7 +64,7 @@ function liveHarness(seedStatus: RunStatus = "running") {
   let n = 0
   const mintId = () => `evt_${++n}`
 
-  const rows = new Map<string, RunStatus>([[RUN_ID, seedStatus]])
+  const rows = new Map<string, RunStatus>()
   const repo: RunStateRepo = {
     async loadStatus(id) {
       return rows.get(id) ?? null
@@ -70,6 +74,7 @@ function liveHarness(seedStatus: RunStatus = "running") {
     },
     async supersedeActiveRuns() {},
     async insertRunning() {
+      rows.set(RUN_ID, "running")
       return RUN_ID
     },
     async pauseForPlan(id: string, planCall: PendingPlanCall) {
@@ -131,42 +136,89 @@ function liveHarness(seedStatus: RunStatus = "running") {
     },
   }
 
-  /**
-   * Mirror what the route does synchronously before the engine runs: append the
-   * incoming user turn as an ACP-native `user` record (decorated wire text →
-   * content blocks) and broadcast the start + the live user echo.
-   */
-  const openTurnWithUser = (text: string) => {
-    broadcasts.push({
-      type: "chat-stream-start",
-      chatId: CHAT_ID,
-      id: mintId(),
-    })
-    records.push({ role: "user", content: wireToContentBlocks(text) })
-    broadcasts.push({
-      type: "chat-acp-update",
-      chatId: CHAT_ID,
-      id: mintId(),
-      update: userMessageChunk(text),
-    })
-  }
-
   const consumer = new AcpUpdateConsumer(ports)
 
-  const run = (driver: StreamDriver) =>
-    driveEngineTurn(
-      new InProcessEngine(driver),
-      {
-        chatId: CHAT_ID,
-        runId: RUN_ID,
-        roomId: ROOM_ID,
-        systemPrompt: "sys",
-        model: "anthropic:test",
-        history: records.slice(),
+  /**
+   * Turn Launch over the in-memory boundary. The Engine turn is held back until
+   * the test calls `afterResponse()`, the way `after()` holds it until the HTTP
+   * response has gone out.
+   */
+  const launch = async (
+    text: string,
+    driver: StreamDriver,
+    prepared: Partial<PreparedTurn> = {}
+  ) => {
+    const afterResponse: Array<() => Promise<void>> = []
+    const deps: TurnLaunchDeps = {
+      resolveEngine: async () => new InProcessEngine(driver),
+      async persistUserTurn(_chatId, userText) {
+        records.push({ role: "user", content: wireToContentBlocks(userText) })
       },
-      consumer,
-      { isRunActive: (id) => runState.isRunActive(id) }
+      startRun: (chatId) => runState.startRun(chatId),
+      async broadcastStreamStart() {
+        broadcasts.push({
+          type: "chat-stream-start",
+          chatId: CHAT_ID,
+          id: mintId(),
+        })
+      },
+      broadcastUpdate: (_roomId, _chatId, update) =>
+        ports.broadcastUpdate(update),
+      async broadcastControl(_roomId, _chatId, control) {
+        broadcasts.push({
+          type: "chat-control",
+          chatId: CHAT_ID,
+          id: mintId(),
+          control,
+        })
+      },
+      async queueCommentRequest() {},
+      async startCommentRequest() {},
+      async settleCommentRequest() {},
+      driveTurn: (turn) =>
+        driveEngineTurn(
+          turn.engine,
+          {
+            chatId: turn.chatId,
+            runId: turn.runId,
+            roomId: turn.roomId,
+            systemPrompt: turn.systemPrompt,
+            model: turn.model,
+            history: records.slice(),
+          },
+          consumer,
+          { isRunActive: (id) => runState.isRunActive(id) }
+        ),
+      runAfterResponse: (task) => {
+        afterResponse.push(task)
+      },
+    }
+    const result = await launchTurn(
+      deps,
+      { roomId: ROOM_ID, chatId: CHAT_ID, message: text },
+      {
+        prepare: async () => ({
+          systemPrompt: "sys",
+          model: "anthropic:test",
+          tools: {},
+          userText: text,
+          ...prepared,
+        }),
+      }
     )
+    return {
+      result,
+      afterResponse: async () => {
+        for (const task of afterResponse) await task()
+      },
+    }
+  }
+
+  /** Launch a turn and drive it to the end, as the request plus `after()` do. */
+  const run = async (text: string, driver: StreamDriver) => {
+    const { afterResponse } = await launch(text, driver)
+    await afterResponse()
+  }
 
   return {
     records,
@@ -174,8 +226,9 @@ function liveHarness(seedStatus: RunStatus = "running") {
     planRows,
     broadcasts,
     rows,
+    runState,
+    launch,
     run,
-    openTurnWithUser,
   }
 }
 
@@ -211,7 +264,6 @@ function reloadMessages(
 describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdateConsumer)", () => {
   it("a plain text turn: ACP-native records, ACP-shaped broadcasts, completion, and a reload that rebuilds the live view", async () => {
     const h = liveHarness()
-    h.openTurnWithUser("hi")
 
     const driver: StreamDriver = (config) => ({
       consumeStream: async () => {
@@ -227,7 +279,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
         await config.onFinish?.({ finishReason: "stop" } as any)
       },
     })
-    await h.run(driver)
+    await h.run("hi", driver)
 
     // Persistence is ACP-native: the user turn and the agent reply, no
     // `ModelMessage` rows (every record carries an ACP role).
@@ -268,7 +320,6 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
 
   it("plan-pause: submit_plan maps to an ACP permission request + pause, not a completion", async () => {
     const h = liveHarness()
-    h.openTurnWithUser("plan it")
 
     const driver: StreamDriver = (config) => ({
       consumeStream: async () => {
@@ -289,7 +340,7 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
         await config.onFinish?.({ finishReason: "tool-calls" } as any)
       },
     })
-    await h.run(driver)
+    await h.run("plan it", driver)
 
     // The gate is an ACP permission request, broadcast on its own envelope.
     const permission = h.broadcasts.find(
@@ -326,17 +377,19 @@ describe("keystone — live-route seam (stream/plan → Engine.run → AcpUpdate
   })
 
   it("/stop: the watchdog aborts the in-flight turn and it reports a stop, not a failure", async () => {
-    // Seed the run already `aborted` — exactly what a `/stop` (or supersession)
-    // leaves behind when it trips the watchdog before the background turn runs.
-    const h = liveHarness("aborted")
-    h.openTurnWithUser("hi")
+    const h = liveHarness()
 
     const driver: StreamDriver = () => ({
       consumeStream: async () => {
         throw new Error("aborted")
       },
     })
-    await h.run(driver)
+    const { result, afterResponse } = await h.launch("hi", driver)
+    // A `/stop` (or a superseding message) lands after the response went out
+    // but before the background turn runs: the watchdog must catch it.
+    expect(result).toEqual({ kind: "started", runId: RUN_ID })
+    await h.runState.transition(RUN_ID, "aborted")
+    await afterResponse()
 
     // A stop, not a failure: "Stopped by user" surfaces on the control channel,
     // the run stays `aborted` (the consumer's `failed` transition no-ops), and

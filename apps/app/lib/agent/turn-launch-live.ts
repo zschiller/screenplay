@@ -1,0 +1,229 @@
+import "server-only"
+
+import { after } from "next/server"
+import { buildAgentSystemPrompt } from "./config"
+import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
+import { toolsetFor } from "./toolset"
+import type { ToolContext } from "./tools"
+import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
+import {
+  agentChatTarget,
+  loadLayerDirectory,
+  markdownLayerChatTarget,
+  prepareChatTarget,
+} from "./chat-target-kinds"
+import { DEFAULT_MODEL } from "./providers"
+import {
+  appendAcpMessage,
+  findPendingPlanForChat,
+  loadAcpHistory,
+  upsertChat,
+} from "./persistence"
+import { resolvePlan, startRun } from "./run-state"
+import {
+  broadcastAcpUpdate,
+  broadcastControl,
+  broadcastSignal,
+} from "./broadcast"
+import { resolveLiveEngine } from "./acp/resolve-live-engine"
+import { wireToContentBlocks } from "./acp/markers"
+import { launchEngineTurn } from "./launch-turn"
+import { deduplicateBranchName, generateChatNames } from "./naming"
+import {
+  queueCommentRequest,
+  settleCommentRequest,
+  startCommentRequest,
+} from "./comment-request"
+import type { TurnLaunchDeps, TurnTarget } from "./turn-launch"
+
+/** Turn Launch over the live database, Room broadcast and `after()`. */
+export const liveTurnLaunchDeps: TurnLaunchDeps = {
+  resolveEngine: resolveLiveEngine,
+  // The user turn is stored ACP-native: the decorated wire text (plan/branch
+  // markers + `@`-mention `resource_link`s) encoded to content blocks.
+  persistUserTurn: (chatId, userText) =>
+    appendAcpMessage(chatId, {
+      role: "user",
+      content: wireToContentBlocks(userText),
+    }),
+  startRun,
+  broadcastStreamStart: (roomId, chatId) =>
+    broadcastSignal(roomId, chatId, "chat-stream-start"),
+  broadcastUpdate: broadcastAcpUpdate,
+  broadcastControl,
+  queueCommentRequest,
+  startCommentRequest,
+  settleCommentRequest,
+  driveTurn: launchEngineTurn,
+  runAfterResponse: (task) => after(task),
+}
+
+/**
+ * A chat on a Markdown Layer: no sandbox, and its kind-specific bits (system
+ * prompt, tools, message decoration) come from the layer's `ChatTargetSpec`.
+ */
+export function markdownLayerTurn(input: {
+  roomId: string
+  chatId: string
+  markdownLayerId: string
+  message: string
+  model?: string
+}): TurnTarget {
+  return {
+    async prepare() {
+      const prepared = await prepareChatTarget(
+        input.roomId,
+        // Cast through `never` so prepareChatTarget's generic doesn't try to
+        // unify the spec with its target.
+        markdownLayerChatTarget as unknown as Parameters<
+          typeof prepareChatTarget
+        >[1],
+        { markdownLayerId: input.markdownLayerId } as unknown as never
+      )
+      if (!prepared) return null
+
+      const model = input.model || DEFAULT_MODEL
+      await upsertChat({
+        chatId: input.chatId,
+        roomId: input.roomId,
+        // No sandbox: an empty string satisfies the NOT NULL constraint; it's
+        // never read back for layer chats.
+        sandboxName: "",
+        model,
+        systemPrompt: prepared.systemPrompt,
+      })
+
+      // Plan mode is a sandbox-chat feature and stops at this boundary (#743).
+      // The spec's decorator drops the marker and no `planMode` reaches the
+      // engine: on the ACP engine a plan-mode turn turns the permission handler
+      // into the ExitPlanMode gate, which would refuse this target's document
+      // writes. A chat carrying a stale `planMode: true` must still run normally.
+      return {
+        systemPrompt: prepared.systemPrompt,
+        model,
+        tools: prepared.tools,
+        userText: prepared.decorateUserMessage(input.message, {
+          isFirstMessage: false,
+        }),
+      }
+    },
+  }
+}
+
+/** A chat on a Branch's sandbox. */
+export function sandboxTurn(input: {
+  roomId: string
+  chatId: string
+  sandboxName: string
+  userId: string
+  message: string
+  branch?: string
+  isFirstChat?: boolean
+  autoNamedBranch?: boolean
+  planMode?: boolean
+  model?: string
+  commentThreadIds?: string[]
+}): TurnTarget {
+  const { roomId, chatId, sandboxName, userId, message, planMode } = input
+  return {
+    async prepare() {
+      // A chat is "new" if it has no prior ACP-native records. More reliable
+      // than the client-supplied `isFirstChat`.
+      const isNewChat = (await loadAcpHistory(chatId)).length === 0
+      const model = input.model || DEFAULT_MODEL
+      const toolCtx: ToolContext = { sandboxName, roomId, userId }
+
+      // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
+      // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
+      // the per-Agent prompt.
+      const [repoSystemPrompt, layerDirectory, skills] = await Promise.all([
+        readRoomDoc(roomId, ({ branches, repos }) => {
+          const branch = branches
+            .toArray()
+            .find((a) => a.sandboxName === sandboxName)
+          if (!branch) return undefined
+          return repos.get(branch.repoId)?.systemPrompt
+        }).catch(() => undefined),
+        loadLayerDirectory(roomId),
+        getMergedSkillIndexForSandbox(sandboxName),
+      ])
+      const systemPrompt = buildAgentSystemPrompt({
+        repoSystemPrompt: repoSystemPrompt ?? undefined,
+        layerDirectory,
+        skills,
+      })
+
+      await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
+
+      // First-message naming. Every new chat earns a label; the branch rename is
+      // narrower: only the first chat on the branch, and only while the branch
+      // is still auto-named, so a later chat can't rename it under its
+      // siblings. Turn Launch broadcasts the renames inside the replay window.
+      let effectiveBranch = input.branch
+      const renames: { branch?: string; label?: string } = {}
+      if (isNewChat) {
+        const shouldNameBranch =
+          input.autoNamedBranch !== false && input.isFirstChat !== false
+        const { branch: rawBranch, chatLabel } = await generateChatNames({
+          message,
+          shouldNameBranch,
+          model,
+        })
+        if (shouldNameBranch && rawBranch) {
+          effectiveBranch = await deduplicateBranchName(
+            roomId,
+            rawBranch,
+            userId
+          )
+          renames.branch = effectiveBranch
+        }
+        if (chatLabel) {
+          renames.label = chatLabel
+          // Persist the label directly so it survives a client re-render that
+          // momentarily clears the broadcast callback.
+          await mutateRoomDoc(roomId, ({ chatSessions }) => {
+            chatSessions.update(chatId, { label: chatLabel })
+          })
+        }
+      }
+
+      // A follow-up sent while a submit_plan awaits approval is an implicit
+      // rejection: resolve the plan and flip its card. The follow-up itself
+      // becomes the next user turn (the revision instruction).
+      const pendingPlan = await findPendingPlanForChat(chatId)
+      if (pendingPlan) {
+        await resolvePlan(pendingPlan.id, {
+          approved: false,
+          feedback: message,
+        })
+        await broadcastControl(roomId, chatId, {
+          kind: "plan_resolved",
+          planId: pendingPlan.id,
+          approved: false,
+        })
+      }
+
+      return {
+        systemPrompt,
+        model,
+        tools: toolsetFor({ kind: "sandbox", roomId, sandbox: toolCtx }),
+        // The Chat Target spec owns the marker policy (branch only on the
+        // first message) and delegates the format to the Message Markers codec.
+        userText: agentChatTarget.decorateUserMessage!(message, {
+          planMode,
+          branch: effectiveBranch,
+          isFirstMessage: isNewChat,
+        }),
+        planMode,
+        renames,
+        commentRequest: {
+          sandboxName,
+          userId,
+          threadIds: Array.isArray(input.commentThreadIds)
+            ? input.commentThreadIds.filter((id) => typeof id === "string")
+            : [],
+        },
+      }
+    },
+  }
+}
