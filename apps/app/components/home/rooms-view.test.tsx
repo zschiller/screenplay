@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react"
 import { HomeProvider } from "./home-provider"
 import { RoomsView } from "./rooms-view"
+import { SidebarSearch } from "./sidebar-search"
 import type { FolderSummary } from "@/lib/folders-actions"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import { DEFAULT_VIEW_PREFS, withView, type View } from "@/lib/home-view-prefs"
@@ -31,7 +32,10 @@ vi.mock("@/lib/rooms-actions", () => ({
   listRooms: vi.fn().mockResolvedValue([]),
 }))
 vi.mock("@/lib/yjs-host/client", () => ({ prewarmRoom: vi.fn() }))
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/files",
+}))
 
 // Radix's dialog/dropdown reach for browser APIs jsdom doesn't implement;
 // polyfill the minimum so the create dialog can mount and submit.
@@ -233,6 +237,7 @@ describe("RoomsView — search and the ownership filter (#807)", () => {
         folderView
         currentFolderId={null}
       >
+        <SidebarSearch />
         <RoomsView title="All files" showFolders />
       </HomeProvider>
     )

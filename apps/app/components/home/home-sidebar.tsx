@@ -19,6 +19,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { AccountMenu } from "./account-menu"
 import { PinnedList } from "./pinned-list"
+import { SidebarSearch } from "./sidebar-search"
 import { useRootDroppable } from "./file-dnd"
 
 type NavLink = { href: string; label: string; icon: LucideIcon }
@@ -67,6 +68,8 @@ export function HomeSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        <SidebarSearch />
+
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

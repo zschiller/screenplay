@@ -169,6 +169,12 @@ type HomeContextValue = {
    */
   folderPath: (folderId: string | null) => FolderSummary[]
   /**
+   * The sidebar search's query (#807). Lives here so the sidebar field and the
+   * page that renders its results share it; empty = no search.
+   */
+  query: string
+  setQuery: (query: string) => void
+  /**
    * Pin a Room to the sidebar (appends to the end); idempotent. The pin
    * mutations are fire-and-forget from menus and the drag list, so they report
    * their own failures with a toast and never reject.
@@ -237,6 +243,7 @@ export function HomeProvider({
   // state, which is what avoids the empty-grid flash on the desktop build.
   const [loading, setLoading] = useState(!initialRooms)
   const [loadFailed, setLoadFailed] = useState(initialLoadFailed)
+  const [query, setQuery] = useState("")
 
   // The grid/table view is global — one layout shared by every surface — while
   // the sort is remembered per surface (Recents / All files / each folder),
@@ -734,6 +741,8 @@ export function HomeProvider({
     folderOfRoom,
     search,
     folderPath,
+    query,
+    setQuery,
     pinRoom,
     pinFolder,
     unpin,

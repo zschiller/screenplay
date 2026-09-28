@@ -47,17 +47,10 @@ export function useHomeHeaderCompact(): boolean {
  */
 export function HomePageHeader({
   title,
-  search,
   actions,
 }: {
   /** A string renders as the page's `h1`; anything else (a breadcrumb) as is. */
   title: React.ReactNode
-  /**
-   * The search field, between the title and the toolbar. While compact, an
-   * open field (one marked `data-search-open="true"`) takes the title's place,
-   * since there's no width for both.
-   */
-  search?: React.ReactNode
   actions?: React.ReactNode
 }) {
   const ref = useRef<HTMLElement>(null)
@@ -77,24 +70,20 @@ export function HomePageHeader({
     <header
       ref={ref}
       data-tauri-drag-region
-      className="group/header @container/header flex h-14 items-center bg-background"
+      className="@container/header flex h-14 items-center bg-background"
     >
       <CompactContext.Provider value={compact}>
         <div
           data-tauri-drag-region
           className={cn(HOME_COLUMN, "flex items-center gap-2")}
         >
-          <div
-            data-tauri-drag-region
-            className="flex min-w-0 flex-1 @max-3xl/header:group-has-data-[search-open=true]/header:hidden"
-          >
+          <div data-tauri-drag-region className="flex min-w-0 flex-1">
             {typeof title === "string" ? (
               <h1 className="truncate text-2xl font-normal">{title}</h1>
             ) : (
               title
             )}
           </div>
-          {search}
           {actions && (
             <TooltipProvider delayDuration={300}>
               <div className="flex shrink-0 items-center gap-2">{actions}</div>

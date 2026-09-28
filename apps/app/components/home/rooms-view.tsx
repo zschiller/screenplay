@@ -54,7 +54,6 @@ import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
 import { LoadErrorState } from "./load-error"
-import { HomeSearchField } from "./home-search-field"
 import { isSearching } from "@/lib/home-search"
 import { isLocalBuild } from "@/lib/local-mode"
 import { prewarmRoom } from "@/lib/yjs-host/client"
@@ -117,10 +116,12 @@ export function RoomsView({
     loadFailed,
     reload,
     search,
+    query,
+    setQuery,
   } = useHome()
-  // Search and the ownership filter are per visit: they span every folder,
-  // so leaving the page (say, into a result's folder) starts it fresh.
-  const [query, setQuery] = useState("")
+  // The query comes from the sidebar's search field; the ownership filter is
+  // this page's own, so leaving the page (say, into a result's folder) resets
+  // it.
   const [owner, setOwner] = useState<OwnerFilter>("all")
   const results = isSearching(query, owner) ? search(query, owner) : null
   const [newRoomOpen, setNewRoomOpen] = useState(false)
@@ -142,7 +143,6 @@ export function RoomsView({
       // All files / a folder reads as a breadcrumb trail; Recents keeps its
       // plain title.
       title={folderView ? <FolderBreadcrumb ancestors={ancestors} /> : title}
-      search={<HomeSearchField value={query} onChange={setQuery} />}
       actions={
         <>
           {/* Sharing doesn't exist in the single-user desktop build, where
