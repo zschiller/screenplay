@@ -162,6 +162,13 @@ export function useGestureIntent({
           break
       }
     },
-    [collections, ops, selection, setGroupGap, moveIframeLayersByDelta, resizeLayer]
+    [
+      collections,
+      ops,
+      selection,
+      setGroupGap,
+      moveIframeLayersByDelta,
+      resizeLayer,
+    ]
   )
 }

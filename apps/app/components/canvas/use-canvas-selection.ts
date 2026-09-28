@@ -88,9 +88,7 @@ export interface CanvasSelection {
   setDocumentLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>
 }
 
-export function useCanvasSelection(
-  deps: CanvasSelectionDeps
-): CanvasSelection {
+export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
   const { groups, removeIframeLayers, removeDocumentLayers } = deps
 
   const [iframeLayerIds, setIframeLayerIds] = useState<Set<string>>(new Set())

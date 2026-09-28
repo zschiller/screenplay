@@ -293,7 +293,8 @@ export function useChatTarget(deps: ChatTargetDeps): ChatTarget {
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
   const selectedDocLayer = selectedDocumentChatTargetId
-    ? (markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ?? null)
+    ? (markdownLayers.find((d) => d.id === selectedDocumentChatTargetId) ??
+      null)
     : null
   const target = resolveChatPanelTarget(selectedAgent, selectedDocLayer)
 
