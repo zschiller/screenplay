@@ -31,6 +31,7 @@ import { hasWorkspaceTitle, workspaceLabel } from "@/lib/workspace-label"
 import type { BranchData } from "@/lib/types"
 import { normalizeRoute } from "@/lib/route-utils"
 import { SharedStateIndicator } from "./iframe-layer-label"
+import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import { WorkspaceCommandList, type FollowGroup } from "./workspace-list"
 
 /**
@@ -261,27 +262,33 @@ function FrameWorkspaceHost({
   )
 
   if (!onAssignWorkspace) {
-    return <span className={hostClass}>{host}</span>
+    return (
+      <MaybeWorkspaceHoverCard branchId={workspace?.branchId} side="bottom">
+        <span className={hostClass}>{host}</span>
+      </MaybeWorkspaceHoverCard>
+    )
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={label ? `Workspace: ${label}` : "Choose a workspace"}
-          className={cn(
-            hostClass,
-            "pr-1 outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-background"
-          )}
-        >
-          {host}
-          <ChevronsUpDown
-            aria-hidden
-            className="size-2.5 shrink-0 opacity-60"
-          />
-        </button>
-      </PopoverTrigger>
+      <MaybeWorkspaceHoverCard branchId={workspace?.branchId} side="bottom">
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={label ? `Workspace: ${label}` : "Choose a workspace"}
+            className={cn(
+              hostClass,
+              "pr-1 outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=open]:bg-background"
+            )}
+          >
+            {host}
+            <ChevronsUpDown
+              aria-hidden
+              className="size-2.5 shrink-0 opacity-60"
+            />
+          </button>
+        </PopoverTrigger>
+      </MaybeWorkspaceHoverCard>
       <PopoverContent
         className="w-72 p-0"
         side="bottom"

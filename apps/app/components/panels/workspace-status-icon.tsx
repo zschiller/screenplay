@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type SyntheticEvent } from "react"
+import { useState, type SyntheticEvent } from "react"
 import {
   AlertTriangle,
   Copy,
@@ -18,15 +18,10 @@ import {
 } from "@workspace/ui/components/popover"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
 import { GripSpinner } from "@/components/grip-spinner"
 import { prStateColor } from "@/components/pr-state-color"
+import { useCloseWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
-  formatElapsed,
   workspaceStatusLine,
   type StatusLineBranch,
   type StatusLineContext,
@@ -43,27 +38,6 @@ const isolate = {
   onDoubleClick: stop,
   onKeyDown: stop,
   onPointerDown: stop,
-}
-
-/** Milliseconds since `key` last changed, ticking once a second. */
-function useElapsed(key: string): number {
-  const [now, setNow] = useState(() => Date.now())
-  const [start, setStart] = useState(() => ({ key, at: now }))
-  if (start.key !== key) setStart({ key, at: now })
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-  return now - start.at
-}
-
-function ProgressText({ step }: { step: string }) {
-  const elapsed = useElapsed(step)
-  return (
-    <>
-      {step} · {formatElapsed(elapsed)}
-    </>
-  )
 }
 
 function StateIcon({
@@ -100,11 +74,11 @@ function StateIcon({
 }
 
 /**
- * The leading icon of a Workspace row (#791): one glyph for its state, with the
- * state in words in a tooltip ("Installing dependencies · 40s", "Agent
- * working", "PR #482 · open"). A PR icon takes GitHub's state colour. A
- * failure is the red triangle; clicking it opens a card titled by the step
- * that failed, with the error and Retry, Recreate and Copy error.
+ * The leading icon of a Workspace row (#791): one glyph for its state. The
+ * state in words ("Installing dependencies · 40s", "Agent working", "PR #482 ·
+ * open") is in the row's Workspace hover card (#882). A PR icon takes GitHub's
+ * state colour. A failure is the red triangle; clicking it opens a card titled
+ * by the step that failed, with the error and Retry, Recreate and Copy error.
  */
 export function WorkspaceStatusIcon({
   branch,
@@ -119,23 +93,17 @@ export function WorkspaceStatusIcon({
 }) {
   const line = workspaceStatusLine(branch, context)
   const [open, setOpen] = useState(false)
+  const closeHoverCard = useCloseWorkspaceHoverCard()
 
   if (line.kind !== "error") {
-    const text =
-      line.kind === "progress" ? <ProgressText step={line.step} /> : line.text
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            role="img"
-            aria-label={line.kind === "progress" ? line.step : line.text}
-            className="flex shrink-0"
-          >
-            <StateIcon line={line} context={context} />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="right">{text}</TooltipContent>
-      </Tooltip>
+      <span
+        role="img"
+        aria-label={line.kind === "progress" ? line.step : line.text}
+        className="flex shrink-0"
+      >
+        <StateIcon line={line} context={context} />
+      </span>
     )
   }
 
@@ -147,22 +115,24 @@ export function WorkspaceStatusIcon({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label={line.title}
-              className="-m-0.5 box-content flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-              {...isolate}
-            >
-              <AlertTriangle className="size-3.5 text-destructive" />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="right">{line.title}</TooltipContent>
-      </Tooltip>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        // The error card opens where the hover card sits; let it take over.
+        if (next) closeHoverCard()
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={line.title}
+          className="-m-0.5 box-content flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm p-0.5 outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          {...isolate}
+        >
+          <AlertTriangle className="size-3.5 text-destructive" />
+        </button>
+      </PopoverTrigger>
       <PopoverContent
         align="start"
         side="right"
