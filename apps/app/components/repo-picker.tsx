@@ -214,7 +214,7 @@ export function RepoPicker({
             )}
 
             {!loading && !loadFailed && showGroups && (
-              <CommandGroup heading="Project presets">
+              <CommandGroup heading="Repository presets">
                 {sortedConfigs.map((config) => {
                   const repo = reposByFullName.get(config.repoFullName)
                   const isPrivate = repo?.private ?? config.private

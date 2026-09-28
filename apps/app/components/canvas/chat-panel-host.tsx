@@ -177,14 +177,14 @@ export function ChatPanelHost({
             </button>
           </IconButton>
           <span className="text-xs text-muted-foreground">
-            {repos.length === 0 ? "No projects" : "No active agents"}
+            {repos.length === 0 ? "No repositories" : "No active agents"}
           </span>
         </div>
         <div className="border-b border-border" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
           <p className="max-w-xs text-center text-sm text-balance text-muted-foreground">
             {repos.length === 0
-              ? "Add a project to get started"
+              ? "Add a repository to get started"
               : "Waiting for an agent to start…"}
           </p>
           {repos.length === 0 && (
@@ -195,7 +195,7 @@ export function ChatPanelHost({
               onClick={onAddProject}
             >
               <FolderPlus />
-              Add project
+              Add repository
             </Button>
           )}
         </div>

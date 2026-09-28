@@ -430,8 +430,8 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "settings-presets",
-    description: "Settings → Project presets.",
-    path: "/settings?section=project-presets",
+    description: "Settings → Repository presets.",
+    path: "/settings?section=repository-presets",
     fullPage: true,
   },
   {
@@ -1541,14 +1541,14 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-sidebar-no-projects",
     description:
-      "The sidebar's no-projects state with its Add project menu open.",
+      "The sidebar's no-projects state with its Add repository menu open.",
     path: `/${ids.rooms.tokens}`,
     prepare: async (page) => {
       const button = page
-        .getByRole("button", { name: "Add project", exact: true })
-        .filter({ hasText: "Add project" })
+        .getByRole("button", { name: "Add repository", exact: true })
+        .filter({ hasText: "Add repository" })
         .first()
-      const menu = page.getByRole("menuitem", { name: "Open project" })
+      const menu = page.getByRole("menuitem", { name: "Open folder" })
       await button.waitFor({ timeout: 15_000 })
       // The first click can land before hydration; retry until the menu opens.
       for (let i = 0; i < 10 && !(await menu.isVisible()); i++) {
@@ -1615,7 +1615,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-github",
     description:
-      "Add project → Open GitHub project: presets named once over the signed-in account's repos.",
+      "Add repository → Open GitHub repository: presets named once over the signed-in account's repos.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
@@ -1626,7 +1626,7 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "add-project-github-loading",
-    description: "Open GitHub project while the repo list is still loading.",
+    description: "Open GitHub repository while the repo list is still loading.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
@@ -1638,7 +1638,7 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "add-project-github-error",
-    description: "Open GitHub project after the repo list fails to load.",
+    description: "Open GitHub repository after the repo list fails to load.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
@@ -1653,7 +1653,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-github-disconnected",
     description:
-      "Open GitHub project with no GitHub connection on this device.",
+      "Open GitHub repository with no GitHub connection on this device.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await openAddProject(page, "github")
@@ -1668,7 +1668,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-folder-error",
     description:
-      "Add project → Open project on a folder that isn't a git checkout: the path stays, with why.",
+      "Add repository → Open folder on a folder that isn't a git checkout: the path stays, with why.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       const { plain } = fixtureCheckouts()
@@ -1682,7 +1682,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-settings",
     description:
-      "Configure project for a folder, with Back to the folder it came from.",
+      "Configure repository for a folder, with Back to the folder it came from.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
       await addFixtureFolder(page)
@@ -1692,7 +1692,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-settings-model",
     description:
-      "Configure project after a model read the folder's files: the README's one-time codegen step joins the install.",
+      "Configure repository after a model read the folder's files: the README's one-time codegen step joins the install.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureModel("connected"),
     prepare: async (page) => {
@@ -1703,7 +1703,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-settings-model-detecting",
     description:
-      "Configure project while the model reads the folder, the rule-based guess already filled in.",
+      "Configure repository while the model reads the folder, the rule-based guess already filled in.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureModel("slow"),
     prepare: async (page) => {
@@ -1711,7 +1711,7 @@ export const SCREENS: Screen[] = [
       await openAddProject(page, "folder")
       await page.getByPlaceholder("/path/to/your/clone").fill(checkout)
       await page.getByRole("button", { name: "Add", exact: true }).click()
-      await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+      await page.getByText("Configure repository").waitFor({ timeout: 15_000 })
       // The rule-based pass has filled the form; the model is still reading.
       await page.waitForFunction(
         () =>
@@ -1726,7 +1726,7 @@ export const SCREENS: Screen[] = [
   {
     name: "add-project-settings-github",
     description:
-      "Configure project for a GitHub repo, with Back to the list it came from.",
+      "Configure repository for a GitHub repo, with Back to the list it came from.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
@@ -1735,6 +1735,65 @@ export const SCREENS: Screen[] = [
       await page.getByText(/Couldn.t auto-detect/).waitFor({ timeout: 15_000 })
     },
     settleMs: 300,
+  },
+  {
+    name: "canvas-options-menu",
+    description: "The canvas name's ⋯ menu: Rename, Settings, Delete (#883).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: openCanvasOptions,
+    settleMs: 300,
+  },
+  {
+    name: "canvas-settings",
+    description:
+      "Canvas settings on Repositories, for a canvas with one repository (#883).",
+    path: `/${ids.rooms.checkout}`,
+    prepare: openCanvasSettings,
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-two-repos",
+    description:
+      "Canvas settings on Repositories, for a canvas with two: one with a label (#883).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: openCanvasSettings,
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-empty",
+    description: "Canvas settings on a canvas with no repository yet (#883).",
+    path: `/${ids.rooms.empty}`,
+    prepare: openCanvasSettings,
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-edit",
+    description:
+      "Canvas settings → Edit on a repository: its run settings (#883).",
+    path: `/${ids.rooms.pricing}`,
+    prepare: async (page) => {
+      await openCanvasSettings(page)
+      await page.getByRole("button", { name: "Edit api" }).click()
+      await page.getByRole("dialog", { name: "Repository settings" }).waitFor()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "canvas-settings-remove",
+    description:
+      "Canvas settings → a repository's ⋯ → Remove: the confirm listing its Workspaces (#883).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openCanvasSettings(page)
+      await page
+        .getByRole("button", { name: "More actions for storefront" })
+        .click()
+      await page.getByRole("menuitem", { name: "Remove" }).click()
+      await page.getByRole("alertdialog").waitFor()
+      await settleDeleteConfirm(page)
+    },
+    settleMs: 400,
   },
   {
     name: "dialog-remove-project",
@@ -2000,7 +2059,7 @@ export const SCREENS: Screen[] = [
   {
     name: "confirm-delete-preset",
     description: "Settings → a saved Project preset's … menu → Delete.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     prepare: async (page) => {
       // Wait for the presets to load before holding server actions (the list
       // itself loads through one), then hold them so a build without the
@@ -2122,14 +2181,14 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-presets-empty",
     description: "Settings with no saved Project presets.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     fullPage: true,
     cookies: fixtureFault("no-presets"),
   },
   {
     name: "settings-edit-preset",
     description: "Settings → editing a saved Project preset.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     fullPage: true,
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
@@ -2141,7 +2200,7 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-new-preset",
     description: "Settings → New preset: choosing the preset's source.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     prepare: async (page) => {
       await page
         .getByRole("button", { name: "New preset" })
@@ -2155,7 +2214,7 @@ export const SCREENS: Screen[] = [
   {
     name: "settings-duplicate-preset",
     description: "Settings → a saved Project preset's … menu → Duplicate.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     prepare: async (page) => {
       await page
         .getByRole("button", { name: "More actions" })
@@ -2170,7 +2229,7 @@ export const SCREENS: Screen[] = [
     name: "settings-discard-preset",
     description:
       "Settings → editing a preset, then Cancel with unsaved changes.",
-    path: "/settings?section=project-presets",
+    path: "/settings?section=repository-presets",
     prepare: async (page) => {
       const edit = page.getByRole("button", { name: "Edit", exact: true })
       await edit.first().click({ timeout: 30_000 })
@@ -3452,11 +3511,34 @@ export function fixtureGitHub(): Array<{ name: string; value: string }> {
   return [{ name: fixtureGitHubCookieName(), value: "connected" }]
 }
 
-/** Open the sidebar Project menu's Remove confirm for acme/storefront. */
+/** Open Canvas settings from the canvas name's ⋯ menu (#883). */
+async function openCanvasSettings(page: Page): Promise<void> {
+  await openCanvasOptions(page)
+  await page.getByRole("menuitem", { name: "Settings" }).click()
+  await page.getByRole("dialog", { name: "Canvas settings" }).waitFor()
+}
+
+/** Open the canvas name's ⋯ menu. The first click can land before hydration,
+ *  so retry until the menu is up. */
+async function openCanvasOptions(page: Page): Promise<void> {
+  const settings = page.getByRole("menuitem", { name: "Settings" })
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await page.getByRole("button", { name: "Canvas options" }).click()
+    try {
+      await settings.waitFor({ timeout: 1500 })
+      return
+    } catch {
+      await page.keyboard.press("Escape")
+    }
+  }
+  await settings.waitFor()
+}
+
+/** Open the sidebar repository menu's Remove confirm for acme/storefront. */
 async function openRemoveProject(page: Page): Promise<void> {
   await page.getByText("acme/storefront").first().hover()
   await page
-    .locator('[title="More"], [aria-label="Project options"]')
+    .locator('[title="More"], [aria-label="Repository options"]')
     .first()
     .click({ timeout: 15_000 })
   // Radix ignores a select that lands in the same beat the menu opened.
@@ -3500,7 +3582,7 @@ async function settleDeleteConfirm(page: Page): Promise<void> {
 }
 
 /**
- * Open Add project from the sidebar's Projects header and pick one of its two
+ * Open Add repository from the sidebar's Repositories header and pick one of its two
  * entries: `github` (the repo list) or `folder` (the native folder dialog, which
  * a capture browser can't reach, so it falls back to the path form). The first
  * click can land before hydration, so retry until the menu is up.
@@ -3513,14 +3595,14 @@ export async function openAddProject(
   const menu = page.getByRole("menu")
   for (let i = 0; i < 5 && !(await menu.count()); i++) {
     await page
-      .getByRole("button", { name: "Add project" })
+      .getByRole("button", { name: "Add repository" })
       .first()
       .click({ timeout: 15_000 })
     await page.waitForTimeout(500)
   }
   await page
     .getByRole("menuitem", {
-      name: entry === "github" ? "Open GitHub project" : "Open project",
+      name: entry === "github" ? "Open GitHub repository" : "Open folder",
     })
     .click()
   await page.getByRole("dialog").waitFor({ timeout: 15_000 })
@@ -3568,7 +3650,7 @@ export async function addFixtureFolder(page: Page): Promise<void> {
   await openAddProject(page, "folder")
   await page.getByPlaceholder("/path/to/your/clone").fill(checkout)
   await page.getByRole("button", { name: "Add", exact: true }).click()
-  await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+  await page.getByText("Configure repository").waitFor({ timeout: 15_000 })
   // Let detection land so the form shows what it found.
   await page
     .getByText("Detecting settings…")

@@ -2,10 +2,7 @@ import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
-import {
-  PORTLESS_PROXY_PORT,
-  portlessCliPath,
-} from "@/lib/sandbox/portless"
+import { PORTLESS_PROXY_PORT, portlessCliPath } from "@/lib/sandbox/portless"
 
 // 30 minutes — keep sandboxes alive only while actively used.
 // sandboxProvider.get with resume:true will reboot the VM when a user returns.
@@ -113,7 +110,7 @@ export class DevServerPortIgnoredError extends Error {
         "runs your dev script under portless (https://portless.sh), which " +
         "hands it the port as $PORT — frameworks like Next.js pick it up " +
         'automatically; others need it forwarded, e.g. "vite --port $PORT ' +
-        '--strictPort". Fix the dev script in the Project settings and ' +
+        '--strictPort". Fix the dev script in the Repository settings and ' +
         "restart the dev server. If the script already forwards $PORT, " +
         "check the workspace Logs panel — portless logs why it couldn't " +
         "launch there."

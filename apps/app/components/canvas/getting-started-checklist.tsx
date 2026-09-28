@@ -15,7 +15,7 @@ import type {
 } from "@/lib/getting-started"
 
 const STEPS: { key: GettingStartedStep; title: string }[] = [
-  { key: "project", title: "Add a project" },
+  { key: "project", title: "Add a repository" },
   { key: "workspace", title: "Start a Workspace" },
   { key: "frame", title: "Open its frame" },
 ]
@@ -138,7 +138,7 @@ function StepBody({
         <Hint>Open a folder or a GitHub repository.</Hint>
         <div>
           <Button type="button" size="sm" onClick={onAddProject}>
-            Add project
+            Add repository
           </Button>
         </div>
       </>

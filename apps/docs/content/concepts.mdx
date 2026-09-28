@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Canvases, projects, workspaces, frames, documents and the agent, and how they fit together.
+description: Canvases, repositories, workspaces, frames, documents and the agent, and how they fit together.
 ---
 
 # Core concepts
@@ -9,7 +9,7 @@ Screenplay has a small set of nested ideas. Once they click, the rest of the
 UI follows.
 
 ```text
-Canvas ─┬─ Project (a repository + how to run it)
+Canvas ─┬─ Repository (its code + how to run it)
         │    └─ Workspace (a branch + its environment + its agent chats)
         │
         └─ Layers on the canvas
@@ -17,7 +17,7 @@ Canvas ─┬─ Project (a repository + how to run it)
              └─ Document  (a rich-text page the agent can read and write)
 ```
 
-<Screenshot name="canvas-overview" alt="A canvas with its sidebar: the Projects tree above, the Canvas layers list below" />
+<Screenshot name="canvas-overview" alt="A canvas with its sidebar: the Repositories tree above, the Canvas layers list below" />
 
 ## Canvas
 
@@ -27,21 +27,23 @@ and the agent panel on the right. Canvases live on the
 [home screen](/guides/home), where you can file them into folders and pin
 them. On the hosted app you can [share](/guides/collaboration) a canvas, and
 everyone in it sees the same layout, previews, and agent activity in real
-time.
+time. Its setup lives in **Canvas settings**, under the **…** next to its
+name.
 
-## Project
+## Repository
 
-A **project** is a repository added to a canvas, together with the settings
-Screenplay needs to run it: a setup script (for example `npm install`), a run
-script that starts the dev server, and a few optional extras. One canvas can
-hold several projects, for example a web app and its API. The same repository
-can also appear twice with different settings, which suits monorepos. You can
-save a project's settings as a **project preset** and reuse it on any canvas.
-→ [Projects](/guides/projects)
+A **repository** on a canvas is the code its workspaces run, together with the
+settings Screenplay needs to run it: a setup script (for example
+`npm install`), a run script that starts the dev server, and a few optional
+extras. You add and edit them in Canvas settings. One canvas can hold several
+repositories, for example a web app and its API. The same repository can also
+appear twice with different settings, which suits monorepos. You can save a
+repository's settings as a **repository preset** and reuse it on any canvas.
+→ [Repositories](/guides/repositories)
 
 ## Workspace
 
-A **workspace** is one git branch of a project, running in its own isolated
+A **workspace** is one git branch of a repository, running in its own isolated
 **sandbox**:
 
 - On the **desktop app**, a sandbox is a git worktree on your machine, and the
@@ -94,7 +96,7 @@ the source or the self-hosting docs:
 | In the UI | In the code |
 | --- | --- |
 | Canvas | Room |
-| Project | Repo |
+| Repository | Repo |
 | Workspace | Branch |
 | Frame | Iframe Layer |
 | Document | Markdown Layer |

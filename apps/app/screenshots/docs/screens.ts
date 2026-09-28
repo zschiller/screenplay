@@ -572,13 +572,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-presets",
-    description: "Settings → Project presets.",
-    path: "/settings?section=project-presets",
+    description: "Settings → Repository presets.",
+    path: "/settings?section=repository-presets",
   }),
   screen({
     name: "preset-form",
-    description: "Editing a Project preset.",
-    path: "/settings?section=project-presets",
+    description: "Editing a Repository preset.",
+    path: "/settings?section=repository-presets",
     prepare: async (page) => {
       await page.getByRole("button", { name: "Edit" }).first().click()
       await sleep(page, 1200)
@@ -629,8 +629,21 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "canvas-settings",
+    description:
+      "Canvas settings on Repositories, from the canvas name's ⋯ menu.",
+    path: ROOM,
+    cookies: WITH_CHAT,
+    focus: DIALOG,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page.getByRole("button", { name: "Canvas options" }).click()
+      await clickMenuItem(page, "Settings", 1200)
+    },
+  }),
+  screen({
     name: "add-project-menu",
-    description: "The sidebar's Add project menu.",
+    description: "The sidebar's Add repository menu.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [0, 0, 560, 340],
@@ -647,7 +660,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "configure-project",
     viewport: TALL_VIEWPORT,
-    description: "Configure project, after picking the demo checkout.",
+    description: "Configure repository, after picking the demo checkout.",
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
@@ -659,7 +672,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
         await centerOf(page, "button:has(svg.lucide-folder-plus)"),
         900
       )
-      await clickMenuItem(page, "Open project", 1500)
+      await clickMenuItem(page, "Open folder", 1500)
       const input = page.locator("[role=dialog] input").first()
       await input.fill(DEMO_CHECKOUT_PATH())
       await page
@@ -667,7 +680,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
         .filter({ hasText: /^Add$/ })
         .first()
         .click()
-      await page.getByText("Configure project").waitFor({ timeout: 15_000 })
+      await page.getByText("Configure repository").waitFor({ timeout: 15_000 })
       await page
         .getByText("Detecting settings")
         .waitFor({ state: "detached", timeout: 15_000 })
@@ -677,7 +690,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "project-menu",
-    description: "A Project row's ⋯ menu.",
+    description: "A Repository row's ⋯ menu.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [0, 0, 640, 380],
@@ -690,7 +703,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "project-settings",
     viewport: TALL_VIEWPORT,
-    description: "Project settings.",
+    description: "Repository settings.",
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
@@ -1202,7 +1215,7 @@ async function pointAtStartTrial(page: Page, click: boolean) {
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y]
 
 /**
- * The demo checkout the Configure project screen opens. Set by the docs run
+ * The demo checkout the Configure repository screen opens. Set by the docs run
  * (`../bin/docs.ts`), which creates it under the docs state dir.
  */
 let demoCheckoutPath = ""

@@ -7,8 +7,8 @@ import { Callout, Tabs } from "nextra/components"
 
 # Dev server & ports
 
-Every workspace runs your project's **run script** (set in the
-[project settings](/guides/projects#project-settings), never in your repository) and
+Every workspace runs its repository's **run script** (set in the
+[repository settings](/guides/repositories#repository-settings), never in your repository) and
 previews whatever it serves. Screenplay picks the port for each workspace. The
 one requirement on your app: **the dev server must listen on the port it's
 given**.
@@ -48,7 +48,7 @@ instead, and the stable URLs drop the port:
 <Tabs.Tab>
 
 Every workspace is its own VM, so ports can't collide. Screenplay sets both
-**`SCREENPLAY_PORT`** and **`PORT`** to the project's **Dev server port**:
+**`SCREENPLAY_PORT`** and **`PORT`** to the repository's **Dev server port**:
 
 ```bash
 next dev --port $SCREENPLAY_PORT
@@ -69,7 +69,7 @@ On desktop, a dev server that never listens on its assigned port fails with
 a clear error (`DevServerPortIgnoredError`) instead of leaving a blank frame.
 The usual cause is a script that ignores `$PORT`:
 
-1. Fix the **Run script** in the project settings (for example add
+1. Fix the **Run script** in the repository settings (for example add
    `--port $PORT`).
 2. Use **Restart → Restart dev server** on the workspace.
 3. Still stuck? The workspace's **Sandbox logs** tab shows the dev server's
@@ -77,7 +77,7 @@ The usual cause is a script that ignores `$PORT`:
 
 ## Monorepos
 
-A project previews **one** app. Filter your monorepo's dev command down to
+A repository on a canvas previews **one** app. Filter your monorepo's dev command down to
 that app, and pass the port as a flag:
 
 ```bash
@@ -98,15 +98,15 @@ pnpm --filter web dev -- --port $PORT
   `turbo.json`.
 </Callout>
 
-To work on a second app from the same monorepo, add the repository again as a
-second project with its own run script. Presets make this painless; see
-[Monorepos](/guides/projects#monorepos).
+To work on a second app from the same monorepo, add the repository again with
+its own run script. Presets make this painless; see
+[Monorepos](/guides/repositories#monorepos).
 
 ## Why it works this way
 
 - Desktop workspaces run directly on your machine, not in containers, so
   your already-authenticated tools (including coding CLIs on a subscription
   login) work inside every workspace.
-- Adopting Screenplay should never require changing your project. The run
+- Adopting Screenplay should never require changing your code. The run
   script lives in Screenplay's settings, and Screenplay invokes portless
   itself, so your repository needs no config files or dependencies.

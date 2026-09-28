@@ -10,8 +10,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { nanoid } from "nanoid"
-import { toast } from "sonner"
 import {
   DndContext,
   DragOverlay,
@@ -42,7 +40,6 @@ import {
   GitBranch,
   Plus,
   FolderOpen,
-  Globe,
   Trash2,
   MoreHorizontal,
   Pencil,
@@ -82,34 +79,19 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@workspace/ui/components/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-} from "@workspace/ui/components/field"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { Input } from "@workspace/ui/components/input"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { BranchBadge } from "@/components/branch-badge"
-import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
-import { RepoAddSettings } from "@/components/repo-add-settings"
+import type { RepoPickerSelection } from "@/components/repo-picker"
 import {
-  detectFolderSettings,
-  detectRepoSettings,
-  refineFolderSettings,
-  refineRepoSettings,
-} from "@/lib/add-repo/actions"
-import {
-  resolvePresetUpsert,
-  type ResolvedRepoSettings,
-} from "@/lib/add-repo/resolver"
-import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
+  AddRepositoryDialog,
+  AddRepositoryMenuItems,
+  useAddRepositoryFlow,
+} from "@/components/add-repository-dialog"
+import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import { useDiffStats } from "@/hooks/use-diff-stats"
 import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
@@ -136,13 +118,10 @@ import {
   DocumentRowMenu,
 } from "@/components/panels/layer-rows/markdown-layer-row"
 import { listRepoBranches } from "@/lib/github-actions"
-import type { RepoConfig } from "@/lib/repo-configs.types"
-import { listRepoConfigs, upsertRepoConfig } from "@/lib/repo-configs-actions"
-import { RepoSettingsFields } from "@/components/repo-settings-fields"
-import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
 import { DeleteBranchDialog } from "@/components/delete-branch-dialog"
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
-import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
+import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { BranchPicker } from "@/components/branch-picker"
 import { CreateBranchDialog } from "@/components/create-branch-dialog"
@@ -154,16 +133,6 @@ import {
   workspaceHoverStore,
 } from "@/lib/workspace-hover-store"
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
-
-/** A human-readable label for a picker pick, for the settings-stage header. */
-function pickLabel(pick: RepoPickerSelection): string {
-  if (pick.kind === "repo") return pick.repo.fullName
-  if (pick.kind === "config")
-    return pick.config.name
-      ? `${pick.config.repoFullName} · ${pick.config.name}`
-      : pick.config.repoFullName
-  return pick.source.repoFullName || pick.source.localPath || "this project"
-}
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -746,88 +715,8 @@ export function RoomSidebar({
   newWorkspaceRequest = null,
   footer,
 }: RoomSidebarProps) {
-  // The add-project popover moves through a small view-state machine: the
-  // repo/URL picker, the folder-path fallback form (#604), or — once an
-  // unconfigured GitHub repo is picked — the confirm-and-configure `settings`
-  // stage (#676), all in the same dialog shell.
-  const [pickerView, setPickerView] = useState<
-    "repos" | "folder" | "settings" | null
-  >(null)
-  const showPicker = pickerView !== null
-  // The unconfigured GitHub pick awaiting confirmation in the `settings` stage.
-  // Held here so Confirm can create it with the resolved run settings and
-  // Cancel can drop it without provisioning anything.
-  const [pendingPick, setPendingPick] = useState<RepoPickerSelection | null>(
-    null
-  )
-  // The view the settings stage steps Back to (#781): the list or folder form
-  // the pick came from, or `null` when it came straight from the native folder
-  // dialog, where Back has nothing to return to and closes.
-  const [settingsBackTo, setSettingsBackTo] = useState<
-    "repos" | "folder" | null
-  >(null)
-  // What the folder form opens with: a folder the native dialog picked but
-  // couldn't use, and why (#781), or the folder you stepped Back from.
-  const [folderInitial, setFolderInitial] = useState<
-    { path: string; error?: string } | undefined
-  >(undefined)
-  const closePicker = useCallback(() => {
-    setPickerView(null)
-    setPendingPick(null)
-  }, [])
-  // One step back from the current view (Back, Cancel and Escape, #781).
-  const stepBack = useCallback(() => {
-    if (pickerView === "settings" && settingsBackTo) {
-      if (
-        settingsBackTo === "folder" &&
-        pendingPick?.kind === "source" &&
-        pendingPick.source.localPath
-      ) {
-        setFolderInitial({ path: pendingPick.source.localPath })
-      }
-      setPendingPick(null)
-      setPickerView(settingsBackTo)
-    } else {
-      closePicker()
-    }
-  }, [pickerView, settingsBackTo, pendingPick, closePicker])
-
-  // "Open a folder" fires the native OS directory dialog directly; only when no
-  // native picker is reachable (sidecar driven from a browser) do we open the
-  // popover on the path-input fallback (#604).
-  const openLocalFolder = useCallback(async () => {
-    const result = await chooseLocalFolder()
-    if (result.kind === "source") {
-      // The native folder dialog funnels through the same settings stage as
-      // every other unconfigured add (#682): store the pick and flip the dialog
-      // so behavior doesn't depend on how the folder was picked.
-      setPendingPick({ kind: "source", source: result.source })
-      setSettingsBackTo(null)
-      setPickerView("settings")
-    } else if (result.kind === "error") {
-      // Not a usable folder (not a git checkout, say): open the path form on
-      // it with the reason, rather than losing both (#781).
-      setFolderInitial({ path: result.path, error: result.error })
-      setPickerView("folder")
-    } else if (result.kind === "fallback") {
-      setFolderInitial(undefined)
-      setPickerView("folder")
-    }
-  }, [])
-  // The desktop add-project menu's items: the header's trigger and the empty
-  // state's Add project button open the same two.
-  const addProjectMenuItems = (
-    <>
-      <DropdownMenuItem onSelect={openLocalFolder}>
-        <FolderOpen />
-        Open project
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => setPickerView("repos")}>
-        <Globe />
-        Open GitHub project
-      </DropdownMenuItem>
-    </>
-  )
+  // The add-repository dialog's state, shared with its menu items below.
+  const addRepository = useAddRepositoryFlow()
   // The desktop add-project menu is controlled so the Canvas can open it
   // (`addProjectRequest`), not only its trigger.
   const [addProjectMenuOpen, setAddProjectMenuOpen] = useState(false)
@@ -837,7 +726,7 @@ export function RoomSidebar({
   if (addProjectRequest !== seenAddProjectRequest) {
     setSeenAddProjectRequest(addProjectRequest)
     if (isLocalBuild) setAddProjectMenuOpen(true)
-    else setPickerView("repos")
+    else addRepository.openGitHub()
   }
   const [menuOpenRepoId, setMenuOpenRepoId] = useState<string | null>(null)
   const [settingsRepoId, setSettingsRepoId] = useState<string | null>(null)
@@ -879,7 +768,6 @@ export function RoomSidebar({
   const [pendingRemoveGroupId, setPendingRemoveGroupId] = useState<
     string | null
   >(null)
-  const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
   // Per-repo cache of remote branch names, fetched lazily on first
   // render of a repo and refreshed whenever the repo list changes.
   // Used to block inline-renames that would collide with an existing branch.
@@ -895,18 +783,14 @@ export function RoomSidebar({
   // frames each Workspace cascades to, and its checkout's unpushed work, read
   // only while a confirm is open.
   const chatSessions = useChatSessions()
-  const deleteTargets = useMemo(() => {
-    if (pendingDeleteBranchId) {
-      return branches.filter((b) => b.id === pendingDeleteBranchId)
-    }
-    if (pendingDeleteRepoId) {
-      return branches.filter((b) => b.repoId === pendingDeleteRepoId && b.ref)
-    }
-    return []
-  }, [branches, pendingDeleteBranchId, pendingDeleteRepoId])
-  const deleteTargetRepo = repos.find(
-    (r) => r.id === (deleteTargets[0]?.repoId ?? pendingDeleteRepoId)
+  const deleteTargets = useMemo(
+    () =>
+      pendingDeleteBranchId
+        ? branches.filter((b) => b.id === pendingDeleteBranchId)
+        : [],
+    [branches, pendingDeleteBranchId]
   )
+  const deleteTargetRepo = repos.find((r) => r.id === deleteTargets[0]?.repoId)
   const unsavedWork = useUnsavedWork(
     deleteTargets,
     deleteTargetRepo?.defaultBranch,
@@ -1511,17 +1395,6 @@ export function RoomSidebar({
     [flattenedRows, iframeLayerGroups, onMoveMember, reorderGroupToGap, endDrag]
   )
 
-  useEffect(() => {
-    if (pickerView !== "repos") return
-    let cancelled = false
-    listRepoConfigs().then((list) => {
-      if (!cancelled) setSavedConfigs(list)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [pickerView])
-
   // Auto-select branches when they finish creating. onSelectBranch is stored in
   // a ref so this effect only depends on `branches` — otherwise the caller's
   // unstable callback reference causes it to fire every render and loops.
@@ -1581,54 +1454,18 @@ export function RoomSidebar({
           >
             <BranchesDropHintContext.Provider value={branchesDropHint}>
               <SidebarGroup className="pt-0">
-                <SidebarGroupLabel>Projects</SidebarGroupLabel>
-                <Dialog
-                  open={showPicker}
-                  onOpenChange={(open) => {
-                    // Desktop opens the picker through the menu (the GitHub item
-                    // sets `pickerView`); web's trigger opens the GitHub modal
-                    // straight away. Either way, dismissing closes it and drops
-                    // any pick left waiting in the settings stage (adds nothing).
-                    if (!open) closePicker()
-                    else if (!isLocalBuild) setPickerView("repos")
-                  }}
-                >
-                  {isLocalBuild ? (
-                    // Desktop: the trigger opens a menu first — "Open project"
-                    // fires the native directory dialog directly, "Open GitHub
-                    // project" opens the GitHub picker modal (#604).
-                    <DropdownMenu
-                      open={addProjectMenuOpen}
-                      onOpenChange={setAddProjectMenuOpen}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <IconButton
-                          label="Add project"
-                          tooltipSide="right"
-                          asChild
-                        >
-                          <SidebarGroupAction className="top-1.5">
-                            <FolderPlus />
-                          </SidebarGroupAction>
-                        </IconButton>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        side="bottom"
-                        align="end"
-                        // The menu closes as the GitHub item opens the modal.
-                        // Letting it restore focus to the trigger fights the
-                        // dialog's own focus trap, so suppress the focus-return.
-                        onCloseAutoFocus={(event) => event.preventDefault()}
-                      >
-                        {addProjectMenuItems}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : (
-                    // Web has no folder source: the trigger opens the GitHub
-                    // picker modal directly, no menu (#604).
-                    <DialogTrigger asChild>
+                <SidebarGroupLabel>Repositories</SidebarGroupLabel>
+                {isLocalBuild ? (
+                  // Desktop: the trigger opens a menu first — "Open folder"
+                  // fires the native directory dialog directly, "Open GitHub
+                  // repository" opens the GitHub picker modal (#604).
+                  <DropdownMenu
+                    open={addProjectMenuOpen}
+                    onOpenChange={setAddProjectMenuOpen}
+                  >
+                    <DropdownMenuTrigger asChild>
                       <IconButton
-                        label="Add project"
+                        label="Add repository"
                         tooltipSide="right"
                         asChild
                       >
@@ -1636,174 +1473,38 @@ export function RoomSidebar({
                           <FolderPlus />
                         </SidebarGroupAction>
                       </IconButton>
-                    </DialogTrigger>
-                  )}
-                  <DialogContent
-                    onEscapeKeyDown={(event) => {
-                      // Escape steps back one screen, like Back (#781).
-                      if (pickerView === "settings" && settingsBackTo) {
-                        event.preventDefault()
-                        stepBack()
-                      }
-                    }}
-                    className="gap-0 overflow-hidden p-0 sm:max-w-md [&_[data-slot=command-group]:first-child]:pt-0 [&_[data-slot=command-group]:first-child_[cmdk-group-heading]]:pt-0 [&_[data-slot=command-input-wrapper]]:px-5 [&_[data-slot=command-input-wrapper]]:pb-3 [&_[data-slot=command-list]]:px-4 [&_[data-slot=command]]:rounded-none [&_[data-slot=command]]:p-0 [&_[data-slot=repo-picker-footer]]:px-4.5 [&_[data-slot=repo-picker-footer]]:py-2"
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      side="bottom"
+                      align="end"
+                      // The menu closes as the GitHub item opens the modal.
+                      // Letting it restore focus to the trigger fights the
+                      // dialog's own focus trap, so suppress the focus-return.
+                      onCloseAutoFocus={(event) => event.preventDefault()}
+                    >
+                      <AddRepositoryMenuItems flow={addRepository} />
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  // Web has no folder source: the trigger opens the GitHub
+                  // picker modal directly, no menu (#604).
+                  <IconButton
+                    label="Add repository"
+                    tooltipSide="right"
+                    asChild
                   >
-                    <DialogHeader className="px-5 pt-5 pb-2">
-                      <DialogTitle>
-                        {pickerView === "settings"
-                          ? "Configure project"
-                          : pickerView === "folder"
-                            ? "Open project"
-                            : "Open GitHub project"}
-                      </DialogTitle>
-                      {pickerView === "settings" && pendingPick && (
-                        <DialogDescription>
-                          Confirm the run settings for {pickLabel(pendingPick)}{" "}
-                          before it&apos;s added.
-                        </DialogDescription>
-                      )}
-                    </DialogHeader>
-                    {pickerView === "settings" && pendingPick ? (
-                      <RepoAddSettings
-                        // Detection is backed by the filesystem the pick
-                        // implies: a GitHub-repo pick reads its virtual FS via
-                        // the trees API (#678); a local-folder source reads the
-                        // checkout on disk (#682). A non-GitHub clone-URL source
-                        // has no files pre-clone and no API, so it opens with
-                        // plain defaults (no `detect`).
-                        detect={
-                          pendingPick.kind === "repo"
-                            ? () =>
-                                detectRepoSettings({
-                                  owner: pendingPick.repo.owner,
-                                  repo: pendingPick.repo.name,
-                                  ref: pendingPick.repo.defaultBranch,
-                                })
-                            : pendingPick.kind === "source" &&
-                                pendingPick.source.localPath
-                              ? () =>
-                                  detectFolderSettings({
-                                    localPath: pendingPick.source.localPath!,
-                                  })
-                              : undefined
-                        }
-                        // Then a model reads the same files and corrects the
-                        // rule-based guess.
-                        refine={
-                          pendingPick.kind === "repo"
-                            ? (baseline) =>
-                                refineRepoSettings(
-                                  {
-                                    owner: pendingPick.repo.owner,
-                                    repo: pendingPick.repo.name,
-                                    ref: pendingPick.repo.defaultBranch,
-                                  },
-                                  baseline
-                                )
-                            : pendingPick.kind === "source" &&
-                                pendingPick.source.localPath
-                              ? (baseline) =>
-                                  refineFolderSettings(
-                                    {
-                                      localPath: pendingPick.source.localPath!,
-                                    },
-                                    baseline
-                                  )
-                              : undefined
-                        }
-                        // Env-field presence follows the source (#681): hosted
-                        // has env vars, a desktop local-folder has files-to-copy,
-                        // but a desktop GitHub-clone has no injection path — so
-                        // hide the field there.
-                        showEnvField={
-                          !isLocalBuild ||
-                          (pendingPick.kind === "source" &&
-                            Boolean(pendingPick.source.localPath))
-                        }
-                        onConfirm={(settings, { savePreset }) => {
-                          onCreateRepo(pendingPick, settings)
-                          if (savePreset) {
-                            // Best-effort (#680): remember the resolved settings
-                            // as this repo's default preset so re-adding it is
-                            // one click. The resolver upserts by key — a repo
-                            // already saved updates in place. A failed save
-                            // never blocks or undoes the add above; at most a
-                            // toast.
-                            const now = Date.now()
-                            const plan = resolvePresetUpsert(
-                              pendingPick,
-                              settings,
-                              savedConfigs,
-                              { id: nanoid(), createdAt: now, updatedAt: now },
-                              true
-                            )
-                            if (plan) {
-                              upsertRepoConfig(plan)
-                                .then(setSavedConfigs)
-                                .catch(() =>
-                                  toast.error(
-                                    "Couldn't save these settings as a preset."
-                                  )
-                                )
-                            }
-                          }
-                          setPendingPick(null)
-                          setPickerView(null)
-                        }}
-                        // Adds nothing. Steps back to the list or folder the
-                        // pick came from (#781); closes only when there is
-                        // nothing to go back to.
-                        cancelLabel={settingsBackTo ? "Back" : "Cancel"}
-                        onCancel={stepBack}
-                      />
-                    ) : pickerView === "folder" ? (
-                      <LocalFolderForm
-                        // On the header's 20px gutter.
-                        className="px-5 pt-2 pb-5"
-                        initial={folderInitial}
-                        onBack={closePicker}
-                        onResolved={(source) => {
-                          // The folder-path fallback funnels through the settings
-                          // stage too (#682), so behavior doesn't depend on how
-                          // the folder was picked.
-                          setPendingPick({ kind: "source", source })
-                          setSettingsBackTo("folder")
-                          setPickerView("settings")
-                        }}
-                      />
-                    ) : null}
-                    {/* Stays mounted under the settings stage so Back returns
-                        to the list with its search and scroll intact (#781). */}
-                    {(pickerView === "repos" ||
-                      (pickerView === "settings" &&
-                        settingsBackTo === "repos")) && (
-                      <div hidden={pickerView !== "repos"}>
-                        <RepoPicker
-                          configs={savedConfigs}
-                          // The local build can add a Repo with no GitHub auth at
-                          // all — by clone URL — and offers the on-demand
-                          // device-flow connect (PRD #428).
-                          localSources={isLocalBuild}
-                          onSelect={(pick) => {
-                            // Every unconfigured pick — a GitHub repo or a pasted
-                            // clone-URL source — is interposed with the
-                            // confirm-and-configure settings stage (#676, #682)
-                            // instead of provisioning on select. Only a
-                            // saved-preset pick keeps today's one-click add.
-                            if (pick.kind === "config") {
-                              onCreateRepo(pick)
-                              setPickerView(null)
-                              return
-                            }
-                            setPendingPick(pick)
-                            setSettingsBackTo("repos")
-                            setPickerView("settings")
-                          }}
-                        />
-                      </div>
-                    )}
-                  </DialogContent>
-                </Dialog>
+                    <SidebarGroupAction
+                      className="top-1.5"
+                      onClick={addRepository.openGitHub}
+                    >
+                      <FolderPlus />
+                    </SidebarGroupAction>
+                  </IconButton>
+                )}
+                <AddRepositoryDialog
+                  flow={addRepository}
+                  onCreateRepo={onCreateRepo}
+                />
                 <SidebarGroupContent>
                   {/* gap-0 + RepoGap strips (not flex `gap`) so repos reorder by
                   dropping between whole repos, exactly like the canvas list. */}
@@ -1894,7 +1595,7 @@ export function RoomSidebar({
                                   >
                                     <DropdownMenuTrigger asChild>
                                       <IconButton
-                                        label="Project options"
+                                        label="Repository options"
                                         tooltipSide="right"
                                         asChild
                                       >
@@ -1984,30 +1685,14 @@ export function RoomSidebar({
                                       />
                                     </DialogContent>
                                   </Dialog>
-                                  <Dialog
+                                  <RepoSettingsDialog
+                                    repo={repo}
                                     open={settingsRepoId === repo.id}
                                     onOpenChange={(open) =>
                                       setSettingsRepoId(open ? repo.id : null)
                                     }
-                                  >
-                                    <DialogContent
-                                      className="sm:max-w-lg"
-                                      // Nested in the dnd-kit sortable row: stop key
-                                      // and pointer events from bubbling (React tree,
-                                      // through the portal) to the row's sensors. The
-                                      // KeyboardSensor otherwise swallows Space in these
-                                      // fields, and the PointerSensor otherwise treats a
-                                      // drag on the modal as a drag of the row.
-                                      onKeyDown={(e) => e.stopPropagation()}
-                                      onPointerDown={(e) => e.stopPropagation()}
-                                    >
-                                      <RepoSettings
-                                        repo={repo}
-                                        onUpdate={onUpdateRepo}
-                                        onClose={() => setSettingsRepoId(null)}
-                                      />
-                                    </DialogContent>
-                                  </Dialog>
+                                    onUpdate={onUpdateRepo}
+                                  />
                                 </BranchesSortableRow>
 
                                 <CollapsibleContent>
@@ -2276,10 +1961,10 @@ export function RoomSidebar({
                     </SortableContext>
                   </SidebarMenu>
 
-                  {repos.length === 0 && !showPicker && (
+                  {repos.length === 0 && !addRepository.open && (
                     <div className="flex flex-col items-center gap-3 py-8">
                       <p className="text-center text-xs text-balance text-sidebar-foreground/50">
-                        No projects yet
+                        No repositories yet
                       </p>
                       {/* The getting-started checklist below already leads
                           with Add project; one button is enough. */}
@@ -2288,7 +1973,7 @@ export function RoomSidebar({
                           <DropdownMenuTrigger asChild>
                             <Button type="button" variant="outline" size="sm">
                               <FolderPlus />
-                              Add project
+                              Add repository
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
@@ -2296,7 +1981,7 @@ export function RoomSidebar({
                             align="center"
                             onCloseAutoFocus={(event) => event.preventDefault()}
                           >
-                            {addProjectMenuItems}
+                            <AddRepositoryMenuItems flow={addRepository} />
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
@@ -2304,10 +1989,10 @@ export function RoomSidebar({
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setPickerView("repos")}
+                          onClick={addRepository.openGitHub}
                         >
                           <FolderPlus />
-                          Add project
+                          Add repository
                         </Button>
                       )}
                     </div>
@@ -2685,39 +2370,14 @@ export function RoomSidebar({
             />
           ) : null
         })()}
-        {(() => {
-          const repo = pendingDeleteRepoId
-            ? repos.find((w) => w.id === pendingDeleteRepoId)
-            : null
-          const repoWorkspaces = repo
-            ? branches
-                .filter((a) => a.repoId === repo.id && a.ref)
-                .map((a) => ({
-                  id: a.id,
-                  ref: a.ref,
-                  colorIndex: a.colorIndex,
-                  openPrNumber: a.prState === "open" ? a.prNumber : undefined,
-                  work: unsavedWork.get(a.id),
-                }))
-            : []
-          return (
-            <DeleteRepoDialog
-              open={!!repo}
-              onOpenChange={(open) => {
-                if (!open) setPendingDeleteRepoId(null)
-              }}
-              repoName={repo?.name?.trim() || repo?.repoFullName || ""}
-              workspaces={repoWorkspaces}
-              canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
-              localBranchKept={isLocalBuild}
-              onConfirm={async ({ deleteBranchesOnRemote }) => {
-                if (!repo) return
-                await onRemoveRepo(repo.id, { deleteBranchesOnRemote })
-                setPendingDeleteRepoId(null)
-              }}
-            />
-          )
-        })()}
+        <RemoveRepositoryDialog
+          repo={repos.find((r) => r.id === pendingDeleteRepoId) ?? null}
+          branches={branches}
+          onOpenChange={(open) => {
+            if (!open) setPendingDeleteRepoId(null)
+          }}
+          onRemoveRepo={onRemoveRepo}
+        />
         {(() => {
           const pending = pendingRemoveLayer
           const iframeLayer =
@@ -2942,129 +2602,5 @@ function BranchDropdownSlot({
       </DropdownMenu>
       {children}
     </span>
-  )
-}
-
-function RepoSettings({
-  repo,
-  onUpdate,
-  onClose,
-}: {
-  repo: RepoData
-  onUpdate: (id: string, data: Partial<RepoData>) => void
-  onClose: () => void
-}) {
-  const [name, setName] = useState(repo.name ?? "")
-  const [setupScript, setSetupScript] = useState(repo.setupScript)
-  const [devScript, setDevScript] = useState(repo.devScript)
-  const [devServerPort, setDevServerPort] = useState(
-    String(repo.devServerPort ?? 3000)
-  )
-  const [envVars, setEnvVars] = useState(repo.envVars)
-  const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
-  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
-  )
-  const [systemPrompt, setSystemPrompt] = useState(repo.systemPrompt ?? "")
-
-  const parsedPort = Number.parseInt(devServerPort, 10)
-  const portIsValid =
-    Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
-
-  const trimmedSystemPrompt = systemPrompt.trim()
-
-  const handleSave = useCallback(() => {
-    if (!portIsValid) return
-    onUpdate(repo.id, {
-      name: name.trim(),
-      setupScript,
-      devScript,
-      devServerPort: parsedPort,
-      envVars,
-      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
-      defaultIframeLayerSizeId,
-      systemPrompt: trimmedSystemPrompt || undefined,
-    })
-    onClose()
-  }, [
-    repo.id,
-    name,
-    setupScript,
-    devScript,
-    parsedPort,
-    portIsValid,
-    envVars,
-    copyPatterns,
-    defaultIframeLayerSizeId,
-    trimmedSystemPrompt,
-    onUpdate,
-    onClose,
-  ])
-
-  const hasChanges =
-    name.trim() !== (repo.name ?? "") ||
-    setupScript !== repo.setupScript ||
-    devScript !== repo.devScript ||
-    parsedPort !== (repo.devServerPort ?? 3000) ||
-    envVars !== repo.envVars ||
-    copyPatterns !== (repo.copyPatterns ?? "") ||
-    defaultIframeLayerSizeId !==
-      (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
-    trimmedSystemPrompt !== (repo.systemPrompt ?? "")
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Project settings</DialogTitle>
-        <DialogDescription>
-          Defaults applied when new workspaces for {repo.repoFullName} are
-          created.
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="-mx-5 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5">
-        <Field>
-          <FieldLabel htmlFor="repo-settings-name">Label</FieldLabel>
-          <Input
-            id="repo-settings-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={repo.repoFullName}
-          />
-          <FieldDescription>Optional project label.</FieldDescription>
-        </Field>
-
-        <RepoSettingsFields
-          idPrefix="repo-settings"
-          setupScript={setupScript}
-          onSetupScriptChange={setSetupScript}
-          devScript={devScript}
-          onDevScriptChange={setDevScript}
-          devServerPort={devServerPort}
-          onDevServerPortChange={setDevServerPort}
-          envVars={envVars}
-          onEnvVarsChange={setEnvVars}
-          copyPatterns={copyPatterns}
-          onCopyPatternsChange={setCopyPatterns}
-          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
-        />
-      </div>
-
-      <DialogFooter>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={!hasChanges || !portIsValid}
-        >
-          Save
-        </Button>
-      </DialogFooter>
-    </>
   )
 }

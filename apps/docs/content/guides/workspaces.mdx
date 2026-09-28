@@ -7,20 +7,20 @@ import { Callout } from "nextra/components"
 
 # Workspaces
 
-A workspace is one git branch of a project, running in its own sandbox with
+A workspace is one git branch of a repository, running in its own sandbox with
 its own dev server, frames, agent chats, and terminals. Workspaces are listed
-under their project in the sidebar, each with a colored branch badge. The same
+under their repository in the sidebar, each with a colored branch badge. The same
 color tags that workspace's frames across the canvas.
 
 ## Creating workspaces
 
-Hover a project and click **+** (**New workspace**). **Create workspaces** can
+Hover a repository and click **+** (**New workspace**). **Create workspaces** can
 create several at once:
 
 <Screenshot name="new-workspace-multi" alt="Create workspaces with two rows, each with a prompt" />
 
 - Each row starts from a **base branch** (the chip above the prompt), which
-  defaults to the project's default branch.
+  defaults to the repository's default branch.
 - Type a **prompt** to give the new workspace its first task. It's sent to
   the agent as soon as the sandbox is ready, and the branch is named from it
   (for example `pricing-faq`). Leave the prompt empty to create a bare
@@ -36,7 +36,7 @@ panel shows the live **sandbox logs** meanwhile. When the server is up, a
 frame appears on the canvas and the panel switches to chat.
 
 To work on a branch that already exists, use **… → Open existing git branch** on
-the project instead.
+the repository instead.
 
 ## The sidebar row
 
@@ -67,7 +67,7 @@ request, or **Open prototype player**), then groups the rest under **View**,
 | **Open prototype player** | Opens [play mode](/guides/play-mode) for this workspace. |
 | **Open in browser** | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
 | **Show all routes** | Adds a group with one frame per route the workspace has visited. |
-| **Create pull request** / **Open pull request #N** | Opens a PR into the project's default branch, or jumps to the existing one. |
+| **Create pull request** / **Open pull request #N** | Opens a PR into the repository's default branch, or jumps to the existing one. |
 | **Rebase on *main*** | Asks the agent to rebase onto the latest default branch. It runs as a chat turn, so the agent can walk through any conflicts with you. |
 | **Open branch on GitHub** | Opens the branch on GitHub. |
 | **New workspace from here…** | Opens **Create workspaces** with this workspace's branch as the base. |
@@ -112,7 +112,7 @@ There are three ways to open a PR:
 - Ask the agent ("open a PR for this"). It uses its `create_pr` tool and shows
   a link card in the chat.
 
-PRs target the project's default branch. The PR's state (open, merged, or
+PRs target the repository's default branch. The PR's state (open, merged, or
 closed) is shown on the workspace row and on the header button. Creating PRs
 needs a GitHub connection.
 
@@ -122,7 +122,7 @@ needs a GitHub connection.
 canvas, and shuts down its sandbox. The dialog lists what it **Removes** and
 what it **Keeps** (the git branch itself isn't deleted), and warns when
 uncommitted changes, or on the hosted app unpushed commits, would be lost. If
-you're connected to GitHub and the project has a GitHub remote, it also offers
+you're connected to GitHub and the repository has a GitHub remote, it also offers
 **Also delete the branch on GitHub**, which also closes an open PR. It's off
 by default. If the remote
 delete fails, the workspace is still deleted and a warning names the branch

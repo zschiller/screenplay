@@ -83,10 +83,10 @@ export function DeleteRepoDialog({
       onOpenChange={onOpenChange}
       verb="Remove"
       itemName={repoName}
-      itemNoun="project"
+      itemNoun="repository"
       description={
         count === 0
-          ? "The project is removed from this canvas."
+          ? "The repository is removed from this canvas."
           : `${count === 1 ? "Its workspace is" : `Its ${count} workspaces are`} removed from this canvas, with their chats and frames.`
       }
       onConfirm={() => onConfirm({ deleteBranchesOnRemote: remote })}

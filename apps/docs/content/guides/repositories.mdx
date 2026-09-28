@@ -1,0 +1,115 @@
+---
+title: Repositories
+description: Add repositories to a canvas and tell Screenplay how to run them.
+---
+
+import { Callout } from "nextra/components"
+
+# Repositories
+
+A canvas runs code from one or more repositories. Each has the scripts that
+set it up and start its dev server. You manage them in **Canvas settings**:
+click **…** next to the canvas name at the top left and choose **Settings**.
+
+<Screenshot name="canvas-settings" alt="Canvas settings open on Repositories, listing northwind-web with Edit and more actions" />
+
+Each row shows the repository's short name (its label, or the repository's
+own name) over where it comes from: a folder on your computer or its name on
+GitHub. On a shared canvas these settings are shared with everyone on it, so
+a collaborator's new workspaces start the same way as yours.
+
+The canvas sidebar still lists repositories under **Repositories**, with their
+workspaces nested inside, and its menus do the same things.
+
+## Adding a repository
+
+Click **Add repository** in Canvas settings, or the **Add repository** icon
+next to **Repositories** in the sidebar.
+
+<Screenshot name="add-project-menu" alt="The Add repository menu" />
+
+- **Open folder** *(desktop)* picks a folder on your machine, usually your
+  existing clone. Screenplay creates a separate worktree for each workspace
+  and never touches your own checkout.
+- **Open GitHub repository** opens a searchable picker. **Repository presets**
+  (repositories with a saved [preset](#repository-presets)) are listed first,
+  then **Other GitHub repositories**. On desktop you can also paste any clone
+  URL, including non-GitHub hosts, and pick **Add *url***.
+
+Picking a saved preset adds the repository straight away. Otherwise
+**Configure repository** opens with settings already detected from the
+repository (**Detecting settings…**). Check them and click **Add repository**.
+
+<Screenshot name="configure-project" alt="The Configure repository dialog with detected setup and run scripts" />
+
+<Callout type="info">
+  GitHub browsing needs a GitHub connection. On desktop, without one you can
+  still add a local folder or paste a clone URL; git uses your machine's own
+  credentials.
+</Callout>
+
+## Repository settings
+
+| Setting | What it does |
+| --- | --- |
+| **Label** | A short name, like `web` or `api`, shown instead of the repository's name. |
+| **Setup script** | Runs once when a workspace is created, e.g. `npm install`. |
+| **Run script** | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty. |
+| **Dev server port** | *Hosted.* The port your dev server listens on. |
+| **Environment variables** | *Hosted.* `KEY=value` lines injected into every workspace. Stored encrypted. |
+| **Files to copy** | *Desktop.* Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along. |
+| **Default frame size** | The device size new frames open at. *(Advanced)* |
+| **System prompt** | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". *(Advanced)* |
+| **Preset name** | Tells apart several presets for the same repository, e.g. `web` and `api`. *(Advanced)* |
+
+The run script has to serve on the port Screenplay assigns. Most frameworks
+handle this automatically; see [Dev server & ports](/building/dev-server) if
+yours doesn't.
+
+To change settings later, click **Edit** on the repository in Canvas
+settings, or hover it in the sidebar and choose **… → Settings**. Changes
+apply to workspaces you create afterwards.
+
+<Screenshot name="project-settings" alt="The Repository settings dialog" />
+
+## Removing a repository
+
+In Canvas settings, click the **…** on a repository's row and choose
+**Remove**. This takes the repository and all its workspaces off this canvas.
+The dialog lists each workspace and warns if uncommitted work would be lost.
+When you're connected to GitHub, it also offers **Also delete these *N*
+branches on GitHub**, which is off by default.
+
+## The repository menu
+
+Hover a repository in the sidebar and click **…**:
+
+<Screenshot name="project-menu" alt="The repository menu: Open existing git branch, Settings, Remove" />
+
+- **Open existing git branch** opens a workspace on a branch that already exists
+  instead of creating a new one.
+- **Settings** edits the settings described above.
+- **Remove** removes the repository, as in Canvas settings.
+
+The **+** next to **…** creates a [new workspace](/guides/workspaces).
+
+## Repository presets
+
+Check **Save these settings for next time** when adding a repository, or
+manage presets in **Settings → Repository presets**. A preset is a reusable
+starting point: once it has been copied into a canvas, editing the preset
+doesn't change the repositories already there, and vice versa.
+
+<Screenshot name="settings-presets" alt="Repository presets in Settings: northwind-web with a 'web' preset" />
+
+Presets are private to you and stored encrypted. Name them (`web`, `api`,
+`docs`) to keep several per repository. This is handy in monorepos, where
+each app gets its own run script.
+
+## Monorepos
+
+A repository on a canvas previews **one** app. To work on two apps from the
+same monorepo, add the repository twice with different presets. For example,
+a `web` one running `pnpm --filter web dev` and a `docs` one running
+`pnpm --filter docs dev`. Use the **System prompt** field to tell the agent
+which folder is its app's root.

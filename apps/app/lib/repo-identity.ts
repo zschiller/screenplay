@@ -28,3 +28,32 @@ export function hasGitHubRemote(
 ): boolean {
   return Boolean(repo?.repoOwner && repo?.repoName)
 }
+
+/** The slice of a Repo that names it in the UI. */
+export interface RepoNaming extends GitHubIdentity {
+  name?: string
+  repoFullName: string
+  localPath?: string
+}
+
+/**
+ * A Repo's short name (#880): its label (the preset name it was added with, or
+ * one typed in its settings) when set, else the repository's own name. A
+ * remote-less folder has no repository name, so it falls back to the folder's.
+ */
+export function repoShortName(repo: RepoNaming): string {
+  return (
+    repo.name?.trim() ||
+    repo.repoName ||
+    repo.localPath?.split(/[\\/]/).filter(Boolean).pop() ||
+    repo.repoFullName
+  )
+}
+
+/**
+ * Where a Repo comes from, for the line under its short name: the folder on
+ * this computer it was added from, else its `owner/name` on GitHub.
+ */
+export function repoSource(repo: RepoNaming): string {
+  return repo.localPath || repo.repoFullName
+}
