@@ -5,13 +5,19 @@
  * good in both themes.  Colors are picked by hashing the branch string, which
  * is pure and SSR-safe (no Math.random, no useState).
  *
- * The palette is large enough (16 entries) that collisions are rare, and we
- * use a well-distributed hash (djb2) so neighboring branch names don't land
- * on the same color.
+ * A Workspace's color is identity, not state, so it never uses a hue that
+ * reads as status: red, orange, amber, yellow, lime, green, emerald and rose
+ * are marked `status` and are never picked, by the hash or in the color menu.
+ * Otherwise a healthy Workspace could show up red and a failed one green.
+ * They stay in the array only so stored indices (a Branch's `colorIndex`, a
+ * Thumbnail Manifest's `paletteIndex`) keep pointing at the same entries.
+ *
+ * The hash (djb2) spreads keys over the remaining identity hues.
  *
  * Users can override the hashed assignment per Branch by storing a numeric
  * `colorIndex` on `BranchData` — pass that index to `getBranchColor` (or use
- * `getBranchColorByIndex`) and it bypasses the hash.
+ * `getBranchColorByIndex`) and it bypasses the hash. A stored index that
+ * names a status hue falls back to the hash.
  */
 
 export interface BranchColor {
@@ -21,43 +27,52 @@ export interface BranchColor {
   swatch: string
   /** Human-readable name for tooltips/a11y */
   name: string
+  /** A hue that reads as status (error, warning, success). Never assigned. */
+  status?: true
 }
 
 export const BRANCH_COLORS: BranchColor[] = [
   {
     name: "red",
+    status: true,
     badge: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
     swatch: "bg-red-500",
   },
   {
     name: "orange",
+    status: true,
     badge:
       "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
     swatch: "bg-orange-500",
   },
   {
     name: "amber",
+    status: true,
     badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
     swatch: "bg-amber-500",
   },
   {
     name: "yellow",
+    status: true,
     badge:
       "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
     swatch: "bg-yellow-500",
   },
   {
     name: "lime",
+    status: true,
     badge: "bg-lime-100 text-lime-700 dark:bg-lime-950 dark:text-lime-300",
     swatch: "bg-lime-500",
   },
   {
     name: "green",
+    status: true,
     badge: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
     swatch: "bg-green-500",
   },
   {
     name: "emerald",
+    status: true,
     badge:
       "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
     swatch: "bg-emerald-500",
@@ -108,6 +123,7 @@ export const BRANCH_COLORS: BranchColor[] = [
   },
   {
     name: "rose",
+    status: true,
     badge: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
     swatch: "bg-rose-500",
   },
@@ -122,10 +138,16 @@ function djb2(str: string): number {
   return hash
 }
 
+/** Indices into {@link BRANCH_COLORS} that may be assigned: every non-status hue. */
+export const IDENTITY_COLOR_INDICES: readonly number[] = BRANCH_COLORS.flatMap(
+  (c, i) => (c.status ? [] : [i])
+)
+
 /**
  * Resolve the palette *index* for a key — the manual `overrideIndex` when it's
- * a valid entry, otherwise the hashed index for `key`. Out-of-range overrides
- * fall back to the hash so a stale stored index can't blow up rendering.
+ * a valid identity entry, otherwise the hashed index for `key`. Out-of-range
+ * or status-hue overrides fall back to the hash, so a stale stored index can't
+ * blow up rendering or paint a Workspace in a status color.
  *
  * Pure and SSR-safe. Returning the index (rather than the entry) lets callers
  * snapshot it — e.g. into the Thumbnail Manifest — and re-resolve the
@@ -139,11 +161,12 @@ export function resolveBranchColorIndex(
     typeof overrideIndex === "number" &&
     Number.isInteger(overrideIndex) &&
     overrideIndex >= 0 &&
-    overrideIndex < BRANCH_COLORS.length
+    overrideIndex < BRANCH_COLORS.length &&
+    !BRANCH_COLORS[overrideIndex]!.status
   ) {
     return overrideIndex
   }
-  return djb2(key) % BRANCH_COLORS.length
+  return IDENTITY_COLOR_INDICES[djb2(key) % IDENTITY_COLOR_INDICES.length]!
 }
 
 /**

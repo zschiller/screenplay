@@ -104,7 +104,7 @@ describe("captureRoomThumbnail", () => {
           label: "Settings",
           previewUrl: "https://b.preview.example/settings",
           branchKey: "branch-b",
-          branchColorIndex: 3,
+          branchColorIndex: 10,
         },
       ],
     }
@@ -164,7 +164,7 @@ describe("captureRoomThumbnail", () => {
         y: 0,
         width: 400,
         height: 300,
-        paletteIndex: 3,
+        paletteIndex: 10,
         capture: {
           url: "https://blob.example/thumbnails/room-1/b.webp",
           capturedAt: NOW,

@@ -26,7 +26,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
-import { BRANCH_COLORS } from "@/lib/branch-colors"
+import { BRANCH_COLORS, IDENTITY_COLOR_INDICES } from "@/lib/branch-colors"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -189,12 +189,15 @@ export function BranchOverflowMenuContent({
               onUpdateBranch(branch.id, { colorIndex: Number(v) })
             }
           >
-            {BRANCH_COLORS.map((c, i) => (
-              <DropdownMenuRadioItem key={c.name} value={String(i)}>
-                <span className={cn("size-4 rounded-[3px]", c.swatch)} />
-                <span className="capitalize">{c.name}</span>
-              </DropdownMenuRadioItem>
-            ))}
+            {IDENTITY_COLOR_INDICES.map((i) => {
+              const c = BRANCH_COLORS[i]!
+              return (
+                <DropdownMenuRadioItem key={c.name} value={String(i)}>
+                  <span className={cn("size-4 rounded-[3px]", c.swatch)} />
+                  <span className="capitalize">{c.name}</span>
+                </DropdownMenuRadioItem>
+              )
+            })}
           </DropdownMenuRadioGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem
