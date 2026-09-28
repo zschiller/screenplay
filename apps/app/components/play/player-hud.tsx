@@ -259,7 +259,14 @@ export function PlayerHud({
       dragElastic={0}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      style={{ x, y, position: "absolute", top: 0, left: 0, touchAction: "none" }}
+      style={{
+        x,
+        y,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        touchAction: "none",
+      }}
       className="z-[9998] select-none"
     >
       <TooltipProvider>
@@ -361,9 +368,7 @@ export function PlayerHud({
               variant={panel === "comments" ? "default" : "ghost"}
               aria-expanded={panel === "comments"}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() =>
-                setPanel(panel === "comments" ? null : "comments")
-              }
+              onClick={() => setPanel(panel === "comments" ? null : "comments")}
             >
               <MessageSquare />
             </IconButton>
