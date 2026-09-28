@@ -240,7 +240,7 @@ export function CreateBranchDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="px-4 pt-4 pb-3">
+        <DialogHeader className="px-5 pt-5 pb-3">
           <DialogTitle>Create workspaces</DialogTitle>
           <DialogDescription>
             Create one or more workspaces, each with an optional prompt.
@@ -266,7 +266,7 @@ export function CreateBranchDialog({
             orientation="vertical"
             className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
           >
-            <div className="flex flex-col gap-4 px-4 pb-4">
+            <div className="flex flex-col gap-4 px-5 pb-4">
               {rows.map((row, idx) => (
                 <WorkspaceRow
                   key={row.key}
@@ -306,7 +306,7 @@ export function CreateBranchDialog({
           </ScrollArea>
         </div>
 
-        <DialogFooter className="mx-0 mb-0">
+        <DialogFooter className="px-5 pb-5">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

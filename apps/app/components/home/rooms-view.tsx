@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import {
   ArrowDown,
   ArrowUp,
@@ -53,10 +52,14 @@ import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
+import {
+  NEW_CANVAS_SHORTCUT,
+  useCreateCanvas,
+  useNewCanvasShortcut,
+} from "./use-create-canvas"
 import { LoadErrorState } from "./load-error"
 import { isSearching } from "@/lib/home-search"
 import { isLocalBuild } from "@/lib/local-mode"
-import { prewarmRoom } from "@/lib/yjs-host/client"
 import { CanvasIcon } from "@/components/canvas-icon"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -97,7 +100,6 @@ export function RoomsView({
   showSort?: boolean
   showFolders?: boolean
 }) {
-  const router = useRouter()
   const {
     rooms,
     folders,
@@ -110,7 +112,6 @@ export function RoomsView({
     setSort,
     order,
     setOrder,
-    createRoom,
     createFolder,
     loading,
     loadFailed,
@@ -124,8 +125,10 @@ export function RoomsView({
   // it.
   const [owner, setOwner] = useState<OwnerFilter>("all")
   const results = isSearching(query, owner) ? search(query, owner) : null
-  const [newRoomOpen, setNewRoomOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
+  // New canvas makes an Untitled Canvas and opens it straight away (#777).
+  const { create: createCanvas, creating } = useCreateCanvas()
+  const newCanvas = () => void createCanvas()
+  useNewCanvasShortcut(newCanvas)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
 
@@ -251,12 +254,13 @@ export function RoomsView({
             </HomeToolbarTooltip>
           )}
 
-          <HomeToolbarTooltip label="New canvas">
+          <HomeToolbarTooltip label="New canvas" shortcut={NEW_CANVAS_SHORTCUT}>
             <Button
               aria-label="New canvas"
-              onClick={() => setNewRoomOpen(true)}
+              disabled={creating}
+              onClick={newCanvas}
             >
-              <Plus />
+              {creating ? <Spinner /> : <Plus />}
               <HomeToolbarLabel>New canvas</HomeToolbarLabel>
             </Button>
           </HomeToolbarTooltip>
@@ -296,10 +300,11 @@ export function RoomsView({
               icon={<FolderOpen />}
               title="This folder is empty"
               description="Add a folder or a canvas to fill it."
-              onCreate={() => setNewRoomOpen(true)}
+              onCreate={newCanvas}
+              creating={creating}
             />
           ) : (
-            <EmptyState onCreate={() => setNewRoomOpen(true)} />
+            <EmptyState onCreate={newCanvas} creating={creating} />
           )
         ) : (
           <div className={cn(HOME_COLUMN, "pb-4")}>
@@ -327,30 +332,6 @@ export function RoomsView({
           </div>
         )}
       </HomeScrollBody>
-
-      <InputDialog
-        open={newRoomOpen}
-        onOpenChange={(open) => {
-          if (!creating) setNewRoomOpen(open)
-        }}
-        title="New canvas"
-        errorMessage="Couldn't create the canvas. Try again."
-        placeholder="Untitled"
-        submitLabel={creating ? "Creating…" : "Create"}
-        submittingLabel="Creating…"
-        onSubmit={async (name) => {
-          setCreating(true)
-          try {
-            const room = await createRoom(name)
-            // Open the connection before navigating so the new canvas renders
-            // synced on its first frame rather than flashing the sync gate.
-            prewarmRoom(room.id)
-            router.push(`/${room.id}`)
-          } finally {
-            setCreating(false)
-          }
-        }}
-      />
 
       {showFolders && (
         <InputDialog
@@ -434,11 +415,13 @@ function SearchResults({
 
 function EmptyState({
   onCreate,
+  creating,
   icon = <CanvasIcon />,
   title = "Create your first canvas",
   description = "A canvas is your space to design with live previews.",
 }: {
   onCreate: () => void
+  creating: boolean
   icon?: React.ReactNode
   title?: string
   description?: string
@@ -451,8 +434,8 @@ function EmptyState({
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button size="sm" onClick={onCreate}>
-          <Plus />
+        <Button size="sm" disabled={creating} onClick={onCreate}>
+          {creating ? <Spinner /> : <Plus />}
           New canvas
         </Button>
       </EmptyContent>

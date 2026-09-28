@@ -15,6 +15,7 @@ export type DomOp =
   | "getOuterHTML"
   | "elementAtPoint"
   | "getRectsForSelectors"
+  | "resolveAnchors"
   | "getDocumentSize"
 
 export type HmrStatus = "connected" | "reconnecting" | "disconnected"
@@ -32,6 +33,8 @@ export type CanvasToIframeMessage =
       op: DomOp
       selector?: string
       selectors?: string[]
+      /** `resolveAnchors`: comment anchors (`ElementAnchor`) to look up. */
+      anchors?: unknown[]
       handle?: string
       x?: number
       y?: number
@@ -77,6 +80,10 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:pan-end" }
   | { type: "screenplay:space-down" }
   | { type: "screenplay:space-up" }
+  // Esc pressed while focus is inside the preview, and the page didn't claim
+  // it (a dialog closing calls preventDefault). Keydowns never cross the
+  // iframe boundary, so the bridge forwards this one to leave interaction.
+  | { type: "screenplay:escape" }
   | { type: "screenplay:navigation"; path: string; replace?: boolean }
   | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }

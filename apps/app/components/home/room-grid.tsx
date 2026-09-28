@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
+import { CanvasIcon } from "@/components/canvas-icon"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { getBranchColorByIndex } from "@/lib/branch-colors"
@@ -19,6 +20,45 @@ import type { RoomSummary } from "@/lib/rooms-actions"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import { ACTION_TRIGGER_REVEAL } from "./action-trigger"
 import { ResultLocation } from "./result-location"
+
+/**
+ * Whether a Room has anything to preview. A null manifest (never captured) and
+ * an empty one both mean no: the tile and row show the empty preview instead.
+ */
+export function hasThumbnail(
+  manifest: ThumbnailManifest | null | undefined
+): manifest is ThumbnailManifest {
+  return (
+    !!manifest &&
+    manifest.bounds.width > 0 &&
+    manifest.bounds.height > 0 &&
+    manifest.frames.length > 0
+  )
+}
+
+/**
+ * The stand-in for a Canvas with no preview yet: a quiet dashed slot with the
+ * Canvas icon, used by both the grid card and the table row so a blank canvas
+ * reads as "nothing captured" rather than a grey block.
+ */
+export function EmptyThumbnail({
+  className,
+  iconClassName,
+}: {
+  className?: string
+  iconClassName?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "grid place-items-center border border-dashed border-border text-muted-foreground/70",
+        className
+      )}
+    >
+      <CanvasIcon className={cn("size-4", iconClassName)} />
+    </div>
+  )
+}
 
 /**
  * Composes a Room's thumbnail from its Thumbnail Manifest: one positioned image
@@ -148,13 +188,21 @@ function RoomTileFace({
     <>
       <Link
         href={`/${room.id}`}
-        className="relative block aspect-[4/3] w-full overflow-hidden bg-muted-foreground/15"
+        className={cn(
+          "relative block aspect-[4/3] w-full overflow-hidden",
+          hasThumbnail(room.thumbnailManifest) && "bg-muted-foreground/15"
+        )}
         aria-label={`Open ${room.name}`}
       >
-        {room.thumbnailManifest && (
+        {hasThumbnail(room.thumbnailManifest) ? (
           <ThumbnailComposite
             manifest={room.thumbnailManifest}
             version={room.thumbnailUpdatedAt}
+          />
+        ) : (
+          <EmptyThumbnail
+            className="absolute inset-3 rounded-md"
+            iconClassName="size-5"
           />
         )}
       </Link>

@@ -33,8 +33,8 @@ export type ChatMarkdownTone =
   | "default"
   /** De-emphasised supporting text: reasoning, plan feedback. */
   | "muted"
-  /** On the `primary` fill of the sent user bubble. */
-  | "inverted"
+  /** On the soft `muted` fill of the sent user bubble. */
+  | "bubble"
 
 const PROSE_CLASS =
   "prose prose-sm max-w-none prose-neutral prose-headings:my-1.5 prose-p:my-1 prose-ol:my-1 prose-ul:my-1 prose-li:my-0.5 prose-blockquote:my-1.5 prose-hr:my-3"
@@ -42,11 +42,9 @@ const PROSE_CLASS =
 const TONE_CLASS: Record<ChatMarkdownTone, string> = {
   default: "text-foreground dark:prose-invert",
   muted: "text-muted-foreground dark:prose-invert",
-  // Not inverted in dark mode: the bubble's fill flips instead. Every prose
-  // colour is pinned to the bubble's foreground, or headings, bullets, and
-  // links come out in the panel's colours on the primary fill.
-  inverted:
-    "chat-markdown-inverted text-primary-foreground [--tw-prose-body:var(--primary-foreground)] [--tw-prose-bold:var(--primary-foreground)] [--tw-prose-bullets:var(--primary-foreground)] [--tw-prose-counters:var(--primary-foreground)] [--tw-prose-headings:var(--primary-foreground)] [--tw-prose-links:var(--primary-foreground)] [--tw-prose-quotes:var(--primary-foreground)]",
+  // Code chips and blocks take a slightly deeper fill (`.chat-markdown-bubble`
+  // in globals.css), or they vanish into the bubble's own muted fill.
+  bubble: "chat-markdown-bubble text-foreground dark:prose-invert",
 }
 
 const SIZE_CLASS = {

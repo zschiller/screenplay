@@ -2,11 +2,13 @@ import {
   boolean,
   doublePrecision,
   index,
+  jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core"
+import type { ElementAnchor } from "../comment-anchor"
 import { room, user, type RoomRole } from "./schema-core"
 
 // The **multi-user surface** (PRD #404, issue #417). These tables back GitHub
@@ -96,6 +98,18 @@ export const thread = pgTable(
     selector: text("selector"),
     offsetX: doublePrecision("offset_x"),
     offsetY: doublePrecision("offset_y"),
+    // Frame-comment anchors (#785), most durable first: the Workspace the
+    // frame showed (so the comment outlives its frame), the route it was on
+    // (the pin shows only there), the element by id / test id / text / path
+    // (`selector` keeps the path for older clients), and the viewport it was
+    // made in plus a short text snapshot of the element, which a detached
+    // comment is listed with. All null on threads made before #785.
+    workspaceId: text("workspace_id"),
+    route: text("route"),
+    anchor: jsonb("anchor").$type<ElementAnchor>(),
+    viewportWidth: doublePrecision("viewport_width"),
+    viewportHeight: doublePrecision("viewport_height"),
+    snapshot: text("snapshot"),
     // Inline document-layer anchor. When set, the thread is anchored to a
     // text range inside a TipTap/Yjs document (Notion-style doc layer), not
     // an iframe DOM element. anchor_start / anchor_end are base64-encoded

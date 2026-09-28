@@ -16,10 +16,14 @@ interface UseAgentChatOptions {
   planMode?: boolean
   onBranchRename?: (branch: string) => void
   onChatRename?: (label: string) => void
+  /** Whether the chat is on screen. Defaults to true. */
+  isActive?: boolean
 }
 
 interface SendOptions {
   model?: string
+  /** The composer document, kept so a failed or queued send can be edited. */
+  draft?: unknown
 }
 
 export function useAgentChat({
@@ -33,6 +37,7 @@ export function useAgentChat({
   planMode,
   onBranchRename,
   onChatRename,
+  isActive = true,
 }: UseAgentChatOptions) {
   const state: ChatState = useSyncExternalStore(
     (cb) => chatStore.subscribe(chatId, cb),
@@ -52,16 +57,23 @@ export function useAgentChat({
     return () => chatStore.clearCallbacks(chatId)
   }, [chatId, onBranchRename, onChatRename])
 
-  // Mark as read when streaming finishes while this chat is open
+  // Mark as read when a run finishes while this chat is on screen, or when a
+  // chat with an unread run comes on screen. Every open tab stays mounted, so
+  // gating on `isActive` is what lets a background tab keep its unread dot.
+  const hasUnread = useSyncExternalStore(
+    (cb) => chatStore.subscribe(chatId, cb),
+    () => chatStore.hasUnread(chatId),
+    () => false
+  )
   useEffect(() => {
-    if (!state.isStreaming) {
+    if (isActive && hasUnread && !state.isStreaming) {
       chatStore.markRead(chatId)
     }
-  }, [chatId, state.isStreaming])
+  }, [chatId, isActive, hasUnread, state.isStreaming])
 
   const sendMessage = useCallback(
     (text: string, options?: SendOptions) => {
-      chatStore.sendMessage({
+      return chatStore.sendMessage({
         roomId,
         chatId,
         sandboxName,
@@ -72,6 +84,7 @@ export function useAgentChat({
         autoNamedBranch,
         planMode,
         model: options?.model,
+        draft: options?.draft,
         onBranchRename,
         onChatRename,
       })
@@ -94,12 +107,30 @@ export function useAgentChat({
     chatStore.stopMessage(roomId, chatId)
   }, [roomId, chatId])
 
+  const retryFailedSend = useCallback(
+    () => chatStore.retryFailedSend(chatId),
+    [chatId]
+  )
+  const takeFailedSend = useCallback(
+    () => chatStore.takeFailedSend(chatId),
+    [chatId]
+  )
+  const takeQueued = useCallback(
+    (id: string) => chatStore.takeQueued(chatId, id),
+    [chatId]
+  )
+
   return {
     messages: state.messages,
     isStreaming: state.isStreaming,
     isLoadingHistory: state.isLoadingHistory,
     error: state.error,
+    failedSend: state.failedSend,
+    queued: state.queued,
     sendMessage,
     stopMessage,
+    retryFailedSend,
+    takeFailedSend,
+    takeQueued,
   }
 }

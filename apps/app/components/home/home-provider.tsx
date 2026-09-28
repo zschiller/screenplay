@@ -73,6 +73,9 @@ export function defaultOrder(sort: SortKey): SortOrder {
   return sort === "name" ? "asc" : "desc"
 }
 
+/** A folder's direct contents, counted for its row and tile. */
+export type FolderContents = { folders: number; canvases: number }
+
 type HomeContextValue = {
   /**
    * The Rooms on screen, ordered by the current sort. In a folder view this is
@@ -115,7 +118,11 @@ type HomeContextValue = {
   order: SortOrder
   setOrder: (o: SortOrder) => void
 
-  createRoom: (name: string) => Promise<RoomSummary>
+  /**
+   * Create a Canvas. It lands in `folderId` when given (null = the root),
+   * otherwise in the folder you're viewing.
+   */
+  createRoom: (name: string, folderId?: string | null) => Promise<RoomSummary>
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
   /** File a Room into a folder for this user (null = drop it back to root). */
@@ -155,6 +162,11 @@ type HomeContextValue = {
    * real current home, independent of which folder view is on screen.
    */
   folderOfRoom: (roomId: string) => string | null
+  /**
+   * What a folder directly holds — its sub-folders and the Canvases filed in it
+   * for this user — for the contents count on folder rows and tiles.
+   */
+  folderContents: (folderId: string) => FolderContents
   /**
    * The Canvases and Folders matching a search across every folder, not just
    * the one on screen, ordered by the current sort (#807).
@@ -422,15 +434,18 @@ export function HomeProvider({
   )
 
   const createRoom = useCallback(
-    async (name: string) => {
+    async (name: string, folderId?: string | null) => {
       const room = await createRoomAction(name)
       setRooms((prev) => [room, ...prev])
-      // New canvas lands in the folder you're viewing (root needs no row).
-      if (folderView && currentFolderId !== null) {
-        await placeRoomAction(room.id, currentFolderId)
+      // New canvas lands in the folder asked for, else the folder you're
+      // viewing (root needs no row).
+      const target =
+        folderId !== undefined ? folderId : folderView ? currentFolderId : null
+      if (target !== null) {
+        await placeRoomAction(room.id, target)
         setPlacements((prev) => [
           ...prev.filter((p) => p.roomId !== room.id),
-          { roomId: room.id, folderId: currentFolderId },
+          { roomId: room.id, folderId: target },
         ])
       }
       return room
@@ -692,6 +707,15 @@ export function HomeProvider({
     [placementByRoom]
   )
 
+  const folderContents = useCallback(
+    (folderId: string): FolderContents => ({
+      folders: folders.filter((f) => f.parentFolderId === folderId).length,
+      canvases: rooms.filter((r) => placementByRoom.get(r.id) === folderId)
+        .length,
+    }),
+    [folders, rooms, placementByRoom]
+  )
+
   const search = useCallback(
     (query: string, owner: OwnerFilter) =>
       searchLibrary({ rooms, folders, query, owner, sort, order }),
@@ -739,6 +763,7 @@ export function HomeProvider({
     foldersById,
     isPinned,
     folderOfRoom,
+    folderContents,
     search,
     folderPath,
     query,

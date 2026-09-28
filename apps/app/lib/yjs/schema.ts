@@ -27,10 +27,10 @@ export const COLLECTION_KEYS = {
   markdownLayers: "markdownLayers",
   chatSessions: "chatSessions",
   plans: "plans",
-  // Live tracked-pin positions for selector-anchored comments. Keyed by
-  // threadId; value is the iframe-layer-local (x, y) of the pin. Synced
-  // across clients so everyone sees the pin at the same place even before
-  // their dev server / iframe is ready.
+  // Formerly the shared tracked-pin positions of selector-anchored comments.
+  // No longer written (#785): pins are placed per viewer, from their own
+  // frame, so viewers can't overwrite each other's. Kept so existing docs
+  // load unchanged.
   commentPositions: "commentPositions",
 } as const
 

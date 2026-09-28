@@ -122,6 +122,81 @@
     }
   }
 
+  // --- Comment anchors (#785) ---
+  // A comment remembers its element by several keys, tried most durable first:
+  // id, test id, text fingerprint, then CSS path. Mirrors `ElementAnchor` in
+  // lib/comment-anchor.ts.
+  const TEST_ID_ATTRS = ["data-testid", "data-test-id", "data-test", "data-cy"]
+  const TEXT_FINGERPRINT_MAX = 80
+
+  function textKey(el) {
+    return (el.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, TEXT_FINGERPRINT_MAX)
+  }
+
+  function testIdOf(el) {
+    for (const attr of TEST_ID_ATTRS) {
+      const v = el.getAttribute(attr)
+      if (v) return { attr, value: v }
+    }
+    return null
+  }
+
+  function anchorOf(el) {
+    const testId = testIdOf(el)
+    const text = textKey(el)
+    return {
+      path: cssPath(el),
+      tag: el.nodeName.toLowerCase(),
+      id: el.id || undefined,
+      testId: testId ? testId.value : undefined,
+      text: text || undefined,
+    }
+  }
+
+  function safeQuery(selector) {
+    try {
+      return selector ? document.querySelector(selector) : null
+    } catch {
+      return null
+    }
+  }
+
+  function resolveAnchor(a) {
+    if (!a || typeof a !== "object") return null
+    const tag = typeof a.tag === "string" ? a.tag : null
+    const sameTag = (el) =>
+      !!el && (!tag || el.nodeName.toLowerCase() === tag) ? el : null
+    if (a.id) {
+      const el = sameTag(document.getElementById(a.id))
+      if (el) return el
+    }
+    if (a.testId) {
+      for (const attr of TEST_ID_ATTRS) {
+        const el = sameTag(
+          safeQuery("[" + attr + '="' + CSS.escape(a.testId) + '"]')
+        )
+        if (el) return el
+      }
+    }
+    if (a.text && tag) {
+      const matches = []
+      const all = document.getElementsByTagName(tag)
+      for (let i = 0; i < all.length; i++) {
+        if (textKey(all[i]) === a.text) matches.push(all[i])
+      }
+      if (matches.length === 1) return matches[0]
+      if (matches.length > 1) {
+        // Several elements share the text (list rows): the path breaks the tie.
+        const byPath = safeQuery(a.path)
+        return byPath && matches.includes(byPath) ? byPath : matches[0]
+      }
+    }
+    return sameTag(safeQuery(a.path))
+  }
+
   function reply(id, ok, payload) {
     const msg = ok
       ? { type: "screenplay:dom-result", id, ok: true, value: payload }
@@ -320,6 +395,8 @@
           outerHTML: el.outerHTML,
           tagName: tags.tagName,
           id: tags.id,
+          anchor: anchorOf(el),
+          path: currentPath(),
         },
         "*"
       )
@@ -378,6 +455,20 @@
             }
           })
           reply(d.id, true, rects)
+        } else if (d.op === "resolveAnchors") {
+          // Batched comment-anchor lookup (#785): rects for each anchor, plus
+          // the path this frame is on, so the parent can place pins for this
+          // viewer only.
+          const anchors = Array.isArray(d.anchors) ? d.anchors : []
+          const rects = anchors.map((a) => {
+            try {
+              const el = resolveAnchor(a)
+              return el ? rectOf(el) : null
+            } catch {
+              return null
+            }
+          })
+          reply(d.id, true, { path: currentPath(), rects })
         } else if (d.op === "getDocumentSize") {
           // Measure the true content extent (used by Fit-to-content). Plain
           // scrollWidth/scrollHeight is `max(viewport, content)`, so when the
@@ -426,6 +517,8 @@
               outerHTML: el.outerHTML,
               tagName: tags.tagName,
               id: tags.id,
+              anchor: anchorOf(el),
+              path: currentPath(),
             })
           }
         } else {
@@ -554,6 +647,16 @@
     },
     { passive: false }
   )
+
+  // Esc inside the preview. Keyboard events don't cross the iframe boundary,
+  // so without this the canvas never hears Esc once the user clicks into an
+  // interactive frame. Listen at the window in the bubble phase so the page
+  // handles it first: when the page claims the key (Radix and most dialog
+  // libraries preventDefault as they close), the frame stays interactive.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return
+    parent.postMessage({ type: "screenplay:escape" }, "*")
+  })
 
   parent.postMessage(
     {

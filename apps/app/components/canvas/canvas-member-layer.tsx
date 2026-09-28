@@ -95,6 +95,7 @@ function CanvasMemberLayerImpl({
   setCreateFlowIframeLayerId,
   removeIframeLayer,
   handlePlayIframeLayer,
+  onAskForKnob,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
@@ -151,6 +152,8 @@ function CanvasMemberLayerImpl({
   >
   removeIframeLayer: IframeLayerProps["onRemove"]
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
+  /** Start an "add a knob" request in a Workspace's chat composer. */
+  onAskForKnob: (branchId: string) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
   /**
@@ -380,6 +383,14 @@ function CanvasMemberLayerImpl({
               onSharedStateChanged={layerMutations.updateSharedState}
               onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
               onOpenInBrowser={openInBrowser}
+              onDuplicate={() =>
+                groupActions.duplicateIframeLayer(group.id, iframeLayer.id)
+              }
+              onAskForKnob={
+                iframeLayer.branchId
+                  ? () => onAskForKnob(iframeLayer.branchId!)
+                  : undefined
+              }
               onFitToContent={layerMutations.fitToContent}
               onSetSize={layerMutations.fitToContent}
               multiSelected={

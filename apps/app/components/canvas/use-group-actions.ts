@@ -69,6 +69,14 @@ export interface GroupActions {
   ) => { groupId: string; firstIframeLayerId: string } | undefined
   /** Append a new frame to an existing group, mirroring the last sibling. */
   addIframeLayerToGroup: (groupId: string) => string | undefined
+  /**
+   * Append a copy of a frame (size, Workspace, route and label) to the end of
+   * its group — the frame menu's Duplicate. Returns the copy's id.
+   */
+  duplicateIframeLayer: (
+    groupId: string,
+    iframeLayerId: string
+  ) => string | undefined
   /** Append a new document to an existing group, mirroring the last sibling's bounds. */
   addDocumentLayerToGroup: (groupId: string) => string | undefined
 
@@ -189,6 +197,21 @@ export function useGroupActions({
         label: branchId ? `Frame ${iframeLayerIds.length + 1}` : "Frame",
         ...(branchId ? { branchId } : {}),
         ...(route ? { route } : {}),
+      })
+    },
+    [collections, ops]
+  )
+
+  const duplicateIframeLayer = useCallback(
+    (groupId: string, iframeLayerId: string): string | undefined => {
+      const source = collections.iframeLayers.get(iframeLayerId)
+      if (!source) return
+      return ops.addFrameToGroup(groupId, {
+        width: source.width,
+        height: source.height,
+        label: source.label ? `${source.label} copy` : "Frame",
+        ...(source.branchId ? { branchId: source.branchId } : {}),
+        ...(source.route ? { route: source.route } : {}),
       })
     },
     [collections, ops]
@@ -394,6 +417,7 @@ export function useGroupActions({
       addIframeLayer,
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
+      duplicateIframeLayer,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,
@@ -406,6 +430,7 @@ export function useGroupActions({
       addIframeLayer,
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
+      duplicateIframeLayer,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,

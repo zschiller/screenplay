@@ -30,6 +30,12 @@ interface CreateRequest {
    * (the historic behaviour) when absent, for any caller that doesn't pre-seed.
    */
   seedChat?: boolean
+  /**
+   * Re-run a failed create (the sidebar's Retry, #791). Same flow and names as
+   * the first attempt; provisioning frees any Sandbox the failed attempt left
+   * under this name and accepts a git branch that attempt already created.
+   */
+  retry?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -81,10 +87,11 @@ async function ensureChatForBranch(roomId: string, branchId: string) {
   })
 }
 
+/** Mark the Branch failed. The status message is left as it was: it names the
+ *  step that was running, which titles the sidebar's failure card. */
 function markError(roomId: string, branchId: string, error?: string) {
   return updateBranch(roomId, branchId, {
     status: "error",
-    statusMessage: undefined,
     error: error || "Unknown error",
   })
 }
@@ -116,6 +123,7 @@ async function provisionBranch(
     branch: req.branch,
     sandboxName: req.sandboxName,
     sourceBranch: req.sourceBranch,
+    retry: req.retry,
     ghToken,
     onStatus: (statusMessage) =>
       updateBranch(roomId, branchId, { statusMessage }),
@@ -130,6 +138,7 @@ async function provisionBranch(
     previewDomain,
     status: "running",
     statusMessage: undefined,
+    error: undefined,
   })
   // Skipped when the client pre-seeded the branch's default tab — chat or
   // terminal — itself (seedChat === false) so the branch isn't also given an

@@ -23,10 +23,16 @@ export type FixtureFault =
    * starting it fails the way it does on a misconfigured or offline machine.
    */
   | "github-device-flow"
+  /** Settings lists no Project presets, so the presets empty state shows. */
+  | "no-presets"
 
 const COOKIE_NAME = "screenplay_fixture_fault"
 
-const FAULTS: readonly FixtureFault[] = ["home-load", "github-device-flow"]
+const FAULTS: readonly FixtureFault[] = [
+  "home-load",
+  "github-device-flow",
+  "no-presets",
+]
 
 /** The cookie a capture screen sets to ask for a fault. */
 export function fixtureFaultCookieName(): string {

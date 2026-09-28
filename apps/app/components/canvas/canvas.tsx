@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { nanoid } from "nanoid"
 import {
   TransformWrapper,
   TransformComponent,
@@ -31,6 +32,8 @@ import { createCanvasOps } from "@/lib/canvas/ops"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
+import { inputStore } from "@/lib/input-store"
+import { restoreAgentChatSelection } from "@/lib/chat/chat-target"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { withBasePath } from "@/lib/base-path"
 import { PanelRightOpen } from "lucide-react"
@@ -43,6 +46,7 @@ import { SelectionOverlay } from "./selection-overlay"
 import { Comments } from "./comments"
 import { CommentsMenu } from "./comments-menu"
 import { useCommentThreads } from "./use-comment-threads"
+import { useCommentPlacements } from "./use-comment-placements"
 import type { ThreadWithComments } from "@/lib/comments"
 import { Cursors } from "./cursors"
 import { CursorChat } from "./cursor-chat"
@@ -109,9 +113,15 @@ import { GroupMergeUnderlay } from "./group-merge-underlay"
 import { PlaceholderRectsUnderlay } from "./placeholder-rects-underlay"
 import { CanvasMemberLayer } from "./canvas-member-layer"
 import { CanvasToolbar } from "./canvas-toolbar"
+import { CanvasZoomMenu } from "./canvas-zoom-menu"
+import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
+import { ShortcutSheet } from "./shortcut-sheet"
 import { CanvasEmptyState } from "./canvas-empty-state"
 import { CanvasTopBar } from "./canvas-top-bar"
 import { ChatPanelHost } from "./chat-panel-host"
+
+/** The request the empty Knobs popover starts in the chat composer. */
+const ASK_FOR_KNOB_PROMPT = "Add a knob to this prototype that controls "
 
 // Polls /api/sandbox/:name/logs until it returns 200, then fires onReady once.
 // Used to defer selection of a just-created agent until its sandbox is actually
@@ -484,6 +494,27 @@ export function Canvas({
   // precedence stays in the pure `resolveEscapeAction`, wrapped by the
   // Interaction controller's `resolveEscape`; the keyboard only applies the
   // chosen exit.
+  // Zoom controls + shortcut sheet (#734): the zoom pill and the ⌘= / ⌘- /
+  // ⌘0 / ⇧1 keys share these verbs; fit frames every Layer on the canvas.
+  const [shortcutSheetOpen, setShortcutSheetOpen] = useState(false)
+  const openShortcutSheet = useCallback(() => setShortcutSheetOpen(true), [])
+  const {
+    zoomIn: cameraZoomIn,
+    zoomOut: cameraZoomOut,
+    zoomTo: cameraZoomTo,
+    zoomToFit: cameraZoomToFit,
+  } = camera
+  const zoomControls = useMemo(
+    () => ({
+      zoomIn: cameraZoomIn,
+      zoomOut: cameraZoomOut,
+      zoomTo100: () => cameraZoomTo(1),
+      zoomToFit: () =>
+        cameraZoomToFit(unionRect(iframeLayerLayoutsRef.current.values())),
+    }),
+    [cameraZoomIn, cameraZoomOut, cameraZoomTo, cameraZoomToFit]
+  )
+
   useCanvasKeyboard({
     toolMode,
     selection,
@@ -493,6 +524,8 @@ export function Canvas({
     interaction,
     sidebarPanelRef,
     chatPanelRef,
+    zoom: zoomControls,
+    openShortcutSheet,
   })
 
   // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
@@ -682,18 +715,26 @@ export function Canvas({
   const getViewportCenter = camera.getViewportCenter
 
   const commentThreads = useCommentThreads(roomId, initialThreads)
-  // The top bar's thread list: open the thread and bring its pin to the
-  // middle of the viewport, at the current zoom.
-  const selectCommentThread = useCallback(
-    (threadId: string) => {
-      reference.setActiveThread(threadId)
-      commentThreads.markRead(threadId)
-      const pin = document.querySelector<HTMLElement>(
-        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
-      )
-      if (pin) camera.centerOnElement(pin)
-    },
-    [reference, commentThreads, camera]
+  // Where each comment shows for this viewer (#785): pinned on its route,
+  // hidden while its frame is on another route, or detached.
+  const commentPlacements = useCommentPlacements({
+    threads: commentThreads.threads,
+    iframeLayers,
+    layouts: iframeLayerLayouts,
+    zoom,
+    getIframeLayerDom: reference.getIframeLayerDom,
+    getDocumentEditor: reference.getDocumentEditor,
+    documentEditorsVersion: reference.documentEditorsVersion,
+  })
+  const commentFrameInfo = useMemo(
+    () =>
+      new Map(
+        iframeLayers.map((l) => [
+          l.id,
+          { branchId: l.branchId, route: l.route },
+        ])
+      ),
+    [iframeLayers]
   )
 
   // Chat-Target selection controller (PRD #569): owns which Chat Target the
@@ -823,6 +864,42 @@ export function Canvas({
     createFlowIframeLayerIdRef,
   })
 
+  // The top bar's thread list: open the thread and bring its pin to the
+  // middle of the viewport, at the current zoom. A thread on another route
+  // navigates its frame there first; its pin is centred once it shows.
+  const pendingCenterThreadRef = useRef<string | null>(null)
+  const selectCommentThread = useCallback(
+    (threadId: string) => {
+      reference.setActiveThread(threadId)
+      commentThreads.markRead(threadId)
+      const placement = commentPlacements.placements.get(threadId)
+      if (placement?.kind === "offRoute") {
+        pendingCenterThreadRef.current = threadId
+        layerMutations.updateRoute(placement.frameId, placement.route)
+        return
+      }
+      const pin = document.querySelector<HTMLElement>(
+        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
+      )
+      if (pin) camera.centerOnElement(pin)
+    },
+    [reference, commentThreads, commentPlacements, layerMutations, camera]
+  )
+  useEffect(() => {
+    const threadId = pendingCenterThreadRef.current
+    if (!threadId) return
+    if (commentPlacements.placements.get(threadId)?.kind !== "pinned") return
+    pendingCenterThreadRef.current = null
+    // The pin mounts in this commit; find it on the next frame.
+    const raf = requestAnimationFrame(() => {
+      const pin = document.querySelector<HTMLElement>(
+        `[data-comment-thread-id="${CSS.escape(threadId)}"]`
+      )
+      if (pin) camera.centerOnElement(pin)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [commentPlacements, camera])
+
   // Group Operations controller (PRD #588): the structural sibling of
   // `useLayerMutations`. Where the Layer Mutation bundle writes a field on one
   // Layer, this owns "create / move / reorder / remove the groups and frames
@@ -891,6 +968,35 @@ export function Canvas({
 
   const handleSelectAgent = chatTarget.selectAgent
 
+  // The empty Knobs popover's "Ask the agent to add a knob": open the frame's
+  // Workspace chat (the one the panel would restore, or a fresh one) and start
+  // the request in its composer for the user to finish. Nothing is sent.
+  const handleAskForKnob = useCallback(
+    (branchId: string) => {
+      let chatId = restoreAgentChatSelection(
+        chatSessions,
+        branchId,
+        chatTarget.rememberedAgentChatId(branchId)
+      )
+      if (!chatId) {
+        chatId = nanoid()
+        addChatSession(chatId, {
+          id: chatId,
+          branchId,
+          label: "Untitled",
+          createdAt: Date.now(),
+        })
+      }
+      chatTarget.selectAgentChat(branchId, chatId, {
+        expandPanel: true,
+        clearDocument: true,
+        remember: true,
+      })
+      inputStore.prefill(chatId, ASK_FOR_KNOB_PROMPT)
+    },
+    [chatSessions, chatTarget, addChatSession]
+  )
+
   // Repopulate the Element Reference controller's live inputs every render so
   // its placement verbs and `sendReference` read the current snapshots, the
   // Chat-Target controller, and the canvas ops seam — without re-binding the
@@ -941,6 +1047,7 @@ export function Canvas({
     removeRepo: removeRepoIntake,
     removeBranch: removeBranchIntake,
     renameBranch,
+    retryBranch,
     updateRepoInStorage,
     updateAgentInStorage,
   } = useBranchIntake({
@@ -1300,6 +1407,7 @@ export function Canvas({
             onCreatePr={branchActions.createPullRequest}
             onRefreshBranch={branchActions.restartSandbox}
             onRecreateBranch={branchActions.recreate}
+            onRetryBranch={retryBranch}
             onRemoveBranch={removeBranchIntake}
             onAddIframeLayer={handleAddIframeLayerForAgent}
             onPlayBranch={handlePlayAgent}
@@ -1491,6 +1599,7 @@ export function Canvas({
                     setCreateFlowIframeLayerId={setCreateFlowIframeLayerId}
                     removeIframeLayer={removeIframeLayer}
                     handlePlayIframeLayer={handlePlayIframeLayer}
+                    onAskForKnob={handleAskForKnob}
                     handleCaptureReadyChange={handleCaptureReadyChange}
                     handleCaptureDirty={handleCaptureDirty}
                     layerMutations={layerMutations}
@@ -1527,7 +1636,8 @@ export function Canvas({
                 }}
                 onCancelComment={reference.clearComposer}
                 iframeLayers={Array.from(iframeLayerLayouts.values())}
-                getIframeLayerDom={reference.getIframeLayerDom}
+                frameInfo={commentFrameInfo}
+                placements={commentPlacements.placements}
                 getDocumentEditor={reference.getDocumentEditor}
                 documentEditorsVersion={reference.documentEditorsVersion}
                 commentThreads={commentThreads}
@@ -1572,7 +1682,12 @@ export function Canvas({
               hoveredIframeLayerId={hoveredIframeLayerId}
               iframeLayerLayouts={effectiveIframeLayerLayouts}
               hideResizeHandles={
-                editingDocumentLayerId !== null || selectedGroupIds.size > 0
+                editingDocumentLayerId !== null ||
+                selectedGroupIds.size > 0 ||
+                !showsLayerDetail(zoom) ||
+                // An interacting frame is for using the preview, not
+                // resizing it: its edges belong to the page.
+                focusedIframeLayerId !== null
               }
               gapHandles={gapHandles}
               reorderHandles={reorderHandles}
@@ -1673,56 +1788,74 @@ export function Canvas({
               toolMode={toolMode}
               onClearMode={reference.clearMode}
             />
-            {/* Only render the top-right pill when it has content: the
-                Share/Following controls (web only) or the expand-chat button
-                (when the right sidebar is collapsed). On desktop with the chat
-                open it would otherwise be an empty floating pill. */}
-            {(!isLocalBuild || chatCollapsed) && (
-              <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
-                <div
-                  className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Following other users' viewports and sharing are part of
+            <ShortcutSheet
+              open={shortcutSheetOpen}
+              onOpenChange={setShortcutSheetOpen}
+            />
+            {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
+                controls): the zoom menu (always), then the people controls
+                (comments, facepile; web only), then Share as the one filled
+                action, then the expand-chat button at the edge (when the right
+                sidebar is collapsed). */}
+            <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
+              <div
+                className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/5 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CanvasZoomMenu
+                  liveZoomPercent={camera.liveZoomPercent}
+                  onZoomIn={zoomControls.zoomIn}
+                  onZoomOut={zoomControls.zoomOut}
+                  onZoomTo={cameraZoomTo}
+                  onZoomToFit={zoomControls.zoomToFit}
+                  onOpenShortcuts={openShortcutSheet}
+                />
+                {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                  {!isLocalBuild && (
-                    <>
-                      <CommentsMenu
-                        threads={commentThreads.threads}
-                        onSelectThread={selectCommentThread}
-                      />
-                      <FollowingToolbar
-                        followingId={followingConnectionId}
-                        onFollow={camera.follow}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={() => setShareDialogOpen(true)}
-                      >
-                        Share
-                      </Button>
-                      <ShareRoomDialog
-                        open={shareDialogOpen}
-                        onOpenChange={setShareDialogOpen}
-                        roomId={roomId}
-                        roomName={currentRoomName}
-                      />
-                    </>
-                  )}
-                  {chatCollapsed && (
-                    <IconButton
-                      label="Expand chat"
-                      shortcut="⌘I"
-                      tooltipSide="bottom"
-                      onClick={() => chatPanelRef.current?.expand()}
+                {!isLocalBuild && (
+                  <>
+                    <CommentsMenu
+                      threads={commentThreads.threads}
+                      placements={commentPlacements.placements}
+                      onSelectThread={selectCommentThread}
+                      getDocumentEditor={reference.getDocumentEditor}
+                      onMarkUnread={(threadId) =>
+                        commentThreads.setThreadUnread(threadId, true)
+                      }
+                      onOpenThread={commentThreads.markRead}
+                    />
+                    <FollowingToolbar
+                      followingId={followingConnectionId}
+                      onFollow={camera.follow}
+                    />
+                    <Button
+                      size="xs"
+                      className="ml-1"
+                      onClick={() => setShareDialogOpen(true)}
                     >
-                      <PanelRightOpen className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                </div>
+                      Share
+                    </Button>
+                    <ShareRoomDialog
+                      open={shareDialogOpen}
+                      onOpenChange={setShareDialogOpen}
+                      roomId={roomId}
+                      roomName={currentRoomName}
+                    />
+                  </>
+                )}
+                {chatCollapsed && (
+                  <IconButton
+                    label="Expand chat"
+                    shortcut="⌘I"
+                    tooltipSide="bottom"
+                    onClick={() => chatPanelRef.current?.expand()}
+                  >
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                  </IconButton>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </ResizablePanel>
         <ResizableHandle

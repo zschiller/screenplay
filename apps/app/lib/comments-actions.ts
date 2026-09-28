@@ -15,6 +15,12 @@ import {
   type CommentRecord,
   type ThreadWithComments,
 } from "@/lib/comments"
+import {
+  parseElementAnchor,
+  routePath,
+  snapshotLabel,
+  type ElementAnchor,
+} from "@/lib/comment-anchor"
 import { db, schema } from "@/lib/db"
 import { eq } from "drizzle-orm"
 
@@ -43,6 +49,12 @@ export async function createThreadAction(opts: {
   selector?: string | null
   offsetX?: number | null
   offsetY?: number | null
+  /** Frame-comment anchors (#785). */
+  workspaceId?: string | null
+  route?: string | null
+  anchor?: ElementAnchor | null
+  viewportWidth?: number | null
+  viewportHeight?: number | null
   documentId?: string | null
   anchorStart?: string | null
   anchorEnd?: string | null
@@ -53,7 +65,17 @@ export async function createThreadAction(opts: {
   await requireMember(opts.roomId, userId)
   const trimmed = opts.body.trim()
   if (!trimmed) throw new Error("Comment body is required")
+  const anchor = parseElementAnchor(opts.anchor)
   return createThreadWithFirstComment({
+    workspaceId: shortString(opts.workspaceId, 256),
+    route:
+      typeof opts.route === "string" && opts.route.length <= 2048
+        ? routePath(opts.route)
+        : null,
+    anchor,
+    viewportWidth: finitePositive(opts.viewportWidth),
+    viewportHeight: finitePositive(opts.viewportHeight),
+    snapshot: snapshotLabel(anchor),
     roomId: opts.roomId,
     x: opts.x,
     y: opts.y,
@@ -152,4 +174,16 @@ export async function markThreadUnreadAction(threadId: string): Promise<void> {
   const userId = await requireUserId()
   await requireMembershipForThread(threadId, userId)
   await markThreadUnreadFn({ threadId, userId })
+}
+
+function shortString(value: unknown, max: number): string | null {
+  return typeof value === "string" && value.length > 0 && value.length <= max
+    ? value
+    : null
+}
+
+function finitePositive(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null
 }

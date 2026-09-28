@@ -7,6 +7,7 @@ import {
   shouldMoveSelection,
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
+import { showsLayerDetail } from "@/lib/canvas/camera"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 
@@ -360,8 +361,9 @@ export function LayerShell({
         children(api)
       }
 
-      {/* Resize handles — only when singly selected. */}
-      {selected && !multiSelected && resizable && (
+      {/* Resize handles — only when singly selected, and hidden at very low
+          zoom where their constant-size hit zones swallow the tile. */}
+      {selected && !multiSelected && resizable && showsLayerDetail(zoom) && (
         <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
       )}
     </div>

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  Copy,
+  GitBranch,
   Maximize2,
   MoreHorizontal,
   MousePointer,
@@ -10,6 +12,7 @@ import {
   Play,
   RotateCw,
   Route,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -17,6 +20,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -24,6 +30,7 @@ import {
   FloatingToolbarButton,
   FloatingToolbarSeparator,
 } from "@workspace/ui/components/floating-toolbar"
+import { Kbd } from "@workspace/ui/components/kbd"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -33,6 +40,7 @@ import {
   type ScreenplayDom,
   type WheelForward,
 } from "@/hooks/use-screenplay-dom"
+import { canInteractOnDoubleClick } from "@/lib/canvas/interaction-mode"
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import { OpenInBrowserItem } from "../open-in-browser-item"
 import { DeviceSizeSubMenu } from "./device-size-menu"
@@ -167,6 +175,10 @@ interface IframeLayerProps {
    * and Repo); absent until the frame has a live preview to open.
    */
   onOpenInBrowser?: () => void
+  /** Append a copy of this frame to its group (the frame menu's Duplicate). */
+  onDuplicate?: () => void
+  /** Start an "add a knob" request in this frame's Workspace chat. */
+  onAskForKnob?: () => void
   /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
   onFitToContent?: (id: string, width: number, height: number) => void
   /** Set the frame to an explicit width/height (used by the device-preset menu). */
@@ -284,8 +296,11 @@ export function IframeLayer({
   onKnobsDeclared,
   onKnobValuesChange,
   onSharedStateChanged,
+  onRemove,
   onPlay,
   onOpenInBrowser,
+  onDuplicate,
+  onAskForKnob,
   onFitToContent,
   onSetSize,
   multiSelected,
@@ -429,10 +444,10 @@ export function IframeLayer({
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
   const showReload = hmrStatus === "disconnected"
-  // The `…` drawer holds low-frequency frame config (Device Size, Fit) and
-  // Branch-scoped "open" actions (prototype player, open in browser). Hidden
-  // only while every item it would hold is absent.
-  const showOverflow = !!onSetSize || showFit || showPlay || showOpenInBrowser
+  // The `…` menu holds this frame's own actions (device size, fit,
+  // duplicate, delete); Workspace-scoped actions (prototype player, open in
+  // browser) sit in its Workspace submenu so they don't read as frame actions.
+  const showWorkspaceMenu = showPlay || showOpenInBrowser
 
   // Report content-ready transitions up to the thumbnail heartbeat (#474). The
   // first paint and the re-paint after a route/branch change (which drops
@@ -493,9 +508,32 @@ export function IframeLayer({
     onSharedStateChanged,
   })
 
+  // Both interact mode and Create Flow mode forward pointer events to the
+  // iframe and hide the canvas overlay. Create Flow additionally captures
+  // navigation events into a history trail (handled in canvas.tsx).
+  const interactive = focused || createFlow
+
   const dom = useScreenplayDom(iframeRef, {
     onWheel: (wheel) => onWheel?.(iframeLayer.id, wheel),
+    // Esc the page didn't claim, forwarded by the bridge because keydowns
+    // never leave the iframe. Replay it on the canvas's own window so it
+    // walks the same Escape precedence (lib/canvas/escape.ts) as an Esc
+    // pressed on the canvas: an armed pick cancels first, otherwise the frame
+    // leaves interaction.
+    onEscape: () => {
+      if (!interactive) return
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    },
   })
+
+  // Leaving interaction (Esc, the toolbar, or a deselect) hands keyboard focus
+  // back to the canvas. Otherwise it stays inside the iframe, and canvas
+  // shortcuts, a second Esc included, go to the preview instead.
+  useEffect(() => {
+    if (interactive) return
+    const iframe = iframeRef.current
+    if (iframe && document.activeElement === iframe) iframe.blur()
+  }, [interactive])
 
   const handleFitToContent = useCallback(async () => {
     try {
@@ -646,11 +684,6 @@ export function IframeLayer({
     return () => clearTimeout(id)
   }, [probeState, contentReady, recoveryTick, reloadIframe])
 
-  // Both interact mode and Create Flow mode forward pointer events to the
-  // iframe and hide the canvas overlay. Create Flow additionally captures
-  // navigation events into a history trail (handled in canvas.tsx).
-  const interactive = focused || createFlow
-
   return (
     <LayerShell
       layerId={iframeLayer.id}
@@ -680,6 +713,9 @@ export function IframeLayer({
       // Interactive (focus / Create Flow) frames forward pointers to the iframe,
       // so the title bar's drag is detached just like the body overlay is hidden.
       titleDragDisabled={interactive}
+      // No resize handles while interacting: the Selection Overlay hides its
+      // drawn ones, and the edge hit areas would steal clicks from the page.
+      resizable={!focused}
       onResize={onResize}
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
@@ -764,50 +800,73 @@ export function IframeLayer({
                   onChange={(values) =>
                     onKnobValuesChange?.(iframeLayer.id, values)
                   }
+                  onAskForKnob={onAskForKnob}
                 />
-                {showOverflow && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <FloatingToolbarButton label="More">
-                        <MoreHorizontal className="text-muted-foreground" />
-                      </FloatingToolbarButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      side="right"
-                      align="start"
-                      sideOffset={8}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <FloatingToolbarButton label="More">
+                      <MoreHorizontal className="text-muted-foreground" />
+                    </FloatingToolbarButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="min-w-44"
+                  >
+                    {onSetSize && (
+                      <DeviceSizeSubMenu
+                        width={iframeLayer.width}
+                        height={iframeLayer.height}
+                        onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
+                      />
+                    )}
+                    {showFit && (
+                      <DropdownMenuItem onSelect={handleFitToContent}>
+                        <Maximize2 />
+                        Fit to content
+                      </DropdownMenuItem>
+                    )}
+                    {onDuplicate && (
+                      <DropdownMenuItem onSelect={onDuplicate}>
+                        <Copy />
+                        Duplicate
+                      </DropdownMenuItem>
+                    )}
+                    {showWorkspaceMenu && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <GitBranch />
+                            Workspace
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {showPlay && (
+                              <DropdownMenuItem
+                                onSelect={() => onPlay?.(iframeLayer.id)}
+                              >
+                                <Play />
+                                Open prototype player
+                              </DropdownMenuItem>
+                            )}
+                            {onOpenInBrowser && (
+                              <OpenInBrowserItem onOpen={onOpenInBrowser} />
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => onRemove(iframeLayer.id)}
                     >
-                      {onSetSize && (
-                        <DeviceSizeSubMenu
-                          width={iframeLayer.width}
-                          height={iframeLayer.height}
-                          onSelect={(w, h) => onSetSize(iframeLayer.id, w, h)}
-                        />
-                      )}
-                      {showFit && (
-                        <DropdownMenuItem onSelect={handleFitToContent}>
-                          <Maximize2 />
-                          Fit to content
-                        </DropdownMenuItem>
-                      )}
-                      {(!!onSetSize || showFit) &&
-                        (showPlay || showOpenInBrowser) && (
-                          <DropdownMenuSeparator />
-                        )}
-                      {showPlay && (
-                        <DropdownMenuItem
-                          onSelect={() => onPlay?.(iframeLayer.id)}
-                        >
-                          <Play />
-                          Open prototype player
-                        </DropdownMenuItem>
-                      )}
-                      {onOpenInBrowser && (
-                        <OpenInBrowserItem onOpen={onOpenInBrowser} />
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                      <Trash2 />
+                      Delete frame
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </FloatingToolbar>,
               toolbarPortalTarget
             )}
@@ -912,9 +971,51 @@ export function IframeLayer({
                     }
                   : {})}
                 onPointerDownCapture={api.onBodyPointerDownCapture}
+                onDoubleClick={(e) => {
+                  if (
+                    !canInteractOnDoubleClick({
+                      hasPreview: !!iframeLayer.branchId,
+                      commentMode: !!commentMode,
+                      // A dimmed frame is ineligible for an armed pick, but
+                      // the pick still owns the pointer.
+                      pickActive: !!pickActive || !!dimmed,
+                      spaceHeld,
+                    })
+                  )
+                    return
+                  e.stopPropagation()
+                  // Interaction lives only while its frame is selected, so a
+                  // double-click on a member of a selected group narrows the
+                  // selection to this frame first.
+                  onSelect(iframeLayer.id, false)
+                  onFocus(iframeLayer.id)
+                }}
               />
             )}
           </div>
+          {focused && (
+            // The interacting tag: a small label in the selection colour,
+            // hung under the ring like a canvas size tag, so the mode reads
+            // as part of the selection rather than another floating control.
+            // Counter-scaled like the title bar so it stays one screen size
+            // at any zoom; the margin clears the bottom resize handle. The key
+            // sits 2px in from the tag's edge, so its radius is the tag's
+            // minus 2px and the corners stay concentric.
+            <div
+              data-interacting-hint=""
+              className="pointer-events-none absolute top-full left-1/2 flex items-center gap-1 rounded-sm bg-canvas-selection py-0.5 pr-0.5 pl-1.5 text-[11px] leading-4 font-medium whitespace-nowrap text-white"
+              style={{
+                transform: `translateX(-50%) scale(${1 / zoom})`,
+                transformOrigin: "top center",
+                marginTop: 8 / zoom,
+              }}
+            >
+              Interacting
+              <Kbd className="h-4 min-w-4 rounded-[calc(var(--radius-sm)-2px)] bg-white/20 px-1 text-[10px] text-white">
+                Esc
+              </Kbd>
+            </div>
+          )}
         </>
       )}
     </LayerShell>

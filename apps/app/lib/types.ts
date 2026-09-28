@@ -66,6 +66,12 @@ export type BranchData = {
   statusMessage?: string
   error?: string
   createdAt: number
+  /**
+   * How the Workspace was created, and the branch a duplicate forked from. The
+   * sidebar's Retry re-runs a failed create with these (#791).
+   */
+  createFlow?: "new" | "from-branch" | "duplicate-branch"
+  createSourceBranch?: string
   /** False when the branch was opened from an existing remote branch — skip auto-rename on first chat. */
   autoNamedBranch?: boolean
   /** Routes discovered for this sandbox — initially crawled at startup, appended as the user navigates. */
