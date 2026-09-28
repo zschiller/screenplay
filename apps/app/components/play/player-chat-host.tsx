@@ -217,8 +217,7 @@ function PlayerChatHostImpl({
   if (!agent.sandboxName) {
     return (
       <PlayerChatPlaceholder onCollapse={onCollapse}>
-        <Spinner className="text-muted-foreground" />
-        Sandbox is warming up…
+        <Spinner className="size-4" /> Waiting for the sandbox to start…
       </PlayerChatPlaceholder>
     )
   }
@@ -273,13 +272,18 @@ function PlayerChatPlaceholder({
         <IconButton
           label="Collapse chat"
           tooltipSide="left"
-          className="text-muted-foreground"
+          // Same box as ChatPanel's collapse button (20px, 16px icon), so it
+          // sits in the same spot when the chat mounts.
+          className="size-5 rounded-md text-muted-foreground"
           onClick={onCollapse}
         >
-          <PanelRightClose />
+          <PanelRightClose className="size-4" />
         </IconButton>
       </div>
-      <div className="flex flex-1 items-center justify-center gap-2 pb-12 text-xs text-muted-foreground">
+      {/* Same type and copy as AgentChat's provisioning state, so the panel
+       *  reads the same whether the chat has mounted yet or not. pb-12 offsets
+       *  the header so the message sits at the panel's true centre. */}
+      <div className="flex flex-1 items-center justify-center gap-2 px-6 pb-12 text-center text-sm text-balance text-muted-foreground">
         {children}
       </div>
     </div>
