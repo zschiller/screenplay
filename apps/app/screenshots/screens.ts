@@ -1488,36 +1488,58 @@ export const SCREENS: Screen[] = [
   },
   {
     name: "dialog-remove-project",
-    description: "Removing a Project from a Canvas: the confirm dialog.",
+    description:
+      "Removing a Project from a Canvas: its Workspaces and their state.",
     path: `/${ids.rooms.checkout}`,
+    // Signed in to GitHub, so the option to delete the branches there shows.
+    cookies: fixtureGitHub(),
     prepare: async (page) => {
-      await page.getByText("acme/storefront").first().hover()
-      await page
-        .locator('[title="More"], [aria-label="Project options"]')
-        .first()
-        .click({ timeout: 15_000 })
-      // Radix ignores a select that lands in the same beat the menu opened.
-      await page.waitForTimeout(300)
-      await page.getByRole("menuitem", { name: "Remove" }).click()
+      await openRemoveProject(page)
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-remove-project-remote",
+    description:
+      "Remove project with the GitHub delete ticked: the button says so.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openRemoveProject(page)
+      await page.getByRole("checkbox").click()
     },
     settleMs: 400,
   },
   {
     name: "dialog-delete-workspace",
-    description: "Deleting a Workspace from its row menu: the confirm dialog.",
+    description:
+      "Deleting a Workspace with an open PR and uncommitted changes.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openDeleteWorkspace(page, "checkout-polish")
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-workspace-remote",
+    description:
+      "Delete workspace with the GitHub delete ticked: the branch moves to Removes.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: fixtureGitHub(),
+    prepare: async (page) => {
+      await openDeleteWorkspace(page, "checkout-polish")
+      await page.getByRole("checkbox").click()
+    },
+    settleMs: 400,
+  },
+  {
+    name: "dialog-delete-workspace-clean",
+    description:
+      "Deleting a clean Workspace that was never pushed: no warning.",
     path: `/${ids.rooms.checkout}`,
     prepare: async (page) => {
-      const row = page
-        .locator(".group\\/branch-row")
-        .filter({ hasText: "checkout-polish" })
-        .first()
-      await row.hover()
-      await row
-        .locator('[aria-haspopup="menu"]')
-        .first()
-        .click({ timeout: 15_000 })
-      await page.waitForTimeout(300)
-      await page.getByRole("menuitem", { name: "Delete" }).click()
+      await openDeleteWorkspace(page, "apple-pay-button")
     },
     settleMs: 400,
   },
@@ -2939,6 +2961,53 @@ async function selectCheckoutFrame(page: Page): Promise<void> {
  */
 export function fixtureGitHub(): Array<{ name: string; value: string }> {
   return [{ name: fixtureGitHubCookieName(), value: "connected" }]
+}
+
+/** Open the sidebar Project menu's Remove confirm for acme/storefront. */
+async function openRemoveProject(page: Page): Promise<void> {
+  await page.getByText("acme/storefront").first().hover()
+  await page
+    .locator('[title="More"], [aria-label="Project options"]')
+    .first()
+    .click({ timeout: 15_000 })
+  // Radix ignores a select that lands in the same beat the menu opened.
+  await page.waitForTimeout(300)
+  await page.getByRole("menuitem", { name: "Remove" }).click()
+  await settleDeleteConfirm(page)
+}
+
+/** Open a Workspace row menu's Delete confirm. */
+async function openDeleteWorkspace(page: Page, ref: string): Promise<void> {
+  const row = page
+    .locator(".group\\/branch-row")
+    .filter({ hasText: ref })
+    .first()
+  await row.hover()
+  await row.locator('[aria-haspopup="menu"]').first().click({ timeout: 15_000 })
+  await page.waitForTimeout(300)
+  await page.getByRole("menuitem", { name: "Delete" }).click()
+  await settleDeleteConfirm(page)
+}
+
+/**
+ * Wait for a delete confirm's reads to land: every Workspace's git state (its
+ * row spinner gone) and, when signed in, the GitHub probe that shows the
+ * option. The first open compiles the server actions, so this can take a while.
+ */
+async function settleDeleteConfirm(page: Page): Promise<void> {
+  const dialog = page.getByRole("alertdialog")
+  await dialog.waitFor({ timeout: 15_000 })
+  await dialog
+    .locator('[role="status"]')
+    .first()
+    .waitFor({ state: "detached", timeout: 60_000 })
+    .catch(() => {})
+  const signedIn = (await page.context().cookies()).some(
+    (c) => c.name === fixtureGitHubCookieName() && c.value === "connected"
+  )
+  if (signedIn) {
+    await dialog.getByRole("checkbox").waitFor({ timeout: 60_000 })
+  }
 }
 
 /**
