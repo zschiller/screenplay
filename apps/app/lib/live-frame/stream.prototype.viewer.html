@@ -1,0 +1,230 @@
+<!doctype html>
+<!-- PROTOTYPE for #983: a stand-in canvas that shows one streamed frame. Served by stream.prototype.mjs. -->
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Streamed frame (prototype)</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f4f4f5; --dot: #d4d4d8; --fg: #18181b; --muted: #71717a; --panel: #ffffffee; --border: #e4e4e7; --accent: #ec4899; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111113; --dot: #2a2a2e; --fg: #f4f4f5; --muted: #a1a1aa; --panel: #1c1c1fee; --border: #2e2e33; } }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); font: 13px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  #viewport { position: absolute; inset: 0; background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 20px 20px; }
+  #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #frame { position: absolute; left: 0; top: 0; }
+  #label { position: absolute; top: -26px; left: 0; display: flex; gap: 8px; align-items: center; color: var(--muted); white-space: nowrap; transform-origin: 0 100%; }
+  #label .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+  #screen { display: block; background: #fff; box-shadow: 0 0 0 1px var(--border), 0 8px 30px #0002; outline: none; }
+  #screen.watching { cursor: not-allowed; }
+  #screen.driving { box-shadow: 0 0 0 2px var(--accent), 0 8px 30px #0002; }
+  .bar { position: fixed; display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(8px); }
+  #top { top: 12px; left: 50%; transform: translateX(-50%); }
+  #zoombar { top: 12px; right: 12px; }
+  #hud { bottom: 12px; left: 12px; font: 11px/1.5 ui-monospace, Menlo, monospace; display: block; white-space: pre; }
+  button { font: inherit; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+  button:hover { background: #8882; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  label { display: flex; gap: 4px; align-items: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="world"><div id="frame"><div id="label"><span class="dot"></span><span>Acme Tasks · one live copy, streamed</span></div><canvas id="screen" tabindex="0"></canvas></div></div></div>
+<div class="bar" id="top"><span id="who">Connecting…</span><button id="take" hidden class="primary">Take control</button></div>
+<div class="bar" id="zoombar">
+  <button id="zout">−</button><span id="zlabel" style="min-width:44px;text-align:center">100%</span><button id="zin">+</button><button id="fit">Fit</button>
+  <label><input type="checkbox" id="follow" checked /> Sharp when zoomed</label>
+</div>
+<div class="bar" id="hud"></div>
+<script>
+const params = new URLSearchParams(location.search)
+const screen = document.getElementById("screen")
+const ctx = screen.getContext("2d")
+const world = document.getElementById("world")
+const label = document.getElementById("label")
+const hud = document.getElementById("hud")
+let W = 1280, H = 800
+let me = null, state = null, first = true
+let zoom = Number(params.get("zoom") || 0) || null, panX = 80, panY = 80
+const ws = new WebSocket(`ws://${location.host}`)
+ws.binaryType = "arraybuffer"
+const send = (m) => ws.readyState === 1 && ws.send(JSON.stringify(m))
+const driving = () => state && state.driver === me
+
+// ---------- canvas zoom + pan ----------
+function applyView() {
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`
+  label.style.transform = `scale(${1 / zoom})`
+  document.getElementById("zlabel").textContent = Math.round(zoom * 100) + "%"
+  send({ type: "zoom", scale: zoom * devicePixelRatio })
+}
+function zoomAt(next, cx, cy) {
+  next = Math.min(4, Math.max(0.1, next))
+  panX = cx - ((cx - panX) * next) / zoom
+  panY = cy - ((cy - panY) * next) / zoom
+  zoom = next
+  applyView()
+}
+function fit() {
+  zoom = Math.min((innerWidth - 160) / W, (innerHeight - 160) / H)
+  panX = (innerWidth - W * zoom) / 2
+  panY = (innerHeight - H * zoom) / 2 + 10
+  applyView()
+}
+document.getElementById("zin").onclick = () => zoomAt(zoom * 1.25, innerWidth / 2, innerHeight / 2)
+document.getElementById("zout").onclick = () => zoomAt(zoom / 1.25, innerWidth / 2, innerHeight / 2)
+document.getElementById("fit").onclick = fit
+document.getElementById("follow").onchange = (e) => send({ type: "follow-zoom", on: e.target.checked })
+document.getElementById("take").onclick = () => send({ type: "take-control" })
+addEventListener("wheel", (e) => {
+  e.preventDefault()
+  if (e.ctrlKey || e.metaKey) return zoomAt(zoom * Math.exp(-e.deltaY / 200), e.clientX, e.clientY)
+  if (e.target === screen && driving()) {
+    const p = toPage(e)
+    return sendInput("mouse", { type: "mouseWheel", x: p.x, y: p.y, deltaX: e.deltaX, deltaY: e.deltaY, modifiers: mods(e) })
+  }
+  panX -= e.deltaX; panY -= e.deltaY; applyView()
+}, { passive: false })
+
+// ---------- stream in ----------
+let lastDrawn = 0, frames = 0, bytes = 0, decodeMs = 0, fpsWindow = performance.now()
+let probe = null // bench: { sentAt, before, resolve }
+ws.onmessage = async (e) => {
+  if (typeof e.data === "string") return onJson(JSON.parse(e.data))
+  const buf = e.data
+  const hlen = new DataView(buf).getUint32(0)
+  const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hlen)))
+  const t0 = performance.now()
+  const bmp = await createImageBitmap(new Blob([new Uint8Array(buf, 4 + hlen)], { type: "image/jpeg" }))
+  decodeMs = performance.now() - t0
+  if (header.seq < lastDrawn) return bmp.close() // an older frame finished decoding late
+  lastDrawn = header.seq
+  // The image covers header.w x header.h CSS px (a bit more than the viewport); crop to W x H.
+  const scale = bmp.width / header.w
+  const cw = Math.round(W * scale), ch = Math.round(H * scale)
+  if (screen.width !== cw || screen.height !== ch) { screen.width = cw; screen.height = ch }
+  ctx.drawImage(bmp, 0, 0, cw, ch, 0, 0, cw, ch)
+  frames++; bytes += buf.byteLength
+  if (benching) checkProbe(bmp)
+  bmp.close()
+}
+function onJson(m) {
+  if (m.type === "welcome") { me = m.id; send({ type: "hello", name: params.get("name") || "Viewer " + m.id.slice(0, 4) }) }
+  if (m.type === "state") {
+    state = m
+    if (first) { first = false; W = m.width; H = m.height; screen.style.width = W + "px"; screen.style.height = H + "px"; zoom ? applyView() : fit() }
+    const d = m.viewers.find((v) => v.id === m.driver)
+    document.getElementById("who").textContent = driving() ? `You're driving · ${m.viewers.length} viewing` : `${d ? d.name : "Nobody"} is driving · you're watching`
+    document.getElementById("take").hidden = driving()
+    screen.className = driving() ? "driving" : "watching"
+    screen.style.cursor = driving() ? m.cursor : ""
+    document.getElementById("follow").checked = m.followZoom
+  }
+  if (m.type === "cursor" && driving()) screen.style.cursor = m.cursor
+  if (m.type === "pong") rtt = performance.now() - m.t
+}
+let rtt = 0
+setInterval(() => send({ type: "ping", t: performance.now() }), 1000)
+
+// ---------- input out (the relay drops it unless we're the driver) ----------
+let inputSeq = 0
+function sendInput(kind, p) { send({ type: "input", kind, params: p, seq: ++inputSeq }) }
+const mods = (e) => (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0)
+function toPage(e) {
+  const r = screen.getBoundingClientRect()
+  return { x: ((e.clientX - r.left) * W) / r.width, y: ((e.clientY - r.top) * H) / r.height }
+}
+const buttonName = ["left", "middle", "right"]
+let pendingMove = null, clickCount = 1, lastDown = 0
+screen.addEventListener("pointermove", (e) => {
+  if (!driving()) return
+  if (!pendingMove) requestAnimationFrame(() => { sendInput("mouse", pendingMove); pendingMove = null })
+  const p = toPage(e)
+  pendingMove = { type: "mouseMoved", x: p.x, y: p.y, modifiers: mods(e), button: e.buttons ? "left" : "none", buttons: e.buttons }
+})
+screen.addEventListener("pointerdown", (e) => {
+  screen.focus()
+  if (!driving()) return
+  clickCount = performance.now() - lastDown < 400 ? clickCount + 1 : 1
+  lastDown = performance.now()
+  const p = toPage(e)
+  sendInput("mouse", { type: "mousePressed", x: p.x, y: p.y, button: buttonName[e.button], buttons: e.buttons, clickCount, modifiers: mods(e) })
+})
+screen.addEventListener("pointerup", (e) => {
+  if (!driving()) return
+  const p = toPage(e)
+  sendInput("mouse", { type: "mouseReleased", x: p.x, y: p.y, button: buttonName[e.button], buttons: e.buttons, clickCount, modifiers: mods(e) })
+})
+screen.addEventListener("contextmenu", (e) => e.preventDefault())
+const vk = { Backspace: 8, Tab: 9, Enter: 13, Escape: 27, " ": 32, PageUp: 33, PageDown: 34, End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46, F2: 113 }
+function keyCode(e) { return vk[e.key] ?? (e.key.length === 1 ? e.key.toUpperCase().charCodeAt(0) : 0) }
+const isMac = navigator.platform.startsWith("Mac")
+screen.addEventListener("keydown", (e) => {
+  if (!driving()) return
+  const shortcut = isMac ? e.metaKey : e.ctrlKey
+  if (shortcut && e.key === "v") return // let the paste event carry the clipboard
+  e.preventDefault()
+  const text = !shortcut && e.key.length === 1 ? e.key : e.key === "Enter" ? "\r" : undefined
+  const commands = shortcut ? ({ a: ["selectAll"], z: [e.shiftKey ? "redo" : "undo"], c: ["copy"], x: ["cut"] }[e.key] ?? []) : []
+  sendInput("key", { type: text ? "keyDown" : "rawKeyDown", key: e.key, code: e.code, text, unmodifiedText: text, windowsVirtualKeyCode: keyCode(e), modifiers: mods(e), autoRepeat: e.repeat, commands })
+})
+screen.addEventListener("keyup", (e) => {
+  if (!driving()) return
+  e.preventDefault()
+  sendInput("key", { type: "keyUp", key: e.key, code: e.code, windowsVirtualKeyCode: keyCode(e), modifiers: mods(e) })
+})
+screen.addEventListener("paste", (e) => {
+  if (!driving()) return
+  e.preventDefault()
+  sendInput("text", { text: e.clipboardData.getData("text") })
+})
+
+// ---------- HUD ----------
+async function refreshHud() {
+  const now = performance.now()
+  const secs = (now - fpsWindow) / 1000
+  let s = {}
+  try { s = await (await fetch("/stats?who=" + me)).json() } catch {}
+  hud.textContent =
+    `received  ${(frames / secs).toFixed(1)} fps · ${(bytes / Math.max(frames, 1) / 1024).toFixed(0)} KB/frame · ${((bytes * 8) / 1e6 / secs).toFixed(2)} Mbps\n` +
+    `stream    ${state ? state.dsf : "?"}x pixels · decode ${decodeMs.toFixed(1)} ms · rtt ${rtt.toFixed(0)} ms${state && state.delay ? ` (incl. ${state.delay * 2} ms simulated)` : ""}\n` +
+    (s.chrome ? `chrome    ${s.chrome.cpuPercent}% cpu · ${s.chrome.pssMb ?? s.chrome.rssMb} MB ${s.chrome.pssMb ? "PSS" : "RSS"} · ${s.chrome.processes} procs\nrelay     ${s.relay.cpuPercent}% cpu · ${s.relay.rssMb} MB` : "")
+  frames = 0; bytes = 0; fpsWindow = now
+}
+setInterval(refreshHud, 2000)
+
+// ---------- bench: click the demo's probe square, time until its colour changes on screen ----------
+function probePoint() { return { x: W - 32, y: H - 32 } }
+const pix = new OffscreenCanvas(1, 1).getContext("2d", { willReadFrequently: true })
+function sample(bmp) {
+  const p = probePoint(), sx = screen.width / W
+  pix.drawImage(bmp, p.x * sx, p.y * sx, 1, 1, 0, 0, 1, 1)
+  const d = pix.getImageData(0, 0, 1, 1).data
+  return d[0] > d[2] ? "red" : "blue"
+}
+let benching = false, lastColor = null
+function checkProbe(bmp) {
+  lastColor = sample(bmp)
+  if (probe && lastColor !== probe.before) { const r = probe.resolve; const dt = performance.now() - probe.sentAt; probe = null; r(dt) }
+}
+async function runBench(n, mode) {
+  benching = true
+  const out = []
+  for (let i = 0; i < n; i++) {
+    await new Promise((r) => setTimeout(r, 150 + Math.random() * 150))
+    const before = lastColor
+    const done = new Promise((resolve) => (probe = { before, sentAt: performance.now(), resolve }))
+    const p = probePoint()
+    if (mode === "key") { sendInput("key", { type: "rawKeyDown", key: "F2", code: "F2", windowsVirtualKeyCode: 113 }); sendInput("key", { type: "keyUp", key: "F2", code: "F2", windowsVirtualKeyCode: 113 }) }
+    else { sendInput("mouse", { type: "mousePressed", x: p.x, y: p.y, button: "left", buttons: 1, clickCount: 1 }); sendInput("mouse", { type: "mouseReleased", x: p.x, y: p.y, button: "left", buttons: 0, clickCount: 1 }) }
+    const dt = await Promise.race([done, new Promise((r) => setTimeout(() => r(null), 3000))])
+    probe = null
+    if (dt != null) out.push(dt)
+  }
+  benching = false
+  out.sort((a, b) => a - b)
+  const q = (f) => out[Math.min(out.length - 1, Math.floor(f * out.length))]
+  return { n: out.length, p50: q(0.5), p90: q(0.9), max: out[out.length - 1], min: out[0] }
+}
+window.runBench = runBench
+</script>
+</body>
+</html>

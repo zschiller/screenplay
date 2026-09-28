@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- PROTOTYPE for #983: a stand-in for a Workspace's prototype app, streamed by stream.prototype.mjs. -->
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Acme Tasks (streamed demo)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Inter, system-ui, sans-serif; color: #18181b; background: #fafafa; }
+  header { display: flex; align-items: center; gap: 20px; padding: 14px 24px; background: #fff; border-bottom: 1px solid #e4e4e7; position: sticky; top: 0; z-index: 2; }
+  header b { font-size: 16px; }
+  nav a { color: #52525b; text-decoration: none; margin-right: 16px; }
+  nav a:hover { color: #18181b; text-decoration: underline; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 24px; padding: 24px; }
+  .card { background: #fff; border: 1px solid #e4e4e7; border-radius: 10px; padding: 16px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  input, textarea, select { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid #d4d4d8; border-radius: 6px; margin-bottom: 10px; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid #6366f1; border-color: transparent; }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #d4d4d8; background: #fff; cursor: pointer; }
+  button:hover { background: #f4f4f5; }
+  button.primary { background: #18181b; color: #fff; border-color: #18181b; }
+  button.primary:hover { background: #3f3f46; }
+  ul { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; }
+  li { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 6px; cursor: pointer; }
+  li:hover { background: #f4f4f5; }
+  li small { margin-left: auto; color: #71717a; }
+  .spinner { width: 18px; height: 18px; border: 2px solid #e4e4e7; border-top-color: #6366f1; border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .menu { position: relative; display: inline-block; }
+  .menu-list { display: none; position: absolute; top: 36px; left: 0; background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; box-shadow: 0 8px 24px #0002; padding: 4px; min-width: 160px; z-index: 3; }
+  .menu:focus-within .menu-list { display: block; }
+  .menu-list div { padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+  .menu-list div:hover { background: #f4f4f5; }
+  .tip { position: relative; }
+  .tip:hover::after { content: "Tooltips work on hover"; position: absolute; left: 0; top: 34px; background: #18181b; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+  /* Latency probe used by stream.prototype.bench.mjs: flips colour on pointerdown / keydown. */
+  #probe { position: fixed; right: 12px; bottom: 12px; width: 40px; height: 40px; background: rgb(255, 0, 0); z-index: 5; }
+  #busy { height: 160px; border-radius: 10px; background: linear-gradient(90deg, #6366f1, #ec4899, #f59e0b, #6366f1); background-size: 300% 100%; animation: slide 3s linear infinite; }
+  @keyframes slide { to { background-position: 300% 0; } }
+</style>
+</head>
+<body>
+<header>
+  <b>Acme Tasks</b>
+  <nav><a href="#">Inbox</a><a href="#">Today</a><a href="#">Projects</a><a href="#">Reports</a></nav>
+  <span style="margin-left:auto" class="spinner" title="CSS animation"></span>
+</header>
+<main>
+  <section class="card">
+    <h2>Tasks</h2>
+    <ul id="list"></ul>
+  </section>
+  <aside style="display:grid; gap:16px; align-content:start">
+    <div class="card">
+      <h2>New task</h2>
+      <input id="title" placeholder="Type here to feel keyboard latency" />
+      <textarea rows="3" placeholder="Notes"></textarea>
+      <select><option>Native select popup</option><option>Second option</option><option>Third option</option></select>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="primary" id="add">Add task</button>
+        <span class="menu"><button>More ▾</button>
+          <div class="menu-list"><div>Duplicate</div><div>Move to project</div><div>Delete</div></div>
+        </span>
+        <button class="tip">Hover me</button>
+      </div>
+    </div>
+    <div class="card"><h2>Clicks: <span id="count">0</span></h2><button id="inc">Click me</button></div>
+    <div class="card" id="busy-card" hidden><h2>Constant animation</h2><div id="busy"></div></div>
+  </aside>
+</main>
+<div id="probe"></div>
+<script>
+  const names = ["Draft onboarding copy", "Review pricing page", "Fix login redirect", "Ship dark mode", "Interview users", "Update changelog", "Plan Q4 roadmap", "Audit accessibility"]
+  const list = document.getElementById("list")
+  for (let i = 0; i < 60; i++) {
+    const li = document.createElement("li")
+    li.innerHTML = `<input type="checkbox" style="width:auto;margin:0"> ${names[i % names.length]} #${i + 1}<small>${(i % 28) + 1} Oct</small>`
+    list.append(li)
+  }
+  document.getElementById("add").onclick = () => {
+    const t = document.getElementById("title")
+    if (!t.value) return
+    const li = document.createElement("li")
+    li.innerHTML = `<input type="checkbox" style="width:auto;margin:0"> ${t.value}<small>new</small>`
+    list.prepend(li)
+    t.value = ""
+  }
+  let n = 0
+  document.getElementById("inc").onclick = () => (document.getElementById("count").textContent = ++n)
+  const probe = document.getElementById("probe")
+  let red = true
+  const flip = () => { red = !red; probe.style.background = red ? "rgb(255, 0, 0)" : "rgb(0, 0, 255)" }
+  probe.addEventListener("pointerdown", flip)
+  addEventListener("keydown", (e) => { if (e.key === "F2") flip() })
+  const q = new URLSearchParams(location.search)
+  if (q.has("busy")) document.getElementById("busy-card").hidden = false
+  if (q.has("still")) document.querySelector(".spinner").style.animation = "none"
+</script>
+</body>
+</html>
