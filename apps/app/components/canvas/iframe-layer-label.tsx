@@ -119,7 +119,8 @@ const stopPointer = {
  * the frame like its body does.
  *
  * The bar is a size container, so on a narrow frame the device goes first,
- * then the navigation buttons, and the name and route field truncate.
+ * then the navigation buttons, then the route field (a phone-width frame at
+ * low zoom keeps just its Workspace, name and status).
  */
 export function IframeLayerLabel({
   width,
@@ -150,7 +151,7 @@ export function IframeLayerLabel({
   return (
     <div
       data-frame-header=""
-      className="@container flex items-center gap-2 rounded-t-md bg-background pr-1.5 pl-2 ring-1 ring-foreground/10 has-[[data-editable-text=editing]]:overflow-visible"
+      className="@container flex items-center gap-2 overflow-hidden rounded-t-md bg-background pr-1.5 pl-2 ring-1 ring-foreground/10 has-[[data-editable-text=editing]]:overflow-visible"
       style={{ width, height: FRAME_HEADER_HEIGHT }}
     >
       {onAssignBranch ? (
@@ -178,6 +179,7 @@ export function IframeLayerLabel({
           onSelectLayer={(shiftKey) => onSelectFrame?.(shiftKey)}
           onRename={onRename}
           placeholder="Untitled"
+          restingColorClass="text-foreground"
         />
         {device && (
           <span className="hidden shrink-0 text-xs text-muted-foreground @[26rem]:inline">
@@ -186,7 +188,7 @@ export function IframeLayerLabel({
         )}
       </div>
       {branch && (
-        <div className="ml-auto flex min-w-12 flex-1 items-center gap-1 @[26rem]:ml-2">
+        <div className="ml-auto hidden min-w-16 flex-1 items-center gap-1 @[14rem]:flex @[26rem]:ml-2">
           <div
             className="hidden shrink-0 items-center @[18rem]:flex"
             {...stopPointer}
@@ -234,11 +236,9 @@ function StatusDot({ status }: { status: FrameHeaderStatus }) {
           <span
             role="status"
             aria-label={STATUS_LABEL[status]}
-            className={cn(
-              "flex size-4 shrink-0 items-center justify-center",
-              // Pushed to the far edge when there's no route field to do it.
-              "first:ml-auto"
-            )}
+            // `ml-auto` holds the dot at the far edge when the route field
+            // is hidden (no Workspace, or a narrow frame).
+            className="ml-auto flex size-3 shrink-0 items-center justify-center"
             {...stopPointer}
           >
             {status === "loading" ? (
@@ -333,7 +333,10 @@ function RouteField({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-72 p-0"
+        // As wide as the field, like an address bar's suggestions, so it
+        // stays inside the frame's column instead of running under the
+        // frame toolbar.
+        className="w-(--radix-popover-trigger-width) max-w-96 min-w-56 p-0"
         side="bottom"
         align="start"
         onPointerDown={(e) => e.stopPropagation()}

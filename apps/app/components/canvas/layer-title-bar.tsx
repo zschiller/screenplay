@@ -183,6 +183,9 @@ interface LayerTitleTextProps {
   onRename?: (next: string) => void
   /** Placeholder shown when the title is empty. */
   placeholder?: string
+  /** Colour while nobody has the layer selected. A frame's header shows the
+   *  name at full strength; floating labels stay muted. */
+  restingColorClass?: string
 }
 
 /**
@@ -201,6 +204,7 @@ export function LayerTitleText({
   onSelectLayer,
   onRename,
   placeholder,
+  restingColorClass = "text-foreground/70",
 }: LayerTitleTextProps) {
   // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
@@ -209,7 +213,7 @@ export function LayerTitleText({
     ? "text-canvas-selection"
     : remoteColor
       ? undefined
-      : "text-foreground/70"
+      : restingColorClass
   const colorStyle = remoteColor ? { color: remoteColor } : undefined
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return
