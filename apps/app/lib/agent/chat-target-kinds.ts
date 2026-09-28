@@ -15,7 +15,7 @@ import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
-import type { RoomDoc, RoomReader } from "@/lib/room-access"
+import type { RoomDoc } from "@/lib/room-access"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -204,6 +204,12 @@ export const markdownLayerChatTarget: ChatTargetSpec<
 export interface RoomTarget {
   /** The member whose message this turn answers (Terminal Tabs are per user). */
   userId: string
+  /**
+   * The turn canvas changes are logged under for undo. Omitted, each tool set
+   * built is its own turn; the desktop MCP route builds one per request, so it
+   * passes the chat's running turn instead.
+   */
+  turnId?: string
 }
 
 interface RoomContext {
@@ -212,12 +218,13 @@ interface RoomContext {
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
 export function liveRoomToolPorts(
-  room: RoomReader,
+  room: RoomDoc,
   userId: string
 ): RoomToolPorts {
   return {
     ...liveWorkspaceReadPorts(room.roomId),
     readDoc: (fn) => room.readDoc(fn),
+    mutateDoc: (fn) => room.mutateDoc(fn),
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,
@@ -245,6 +252,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       kind: "room",
       room,
       ports: liveRoomToolPorts(room, target.userId),
+      turnId: target.turnId,
     })
   },
   // No turn markers: there is no branch, and plan mode belongs to sandbox

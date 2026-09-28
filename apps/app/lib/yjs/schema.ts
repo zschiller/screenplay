@@ -238,6 +238,19 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
   const cached = COLLECTIONS_CACHE.get(doc)
   if (cached) return cached
 
+  const collections = createRoomCollections(doc)
+  migrateLegacyGroups(collections)
+  COLLECTIONS_CACHE.set(doc, collections)
+  return collections
+}
+
+/**
+ * A fresh, uncached {@link RoomCollections} view over `doc`, without the
+ * on-load migration. Server code that writes the same doc more than once uses
+ * one per write: nothing observes a server doc, so a cached view's
+ * `toArray()` snapshot would never refresh after the first write.
+ */
+export function createRoomCollections(doc: Y.Doc): RoomCollections {
   const meta = doc.getMap(META_KEY) as AnyMap
   const collections: RoomCollections = {
     doc,
@@ -276,8 +289,6 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),
   }
-  migrateLegacyGroups(collections)
-  COLLECTIONS_CACHE.set(doc, collections)
   return collections
 }
 

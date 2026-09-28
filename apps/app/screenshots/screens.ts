@@ -535,6 +535,26 @@ export const SCREENS: Screen[] = [
     settleMs: 400,
   },
   {
+    name: "chat-coordinator-undo",
+    description:
+      "The Coordinator removing a frame and a document, then undoing it when asked, with both turns' steps open (#894).",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    prepare: async (page) => {
+      await page
+        .getByText("Ask about this canvas")
+        .first()
+        .waitFor({ timeout: 30_000 })
+      await replayRun(
+        page,
+        roomChatId(ids.rooms.checkout),
+        coordinatorUndoRun()
+      )
+      await expandTurnSummaries(page)
+    },
+    settleMs: 400,
+  },
+  {
     name: "chat-coordinator-breadcrumb",
     description:
       "A Workspace's chat header: the Coordinator crumb before the Workspace pill, hovered (#893).",
@@ -1056,13 +1076,13 @@ export const SCREENS: Screen[] = [
   {
     name: "canvas-pr-merged",
     description:
-      "A Canvas whose Workspace has a merged PR: the sidebar's merged icon and diff stats.",
+      "A Canvas whose Workspace has a merged PR and an agent turn in flight: the activity spinner up front, the merged PR at the row's end (#963).",
     path: `/${ids.rooms.pricing}`,
   },
   {
     name: "canvas-pr-closed",
     description:
-      "A Canvas with a closed-PR Workspace and one still being created.",
+      "A Canvas with a stopped Workspace (a dashed circle, its closed PR not shown) and one still being created.",
     path: `/${ids.rooms.onboarding}`,
   },
   {
@@ -3514,6 +3534,68 @@ export function coordinatorRun(): RunEvent[] {
       },
     },
     { type: "chat-stream-end" },
+  ]
+}
+
+/**
+ * Two Coordinator turns on the checkout canvas: it removes a frame and a
+ * document right away, then puts them back when asked to undo (#894).
+ */
+export function coordinatorUndoRun(): RunEvent[] {
+  const turn = (
+    ask: string,
+    tool: {
+      id: string
+      title: string
+      kind: "delete" | "edit"
+      result: string
+    },
+    answer: string
+  ): RunEvent[] => [
+    {
+      type: "chat-acp-update",
+      update: { sessionUpdate: "user_message_chunk", content: text(ask) },
+    },
+    { type: "chat-stream-start" },
+    {
+      type: "chat-acp-update",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: tool.id,
+        title: tool.title,
+        kind: tool.kind,
+        status: "completed",
+        content: [{ type: "content", content: text(tool.result) }],
+      },
+    },
+    {
+      type: "chat-acp-update",
+      update: { sessionUpdate: "agent_message_chunk", content: text(answer) },
+    },
+    { type: "chat-stream-end" },
+  ]
+  return [
+    ...turn(
+      "Clear out the frame with no Workspace and the Checkout brief.",
+      {
+        id: "fixture-remove",
+        title: "remove",
+        kind: "delete",
+        result: 'Removed frame "Untitled frame", document "Checkout brief".',
+      },
+      "Removed the blank frame and the Checkout brief."
+    ),
+    ...turn(
+      "Actually, undo that.",
+      {
+        id: "fixture-undo",
+        title: "undo_changes",
+        kind: "edit",
+        result:
+          'Undid: removed frame "Untitled frame", document "Checkout brief".\nIds: fixture-turn',
+      },
+      "Put the blank frame and the Checkout brief back, exactly as they were."
+    ),
   ]
 }
 

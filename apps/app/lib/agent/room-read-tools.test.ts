@@ -38,6 +38,7 @@ function setup(overrides: Partial<RoomToolPorts> = {}) {
   )
   const ports: RoomToolPorts = {
     readDoc: async (fn) => fn(collections),
+    mutateDoc: async (fn) => fn(collections),
     listTerminalTabs: async () => [],
     readChatTranscript: vi.fn(async () => []),
     readWorkspaceDiff: vi.fn(async () => ""),

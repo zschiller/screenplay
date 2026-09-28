@@ -942,6 +942,18 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
           sidebarOrder: 0,
         },
       ],
+      // A turn in flight on Pricing tiers, so its row leads with the agent's
+      // activity spinner while its merged PR sits at the row's end (#963).
+      chatSessions: [
+        {
+          id: "chat-pricing-tiers",
+          branchId: branch.id,
+          label: "Annual toggle",
+          createdAt: minutesAgo(now, 2),
+          model: "claude-sonnet-4-5",
+          isStreaming: true,
+        },
+      ],
       savedViewport: { x: 60, y: 60, zoom: 0.5 },
     },
     thumbnailFrames: ["layer-pricing-desktop", "layer-pricing-mobile"],

@@ -53,6 +53,13 @@ export interface ExternalEngineConfig {
    * on).
    */
   reconcileModel?: (modelId: string) => Promise<void> | void
+  /**
+   * MCP servers and adapter `_meta` for every session this engine opens, new or
+   * loaded (see {@link OpenSessionOptions.mcpServers}). The Coordinator's
+   * tools reach a desktop harness this way (#903).
+   */
+  mcpServers?: OpenSessionOptions["mcpServers"]
+  sessionMeta?: OpenSessionOptions["sessionMeta"]
 }
 
 /**
@@ -215,15 +222,20 @@ export class ExternalEngine implements Engine {
     // selection (claude-code) — inert for a spawn-applied adapter (codex) and
     // for a chat with no stored model. Reconciliation rewrites a stale stored id
     // to the resolved one (#526).
-    const { modelId, reconcileModel } = this.config
+    const { modelId, reconcileModel, mcpServers, sessionMeta } = this.config
+    const options: OpenSessionOptions = {
+      cwd,
+      planMode,
+      modelId,
+      reconcileModel,
+      mcpServers,
+      sessionMeta,
+    }
 
     if (this.config.loadSessionId) {
       try {
         const session = await this.config.sessionFactory.open(ports, {
-          cwd,
-          planMode,
-          modelId,
-          reconcileModel,
+          ...options,
           loadSessionId: this.config.loadSessionId,
         })
         return { session, resumed: true }
@@ -232,12 +244,7 @@ export class ExternalEngine implements Engine {
       }
     }
 
-    const session = await this.config.sessionFactory.open(ports, {
-      cwd,
-      planMode,
-      modelId,
-      reconcileModel,
-    })
+    const session = await this.config.sessionFactory.open(ports, options)
     await this.config.onSessionId?.(session.id)
     return { session, resumed: false }
   }

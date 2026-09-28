@@ -210,7 +210,19 @@ export function toolKindFor(toolName: string): ToolKind {
     case "replace_document_body":
     case "append_to_document_body":
     case "set_document_title":
+    case "create_frames":
+    case "create_document":
+    case "rename":
+    case "undo_changes":
       return "edit"
+    case "move_group":
+    case "move_to_group":
+    case "merge_groups":
+      return "move"
+    case "remove":
+      return "delete"
+    case "list_changes":
+      return "read"
     case "run_command":
       return "execute"
     default:

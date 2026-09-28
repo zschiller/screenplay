@@ -22,6 +22,14 @@ import {
   Bot,
   Square,
   ChevronRight,
+  AppWindow,
+  FilePlus,
+  Move,
+  Group,
+  Merge,
+  Trash2,
+  History,
+  Undo2,
 } from "lucide-react"
 import {
   Collapsible,
@@ -74,6 +82,15 @@ const toolIcons: Record<string, typeof FileText> = {
   replace_document_body: SquarePen,
   append_to_document_body: SquarePen,
   set_document_title: PencilLine,
+  create_frames: AppWindow,
+  create_document: FilePlus,
+  move_group: Move,
+  move_to_group: Group,
+  merge_groups: Merge,
+  rename: PencilLine,
+  remove: Trash2,
+  list_changes: History,
+  undo_changes: Undo2,
 }
 
 const toolLabels: Record<string, string> = {
@@ -90,6 +107,15 @@ const toolLabels: Record<string, string> = {
   replace_document_body: "Rewrite document",
   append_to_document_body: "Append to document",
   set_document_title: "Set title",
+  create_frames: "Create frames",
+  create_document: "Create document",
+  move_group: "Move group",
+  move_to_group: "Move to group",
+  merge_groups: "Merge groups",
+  rename: "Rename",
+  remove: "Remove",
+  list_changes: "List changes",
+  undo_changes: "Undo changes",
 }
 
 // A raw snake_case tool identifier (e.g. `read_file`), as reported by
@@ -148,6 +174,38 @@ function renderTitleWithCode(title: string): ReactNode[] {
   }
   if (last < title.length) parts.push(title.slice(last))
   return parts
+}
+
+/** The Coordinator's canvas-changing tools, whose results name the change. */
+const CANVAS_CHANGE_TOOLS = new Set([
+  "create_frames",
+  "create_document",
+  "move_group",
+  "move_to_group",
+  "merge_groups",
+  "rename",
+  "remove",
+  "undo_changes",
+])
+
+/**
+ * What a finished canvas change did, from its result's first line (the lines
+ * after it are ids for the model), without the closing period. Null while it
+ * runs, for any other tool, and for a result that reports an error.
+ */
+function canvasChangeLine(
+  message: AgentMessage & { role: "tool_call" }
+): string | null {
+  if (!CANVAS_CHANGE_TOOLS.has(message.title)) return null
+  if (message.status !== "completed") return null
+  const text = message.content
+    .map((b) =>
+      b.type === "content" && b.content.type === "text" ? b.content.text : ""
+    )
+    .join("")
+  const line = text.split("\n")[0]!.trim()
+  if (!line || line.startsWith("Error:")) return null
+  return line.replace(/\.$/, "")
 }
 
 /** A short, human-readable detail for a tool call, derived from its raw input. */
@@ -443,12 +501,18 @@ function ToolCallRow({
     lineCount != null
       ? `${verb} ${lineCount} ${lineCount === 1 ? "line" : "lines"}`
       : verb
+  // A Coordinator canvas change (#894) names what it changed in its result's
+  // first line ("Removed frame "Settings""), so a finished one shows that line
+  // in place of its verb, with nothing to expand.
+  const canvasChange = canvasChangeLine(message)
   // Structure it when we have a real verb (our own raw tool, or a known kind we
   // could attach a detail to); otherwise fall back to the adapter's prose title.
   const structured = isRawToolName || (verb != null && detail != null)
-  const hasContent = message.content.length > 0
+  const hasContent = message.content.length > 0 && !canvasChange
 
-  const title = structured ? (
+  const title = canvasChange ? (
+    canvasChange
+  ) : structured ? (
     <>
       {label}
       {detail ? (
@@ -461,9 +525,11 @@ function ToolCallRow({
   ) : (
     renderTitleWithCode(message.title)
   )
-  const fullText = structured
-    ? [label, detail].filter(Boolean).join(" ")
-    : message.title.replace(/`/g, "")
+  const fullText = canvasChange
+    ? canvasChange
+    : structured
+      ? [label, detail].filter(Boolean).join(" ")
+      : message.title.replace(/`/g, "")
 
   const icon = running ? (
     <Spinner

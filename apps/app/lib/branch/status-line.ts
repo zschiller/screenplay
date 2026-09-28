@@ -4,11 +4,12 @@ import type { BranchData } from "@/lib/types"
  * Workspace status line — the words behind each Workspace row's status icon
  * in the in-room sidebar (#791), shown in its tooltip. It says what the
  * Workspace is doing right now: the setup step it's on, that its agent is
- * working, where its PR stands, or that setup failed.
+ * working, that it's ready or stopped, or that setup failed. Its PR is not a
+ * state: the row shows it at its end (#963).
  *
- * Pure: it reads the slice of a Branch below plus two facts the sidebar
- * already holds (whether a turn is in flight, the cached PR), and returns plain
- * values, so `status-line.test.ts` asserts it with no React.
+ * Pure: it reads the slice of a Branch below plus one fact the sidebar
+ * already holds (whether a turn is in flight), and returns plain values, so
+ * `status-line.test.ts` asserts it with no React.
  */
 
 /** The slice of a Branch the status line reads. {@link BranchData} satisfies it. */
@@ -20,7 +21,6 @@ export type StatusLineBranch = Pick<
 export interface StatusLineContext {
   /** A chat turn is in flight on this Workspace. */
   agentWorking: boolean
-  pr?: { number: number; state: "open" | "closed" | "merged" }
 }
 
 export type WorkspaceStatusLine =
@@ -30,7 +30,7 @@ export type WorkspaceStatusLine =
   /** Setup (or a recovery) failed. `title` names what failed, for the detail
    *  card; `detail` is the raw error. */
   | { kind: "error"; title: string; detail: string }
-  | { kind: "idle"; text: string }
+  | { kind: "idle"; state: "working" | "ready" | "stopped"; text: string }
 
 /** "Installing dependencies…" → "Installing dependencies". */
 function stepLabel(message: string | undefined): string {
@@ -69,12 +69,11 @@ export function workspaceStatusLine(
         (branch.status === "creating" ? "Creating workspace" : "Starting"),
     }
   }
-  if (branch.status === "stopped") return { kind: "idle", text: "Stopped" }
-  if (ctx.agentWorking) return { kind: "idle", text: "Agent working" }
-  if (ctx.pr) {
-    return { kind: "idle", text: `PR #${ctx.pr.number} · ${ctx.pr.state}` }
-  }
-  return { kind: "idle", text: "Ready" }
+  if (branch.status === "stopped")
+    return { kind: "idle", state: "stopped", text: "Stopped" }
+  if (ctx.agentWorking)
+    return { kind: "idle", state: "working", text: "Agent working" }
+  return { kind: "idle", state: "ready", text: "Ready" }
 }
 
 /** Elapsed time for a progress step: "8s", "40s", "2m 05s". */

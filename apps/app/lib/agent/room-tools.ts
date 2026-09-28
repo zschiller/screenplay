@@ -1,16 +1,21 @@
 import "server-only"
 
 import { tool, jsonSchema, type ToolSet } from "ai"
+import { nanoid } from "nanoid"
+import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
+import { getGroupMembers } from "@/lib/canvas/layout"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import { workspaceLabel } from "@/lib/workspace-label"
 import {
   buildWorkspaceReadTools,
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
+import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
 import type {
   BranchData,
   ChatSessionData,
   IframeLayerData,
+  IframeLayerGroupData,
   MarkdownLayerData,
   RepoData,
 } from "@/lib/types"
@@ -18,17 +23,22 @@ import type {
 /**
  * The **Coordinator tools module**: every tool a Room Target chat (the
  * Coordinator, `apps/app/CONTEXT.md`) runs lives behind {@link buildRoomTools}.
- * The in-process engine's tool set calls it today; the desktop MCP server will
- * call the same function, so each tool is defined once.
+ * The in-process engine's tool set calls it, and so does the desktop MCP
+ * server (`coordinator-mcp.ts`), so each tool is defined once.
  *
  * It takes a Room id plus {@link RoomToolPorts}: the things it drives, injected
  * so tests run every tool against a bare Room doc. Tools that change the canvas
  * write through Canvas Operations inside `mutateDoc` (a server-side room
- * mutation, ADR 0001); the first tool, `read_canvas`, only reads.
+ * mutation, ADR 0001), logged per turn so the Coordinator can undo a turn when
+ * asked (`room-arrange-tools.ts`, `room-change-log.ts`).
  */
 export interface RoomToolPorts extends WorkspaceReadPorts {
   /** Read-only access to the Room's doc, as `RoomAccess.readDoc`. */
   readDoc<T>(fn: (collections: RoomCollections) => T | Promise<T>): Promise<T>
+  /** A server-side room mutation, as `RoomAccess.mutateDoc`. */
+  mutateDoc<T = void>(
+    fn: (collections: RoomCollections) => T | Promise<T>
+  ): Promise<T>
   /** The acting member's Terminal Tabs in this Room (tabs are per user). */
   listTerminalTabs(): Promise<TerminalTabSummary[]>
 }
@@ -41,11 +51,50 @@ export type TerminalTabSummary = {
   branchId: string
 }
 
-export function buildRoomTools(roomId: string, ports: RoomToolPorts): ToolSet {
+/**
+ * MCP annotations for the Coordinator's tools, by tool name, sent when a
+ * desktop harness lists them (#903). Codex runs an MCP tool without asking
+ * only when it is `readOnlyHint`, or both `destructiveHint: false` and
+ * `openWorldHint: false`, so give each new tool the honest hints here.
+ */
+export const ROOM_TOOL_ANNOTATIONS: Readonly<
+  Record<string, McpToolAnnotations>
+> = {
+  read_canvas: { readOnlyHint: true, openWorldHint: false },
+  // Workspace reads (`room-read-tools.ts`).
+  read_workspace_chat: { readOnlyHint: true, openWorldHint: false },
+  read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
+  read_workspace_file: { readOnlyHint: true, openWorldHint: false },
+  view_frame: { readOnlyHint: true, openWorldHint: false },
+  // Shared by every chat's toolset (`layer-read-tools.ts`).
+  read_document: { readOnlyHint: true, openWorldHint: false },
+  // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
+  // undoable with `undo_changes`, so none is destructive.
+  create_frames: { destructiveHint: false, openWorldHint: false },
+  create_document: { destructiveHint: false, openWorldHint: false },
+  move_group: { destructiveHint: false, openWorldHint: false },
+  move_to_group: { destructiveHint: false, openWorldHint: false },
+  merge_groups: { destructiveHint: false, openWorldHint: false },
+  rename: { destructiveHint: false, openWorldHint: false },
+  remove: { destructiveHint: false, openWorldHint: false },
+  undo_changes: { destructiveHint: false, openWorldHint: false },
+  list_changes: { readOnlyHint: true, openWorldHint: false },
+}
+
+/**
+ * The Coordinator's tools for one turn: each call builds a new turn's tool set,
+ * and the canvas changes its tools make are logged under that turn.
+ */
+export function buildRoomTools(
+  roomId: string,
+  ports: RoomToolPorts,
+  turnId: string = nanoid()
+): ToolSet {
   return {
+    ...buildArrangeTools(ports.mutateDoc, turnId),
     read_canvas: tool({
       description:
-        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), frames (route, size, Workspace), documents and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
+        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
       inputSchema: jsonSchema<Record<string, never>>({
         type: "object",
         properties: {},
@@ -70,6 +119,7 @@ export function buildRoomTools(roomId: string, ports: RoomToolPorts): ToolSet {
 export const CANVAS_SUMMARY_LIMITS = {
   repos: 20,
   workspaces: 100,
+  groups: 100,
   frames: 150,
   documents: 100,
   terminalTabs: 50,
@@ -91,6 +141,10 @@ export function summarizeCanvas(
     collections,
     COLLECTION_KEYS.iframeLayers
   )
+  const groups = records<IframeLayerGroupData>(
+    collections,
+    COLLECTION_KEYS.iframeLayerGroups
+  )
   const documents = records<MarkdownLayerData>(
     collections,
     COLLECTION_KEYS.markdownLayers
@@ -100,6 +154,9 @@ export function summarizeCanvas(
     COLLECTION_KEYS.chatSessions
   )
 
+  const groupOf = new Map(
+    groups.flatMap((g) => getGroupMembers(g).map((m) => [m.id, g.id] as const))
+  )
   const repoNames = new Map(repos.map((r) => [r.id, r.repoFullName]))
   const working = new Set(
     chats.filter((c) => c.branchId && c.isStreaming).map((c) => c.branchId)
@@ -131,18 +188,31 @@ export function summarizeCanvas(
           .filter(Boolean)
           .join(" · ")
     ),
-    section("Frames", frames, CANVAS_SUMMARY_LIMITS.frames, (f) =>
+    section("Groups", groups, CANVAS_SUMMARY_LIMITS.groups, (g) =>
       [
-        `- [${f.id}] ${f.route ? clip(f.route) : "(no route)"}`,
-        `${Math.round(f.width)}×${Math.round(f.height)}`,
-        f.branchId ? `Workspace ${f.branchId}` : "no Workspace",
+        `- [${g.id}] "${clip(g.name ?? "Group")}"`,
+        `at ${Math.round(g.x)}, ${Math.round(g.y)}`,
+        `${getGroupMembers(g).length} items`,
       ].join(" · ")
     ),
-    section(
-      "Documents",
-      documents,
-      CANVAS_SUMMARY_LIMITS.documents,
-      (d) => `- [${d.id}] "${clip(d.title || "Untitled")}"`
+    section("Frames", frames, CANVAS_SUMMARY_LIMITS.frames, (f) =>
+      [
+        `- [${f.id}] "${clip(f.label)}"`,
+        f.route ? clip(f.route) : "(no route)",
+        `${Math.round(f.width)}×${Math.round(f.height)}`,
+        f.branchId ? `Workspace ${f.branchId}` : "no Workspace",
+        groupOf.get(f.id) && `Group ${groupOf.get(f.id)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    ),
+    section("Documents", documents, CANVAS_SUMMARY_LIMITS.documents, (d) =>
+      [
+        `- [${d.id}] "${clip(d.title || "Untitled")}"`,
+        groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     ),
     section(
       "Terminal Tabs",

@@ -29,6 +29,12 @@ export function isRoomChatId(chatId: string): boolean {
   return chatId.startsWith(ROOM_CHAT_ID_PREFIX)
 }
 
+/** The Room a Room Target chat id belongs to, or null for any other chat id. */
+export function roomIdOfRoomChat(chatId: string): string | null {
+  if (!isRoomChatId(chatId)) return null
+  return chatId.slice(ROOM_CHAT_ID_PREFIX.length) || null
+}
+
 /** The Room Target chat's identity record for `roomId`. */
 export function roomChatSession(
   roomId: string,

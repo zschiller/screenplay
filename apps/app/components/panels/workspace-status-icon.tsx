@@ -1,14 +1,7 @@
 "use client"
 
 import { useState, type SyntheticEvent } from "react"
-import {
-  AlertTriangle,
-  Copy,
-  GitBranch,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-} from "lucide-react"
+import { AlertTriangle, CircleDashed, CircleSmall, Copy } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -17,9 +10,7 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
-import { prStateColor } from "@/components/pr-state-color"
 import { useCloseWorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
   workspaceStatusLine,
@@ -42,42 +33,39 @@ const isolate = {
 
 function StateIcon({
   line,
-  context,
 }: {
   line: Exclude<WorkspaceStatusLine, { kind: "error" }>
-  context: StatusLineContext
 }) {
   // Progress uses the shared Spinner; the 9-dot GripSpinner is reserved for
-  // agent activity. A PR takes GitHub's state colour; a bare branch is muted.
-  // Spinners draw at 3.5 in a 4 box, so every row's label starts at the same x.
-  if (line.kind === "progress")
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        <Spinner className="size-3.5 text-sidebar-foreground/70" />
-      </span>
+  // agent activity. The PR is not a state: it sits at the row's end (#963).
+  const glyph =
+    line.kind === "progress" ? (
+      <Spinner className="size-3.5 text-sidebar-foreground/70" />
+    ) : line.state === "working" ? (
+      <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
+    ) : line.state === "stopped" ? (
+      // Lucide's dashed circle is drawn larger than CircleSmall; shrink it
+      // to about the same size (past the menu button's own svg size), with
+      // a heavier stroke so the line weight matches.
+      <CircleDashed
+        strokeWidth={2.6}
+        className="size-3! text-sidebar-foreground/50"
+      />
+    ) : (
+      <CircleSmall className="size-3.5 text-sidebar-foreground/50" />
     )
-  if (context.agentWorking)
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        <GripSpinner className="size-3.5 text-sidebar-foreground/70" />
-      </span>
-    )
-  const pr = context.pr
-  if (!pr) return <GitBranch className="size-4 text-sidebar-foreground/70" />
-  const Icon =
-    pr.state === "merged"
-      ? GitMerge
-      : pr.state === "closed"
-        ? GitPullRequestClosed
-        : GitPullRequest
-  return <Icon className={cn("size-4", prStateColor(pr.state))} />
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center">
+      {glyph}
+    </span>
+  )
 }
 
 /**
- * The leading icon of a Workspace row (#791): one glyph for its state. The
- * state in words ("Installing dependencies · 40s", "Agent working", "PR #482 ·
- * open") is in the row's Workspace hover card (#882). A PR icon takes GitHub's
- * state colour. A failure is the red triangle; clicking it opens a card titled
+ * The leading icon of a Workspace row (#791, #963): one glyph for its state
+ * only; its PR sits at the row's end. The state in words ("Installing
+ * dependencies · 40s", "Agent working", "Ready") is in the row's Workspace
+ * hover card (#882). A failure is the red triangle; clicking it opens a card titled
  * by the step that failed, with the error and Retry, Recreate and Copy error.
  */
 export function WorkspaceStatusIcon({
@@ -102,7 +90,7 @@ export function WorkspaceStatusIcon({
         aria-label={line.kind === "progress" ? line.step : line.text}
         className="flex shrink-0"
       >
-        <StateIcon line={line} context={context} />
+        <StateIcon line={line} />
       </span>
     )
   }

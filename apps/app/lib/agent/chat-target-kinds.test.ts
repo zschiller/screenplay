@@ -86,7 +86,7 @@ describe("room chat target", () => {
     expect(prompt).toContain("read_canvas")
   })
 
-  it("runs with read-only tools: the canvas, Workspaces, frames and documents", () => {
+  it("runs with the read tools and the arrange tools", () => {
     const room = {
       roomId: "room-1",
       readDoc: async () => {
@@ -99,11 +99,20 @@ describe("room chat target", () => {
     const tools = roomChatTarget.buildTools(room, { userId: "user-1" })
 
     expect(Object.keys(tools).sort()).toEqual([
+      "create_document",
+      "create_frames",
+      "list_changes",
+      "merge_groups",
+      "move_group",
+      "move_to_group",
       "read_canvas",
       "read_document",
       "read_workspace_chat",
       "read_workspace_diff",
       "read_workspace_file",
+      "remove",
+      "rename",
+      "undo_changes",
       "view_frame",
     ])
   })
