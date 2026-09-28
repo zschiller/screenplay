@@ -73,7 +73,8 @@ import {
 import { AgentChat } from "./agent-chat"
 import { LogsPanel } from "./logs-panel"
 import { TerminalTab } from "./terminal-tab"
-import { BranchBadge } from "@/components/branch-badge"
+import { BranchIdentity } from "@/components/branch-identity"
+import { branchTitle } from "@/lib/branch-title"
 import type {
   BranchData,
   ChatSessionData,
@@ -1330,11 +1331,13 @@ export function ChatPanel({
 function TargetPill({ target }: { target: ChatPanelTarget }) {
   if (target.kind === "agent") {
     return (
-      <BranchBadge
+      <BranchIdentity
+        title={branchTitle(target.agent)}
         branch={target.agent.ref}
         colorKey={target.agent.id}
         colorIndex={target.agent.colorIndex}
-        className="px-1.5 py-0 text-[11px]"
+        className="max-w-[18rem]"
+        titleClassName="text-sm font-medium"
       />
     )
   }
@@ -1407,7 +1410,7 @@ function TargetPicker({
                   return (
                     <CommandItem
                       key={a.id}
-                      value={`branch ${a.ref}`}
+                      value={`branch ${branchTitle(a)} ${a.ref}`}
                       onSelect={() => {
                         onSelectAgent(a.id)
                         setOpen(false)
@@ -1416,11 +1419,11 @@ function TargetPicker({
                       <Check
                         className={`shrink-0 ${isCurrent ? "" : "opacity-0"}`}
                       />
-                      <BranchBadge
+                      <BranchIdentity
+                        title={branchTitle(a)}
                         branch={a.ref}
                         colorKey={a.id}
                         colorIndex={a.colorIndex}
-                        className="px-1.5 py-0 text-[11px]"
                       />
                       {isBusy && <Spinner className="ml-auto size-3" />}
                     </CommandItem>

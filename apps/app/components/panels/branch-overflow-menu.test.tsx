@@ -105,6 +105,7 @@ function renderMenu(
         repo={repo}
         onPlay={vi.fn()}
         onRename={vi.fn()}
+        onRenameBranch={vi.fn()}
         onUpdateBranch={vi.fn()}
         onNewBranchFromHere={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
@@ -151,7 +152,7 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
     const bySection = Object.fromEntries(
       BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])
     )
-    expect(bySection.identity).toEqual(["rename", "color"])
+    expect(bySection.identity).toEqual(["rename", "rename-branch", "color"])
     expect(bySection.preview).toEqual(["play", "open-in-browser", "routes"])
     expect(bySection["branch-sandbox"]).toEqual([
       "new-branch-from-here",
@@ -186,6 +187,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     // should reproduce the skeleton's item order exactly.
     const expectedSequence = [
       "Rename",
+      "Rename git branch",
       "Color",
       "Open prototype player",
       "Open in browser",
@@ -301,6 +303,7 @@ function MenuToDialogHarness() {
           repo={repo}
           onPlay={vi.fn()}
           onRename={vi.fn()}
+          onRenameBranch={vi.fn()}
           onUpdateBranch={vi.fn()}
           onNewBranchFromHere={() => {
             setBase(branch.ref ?? null)

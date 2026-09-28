@@ -111,7 +111,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import { BranchBadge } from "@/components/branch-badge"
+import { BranchIdentity } from "@/components/branch-identity"
+import { branchTitle, sanitizeBranchTitle } from "@/lib/branch-title"
 import { GripSpinner } from "@/components/grip-spinner"
 import { RepoPicker, type RepoPickerSelection } from "@/components/repo-picker"
 import { RepoAddSettings } from "@/components/repo-add-settings"
@@ -1916,8 +1917,11 @@ export function RoomSidebar({
                                               <SidebarMenuItem>
                                                 <WithEditableRef>
                                                   {({
-                                                    ref: branchRef,
+                                                    ref: titleRef,
                                                     triggerEdit:
+                                                      triggerTitleRename,
+                                                    secondaryRef: branchRef,
+                                                    triggerSecondaryEdit:
                                                       triggerBranchRename,
                                                     onCloseAutoFocus:
                                                       onBranchMenuCloseAutoFocus,
@@ -2010,8 +2014,14 @@ export function RoomSidebar({
                                                               <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                                                             )}
                                                             {branch.ref ? (
-                                                              <BranchBadge
-                                                                ref={branchRef}
+                                                              <BranchIdentity
+                                                                ref={titleRef}
+                                                                branchRef={
+                                                                  branchRef
+                                                                }
+                                                                title={branchTitle(
+                                                                  branch
+                                                                )}
                                                                 branch={
                                                                   branch.ref
                                                                 }
@@ -2021,8 +2031,29 @@ export function RoomSidebar({
                                                                 colorIndex={
                                                                   branch.colorIndex
                                                                 }
-                                                                className="px-1.5 py-0 text-[11px]"
+                                                                titleClassName="text-[13px] font-medium"
+                                                                branchDisplay="editing"
                                                                 onRename={(
+                                                                  next
+                                                                ) => {
+                                                                  const title =
+                                                                    sanitizeBranchTitle(
+                                                                      next
+                                                                    )
+                                                                  if (
+                                                                    !title ||
+                                                                    title ===
+                                                                      branchTitle(
+                                                                        branch
+                                                                      )
+                                                                  )
+                                                                    return
+                                                                  onUpdateBranch(
+                                                                    branch.id,
+                                                                    { title }
+                                                                  )
+                                                                }}
+                                                                onRenameBranch={(
                                                                   next
                                                                 ) => {
                                                                   const sanitized =
@@ -2093,15 +2124,15 @@ export function RoomSidebar({
                                                             return (
                                                               <>
                                                                 {hasStats && (
-                                                                  <span className="flex items-center gap-1 px-1 font-mono text-[10px] md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
-                                                                    <span className="text-success">
+                                                                  <span className="flex items-center gap-1 px-1 font-mono text-[11px] text-muted-foreground md:group-focus-within/branch-row:hidden md:group-hover/branch-row:hidden md:group-has-data-[menu-visible]/slot:hidden">
+                                                                    <span>
                                                                       +
                                                                       {
                                                                         stats.additions
                                                                       }
                                                                     </span>
-                                                                    <span className="text-destructive">
-                                                                      -
+                                                                    <span>
+                                                                      −
                                                                       {
                                                                         stats.deletions
                                                                       }
@@ -2121,6 +2152,9 @@ export function RoomSidebar({
                                                                         onPlayBranch
                                                                       }
                                                                       onRename={
+                                                                        triggerTitleRename
+                                                                      }
+                                                                      onRenameBranch={
                                                                         triggerBranchRename
                                                                       }
                                                                       onUpdateBranch={
@@ -2213,11 +2247,13 @@ export function RoomSidebar({
                       <div>
                         <GitBranch className="shrink-0 text-sidebar-foreground/70" />
                         {activeBranchesDrag.branch.ref ? (
-                          <BranchBadge
+                          <BranchIdentity
+                            title={branchTitle(activeBranchesDrag.branch)}
                             branch={activeBranchesDrag.branch.ref}
                             colorKey={activeBranchesDrag.branch.id}
                             colorIndex={activeBranchesDrag.branch.colorIndex}
-                            className="px-1.5 py-0 text-[11px]"
+                            titleClassName="text-[13px] font-medium"
+                            branchDisplay="editing"
                           />
                         ) : (
                           <span className="truncate font-mono text-xs text-muted-foreground">
@@ -2658,21 +2694,40 @@ function WithEditableRef({
   children: (api: {
     ref: React.RefObject<EditableTextHandle | null>
     triggerEdit: () => void
+    /** A second inline editor on the same row (a Workspace's git ref beside
+     *  its title), started from the same menu. */
+    secondaryRef: React.RefObject<EditableTextHandle | null>
+    triggerSecondaryEdit: () => void
     onCloseAutoFocus: (e: Event) => void
   }) => React.ReactNode
 }) {
   const ref = useRef<EditableTextHandle | null>(null)
-  const pendingEditRef = useRef(false)
+  const secondaryRef = useRef<EditableTextHandle | null>(null)
+  const pendingEditRef = useRef<"primary" | "secondary" | null>(null)
   const triggerEdit = useCallback(() => {
-    pendingEditRef.current = true
+    pendingEditRef.current = "primary"
+  }, [])
+  const triggerSecondaryEdit = useCallback(() => {
+    pendingEditRef.current = "secondary"
   }, [])
   const onCloseAutoFocus = useCallback((e: Event) => {
-    if (!pendingEditRef.current) return
-    pendingEditRef.current = false
+    const pending = pendingEditRef.current
+    if (!pending) return
+    pendingEditRef.current = null
     e.preventDefault()
-    ref.current?.startEditing()
+    ;(pending === "primary" ? ref : secondaryRef).current?.startEditing()
   }, [])
-  return <>{children({ ref, triggerEdit, onCloseAutoFocus })}</>
+  return (
+    <>
+      {children({
+        ref,
+        triggerEdit,
+        secondaryRef,
+        triggerSecondaryEdit,
+        onCloseAutoFocus,
+      })}
+    </>
+  )
 }
 
 /** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the

@@ -113,7 +113,9 @@ the desktop **local** backend the limit is structural: each Branch is a git
 worktree of one shared clone, and git keeps one checkout per branch — so a ref
 already open (or checked out in the user's own clone) **fails loud with a named
 error**, never silently shares or steals a checkout. Rendered in the sidebar by
-its branch's name. Lives in the room's Y.Doc as the `branches` collection
+its **title** (`title`, generated from the seed or first-chat prompt and editable;
+untitled Branches show a readable form of the ref) beside an identity swatch
+whose palette excludes the status hues. Lives in the room's Y.Doc as the `branches` collection
 (`BranchData`).
 _Shown to users as_: "Workspace".
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run;

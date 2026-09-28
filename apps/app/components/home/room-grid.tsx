@@ -89,7 +89,7 @@ export function ThumbnailComposite({
                 style={style}
                 className={cn(
                   "absolute overflow-hidden",
-                  color ? color.badge : "bg-foreground/5"
+                  color ? color.tint : "bg-foreground/5"
                 )}
               />
             )

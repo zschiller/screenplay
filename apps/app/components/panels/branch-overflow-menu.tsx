@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode } from "react"
 import {
   ExternalLink,
+  GitBranch,
   GitBranchPlus,
   GitMerge,
   GitPullRequest,
@@ -43,6 +44,7 @@ import type { BranchData, RepoData } from "@/lib/types"
  */
 export type BranchMenuItemKey =
   | "rename"
+  | "rename-branch"
   | "color"
   | "play"
   | "open-in-browser"
@@ -79,7 +81,11 @@ export interface BranchMenuSection {
  * push Engine loop makes them redundant.
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
-  { id: "identity", label: "Identity", itemKeys: ["rename", "color"] },
+  {
+    id: "identity",
+    label: "Identity",
+    itemKeys: ["rename", "rename-branch", "color"],
+  },
   {
     id: "preview",
     label: "Preview",
@@ -98,8 +104,10 @@ export interface BranchOverflowMenuContentProps {
   branch: BranchData
   repo: RepoData
   onPlay: (branchId: string) => void
-  /** Opens the inline branch-name editor — already bound to this branch. */
+  /** Opens the inline title editor — already bound to this branch. */
   onRename: () => void
+  /** Opens the inline git-ref editor — already bound to this branch. */
+  onRenameBranch: () => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
   /**
    * Opens the create dialog seeded with this branch as the base and an empty
@@ -154,6 +162,7 @@ export function BranchOverflowMenuContent({
   repo,
   onPlay,
   onRename,
+  onRenameBranch,
   onUpdateBranch,
   onNewBranchFromHere,
   onRestartDevServer,
@@ -174,6 +183,12 @@ export function BranchOverflowMenuContent({
         Rename
       </DropdownMenuItem>
     ),
+    "rename-branch": (
+      <DropdownMenuItem disabled={!branch.ref} onClick={onRenameBranch}>
+        <GitBranch />
+        Rename git branch
+      </DropdownMenuItem>
+    ),
     color: (
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
@@ -191,7 +206,7 @@ export function BranchOverflowMenuContent({
           >
             {BRANCH_COLORS.map((c, i) => (
               <DropdownMenuRadioItem key={c.name} value={String(i)}>
-                <span className={cn("size-4 rounded-[3px]", c.swatch)} />
+                <span className={cn("size-2 rounded-[2px]", c.swatch)} />
                 <span className="capitalize">{c.name}</span>
               </DropdownMenuRadioItem>
             ))}

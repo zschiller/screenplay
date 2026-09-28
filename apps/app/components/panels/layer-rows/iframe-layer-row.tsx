@@ -15,7 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { EditableText } from "@workspace/ui/components/editable-text"
-import { BranchBadge } from "@/components/branch-badge"
+import { BranchSwatch } from "@/components/branch-identity"
+import { branchTitle } from "@/lib/branch-title"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
@@ -24,7 +25,7 @@ import type { LayerRowMenuProps, LayerRowProps } from "./types"
  *  contract doesn't carry — used to look up the Branch for the branch
  *  badge. The sidebar passes them in through a closure. */
 export interface IframeLayerRowExtraProps {
-  /** Branches indexed by id, for fast branch-badge lookup. */
+  /** Branches indexed by id, for the Workspace swatch lookup. */
   branchesById: ReadonlyMap<string, BranchData>
 }
 
@@ -43,6 +44,20 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
       : undefined
     const Icon = iframeLayerKind.Icon
     const label = iframeLayerKind.getLabel(item)
+
+    // A bound frame leads with its Workspace's swatch in the icon slot; an
+    // unbound one keeps the frame icon.
+    const leading = branch?.ref ? (
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <BranchSwatch
+          colorKey={branch.id}
+          colorIndex={branch.colorIndex}
+          label={branchTitle(branch)}
+        />
+      </span>
+    ) : (
+      <Icon className="shrink-0 text-sidebar-foreground/70" />
+    )
 
     const nameEditable = (
       <EditableText
@@ -71,15 +86,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             onActivate?.(item.id)
           }}
         >
-          <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {branch?.ref && (
-            <BranchBadge
-              branch={branch.ref}
-              colorKey={branch.id}
-              colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
-            />
-          )}
+          {leading}
           {nameEditable}
           {iframeLayerKind.renderRowAccessory?.(item)}
         </SidebarMenuButton>
@@ -99,15 +106,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             onActivate?.(item.id)
           }}
         >
-          <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {branch?.ref && (
-            <BranchBadge
-              branch={branch.ref}
-              colorKey={branch.id}
-              colorIndex={branch.colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-300"
-            />
-          )}
+          {leading}
           {nameEditable}
           {iframeLayerKind.renderRowAccessory?.(item)}
         </button>

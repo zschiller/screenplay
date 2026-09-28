@@ -104,11 +104,11 @@ describe("buildThumbnailManifest", () => {
     ])
     const manifest = buildThumbnailManifest(
       layouts,
-      [input("a", "Home", { branchKey: "branch-a", branchColorIndex: 7 })],
+      [input("a", "Home", { branchKey: "branch-a", branchColorIndex: 4 })],
       new Map()
     )
 
-    expect(manifest.frames[0]!.paletteIndex).toBe(7)
+    expect(manifest.frames[0]!.paletteIndex).toBe(4)
   })
 
   it("snapshots the hashed palette index when the Branch has no override", () => {
@@ -178,7 +178,11 @@ describe("buildThumbnailManifest", () => {
       ["a", layout("a", { x: 0, y: 0, width: 400, height: 300 })],
     ])
     // First build (no previous) lands at revision 1.
-    const first = buildThumbnailManifest(layouts, [input("a", "Home")], new Map())
+    const first = buildThumbnailManifest(
+      layouts,
+      [input("a", "Home")],
+      new Map()
+    )
     expect(first.revision).toBe(1)
 
     // A layout-only rebuild (no fresh captures) still advances the revision, so
@@ -354,7 +358,7 @@ describe("buildThumbnailManifest", () => {
         layouts,
         [
           // `a` was renamed and recolored on the canvas; no new capture this round.
-          input("a", "Dashboard", { branchColorIndex: 9 }),
+          input("a", "Dashboard", { branchColorIndex: 5 }),
           input("b", "Settings"),
         ],
         new Map(),
@@ -363,7 +367,7 @@ describe("buildThumbnailManifest", () => {
 
       expect(next.frames[0]).toMatchObject({
         label: "Dashboard",
-        paletteIndex: 9,
+        paletteIndex: 5,
         // ...while still carrying the retained image.
         capture: capture("a", 1000),
       })

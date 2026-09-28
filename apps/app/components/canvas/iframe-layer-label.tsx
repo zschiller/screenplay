@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react"
 import { Braces, Check, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
-import { BranchBadge } from "@/components/branch-badge"
+import { BranchIdentity, BranchSwatch } from "@/components/branch-identity"
+import { branchTitle, humanizeRef } from "@/lib/branch-title"
 import {
   Popover,
   PopoverContent,
@@ -75,6 +76,12 @@ export function IframeLayerLabel({
   onSelectFrame,
   onRename,
 }: IframeLayerLabelProps) {
+  const boundBranch = assignableBranches?.find((a) => a.id === branchId)
+  const boundTitle = boundBranch
+    ? branchTitle(boundBranch)
+    : branch
+      ? humanizeRef(branch)
+      : undefined
   return (
     <LayerLabelRow
       title={label}
@@ -88,21 +95,15 @@ export function IframeLayerLabel({
           <BranchPicker
             branch={branch}
             currentBranchId={branchId}
-            colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
+            boundBranch={boundBranch}
             assignableBranches={assignableBranches ?? []}
             onAssignBranch={onAssignBranch}
           />
-        ) : branch ? (
-          <BranchBadge
-            branch={branch}
+        ) : branch && branchId ? (
+          <BranchSwatch
             colorKey={branchId}
-            colorIndex={
-              assignableBranches?.find((a) => a.id === branchId)?.colorIndex
-            }
-            className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 hover:max-w-[30rem] hover:delay-500"
+            colorIndex={boundBranch?.colorIndex}
+            label={boundTitle}
           />
         ) : null
       }
@@ -267,8 +268,8 @@ function RoutePicker({
 interface BranchPickerProps {
   branch?: string
   currentBranchId?: string
-  colorKey?: string
-  colorIndex?: number
+  /** The bound Branch's record, when it's in `assignableBranches`. */
+  boundBranch?: BranchData
   assignableBranches: BranchData[]
   onAssignBranch: (branchId: string) => void
 }
@@ -323,8 +324,7 @@ function SharedStateIndicator({ sharedState }: SharedStateIndicatorProps) {
 function BranchPicker({
   branch,
   currentBranchId,
-  colorKey,
-  colorIndex,
+  boundBranch,
   assignableBranches,
   onAssignBranch,
 }: BranchPickerProps) {
@@ -342,12 +342,13 @@ function BranchPicker({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {branch ? (
-            <BranchBadge
-              branch={branch}
-              colorKey={colorKey}
-              colorIndex={colorIndex}
-              className="max-w-[1.25rem] shrink-0 px-1 py-0 text-[10px] transition-[max-width] duration-200 group-hover:max-w-[30rem] group-hover:delay-500 group-data-[state=open]:max-w-[30rem]"
+          {branch && currentBranchId ? (
+            <BranchSwatch
+              colorKey={currentBranchId}
+              colorIndex={boundBranch?.colorIndex}
+              label={
+                boundBranch ? branchTitle(boundBranch) : humanizeRef(branch)
+              }
             />
           ) : (
             <span className="truncate text-xs text-muted-foreground">
@@ -381,7 +382,7 @@ function BranchPicker({
                 return (
                   <CommandItem
                     key={a.id}
-                    value={a.ref}
+                    value={`${branchTitle(a)} ${a.ref}`}
                     onSelect={() => {
                       onAssignBranch(a.id)
                       setOpen(false)
@@ -390,11 +391,11 @@ function BranchPicker({
                     <Check
                       className={`shrink-0 ${a.id === currentBranchId ? "" : "opacity-0"}`}
                     />
-                    <BranchBadge
+                    <BranchIdentity
+                      title={branchTitle(a)}
                       branch={a.ref}
                       colorKey={a.id}
                       colorIndex={a.colorIndex}
-                      className="px-1.5 py-0 text-[11px]"
                     />
                     {isBusy && <Spinner className="ml-auto size-3" />}
                   </CommandItem>

@@ -73,7 +73,11 @@ export type BranchData = {
   /** Set true by the parallel-create flow, which defers iframe-layer seeding until `previewDomain` is known.
    *  The deferred-seed effect seeds once and clears the flag, so deleting the last frame never re-seeds. */
   pendingIframeLayerSeed?: boolean
-  /** Manual override into `BRANCH_COLORS`. When unset, the badge color is hashed from `id`. */
+  /** Human title shown as the Workspace's name ("Mobile checkout"), with
+   *  `ref` as secondary text. Generated from the seed prompt (or the first
+   *  chat's prompt) and editable; unset falls back to `ref`. */
+  title?: string
+  /** Manual override into `BRANCH_COLORS`. When unset, the swatch color is hashed from `id`. */
   colorIndex?: number
   /** Display order within its Repo's branch list in the in-room sidebar.
    *  Lower values render first; unset falls back to `createdAt` (oldest-first). */

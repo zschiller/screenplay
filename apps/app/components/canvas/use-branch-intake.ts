@@ -450,6 +450,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               statusMessage: "Creating branch…",
               createdAt: Date.now(),
               autoNamedBranch: plan.autoNamedBranch,
+              ...(plan.seedChat ? { title: label } : {}),
             },
             // Seed a Chat Session only for prompted rows; bare rows get none.
             ...(plan.seedChat ? { chat: { label, model } } : {}),

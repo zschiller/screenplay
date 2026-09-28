@@ -228,8 +228,18 @@ export async function POST(req: Request) {
       renamedLabel = chatLabel
       // Persist the label directly so it survives a client re-render that
       // momentarily clears the broadcast callback.
-      await mutateRoomDoc(roomId, ({ chatSessions }) => {
+      await mutateRoomDoc(roomId, ({ chatSessions, branches }) => {
         chatSessions.update(chatId, { label: chatLabel })
+        // The first chat on an untitled Branch also titles the Workspace, so
+        // a Branch opened bare still earns a human title from its first prompt.
+        if (shouldNameBranch) {
+          const target = branches
+            .toArray()
+            .find((b) => b.sandboxName === sandboxName)
+          if (target && !target.title) {
+            branches.update(target.id, { title: chatLabel })
+          }
+        }
       })
     }
   }
