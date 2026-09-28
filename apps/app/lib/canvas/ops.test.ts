@@ -1346,3 +1346,166 @@ describe("Group Workspace (#868)", () => {
     expect(collections.iframeLayerGroups.get(groupId)?.branchId).toBe("agent-2")
   })
 })
+
+describe("Moving frames between Groups (#870)", () => {
+  // Two Groups on different Workspaces: "checkout" on agent-1 (with an
+  // exception on agent-3) and "cart" on agent-2.
+  function twoGroups() {
+    const h = makeHarness()
+    const { collections } = h
+    const frame = (id: string, branchId: string, route: string) =>
+      collections.iframeLayers.set(
+        id,
+        baseLayer(id, {
+          branchId,
+          route,
+          iframeState: { step: id },
+        })
+      )
+    frame("cart", "agent-1", "/cart")
+    frame("pay", "agent-1", "/pay")
+    frame("gift", "agent-3", "/gift")
+    frame("empty", "agent-2", "/empty")
+    frame("mobile", "agent-2", "/mobile")
+    seedGroup(collections, "checkout", [
+      { kind: "iframe-layer", id: "cart" },
+      { kind: "iframe-layer", id: "pay" },
+      { kind: "iframe-layer", id: "gift" },
+    ])
+    collections.iframeLayerGroups.update("checkout", { branchId: "agent-1" })
+    seedGroup(collections, "cart-group", [
+      { kind: "iframe-layer", id: "empty" },
+      { kind: "iframe-layer", id: "mobile" },
+    ])
+    collections.iframeLayerGroups.update("cart-group", { branchId: "agent-2" })
+    return h
+  }
+
+  it("gives a following frame dragged into a Group that Group's Workspace", () => {
+    const { ops, collections } = twoGroups()
+
+    ops.moveLayerToGroup("pay", "cart-group", 0)
+
+    const pay = collections.iframeLayers.get("pay")
+    expect(pay?.branchId).toBe("agent-2")
+    expect(pay?.route).toBe("/pay")
+    expect(pay?.iframeState).toEqual({ step: "pay" })
+    expect(collections.iframeLayerGroups.get("cart-group")?.branchId).toBe(
+      "agent-2"
+    )
+    expect(collections.iframeLayerGroups.get("checkout")?.branchId).toBe(
+      "agent-1"
+    )
+  })
+
+  it("keeps an exception dragged into a Group on its own Workspace", () => {
+    const { ops, collections } = twoGroups()
+
+    ops.moveLayerToGroup("gift", "cart-group")
+
+    expect(collections.iframeLayers.get("gift")?.branchId).toBe("agent-3")
+    expect(collections.iframeLayerGroups.get("cart-group")?.branchId).toBe(
+      "agent-2"
+    )
+  })
+
+  it("keeps a Group's Workspace when its leftmost frame leaves", () => {
+    const { ops, collections } = twoGroups()
+    // A Group from an older client, whose Workspace is still its leftmost
+    // frame's: moving that frame away mustn't turn the rest into exceptions.
+    collections.iframeLayerGroups.update("checkout", { branchId: undefined })
+
+    ops.moveLayerToGroup("cart", "cart-group")
+
+    expect(collections.iframeLayerGroups.get("checkout")?.branchId).toBe(
+      "agent-1"
+    )
+    expect(collections.iframeLayers.get("pay")?.branchId).toBe("agent-1")
+  })
+
+  it("keeps the Workspace a frame had when it's dragged out on its own", () => {
+    const { ops, collections } = twoGroups()
+
+    const fromFollower = ops.splitToNewGroup(["pay"], { x: 0, y: 0 })
+    const fromException = ops.splitToNewGroup(["gift"], { x: 0, y: 0 })
+
+    expect(collections.iframeLayers.get("pay")?.branchId).toBe("agent-1")
+    expect(collections.iframeLayerGroups.get(fromFollower)?.branchId).toBe(
+      "agent-1"
+    )
+    expect(collections.iframeLayers.get("gift")?.branchId).toBe("agent-3")
+    expect(collections.iframeLayerGroups.get(fromException)?.branchId).toBe(
+      "agent-3"
+    )
+    expect(collections.iframeLayerGroups.get("checkout")?.branchId).toBe(
+      "agent-1"
+    )
+  })
+
+  it("keeps the dropped-onto Group's Workspace on merge; the other Group's frames become exceptions", () => {
+    const { ops, collections } = twoGroups()
+
+    ops.mergeGroups("cart-group", "checkout")
+
+    expect(collections.iframeLayerGroups.get("checkout")?.branchId).toBe(
+      "agent-1"
+    )
+    expect(collections.iframeLayers.get("empty")?.branchId).toBe("agent-2")
+    expect(collections.iframeLayers.get("mobile")?.branchId).toBe("agent-2")
+    expect(collections.iframeLayers.get("gift")?.branchId).toBe("agent-3")
+    expect(collections.iframeLayers.get("empty")?.route).toBe("/empty")
+  })
+
+  it("treats merging a Group of one frame as dragging that frame in", () => {
+    const { ops, collections } = twoGroups()
+    const solo = ops.splitToNewGroup(["pay"], { x: 0, y: 0 })
+
+    ops.mergeGroups(solo, "cart-group")
+
+    const pay = collections.iframeLayers.get("pay")
+    expect(pay?.branchId).toBe("agent-2")
+    expect(pay?.route).toBe("/pay")
+    expect(pay?.iframeState).toEqual({ step: "pay" })
+    expect(collections.iframeLayerGroups.get(solo)).toBeUndefined()
+  })
+
+  it("gives a documents-only Group no Workspace; the first frame added sets it", () => {
+    const { ops, collections } = twoGroups()
+    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+    seedGroup(collections, "notes", [{ kind: "markdown-layer", id: "doc-1" }])
+
+    ops.moveLayerToGroup("pay", "notes")
+
+    expect(collections.iframeLayers.get("pay")?.branchId).toBe("agent-1")
+    expect(collections.iframeLayerGroups.get("notes")?.branchId).toBe("agent-1")
+
+    // Merging a frames Group onto a documents-only one: the documents-only
+    // Group had nothing to keep, so it takes the other Group's Workspace.
+    collections.markdownLayers.set("doc-2", baseDoc("doc-2"))
+    seedGroup(collections, "notes-2", [{ kind: "markdown-layer", id: "doc-2" }])
+    ops.mergeGroups("cart-group", "notes-2")
+    expect(collections.iframeLayerGroups.get("notes-2")?.branchId).toBe(
+      "agent-2"
+    )
+  })
+
+  it("clears a Group's Workspace when its last frame leaves", () => {
+    const { ops, collections } = twoGroups()
+    collections.markdownLayers.set("doc-1", baseDoc("doc-1"))
+    seedGroup(collections, "mixed", [
+      { kind: "iframe-layer", id: "cart" },
+      { kind: "markdown-layer", id: "doc-1" },
+    ])
+    collections.iframeLayerGroups.update("checkout", {
+      members: [
+        { kind: "iframe-layer", id: "pay" },
+        { kind: "iframe-layer", id: "gift" },
+      ],
+    })
+    collections.iframeLayerGroups.update("mixed", { branchId: "agent-1" })
+
+    ops.moveLayerToGroup("cart", "checkout")
+
+    expect(collections.iframeLayerGroups.get("mixed")?.branchId).toBeUndefined()
+  })
+})

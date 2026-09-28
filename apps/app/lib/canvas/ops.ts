@@ -9,6 +9,7 @@ import {
   nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { groupBranchId, joinedFrameBranch } from "@/lib/canvas/group-workspace"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import {
@@ -314,14 +315,20 @@ export type CanvasOps = {
    * `targetGroupId` at `index` (appended when `index` is omitted), pruning the
    * source Group if the move empties it. When source and target are the same
    * Group this reorders the Member to `index`. No-op if the layer or target is
-   * missing.
+   * missing. A frame that followed its old Group takes the target's Workspace,
+   * keeping its route and state; an exception keeps its own; a target with no
+   * Workspace takes the frame's (#870).
    */
   moveLayerToGroup(layerId: string, targetGroupId: string, index?: number): void
   /**
    * Merge the source Group into the target: append every source Member onto
    * the target's row and prune the emptied source. The target keeps its
    * world-space origin. No-op if either Group is missing, they are the same,
-   * or the source is empty.
+   * or the source is empty. The merged Group keeps the target's Workspace
+   * (the source's when the target has none) and every frame keeps what it
+   * shows, so the source's frames on another Workspace become exceptions. A
+   * source of one frame is a frame dragged in, as in {@link moveLayerToGroup}
+   * (#870).
    */
   mergeGroups(sourceGroupId: string, targetGroupId: string): void
   /**
@@ -329,6 +336,8 @@ export type CanvasOps = {
    * the given order — into a fresh Group anchored at `anchor` (canvas-space),
    * pruning any source Group the split empties. Returns the new Group's id.
    * The caller owns screen→canvas conversion and placement of `anchor`.
+   * Every frame keeps the Workspace it had; the new Group takes its leftmost
+   * frame's (#870).
    */
   splitToNewGroup(memberIds: string[], anchor: { x: number; y: number }): string
   /**
@@ -388,6 +397,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (remaining.length === before.length) continue
       collections.iframeLayerGroups.update(group.id, { members: remaining })
       pruneIfEmpty(group.id)
+      clearBranchIfNoFrames(group.id)
     }
   }
 
@@ -398,6 +408,55 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (group.branchId && branchIds.has(group.branchId)) {
         collections.iframeLayerGroups.update(group.id, { branchId: undefined })
       }
+    }
+  }
+
+  // The Workspace a Group shows right now, fallback included.
+  function currentGroupBranch(group: IframeLayerGroupData): string | undefined {
+    return groupBranchId(group, collections.iframeLayers)
+  }
+
+  // Before a move rearranges a Group, write down the Workspace it shows so a
+  // leftmost-frame fallback can't shift under the frames that stay (#870).
+  function pinGroupBranch(group: IframeLayerGroupData): void {
+    const branchId = currentGroupBranch(group)
+    if (branchId && !group.branchId) {
+      collections.iframeLayerGroups.update(group.id, { branchId })
+    }
+  }
+
+  // A Group holding only documents has no Workspace (#870): the next frame to
+  // join it sets one. Caller must already be inside a `batch`.
+  function clearBranchIfNoFrames(groupId: string): void {
+    const group = collections.iframeLayerGroups.get(groupId)
+    if (!group?.branchId) return
+    if (getGroupMembers(group).some((m) => m.kind === "iframe-layer")) return
+    collections.iframeLayerGroups.update(groupId, { branchId: undefined })
+  }
+
+  // A frame joining `target` from a Group whose Workspace was `fromBranch`
+  // (#870): it shows `joinedFrameBranch`, keeping its route and state, and a
+  // Group with no Workspace yet takes the frame's. Caller must already be
+  // inside a `batch`, with `target` pinned.
+  function joinGroupWorkspace(
+    layerId: string,
+    fromBranch: string | undefined,
+    target: IframeLayerGroupData
+  ): void {
+    const frame = collections.iframeLayers.get(layerId)
+    if (!frame) return
+    const targetBranch = currentGroupBranch(target)
+    if (!targetBranch) {
+      if (frame.branchId) {
+        collections.iframeLayerGroups.update(target.id, {
+          branchId: frame.branchId,
+        })
+      }
+      return
+    }
+    const branchId = joinedFrameBranch(frame, fromBranch, targetBranch)
+    if (branchId !== frame.branchId) {
+      collections.iframeLayers.update(layerId, { branchId })
     }
   }
 
@@ -989,11 +1048,21 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         ...targetMembers.slice(at),
       ]
 
+      pinGroupBranch(source)
+      pinGroupBranch(target)
+      if (source.id !== target.id && member.kind === "iframe-layer") {
+        joinGroupWorkspace(
+          layerId,
+          currentGroupBranch(source),
+          collections.iframeLayerGroups.get(target.id)!
+        )
+      }
       collections.iframeLayerGroups.update(source.id, {
         members: sourceRemaining,
       })
       collections.iframeLayerGroups.update(target.id, { members: nextTarget })
       pruneIfEmpty(source.id)
+      clearBranchIfNoFrames(source.id)
     })
   }
 
@@ -1005,6 +1074,25 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       if (!source || !target) return
       const sourceMembers = getGroupMembers(source)
       if (sourceMembers.length === 0) return
+      // The merged Group keeps the Workspace of the Group dropped onto, or
+      // takes the source's when it had none (documents only). Every frame
+      // keeps what it shows, so the source's frames on another Workspace
+      // become exceptions — except a lone frame, which is a frame dragged
+      // in and follows its new Group (#870).
+      pinGroupBranch(target)
+      const only = sourceMembers.length === 1 ? sourceMembers[0]! : undefined
+      if (only?.kind === "iframe-layer") {
+        joinGroupWorkspace(
+          only.id,
+          currentGroupBranch(source),
+          collections.iframeLayerGroups.get(target.id)!
+        )
+      } else if (!currentGroupBranch(target)) {
+        const branchId = currentGroupBranch(source)
+        if (branchId) {
+          collections.iframeLayerGroups.update(target.id, { branchId })
+        }
+      }
       collections.iframeLayerGroups.update(target.id, {
         members: [...getGroupMembers(target), ...sourceMembers],
       })
@@ -1033,6 +1121,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         }
         if (!touched) continue
         touchedSources.add(group.id)
+        pinGroupBranch(group)
         collections.iframeLayerGroups.update(group.id, {
           members: members.filter((m) => !idSet.has(m.id)),
         })
@@ -1054,7 +1143,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         members: newMembers,
         ...(branchId ? { branchId } : {}),
       })
-      for (const sourceId of touchedSources) pruneIfEmpty(sourceId)
+      for (const sourceId of touchedSources) {
+        pruneIfEmpty(sourceId)
+        clearBranchIfNoFrames(sourceId)
+      }
     })
     return newGroupId
   }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
-import { groupBranchId, isWorkspaceException } from "./group-workspace"
+import {
+  groupBranchId,
+  isWorkspaceException,
+  mergePreviewBranch,
+} from "./group-workspace"
 
 const frames = new Map([
   ["a", { branchId: "ws-1" }],
@@ -113,5 +117,47 @@ describe("on-load conversion", () => {
     // Frames keep the Workspace they showed; f1 is now an exception.
     expect(c.iframeLayers.get("f1")?.branchId).toBe("ws-1")
     expect(c.iframeLayers.get("f2")?.branchId).toBe("ws-2")
+  })
+})
+
+describe("mergePreviewBranch (#870)", () => {
+  const frames = new Map([
+    ["solo", { branchId: "agent-1" }],
+    ["a", { branchId: "agent-2" }],
+    ["b", { branchId: "agent-2" }],
+  ])
+  const group = (ids: string[], branchId?: string) => ({
+    branchId,
+    members: ids.map((id) => ({ kind: "iframe-layer" as const, id })),
+  })
+
+  it("shows a lone frame the Workspace of the Group it's dragged onto", () => {
+    expect(
+      mergePreviewBranch(
+        group(["solo"], "agent-1"),
+        group(["a", "b"], "agent-2"),
+        frames
+      )
+    ).toEqual({ layerId: "solo", branchId: "agent-2" })
+  })
+
+  it("changes nothing for a larger Group, a same-Workspace target or a target with none", () => {
+    expect(
+      mergePreviewBranch(
+        group(["a", "b"], "agent-2"),
+        group(["solo"], "agent-1"),
+        frames
+      )
+    ).toBeUndefined()
+    expect(
+      mergePreviewBranch(
+        group(["a"], "agent-2"),
+        group(["b"], "agent-2"),
+        frames
+      )
+    ).toBeUndefined()
+    expect(
+      mergePreviewBranch(group(["solo"], "agent-1"), { members: [] }, frames)
+    ).toBeUndefined()
   })
 })
