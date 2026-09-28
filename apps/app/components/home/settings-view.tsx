@@ -11,6 +11,7 @@ import {
   AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button, buttonVariants } from "@workspace/ui/components/button"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 import { signOut, useAppSession } from "@/lib/auth-client"
 import { getTauriInvoke } from "@/lib/desktop/tauri-bridge"
@@ -215,25 +216,16 @@ function ThemeToggle() {
   return (
     <div className="flex items-center gap-3">
       <span className="w-28 shrink-0 text-sm">Theme</span>
-      <div className="flex gap-2">
-        {THEMES.map(({ value, label, icon: Icon }) => {
-          const active = mounted && theme === value
-          return (
-            <Button
-              key={value}
-              type="button"
-              variant={active ? "default" : "outline"}
-              size="sm"
-              aria-pressed={active}
-              onClick={() => setTheme(value)}
-              className={cn(!active && "text-muted-foreground")}
-            >
+      <Tabs value={mounted ? (theme ?? "") : ""} onValueChange={setTheme}>
+        <TabsList aria-label="Theme">
+          {THEMES.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value}>
               <Icon />
               {label}
-            </Button>
-          )
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
     </div>
   )
 }
