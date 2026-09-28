@@ -700,12 +700,15 @@ export function ThreadView({
   getDocumentEditor,
   onClose,
   onMarkUnread,
+  actionsStart,
 }: {
   thread: ThreadWithComments
   currentUserId: string | null
   getDocumentEditor?: (id: string) => Editor | undefined
   onClose: () => void
   onMarkUnread: () => void
+  /** Shown at the start of the actions row, level with Resolve. */
+  actionsStart?: React.ReactNode
 }) {
   const [reply, setReply] = useState("")
   const [pending, start] = useTransition()
@@ -727,6 +730,9 @@ export function ThreadView({
         </div>
       )}
       <div className="flex items-center justify-end gap-1 border-b border-border px-1.5 py-1">
+        {actionsStart && (
+          <div className="mr-auto min-w-0 pl-1.5">{actionsStart}</div>
+        )}
         <IconButton
           label="Resolve thread"
           disabled={pending}

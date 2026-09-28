@@ -103,24 +103,24 @@ export function CommentsMenu({
       <PopoverContent align="end" className="w-80 gap-0 p-0">
         {openThread ? (
           <>
-            <div className="flex items-center gap-1 border-b border-border px-1.5 py-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 px-1.5"
+            <div className="flex border-b border-border px-3 py-2">
+              <button
+                type="button"
+                className="-ml-1 flex items-center gap-0.5 rounded-sm font-medium outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setOpenThreadId(null)}
               >
-                <ChevronLeft />
+                <ChevronLeft className="size-4" />
                 Comments
-              </Button>
+              </button>
             </div>
-            <DetachedNote
-              thread={openThread}
-              placement={placements.get(openThread.id)}
-              className="px-3 pt-2 pb-1"
-            />
             <ThreadView
               thread={openThread}
+              actionsStart={
+                <DetachedNote
+                  thread={openThread}
+                  placement={placements.get(openThread.id)}
+                />
+              }
               currentUserId={session?.user.id ?? null}
               getDocumentEditor={getDocumentEditor}
               onClose={() => setOpenThreadId(null)}
